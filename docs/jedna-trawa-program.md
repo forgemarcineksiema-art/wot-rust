@@ -113,3 +113,16 @@ generator — locks travel, they do not die.
   per tuft vs the old 48 / 48 — the interleaved capture reads the ring delta at +0.02 ms p50
   (inside noise); no measurable regression. Locks rewritten: pointed/arced/serrated/capped,
   wind-lane monotonicity; tuft budget raised 150 → 180 indices with the P0 number cited.
+- 2026-08-05 — **P3 landed (pulled ahead of P2)**: the tents are dead. Costume B is baked
+  from the near ring's OWN candidate stream (`CellStream` + `MeadowGround::tuft_ground`
+  shared; one seed, one acceptance) as its first-N standing prefix — a far card can only
+  stand where a near tuft stands, with its tallest tooth EXACTLY the near tuft's tallest
+  blade at that scale (`TUFT_MESH_TALLEST_M` × size, one-number height continuity; the old
+  tents were fixed 0.55–0.85 m, TALLER than the blades they claimed to continue). Geometry:
+  two crossed serrated planes, peak–valley–peak, 10 verts / 12 tris (was 8 / 8). The near
+  ring itself now folds the mirror like the meadow always did — the whole population is
+  mirror-fair from one south-half stream. Locks: unification (far ⊂ near, bit-tolerant
+  roots + height), serration (no flat tent tops), ring mirror-fairness, sway=height×0.3
+  collapse contract; the count band and D19/crater/road locks migrated. Measured: costume B
+  Δ −0.07 ms p50 (noise — still GPU-free), conjure 672 µs (no fold regression), full-scene
+  work ~16.7 ms p50. P2 (species) now flows into BOTH costumes through the shared stream.

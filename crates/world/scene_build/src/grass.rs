@@ -25,11 +25,12 @@ pub const GRASS_RADIUS_M: f32 = 48.0;
 /// four-metre cache step, leaving headroom for a render frame that overshoots the threshold.
 pub const GRASS_CACHE_MARGIN_M: f32 = 6.0;
 pub const GRASS_CACHE_RADIUS_M: f32 = GRASS_RADIUS_M + GRASS_CACHE_MARGIN_M;
-/// Scatter cell edge; tufts are conjured per cell from the cell's own hash.
-const CELL_M: f32 = 8.0;
+/// Scatter cell edge; tufts are conjured per cell from the cell's own hash. Shared with the
+/// far-tuft bake (`grass_cards`): both costumes read the SAME cells.
+pub(crate) const CELL_M: f32 = 8.0;
 /// Fixed world population ceiling per 8 m cell. Vegetation acceptance can only remove from
 /// this deterministic candidate sequence; camera movement never changes a cell's population.
-const CELL_TUFT_CANDIDATES: u32 = 28;
+pub(crate) const CELL_TUFT_CANDIDATES: u32 = 28;
 /// Full-vegetation population budget for the 54 m cache disc. This is a verification guard,
 /// not a runtime crop: hard truncation would reintroduce a moving wall at the cache boundary.
 pub const MAX_GRASS_INSTANCES: usize = 4_800;
@@ -37,6 +38,13 @@ pub const MAX_GRASS_INSTANCES: usize = 4_800;
 const MIN_VEG_WEIGHT: f32 = 0.35;
 /// Standing water drowns the tufts.
 const MAX_WATER_DEPTH_M: f32 = 0.05;
+/// A crater's kill zone: nothing grows in the bowl or on the fresh spoil. One factor for
+/// BOTH costumes — a burst that mows the near ring mows the far meadow identically.
+pub(crate) const CRATER_KILL_FACTOR: f32 = 1.45;
+/// The tallest blade the kernel emits, mesh-local (locked to the mesh by test). The far
+/// costume's peak height is exactly this times the candidate's scale — height continuity
+/// across the hand-off is this single number.
+pub(crate) const TUFT_MESH_TALLEST_M: f32 = 0.34;
 
 /// The honesty cap (Jedna Trawa D1): no grass, at any instance scale, stands taller than
 /// this. There is no camouflage mechanic, so grass that hid a tank would lie about gameplay.
@@ -184,11 +192,118 @@ pub(crate) fn pull_toward_clump(
 }
 
 /// The meadow's baldness field: low-frequency world-anchored noise. Sample it at the
-/// FOLDED z (`z.min(extent_z - z)`) — the card meadow mirrors its south-half decisions
-/// north, and the near ring samples true positions; without the fold the two systems'
-/// bare patches would disagree across the axis and pop against each other.
+/// FOLDED z (`z.min(extent_z - z)`) — the whole population mirrors its south-half
+/// decisions north, so the field's bare patches agree across the axis by construction.
 pub(crate) fn meadow_baldness(x: f32, z_folded: f32) -> f32 {
     terrain::value_noise(x / 31.0, z_folded / 31.0)
+}
+
+/// One candidate drawn from a cell's stream: a would-be tuft with every per-tuft lane the
+/// population owns. Whether it STANDS is decided later, per emitted position, by
+/// [`tuft_ground`] — the stream itself never depends on the eye or the map state.
+pub(crate) struct TuftCandidate {
+    pub x: f32,
+    pub z: f32,
+    pub yaw: f32,
+    pub size: f32,
+    pub tone: f32,
+    pub vegetation_lane: f32,
+}
+
+/// THE candidate stream (Jedna Trawa P3): one deterministic per-cell sequence that BOTH
+/// costumes read — the near ring conjures full tufts from it, the far bake reads the same
+/// cells in the same order and can therefore only stand a card where a tuft stands. Lane
+/// order is frozen by the unification and anti-streaming locks: cell_dry, clump centres,
+/// then per candidate raw position, yaw, size, tone, vegetation lane.
+pub(crate) struct CellStream {
+    seed: u64,
+    origin_x: f32,
+    origin_z: f32,
+    pub cell_dry: f32,
+    centres: [(f32, f32); 3],
+    centre_count: usize,
+}
+
+impl CellStream {
+    pub(crate) fn new(cx: i32, cz: i32) -> Self {
+        let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ (cz as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
+            ^ 0x6265_7472_6177_6121;
+        // The cell's own dryness lane: tufts lean grass or straw per plot, echoing the
+        // shader's field quilt without resampling it.
+        let cell_dry = game_core::math::next_hash_unit(&mut seed);
+        // D7: grass grows in CLUMPS around 2–3 hash centres, not uniformly at random.
+        let (centres, centre_count) = clump_centres(&mut seed);
+        Self {
+            seed,
+            origin_x: cx as f32 * CELL_M,
+            origin_z: cz as f32 * CELL_M,
+            cell_dry,
+            centres,
+            centre_count,
+        }
+    }
+
+    pub(crate) fn next_candidate(&mut self) -> TuftCandidate {
+        let raw_x = game_core::math::next_hash_unit(&mut self.seed) * CELL_M;
+        let raw_z = game_core::math::next_hash_unit(&mut self.seed) * CELL_M;
+        let yaw = game_core::math::next_hash_unit(&mut self.seed) * std::f32::consts::TAU;
+        let size =
+            TUFT_SCALE_MIN + game_core::math::next_hash_unit(&mut self.seed) * TUFT_SCALE_SPAN;
+        let tone = game_core::math::next_hash_unit(&mut self.seed);
+        let vegetation_lane = game_core::math::next_hash_unit(&mut self.seed);
+        // The pull is a convex combination of two in-cell points — the candidate stays in
+        // its cell, so every per-cell contract survives unchanged.
+        let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &self.centres, self.centre_count);
+        TuftCandidate {
+            x: self.origin_x + local_x,
+            z: self.origin_z + local_z,
+            yaw,
+            size,
+            tone,
+            vegetation_lane,
+        }
+    }
+}
+
+/// The ground both costumes stand on: one bundle of the map facts acceptance needs, so the
+/// ONE rule below is called identically by the near ring and the far bake.
+pub(crate) struct MeadowGround<'a> {
+    pub maps: &'a TerrainGroundMaps,
+    pub heightmap: &'a HeightMap,
+    pub water: Option<WaterBody>,
+    pub cover: &'a [terrain::StaticCoverObject],
+}
+
+impl MeadowGround<'_> {
+    /// The ONE acceptance rule: does a tuft stand at this exact position? Vegetation is
+    /// sampled at the candidate (with its stochastic lane, so partial splat weights thin
+    /// the field instead of drawing hard cell borders), craters kill, cover floors exclude,
+    /// water drowns. Both costumes call this — a far card cannot stand where the near ring
+    /// would refuse.
+    pub(crate) fn tuft_ground(
+        &self,
+        craters: &[(f32, f32, f32)],
+        x: f32,
+        z: f32,
+        vegetation_lane: f32,
+    ) -> Option<f32> {
+        let veg = vegetation_weight(self.maps, x, z);
+        if veg < MIN_VEG_WEIGHT || vegetation_lane >= veg {
+            return None;
+        }
+        if craters.iter().any(|&(kx, kz, kill)| (x - kx).hypot(z - kz) < kill) {
+            return None; // burned and buried where the shell landed
+        }
+        if terrain::inside_any_cover(self.cover, x, z, 0.0) {
+            return None; // grass does not grow through a tenement floor
+        }
+        let ground = self.heightmap.sample_height(x, z)?;
+        if self.water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
+            return None;
+        }
+        Some(ground)
+    }
 }
 
 /// Build the stable grass population cached around `eye`. Every cell owns exactly one candidate
@@ -205,105 +320,104 @@ pub fn grass_frame_objects(
 ) -> Vec<RenderObject> {
     let mut objects = Vec::with_capacity(MAX_GRASS_INSTANCES);
     let extent_z = heightmap.extent_m()[1];
+    let mirror_z = extent_z * 0.5;
+    let south_rows = (mirror_z / CELL_M).ceil() as i32;
     let min_cx = ((eye.x - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
     let max_cx = ((eye.x + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
-    let min_cz = ((eye.z - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
-    let max_cz = ((eye.z + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    // The fold (Jedna Trawa P3): the population is generated for the SOUTH half and emitted
+    // with its exact mirrored twin — the rule the card meadow always had, now owned by the
+    // one stream both costumes read. A south source row is visited when its own band or its
+    // twin's band can reach the cache disc.
+    let direct_min = ((eye.z - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    let direct_max = ((eye.z + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    let twin_min = ((extent_z - (eye.z + GRASS_CACHE_RADIUS_M)) / CELL_M).floor() as i32;
+    let twin_max = ((extent_z - (eye.z - GRASS_CACHE_RADIUS_M)) / CELL_M).floor() as i32;
     // A high-explosive burst burns and buries the grass it lands on: the replicated crater
     // ledger (already folded into the heightmap) is a kill list — nothing grows inside a
     // bowl or on its fresh spoil rim.
     let craters: Vec<(f32, f32, f32)> = heightmap
         .crater_records()
         .iter()
-        .map(|crater| (crater.x_m(), crater.z_m(), crater.radius_m() * 1.45))
+        .map(|crater| (crater.x_m(), crater.z_m(), crater.radius_m() * CRATER_KILL_FACTOR))
         .collect();
-    for cz in min_cz..=max_cz {
+    // Craters whose kill zone can touch a cell band — usually none, so the per-tuft test
+    // costs nothing on virgin ground. The twin band gets its own list at the mirrored z.
+    let nearby = |center_x: f32, center_z: f32| -> Vec<(f32, f32, f32)> {
+        let cell_reach = CELL_M * 0.75;
+        craters
+            .iter()
+            .copied()
+            .filter(|&(x, z, kill)| {
+                let dx = (x - center_x).abs() - cell_reach;
+                let dz = (z - center_z).abs() - cell_reach;
+                dx.max(0.0).hypot(dz.max(0.0)) <= kill
+            })
+            .collect()
+    };
+    let meadow = MeadowGround { maps, heightmap, water, cover };
+    for cz in 0..south_rows {
+        let in_direct = (direct_min..=direct_max).contains(&cz);
+        let in_twin = (twin_min..=twin_max).contains(&cz);
+        if !in_direct && !in_twin {
+            continue;
+        }
         for cx in min_cx..=max_cx {
-            let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                ^ (cz as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
-                ^ 0x6265_7472_6177_6121;
-            // The cell's own dryness lane: tufts lean grass or straw per plot, echoing the
-            // shader's field quilt without resampling it.
-            let cell_dry = game_core::math::next_hash_unit(&mut seed);
-            // D7: grass grows in CLUMPS around 2–3 hash centres, not uniformly at random.
-            let (centres, centre_count) = clump_centres(&mut seed);
-            let origin = Vec3::new(cx as f32 * CELL_M, 0.0, cz as f32 * CELL_M);
-            // Craters whose kill zone can touch this cell — usually none, so the per-tuft
-            // test costs nothing on virgin ground.
+            let mut stream = CellStream::new(cx, cz);
             let center_x = (cx as f32 + 0.5) * CELL_M;
             let center_z = (cz as f32 + 0.5) * CELL_M;
-            let cell_reach = CELL_M * 0.75;
-            let nearby_craters: Vec<(f32, f32, f32)> = craters
-                .iter()
-                .copied()
-                .filter(|&(x, z, kill)| {
-                    let dx = (x - center_x).abs() - cell_reach;
-                    let dz = (z - center_z).abs() - cell_reach;
-                    dx.max(0.0).hypot(dz.max(0.0)) <= kill
-                })
-                .collect();
+            let craters_direct = nearby(center_x, center_z);
+            let craters_twin = nearby(center_x, extent_z - center_z);
             for _ in 0..CELL_TUFT_CANDIDATES {
-                let raw_x = game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let raw_z = game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
-                let size =
-                    TUFT_SCALE_MIN + game_core::math::next_hash_unit(&mut seed) * TUFT_SCALE_SPAN;
-                let tone = game_core::math::next_hash_unit(&mut seed);
-                let vegetation_lane = game_core::math::next_hash_unit(&mut seed);
-                // The pull is a convex combination of two in-cell points — the candidate
-                // stays in its cell, so every per-cell contract survives unchanged.
-                let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &centres, centre_count);
-                let x = origin.x + local_x;
-                let z = origin.z + local_z;
-                let flat = Vec3::new(x - eye.x, 0.0, z - eye.z).length();
-                if flat > GRASS_CACHE_RADIUS_M {
+                let candidate = stream.next_candidate();
+                // The mid row seeds only its own half, so the fold never doubles a tuft.
+                if candidate.z >= mirror_z {
                     continue;
                 }
                 // Bare patches: redistribution, not addition — the candidate budget stays
-                // 28, the meadow just refuses the low-noise ground.
-                if meadow_baldness(x, z.min(extent_z - z)) < BALD_CUT {
+                // 28, the meadow just refuses the low-noise ground. The source z IS the
+                // folded coordinate, so both twins inherit one decision.
+                if meadow_baldness(candidate.x, candidate.z) < BALD_CUT {
                     continue;
                 }
-                // Vegetation is sampled at the candidate, not at the 8 m cell centre. The
-                // extra hash lane makes partial splat weights a stable acceptance probability:
-                // a road can cut through a cell without inheriting grass from either side.
-                let veg = vegetation_weight(maps, x, z);
-                if veg < MIN_VEG_WEIGHT || vegetation_lane >= veg {
-                    continue;
+                for (px, pz, pyaw, kill_list) in [
+                    (candidate.x, candidate.z, candidate.yaw, &craters_direct),
+                    (
+                        candidate.x,
+                        extent_z - candidate.z,
+                        std::f32::consts::TAU - candidate.yaw,
+                        &craters_twin,
+                    ),
+                ] {
+                    let flat = Vec3::new(px - eye.x, 0.0, pz - eye.z).length();
+                    if flat > GRASS_CACHE_RADIUS_M {
+                        continue;
+                    }
+                    let Some(ground) =
+                        meadow.tuft_ground(kill_list, px, pz, candidate.vegetation_lane)
+                    else {
+                        continue;
+                    };
+                    // A touch lighter than the soil it stands on: blades catch more sky.
+                    let Some(albedo) = crate::grass_cards::card_albedo(
+                        maps,
+                        materials,
+                        px,
+                        pz,
+                        stream.cell_dry * 0.5 + candidate.tone * 0.5,
+                    ) else {
+                        continue;
+                    };
+                    let transform = Mat4::from_translation(Vec3::new(px, ground, pz))
+                        * Mat4::from_rotation_y(pyaw)
+                        * Mat4::from_scale(Vec3::splat(candidate.size));
+                    objects.push(RenderObject {
+                        tank_id: None,
+                        mesh: GRASS_MESH_HANDLE,
+                        material: MaterialHandle(0),
+                        transform: transform.to_cols_array_2d(),
+                        tint: albedo,
+                    });
                 }
-                if nearby_craters.iter().any(|&(kx, kz, kill)| (x - kx).hypot(z - kz) < kill) {
-                    continue; // burned and buried where the shell landed
-                }
-                if terrain::inside_any_cover(cover, x, z, 0.0) {
-                    continue; // grass does not grow through a tenement floor
-                }
-                let Some(ground) = heightmap.sample_height(x, z) else {
-                    continue;
-                };
-                if water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
-                    continue;
-                }
-                // A touch lighter than the soil it stands on: blades catch more sky.
-                let Some(albedo) = crate::grass_cards::card_albedo(
-                    maps,
-                    materials,
-                    x,
-                    z,
-                    cell_dry * 0.5 + tone * 0.5,
-                ) else {
-                    continue;
-                };
-                let albedo = Vec3::from_array(albedo);
-                let transform = Mat4::from_translation(Vec3::new(x, ground, z))
-                    * Mat4::from_rotation_y(yaw)
-                    * Mat4::from_scale(Vec3::splat(size));
-                objects.push(RenderObject {
-                    tank_id: None,
-                    mesh: GRASS_MESH_HANDLE,
-                    material: MaterialHandle(0),
-                    transform: transform.to_cols_array_2d(),
-                    tint: albedo.to_array(),
-                });
             }
         }
     }
@@ -670,6 +784,11 @@ mod tests {
             "the height spread serrates the silhouette: {shortest:.3}..{tallest:.3}"
         );
         assert!(
+            (tallest - TUFT_MESH_TALLEST_M).abs() < 1.0e-6,
+            "TUFT_MESH_TALLEST_M is the mesh's real apex — the far costume's height \
+             continuity hangs on this single number: {tallest}"
+        );
+        assert!(
             tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) <= GRASS_HEIGHT_CAP_M + 1.0e-6,
             "the tallest blade at the largest scale respects the honesty cap: {}",
             tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN)
@@ -758,6 +877,34 @@ mod tests {
         // budget. The field must still read dense — just not carpet-uniform.
         assert!(floor > 3_300, "lush cache stays visually dense at every phase: {floor}");
         assert!(peak < MAX_GRASS_INSTANCES, "lush cache keeps explicit headroom: {peak}");
+    }
+
+    /// The fold (Jedna Trawa P3): the ring is now mirror-fair like the far meadow always
+    /// was — a tuft south of the axis has its exact twin north of it, because BOTH grow
+    /// from the one south-half candidate stream.
+    #[test]
+    fn the_ring_is_mirror_fair_across_the_axis() {
+        let ground = flat_ground();
+        let extent_z = ground.extent_m()[1];
+        let materials = TerrainMaterialSet::default();
+        let maps = full_veg_maps(extent_z);
+        // The eye sits ON the axis, so both twins of every nearby candidate are in range.
+        let eye = Vec3::new(128.0, 3.0, extent_z * 0.5);
+        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let mut probed = 0;
+        for tuft in grown.iter().step_by(37) {
+            let (x, z) = (tuft.transform[3][0], tuft.transform[3][2]);
+            if (z - extent_z * 0.5).abs() < 0.5 || tuft_flat_distance(tuft, eye) > 40.0 {
+                continue; // the twin of a far-edge tuft may fall outside the cache
+            }
+            let twin = grown.iter().any(|other| {
+                (other.transform[3][0] - x).abs() < 1.0e-3
+                    && (other.transform[3][2] - (extent_z - z)).abs() < 1.0e-3
+            });
+            assert!(twin, "tuft at ({x}, {z}) has no mirror twin");
+            probed += 1;
+        }
+        assert!(probed > 30, "the probe saw a real sample: {probed}");
     }
 
     #[test]

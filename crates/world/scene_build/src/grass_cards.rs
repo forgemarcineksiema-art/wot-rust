@@ -1,8 +1,12 @@
-//! The mid-field meadow (Żywy Step P2): grass-clump CARDS baked statically for the whole map
-//! and drawn through the renderer's dressing slot (color pass only, chunk-culled, distance
-//! cut). Where the near ring gives the eye individual blades, the cards give it an UNBROKEN
-//! field out to ~330 m — each card two crossed trapezoids in the exact albedo of the ground
-//! it stands on, so the band boundaries dissolve into tone instead of reading as edges.
+//! The mid-field meadow, costume B (Jedna Trawa P3): FAR TUFTS baked statically for the
+//! whole map and drawn through the renderer's dressing slot (color pass only, chunk-culled,
+//! distance cut). The old solid-trapezoid "tents" are dead. A far tuft is two crossed
+//! serrated planes — peak, valley, peak — whose tallest tooth is EXACTLY the near tuft's
+//! tallest blade at that candidate's scale, in the exact albedo of the ground it stands on.
+//! Above all: costume B reads the SAME per-cell candidate stream as the near ring
+//! (`grass::CellStream`) and applies the SAME acceptance (`grass::tuft_ground`), so a far
+//! card can only stand where a near tuft stands — the hand-off between costumes swaps the
+//! silhouette of one object instead of revealing two unrelated populations.
 //! Deterministic (map + cell hash) and mirror-fair by construction: the scatter is generated
 //! for the south half and emitted with its exact mirrored twin.
 
@@ -10,23 +14,19 @@ use glam::Vec3;
 use renderer_api::{SceneVertex, TerrainGroundMaps, TerrainMaterialSet, surface_role};
 use terrain::BattlefieldMap;
 
-use crate::grass::{clump_centres, meadow_baldness, pull_toward_clump, vegetation_weight};
+use crate::grass::{
+    BALD_CUT, CELL_M, CELL_TUFT_CANDIDATES, CRATER_KILL_FACTOR, CellStream, MeadowGround,
+    TUFT_MESH_TALLEST_M, meadow_baldness, vegetation_weight,
+};
 
-/// Scatter cell edge (matches the near ring's rhythm).
-const CELL_M: f32 = 8.0;
-/// Cards a fully-vegetated cell grows: 64 m² / ~14 m² per card.
-const CELL_CARDS: f32 = 4.5;
-/// Ground with less vegetation than this grows nothing (roads, rock, riverbed).
-const MIN_VEG_WEIGHT: f32 = 0.35;
-/// Standing water drowns the cards.
-const MAX_WATER_DEPTH_M: f32 = 0.05;
-/// A crater's kill zone (matches the near ring): nothing grows in the bowl or on the spoil.
-const CRATER_KILL_FACTOR: f32 = 1.45;
+/// Far tufts a fully-vegetated cell keeps: the first N standing candidates of the cell's
+/// stream. The near ring grows all 28; the far costume keeps the silhouette-carrying few.
+const CELL_FAR_TUFTS: f32 = 4.5;
 /// The sway lane doubles as height-over-root for the vertex-stage collapse: sway = h * this.
 const SWAY_PER_HEIGHT: f32 = 0.3;
 
-/// Bake the whole map's card meadow. Pure function of (map, splat, materials) — every client
-/// bakes the identical field; a crater re-bake goes through here too.
+/// Bake the whole map's far-tuft meadow. Pure function of (map, splat, materials) — every
+/// client bakes the identical field; a crater re-bake goes through here too.
 pub fn grass_card_dressing_mesh(
     battlefield: &BattlefieldMap,
     maps: &TerrainGroundMaps,
@@ -43,75 +43,93 @@ pub fn grass_card_dressing_mesh(
         .map(|crater| (crater.x_m(), crater.z_m(), crater.radius_m() * CRATER_KILL_FACTOR))
         .collect();
 
+    let meadow = MeadowGround {
+        maps,
+        heightmap,
+        water: battlefield.water,
+        cover: &battlefield.static_cover,
+    };
     let cols = (extent_x / CELL_M).floor() as i32;
     let south_rows = (mirror_z / CELL_M).ceil() as i32;
     for cz in 0..south_rows {
         for cx in 0..cols {
-            let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                ^ (cz as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
-                ^ 0x6361_7264_7321_0001;
-            let origin_x = cx as f32 * CELL_M;
-            let origin_z = cz as f32 * CELL_M;
-            let veg = vegetation_weight(maps, origin_x + CELL_M * 0.5, origin_z + CELL_M * 0.5);
-            if veg < MIN_VEG_WEIGHT {
+            // The budget reads the cell centre (a bare-centre cell keeps no far tufts);
+            // STANDING is still decided per candidate position below, so a street through
+            // a grassy cell stays bare (D19) — the same split the near ring uses.
+            let veg_centre =
+                vegetation_weight(maps, (cx as f32 + 0.5) * CELL_M, (cz as f32 + 0.5) * CELL_M);
+            let budget = (veg_centre * CELL_FAR_TUFTS).round() as usize;
+            if budget == 0 {
                 continue;
             }
-            // D7, same recipe as the near ring: cards gravitate to the cell's clump
-            // centres and refuse the bald patches — the two systems share one rule
-            // (`crate::grass`), so the meadow and the blades agree where grass IS.
-            let (centres, centre_count) = clump_centres(&mut seed);
-            let count = (veg * CELL_CARDS + game_core::math::next_hash_unit(&mut seed)) as u32;
-            for _ in 0..count {
-                let raw_x = game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let raw_z = game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &centres, centre_count);
-                let x = origin_x + local_x;
-                let z = origin_z + local_z;
-                let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
-                let height = 0.55 + game_core::math::next_hash_unit(&mut seed) * 0.3;
-                let tone = game_core::math::next_hash_unit(&mut seed);
+            let mut stream = CellStream::new(cx, cz);
+            let mut taken = 0usize;
+            for _ in 0..CELL_TUFT_CANDIDATES {
+                if taken >= budget {
+                    break;
+                }
+                let candidate = stream.next_candidate();
                 // The mid row seeds only its own half, so the fold never doubles a card.
-                if z >= mirror_z {
+                if candidate.z >= mirror_z {
                     continue;
                 }
-                // A card must stand on vegetation ITSELF, not merely in a cell whose
-                // centre does: an 8 m cell whose centre missed the street used to grow its
-                // full quota straight across the cobbles (D19). The near ring always
-                // re-sampled per candidate; the meadow now does too.
-                if vegetation_weight(maps, x, z) < MIN_VEG_WEIGHT {
+                // Bald patches (D7): the source z IS the folded coordinate, so the mirrored
+                // twin inherits exactly the near ring's field.
+                if meadow_baldness(candidate.x, candidate.z) < BALD_CUT {
                     continue;
                 }
-                // Bald patches (D7): z is south-half here, which IS the folded coordinate,
-                // so the mirrored twin inherits exactly the near ring's field.
-                if meadow_baldness(x, z) < crate::grass::BALD_CUT {
-                    continue;
-                }
-                let Some(albedo) = card_albedo(maps, materials, x, z, tone) else {
+                // THE unification gate: the identical acceptance the near ring applies, at
+                // the identical position, with the identical stochastic lane. A candidate
+                // consumes budget only when its south original stands — the far meadow is
+                // the first-N standing prefix of the near ring's own population.
+                let Some(ground) = meadow.tuft_ground(
+                    &craters,
+                    candidate.x,
+                    candidate.z,
+                    candidate.vegetation_lane,
+                ) else {
                     continue;
                 };
-                for (px, pz, pyaw) in [(x, z, yaw), (x, extent_z - z, std::f32::consts::TAU - yaw)]
-                {
-                    let Some(ground) = heightmap.sample_height(px, pz) else {
-                        continue;
-                    };
-                    if battlefield.water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
-                        continue;
-                    }
-                    if craters.iter().any(|&(kx, kz, kill)| (px - kx).hypot(pz - kz) < kill) {
-                        continue;
-                    }
-                    // Grass does not grow through a tenement floor: the authored cover
-                    // footprints exclude both twins, each tested at its own position.
-                    if terrain::inside_any_cover(&battlefield.static_cover, px, pz, 0.0) {
-                        continue;
-                    }
-                    push_card(
+                let Some(albedo) = card_albedo(
+                    maps,
+                    materials,
+                    candidate.x,
+                    candidate.z,
+                    stream.cell_dry * 0.5 + candidate.tone * 0.5,
+                ) else {
+                    continue;
+                };
+                taken += 1;
+                push_far_tuft(
+                    &mut vertices,
+                    &mut indices,
+                    Vec3::new(candidate.x, ground, candidate.z),
+                    candidate.yaw,
+                    candidate.size,
+                    candidate.tone,
+                    albedo,
+                );
+                // The twin stands (or falls) on its own mirrored ground.
+                let (tx, tz) = (candidate.x, extent_z - candidate.z);
+                let tyaw = std::f32::consts::TAU - candidate.yaw;
+                if let (Some(tground), Some(talbedo)) = (
+                    meadow.tuft_ground(&craters, tx, tz, candidate.vegetation_lane),
+                    card_albedo(
+                        maps,
+                        materials,
+                        tx,
+                        tz,
+                        stream.cell_dry * 0.5 + candidate.tone * 0.5,
+                    ),
+                ) {
+                    push_far_tuft(
                         &mut vertices,
                         &mut indices,
-                        Vec3::new(px, ground, pz),
-                        pyaw,
-                        height,
-                        albedo,
+                        Vec3::new(tx, tground, tz),
+                        tyaw,
+                        candidate.size,
+                        candidate.tone,
+                        talbedo,
                     );
                 }
             }
@@ -146,29 +164,42 @@ pub(crate) fn card_albedo(
     Some((albedo * (1.02 + tone * 0.08)).to_array())
 }
 
-/// One clump card: two crossed trapezoids (narrowed tops), both faces wound — 8 vertices,
-/// 8 triangles. The sway lane carries height-over-root for the collapse AND the wind.
-fn push_card(
+/// One far tuft: two crossed SERRATED planes (peak – valley – peak), both faces wound —
+/// 10 vertices, 12 triangles. The tallest tooth is exactly the near tuft's tallest blade
+/// at this candidate's scale (height continuity is one number, `TUFT_MESH_TALLEST_M`), and
+/// the tone gradient (0.72 base / 0.9 valley / 1.05 peaks) matches the near blades', so the
+/// hand-off swaps silhouette detail, never colour or height. The sway lane carries
+/// height-over-root for the shader's collapse AND the wind.
+fn push_far_tuft(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     root: Vec3,
     yaw: f32,
-    height: f32,
+    size: f32,
+    tooth: f32,
     albedo: [f32; 3],
 ) {
+    let height = TUFT_MESH_TALLEST_M * size;
+    let half_w = 0.30 * size;
+    let tall = height;
+    let short = height * (0.62 + tooth * 0.24);
+    let valley = height * (0.38 + tooth * 0.1);
     let base_tone = [albedo[0] * 0.72, albedo[1] * 0.72, albedo[2] * 0.72];
-    let tip_tone = [albedo[0] * 1.12, albedo[1] * 1.12, albedo[2] * 1.12];
+    let valley_tone = [albedo[0] * 0.9, albedo[1] * 0.9, albedo[2] * 0.9];
+    let peak_tone = [albedo[0] * 1.05, albedo[1] * 1.05, albedo[2] * 1.05];
     let (sin, cos) = yaw.sin_cos();
     for second in [false, true] {
         let (dir_x, dir_z) = if second { (-sin, cos) } else { (cos, sin) };
-        let half_bottom = 0.35;
-        let half_top = 0.17;
+        // Alternate which side carries the tall tooth so the crossed planes show four
+        // distinct teeth from any viewing angle.
+        let (right_peak, left_peak) = if second { (short, tall) } else { (tall, short) };
         let base = vertices.len() as u32;
-        for (offset, y, tone, sway) in [
-            (-half_bottom, 0.0, base_tone, 0.0),
-            (half_bottom, 0.0, base_tone, 0.0),
-            (half_top, height, tip_tone, height * SWAY_PER_HEIGHT),
-            (-half_top, height, tip_tone, height * SWAY_PER_HEIGHT),
+        for (offset, y, tone) in [
+            (-half_w, 0.0, base_tone),
+            (half_w, 0.0, base_tone),
+            (half_w * 0.55, right_peak, peak_tone),
+            (0.0, valley, valley_tone),
+            (-half_w * 0.55, left_peak, peak_tone),
         ] {
             vertices.push(SceneVertex {
                 position: [root.x + dir_x * offset, root.y + y, root.z + dir_z * offset],
@@ -177,13 +208,15 @@ fn push_card(
                 tint_weight: 0.0,
                 gloss: 0.05,
                 surface: surface_role::GRASS_CARD,
-                sway,
+                sway: y * SWAY_PER_HEIGHT,
                 uv: [0.0, 0.0],
                 bounce: [0.0; 3],
             });
         }
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-        indices.extend_from_slice(&[base + 2, base + 1, base, base + 3, base + 2, base]);
+        // Fan from the left base corner across the serrated top, both windings.
+        let (b0, b1, tr, tv, tl) = (base, base + 1, base + 2, base + 3, base + 4);
+        indices.extend_from_slice(&[b0, b1, tr, b0, tr, tv, b0, tv, tl]);
+        indices.extend_from_slice(&[tr, b1, b0, tv, tr, b0, tl, tv, b0]);
     }
 }
 
@@ -199,36 +232,161 @@ mod tests {
         grass_card_dressing_mesh(&map, &maps, &materials)
     }
 
+    /// A flat, fully-vegetated 256 m battlefield: symmetric by construction, so mirror and
+    /// unification facts are provable on it without map-content noise.
+    fn flat_battlefield() -> (BattlefieldMap, TerrainGroundMaps) {
+        let heightmap = terrain::HeightMap::flat(65, 65, 4.0, 1.0).expect("flat map");
+        let mut splat = Vec::new();
+        for _ in 0..4 {
+            splat.extend_from_slice(&[255, 0, 0, 0]);
+        }
+        let maps = TerrainGroundMaps {
+            size: 2,
+            splat,
+            macro_normal: vec![128; 2 * 2 * 4],
+            extent_m: heightmap.extent_m(),
+        };
+        let battlefield = BattlefieldMap {
+            id: "flat".into(),
+            name: "flat".into(),
+            size_m: heightmap.extent_m(),
+            historical_basis: String::new(),
+            design_notes: vec![],
+            heightmap,
+            water: None,
+            river: None,
+            spawn_zones: vec![],
+            capture_zones: vec![],
+            strategic_points: vec![],
+            features: vec![],
+            static_cover: vec![],
+            scenery: vec![],
+            roads: vec![],
+        };
+        (battlefield, maps)
+    }
+
+    /// THE seam guarantee (Jedna Trawa P3): every far tuft inside the near ring's cache
+    /// stands EXACTLY on a near tuft — same root position, and its tallest tooth is the
+    /// near tuft's tallest blade at that candidate's scale. The far meadow is a subset of
+    /// the one population, not a second one.
+    #[test]
+    fn a_far_tuft_stands_only_where_the_near_ring_grows_one() {
+        let (battlefield, maps) = flat_battlefield();
+        let materials = TerrainMaterialSet::default();
+        let (vertices, _) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        let eye = glam::Vec3::new(128.0, 3.0, 80.0);
+        let ring = crate::grass::grass_frame_objects(
+            &battlefield.heightmap,
+            None,
+            &[],
+            &maps,
+            &materials,
+            eye,
+        );
+        let mut checked = 0;
+        for card in vertices.chunks(10) {
+            let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
+            let root_z = (card[0].position[2] + card[1].position[2]) * 0.5;
+            if (root_x - eye.x).hypot(root_z - eye.z) > crate::grass::GRASS_RADIUS_M {
+                continue;
+            }
+            let near = ring
+                .iter()
+                .find(|tuft| {
+                    (tuft.transform[3][0] - root_x).abs() < 1.0e-3
+                        && (tuft.transform[3][2] - root_z).abs() < 1.0e-3
+                })
+                .unwrap_or_else(|| panic!("a far tuft at ({root_x}, {root_z}) has no near twin"));
+            let scale = near.transform[0][0].hypot(near.transform[0][2]);
+            let peak =
+                card.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - card[0].position[1];
+            assert!(
+                (peak - TUFT_MESH_TALLEST_M * scale).abs() < 1.0e-3,
+                "height continuity is one number: far peak {peak:.4} vs near tallest {:.4}",
+                TUFT_MESH_TALLEST_M * scale
+            );
+            checked += 1;
+        }
+        assert!(checked > 40, "the probe saw a real sample: {checked}");
+    }
+
+    /// Costume B's silhouette locks: every plane of every far tuft reads peak–valley–peak
+    /// (the tents are dead), and every peak sits inside the near kernel's height band and
+    /// under the honesty cap (D1).
+    #[test]
+    fn far_tufts_are_serrated_and_stay_inside_the_near_height_band() {
+        use crate::grass::{GRASS_HEIGHT_CAP_M, TUFT_SCALE_MIN, TUFT_SCALE_SPAN};
+        let (vertices, _) = baked();
+        for card in vertices.chunks(10).step_by(97) {
+            let base_y = card[0].position[1];
+            for plane in [&card[0..5], &card[5..10]] {
+                let right = plane[2].position[1] - base_y;
+                let valley = plane[3].position[1] - base_y;
+                let left = plane[4].position[1] - base_y;
+                assert!(
+                    right > valley && left > valley,
+                    "peak–valley–peak, never a flat tent top: {right:.3} {valley:.3} {left:.3}"
+                );
+            }
+            let peak = card.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - base_y;
+            let band = (TUFT_MESH_TALLEST_M * TUFT_SCALE_MIN - 1.0e-3)
+                ..=(TUFT_MESH_TALLEST_M * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) + 1.0e-3);
+            assert!(
+                band.contains(&peak),
+                "a far peak is a near tuft's tallest blade at some legal scale: {peak:.3}"
+            );
+            assert!(peak <= GRASS_HEIGHT_CAP_M, "the honesty cap holds far too: {peak:.3}");
+        }
+    }
+
     #[test]
     fn the_card_meadow_is_deterministic_mirror_fair_and_built_of_cheap_cards() {
         let (vertices, indices) = baked();
         let (twin_v, twin_i) = baked();
         assert!(vertices == twin_v && indices == twin_i, "every client bakes the same field");
-        // 8 vertices / 8 triangles per card, tens of thousands of cards on the vegetated map.
-        assert_eq!(vertices.len() % 8, 0);
-        assert_eq!(indices.len(), vertices.len() * 3);
-        let cards = vertices.len() / 8;
+        // 10 vertices / 12 triangles per far tuft (two serrated planes, both faces).
+        assert_eq!(vertices.len() % 10, 0);
+        assert_eq!(indices.len(), (vertices.len() / 10) * 36);
+        let cards = vertices.len() / 10;
         assert!(
             (20_000..90_000).contains(&cards),
-            "the whole-map meadow is tens of thousands of cards: {cards}"
+            "the whole-map meadow is tens of thousands of far tufts: {cards}"
         );
-        // Mirror-fair: a card's root at z has a twin at extent-z with the same x.
-        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-        let extent_z = map.heightmap.extent_m()[1];
-        for probe in (0..cards).step_by(cards / 37) {
-            let root = vertices[probe * 8].position;
-            let twin_exists = vertices.chunks(8).any(|card| {
-                let p = card[0].position;
-                (p[0] - root[0]).abs() < 0.01 && (p[2] - (extent_z - root[2])).abs() < 0.01
-            });
-            assert!(twin_exists, "card at ({}, {}) has no mirror twin", root[0], root[2]);
+    }
+
+    /// Mirror-fairness, proven where it is provable: on symmetric ground every far tuft has
+    /// its exact twin. (On a real map a twin additionally answers for its OWN position —
+    /// cover, water, craters, splat — exactly like the near ring does.)
+    #[test]
+    fn on_symmetric_ground_every_far_tuft_has_its_mirror_twin() {
+        let (battlefield, maps) = flat_battlefield();
+        let extent_z = battlefield.heightmap.extent_m()[1];
+        let (vertices, _) =
+            grass_card_dressing_mesh(&battlefield, &maps, &TerrainMaterialSet::default());
+        let roots: Vec<(f32, f32)> = vertices
+            .chunks(10)
+            .map(|card| {
+                (
+                    (card[0].position[0] + card[1].position[0]) * 0.5,
+                    (card[0].position[2] + card[1].position[2]) * 0.5,
+                )
+            })
+            .collect();
+        assert!(roots.len() > 600, "enough tufts for the probe: {}", roots.len());
+        for &(x, z) in roots.iter().step_by(roots.len() / 41) {
+            let twin_exists = roots
+                .iter()
+                .any(|&(ox, oz)| (ox - x).abs() < 1.0e-3 && (oz - (extent_z - z)).abs() < 1.0e-3);
+            assert!(twin_exists, "far tuft at ({x}, {z}) has no mirror twin");
         }
     }
 
     #[test]
     fn cards_wear_the_ground_tone_and_the_sway_lane_encodes_height() {
         let (vertices, _) = baked();
-        for card in vertices.chunks(8).step_by(211) {
+        for card in vertices.chunks(10).step_by(211) {
+            let base_y = card[0].position[1];
             for vertex in card {
                 assert!(
                     (vertex.surface - surface_role::GRASS_CARD).abs() < 1.0e-3,
@@ -238,11 +396,15 @@ mod tests {
                 let max = r.max(g).max(b);
                 let saturation = if max <= 0.0 { 0.0 } else { (max - r.min(g).min(b)) / max };
                 assert!(saturation <= 0.45, "rule 2: ground stays muted, got {saturation}");
-                if vertex.position[1] - card[0].position[1] > 0.1 {
-                    assert!(vertex.sway > 0.1, "tips carry their height in the sway lane");
-                } else {
-                    assert_eq!(vertex.sway, 0.0, "roots stay planted");
-                }
+                // The shader's collapse contract: sway IS height-over-root × 0.3, at every
+                // vertex — the serrated tops each carry their own height.
+                let over_root = vertex.position[1] - base_y;
+                assert!(
+                    (vertex.sway - over_root * SWAY_PER_HEIGHT).abs() < 1.0e-4,
+                    "sway encodes height-over-root: {} vs {}",
+                    vertex.sway,
+                    over_root * SWAY_PER_HEIGHT
+                );
             }
         }
     }
@@ -283,7 +445,7 @@ mod tests {
         let (vertices, _) =
             grass_card_dressing_mesh(&battlefield, &maps, &TerrainMaterialSet::default());
         let roots: Vec<(f32, f32)> = vertices
-            .chunks(8)
+            .chunks(10)
             .map(|card| {
                 (
                     (card[0].position[0] + card[1].position[0]) * 0.5,
@@ -325,7 +487,7 @@ mod tests {
         let stone_roads: Vec<_> =
             map.roads.iter().filter(|road| road.surface != terrain::RoadSurface::Dirt).collect();
         assert!(!stone_roads.is_empty(), "the city keeps its cobbles and ballast");
-        for card in vertices.chunks(8) {
+        for card in vertices.chunks(10) {
             let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
             let root_z = (card[0].position[2] + card[1].position[2]) * 0.5;
             for road in &stone_roads {
@@ -357,7 +519,7 @@ mod tests {
         map.heightmap.set_craters(&[crater]);
         let (vertices, _) = grass_card_dressing_mesh(&map, &maps, &materials);
         let kill = crater.radius_m() * CRATER_KILL_FACTOR;
-        for card in vertices.chunks(8) {
+        for card in vertices.chunks(10) {
             // The ROOT is the midpoint of the base edge (vertex 0 and 1 are offset by the
             // card's half-width); the kill zone is measured from where the clump grows.
             let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
