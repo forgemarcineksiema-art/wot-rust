@@ -189,6 +189,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         + materials.layers[2].rgb * w.b
         + materials.layers[3].rgb * w.a;
     albedo = albedo * detail_factor * field_light * micro_shade * furrow_shade;
+    // Costume C (Jedna Trawa P5): the ground carries the meadow's own darkness — a little
+    // where tufts still stand in front of it, all of it where the far costume has folded
+    // away. The shared `meadow_far_stand` is the SAME curve the scene pass folds those
+    // tufts on, so the collapse dissolves into tone instead of ending at a horizon where
+    // grass stops. Vegetation-weighted from the splat both passes read, so roads, rock and
+    // the riverbed keep their own colour — and because it rides a mipmapped texture rather
+    // than a procedural octave, the far field gains no shimmer (rule 5).
+    albedo = albedo * meadow_ground_shade(w.r + w.g, eye_dist);
     // The submerged riverbed: the baked depth tint wins by the vertex lane.
     albedo = mix(albedo, input.color, clamp(input.vertex_dominance, 0.0, 1.0));
     albedo = albedo * mix(1.0, 0.62, wet);

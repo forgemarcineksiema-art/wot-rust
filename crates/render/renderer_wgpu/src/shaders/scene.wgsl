@@ -51,18 +51,10 @@ const GRASS_HANDOFF_BASE_M: f32 = 33.0;
 const GRASS_HANDOFF_SPREAD_M: f32 = 11.0;
 const GRASS_HANDOFF_HALF_BAND_M: f32 = 3.0;
 
-// The magnification the grass bands stretch by (Jedna Trawa P4b, decision D3). Read from
-// the projection's Y scale (ssao_params.w = cot(fov_y/2)), which the renderer recovers from
-// the view-projection every frame — so this is the SAME number the CPU chunk cutoff uses,
-// with no camera state to synchronise. Mirrors renderer_api::grass_zoom_band_scale; the
-// wgsl_layout test locks the two ends together.
-const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 1.921;
-const GRASS_ZOOM_BAND_CAP: f32 = 4.0;
-
-fn grass_zoom_band_scale() -> f32 {
-    return clamp(camera.ssao_params.w / GRASS_ZOOM_REFERENCE_PROJ_Y, 1.0, GRASS_ZOOM_BAND_CAP);
-}
-
+// The magnification and the far collapse band live in `meadow_common.wgsl`, which the
+// TERRAIN pass composes too — the ground has to know exactly where these tufts fold away in
+// order to take over their share of the meadow (costume C).
+//
 // The near↔far hand-off does NOT stretch with the scope: the near ring's population is a
 // CPU cache of a fixed world radius, and its instance count grows with the square of any
 // stretch. What the scope buys is DEPTH — the far meadow's collapse moves out (below), so
@@ -88,9 +80,8 @@ fn vs_main(input: VsIn) -> VsOut {
     var stand = 1.0;
     if (abs(input.surface - 5.0) < 0.5) {
         let d = length(camera.camera_pos.xz - world.xz);
-        let zoom = grass_zoom_band_scale();
         stand = (1.0 - grass_handoff_stand(world.xz, camera.camera_pos.xz))
-            * (1.0 - smoothstep(260.0 * zoom, 330.0 * zoom, d));
+            * meadow_far_stand(d);
         world.y -= (input.sway / 0.3) * (1.0 - stand);
     }
     // Near blades are a stable, deterministic population. Only the OUTER presentation edge

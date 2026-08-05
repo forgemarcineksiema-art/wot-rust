@@ -83,7 +83,7 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P3 | **Death of the tents**: costume B baked from A's candidate stream, serrated tops, shared heights, horizon by measurement | population unification (B ⊂ A stream); silhouette serration; height continuity |
 | P4a | Invisible seam: the hand-off radius is a world-anchored COASTLINE (noise-undulated), one WGSL function serves both costumes — near takes `stand`, far takes the complement, sum ≡ 1 by construction | shader-text lock on the shared function + both call sites; coastline reach < 48 m ring contract |
 | P4b | Zoom-aware bands (D3): magnification derived from `P[1][1]`, scales the far collapse + dressing cutoff (near ring's CPU cache cannot scale — instance count grows with zoom²) | shader constants PARSED and matched to the CPU's; near ring must not stretch; scope measured in the rotation |
-| P5 | Costume C: meadow-AO bake + terrain meadow tone | B-aggregate ↔ C tone Δ < threshold |
+| P5 | Costume C: the ground carries the meadow's own darkness, taking over the far tufts' share on the SAME curve they fold on (`meadow_common.wgsl`, composed into both passes) | one shared fragment, two consumers; take-over linear in far presence; bare ground untouched |
 | P6 | Carpet layer + near densification (paid from P3's gains) | budget sweep (existing pattern) |
 | P7 | Wind 2.0: gust fronts, arc bend, stiffness, flutter, `WindState` uniform | roots planted; dy ∝ dx²; world-anchored gusts |
 | P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) | measured budget; doctrine doc updated |
@@ -165,3 +165,19 @@ generator — locks travel, they do not die.
   constants are checked against the CPU's own values, and a lock forbids stretching the
   near ring. Probe: `perf_capture` rotates a 4th config (`scope 18deg`) so the scope is
   measured in the same thermal rotation as the battle view.
+- 2026-08-05 — **P5 landed (costume C)**: the ground carries the meadow. New shared shader
+  fragment `meadow_common.wgsl` composed into BOTH the scene pass (which draws the tufts)
+  and the terrain pass (which draws what they stand on) — one definition of the zoom scale
+  and of `meadow_far_stand`, so the two cannot drift into a visible horizon. The ground's
+  albedo now takes a vegetation-weighted share of the meadow's own darkness: 5 % while far
+  tufts still stand in front of it, 17 % once they have folded, interpolated on their own
+  collapse curve. Roads, rock and the riverbed are untouched (splat-weighted), and because
+  it rides a MIPMAPPED texture rather than a procedural octave, the far field gains no
+  shimmer (rule 5's no-noise clause).
+  **Method note**: the original plan (a baked meadow-density map) was dropped after reading
+  the code — CPU `terrain::value_noise` (splitmix64) and the WGSL one (32-bit hash) are
+  different functions, so the analytic route would have put the dark patches in the wrong
+  places, and a new texture + binding was a system the effect did not need. The splat is
+  already shared by both sides; that is the honest common ground. Measured: scene work
+  ~16.5 ms p50, no regression. Locks: one-copy-per-pass of the shared fragment, terrain's
+  call site, shade constants matched to the CPU's, take-over linear with no step.

@@ -15,7 +15,8 @@ use super::SceneRenderer;
 use super::terrain::TERRAIN_CHUNK_SIZE_M;
 use crate::GpuContext;
 use crate::shader_library::{
-    CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, NOISE_COMMON_WGSL, SHADOW_COMMON_WGSL, compose_shader,
+    CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, MEADOW_COMMON_WGSL, NOISE_COMMON_WGSL,
+    SHADOW_COMMON_WGSL, compose_shader,
 };
 
 pub fn terrain_shader_source() -> String {
@@ -24,6 +25,7 @@ pub fn terrain_shader_source() -> String {
         LIGHTING_COMMON_WGSL,
         SHADOW_COMMON_WGSL,
         NOISE_COMMON_WGSL,
+        MEADOW_COMMON_WGSL,
         include_str!("../shaders/terrain.wgsl"),
     ])
 }
