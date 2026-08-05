@@ -106,3 +106,10 @@ generator — locks travel, they do not die.
   triangle plan costs ≈ +0.8 ms GPU worst case; the carpet pays in BOTH lanes.
   Method note: sequential probe processes were discredited live (thermal ramp read REMOVING
   work as +2.6 ms) — the in-process rotation instrument replaced them.
+- 2026-08-05 — **P1 landed**: blade kernel 2.0 — 10 blades × 2 segments per tuft, POINTED
+  tips (the serration), convex outward arc (mid station at 35 % reach), height spread
+  0.14–0.34 mesh-local, wind lane quadratic along the blade (arc-true bend groundwork for
+  P7), `GRASS_HEIGHT_CAP_M = 0.6` + scale consts with the D1 lock. Cost: 50 verts / 60 tris
+  per tuft vs the old 48 / 48 — the interleaved capture reads the ring delta at +0.02 ms p50
+  (inside noise); no measurable regression. Locks rewritten: pointed/arced/serrated/capped,
+  wind-lane monotonicity; tuft budget raised 150 → 180 indices with the P0 number cited.
