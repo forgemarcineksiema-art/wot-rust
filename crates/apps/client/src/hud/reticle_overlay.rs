@@ -138,7 +138,9 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
             // which answers neutral there even with a pen hint in hand (the hint keeps flowing
             // so a mode switch answers immediately).
             let color = reticle.marker_color;
-            push_crosshair(vertices, reticle.aim_clip, 0.020, 0.0036, aspect, color);
+            push_crosshair(vertices, reticle.aim_clip, 0.012, 0.024, 0.0036, aspect, color);
+            // The aim dot, backed like the arms so it survives bright ground.
+            push_quad(vertices, reticle.aim_clip, [0.0034 / aspect, 0.0034], RETICLE_RING_OUTLINE);
             push_quad(vertices, reticle.aim_clip, [0.0022 / aspect, 0.0022], color);
         }
     }
@@ -170,11 +172,18 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
         super::reticle_readouts::push_target_distance(
             vertices,
             reticle.aim_clip,
+            reticle.aim_radius_clip,
             distance_m,
             aspect,
         );
         if sniper && let Some(hint) = reticle.penetration_hint {
-            super::reticle_readouts::push_pen_numbers(vertices, reticle.aim_clip, hint, aspect);
+            super::reticle_readouts::push_pen_numbers(
+                vertices,
+                reticle.aim_clip,
+                reticle.aim_radius_clip,
+                hint,
+                aspect,
+            );
         }
     }
 }
