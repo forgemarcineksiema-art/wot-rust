@@ -47,34 +47,41 @@ impl SceneRenderer {
     }
 
     /// How many dressing chunks a camera would draw (test/diagnostic hook — the exact
-    /// frustum-plus-distance visibility the color pass uses).
+    /// frustum-plus-distance visibility the color pass uses, magnification included).
     pub fn visible_dressing_chunks(&self, view_proj: &[[f32; 4]; 4], eye: [f32; 3]) -> usize {
         let frustum = Frustum::from_view_proj(view_proj);
+        let cutoff = DRESSING_CUTOFF_M
+            * renderer_api::grass_zoom_band_scale(renderer_api::projection_y_scale(view_proj));
         self.dressing_chunks
             .iter()
             .filter(|chunk| {
                 frustum.intersects_aabb(&chunk.aabb)
-                    && chunk_within_cutoff(&chunk.aabb, eye, DRESSING_CUTOFF_M)
+                    && chunk_within_cutoff(&chunk.aabb, eye, cutoff)
             })
             .count()
     }
 
     /// Issue the dressing draws for the opaque COLOR pass only. The caller has bound the
     /// pipeline and camera; this binds the slot's buffers and decides what to draw.
+    ///
+    /// `band_scale` is the frame's grass-band magnification (1.0 unzoomed): the chunk cutoff
+    /// must reach as far as the shader is willing to stand a far tuft, or the scope would
+    /// look through a hole the CPU never submitted.
     pub(super) fn draw_visible_dressing(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
         frustum: &Frustum,
         eye: [f32; 3],
+        band_scale: f32,
     ) {
         if self.dressing_index_count == 0 {
             return;
         }
+        let cutoff = DRESSING_CUTOFF_M * band_scale;
         pass.set_vertex_buffer(0, self.dressing_vertices.slice(..));
         pass.set_index_buffer(self.dressing_indices.slice(..), wgpu::IndexFormat::Uint32);
         for chunk in &self.dressing_chunks {
-            if frustum.intersects_aabb(&chunk.aabb)
-                && chunk_within_cutoff(&chunk.aabb, eye, DRESSING_CUTOFF_M)
+            if frustum.intersects_aabb(&chunk.aabb) && chunk_within_cutoff(&chunk.aabb, eye, cutoff)
             {
                 pass.draw_indexed(
                     chunk.index_start..chunk.index_start + chunk.index_count,
