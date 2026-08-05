@@ -36,6 +36,16 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         hit_confirm: Some(HitConfirm { age_s: 0.1, penetrated: true, ricocheted: false }),
         mode,
         converged: true,
+        marker_color: super::reticle_overlay::marker_color(
+            mode,
+            Some(PenetrationHint {
+                penetrates: true,
+                shell_pen_mm: 201.0,
+                armor_mm: 120.0,
+                facing: ArmorFacing::HullFront,
+            }),
+            if sniper { 1.0 } else { 0.0 },
+        ),
     };
     let model = BattleHudModel {
         vitals: HudVitals {

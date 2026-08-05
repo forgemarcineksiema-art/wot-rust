@@ -30,11 +30,25 @@ pub(super) fn reticle_at(
         hit_confirm: None,
         converged: false,
         mode: super::reticle::ReticleMode::ThirdPerson,
+        // Through the shared matrix, like a live frame — so the locks below still fail if the
+        // matrix ever starts speaking armor in third person.
+        marker_color: super::reticle_overlay::marker_color(
+            super::reticle::ReticleMode::ThirdPerson,
+            hint,
+            0.0,
+        ),
     }
 }
 
+/// The same reticle seen through settled optics: mode AND the colour the matrix resolves there.
 pub(super) fn sniper(reticle: HudReticle) -> HudReticle {
-    HudReticle { converged: false, mode: super::reticle::ReticleMode::Sniper, ..reticle }
+    let mode = super::reticle::ReticleMode::Sniper;
+    HudReticle {
+        converged: false,
+        mode,
+        marker_color: super::reticle_overlay::marker_color(mode, reticle.penetration_hint, 1.0),
+        ..reticle
+    }
 }
 
 pub(super) fn hint(penetrates: bool) -> super::reticle::PenetrationHint {

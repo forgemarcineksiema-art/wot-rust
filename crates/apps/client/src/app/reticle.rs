@@ -122,6 +122,11 @@ impl ClientApp {
         let pen_hint = report.penetration;
 
         let (reload_remaining, reload_max) = self.player_reload();
+        let mode = if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
+            crate::hud::reticle::ReticleMode::Sniper
+        } else {
+            crate::hud::reticle::ReticleMode::ThirdPerson
+        };
         Some(HudReticle {
             aim_clip: crate::hud::reticle::world_to_clip_xy(
                 feedback.aim_world_point,
@@ -143,11 +148,15 @@ impl ClientApp {
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
             hit_confirm: self.hit_indicator.recent_confirm(),
             converged: self.player_aim_converged(),
-            mode: if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
-                crate::hud::reticle::ReticleMode::Sniper
-            } else {
-                crate::hud::reticle::ReticleMode::ThirdPerson
-            },
+            mode,
+            // The TARGET colour; `render_now` eases the drawn one toward it with the frame clock.
+            // Scaled by the scope dressing so the verdict arrives with the optics rather than
+            // snapping while the camera is still travelling into them.
+            marker_color: crate::hud::reticle_overlay::marker_color(
+                mode,
+                pen_hint,
+                self.camera_controller.scope_dressing(),
+            ),
         })
     }
 
@@ -370,10 +379,17 @@ mod tests {
     fn the_convergence_signal_survives_a_wounded_gun() {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
-        app.run_fixed_ticks(150);
-        assert!(app.player_aim_converged(), "a healthy gun that has finished aiming reads settled");
+        app.run_fixed_ticks(2);
 
-        let mut wounded = app.player_snapshot().cloned().expect("player snapshot");
+        // Both cases are driven through an authoritative snapshot rather than by waiting for the
+        // gun to settle on its own: what is under test is the FLOOR the signal is measured
+        // against, not how many ticks a particular spawn takes to reach it.
+        let mut healthy = app.player_snapshot().cloned().expect("player snapshot");
+        healthy.aim_dispersion_mrad = app.player_spec().gun.dispersion_mrad;
+        app.predictor.sync_to(&healthy);
+        assert!(app.player_aim_converged(), "a healthy gun at its minimum reads settled");
+
+        let mut wounded = healthy;
         let slot = game_core::ModuleSlot::Gun;
         wounded.module_hit_points[slot.wire_index()] /= 2;
         // As settled as this gun now gets: fully recovered for the damage it carries.

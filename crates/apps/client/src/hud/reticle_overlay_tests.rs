@@ -57,6 +57,56 @@ fn the_sniper_marker_speaks_penetration_by_color() {
     assert!(bounce.iter().any(|vertex| vertex.color == RETICLE_NO_PEN));
 }
 
+/// The verdict SETTLES, it does not strobe. Sweeping a plate edge flips the pen answer every
+/// frame the mouse twitches, and a mode switch used to swap the colour in one frame while the
+/// camera was still travelling into the optics.
+#[test]
+fn the_marker_colour_arrives_with_the_optics_and_eases_instead_of_snapping() {
+    use super::reticle::ReticleMode;
+    use super::reticle_overlay::{MARKER_FADE_TAU_S, ease_marker_color, marker_color};
+
+    // The matrix still refuses to speak armor in third person, at any stage of the blend.
+    assert_eq!(marker_color(ReticleMode::ThirdPerson, Some(hint(true)), 1.0), RETICLE_NEUTRAL);
+    assert_eq!(marker_color(ReticleMode::Sniper, Some(hint(true)), 1.0), RETICLE_PEN);
+    assert_eq!(marker_color(ReticleMode::Sniper, None, 1.0), RETICLE_NEUTRAL);
+    // Half-way into the optics, half-way into the verdict.
+    let entering = marker_color(ReticleMode::Sniper, Some(hint(true)), 0.5);
+    assert!(
+        entering != RETICLE_NEUTRAL && entering != RETICLE_PEN,
+        "the verdict arrives WITH the housing, not in one frame mid-blend"
+    );
+
+    // And the ease itself: a 60 Hz frame is a step toward the answer, a beat later it is there.
+    let span = (RETICLE_PEN[0] - RETICLE_NEUTRAL[0]).abs();
+    let one_frame = ease_marker_color(RETICLE_NEUTRAL, RETICLE_PEN, 1.0 / 60.0);
+    let travelled = (one_frame[0] - RETICLE_NEUTRAL[0]).abs() / span;
+    assert!((0.05..0.30).contains(&travelled), "one frame is a step, not a jump: {travelled}");
+    let settled = ease_marker_color(RETICLE_NEUTRAL, RETICLE_PEN, MARKER_FADE_TAU_S * 4.0);
+    assert!((settled[0] - RETICLE_PEN[0]).abs() < 0.02, "four time constants have arrived");
+}
+
+/// The drawn marker uses the colour it was HANDED — the eased one — instead of re-deriving the
+/// verdict at draw time, which is what would quietly undo the fade.
+#[test]
+fn the_central_marker_draws_the_eased_colour_it_was_given() {
+    let mid_fade = [0.61, 0.88, 0.62, 0.92];
+    // The override goes on LAST: `sniper` resolves the matrix colour, and the frame clock's
+    // eased value is what actually reaches the draw call.
+    let hud = hud_with(HudReticle {
+        marker_color: mid_fade,
+        ..sniper(reticle_at(ReticleStatus::Clear, Some(hint(true))))
+    });
+
+    assert!(
+        hud.iter().any(|v| v.color == mid_fade),
+        "the crosshair must draw the colour the frame clock eased for it"
+    );
+    assert!(
+        !hud.iter().any(|v| v.color == RETICLE_PEN),
+        "and must not re-derive the raw verdict underneath it"
+    );
+}
+
 #[test]
 fn the_gun_marker_draws_when_separated_and_fades_out_once_merged() {
     let is_gun = |v: &HudVertex| {

@@ -525,9 +525,20 @@ impl ClientApp {
             reload_remaining_s: reload_remaining,
             reload_seconds: reload_max,
         };
+        // The marker's colour is EASED toward the matrix's answer: a verdict flipping across a
+        // plate edge as the mouse twitches must settle, not strobe.
+        let mut reticle = self.hud_reticle(&camera, view_proj, alpha);
+        if let Some(reticle) = reticle.as_mut() {
+            self.reticle_marker_color = crate::hud::reticle_overlay::ease_marker_color(
+                self.reticle_marker_color,
+                reticle.marker_color,
+                frame_dt,
+            );
+            reticle.marker_color = self.reticle_marker_color;
+        }
         let hud_model = crate::hud::BattleHudModel {
             vitals,
-            reticle: self.hud_reticle(&camera, view_proj, alpha),
+            reticle,
             fps: self.fps_estimate,
             frame_p95_ms,
             speed_kmh: self.player_speed_kmh(),

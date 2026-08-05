@@ -46,10 +46,22 @@ fn base(mode: ReticleMode) -> HudReticle {
         hit_confirm: None,
         mode,
         converged: false,
+        marker_color: reticle_overlay::RETICLE_NEUTRAL,
     }
 }
 
+/// The marker's colour comes from the honesty matrix, exactly as a live frame would resolve it
+/// (settled optics for a sniper cell) — the sheet must review the real thing, not a stand-in.
 fn cell(label: &'static str, reticle: HudReticle) -> StripCell {
+    let scope_fade = if reticle.mode == ReticleMode::Sniper { 1.0 } else { 0.0 };
+    let reticle = HudReticle {
+        marker_color: reticle_overlay::marker_color(
+            reticle.mode,
+            reticle.penetration_hint,
+            scope_fade,
+        ),
+        ..reticle
+    };
     StripCell { label, reticle, ready_age_s: None, denied_age_s: None }
 }
 
