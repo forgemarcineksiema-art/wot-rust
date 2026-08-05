@@ -38,53 +38,92 @@ const MIN_VEG_WEIGHT: f32 = 0.35;
 /// Standing water drowns the tufts.
 const MAX_WATER_DEPTH_M: f32 = 0.05;
 
-/// One tuft: twelve blades leaning outward from a common root, each a bent two-triangle card,
-/// both faces wound (the scene pipeline culls back faces; a blade must read from anywhere).
-/// Vertices carry a white-to-dusk gradient with `tint_weight` 1.0 — the INSTANCE tint is the
-/// actual grass colour, so one mesh serves every plot tone on the map.
+/// The honesty cap (Jedna Trawa D1): no grass, at any instance scale, stands taller than
+/// this. There is no camouflage mechanic, so grass that hid a tank would lie about gameplay.
+pub const GRASS_HEIGHT_CAP_M: f32 = 0.6;
+/// Instance-scale band the conjurer draws from (size = MIN + hash * SPAN). Named so the
+/// height-cap lock can multiply the tallest mesh blade by the largest scale the field uses.
+pub const TUFT_SCALE_MIN: f32 = 1.0;
+pub const TUFT_SCALE_SPAN: f32 = 0.6;
+
+/// One tuft (blade kernel 2.0, Jedna Trawa P1): ten blades arcing outward from a common
+/// root, each a two-segment curve — root station, mid station, and a POINTED tip. The
+/// serrated tuft silhouette is nothing but the per-blade height spread meeting sharp tips;
+/// the arc is visible as the mid station leaning part-way and the tip reaching full out.
+/// Both faces are wound (the scene pipeline culls back faces; a blade must read from
+/// anywhere). Vertices carry a white-to-dusk gradient with `tint_weight` 1.0 — the INSTANCE
+/// tint is the actual grass colour, so one mesh serves every plot tone on the map.
 pub fn grass_tuft_mesh() -> MeshAsset {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
-    let blades = 12;
+    let blades = 10;
     for blade in 0..blades {
         let angle =
             blade as f32 / blades as f32 * std::f32::consts::TAU + ((blade % 3) as f32) * 0.35;
         let (sin, cos) = angle.sin_cos();
-        let lean = Vec3::new(cos, 0.0, sin) * 0.09;
-        let root = Vec3::new(cos, 0.0, sin) * (0.06 + 0.06 * ((blade % 4) as f32 / 3.0));
-        let across = Vec3::new(-sin, 0.0, cos) * 0.02;
-        let height = 0.16 + 0.12 * ((blade * 7 + 3) % 5) as f32 / 4.0;
-        let tip = root + lean + Vec3::Y * height;
+        let dir = Vec3::new(cos, 0.0, sin);
+        // Strong per-blade height spread: 0.14–0.34 mesh-local — the serration IS this.
+        let height = 0.14 + 0.20 * ((blade * 7 + 3) % 6) as f32 / 5.0;
+        // Horizontal reach at the tip; the mid station takes only 35 % of it, so the blade
+        // profile is a convex outward curve, not a straight lean.
+        let arc = 0.06 + 0.10 * ((blade * 5 + 1) % 4) as f32 / 3.0;
+        let root = dir * (0.05 + 0.05 * ((blade % 4) as f32 / 3.0));
+        let across = Vec3::new(-sin, 0.0, cos);
+        let half_w = 0.016 + 0.006 * ((blade % 3) as f32 / 2.0);
+        let mid = root + dir * (arc * 0.35) + Vec3::Y * (height * 0.58);
+        let tip = root + dir * arc + Vec3::Y * height;
         // Base sits in shade, the tip catches the sky — a cheap self-shadow gradient. The
         // normals stand mostly UP so a blade takes the same sun the ground under it does —
         // side-facing normals read as a dark alien succulent, not grass.
         let base_tone = [0.72, 0.72, 0.72];
+        let mid_tone = [0.9, 0.9, 0.9];
         let tip_tone = [1.05, 1.05, 1.05];
         let normal = Vec3::new(cos * 0.3, 1.0, sin * 0.3).normalize().to_array();
         let base = vertices.len() as u32;
-        // Roots stay planted (sway 0); the tips ride the field's wind, taller blades harder.
+        // Roots stay planted (sway 0); the wind lane grows QUADRATICALLY with the station's
+        // relative height (0.58² ≈ 0.34), so the shader bends the blade as an arc pinned at
+        // the root instead of hinging a rigid stick.
         let tip_sway = 0.35 + height * 0.8;
-        for (position, tone, sway) in [
-            (root - across, base_tone, 0.0),
-            (root + across, base_tone, 0.0),
-            (tip + across * 0.3, tip_tone, tip_sway),
-            (tip - across * 0.3, tip_tone, tip_sway),
+        let mid_sway = tip_sway * 0.34;
+        for (position, tone, sway, taper) in [
+            (root, base_tone, 0.0, 1.0),
+            (mid, mid_tone, mid_sway, 0.55),
+            (tip, tip_tone, tip_sway, 0.0),
         ] {
-            vertices.push(SceneVertex {
-                position: position.to_array(),
-                normal,
-                color: tone,
-                tint_weight: 1.0,
-                gloss: 0.05,
-                surface: renderer_api::surface_role::GRASS_BLADE,
-                sway,
-                uv: [0.0, 0.0],
-                bounce: [0.0; 3],
-            });
+            // The tip's taper is 0: both "sides" collapse into one point — pushed once.
+            if taper <= 0.0 {
+                vertices.push(SceneVertex {
+                    position: position.to_array(),
+                    normal,
+                    color: tone,
+                    tint_weight: 1.0,
+                    gloss: 0.05,
+                    surface: renderer_api::surface_role::GRASS_BLADE,
+                    sway,
+                    uv: [0.0, 0.0],
+                    bounce: [0.0; 3],
+                });
+            } else {
+                for side in [-1.0f32, 1.0] {
+                    vertices.push(SceneVertex {
+                        position: (position + across * (half_w * taper * side)).to_array(),
+                        normal,
+                        color: tone,
+                        tint_weight: 1.0,
+                        gloss: 0.05,
+                        surface: renderer_api::surface_role::GRASS_BLADE,
+                        sway,
+                        uv: [0.0, 0.0],
+                        bounce: [0.0; 3],
+                    });
+                }
+            }
         }
-        // Front and back faces: the pipeline culls, the blade must not vanish from behind.
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-        indices.extend_from_slice(&[base + 2, base + 1, base, base + 3, base + 2, base]);
+        // Vertex order per blade: r-, r+, m-, m+, tip. Front and back faces: the pipeline
+        // culls, the blade must not vanish from behind.
+        let (r0, r1, m0, m1, t) = (base, base + 1, base + 2, base + 3, base + 4);
+        indices.extend_from_slice(&[r0, r1, m1, r0, m1, m0, m0, m1, t]);
+        indices.extend_from_slice(&[m1, r1, r0, m0, m1, r0, m1, m0, t]);
     }
     MeshAsset::new(vertices, indices)
 }
@@ -207,7 +246,8 @@ pub fn grass_frame_objects(
                 let raw_x = game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let raw_z = game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
-                let size = 1.0 + game_core::math::next_hash_unit(&mut seed) * 0.6;
+                let size =
+                    TUFT_SCALE_MIN + game_core::math::next_hash_unit(&mut seed) * TUFT_SCALE_SPAN;
                 let tone = game_core::math::next_hash_unit(&mut seed);
                 let vegetation_lane = game_core::math::next_hash_unit(&mut seed);
                 // The pull is a convex combination of two in-cell points — the candidate
@@ -572,22 +612,68 @@ mod tests {
         }
     }
 
-    /// Blade tips opted into the wind lane, roots stayed planted — the shader sways only
-    /// what the mesh offered.
+    /// Blade tips opted into the wind lane, roots stayed planted, and the lane grows
+    /// with height ALONG each blade — the shader bends an arc pinned at the root, not a
+    /// rigid stick on a hinge (kernel 2.0).
     #[test]
-    fn blade_tips_ride_the_wind_and_roots_stay_planted() {
+    fn the_wind_lane_grows_along_each_blade_and_roots_stay_planted() {
         let mesh = grass_tuft_mesh();
-        let (mut tips, mut roots) = (0, 0);
-        for vertex in mesh.vertices() {
-            if vertex.position[1] > 0.05 {
-                assert!(vertex.sway > 0.3, "a tip rides the wind: sway {}", vertex.sway);
-                tips += 1;
-            } else {
-                assert_eq!(vertex.sway, 0.0, "a root stays planted");
-                roots += 1;
+        assert_eq!(mesh.vertices().len() % 5, 0, "a blade is root pair + mid pair + tip");
+        for blade in mesh.vertices().chunks(5) {
+            let (roots, mids, tip) = (&blade[0..2], &blade[2..4], &blade[4]);
+            for root in roots {
+                assert!(root.position[1] <= 0.001, "roots sit on the ground");
+                assert_eq!(root.sway, 0.0, "a root stays planted");
             }
+            for mid in mids {
+                assert!(
+                    mid.sway > 0.0 && mid.sway < tip.sway,
+                    "the mid station rides less wind than the tip: {} vs {}",
+                    mid.sway,
+                    tip.sway
+                );
+            }
+            assert!(tip.sway > 0.3, "a tip rides the wind: sway {}", tip.sway);
         }
-        assert!(tips > 0 && roots > 0);
+    }
+
+    /// Kernel 2.0's silhouette locks (Jedna Trawa P1): every blade ends in a single POINTED
+    /// tip, the per-blade height spread is wide enough to serrate the tuft's outline, the
+    /// blade profile arcs outward (mid station part-way, tip full reach), and the tallest
+    /// blade at the largest conjured scale stays under the honesty cap — grass never hides
+    /// a tank (D1).
+    #[test]
+    fn blades_are_pointed_arced_serrated_and_capped() {
+        let mesh = grass_tuft_mesh();
+        let mut tallest: f32 = 0.0;
+        let mut shortest = f32::INFINITY;
+        for blade in mesh.vertices().chunks(5) {
+            let tip = &blade[4];
+            let apex = blade.iter().map(|v| v.position[1]).fold(0.0f32, f32::max);
+            assert!(
+                (tip.position[1] - apex).abs() < 1.0e-6,
+                "the single tip vertex IS the blade's apex"
+            );
+            let radial = |v: &SceneVertex| v.position[0].hypot(v.position[2]);
+            let root_out = (radial(&blade[0]) + radial(&blade[1])) * 0.5;
+            let mid_out = (radial(&blade[2]) + radial(&blade[3])) * 0.5;
+            assert!(
+                root_out < mid_out && mid_out < radial(tip),
+                "a blade arcs outward: root {root_out:.3} < mid {mid_out:.3} < tip {:.3}",
+                radial(tip)
+            );
+            tallest = tallest.max(tip.position[1]);
+            shortest = shortest.min(tip.position[1]);
+        }
+        assert!(
+            tallest / shortest > 1.8,
+            "the height spread serrates the silhouette: {shortest:.3}..{tallest:.3}"
+        );
+        assert!(
+            tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) <= GRASS_HEIGHT_CAP_M + 1.0e-6,
+            "the tallest blade at the largest scale respects the honesty cap: {}",
+            tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN)
+        );
     }
 
     /// THE anti-streaming contract: a normal cache rebuild may change only the invisible
@@ -705,12 +791,15 @@ mod tests {
     #[test]
     fn the_tuft_mesh_is_cheap_double_sided_and_fully_tintable() {
         let mesh = grass_tuft_mesh();
+        // Kernel 2.0 budget: 10 blades × 18 indices (2-segment blade, both faces). Raised
+        // from 150 with the P0 measurement in hand (ring 0.83 ms GPU at 144 indices/tuft);
+        // the delta is re-measured in the program's STATUS ledger.
         assert!(
-            mesh.indices().len() <= 150,
+            mesh.indices().len() <= 180,
             "a tuft stays cheap: {} indices",
             mesh.indices().len()
         );
-        assert_eq!(mesh.indices().len() % 6, 0, "blades are two-triangle cards, both faces");
+        assert_eq!(mesh.indices().len() % 3, 0, "whole triangles only");
         for vertex in mesh.vertices() {
             assert_eq!(vertex.tint_weight, 1.0, "the instance tint IS the grass colour");
             assert_eq!(
@@ -718,7 +807,7 @@ mod tests {
                 renderer_api::surface_role::GRASS_BLADE,
                 "the shader must recognize every near blade for its camera-distance fade"
             );
-            assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.4);
+            assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.35);
         }
     }
 }
