@@ -11,11 +11,19 @@ pub struct TankFootprint {
 }
 
 impl TankFootprint {
-    pub fn from_hitbox(hitbox: HitboxProfile) -> Self {
+    /// The footprint a hull MOVES as: the metal it is drawn with (see [`game_core::HullPlan`]).
+    /// Everything about movement and hull-to-hull contact reads this one.
+    pub fn from_plan(plan: game_core::HullPlan) -> Self {
         Self {
-            half_width_m: hitbox.half_width_m.max(0.01),
-            half_length_m: hitbox.half_length_m.max(0.01),
+            half_width_m: plan.half_width_m.max(0.01),
+            half_length_m: plan.half_length_m.max(0.01),
         }
+    }
+
+    /// The footprint a SHELL VOLUME implies. Deliberately generous around the metal, so it is the
+    /// wrong answer for movement — kept for callers that genuinely mean the hit box.
+    pub fn from_hitbox(hitbox: HitboxProfile) -> Self {
+        Self::from_plan(game_core::HullPlan::from_hitbox(&hitbox))
     }
 }
 

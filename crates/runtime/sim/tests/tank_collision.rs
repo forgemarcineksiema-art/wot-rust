@@ -22,7 +22,9 @@ fn driving_tank_stops_before_overlapping_stationary_tank() {
     );
 
     // Nose-to-tail contact distance: both hulls' half lengths, with a small settling margin.
-    let contact = 2.0 * mover_tank.spec.hitbox.half_length_m - 0.05;
+    // Read off the HULL PLAN since P2.1 — the hull collides as its plates, and the hitbox is the
+    // deliberately generous volume shells resolve against.
+    let contact = 2.0 * mover_tank.spec.hull_plan().half_length_m - 0.05;
     assert!(
         horizontal_delta.length() >= contact,
         "tank hulls must stay separated, mover at {:?}, blocker at {:?}",

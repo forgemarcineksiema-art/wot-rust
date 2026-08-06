@@ -84,7 +84,7 @@ fn the_predictor_meets_another_hull_the_way_the_server_does() {
         velocity: Vec3::ZERO,
         yaw_rad: 0.0,
         yaw_rate_rad_s: 0.0,
-        footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+        footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
         mass_kg: spec.mass_kg,
         movable: false,
     };
@@ -97,7 +97,7 @@ fn the_predictor_meets_another_hull_the_way_the_server_does() {
     }
 
     // Hulls MEET: the boxes come to rest touching, not a detection margin short of each other.
-    let touching = 18.0 - 2.0 * spec.hitbox.half_length_m;
+    let touching = 18.0 - 2.0 * spec.hull_plan().half_length_m;
     let gap = touching - predictor.position().z;
     assert!(
         gap.abs() <= 0.03,
@@ -127,7 +127,7 @@ fn predictor_and_server_rest_in_the_same_place() {
         velocity: Vec3::ZERO,
         yaw_rad: 0.0,
         yaw_rate_rad_s: 0.0,
-        footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+        footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
         mass_kg: spec.mass_kg,
         movable: false,
     };

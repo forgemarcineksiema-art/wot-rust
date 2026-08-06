@@ -160,6 +160,11 @@ impl TankSpec {
 
     /// The running-gear contact footprint, with the hitbox-estimate fallback for specs that
     /// predate the authored field. `ContactFootprint` is `Copy`, so this is free per tick.
+    /// The rectangle this hull MOVES as — the metal, not the shell volume. See [`HullPlan`].
+    pub fn hull_plan(&self) -> crate::HullPlan {
+        crate::HullPlan::for_vehicle(self.kind)
+    }
+
     pub fn contact_footprint(&self) -> ContactFootprint {
         if self.contact.is_empty() {
             ContactFootprint::from_hitbox(&self.hitbox)

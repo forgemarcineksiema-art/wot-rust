@@ -50,7 +50,7 @@ fn a_queue_of_hulls_neither_shakes_nor_sinks() {
 /// settled, the worst movement any of them makes in a tick and the deepest any pair overlaps.
 fn press_a_queue(count: usize) -> (f32, f32) {
     let spec = TankSpec::t54_1951();
-    let half_len = spec.hitbox.half_length_m;
+    let half_len = spec.hull_plan().half_length_m;
     let pitch = 2.0 * half_len + 1.0;
     let mut state = SimulationState::new();
     let ids: Vec<TankId> = (0..count)
