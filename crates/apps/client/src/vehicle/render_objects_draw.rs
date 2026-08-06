@@ -17,6 +17,22 @@ pub fn tank_render_objects(
     snapshot: &TankSnapshot,
     hull_color: [f32; 3],
 ) -> Vec<RenderObject> {
+    tank_render_objects_from_eye(catalog, snapshot, hull_color, None)
+}
+
+/// The same assembly, with the camera the live battle uses to pick a gear detail tier.
+///
+/// `None` keeps the authored construction (the garage, the studio and the look probes exist to
+/// LOOK at a vehicle and must never be shown the distance mesh). `Some(eye)` applies the SAME
+/// rule the battle path applies — `gear_detail_for_distance` — so a cost measurement made
+/// through this path measures the gear the game actually draws at that range, not the near tier
+/// on every tank regardless of how far away it is.
+pub fn tank_render_objects_from_eye(
+    catalog: &mut VehicleMeshCatalog,
+    snapshot: &TankSnapshot,
+    hull_color: [f32; 3],
+    eye: Option<[f32; 3]>,
+) -> Vec<RenderObject> {
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
     let pose = VehiclePose::from_snapshot(snapshot);
 
@@ -60,9 +76,13 @@ pub fn tank_render_objects(
             0.0,
             vehicle_geometry::GearDynamics::default(),
             hull_tint,
-            // This path exists to LOOK at the vehicle (lineups, probes), so it never reaches for
-            // the distance tier.
-            vehicle_geometry::GearDetail::Near,
+            // With no camera this path exists to LOOK at the vehicle (garage, studio, lineups),
+            // so it keeps the authored construction; with one it obeys the battle's own rule.
+            eye.map_or(vehicle_geometry::GearDetail::Near, |eye| {
+                let distance = glam::Vec3::from_array(eye)
+                    .distance(glam::Vec3::from_array(pose.hull_translation().into()));
+                vehicle_geometry::gear_detail_for_distance(distance)
+            }),
         ));
     }
 

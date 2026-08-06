@@ -181,19 +181,24 @@ pub(crate) fn run() {
 fn battle_lineup(
     battlefield: &terrain::BattlefieldMap,
     catalog: &mut client::VehicleMeshCatalog,
+    eye: Option<[f32; 3]>,
 ) -> Vec<renderer_api::RenderObject> {
     use game_core::VehicleKind;
 
-    // Two teams facing off ahead of the eye path (which walks +Z from z=380 to z≈443), spread
-    // 25..120 m out so both gear tiers are represented the way a real engagement presents them.
+    // An engagement, not a parade: the fourteen sit 27..180 m out from the eye path (which walks
+    // +Z from z=380 to z≈443), so about four of them fall inside the 60 m gear-detail threshold
+    // at the closest point and the rest stay on the distance tier. A lineup parked at ONE range
+    // would measure a tier the game never draws alone; passing `eye` applies the battle's own
+    // rule per tank, which the first version of this instrument did not — it built every tank at
+    // the near tier and so measured gear the game does not draw at that distance.
     let roster = VehicleKind::PLAYABLE;
     let mut objects = Vec::new();
     for slot in 0..14 {
         let team = slot / 7;
         let file = slot % 7;
         let kind = roster[slot % roster.len()];
-        let x = 430.0 + (file as f32 - 3.0) * 11.0 + if team == 0 { -6.0 } else { 6.0 };
-        let z = 430.0 + team as f32 * 55.0 + (file as f32) * 7.5;
+        let x = 442.0 + (file as f32 - 3.0) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
+        let z = 470.0 + slot as f32 * 9.0;
         let ground = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
         let snapshot = net::TankSnapshot {
             tank_id: game_core::TankId(slot as u64 + 1),
@@ -223,7 +228,7 @@ fn battle_lineup(
             rack_fire_remaining_s: None,
         };
         let tint = if team == 0 { [0.34, 0.38, 0.30] } else { [0.40, 0.34, 0.28] };
-        objects.append(&mut client::tank_render_objects(catalog, &snapshot, tint));
+        objects.append(&mut client::tank_render_objects_from_eye(catalog, &snapshot, tint, eye));
     }
     objects
 }
@@ -278,12 +283,14 @@ fn frame_time_capture() {
     // The fleet enters the frame instrument. Built once (the lineup is static at rest phase, so
     // per-frame cost is the DRAW, which is what we are measuring) and its meshes registered like
     // any other.
+    // Pre-warm: creating a vehicle's catalog entry registers BOTH gear tiers, so one build puts
+    // every mesh the rotation can ask for on the GPU before any frame is timed.
     let mut catalog = client::VehicleMeshCatalog::default();
-    let tank_objects = battle_lineup(&battlefield, &mut catalog);
+    let warm = battle_lineup(&battlefield, &mut catalog, None);
     for (handle, mesh) in catalog.take_pending_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
-    println!("battle lineup: 14 vehicles, {} render objects", tank_objects.len());
+    println!("battle lineup: 14 vehicles, {} render objects at the near tier", warm.len());
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
@@ -372,9 +379,14 @@ fn frame_time_capture() {
                     Vec::new()
                 };
 
+                // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
+                // detail tier a tank draws at is a function of where the camera is this frame.
                 let mut grass = grass;
                 if with_tanks {
-                    grass.extend_from_slice(&tank_objects);
+                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, Some(eye.into())));
+                    for (handle, mesh) in catalog.take_pending_meshes() {
+                        renderer.register_mesh(&ctx, handle, &mesh);
+                    }
                 }
 
                 let t = Instant::now();
@@ -438,6 +450,12 @@ fn frame_time_capture() {
         "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",
         (full_p50 - fence_p50).max(0.0)
     );
-    println!("  (offscreen: excludes present/vsync, and this is not the MX330 the policy names.");
-    println!("   Read it BEFORE and AFTER a change on one machine; it is not a pass mark.)");
+    println!(
+        "  (offscreen: excludes present/vsync, so every number here is a FLOOR. Subtract the \
+         fence, then compare"
+    );
+    println!(
+        "   against 16.67 ms for 60 FPS — meaningful only when this box IS the min spec; \
+         elsewhere read deltas.)"
+    );
 }
