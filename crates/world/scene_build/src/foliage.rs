@@ -27,6 +27,12 @@ pub fn push_scenery_instance(
         SceneryKind::Rock | SceneryKind::Lamppost | SceneryKind::DebrisHeap => None,
         SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => None,
     };
+    // Hero trees left the statics bake (phase 2): they draw from the instanced mesh path with
+    // runtime LOD (`crate::tree_lod`), so baking them here too would draw every tree twice —
+    // once at full detail regardless of distance, which is the cost the ladder exists to end.
+    if instance.kind == SceneryKind::FloraTree {
+        return;
+    }
     if let Some(name) = imported_flora_name(instance.kind) {
         push_imported_flora(vertices, indices, instance, name);
         return;
@@ -60,7 +66,7 @@ fn imported_flora_name(kind: SceneryKind) -> Option<&'static str> {
 /// re-derived for hero flora 2026-08-05). `dab-hero` bakes at ~13 m — a young oak — and the
 /// world-scale program (W1, "Drzewa 1:1") wants a mature ~22 m specimen, so the species
 /// factor is 1.7 on top of the per-instance scatter scale.
-fn imported_flora_scale(kind: SceneryKind) -> f32 {
+pub fn imported_flora_scale(kind: SceneryKind) -> f32 {
     match kind {
         SceneryKind::FloraTree => 1.7,
         _ => 1.0,
@@ -389,13 +395,10 @@ mod tests {
         // Imported kinds (Flora 2.0) carry their own DELIBERATE ceiling: the whole program
         // exists to spend more triangles on close-range foliage, and the import gate already
         // enforces it per asset — the raise is per-kind, never a fleet-wide envelope bump.
-        let hero_budget = crate::flora_pack::flora_catalog()
-            .get("dab-hero")
-            .map(|(asset, _)| asset.effective_tri_budget())
-            .expect("dab-hero ships");
-        // Retired imported kinds keep their wire identity but name no asset: they bake to
-        // nothing until a hero counterpart is authored.
-        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush] {
+        // Kinds that contribute NOTHING to the statics bake: the retired imports (no asset
+        // named) and the hero oak (drawn from the instanced LOD path instead, where its own
+        // budget is locked by `tree_lod`'s tests).
+        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush, SceneryKind::FloraTree] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             push_scenery_instance(
@@ -408,7 +411,7 @@ mod tests {
                     scale: 1.3,
                 },
             );
-            assert!(indices.is_empty(), "{retired:?} is retired and must bake to nothing");
+            assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
         for (kind, ceiling) in [
             (SceneryKind::Oak, MAX_TRIS_PER_INSTANCE),
@@ -420,7 +423,6 @@ mod tests {
             (SceneryKind::Pine, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::Lamppost, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::DebrisHeap, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::FloraTree, hero_budget),
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -454,18 +456,10 @@ mod tests {
     /// on the hero oak, the one imported kind that still names an asset.
     #[test]
     fn imported_kinds_carry_remapped_atlas_uvs() {
-        let mut vertices = Vec::new();
-        let mut indices = Vec::new();
-        push_scenery_instance(
-            &mut vertices,
-            &mut indices,
-            &SceneryInstance {
-                kind: SceneryKind::FloraTree,
-                position: [0.0, 0.0, 0.0],
-                yaw_rad: 0.0,
-                scale: 1.0,
-            },
-        );
+        // Measured on the instanced mesh: the hero oak no longer passes through the statics
+        // bake, but the UV contract it must honour is the packer's, not the bake's.
+        let mesh = crate::tree_lod::flora_mesh_asset("dab-hero").expect("the hero oak ships");
+        let vertices = mesh.vertices();
         assert!(!vertices.is_empty());
         let (region_area, page_area) = {
             let (_, region) = crate::flora_pack::flora_catalog().get("dab-hero").expect("shipped");

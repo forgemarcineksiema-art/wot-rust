@@ -1490,8 +1490,14 @@ mod tests {
         assert_eq!(collapsed_clean.0.len(), collapsed_scarred.0.len());
     }
 
+    /// Levelling a tree line empties the volume it occupied and leaves wreckage on the ground.
+    ///
+    /// The hero oaks that also dressed it are no longer part of this bake — they draw from the
+    /// instanced LOD path, which drops them on the same rule (`tree_lod::tree_frame_objects`,
+    /// locked by its own test). What this locks is the bake's half: nothing of the standing
+    /// line survives up in its box, and something does survive down on the ground.
     #[test]
-    fn a_cleared_tree_line_removes_its_box_and_the_trees_standing_in_it() {
+    fn a_cleared_tree_line_empties_its_volume_and_leaves_wreckage() {
         let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let tree_line = map
             .static_cover
@@ -1504,11 +1510,29 @@ mod tests {
         states[tree_line] = 2; // gone
         let cleared = battlefield_scene_mesh_with_cover_states(&map, &states);
 
+        let box_ = &map.static_cover[tree_line];
+        let inside_above = |mesh: &(Vec<SceneVertex>, Vec<u32>), frac: f32| {
+            mesh.0
+                .iter()
+                .filter(|v| {
+                    (v.position[0] - box_.center[0]).abs() <= box_.half_extents_m[0]
+                        && (v.position[2] - box_.center[2]).abs() <= box_.half_extents_m[2]
+                        && v.position[1] >= box_.center[1] + box_.half_extents_m[1] * frac
+                })
+                .count()
+        };
         assert!(
-            cleared.0.len() < intact.0.len(),
-            "clearing a tree line removes geometry ({} vs {})",
-            cleared.0.len(),
-            intact.0.len()
+            inside_above(&intact, 0.5) > 0,
+            "the standing line fills the upper half of its box"
+        );
+        assert_eq!(
+            inside_above(&cleared, 0.5),
+            0,
+            "levelling it empties that half — the box is gone, not merely shortened"
+        );
+        assert!(
+            inside_above(&cleared, -1.0) > 0,
+            "and leaves stumps and a fallen trunk on the ground it stood on"
         );
     }
 

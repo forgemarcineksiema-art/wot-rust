@@ -576,7 +576,7 @@ MapBlueprint(
         Scatter(
             seed: 4310001,
             kind: FloraTree,
-            pairs: 1,
+            pairs: 3,
             region: ScatterRect(
                 x: (55.0, 115.0),
                 z: (250.0, 460.0),
@@ -590,7 +590,7 @@ MapBlueprint(
         Scatter(
             seed: 4310002,
             kind: FloraTree,
-            pairs: 1,
+            pairs: 3,
             region: ScatterRect(
                 x: (60.0, 130.0),
                 z: (140.0, 300.0),
@@ -636,7 +636,7 @@ MapBlueprint(
         Scatter(
             seed: 4310006,
             kind: FloraTree,
-            pairs: 1,
+            pairs: 3,
             region: ScatterRect(
                 x: (880.0, 960.0),
                 z: (180.0, 300.0),
@@ -695,8 +695,8 @@ MapBlueprint(
                 472.0,
             ],
             z_start_m: 258.0,
-            z_step_m: 44.0,
-            count: 1,
+            z_step_m: 30.0,
+            count: 2,
             yaw_rad: 0.3,
             scale: 1.0,
         ),

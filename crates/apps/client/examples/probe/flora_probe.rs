@@ -61,6 +61,23 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let eye = [498.0, ground(498.0, 455.0) + 4.0, 455.0];
     let look = [499.0, ground(499.0, 500.0) + 11.0, 500.0];
     renderer.shadow_focus = Some(look);
+    // The hero oak draws from the instanced LOD ladder now, not the statics bake — the look
+    // gate submits it the way the battle frame does, at the rung this camera distance picks.
+    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
+    let mut lod_state = scene_build::tree_lod::TreeLodState::default();
+    let tree_frame = renderer_api::RenderFrame {
+        objects: scene_build::tree_lod::tree_frame_objects(
+            &battlefield.scenery,
+            &battlefield.static_cover,
+            &[],
+            glam::Vec3::from_array(eye),
+            &mut lod_state,
+        ),
+        ..renderer_api::RenderFrame::default()
+    };
+    renderer.set_render_frame(&ctx, &tree_frame);
     let camera = Camera { eye, target: look, vertical_fov_degrees: 55.0 };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(

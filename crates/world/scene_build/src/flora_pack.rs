@@ -12,8 +12,15 @@ use world_forge::flora::FloraAsset;
 
 /// One 2048² RGBA8 page plus mips is ~21 MiB and remains min-spec safe.
 pub const FLORA_ATLAS_SIZE: u32 = 2048;
-/// Stop at 8x8: every shipped region still owns distinct content and gutter texels there.
-pub const FLORA_MAX_SAMPLED_MIP: u32 = 8;
+/// Stop at 16x16: every shipped region still owns distinct content and gutter texels there.
+///
+/// One rung deeper (8x8) was safe while two regions sat DIAGONALLY across the page. A third
+/// asset necessarily makes two of them side by side, and at 8x8 a 512-texel region shrinks to
+/// two texels — its one-texel gutter then reaches into the neighbour and a distant card samples
+/// its sibling's leaves. Clamping one level shallower keeps the isolation the packer promises;
+/// nothing loses detail, because a tree that far away is drawing the impostor, whose region is
+/// four times wider and never reaches this tail.
+pub const FLORA_MAX_SAMPLED_MIP: u32 = 7;
 
 const SLOT_SIZE: u32 = FLORA_ATLAS_SIZE / 2;
 const PACK_SLOTS: [(u32, u32); 3] = [(1, 0), (0, 1), (1, 1)];
@@ -45,10 +52,23 @@ impl FloraCatalog {
 // Hero-flora program (2026-08-05): the stylized download pack is retired; `dab-hero` — an
 // oak distilled from a Blender master with photoscan CC0 textures (ambientCG Bark012 +
 // LeafSet016) — is the first of the new family. Freed slots host its future siblings.
-const SHIPPED: &[(&str, &[u8])] = &[(
-    include_str!("../../../../assets/flora/dab-hero.flora.json"),
-    include_bytes!("../../../../assets/flora/dab-hero.flora.png"),
-)];
+// The rungs of one tree, not three species: the near mesh, its sparse mid distillation and the
+// two-quad impostor all come from the same Blender master, and `tree_lod` swaps between them by
+// distance. They share the atlas because they share the art.
+const SHIPPED: &[(&str, &[u8])] = &[
+    (
+        include_str!("../../../../assets/flora/dab-hero.flora.json"),
+        include_bytes!("../../../../assets/flora/dab-hero.flora.png"),
+    ),
+    (
+        include_str!("../../../../assets/flora/dab-hero-lod2.flora.json"),
+        include_bytes!("../../../../assets/flora/dab-hero-lod2.flora.png"),
+    ),
+    (
+        include_str!("../../../../assets/flora/dab-hero-imp.flora.json"),
+        include_bytes!("../../../../assets/flora/dab-hero-imp.flora.png"),
+    ),
+];
 
 pub fn flora_catalog() -> &'static FloraCatalog {
     static CATALOG: OnceLock<FloraCatalog> = OnceLock::new();

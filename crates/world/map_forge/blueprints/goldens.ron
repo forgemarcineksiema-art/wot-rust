@@ -10,17 +10,20 @@
     // second floodplain terrace, meadow swales and the bridgehead bluffs. Water contract,
     // playability BFS and symmetry held un-relaxed.
     // Re-blessed 2026-08-05 (hero flora), ALL FOUR MAPS: the procedural willow/poplar
-    // scenery and every retired FloraPine entry are gone, and the hero-oak dressing is
-    // MEASURED down to what the min spec affords — one mirrored pair per scatter and a
-    // single-depth boulevard avenue at a 44 m stride: ~10 trees a map, down from 76 on
-    // Ostrogorsk. The probe is why: 76 cost +19.97 ms/frame on an MX330, 14 still +8.19,
-    // and 10 land at +5.86 inside the 16.667 ms gate. The limit is alpha-cutout OVERDRAW
-    // near the camera, not triangles — the count rises when trees get runtime LOD.
-    // Landmark oaks, not woods. Dressing only; cover, terrain, roads and gameplay untouched.
-    ("bystra_valley", "b5fd4dc95db62592"),
-    ("orliny_pereval", "693704dd6fe72d92"),
+    // scenery and every retired FloraPine entry are gone, and the hero oak replaced the
+    // stylized download pack.
+    // Re-blessed 2026-08-06 (hero flora, LOD ladder), ALL FOUR MAPS: the count the earlier
+    // bless promised would "rise when trees get runtime LOD" has risen. Instanced trees pick
+    // a rung by distance, so a DISTANT oak costs ~0.03 ms/frame against the ~0.59 it cost
+    // baked — the scatters go to three mirrored pairs each while the boulevard avenue, which
+    // stands metres from the camera and pays fill rather than triangles, only goes two deep.
+    // Ostrogorsk: 26 trees at 15.62 ms of the 16.667 ms min-spec gate (42 measured 16.16 —
+    // a pass with no room, which is not a pass). Dressing only; cover, terrain, roads and
+    // gameplay stand untouched.
+    ("bystra_valley", "c9dc0490489362b8"),
+    ("orliny_pereval", "aaf6b55231566206"),
     // Re-blessed 2026-08-05 (teren C4): the berm's east borrow ditch, broken at the gates
     // — the dossier's own sculpt-session TODO, closed with form + materia, no mechanism.
-    ("ostrogorsk", "73dd71874c9fecf5"),
-    ("prokhorovka_hill_252_2", "c74ccc1cba65c4aa"),
+    ("ostrogorsk", "deb5f985fac3c803"),
+    ("prokhorovka_hill_252_2", "f643181db756ba52"),
 ]

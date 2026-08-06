@@ -348,6 +348,11 @@ impl ClientApp {
         for (handle, mesh) in scene_build::grass::grass_species_meshes() {
             renderer.register_mesh(handle, &mesh);
         }
+        // The hero-tree LOD ladder (phase 2): three uploads at deployment serve every oak on
+        // the map, and the battle frame picks a rung per tree per frame.
+        for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+            renderer.register_mesh(handle, &mesh);
+        }
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
@@ -617,6 +622,18 @@ impl ClientApp {
             self.grass_cache_eye = Some(eye);
             self.grass_cache_crater_fingerprint = crater_fingerprint;
         }
+        // Hero trees ride the same instancing path, but they are rebuilt EVERY frame: there
+        // are ten of them and the rung a tree draws depends on where the camera is right now.
+        // They are appended to the grass allocation and trimmed off again, so the per-frame
+        // scene submission still costs no allocation.
+        let grass_len = self.grass_cache.len();
+        self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects(
+            &self.battlefield.scenery,
+            &self.battlefield.static_cover,
+            self.live_cover.phase_bytes(),
+            eye,
+            &mut self.tree_lod_state,
+        ));
         // `set_render_frame` reads the objects only synchronously. Move the allocation into
         // the temporary frame and recover it afterwards instead of cloning hundreds of KiB on
         // every presented frame.
@@ -626,6 +643,7 @@ impl ClientApp {
         };
         renderer.set_render_frame(&grass_frame);
         self.grass_cache = std::mem::take(&mut grass_frame.objects);
+        self.grass_cache.truncate(grass_len);
         renderer.set_vehicle_render_frame(&vehicle_frame);
         // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
         // the FX pass); clear whatever the garage left behind.

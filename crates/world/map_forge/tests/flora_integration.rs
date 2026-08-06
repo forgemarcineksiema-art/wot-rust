@@ -28,16 +28,16 @@ fn scatter_pairs(blueprint: &MapBlueprint, wanted: SceneryKind) -> usize {
 
 #[test]
 fn the_hero_oak_is_scattered_sparsely_across_every_shipped_map() {
-    // The hero oak is a landmark, not a forest, and the density is MEASURED, not taste: on
-    // the min spec (MX330, Ostrogorsk avenue view, flora_frame_probe) one baked instance
-    // costs ~0.26 ms/frame against ~5 ms of headroom over the 11.5 ms tree-less baseline.
-    // That buys ~14 trees per map — hence one mirrored pair per scatter and a two-deep
-    // avenue. The ceiling lifts when trees move to the instanced path with runtime LOD.
+    // The density is MEASURED, not taste, and the LOD ladder is what moved it: with trees
+    // baked into the statics every copy cost ~0.59 ms/frame on the min spec and ten a map was
+    // the ceiling. Instanced, a DISTANT tree costs ~0.03 ms — nineteen times less — so the
+    // scatters got generous while the boulevard avenue, which stands in the camera's face,
+    // stayed shallow. Ostrogorsk measures 26 trees at 15.62 ms of the 16.667 ms gate.
     let expected_pairs = [
-        (MapId::ProkhorovkaHill252_2, 3),
-        (MapId::BystraValley, 3),
-        (MapId::OrlinyPereval, 2),
-        (MapId::Ostrogorsk, 3),
+        (MapId::ProkhorovkaHill252_2, 9),
+        (MapId::BystraValley, 9),
+        (MapId::OrlinyPereval, 6),
+        (MapId::Ostrogorsk, 9),
     ];
 
     for (map_id, tree_pairs) in expected_pairs {
@@ -54,8 +54,8 @@ fn the_hero_oak_is_scattered_sparsely_across_every_shipped_map() {
         for op in &blueprint.scenery {
             if let SceneryOp::Scatter { kind: SceneryKind::FloraTree, pairs, .. } = op {
                 assert!(
-                    *pairs <= 2,
-                    "{map_id:?}: a hero-oak scatter outgrew the sparse cap ({pairs} pairs)"
+                    *pairs <= 3,
+                    "{map_id:?}: a hero-oak scatter outgrew its measured cap ({pairs} pairs)"
                 );
             }
         }
@@ -73,10 +73,11 @@ fn the_hero_oak_is_scattered_sparsely_across_every_shipped_map() {
 
 #[test]
 fn ostrogorsk_avenue_is_a_hero_oak_row_within_the_measured_depth() {
-    // The boulevard avenue survives the hero-flora program as a FORM — two flanking rows in
-    // their authored lanes — but its DEPTH is now a budget decision: sixteen deep (64 trees
-    // after mirroring) measured +19.97 ms/frame on the min spec, four times the headroom.
-    const MEASURED_MAX_DEPTH: u32 = 4;
+    // The boulevard avenue survives as a FORM — two flanking rows in their authored lanes —
+    // but its DEPTH stays a budget decision even after the LOD ladder: these trees stand
+    // metres from the camera, where a tree draws its full near mesh and costs fill, not
+    // triangles. Sixteen deep measured +19.97 ms/frame on the min spec.
+    const MEASURED_MAX_DEPTH: u32 = 3;
     let blueprint = blueprint_for(MapId::Ostrogorsk);
 
     let avenue = blueprint

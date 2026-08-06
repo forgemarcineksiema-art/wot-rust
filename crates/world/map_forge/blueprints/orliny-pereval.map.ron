@@ -282,7 +282,7 @@ MapBlueprint(
         Scatter(
             seed: 7811004,
             kind: FloraTree,
-            pairs: 1,
+            pairs: 3,
             region: ScatterRect(
                 x: (140.0, 300.0),
                 z: (80.0, 440.0),
@@ -364,7 +364,7 @@ MapBlueprint(
         Scatter(
             seed: 7811007,
             kind: FloraTree,
-            pairs: 1,
+            pairs: 3,
             region: ScatterRect(
                 x: (430.0, 570.0),
                 z: (420.0, 455.0),
