@@ -204,12 +204,25 @@ previous one's hole and opened its own.
 
 | **H2** | **A hull can be steered INTO its neighbour, and the contact solver cannot stop it.** Reported from the game 2026-08-06 with a screenshot and reproduced: driving alongside and leaning in buries the hull **0.115 m**, leaning on a parked one **0.445 m**, a pivot against one **0.099 m**. Cause: a contact is ONE point, and a hull pinned at one point turns about it freely — the rotation violates nothing there, so the solver applies nothing while a corner elsewhere digs in. Every Wave 1 probe read 0.0000 m on these manoeuvres because they measured the distance between hull CENTRES along one world axis, which cannot see a corner in a flank; `physics::footprint_penetration_m` now exists so no probe repeats that. The fix is a two-point manifold — built and measured at **0.039 m worst case** — but not shipped: a Jacobi pass handed two coupled points destabilises stacks (a queue of three went from 0.0014 m of sink and no motion to 0.110 m and 0.044 m/tick). It needs mass splitting across the contacts holding a hull, or sequential iteration over a deterministically sorted list. **Repro:** `sim/tests/steering_into_a_neighbour.rs`, which ratchets today's numbers. | `physics/src/contact_impulse.rs`, `collision.rs` |
 
+| **H3** | **FIXED — the shake on a flank ram was the prediction seam, not the physics.** Reported from the game 2026-08-06: "sometimes when you ram someone's flank at speed there are vibrations". The simulation is clean — a T-bone was measured at every impact point from dead centre to 2.8 m off, and it produced **zero direction reversals** at every one of them. The shake was the client/server seam. The server let the local hull shove the victim aside and keep its speed; the predictor pinned neighbours **immovable and motionless** and stopped the local hull dead, so free-running divergence reached **1.77 m** at full throttle. Corrections up to 2.0 m are smoothed across a single render tick (`predict/sync.rs:64`), so each snapshot yanked the camera forward — a 20 Hz sawtooth lasting about a second. The old doc comment defended the pin as avoiding "minting a correction"; refusing to predict the shove is what minted it. **Fixed** by predicting contact under the authority's rules (movable neighbours with mass, moving at the speed `TankMotion` derives from the snapshot pair) and keeping only the local half of the answer: per-snapshot correction at full throttle **0.283 m over 16+ snapshots → 0.207 m over 10**, and at 0.7 throttle 0.227 m → 0.123 m. **Locked:** `client/src/predict/parity_tests.rs::ramming_a_live_hull_does_not_buzz_the_camera`. | `client/src/app/prediction.rs`, `client/src/predict.rs` |
+
 The lesson underneath H1 is the register's own recurring one: a soak that samples two seeds is a
 soak that promises a population and checks a pair. The promise is the right one; the sample is not.
 
 And H2 is the same lesson worn the other way round: three separate probes in one programme agreed
 on 0.0000 m, and all three were the same wrong ruler. Agreement between instruments that share a
 mistake is not evidence.
+
+H3 adds a third face of it. Every instrument in this programme lives in the SIMULATION, and the
+simulation was innocent — the defect was in the seam between the predicted picture and the
+authoritative one, where nothing was measured at all. A test suite that only watches the server
+cannot see anything the player sees that the server does not do. The first honest number here came
+from running the predictor and the authority side by side and asking how far apart they drift.
+
+The near-miss is worth recording too: the first version of that probe let the predictor free-run
+and reported the CUMULATIVE drift (1.77 m), which is not what anyone sees. The client reconciles
+every snapshot, so the quantity that moves the camera is the size of ONE correction. Same failure
+as the Wave 1 rulers — a number that is real, related, and answering a different question.
 
 ## Withdrawn after verification
 

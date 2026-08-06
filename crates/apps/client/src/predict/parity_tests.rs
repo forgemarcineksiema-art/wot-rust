@@ -99,3 +99,102 @@ fn predictor_matches_the_server_through_a_launch_flight_and_landing() {
     let tank = server.tank(tank_id).expect("tank");
     assert!(tank.position.y < 0.05, "the run must end landed on the low ground");
 }
+
+/// RAMMING A LIVE HULL — the manoeuvre the player reported as vibration: hit someone's flank at
+/// speed and the picture buzzes.
+///
+/// Nothing in the simulation shakes; a flank impact was measured clean at every impact point. The
+/// shake was the seam. The server let the local hull shove the victim aside and keep its speed; the
+/// predictor pinned the victim IMMOVABLE and MOTIONLESS, so it stopped the local hull dead. Every
+/// snapshot then yanked the camera forward to catch up — a 20 Hz sawtooth lasting about a second,
+/// which is what buzzing looks like. Free-running divergence peaked at 1.77 m at full throttle.
+///
+/// The fix is to predict contact by the authority's rules (movable neighbours with mass, moving at
+/// the speed `TankMotion` derives from the snapshot pair) and keep only the local half of the
+/// answer. Per-snapshot correction, T-54 into a parked flank:
+///
+/// | throttle | pinned + motionless | authority's rules |
+/// |----------|--------------------:|------------------:|
+/// | 0.35     |  0.110 m, 9 corrections | 0.078 m, 5 |
+/// | 0.70     |  0.227 m, 16+ corrections | 0.123 m, 7 |
+/// | 1.00     |  0.283 m, 16+ corrections | 0.207 m, 10 |
+///
+/// The peak matters less than the tail: the old corrections decayed so slowly they were still
+/// 0.15 m sixteen snapshots later. These bounds hold today's numbers so the seam cannot reopen.
+#[test]
+fn ramming_a_live_hull_does_not_buzz_the_camera() {
+    // Per-snapshot correction ceiling, and how many snapshots may carry a visible one.
+    const WORST_CORRECTION_M: f32 = 0.24;
+    const MAX_CORRECTIONS: usize = 12;
+
+    for (throttle, ceiling) in [(0.35_f32, 0.10_f32), (0.7, 0.16), (1.0, WORST_CORRECTION_M)] {
+        let flat = HeightMap::flat(200, 200, 4.0, 0.0).unwrap();
+        let spec = TankSpec::t54_1951();
+        let step = FixedTimestep::from_hz(60);
+        let snapshot_ticks = 3;
+
+        let mut server = SimulationState::new();
+        let charger = server.spawn_tank_with_yaw(TeamId(1), spec.clone(), Vec3::ZERO, 0.0);
+        let victim = server.spawn_tank_with_yaw(
+            TeamId(2),
+            spec.clone(),
+            Vec3::new(1.8, 0.0, 70.0),
+            std::f32::consts::FRAC_PI_2,
+        );
+        let mut predictor = LocalPredictor::new(&spec);
+        predictor.sync_to(&TankSnapshot::from(server.tank(charger).expect("charger")));
+
+        let drive = TankCommand::drive(throttle, 0.0);
+        let go = [(charger, drive), (victim, TankCommand::drive(0.0, 0.0))];
+        // The neighbour exactly as `neighbours_for_prediction` builds it: refreshed per snapshot,
+        // movable, and moving at the speed the snapshot pair implies.
+        let mut pose = (Vec3::new(1.8, 0.0, 70.0), std::f32::consts::FRAC_PI_2);
+        let mut velocity = Vec3::ZERO;
+        let mut yaw_rate = 0.0_f32;
+        let mut worst = 0.0_f32;
+        let mut corrections = 0;
+        for tick in 0..900 {
+            if tick % snapshot_ticks == 0 {
+                let seen = server.tank(victim).expect("victim");
+                let window = snapshot_ticks as f32 * step.dt_seconds();
+                velocity = (seen.position - pose.0) / window;
+                yaw_rate = (seen.yaw_rad - pose.1) / window;
+                pose = (seen.position, seen.yaw_rad);
+            }
+            let neighbour = ContactBody {
+                id: 2,
+                position: pose.0,
+                velocity,
+                yaw_rad: pose.1,
+                yaw_rate_rad_s: yaw_rate,
+                footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
+                mass_kg: spec.mass_kg,
+                movable: true,
+            };
+            server.apply_commands_on_terrain(&go, step, &flat);
+            predictor.step(drive, &flat, &[], &[neighbour], &[], None, step.dt_seconds());
+
+            // What the client really does: reconcile onto authority every snapshot. The gap at
+            // that instant is the distance the camera is yanked.
+            if tick % snapshot_ticks == snapshot_ticks - 1 {
+                let truth = server.tank(charger).expect("charger");
+                let jump = (predictor.position() - truth.position).length();
+                worst = worst.max(jump);
+                if jump > 0.02 {
+                    corrections += 1;
+                }
+                predictor.sync_to(&TankSnapshot::from(truth));
+            }
+        }
+        assert!(
+            worst <= ceiling,
+            "throttle {throttle}: a flank ram now yanks the camera {worst:.3} m per snapshot, past \
+             the {ceiling} m recorded. The predictor and the authority disagree about contact again"
+        );
+        assert!(
+            corrections <= MAX_CORRECTIONS,
+            "throttle {throttle}: {corrections} snapshots carry a visible correction, past the \
+             {MAX_CORRECTIONS} recorded. A long tail of corrections is exactly what buzzes"
+        );
+    }
+}
