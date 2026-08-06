@@ -362,6 +362,33 @@ The tipping edge is `outer_x` — the number Wave 2 makes honest. This wave foll
 
 ### Wave 4 — Force per track (7 PR)
 
+**Decided 2026-08-06: climbing is a DISCIPLINE**, and that decision is what this wave is now for.
+
+Climbing was never a feature anybody wrote. It falls out of the force model resolving against
+`forward_slope` — the grade along the hull's HEADING — so taking a face obliquely presents a
+shallower one. Measured and now locked (`physics/tests/climb_envelope.rs`):
+
+| | head-on | 15° | 30° | 45° | 60° off square |
+|---|---|---|---|---|---|
+| T-54, standing | 0.56 (**29°**) | 0.56 | 0.61 | 0.74 | 0.73 |
+| T-54, run-up | 0.68 (**34°**) | 0.70 | 0.79 | 0.96 | **1.36 (54°)** |
+| Tiger II, standing | 0.49 (26°) | 0.49 | 0.53 | 0.64 | 0.69 |
+| any hull, run-up | 0.68 | 0.70 | 0.79 | 0.96 | 1.36 |
+
+Two properties worth keeping on purpose: **from a standstill the vehicle matters** (power-to-weight
+shows: Tiger II 26° against a T-54's 29°), and **with a run-up every hull is identical** — climbing
+is a driver's skill, not a stat anyone can buy.
+
+**What Wave 4 is actually for, restated.** Today a face past the momentum ceiling zeroes the
+forward speed: the hull stops dead, which is the least readable failure mode available. With two
+track forces the uphill belt loses normal load, spins, and the hull slews off and slides back down
+— a failure you can see and learn from. That is the one place in this wave where per-track forces
+buy LEGIBILITY rather than fidelity, and with climbing a discipline it is the headline.
+
+**And the envelope above is the acceptance test.** The failure mode changes; the envelope does not.
+A hull that can suddenly scrabble up faces the map contract walls off has not been improved, it has
+been unmapped.
+
 The idea in one line: **a track is a friction constraint with a non-zero target velocity.** The
 drive is not a force added to the hull; it is a commanded belt speed, and the solver computes the
 force that realises it, bounded by the friction cone on that track's normal load.
