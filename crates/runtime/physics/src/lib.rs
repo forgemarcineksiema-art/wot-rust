@@ -12,7 +12,7 @@ mod vertical;
 pub mod water;
 mod world;
 
-pub use collision::{TankFootprint, TankObstacle, TankWorldObstacles};
+pub use collision::{TankFootprint, TankObstacle, TankWorldObstacles, footprint_penetration_m};
 pub use contact::{GroundScales, TerrainContact, sample_tank_terrain_contact};
 pub use contact_impulse::{
     ContactBody, ContactCache, ContactImpulse, ContactPair, ContactReport, resolve_contacts,

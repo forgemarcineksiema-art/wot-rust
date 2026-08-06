@@ -312,6 +312,18 @@ fn deepest_corner(hull: &TankObstacle, [right, forward]: [Vec2; 2], outward: Vec
     best
 }
 
+/// How deep two hull footprints are into each other, in metres, along the shallowest way out —
+/// zero when they are apart. The SAME test the solver runs, exposed so that anything asking "are
+/// these hulls inside each other" gets the solver's answer rather than a second opinion.
+///
+/// It exists because a second opinion is what went wrong. Every probe written during Wave 1
+/// measured interpenetration as the distance between hull CENTRES along one world axis. That
+/// number cannot see a corner swung into a flank: it reported 0.0000 m while a hull was driving
+/// into its neighbour, which is what the player then reported from the game.
+pub fn footprint_penetration_m(a: &TankObstacle, b: &TankObstacle) -> f32 {
+    obstacles_contact(a, b).map_or(0.0, |contact| contact.depth_m.max(0.0))
+}
+
 /// XZ-plane separating-axis overlap between two oriented hull footprints.
 pub(crate) fn obstacles_overlap(a: &TankObstacle, b: &TankObstacle) -> bool {
     obstacles_contact(a, b).is_some()
