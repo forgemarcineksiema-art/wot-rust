@@ -152,10 +152,35 @@ pub struct ContactFeature {
     pub incident_corner: u8,
 }
 
+/// Overlap depth threshold: shallower than this and the two footprints are touching, not
+/// interpenetrating. Unchanged from the original test, so no blocking verdict anywhere moves.
+const OVERLAP_EPSILON_M: f32 = 1.0e-5;
+
 /// XZ-plane separating-axis test between two oriented hull footprints, reporting the contact when
 /// they overlap. [`obstacles_overlap`] is this test's yes/no answer and stays bit-identical to it:
 /// the separation threshold is the same, so no blocking verdict anywhere moves.
 pub(crate) fn obstacles_contact(a: &TankObstacle, b: &TankObstacle) -> Option<FootprintContact> {
+    footprint_contact_within(a, b, 0.0).filter(|contact| contact.depth_m > OVERLAP_EPSILON_M)
+}
+
+/// The same separating-axis test, but reporting a contact for hulls that are merely CLOSE as well
+/// as for hulls that overlap — `depth_m` is signed, positive into each other and negative apart.
+///
+/// This is what a speculative contact needs. A constraint that only exists once two hulls are
+/// inside each other is a constraint that arrives too late: the solver's only remaining move is to
+/// stop them dead wherever they happen to be, which is how a standoff gap gets built (the pair
+/// parks a detection margin apart and the metal never touches). Told how far apart they still are,
+/// the same solver can allow exactly the closing that shuts the gap this tick and no more — the
+/// hulls end up touching, which is where they belong.
+///
+/// The axis picked is the same one either way, and that falls out of the arithmetic rather than
+/// needing a second rule: overlapping, the minimum depth IS the minimum translation out; apart,
+/// the minimum (most negative) depth IS the axis that separates them best.
+pub(crate) fn footprint_contact_within(
+    a: &TankObstacle,
+    b: &TankObstacle,
+    margin_m: f32,
+) -> Option<FootprintContact> {
     let center_a = Vec2::new(a.center.x, a.center.z);
     let center_b = Vec2::new(b.center.x, b.center.z);
     let [right_a, forward_a] = footprint_axes(a.yaw_rad);
@@ -170,7 +195,9 @@ pub(crate) fn obstacles_contact(a: &TankObstacle, b: &TankObstacle) -> Option<Fo
             + b.footprint.half_length_m * axis.dot(forward_b).abs();
         let separation = delta.dot(axis);
         let depth_m = radius_a + radius_b - separation.abs();
-        if depth_m <= 1.0e-5 {
+        // Further apart along this axis than anyone cares about: no contact, and no point
+        // projecting the rest.
+        if depth_m < -margin_m {
             return None;
         }
         if shallowest.is_none_or(|(_, _, shallowest)| depth_m < shallowest) {
