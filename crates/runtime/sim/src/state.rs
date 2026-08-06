@@ -367,19 +367,40 @@ impl SimulationState {
         //   2. hull-to-hull contacts are solved against where those velocities WOULD put them;
         //   3. the surviving velocities are spent and resolved against the world.
         //
+        // There used to be a fourth: a positional pass that pushed anything still overlapping
+        // apart by writing hull positions. It is gone (P1.4). A contact that reaches the hull as a
+        // teleport is a contact the drive never learned about, the attitude was computed for the
+        // wrong place, and — measured — a three-metre spawn overlap was cleared in ONE TICK by
+        // moving a hull 1.49 m. Separation is a velocity now, all of it.
+        //
         // The old order — drive, move, then refuse the move — deleted the whole point. A blocked
         // hull's momentum simply vanished and the hull it ran into never learned it had been hit,
         // which is why `tank_resolve` needed an interpenetration escape hatch to stop pile-ups
         // deadlocking. Solving after the move does not fix it either: a correction that reaches
         // the velocity only next tick lets a crowd gain ground every tick, and at a river ford
         // that means gaining it into the water.
+        // EVERY living hull is stepped, commanded or not, and the reason is the same one
+        // `settle_wrecks` already carries for the vertical: a tank nobody gave an order to this
+        // tick is a tank sitting still, not a tank exempt from physics. Stepping only the
+        // commanded ones left an uncommanded hull accumulating contact impulses it never spent —
+        // shoved every tick, moving never, its velocity climbing without bound. That was invisible
+        // while a positional pass shoved it by hand instead (P1.4 deleted that), and it is exactly
+        // the invariant the movement policy states: nothing may DELETE momentum, and a hull that
+        // never spends its momentum has had it deleted just as surely.
         let footprint_of = |tank: &TankState| tank.spec.contact_footprint();
         let mut phases: Vec<(usize, TankCommand, crate::tank_drive::DrivePhase)> =
-            Vec::with_capacity(commands.len());
-        for (tank_id, command) in commands.iter().copied() {
-            let Some(index) = self.tanks.iter().position(|tank| tank.id == tank_id) else {
-                continue;
-            };
+            Vec::with_capacity(self.tanks.len());
+        let orders: Vec<(usize, TankCommand)> = (0..self.tanks.len())
+            .map(|index| {
+                let id = self.tanks[index].id;
+                let command = commands
+                    .iter()
+                    .find(|(tank_id, _)| *tank_id == id)
+                    .map_or_else(TankCommand::idle, |(_, command)| *command);
+                (index, command)
+            })
+            .collect();
+        for (index, command) in orders {
             let command = command.clamped();
             let tank = &mut self.tanks[index];
             if tank.hit_points == 0 {
@@ -450,9 +471,6 @@ impl SimulationState {
                 }
             }
         }
-
-        // PHASE 4 — anything still overlapping is eased apart.
-        self.separate_overlapping_hulls(live_cover.movement(), heightmap);
 
         apply_ramming_damage(
             &contact_pairs,
@@ -575,41 +593,6 @@ impl SimulationState {
             self.tanks[index].hull_yaw_velocity_rad_s += impulse.delta_yaw_rate_rad_s;
         }
         report.pairs
-    }
-
-    /// PHASE 4: ease apart anything still overlapping — a pivot that swung an oriented footprint
-    /// into a neighbour, or a spawn accident. With the contacts solved before the move this is a
-    /// mop-up, not the mechanism, and it replaces `tank_resolve`'s "hold the previous position".
-    fn separate_overlapping_hulls(
-        &mut self,
-        cover: &[StaticCoverObject],
-        heightmap: Option<&HeightMap>,
-    ) {
-        if self.tanks.len() < 2 {
-            return;
-        }
-        let bodies = self.contact_bodies();
-        for (index, push) in physics::separate_overlaps(&bodies).into_iter().enumerate() {
-            if push == Vec3::ZERO {
-                continue;
-            }
-            let tank = &mut self.tanks[index];
-            let footprint = TankFootprint::from_hitbox(tank.spec.hitbox);
-            // Being pushed out of a neighbour may never push a hull into a building or past the
-            // red line: both hard limits are re-applied to the corrected position.
-            tank.position = physics::resolve_cover_collision(
-                tank.position,
-                tank.position + push,
-                tank.yaw_rad,
-                footprint,
-                cover,
-            );
-            if let Some(heightmap) = heightmap {
-                let mut velocity = tank.velocity_mps;
-                physics::clamp_to_map_border(&mut tank.position, &mut velocity, heightmap);
-                tank.velocity_mps = velocity;
-            }
-        }
     }
 
     fn contact_bodies(&self) -> Vec<ContactBody> {
