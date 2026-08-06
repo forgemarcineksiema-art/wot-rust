@@ -126,60 +126,124 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
             ratios
         },
     )
-    // W1 dossier anchors — sources and the 3.56-vs-3.705 width resolution live in
+    // Dossier anchors (W1 + the 2026-08-06 research pass). The variant is pinned to a LATE
+    // Ausf. E — post-February 1944, Fgst.Nr. 250822 and up — and every anchor below is read
+    // against THAT tank; the source conflicts and their resolutions live in
     // docs/vehicles/panzerkampfwagen-vi-tiger.md.
     .with_dimensions(vec![
+        // -- Locked: the model already honours these documented numbers. --
         DimensionTarget::new(
             DimensionKind::HullLength,
             6.316,
             0.08,
-            ReferenceSource::new(
-                "Tiger I dossier",
-                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                "6.316 m hull (Wikipedia + Panzerworld agree).",
-            ),
+            tiger_i_dossier("6.316 m hull (Wikipedia + Panzerworld agree)."),
         ),
         DimensionTarget::new(
             DimensionKind::HullWidth,
             3.705,
             0.08,
-            ReferenceSource::new(
-                "Tiger I dossier",
-                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                "3.705 m over the 725 mm combat tracks (German records; 3.56 m = sponsons).",
+            tiger_i_dossier(
+                "3.705 m over the 725 mm combat tracks (German records; 3.56 m = sponsons; \
+                 Tank Museum's 3.72 recorded as a conflict, inside build tolerance).",
             ),
         ),
         DimensionTarget::new(
             DimensionKind::HeightToTurretRoof,
             3.00,
             0.05,
-            ReferenceSource::new(
-                "Tiger I dossier",
-                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                "3.00 m silhouette apex at the drum cupola (2.885 m to the bare roof).",
+            tiger_i_dossier("3.00 m silhouette apex at the drum cupola."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoofBare,
+            2.885,
+            0.05,
+            tiger_i_dossier(
+                "2.885 m to the bare turret roof (German records; tiger1.info's 2625 mm \
+                 'total height' is an unresolved conflict, triangulated against but not closed).",
             ),
         ),
         DimensionTarget::new(
             DimensionKind::OverallLengthWithGun,
             8.45,
             0.10,
-            ReferenceSource::new(
-                "Tiger I dossier",
-                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                "8.450 m gun forward.",
-            ),
+            tiger_i_dossier("8.450 m gun forward."),
         ),
         DimensionTarget::new(
             DimensionKind::RoadWheelDiameter,
             0.80,
             0.01,
-            ReferenceSource::new(
-                "Tiger I dossier",
-                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                "800 mm Schachtellaufwerk wheels.",
+            tiger_i_dossier(
+                "800 mm road wheels — the Tank Museum records the diameter as UNCHANGED across \
+                 the rubber-tyred to steel-rimmed swap; only count and material moved.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TurretRingDiameter,
+            1.836,
+            0.015,
+            tiger_i_dossier(
+                "1836 mm ring in the clear (tiger1.info, factory-drawing derived). NOT the \
+                 1500 mm some pages quote — that is Krupp's 1937 design spec, not the built tank.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TrackWidth,
+            0.725,
+            0.005,
+            tiger_i_dossier(
+                "725 mm Kgs 63/725/130 combat track (three sources); the 520 mm Kgs 63/520/130 \
+                 transport belt is the OTHER configuration and is not what the game models.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::GroundClearance,
+            0.47,
+            0.01,
+            tiger_i_dossier("470 mm documented clearance."),
+        ),
+        // -- Target: documented values the model has NOT reached. Data first, geometry second;
+        //    each flips to Locked in the PR that closes it. --
+        DimensionTarget::target_pending(
+            DimensionKind::FireLineHeight,
+            2.195,
+            0.02,
+            tiger_i_dossier(
+                "2195 mm bore/trunnion axis at gun level (Panzerworld AND Alan Hamby — a second \
+                 independent source, so the model's 2.17 is a real 25 mm debt, not a soft number).",
+            ),
+        ),
+        DimensionTarget::target_pending(
+            DimensionKind::RoadWheelCount,
+            16.0,
+            0.4,
+            tiger_i_dossier(
+                "16 road wheels per side on 8 torsion-bar stations (2 per arm) after the \
+                 February 1944 steel-rimmed change at Fgst.Nr. 250822 — the early tank carried \
+                 24 on 3 rows. The model draws ONE wheel per authored axle, so the fleet's \
+                 signature Schachtellaufwerk runs at half its wheel count.",
+            ),
+        ),
+        DimensionTarget::target_pending(
+            DimensionKind::TrackLinkCountPerSide,
+            96.0,
+            0.5,
+            tiger_i_dossier(
+                "96 links per side at the 130 mm pitch the Kgs 63/725/130 designation itself \
+                 states (two independent sources agree on the count).",
             ),
         ),
     ])
+}
+
+/// Every Tiger I anchor cites the in-repo dossier, whose Reference anatomy table carries the
+/// number, its external sources, its confidence grade, and — where two records disagree — the
+/// resolution and the reasoning behind it.
+fn tiger_i_dossier(note: &str) -> ReferenceSource {
+    ReferenceSource::new(
+        "Tiger I dossier (Reference anatomy)",
+        "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+        note,
+    )
 }
 
 pub fn tiger_ii_reference_pack() -> ReferencePack {

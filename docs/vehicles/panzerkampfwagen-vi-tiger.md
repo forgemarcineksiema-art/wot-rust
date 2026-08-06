@@ -7,31 +7,128 @@
 This is the Tiger I, not the later Tiger II. The game spec represents a late Tiger I Ausf. E
 with the Maybach HL230-class power output and the 8.8 cm KwK 36 L/56 gun.
 
-## Reference dossier (Genialna Flota W1, 2026-07-17)
+## The variant, pinned
+
+**Late Ausf. E — post-February 1944, Fgst.Nr. 250822 and up.** Every number and every feature
+below is read against THAT tank, because "Tiger I" alone is not a specification: the vehicle
+changed enough across production that mixing eras produces a tank that never existed. The
+blueprint already committed to this era through `wheel_face: SteelDish`; this dossier makes the
+commitment explicit so the rest of the vehicle can be derived from it rather than guessed.
+
+What the pin decides (sources in *Late-production identity* below):
+
+| Feature | Late Ausf. E (what we model) | Early (what we must NOT mix in) |
+| --- | --- | --- |
+| Road wheels | 16 per side, steel-rimmed, 2 per arm | 24 per side, rubber-tyred, 3 per arm |
+| Cupola | cast periscope drum (from July 1943) | vision-slit drum |
+| Feifel air cleaners | absent (factory-dropped Oct 1943) | present |
+| S-mine dischargers | absent (dropped Oct–Nov 1943) | present |
+| Headlights | single | twin on the glacis |
+| Turret roof | 40 mm (from ~March 1944) | 25 mm |
+| Turret stowage | simplified open bins on the ring | bowed "wide bin" |
+
+## Reference anatomy (W1 2026-07-17 + research pass 2026-08-06)
 
 Per the data-first protocol (`docs/vehicles/_template.md`): anchors verified against external
-sources before any shape work. **Source discrepancy, resolved:** Wikipedia's infobox width
-"3.56 m" is the hull over sponsons; German records (Jentz/Doyle via Panzerworld) give
-**3.705 m over the 725 mm combat tracks** — the game models the combat configuration, so
-3.705 m is the anchor. Height splits the same way: **2.885 m to the turret roof** (German
-records), **3.00 m to the cupola top** (Wikipedia) — our `HeightToTurretRoof` gate measures
-the full silhouette apex, so 3.00 m is the anchor and 2.885 m is a cage-level check.
+sources **before** any shape work, with conflicts recorded and resolved rather than silently
+picked. `Locked` rows gate the bake; `Target` rows are documented values the model has not
+reached yet and are reported as debt every run until their geometry PR flips them.
 
 | Dimension | Value | Source | Confidence | Encoded as |
 | --- | ---: | --- | --- | --- |
-| Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `DimensionKind::HullLength` |
-| Width (combat tracks) | 3.705 m | Panzerworld (German records); Wikipedia's 3.56 = sponsons | high | `DimensionKind::HullWidth` |
-| Height (cupola apex) | 3.00 m | Wikipedia; 2.885 m to turret roof per German records | high | `DimensionKind::HeightToTurretRoof` |
-| Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `DimensionKind::OverallLengthWithGun` |
-| Road wheel | ⌀0.800 m | Wikipedia (Schachtellaufwerk section) | high | `DimensionKind::RoadWheelDiameter` |
-| Firing height | 2.195 m | Panzerworld; blueprint trunnion 2.17 | medium | cage (`trunnion_y`) |
-| Ground clearance | 0.47 m | Wikipedia | high | cage (`belly_y`) |
+| Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `HullLength` (Locked) |
+| Width (combat tracks) | 3.705 m | Panzerworld (German records); see conflict C1 | high | `HullWidth` (Locked) |
+| Height (cupola apex) | 3.00 m | Wikipedia | high | `HeightToTurretRoof` (Locked) |
+| Height (bare turret roof) | 2.885 m | German records; see conflict C2 | high | `HeightToTurretRoofBare` (Locked) |
+| Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `OverallLengthWithGun` (Locked) |
+| Road wheel | ⌀0.800 m | Tank Museum — **unchanged** across the steel-rim swap | high | `RoadWheelDiameter` (Locked) |
+| Turret ring (in the clear) | 1836 mm | tiger1.info, factory-drawing derived | medium | `TurretRingDiameter` (Locked) |
+| Turret ring bearing (OD) | 2100 mm | tiger1.info (traces to Jentz/Doyle) | high | context for the above |
+| Combat track width | 725 mm | Wikipedia, tiger1.info, Tank Museum | high | `TrackWidth` (Locked) |
+| Transport track width | 520 mm | same three | high | not modelled (other config) |
+| Track pitch | 130 mm | panzerbasics, Alan Hamby; matches the Kgs 63/725/**130** name | high | implied by link count |
+| Links per side | 96 | panzerbasics + Alan Hamby (independent) | high | `TrackLinkCountPerSide` (**Target**) |
+| Ground clearance | 0.47 m | Wikipedia | high | `GroundClearance` (Locked) |
+| Fire line (bore axis, gun level) | 2.195 m | Panzerworld **and** Alan Hamby | high | `FireLineHeight` (**Target**) |
+| Road wheels per side | 16 | Tank Museum (with Fgst.Nr.), Alan Hamby ×2 | high | `RoadWheelCount` (**Target**) |
+| Drive sprocket | ⌀914.4 mm, 20 teeth, front | Alan Hamby | medium | cage |
+| Idler | ⌀685.8 mm | Alan Hamby | medium | cage |
+| Return rollers | none | universal, photographically self-evident | high | cage |
+| Hull width over sponsons | 3.56 m (Tank Museum: 3547 mm) | Wikipedia, Tank Museum | high | `half_width 1.78` |
+| Gun bore length | 4928 mm (56 × 88) | Wikipedia 8.8 cm KwK 36 | high | context (not trunnion-relative) |
 
-### Known deviations (recorded, owned)
+### Armour (late Ausf. E)
 
-- Fire line: model 2.17 m vs documented 2.195 m (2.5 cm; cage-locked as a deviation).
+| Plate | Thickness | Angle from vertical | Confidence |
+| --- | ---: | ---: | --- |
+| Hull front, driver's plate | 100 mm | 9° | medium (a looser source rounds to 10°) |
+| Hull front, nose plate | 100 mm | 25° | medium — **not yet modelled separately** |
+| Hull side, upper | 80 mm | 0° | high |
+| Hull side, lower (behind tracks) | 60 mm | 0° | high |
+| Hull rear | 80 mm | 8–9° | medium-high (see conflict C4) |
+| Hull roof / floor | 25 mm | — | high |
+| Turret front | 100 mm | 8° | medium — genuine 5°/8°/10° spread (C3) |
+| Turret side / rear | 80 mm | 0° | high |
+| Turret roof | 40 mm (late; 25 mm early) | — | high |
+| Walzenblende mantlet | 110–200 mm (curvature) | — | high |
 
-Closed by the model-logic pass (2026-07-26):
+### Conflicts, recorded with their resolution
+
+- **C1 — width over combat tracks: 3.705 m vs 3.72 m.** The Tank Museum's own article and Alan
+  Hamby both give 3.72 m; Panzerworld (German records) gives 3.705 m. **Resolved: keep 3.705 m.**
+  It is the more precisely and consistently repeated figure, and tiger1.info explicitly warns
+  that measurements of surviving Tigers differ by several millimetres — 15 mm sits inside the
+  build tolerance of a hand-assembled vehicle. Recorded, not chased into the model.
+- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". OPEN.** tiger1.info's dedicated
+  roof-height page quotes a German drawing at 2625 mm (2655 late), which would collide with our
+  anchor by ~26 cm — exactly the variant-contamination class that bit the Tiger II (its "3.27 m"
+  turned out to be transport tracks). It was NOT passed through silently: an independent
+  decomposition (hull-only 1.78 m + turret-with-cupola 1.20 m ≈ 2.98 m apex, implying a roof at
+  ≈2.865 m) supports keeping 2.885 m. **Resolution: anchor unchanged, conflict left OPEN** — the
+  2625 mm figure's baseline could not be disambiguated because the source's own dimensioned
+  diagram is an unreadable embedded image. This is the most important unclosed question on this
+  vehicle.
+- **C3 — turret front angle: 5° / 8° / 10°** across three sources. Our 8° is the midpoint of a
+  genuine spread, not a consensus. Recorded so nobody later mistakes it for a settled number.
+- **C4 — hull rear: 80 mm @ 8–9° vs one table's "60 mm @ 0°".** The outlier comes from a source
+  with a non-standard hull/superstructure split; treated as a mislabelled row, not grounds for
+  a change.
+
+### Deliberately NOT anchored (and why)
+
+Anchoring a number we cannot source is how a model gets graded against itself. Two are left out
+on purpose:
+
+- **Cupola external diameter.** The model carries ⌀0.78 m, whose only citation was the repo's own
+  cast-cupola helper — a self-calibrated anchor. The 2026-08-06 research pass could not source
+  the late periscope cupola's diameter from open material: tiger1.info's dimensioned drawings
+  exist only as un-OCR'able images. The single web figure found (780 mm) comes from an
+  AI-generated wiki whose own citation could not be checked, and its closeness to our unsourced
+  0.78 is coincidence, **not corroboration**. Closing this needs Jentz/Doyle Vol. 1 or a photo
+  camera-match against the sourced 850 mm roof cutout / 460 mm hatch hole.
+- **Track gauge.** Nowhere directly documented; derivable only as 3.705 − 0.725 ≈ 2.98 m, which
+  is exactly what the blueprint already builds. An anchor on it would pass by construction and
+  measure nothing.
+
+Also unsourced, and therefore uncaged: trunnion-to-muzzle barrel length, muzzle-brake external
+dimensions, wheel-station spacing / ground-contact run, and cupola exposed height (our 0.115 m is
+arithmetic between two other anchors, not an independent third fact).
+
+### Open debts (measured every run by `dimension_gate`)
+
+| Debt | Model | Documented | Δ |
+| --- | ---: | ---: | ---: |
+| Fire line | 2.170 m | 2.195 m | −0.025 |
+| Road wheels per side | 8 | 16 | −8 |
+| Track links per side | 41 | 96 | −55 |
+
+The wheel and link debts are the same defect wearing two faces: **the running gear is drawn at
+roughly half the real tank's part count.** One authored axle produces one visible wheel
+(`running_gear_place.rs`), where the late E carries two per arm; and `link_count: None` drops the
+belt onto the fleet's 0.22 m fallback spacing against a real 130 mm pitch. The Schachtellaufwerk
+is this tank's signature and it currently runs at half density.
+
+### Previously closed (model-logic pass, 2026-07-26)
 
 - Turret roof plane: was 2.72 m vs 2.885 m. The 16.5 cm deficit was invisible to the cage
   because the drum cupola's height was DERIVED as "whatever reaches the hitbox apex" — the
@@ -44,7 +141,9 @@ Closed by the model-logic pass (2026-07-26):
   3.56 m over the sponsons, 3.705 m over the combat tracks, with the guards in between.
 - Cupola diameter: was ⌀0.66 m against the ⌀0.78 m the cast-cupola helper documents as its
   own reference (audit #3's number). Now ⌀0.78, pulled slightly inboard so the honest drum
-  still lands inside the bent rear wall.
+  still lands inside the bent rear wall. **Superseded 2026-08-06:** that ⌀0.78 cited our own
+  helper, which makes it a self-calibrated number rather than a closed one — see *Deliberately
+  NOT anchored* above. The geometry change was still an improvement; the citation was not.
 
 ## Blueprint Migration (2026-07)
 
@@ -89,11 +188,18 @@ visible hull front/rear plates are authored on the same plane equations the volu
 ### Recognition features carried by the recipe
 
 - Horseshoe turret: flat front plate, vertical bent side wall, faceted rear.
-- Rommelkiste stowage bin closing the turret's REAR armor plane — the plate a shell into the
-  bustle actually meets.
+- Stowage bin closing the turret's REAR armor plane — the plate a shell into the bustle actually
+  meets. **Era flag (2026-08-06):** this is authored as the bowed "Rommelkiste", which is the
+  EARLY-production shape; late production simplified turret stowage to open bins mounted on the
+  ring (~November 1943). "Rommelkiste" is also modelling-community shorthand associated with the
+  Afrika Korps rather than a standard late-Tiger fitting. With the pin set to post-February 1944,
+  the bin and the running gear currently come from different tanks.
 - Drum (not domed) commander's cupola on the left rear roof, topping out the 3.0 m silhouette.
-- Interleaved Schachtellaufwerk: two genuinely separate wheel rows per side, odd wheels
-  0.22 m inboard, no return rollers — the top run rests on the wheels.
+  The late E's is the CAST PERISCOPE type (from July 1943), not the vision-slit drum.
+- Interleaved Schachtellaufwerk: odd wheels 0.22 m inboard, no return rollers — the top run rests
+  on the wheels. **Currently one wheel per authored axle (8 per side) against the late E's 16 on
+  8 arms** — see the debt table above. Note this is genuinely *interleaved*, a different mechanism
+  from the Tiger II / Panther II *overlapped* gear the same code path serves.
 - 8.8 cm KwK 36 with its double-baffle muzzle brake and no bore evacuator.
 - Twin exhaust stacks standing proud on the rear plate; driver's visor and bow-MG ball on the
   near-vertical front.
@@ -140,8 +246,44 @@ Reference points:
 - [OnWar Tiger I data](https://www.onwar.com/wwii/tanks/germany/ge067tiger1.html):
   Panzerkampfwagen VI Ausf. E designation, 57,000 kg combat weight, 88 mm KwK 36 L/56,
   38 km/h speed, armor table.
-- Wikimedia Commons photo galleries for the horseshoe turret, Rommelkiste, cupola position,
+- Wikimedia Commons photo galleries for the horseshoe turret, turret stowage, cupola position,
   exhaust stacks, and wheel interleave used by the Forge reference pack ratio gates.
+
+Added by the 2026-08-06 research pass:
+
+- [Tank Museum — Tiger Wheels](https://tankmuseum.org/article/tiger-wheels): the 24→16 wheel
+  change, the February 1944 / Fgst.Nr. 250822 changeover, and the 800 mm diameter holding
+  constant across it. Also a photo calibration reference (the ⌀800 mm wheel in frame).
+- [Tank Museum — Two Widths of Track](https://tankmuseum.org/article/two-widths-track): combat
+  vs transport belts (725 / 520 mm), the front mudguard being wider than the hull, and the Berne
+  loading-gauge reason the narrow track exists.
+- [tiger1.info — Turret ring bearings](https://tiger1.info/EN/Turret-ring-bearings.html) and
+  [mid/late bearing ring](https://tiger1.info/EN/Turret-bearing-mid-late.html): the 2100 mm race
+  and the 1836 mm ring in the clear.
+- [tiger1.info — Height of the roof](https://tiger1.info/EN/Roof-height.html): the 2625/2655 mm
+  figure behind conflict C2. Its dimensioned diagram is an image and could not be read.
+- [Alan Hamby — Tiger I Information Center: Suspension](https://www.alanhamby.com/suspension.shtml)
+  and [Major Model Changes](http://www.alanhamby.com/changes.shtml): sprocket/idler diameters,
+  link count, and the dated production-change timeline used by the variant pin.
+- [panzerbasics — Driving the Tiger E](https://www.panzerbasics.com/panzer/01_basics/01_Tiger_E/driving.htm):
+  track pitch and links per side, agreeing independently with Alan Hamby.
+
+### Late-production identity, with dates
+
+Reconstructed from Alan Hamby's changes timeline and the Tank Museum articles, cross-checked
+where a second source existed:
+
+- **Feifel air cleaners**: fitted Nov 1942, dropped at the factory **October 1943** (two sources
+  agree). Our omission is correct for this pin — it is not a missing detail.
+- **Cupola**: cast periscope type (7 periscopes, side-pivoting hatch, AA ring) replaces the
+  vision-slit drum from **July 1943**.
+- **Steel-rimmed wheels**: **February 1944, Fgst.Nr. 250822**; 24 → 16 per side, outer row
+  deleted, diameter unchanged.
+- **Headlights**: single light replaces the twin glacis pair from **August 1943**.
+- **S-mine dischargers**: dropped **Oct–Nov 1943**; replaced from March 1944 (Fgst.Nr. 250991)
+  by the internal Nahverteidigungswaffe, alongside the 40 mm turret roof.
+- **Zimmerit**: factory-applied late Aug 1943 to 9 Sep 1944. Not modelled as a surface at all;
+  recorded for completeness, not as a dimensional gap.
 
 ## Current Gameplay Spec
 
