@@ -116,17 +116,22 @@ arithmetic between two other anchors, not an independent third fact).
 
 ### Open debts (measured every run by `dimension_gate`)
 
-| Debt | Model | Documented | Δ |
-| --- | ---: | ---: | ---: |
-| Fire line | 2.170 m | 2.195 m | −0.025 |
-| Road wheels per side | 8 | 16 | −8 |
-| Track links per side | 41 | 96 | −55 |
+| Debt | Model | Documented | Δ | State |
+| --- | ---: | ---: | ---: | --- |
+| Fire line | 2.170 m | 2.195 m | −0.025 | open |
+| Road wheels per side | 8 | 16 | −8 | open |
+| ~~Track links per side~~ | 96 | 96 | 0 | **closed** — anchor Locked |
 
-The wheel and link debts are the same defect wearing two faces: **the running gear is drawn at
+The wheel and link debts were the same defect wearing two faces: **the running gear was drawn at
 roughly half the real tank's part count.** One authored axle produces one visible wheel
-(`running_gear_place.rs`), where the late E carries two per arm; and `link_count: None` drops the
-belt onto the fleet's 0.22 m fallback spacing against a real 130 mm pitch. The Schachtellaufwerk
-is this tank's signature and it currently runs at half density.
+(`running_gear_place.rs`), where the late E carries two per arm; and `link_count: None` dropped
+the belt onto the fleet's 0.22 m fallback spacing against a real 130 mm pitch.
+
+The belt half is closed: the blueprint now authors `link_count: Some(96)` and the anchor is
+Locked. **It cost nearly all the running-gear headroom** — the Tiger draws 38,736 of the 40,000
+allowed near-tier gear triangles and 228 of 260 instances. Closing the wheel half on top of that
+does not fit inside today's budget, so it has to arrive with the waste it pays for, not as a
+budget raise (`GEAR_BUDGETS`, `docs/one-look-policy` — a budget rises per item WITH a measurement).
 
 ### Previously closed (model-logic pass, 2026-07-26)
 

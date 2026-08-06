@@ -201,6 +201,16 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
             0.01,
             tiger_i_dossier("470 mm documented clearance."),
         ),
+        DimensionTarget::new(
+            DimensionKind::TrackLinkCountPerSide,
+            96.0,
+            0.5,
+            tiger_i_dossier(
+                "96 links per side at the 130 mm pitch the Kgs 63/725/130 designation itself \
+                 states (two independent sources agree on the count). Authored in the blueprint \
+                 — without it the belt falls back to the fleet's 0.22 m spacing and draws 41.",
+            ),
+        ),
         // -- Target: documented values the model has NOT reached. Data first, geometry second;
         //    each flips to Locked in the PR that closes it. --
         DimensionTarget::target_pending(
@@ -221,15 +231,6 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
                  February 1944 steel-rimmed change at Fgst.Nr. 250822 — the early tank carried \
                  24 on 3 rows. The model draws ONE wheel per authored axle, so the fleet's \
                  signature Schachtellaufwerk runs at half its wheel count.",
-            ),
-        ),
-        DimensionTarget::target_pending(
-            DimensionKind::TrackLinkCountPerSide,
-            96.0,
-            0.5,
-            tiger_i_dossier(
-                "96 links per side at the 130 mm pitch the Kgs 63/725/130 designation itself \
-                 states (two independent sources agree on the count).",
             ),
         ),
     ])

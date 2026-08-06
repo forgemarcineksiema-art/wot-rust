@@ -39,7 +39,10 @@ BlueprintFile(
         overlap_inner_dx: 0.22,
         wheel_half_width: 0.1,
         link_half_width: 0.28,
-        link_count: None,
+        // 96 links per side at the 130 mm pitch the Kgs 63/725/130 designation states — two
+        // independent sources agree on the count. Without it the belt falls back to the fleet's
+        // 0.22 m spacing and draws 41 chunks where the tank has 96 links.
+        link_count: Some(96),
         top_sag_m: 0.035,
         wheel_spokes: 6,
         drive_front: true,

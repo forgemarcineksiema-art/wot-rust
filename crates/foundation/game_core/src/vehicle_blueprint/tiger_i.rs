@@ -81,7 +81,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             overlap_inner_dx: 0.22,
             wheel_half_width: 0.1,
             link_half_width: 0.28,
-            link_count: None,
+            link_count: Some(96),
             top_sag_m: 0.035,
             wheel_spokes: 6,
             drive_front: true,
