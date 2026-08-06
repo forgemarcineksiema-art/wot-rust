@@ -55,29 +55,53 @@ oscillation in a straight press (gap dead stable, v = 0.000).
 Tipping is about the outer edge of the track belt; the resisting lever is the belt edge, the
 overturning lever is the centre-of-mass height.
 
+**The first pass of this section was wrong, and how it was wrong is the lesson.** It put the centre
+of mass at a hand-estimated 1.00 m and reported a comfortable 1.7× margin. The derived figures
+(`game_core::stability`, mass-weighted from the blueprint's own heights and the installed modules'
+own masses, every part read at the mid-height of its volume so the estimate leans HIGH) are
+1.21–1.42 m, and the fleet's real margins are **1.15× to 1.38×**. The verdict survives; the comfort
+does not.
+
 ```
-a_tip = g · (belt_edge / h_com)
-T-54     12.0 × 1.610/1.00 = 19.3 m/s²   SSF 1.61 g
-Tiger I  12.0 × 1.853/1.15 = 19.3 m/s²   SSF 1.61 g
+a_tip  = g · belt_edge / h_com          T-54: 12.0 × 1.610/1.234 = 15.7 m/s²   SSF 1.30 g
+a_slide = g · lateral_grip_mu · grip          12.0 × 0.95 × 1.04  = 11.9 m/s²
 ```
 
-The available lateral acceleration is `lateral_grip_mu · g` = 11.4 m/s². **Margin 1.7× — the tracks
-break loose before the hull can lean.** Every reachable path checked:
+| Vehicle | com height | tips at | slides at | margin |
+|---|---|---|---|---|
+| Tiger II | 1.371 m | 1.36 g | 0.99 g | 1.38× |
+| Tiger I | 1.398 m | 1.33 g | 0.99 g | 1.34× |
+| T-54 | 1.234 m | 1.30 g | 0.99 g | 1.32× |
+| Jagdtiger | 1.416 m | 1.27 g | 0.99 g | 1.29× |
+| IS-3 | 1.259 m | 1.25 g | 0.99 g | 1.27× |
+| Panther II | 1.361 m | 1.25 g | 0.99 g | 1.26× |
+| T-34-85 | 1.210 m | 1.23 g | 0.99 g | 1.25× |
+| **Centurion** | 1.391 m | 1.14 g | 0.99 g | **1.15×** |
+
+The Centurion is the fleet's least stable hull and it is not an accident: it is the tallest
+silhouette in the roster on one of the narrower gauges. Every path checked, with the T-54's derived
+numbers:
 
 | Path | Requires | Reachable |
 |---|---|---|
-| Turn on the flat | 19.3 m/s² against a limit of 11.4 | No |
-| Side slope | tan θ ≥ 1.61 → 58° | No — the map contract stops at 0.68 (34°) |
-| Trip over a curb | 10.3 m/s of pure lateral velocity, instantly arrested | No |
-| Broadside ram | 280 kN·s about the far edge; friction only supplies ~7% | No |
-| **Asymmetric landing** | 3 m drop onto one track → ω 2.77 rad/s against a 2.09 threshold | **Yes** |
+| Turn on the flat | 15.7 m/s² against a limit of 11.9 | No |
+| Side slope | tan θ ≥ 1.30 → 52° | No — the map contract stops at 0.68 (34°) |
+| Trip over a curb | 8.3 m/s (30 km/h) of pure lateral velocity, instantly arrested | No |
+| Broadside ram | 278 kN·s about the far edge; friction supplies ~8% of it | No |
+| **Asymmetric landing** | 3 m drop onto one track → ω 2.50 rad/s against a 1.87 threshold | **Yes** |
 
-Lift energy for a T-54 is 380 kJ — roughly the muzzle energy of its own 100 mm AP round, perfectly
+Lift energy for a T-54 is 338 kJ — roughly the muzzle energy of its own 100 mm AP round, perfectly
 aimed at rotating the tank.
 
 So rollover is not switched off by fiat: it is in the model and provably out of reach except by an
 asymmetric fall. That one path becomes a **violent but recoverable roll excursion** — the hull
 swings 40–50°, the suspension pays, and it settles back. The tank is never lost to terrain.
+
+One finding to carry forward: **the margin is thin because the game's lateral grip is deliberately
+WoT-high**, not because these hulls are tippy. `lateral_grip_mu = 0.95` is authored to make the hull
+"grip like WoT and only drift in genuinely hard turns"; at a physical 0.7 every margin above would
+be half again as large. Wave 4's friction ellipse is where that number gets revisited, and this
+table is what it has to answer to.
 
 ## Waves
 
@@ -102,9 +126,16 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
     That is the kind of difference per-track forces should produce fleet-wide.
   - **the ground materials barely separate anything** — grip spans 0.95..1.04 by design, so the
     surface axis is almost purely rolling resistance today. P4.1 is what gives it teeth.
-- **P0.2 `com_height_m` + the tipping gate.** One researched number per blueprint. *Lock:* for every
-  playable vehicle, `lateral_grip_mu · 1.15 < belt_edge / com_height_m` — "no hull can tip before it
-  slides". No behaviour change.
+- **P0.2 Centre of mass + the tipping gate — LANDED.** `game_core::stability` and
+  `crates/runtime/physics/tests/rollover_unreachable.rs`. The centre of mass is **derived**, not
+  authored: published centre-of-gravity figures for these vehicles are scarce and inconsistent, so
+  eight hand-typed numbers would be eight numbers nobody can check. Every input is instead already
+  researched 1:1 — the blueprint's heights and the modules' masses — and every part is read at the
+  mid-height of its own volume, which biases the estimate HIGH and therefore pessimistic for the
+  question being asked. Swap a heavier turret in the garage and the centre of mass rises, because
+  it does. *Lock:* for every playable vehicle, on the worst loadout the garage will build and the
+  grippiest surface in the game, `tip_threshold > slide_threshold × 1.10`, plus a second test that
+  the gate still touches the fleet rather than clearing by miles. No behaviour change.
 - **P0.3 Muzzle-inside-hull probe.** With the gun a ghost, a barrel pushed into another hull fires
   from inside it, bypassing the front plate. Measure first; fix (a minimum muzzle-to-target
   distance) only if it is real.
