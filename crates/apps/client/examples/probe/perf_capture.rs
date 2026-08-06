@@ -5,10 +5,14 @@
 //! Run: `cargo run -p client --release --example probe -- perf_capture`
 //!
 //! **What the frame number is and is not.** It renders a real battle scene OFFSCREEN, so it counts
-//! the GPU and CPU work of producing an image and NOT swapchain acquire, present or vsync pacing.
-//! And it runs on whatever machine you are sitting at, which is not the MX330 the policy names. So
-//! it is a RELATIVE instrument: run it before a change and after, on one machine, and the delta is
-//! real. Reading it as a pass/fail against 60 FPS would be reading it wrong.
+//! the GPU and CPU work of producing an image and NOT swapchain acquire, present or vsync pacing —
+//! which makes every number here a LOWER BOUND on what the real frame costs.
+//!
+//! It runs on whatever machine you are sitting at. When that machine IS the min spec (the author's
+//! dev box is the MX330 the policy names, as `detail_cost_probe` also records), the absolute
+//! number means something: subtract the reported readback fence and compare the remainder against
+//! 16.67 ms. On any other machine it is a RELATIVE instrument — run it before a change and after,
+//! on one machine, and only the delta is real.
 //!
 //! Before this existed the project measured every INPUT to frame cost — vehicle triangles, HUD
 //! vertices, culling, LOD, snapshot size — and never the frame. A policy whose central promise is
@@ -166,14 +170,78 @@ pub(crate) fn run() {
     );
 }
 
+/// A 7v7 parked along the camera path, at the spread a battle actually presents.
+///
+/// The frame instrument measured ground, water, dressing and grass and NOT ONE TANK — which made
+/// the largest single body of geometry on a vehicle (a T-54's running gear is 38.6k triangles
+/// across 204 instances, more than twice its whole static bake) invisible to the only number the
+/// "one look" policy is stated in. The vehicles are spread in depth on purpose: the gear switches
+/// detail tier by distance, so a battle's real cost is a MIX of tiers, and a lineup parked at one
+/// range would measure a tier the game never draws alone.
+fn battle_lineup(
+    battlefield: &terrain::BattlefieldMap,
+    catalog: &mut client::VehicleMeshCatalog,
+    tier: client::GearTier,
+) -> Vec<renderer_api::RenderObject> {
+    use game_core::VehicleKind;
+
+    // An engagement, not a parade: the fourteen sit 27..180 m out from the eye path (which walks
+    // +Z from z=380 to z≈443), so about four of them fall inside the 60 m gear-detail threshold
+    // at the closest point and the rest stay on the distance tier. A lineup parked at ONE range
+    // would measure a tier the game never draws alone; passing `eye` applies the battle's own
+    // rule per tank, which the first version of this instrument did not — it built every tank at
+    // the near tier and so measured gear the game does not draw at that distance.
+    let roster = VehicleKind::PLAYABLE;
+    let mut objects = Vec::new();
+    for slot in 0..14 {
+        let team = slot / 7;
+        let file = slot % 7;
+        let kind = roster[slot % roster.len()];
+        let x = 442.0 + (file as f32 - 3.0) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
+        let z = 470.0 + slot as f32 * 9.0;
+        let ground = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+        let snapshot = net::TankSnapshot {
+            tank_id: game_core::TankId(slot as u64 + 1),
+            team: game_core::TeamId(team as u16 + 1),
+            vehicle: kind,
+            position: [x, ground, z],
+            yaw_rad: if team == 0 { 0.4 } else { 3.5 },
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
+            turret_yaw_rad: 0.1,
+            turret_yaw_velocity_rad_s: 0.0,
+            gun_pitch_rad: 0.05,
+            hit_points: 1000,
+            reload_remaining_s: 0.0,
+            aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
+            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
+            destroyed_modules_mask: 0,
+            track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
+            spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
+            fuel_fire: false,
+            rack_fire_remaining_s: None,
+        };
+        let tint = if team == 0 { [0.34, 0.38, 0.30] } else { [0.40, 0.34, 0.28] };
+        objects.append(&mut client::tank_render_objects_tiered(catalog, &snapshot, tint, tier));
+    }
+    objects
+}
+
 /// Render a real battle scene offscreen and report the frame-time distribution.
 ///
 /// Percentiles, not a mean: a frame budget is missed by the SLOW frames, and an average hides
 /// exactly the spikes the one-look policy calls a bug.
 ///
 /// The scene is assembled through the SAME calls `look_harness` uses for review frames — ground,
-/// statics, water, grass-card dressing, the flora atlas, the grass population — so this measures
-/// the picture the game actually draws rather than a stripped-down stand-in that would flatter it.
+/// statics, water, grass-card dressing, the flora atlas, the grass population, and (since the
+/// fleet-parity programme) the vehicles — so this measures the picture the game actually draws
+/// rather than a stripped-down stand-in that would flatter it.
 fn frame_time_capture() {
     const WARMUP: usize = 20;
     const FRAMES: usize = 180;
@@ -212,6 +280,32 @@ fn frame_time_capture() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
 
+    // The fleet enters the frame instrument. Built once (the lineup is static at rest phase, so
+    // per-frame cost is the DRAW, which is what we are measuring) and its meshes registered like
+    // any other.
+    // Pre-warm: creating a vehicle's catalog entry registers BOTH gear tiers, so one build puts
+    // every mesh the rotation can ask for on the GPU before any frame is timed.
+    let mut catalog = client::VehicleMeshCatalog::default();
+    let warm = battle_lineup(&battlefield, &mut catalog, client::GearTier::FromEye(None));
+    for (handle, mesh) in catalog.take_pending_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
+    // Objects are NOT draws: the renderer batches by (mesh, material), so a tank's 192 shoe
+    // links collapse into one instanced draw. Printing both stops the object count being read
+    // as a draw-call count — the first thing anyone reaches for when a frame is slow.
+    let plan = renderer_wgpu::RenderFrameBatchPlan::from_frame(
+        &renderer_api::RenderFrame {
+            objects: warm.clone(),
+            ..renderer_api::RenderFrame::default()
+        },
+        std::mem::size_of::<[f32; 24]>(),
+    );
+    println!(
+        "battle lineup: 14 vehicles, {} render objects at the near tier -> {} batched draws",
+        warm.len(),
+        plan.draws().len(),
+    );
+
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
     // The A/B instrument (Jedna Trawa P0). Sequential probe processes measure the thermal ramp
@@ -223,16 +317,38 @@ fn frame_time_capture() {
     // collapse and the chunk cutoff under magnification, and the honest question — does a
     // magnified meadow cost more than the wide view? — is only answerable by measuring the
     // scope in the same rotation as the battle view.
-    let configs: [(&str, bool, bool, f32); 4] = [
-        ("full scene", true, true, 60.0),
-        ("no card meadow", false, true, 60.0),
-        ("no near ring", true, false, 60.0),
-        ("scope 18deg", true, true, 18.0),
+    // The last field is the fleet: "full scene" and "full + 7v7" are the SAME frame apart from
+    // 14 vehicles, so their delta is what putting the fleet on screen costs — the number the
+    // running-gear budget has never been checked against.
+    // `None` = no vehicles. `Some(tier)` = the fleet at that tier. The two FORCED rows bracket
+    // what the distance tier can ever buy, and they sit in the SAME rotation as everything else
+    // because a tier A/B run as separate processes measures this laptop's thermal ramp instead
+    // (the baseline moved 19.2 -> 23.8 ms across four sequential runs while nothing changed).
+    let configs: [(&str, bool, bool, f32, Option<client::GearTier>); 7] = [
+        ("full scene", true, true, 60.0, None),
+        ("no card meadow", false, true, 60.0, None),
+        ("no near ring", true, false, 60.0, None),
+        ("scope 18deg", true, true, 18.0, None),
+        ("full + 7v7", true, true, 60.0, Some(client::GearTier::FromEye(None))),
+        (
+            "7v7 gear NEAR forced",
+            true,
+            true,
+            60.0,
+            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Near)),
+        ),
+        (
+            "7v7 gear FAR forced",
+            true,
+            true,
+            60.0,
+            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Far)),
+        ),
     ];
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
-    let mut samples: [Vec<f64>; 4] = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+    let mut samples: [Vec<f64>; 7] = std::array::from_fn(|_| Vec::new());
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -255,7 +371,7 @@ fn frame_time_capture() {
     let _ = target.read_rgba8(&ctx);
 
     for _cycle in 0..CYCLES {
-        for (config, &(_, with_dressing, with_grass, fov)) in configs.iter().enumerate() {
+        for (config, &(_, with_dressing, with_grass, fov, tanks)) in configs.iter().enumerate() {
             // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
             if with_dressing != dressing_bound {
                 if with_dressing {
@@ -293,6 +409,20 @@ fn frame_time_capture() {
                 } else {
                     Vec::new()
                 };
+
+                // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
+                // detail tier a tank draws at is a function of where the camera is this frame.
+                let mut grass = grass;
+                if let Some(tier) = tanks {
+                    let tier = match tier {
+                        client::GearTier::FromEye(_) => client::GearTier::FromEye(Some(eye.into())),
+                        forced => forced,
+                    };
+                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, tier));
+                    for (handle, mesh) in catalog.take_pending_meshes() {
+                        renderer.register_mesh(&ctx, handle, &mesh);
+                    }
+                }
 
                 let t = Instant::now();
                 renderer.set_render_frame(
@@ -334,7 +464,7 @@ fn frame_time_capture() {
     let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
 
     let mut full_p50 = 0.0;
-    for (config, (name, _, _, _)) in configs.iter().enumerate() {
+    for (config, (name, _, _, _, _)) in configs.iter().enumerate() {
         let series = &mut samples[config];
         series.sort_by(f64::total_cmp);
         let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
@@ -355,6 +485,12 @@ fn frame_time_capture() {
         "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",
         (full_p50 - fence_p50).max(0.0)
     );
-    println!("  (offscreen: excludes present/vsync, and this is not the MX330 the policy names.");
-    println!("   Read it BEFORE and AFTER a change on one machine; it is not a pass mark.)");
+    println!(
+        "  (offscreen: excludes present/vsync, so every number here is a FLOOR. Subtract the \
+         fence, then compare"
+    );
+    println!(
+        "   against 16.67 ms for 60 FPS — meaningful only when this box IS the min spec; \
+         elsewhere read deltas.)"
+    );
 }
