@@ -408,8 +408,42 @@ static hold block, `climb_slip`, the direction-change brake hack, the designed-w
 - **P4.4 Retire the special cases.** Each deletion in its own commit with the behaviour it replaces
   measured. The **momentum-climb band (0.60–0.68) is a deliberate design** and must be re-added on
   purpose as a slip-dependent grip falloff, not left to die quietly.
-- **P4.5 `SteeringKind` per era.** `ClutchBrake` (era I) / `ControlledDifferential` /
-  `Regenerative`. Precedent: `SuspensionKind` already sits on the blueprint. **Blocked on P4.6.**
+- **P4.5 `SteeringKind` — LANDED, and the split is not the era ladder.** The plan sketched three
+  kinds mapped onto the three eras, later meaning better. The research says otherwise: the **1942
+  Tiger I turns about its own centre and the 1951 T-54 does not.** What separates them is the
+  design school — the British Merritt-Brown triple differential and the Argus unit Henschel derived
+  from it are regenerative, while the Soviet school standardised on two-stage planetary side
+  mechanisms and the German mediums on single-radius gearboxes.
+
+  A gearbox that can drive one belt BACKWARDS turns the hull about its centre. One that can only
+  slow or stop a belt turns the hull about THAT: still a pivot, but around a point a half-gauge off
+  centre, at half the rate, and it walks forward while it does it. Two variants, not five, because
+  those are the two behaviours the sources actually distinguish.
+
+  | | gearbox | turns in 3 s | walks |
+  |---|---|---|---|
+  | Centurion | Merritt-Brown Z51R triple differential | **100°** | **0.00 m** |
+  | Tiger I | Argus regenerative (Merritt-Brown derived) | **92°** | **0.00 m** |
+  | T-34-85 | clutch-and-brake side clutches | 67° | 1.29 m |
+  | T-54 | two-stage planetary (ПМП) | 66° | 1.34 m |
+  | Panther II | MAN single-radius | 53° | 1.12 m |
+  | IS-3 | two-stage planetary (ПМП) | 48° | 0.94 m |
+  | Tiger II | L 801 double-radius (inferred from a 2.08 m minimum) | 37° | 0.83 m |
+  | Jagdtiger | Tiger II chassis (L 801) | 26° | 0.53 m |
+
+  Sources are cited per vehicle in `game_core::SteeringKind::for_vehicle`, including which claim is
+  the weakest (the Tiger II's, inferred from a stated minimum radius rather than from an explicit
+  statement about neutral steer).
+
+  **The P0.1 table caught it and the diff is the argument.** Exactly one column moved —
+  `pivot_rad_s` — and only for the six hulls that cannot counter-rotate. Top speed, launch,
+  braking, turn radius under power and gradeability are identical to the digit. That is what "this
+  is about the pivot, not the drive model" looks like when it is true.
+
+  Two tests had promised the old behaviour and were corrected rather than re-numbered:
+  `neutral_steer_pivots_in_place_without_throttle` asserted that a T-54 rotates without
+  translating, which was true of the model and false of the tank.
+
 - **P4.6 IS-3 running-gear dossier.** Our blueprint says contact run 4.60 m on a 2.50 m gauge
   (L/B 1.84); published figures are nearer 4.30 on 2.44 (L/B 1.76). Before "the IS-3 can barely
   pivot" becomes a character trait, the geometry gets the 1:1 treatment the T-54 got — and the claim

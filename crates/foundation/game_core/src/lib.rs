@@ -12,6 +12,7 @@ pub mod mobility;
 mod modules;
 mod mount;
 pub mod stability;
+mod steering;
 mod tank;
 mod track;
 mod vehicle_blueprint;
@@ -55,6 +56,7 @@ pub use modules::{
 };
 pub use mount::{MountFrame, MountFrames};
 pub use stability::{Stability, stability, stock_stability};
+pub use steering::SteeringKind;
 pub use tank::{HitboxProfile, TankSpec};
 pub use track::{
     TRACK_HP_MAX, TrackDamageMask, TrackHealth, TrackSeverity, TrackSide, track_hit_damage,

@@ -1,4 +1,4 @@
-use game_core::TankSpec;
+use game_core::{SteeringKind, TankSpec};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -51,6 +51,12 @@ pub struct TankControllerSettings {
     /// Below this planar speed an undriven hull is eligible to grab and lock (static hold). Above it
     /// the kinetic slide model runs, so a moving hull only grabs once it has nearly stopped.
     pub static_hold_speed_mps: f32,
+    /// What the hull turns ABOUT when it pivots — a fact about its gearbox, not a balance knob.
+    /// See [`game_core::SteeringKind`].
+    pub steering: SteeringKind,
+    /// Half the track gauge — the arm the hull swings on when its gearbox can only brake a belt
+    /// rather than reverse it. Zero for a hull that counter-rotates, because it swings on nothing.
+    pub pivot_arm_m: f32,
     /// Grade past which a face is a hard wall (cliff / railway embankment): the tracks find no
     /// drive and incoming momentum digs the nose in. Between `max_climb_grade` and this, steep faces
     /// are momentum-climbable — the grip slips but does not vanish, so a committed run-up scrabbles
@@ -132,6 +138,8 @@ impl TankControllerSettings {
             static_grip_mu: STATIC_GRIP_MU,
             static_hold_speed_mps: STATIC_HOLD_SPEED_MPS,
             momentum_climb_ceiling: MOMENTUM_CLIMB_CEILING,
+            steering: SteeringKind::for_vehicle(spec.kind),
+            pivot_arm_m: spec.contact_footprint().half_gauge_x,
         }
     }
 }
