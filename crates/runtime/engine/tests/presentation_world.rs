@@ -125,8 +125,16 @@ fn posed(position: [f32; 3], yaw_rad: f32) -> TankSnapshot {
     TankSnapshot { yaw_rad, ..snapshot(1, position, 900) }
 }
 
+/// Where the belts actually are: the contact footprint's centre line, from the blueprint the
+/// running gear is placed by.
+///
+/// This helper used to read the hitbox half-width — the same wrong number the code under test was
+/// reading, so the assertion below compared a wrong gauge against a wrong gauge and passed. On a
+/// T-54 that is 1.75 m against a real 1.32 m centre line: a third too wide, and it made the inner
+/// and outer belts disagree by a third too much through every turn. An instrument calibrated
+/// against the thing it is meant to judge cannot report the judgement.
 fn half_gauge() -> f32 {
-    game_core::HitboxProfile::for_vehicle(VehicleKind::T54_1951).half_width_m
+    game_core::ContactFootprint::for_vehicle(VehicleKind::T54_1951).half_gauge_x
 }
 
 #[test]

@@ -8,6 +8,12 @@
 //! A speculative contact says how fast a pair may close rather than whether they may close at all,
 //! so the gap they are allowed to shut is exactly the gap that is there. These are the numbers that
 //! has to keep producing: hulls meet, hulls stay met, and nothing gets through anything.
+//!
+//! Measured against the HULL PLAN, not the hitbox, and that reference moved with P2.1: a hull
+//! collides as the metal it is drawn with now, while the hitbox stays the deliberately generous
+//! volume shells resolve against. Reading the gap off the hitbox after the split would report
+//! 0.30 m of overlap on a T-54 and mean nothing by it — that 0.30 m is the phantom the split
+//! removed, not steel inside steel.
 
 use game_core::{TankId, TankSpec, VehicleKind};
 use glam::Vec3;
@@ -24,7 +30,7 @@ const OLD_STANDOFF_M: f32 = 0.1217;
 #[test]
 fn two_hulls_driving_together_come_to_rest_touching() {
     let spec = TankSpec::t54_1951();
-    let half_len = spec.hitbox.half_length_m;
+    let half_len = spec.hull_plan().half_length_m;
     let mut state = SimulationState::new();
     let a = state.spawn_tank_with_yaw(game_core::TeamId(1), spec.clone(), Vec3::ZERO, 0.0);
     let b = state.spawn_tank_with_yaw(
@@ -51,7 +57,7 @@ fn two_hulls_driving_together_come_to_rest_touching() {
 #[test]
 fn a_pressed_contact_holds_still() {
     let spec = TankSpec::t54_1951();
-    let half_len = spec.hitbox.half_length_m;
+    let half_len = spec.hull_plan().half_length_m;
     let mut state = SimulationState::new();
     let a = state.spawn_tank_with_yaw(game_core::TeamId(1), spec.clone(), Vec3::ZERO, 0.0);
     let b = state.spawn_tank_with_yaw(
@@ -89,7 +95,7 @@ fn a_pressed_contact_holds_still() {
 fn a_charge_at_full_speed_does_not_get_through() {
     for kind in [VehicleKind::T54_1951, VehicleKind::T34_85] {
         let spec = kind.spec();
-        let half_len = spec.hitbox.half_length_m;
+        let half_len = spec.hull_plan().half_length_m;
         let mut state = SimulationState::new();
         let charger =
             state.spawn_tank_with_yaw(game_core::TeamId(1), spec.clone(), Vec3::ZERO, 0.0);

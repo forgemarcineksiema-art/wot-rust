@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bevy_ecs::prelude::*;
-use game_core::{HitboxProfile, TankId, TrackDamageMask};
+use game_core::{TankId, TrackDamageMask};
 use net::TankSnapshot;
 
 use crate::attitude::{HullAttitude, TankMotion};
@@ -85,8 +85,12 @@ impl PresentationWorld {
             // Track distance is accumulated from the pose *delta*, so it must be folded in before
             // the bundle overwrites the previous `RenderTransform`. Kept out of the bundle so it
             // persists and accumulates rather than resetting each frame.
-            let hitbox = HitboxProfile::for_vehicle(tank.vehicle);
-            let half_gauge = hitbox.half_width_m;
+            // The gauge the belts scroll on is where the tracks actually ARE — the contact
+            // footprint's centre line, from the same blueprint the running gear is placed by. It
+            // used to read the hitbox half-width, which on a T-54 is 1.75 m against a real 1.32 m
+            // centre line: a third too wide, so the inner and outer belts disagreed by a third too
+            // much through every turn.
+            let half_gauge = game_core::ContactFootprint::for_vehicle(tank.vehicle).half_gauge_x;
             // The spring's base is the authoritative replicated attitude plus the
             // thrown-track lean — see `sync_cues` for the derivation.
             let sample = attitude_sample(tank);

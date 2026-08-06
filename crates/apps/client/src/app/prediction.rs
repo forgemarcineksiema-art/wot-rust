@@ -58,7 +58,7 @@ impl ClientApp {
                     velocity: Vec3::ZERO,
                     yaw_rad: tank.yaw_rad,
                     yaw_rate_rad_s: 0.0,
-                    footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+                    footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
                     mass_kg: spec.mass_kg,
                     movable: false,
                 }

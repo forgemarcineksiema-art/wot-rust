@@ -113,8 +113,13 @@ fn static_cover_stops_a_tank_driving_into_it() {
 
     // Negative contact lock: the hull's front face must end at (not inside) the barn wall.
     // The old point-radius blocker buried the T-55A's nose 1.6 m deep into the building.
+    //
+    // Measured off the HULL PLAN since P2.1, and the promise got stronger rather than weaker for
+    // it: the plates now stop AT the wall, where before the hitbox's 0.15 m of phantom length held
+    // them that far short of it. Reading the front off the hitbox after the split would call a
+    // hull parked flush against a barn "0.15 m inside" it and mean nothing by that.
     let tank = state.tank(tank).expect("tank");
-    let hull_front_z = tank.position.z + tank.spec.hitbox.half_length_m;
+    let hull_front_z = tank.position.z + tank.spec.hull_plan().half_length_m;
     let barn_face_z = 30.0 - 4.0;
     assert!(
         hull_front_z <= barn_face_z + 1.0e-2,

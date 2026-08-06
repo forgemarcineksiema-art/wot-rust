@@ -5,6 +5,7 @@ mod contact_footprint;
 mod crew;
 mod damage;
 mod damage_layout;
+mod hull_plan;
 mod ids;
 pub mod math;
 pub mod mobility;
@@ -43,6 +44,7 @@ pub use damage_layout::{
     DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,
     DamagePlane, DamageShape, ModuleIntersection,
 };
+pub use hull_plan::HullPlan;
 pub use ids::{BattleEventId, ShellId, TankId, TeamId};
 pub use mobility::{MAX_CLIMB_GRADE, ROAD_COMFORT_GRADE};
 pub use modules::{

@@ -148,7 +148,7 @@ pub fn settle_tank_drive(
 }
 
 fn drive_obstacles<'a>(spec: &TankSpec, world: TankDriveWorld<'a>) -> TankWorldObstacles<'a> {
-    TankWorldObstacles::new(world.cover, TankFootprint::from_hitbox(spec.hitbox))
+    TankWorldObstacles::new(world.cover, TankFootprint::from_plan(spec.hull_plan()))
         .with_water(world.water)
         .with_rubble(world.rubble)
         .with_ground(world.ground)

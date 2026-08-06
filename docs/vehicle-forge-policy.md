@@ -277,11 +277,18 @@ wheel stations, the fender centre, a top-run anchor with `0.96 − 0.32` hidden 
 `0.66`, the DShK inheriting the tank gun's calibre — each was a copy, and each broke the moment
 its source moved.
 
-**One decision from the programme stays open, and it is the USER's** (M14): the T-54 hitbox is
-wider than its outermost armor volume — 0.141 m of phantom ram/movement width. Narrowing the box
-changes ramming, terrain contact and spotting together, so it is not a modelling call; it is
-measured every run (`the_hitbox_does_not_grow_further_past_the_visible_vehicle`) and recorded in
-the dossier's follow-ups.
+**M14 was one finding doing two jobs, and half of it is closed** (P2.1,
+`docs/contact-and-tracks-program.md`). The T-54's box reaches 0.141 m past its outermost armour
+volume, and that box used to decide both where a shell connects and where the hull could BE.
+Movement no longer reads it: a hull is blocked, shoved and billed for ramming as `HullPlan` — the
+outer face of the belt and the hull's own plates, straight off the blueprint — and
+`a_hull_is_blocked_by_exactly_the_metal_it_is_drawn_with` asserts that to zero rather than to a
+ceiling.
+
+What stays open, and stays the USER's, is the SHELL half: a round still connects with 0.141 m of
+air beside the track. That is the harder half — narrowing the hitbox moves armour resolution, the
+bots' aim gate and every fixture that fires at a known point — and it is measured every run by
+`the_shell_volume_does_not_grow_further_past_the_visible_vehicle`.
 
 ## Open Fleet Debt (2026-08-03)
 

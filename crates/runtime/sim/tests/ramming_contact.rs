@@ -45,9 +45,13 @@ fn full_speed_side_pass_deals_no_ram_damage() {
 
 #[test]
 fn tbone_ram_registers_only_when_hulls_actually_touch() {
-    // Rammer drives +z into the broadside of a stationary enemy. True side contact sits at
-    // half_length + half_width = 3.20 + 1.75 = 4.95 m between centers. The old length-circle
-    // predicate fired at a 6.5 m center gap — 1.6 m of air before the hulls met.
+    // Rammer drives +z into the broadside of a stationary enemy. True side contact sits at the
+    // bow's half-length plus the victim's half-width — DERIVED, because the two numbers this test
+    // used to type out (3.20 + 1.75 = 4.95) were a copy of the hitbox, and the hull collides as
+    // its plan since P2.1. The old length-circle predicate fired at a 6.5 m centre gap: 1.6 m of
+    // air before the hulls met.
+    let plan = TankSpec::t54_1951().hull_plan();
+    let contact_m = plan.half_length_m + plan.half_width_m;
     let mut state = SimulationState::new();
     let rammer = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
@@ -63,12 +67,18 @@ fn tbone_ram_registers_only_when_hulls_actually_touch() {
             contact_gap = Some(gap);
             break;
         }
-        assert!(gap > 4.9, "no ram may fire while the hulls are still apart (center gap {gap})");
+        assert!(
+            gap > contact_m - 0.05,
+            "no ram may fire while the hulls are still apart (centre gap {gap}, contact at              {contact_m:.3})"
+        );
     }
 
-    // Contact + base slop + at most one tick of closing travel (15.28 m/s / 60 Hz ~= 0.26 m).
+    // Contact, plus the solver's slop, plus at most one tick of closing travel (~0.26 m).
     let gap = contact_gap.expect("a genuine t-bone must still register ramming damage");
-    assert!(gap <= 5.45, "ram must fire at real hull contact, got center gap {gap}");
+    assert!(
+        gap <= contact_m + 0.5,
+        "ram must fire at real hull contact, got centre gap {gap} against contact at {contact_m:.3}"
+    );
 }
 
 /// Drive one hull bow-first into the broadside of a stationary enemy and report what the ram

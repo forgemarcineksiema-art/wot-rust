@@ -29,7 +29,7 @@ const FASTEST_HONEST_STEP_M: f32 = 13.89 / 60.0;
 fn a_spawn_overlap_is_walked_out_of_not_teleported_out_of() {
     for overlap in [0.10_f32, 1.50, 3.00] {
         let spec = TankSpec::t54_1951();
-        let half_width = spec.hitbox.half_width_m;
+        let half_width = spec.hull_plan().half_width_m;
         let mut state = SimulationState::new();
         let a = state.spawn_tank_with_yaw(TeamId(1), spec.clone(), Vec3::ZERO, 0.0);
         let b = state.spawn_tank_with_yaw(
@@ -73,7 +73,7 @@ fn a_spawn_overlap_is_walked_out_of_not_teleported_out_of() {
 #[test]
 fn a_pivot_into_a_neighbour_pushes_it_without_throwing_either() {
     let spec = TankSpec::t54_1951();
-    let half_width = spec.hitbox.half_width_m;
+    let half_width = spec.hull_plan().half_width_m;
     let mut state = SimulationState::new();
     let a = state.spawn_tank_with_yaw(TeamId(1), spec.clone(), Vec3::ZERO, 0.0);
     let b = state.spawn_tank_with_yaw(

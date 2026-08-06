@@ -325,7 +325,7 @@ impl SimulationState {
                 let heading =
                     Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z).normalize_or_zero();
                 let probe = tank.position + heading * COVER_CRUSH_APPROACH_M;
-                let footprint = TankFootprint::from_hitbox(tank.spec.hitbox);
+                let footprint = TankFootprint::from_plan(tank.spec.hull_plan());
                 for (index, object) in cover.iter().enumerate() {
                     if footprint_overlaps_cover_object(probe, tank.yaw_rad, footprint, object)
                         && crate::cover_damage::crush_cover(states, object, index)
@@ -601,7 +601,7 @@ impl SimulationState {
                 velocity: tank.velocity_mps,
                 yaw_rad: tank.yaw_rad,
                 yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
-                footprint: TankFootprint::from_hitbox(tank.spec.hitbox),
+                footprint: TankFootprint::from_plan(tank.spec.hull_plan()),
                 mass_kg: tank.spec.mass_kg,
                 movable: tank.hit_points > 0,
             })

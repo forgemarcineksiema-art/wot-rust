@@ -132,53 +132,77 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
     );
 }
 
-/// M14, made visible: the collision box is WIDER than the widest thing the player can see.
+/// M14, HALVED — and this is the half that is closed.
 ///
-/// The honesty doctrine says the collision box IS the visual footprint — "what blocks the shell
-/// blocks the eye". On the T-54 the hitbox reaches ±1.75 m while the outermost geometry (the
-/// track belt) reaches ±1.63: about 12% of phantom width that a hull can be rammed or blocked
-/// by, and that no one can see.
+/// The register's finding was that the collision box is wider than the widest thing the player can
+/// see, so a hull could be rammed or blocked by air. That was one number doing two jobs. Since
+/// P2.1 (`docs/contact-and-tracks-program.md`) the hull MOVES as `HullPlan` — the outer face of
+/// the track belt and the hull's own plates, straight off the blueprint — and the hitbox is left to
+/// do the job it is actually generous for: deciding where a shell connects.
 ///
-/// This is NOT asserted to zero here on purpose. Narrowing the box changes ramming, terrain
-/// contact and spotting all at once, so it belongs with the hull rebuild that already re-authors
-/// the hitbox (Model Idealny W3/PR-14), not to a gate PR. What this test does is stop it getting
-/// WORSE and put the number on the record every run.
+/// So this asserts to ZERO, and it is not a ceiling any more. Nothing a player can be stopped by,
+/// shoved by or billed for ramming is invisible.
 #[test]
-fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
+fn a_hull_is_blocked_by_exactly_the_metal_it_is_drawn_with() {
     let mut hulls_checked = 0;
-    /// Recorded 2026-07-29: today's worst offender, as a ceiling only.
-    ///
-    /// Re-recorded the same day at 0.14 (PR-18), and it is worth being precise about WHY, because
-    /// a raised ceiling normally means something got worse. Nothing got worse. The hitbox did not
-    /// move; the VEHICLE did, onto its documented 2.640 m track gauge, and it was 20 mm too wide
-    /// before. The phantom width was always this — the measurement was reading it against a model
-    /// that shared part of the error.
-    ///
-    /// This is the same shape as the hull anchor that would have failed a corrected model
-    /// (register M13): an instrument calibrated against the thing it is meant to judge cannot
-    /// report the judgement. M14 is unchanged and still owed, and it is the user's call because
-    /// narrowing the box changes ramming, terrain contact and spotting together.
-    const PHANTOM_WIDTH_CEILING: f32 = 0.141;
-
     for kind in VehicleKind::PLAYABLE {
         let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };
         let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
         // The widest thing drawn: the outer face of the belt band.
         let visible_half_width = kin.link_x + kin.band_half_width;
+        let plan = game_core::HullPlan::for_vehicle(kind);
+        hulls_checked += 1;
+        assert!(
+            (plan.half_width_m - visible_half_width).abs() <= 1.0e-4,
+            "{kind:?}: the hull is blocked at {:.3} m but nothing is drawn past {:.3} m",
+            plan.half_width_m,
+            visible_half_width
+        );
+        assert!(
+            (plan.half_length_m - blueprint.hull.half_len).abs() <= 1.0e-4,
+            "{kind:?}: the hull is blocked at {:.3} m of length against plates at {:.3} m",
+            plan.half_length_m,
+            blueprint.hull.half_len
+        );
+    }
+    assert_eq!(
+        hulls_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle must reach this check; a skipped one is an unchecked one"
+    );
+}
+
+/// M14's OTHER half, still open: the shell volume is wider than the vehicle.
+///
+/// A shell that connects with 14 cm of air beside a T-54's track is the same lie the movement half
+/// was, told to the gun instead of to the hull — and it is the harder half, because narrowing the
+/// hitbox moves armour resolution, the bots' aim gate and every fixture that fires at a known
+/// point. The ceiling stays a ceiling here on purpose. What changed is that it is now the ONLY
+/// place the phantom survives, and it can be worked without touching how anything drives.
+#[test]
+fn the_shell_volume_does_not_grow_further_past_the_visible_vehicle() {
+    let mut hulls_checked = 0;
+    /// Recorded 2026-07-29, re-recorded the same day at 0.14 (PR-18) when the T-54 moved onto its
+    /// documented 2.640 m track gauge — the phantom was always this, the instrument was reading it
+    /// against a model that shared part of the error.
+    const PHANTOM_WIDTH_CEILING: f32 = 0.141;
+
+    for kind in VehicleKind::PLAYABLE {
+        let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };
+        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        let visible_half_width = kin.link_x + kin.band_half_width;
         let phantom = blueprint.hull.hitbox_half_width - visible_half_width;
         hulls_checked += 1;
         assert!(
             phantom <= PHANTOM_WIDTH_CEILING,
-            "{kind:?}: the hitbox reaches {:.3} m but nothing is drawn past {:.3} m — {:.3} m of \
-             invisible width to ram into, past the recorded ceiling {PHANTOM_WIDTH_CEILING}",
+            "{kind:?}: a shell connects out to {:.3} m but nothing is drawn past {:.3} m —              {:.3} m of invisible target, past the recorded ceiling {PHANTOM_WIDTH_CEILING}",
             blueprint.hull.hitbox_half_width,
             visible_half_width,
             phantom
         );
         if phantom > 0.0 {
             println!(
-                "HITBOX DEBT {kind:?}: {phantom:.3} m of collision width past the visible \
-                 vehicle (target 0 — Model Idealny M14/PR-14)"
+                "SHELL-VOLUME DEBT {kind:?}: {phantom:.3} m of hittable width past the visible                  vehicle (target 0 — register M14, movement half closed by P2.1)"
             );
         }
     }

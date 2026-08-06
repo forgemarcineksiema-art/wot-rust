@@ -208,7 +208,7 @@ impl LocalPredictor {
             velocity: self.drive.kinematic.velocity,
             yaw_rad: self.drive.kinematic.yaw_rad,
             yaw_rate_rad_s: self.drive.kinematic.yaw_rate_rad_s,
-            footprint: physics::TankFootprint::from_hitbox(self.spec.hitbox),
+            footprint: physics::TankFootprint::from_plan(self.spec.hull_plan()),
             mass_kg: self.spec.mass_kg,
             movable: true,
         });

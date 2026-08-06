@@ -286,10 +286,34 @@ The per-track drive reads gauge and contact run from the blueprint. If the colli
 still a hand-typed 1.75 while the drive uses 1.32, the sim holds two different tanks. Shape must
 precede drive.
 
-- **P2.1 Footprint from `TrackShape`.** The motion footprint becomes `outer_x × hull.half_len`; the
-  hitbox stays what shells resolve against. Preceded by a written cascade map (ram, spotting,
-  terrain contact, armour fixtures, bare numbers in tests). *Lock:* the phantom test asserts **0**,
-  replacing the 0.141 ceiling; the P0.1 table is re-measured and the deltas are stated.
+- **P2.1 Footprint from the blueprint — LANDED.** `game_core::HullPlan` is the rectangle a hull
+  MOVES as: the outer face of the track belt and the hull's own plates, read from the same
+  blueprint the mesh is built from. The hitbox is untouched and still owns hit resolution. Five
+  call sites moved (cover collision, cover crushing, the roster's contact bodies, the predictor's
+  local hull, the predictor's neighbours) and nothing else in the code had to.
+
+  Phantom removed, per vehicle, from between two parked hulls — side / end:
+
+  | | | | |
+  |---|---|---|---|
+  | T-54 **0.280 / 0.300 m** | Centurion 0.240 / 0.120 | Tiger II 0.160 / 0.100 | Panther II 0.060 / 0.110 |
+  | Jagdtiger 0.040 / 0.100 | Tiger I 0.035 / 0.120 | T-34-85 0.020 / 0.300 | IS-3 0.000 / 0.110 |
+
+  **The cascade was not in the code — it was in the tests.** Five of them had quietly adopted the
+  hitbox as the hull's outline and had to be told which question they were asking: the contact
+  measurements from Wave 1, the cover-stop lock, the T-bone ram (which typed `3.20 + 1.75 = 4.95`
+  out by hand), the nose-to-tail stop, and the predictor's own parity pair. Each got a derived
+  number instead of a copied one, and two of them state a STRONGER promise afterwards — the plates
+  now stop AT a barn wall where the phantom used to hold them 0.15 m short of it.
+
+  Found on the way and fixed with it: **the renderer scrolled the belts on a gauge taken from the
+  hitbox half-width** (1.75 m against a real 1.32 m centre line on a T-54), so the inner and outer
+  tracks disagreed by a third too much through every turn. Its test carried a second copy of the
+  same wrong number and therefore passed — an instrument calibrated against the thing it is meant
+  to judge. Both now read `ContactFootprint::half_gauge_x`.
+
+  M14 is **halved**: `a_hull_is_blocked_by_exactly_the_metal_it_is_drawn_with` asserts zero, not a
+  ceiling. The shell half keeps the 0.141 m ceiling and stays the user's decision.
 - **P2.2 Low obstacles are ground.** Anything shorter than the vehicle's step height (the road-wheel
   radius — 0.405 m on a T-54) enters the support envelope like rubble instead of blocking in plan.
   *Lock:* a 0.30 m obstacle is driven over with a tilt and a speed bleed; a 0.60 m one still blocks.
