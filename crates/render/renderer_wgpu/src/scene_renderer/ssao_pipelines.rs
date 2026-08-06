@@ -58,8 +58,11 @@ pub(crate) const PREPASS_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
     wgpu::vertex_attr_array![0 => Float32x3];
 /// The SCENE prepass reads the UV lane too (Flora 2.0, FL-2): the AO depth of a leaf is its
 /// mask, not its quad. Explicit offsets — uv sits at byte 52 of SceneVertex.
-pub(crate) const PREPASS_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+pub(crate) const PREPASS_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
     wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x3, offset: 0, shader_location: 0 },
+    // And the wind lane (byte 48): the prepass shares the cutout vertex stage with the shadow
+    // casters, so it has to feed it the same lanes or the pipeline fails validation.
+    wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32, offset: 48, shader_location: 11 },
     wgpu::VertexAttribute {
         format: wgpu::VertexFormat::Float32x2,
         offset: 52,

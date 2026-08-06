@@ -89,6 +89,12 @@ pub fn select_lod(distance_m: f32, previous: Option<TreeLod>) -> TreeLod {
 /// pixel while both exist.
 pub fn flora_mesh_asset(name: &str) -> Option<MeshAsset> {
     let (asset, region) = crate::flora_pack::flora_catalog().get(name)?;
+    let top = asset.height_m.max(0.01);
+    // Wind is a NEAR-rung luxury. The gust field is per-vertex noise evaluated in four passes,
+    // and past the near band a 28 cm sway is under a pixel — the mid mesh and the impostor
+    // carry sway 0, so the shader's `sway > 0` branch skips them entirely and the cost lands
+    // only on the handful of trees a crew can actually watch move.
+    let windy = name == NEAR_ASSET;
     let vertices = asset
         .positions
         .iter()
@@ -102,6 +108,7 @@ pub fn flora_mesh_asset(name: &str) -> Option<MeshAsset> {
                 0.07,
             )
             .with_surface(renderer_api::surface_role::FOLIAGE)
+            .with_sway(if windy { sway_allowance(*position, top) } else { 0.0 })
             .with_uv([
                 region.u_offset + uv[0] * region.u_scale,
                 region.v_offset + uv[1] * region.v_scale,
@@ -109,6 +116,21 @@ pub fn flora_mesh_asset(name: &str) -> Option<MeshAsset> {
         })
         .collect();
     Some(MeshAsset::new(vertices, asset.indices.clone()))
+}
+
+/// How far a vertex may ride the wind, in mesh-local metres (the shader scales it by the
+/// instance). A tree bends the way a cantilever does — nothing at the root, most at the tips —
+/// so the allowance grows with BOTH the height up the trunk and the reach out from its axis.
+/// The two together are what separates a swaying canopy from a wobbling trunk: bark near the
+/// axis keeps a fraction of a centimetre, leaf cards at the crown edge get a quarter metre.
+fn sway_allowance(position: [f32; 3], height_m: f32) -> f32 {
+    const TIP_SWAY_M: f32 = 0.28;
+    const FULL_REACH_M: f32 = 3.0;
+    let height01 = (position[1] / height_m).clamp(0.0, 1.0);
+    let reach = (position[0] * position[0] + position[2] * position[2]).sqrt();
+    let reach01 = (reach / FULL_REACH_M).clamp(0.0, 1.0);
+    // Squared height: the lower trunk is stiff, the crown is where a gust actually shows.
+    TIP_SWAY_M * height01 * height01 * (0.25 + 0.75 * reach01)
 }
 
 /// Every rung's mesh, ready for `register_mesh`. A rung whose asset is missing is skipped
@@ -300,6 +322,36 @@ mod tests {
         let translation = objects[0].transform[3];
         assert_eq!([translation[0], translation[1], translation[2]], [100.0, 5.0, 100.0]);
         assert_eq!(state.levels(), &[Some(TreeLod::Near)]);
+    }
+
+    /// The wind lane bends a tree like a cantilever: planted at the root, loosest at the crown
+    /// edge. A trunk that swayed would read as rubber, and a canopy that did not would read as
+    /// plastic — so the two ends are locked apart here.
+    #[test]
+    fn the_wind_lane_plants_the_root_and_frees_the_canopy() {
+        let height = 13.0;
+        let root = sway_allowance([0.0, 0.0, 0.0], height);
+        let trunk_mid = sway_allowance([0.2, height * 0.4, 0.0], height);
+        let crown_edge = sway_allowance([4.5, height * 0.95, 0.0], height);
+        assert_eq!(root, 0.0, "the root is planted");
+        assert!(trunk_mid < 0.03, "mid-trunk bark barely moves, got {trunk_mid}");
+        assert!(crown_edge > 0.2, "the crown edge rides the gust, got {crown_edge}");
+
+        // And the shipped mesh actually carries it: some vertices planted, some free.
+        let mesh = flora_mesh_asset(NEAR_ASSET).expect("the hero oak ships");
+        let max = mesh.vertices().iter().fold(0.0_f32, |acc, v| acc.max(v.sway));
+        assert!(max > 0.15, "the canopy opted into the wind, peak {max}");
+        assert!(mesh.vertices().iter().any(|v| v.sway < 0.001), "the trunk's base stays out of it");
+
+        // The coarse rungs opt OUT entirely: their sway would cost four passes of gust noise
+        // for motion that lands under a pixel.
+        for far in [MID_ASSET, IMPOSTOR_ASSET] {
+            let coarse = flora_mesh_asset(far).expect("rung ships");
+            assert!(
+                coarse.vertices().iter().all(|v| v.sway == 0.0),
+                "{far} must not pay for wind nobody can see"
+            );
+        }
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of
