@@ -42,6 +42,11 @@ pub struct FloraAsset {
     pub license: FloraLicense,
     /// The sibling texture file (relative, e.g. `birch-a.flora.png`), tight RGBA8.
     pub texture_file: String,
+    /// The sibling tangent-space normal sheet, when the source carried one: the SAME layout
+    /// and the same dimensions as the colour sheet, so one set of UVs addresses both. `None`
+    /// keeps the pre-normal look — the runtime falls back to the geometric normal.
+    #[serde(default)]
+    pub normal_texture_file: Option<String>,
     pub texture_width: u32,
     pub texture_height: u32,
     pub positions: Vec<[f32; 3]>,
@@ -169,6 +174,7 @@ mod tests {
                 source_url: "https://example.org/bush".to_string(),
             },
             texture_file: "test-bush.flora.png".to_string(),
+            normal_texture_file: None,
             texture_width: 64,
             texture_height: 64,
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.2, 0.0]],

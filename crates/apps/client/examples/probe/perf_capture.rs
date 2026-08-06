@@ -206,7 +206,8 @@ fn frame_time_capture() {
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
-    renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
+    let flora_catalog = scene_build::flora_pack::flora_catalog();
+    renderer.set_foliage_atlas(&ctx, &flora_catalog.atlas_mips, flora_catalog.normal_mips.as_ref());
     for (handle, mesh) in client::grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }

@@ -6,6 +6,7 @@
     "source_url": "https://ambientcg.com/view?id=Bark012"
   },
   "texture_file": "dab-hero.flora.png",
+  "normal_texture_file": "dab-hero.flora.normal.png",
   "texture_width": 512,
   "texture_height": 768,
   "positions": [

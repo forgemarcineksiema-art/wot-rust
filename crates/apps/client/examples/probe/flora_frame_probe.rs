@@ -123,7 +123,8 @@ fn configure_renderer(
         ground_maps,
         &terrain_material_set_for(terrain::MapId::Ostrogorsk),
     );
-    renderer.set_foliage_atlas(ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
+    let catalog = scene_build::flora_pack::flora_catalog();
+    renderer.set_foliage_atlas(ctx, &catalog.atlas_mips, catalog.normal_mips.as_ref());
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 }

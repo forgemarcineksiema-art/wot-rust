@@ -336,7 +336,7 @@ impl ClientApp {
         // The imported-flora atlas (Flora 2.0, FL-4): packed once per process, uploaded once
         // per renderer — the FL-2 group-1 slot leaves its white-texel no-op default here.
         let flora = scene_build::flora_pack::flora_catalog();
-        renderer.set_foliage_atlas(&flora.atlas_mips);
+        renderer.set_foliage_atlas(&flora.atlas_mips, flora.normal_mips.as_ref());
         renderer.set_battlefield_ground(
             &meshes.ground_vertices,
             &meshes.ground_indices,

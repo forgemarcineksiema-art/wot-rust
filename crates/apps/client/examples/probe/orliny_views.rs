@@ -100,7 +100,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     // Imported flora samples this atlas; without it every leaf and trunk renders as the 1x1
     // white default — which is exactly what this example was shipping.
-    renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
+    let flora_catalog = scene_build::flora_pack::flora_catalog();
+    renderer.set_foliage_atlas(&ctx, &flora_catalog.atlas_mips, flora_catalog.normal_mips.as_ref());
     renderer.scene_time_s = 12.0;
     for (handle, mesh) in grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);

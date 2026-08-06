@@ -36,6 +36,13 @@ pub struct FloraRegion {
 
 pub struct FloraCatalog {
     pub atlas_mips: Rgba8MipChain,
+    /// The parallel TANGENT-NORMAL page, laid out region-for-region with the colour one, so a
+    /// fragment addresses both with the same UV. `None` when nothing shipped a normal sheet —
+    /// the shader then keeps the geometric normal, which is exactly the pre-normal look.
+    ///
+    /// Only the NEAR rung carries normals on purpose: bark relief is a close-range cue, and a
+    /// second full-size page per rung would spend min-spec VRAM on detail nobody resolves.
+    pub normal_mips: Option<Rgba8MipChain>,
     entries: Vec<(FloraAsset, FloraRegion)>,
 }
 
@@ -55,18 +62,26 @@ impl FloraCatalog {
 // The rungs of one tree, not three species: the near mesh, its sparse mid distillation and the
 // two-quad impostor all come from the same Blender master, and `tree_lod` swaps between them by
 // distance. They share the atlas because they share the art.
-const SHIPPED: &[(&str, &[u8])] = &[
+/// One embedded asset: its json, its colour sheet, and the tangent-normal sheet when it has
+/// one. Named rather than spelled out because the tuple is now three deep and reads better
+/// where it is used than where it is declared.
+type ShippedFlora = (&'static str, &'static [u8], Option<&'static [u8]>);
+
+const SHIPPED: &[ShippedFlora] = &[
     (
         include_str!("../../../../assets/flora/dab-hero.flora.json"),
         include_bytes!("../../../../assets/flora/dab-hero.flora.png"),
+        Some(include_bytes!("../../../../assets/flora/dab-hero.flora.normal.png")),
     ),
     (
         include_str!("../../../../assets/flora/dab-hero-lod2.flora.json"),
         include_bytes!("../../../../assets/flora/dab-hero-lod2.flora.png"),
+        None,
     ),
     (
         include_str!("../../../../assets/flora/dab-hero-imp.flora.json"),
         include_bytes!("../../../../assets/flora/dab-hero-imp.flora.png"),
+        None,
     ),
 ];
 
@@ -87,26 +102,50 @@ fn build_catalog() -> Result<FloraCatalog, String> {
         ));
     }
     let mut sources = Vec::with_capacity(decoded.len());
+    let mut normal_sources = Vec::with_capacity(decoded.len());
     let mut entries = Vec::with_capacity(decoded.len());
-    for ((asset, rgba), slot) in decoded.into_iter().zip(PACK_SLOTS) {
+    for ((asset, rgba, normal), slot) in decoded.into_iter().zip(PACK_SLOTS) {
         if asset.texture_width > SLOT_SIZE || asset.texture_height > SLOT_SIZE {
             return Err(format!("{} exceeds its {SLOT_SIZE}px isolated slot", asset.name));
         }
         let x = slot.0 * SLOT_SIZE + (SLOT_SIZE - asset.texture_width) / 2;
         let y = slot.1 * SLOT_SIZE + if slot.1 == 0 { 0 } else { SLOT_SIZE - asset.texture_height };
         let region = texel_center_region(x, y, asset.texture_width, asset.texture_height);
+        // The normal page rides the SAME x/y and the same mip ladder: identical geometry is
+        // the whole reason one UV can address both.
+        if let Some(pixels) = normal {
+            let levels =
+                mips::build_asset_mip_chain(asset.texture_width, asset.texture_height, pixels);
+            normal_sources.push(PackedSource { x, y, levels });
+        }
         let levels = mips::build_asset_mip_chain(asset.texture_width, asset.texture_height, rgba);
         sources.push(PackedSource { x, y, levels });
         entries.push((asset, region));
     }
-    let levels = build_atlas_levels(&sources);
-    Ok(FloraCatalog { atlas_mips: Rgba8MipChain::new(levels, FLORA_MAX_SAMPLED_MIP), entries })
+    let levels = build_atlas_levels(&sources, [0, 0, 0, 0]);
+    // An empty page would be a texture upload and a sampler binding buying nothing, so the
+    // normal atlas exists only when something actually shipped normals. Its background is the
+    // FLAT normal, which is also what makes the shader's early-out work: a rung without a
+    // sheet samples (128, 128, 255), decodes to +Z, and skips the tangent frame entirely.
+    let normal_mips = (!normal_sources.is_empty()).then(|| {
+        Rgba8MipChain::new(
+            build_atlas_levels(&normal_sources, [128, 128, 255, 255]),
+            FLORA_MAX_SAMPLED_MIP,
+        )
+    });
+    Ok(FloraCatalog {
+        atlas_mips: Rgba8MipChain::new(levels, FLORA_MAX_SAMPLED_MIP),
+        normal_mips,
+        entries,
+    })
 }
 
-fn decode_shipped() -> Result<Vec<(FloraAsset, Vec<u8>)>, String> {
+type DecodedFlora = (FloraAsset, Vec<u8>, Option<Vec<u8>>);
+
+fn decode_shipped() -> Result<Vec<DecodedFlora>, String> {
     SHIPPED
         .iter()
-        .map(|(json, png_bytes)| {
+        .map(|(json, png_bytes, normal_bytes)| {
             let asset: FloraAsset =
                 serde_json::from_str(json).map_err(|error| format!("flora json: {error}"))?;
             asset.validate().map_err(|reason| format!("{}: {reason}", asset.name))?;
@@ -122,7 +161,33 @@ fn decode_shipped() -> Result<Vec<(FloraAsset, Vec<u8>)>, String> {
                 return Err(format!("{}: texture dimensions disagree with json", asset.name));
             }
             rgba.truncate((info.width * info.height * 4) as usize);
-            Ok((asset, rgba))
+            let normal = match normal_bytes {
+                Some(bytes) => {
+                    let mut reader = png::Decoder::new(std::io::Cursor::new(*bytes))
+                        .read_info()
+                        .map_err(|error| format!("normal png: {error}"))?;
+                    let mut pixels = vec![0u8; reader.output_buffer_size().unwrap_or_default()];
+                    let info = reader
+                        .next_frame(&mut pixels)
+                        .map_err(|error| format!("normal png: {error}"))?;
+                    if info.color_type != png::ColorType::Rgba
+                        || info.bit_depth != png::BitDepth::Eight
+                    {
+                        return Err(format!("{}: normal sheet must be RGBA8", asset.name));
+                    }
+                    // The pages share one set of UVs, so they must share one geometry.
+                    if (info.width, info.height) != (asset.texture_width, asset.texture_height) {
+                        return Err(format!(
+                            "{}: normal sheet {}x{} does not match its colour sheet",
+                            asset.name, info.width, info.height
+                        ));
+                    }
+                    pixels.truncate((info.width * info.height * 4) as usize);
+                    Some(pixels)
+                }
+                None => None,
+            };
+            Ok((asset, rgba, normal))
         })
         .collect()
 }
@@ -137,11 +202,19 @@ fn texel_center_region(x: u32, y: u32, width: u32, height: u32) -> FloraRegion {
     }
 }
 
-fn build_atlas_levels(sources: &[PackedSource]) -> Vec<Rgba8MipLevel> {
+fn build_atlas_levels(sources: &[PackedSource], background: [u8; 4]) -> Vec<Rgba8MipLevel> {
     let mut levels = Vec::new();
     let mut atlas_size = FLORA_ATLAS_SIZE;
     for level in 0..=FLORA_ATLAS_SIZE.ilog2() {
-        let mut rgba = vec![0u8; (atlas_size * atlas_size * 4) as usize];
+        // The background matters on the NORMAL page: an unwritten region decodes to
+        // (-1, -1, -1), which is not "no perturbation" but a normal pointing into the
+        // surface — every rung that ships no normal sheet would light itself inside out.
+        let mut rgba: Vec<u8> = background
+            .iter()
+            .copied()
+            .cycle()
+            .take((atlas_size * atlas_size * 4) as usize)
+            .collect();
         let mut occupied = vec![false; (atlas_size * atlas_size) as usize];
         for source in sources {
             blit_source(&mut rgba, &mut occupied, atlas_size, source, level);

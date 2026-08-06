@@ -28,5 +28,5 @@ fn renderer_accepts_and_uploads_every_level_of_a_complete_foliage_chain() {
         ],
         2,
     );
-    renderer.set_foliage_atlas(&ctx, &chain);
+    renderer.set_foliage_atlas(&ctx, &chain, None);
 }

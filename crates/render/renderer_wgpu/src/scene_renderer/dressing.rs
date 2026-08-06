@@ -21,8 +21,15 @@ impl SceneRenderer {
     /// Replace the foliage atlas (Imported Flora 2.0): complete RGBA8 sRGB mips, sampled by the
     /// scene color pass AND the shadow/SSAO depth passes — a leaf's shadow is its mask. The
     /// startup default is one opaque-white texel (a bit-exact no-op for procedural content).
-    pub fn set_foliage_atlas(&mut self, ctx: &GpuContext, chain: &Rgba8MipChain) {
-        self.foliage_atlas.set(&ctx.device, &ctx.queue, &self.foliage_bgl, chain);
+    /// `normals` is the parallel tangent-normal page (hero flora): same regions, same UVs.
+    /// `None` binds a flat 1x1 and the surface keeps its geometric normal.
+    pub fn set_foliage_atlas(
+        &mut self,
+        ctx: &GpuContext,
+        chain: &Rgba8MipChain,
+        normals: Option<&Rgba8MipChain>,
+    ) {
+        self.foliage_atlas.set(&ctx.device, &ctx.queue, &self.foliage_bgl, chain, normals);
     }
 
     pub fn set_dressing(&mut self, ctx: &GpuContext, vertices: &[SceneVertex], indices: &[u32]) {

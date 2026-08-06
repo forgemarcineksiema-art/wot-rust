@@ -16,7 +16,7 @@ fn shipped_atlas_chain_is_complete_deterministic_and_white_at_the_origin() {
 
 #[test]
 fn shipped_assets_keep_cutout_coverage_through_the_sampled_levels() {
-    for (asset, rgba) in decode_shipped().expect("decode") {
+    for (asset, rgba, _normal) in decode_shipped().expect("decode") {
         let source_coverage = flora_test_coverage(&rgba);
         let levels = mips::build_asset_mip_chain(asset.texture_width, asset.texture_height, rgba);
         for (index, level) in levels.iter().enumerate().take(FLORA_MAX_SAMPLED_MIP as usize + 1) {
