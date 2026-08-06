@@ -175,10 +175,31 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
   100 µm tie width settles it deterministically, but that is a tie-break and not hysteresis — the
   real answer for a face pressed flat on a face is TWO contact points, and that manifold belongs
   with the solver that would use it.
-- **P1.2 Speculative contacts + soft bias.** The skin stops being a standoff: it detects the
-  approach, the constraint stops the hull *at touch*. Penetration up to a slop is pushed out by a
-  bias **velocity**, never by moving the position. *Lock:* resting hitbox gap ≤ 0.03 m (today
-  0.1217); no tunnelling at 14 m/s closing.
+- **P1.2 Speculative contacts + soft bias — LANDED.** The SAT now reports a SIGNED separation, so
+  the solver is told how far apart a pair still is instead of only whether they overlap, and the
+  constraint allows exactly the closing that shuts that gap this tick and no more. The skin is gone
+  as a concept — what is left (`SPECULATIVE_MARGIN_M`, 0.05 m plus the ground the pair can cover in
+  a tick) decides only how early the arithmetic starts, never where the hulls come to rest. Overlap
+  past the slop is asked back as a bias **velocity** rather than taken as a position.
+
+  | | before | after |
+  |---|---|---|
+  | resting hitbox gap, head-on under throttle | 0.1217 m | **−0.0000 m** |
+  | gap drift over 3 s pressed together | — | 0.0000 m, worst step 0.00000 m/tick |
+  | interpenetration on a full-speed charge | — | 0.0000 m, no tunnelling (T-54 and T-34-85) |
+
+  Visible metal, with the phantom hitbox margins still in place: T-54 side by side **0.40 → 0.28 m**,
+  Tiger I side by side **0.157 → 0.035 m**. The Tiger genuinely touches now; the T-54's remaining
+  gap is entirely its 0.14 m of phantom box, which is Wave 2's job.
+
+  **One test moved, and the measurement that moved it turned up something bigger.** The Bystra bot
+  soak's soft "never a near-drowning" bound (1.35 m) was exceeded by 10 mm on seed 5. Measured
+  before/after across eight seeds, the change moves each seed by −0.04 to +0.11 m in both
+  directions — a reshuffle of a chaotic statistic, not a shift in the mechanism — so the bound was
+  renegotiated to 1.40 with that table written into the test. The same probe found **seed 1234
+  wading 2.107 m on master, six hundred millimetres past the drowning line the soak's own opening
+  line promises no bot reaches.** Filed as register **H1**; the mechanism was already diagnosed in
+  `terrain/src/ground.rs` and needs a control redesign, not a constant.
 - **P1.3 Warm start + accumulated friction cone.** Impulses cached per contact ID; the tangential
   impulse bounded by μ × the *accumulated* normal, not one iteration's. *Lock:* five hulls pressed
   in a queue settle to < 1 mm/tick.

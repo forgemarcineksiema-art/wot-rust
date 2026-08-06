@@ -75,8 +75,21 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
         // The deepest wade should look like a ford crossing (momentum can carry a hull a
         // shade past the route brain's 1.2 m line before the escape reverse bites), never a
         // near-drowning.
+        //
+        // Renegotiated 2026-08-06 for the speculative contact (P1.2), with the measurement that
+        // forced it. Hulls used to park a 0.12 m detection margin apart; now they touch, so a
+        // queue at the ford packs tighter and the lead hull reaches marginally deeper. Measured
+        // across eight seeds, before -> after: 5 1.284->1.363, 23 0.914->0.914, 7 1.129->1.108,
+        // 42 1.167->1.167, 99 1.105->1.105, 1234 2.107->2.218, 77 1.103->1.110, 314 1.193->1.151.
+        // Three up, two down, three unchanged — a reshuffle of a chaotic statistic, not a shift in
+        // the mechanism, so the bound moves by the measured amount and not by taste.
+        //
+        // The same measurement turned up something this test does not cover and should: seed 1234
+        // wades 2.107 m BEFORE the contact work, six hundred millimetres past the drowning line
+        // this test's opening line promises no bot reaches. A soak that samples two seeds promises
+        // a population and checks a pair. Register H1.
         assert!(
-            deepest <= 1.35,
+            deepest <= 1.40,
             "seed {seed}: deepest wade {deepest:.2} m — bots flirt with the drowning line"
         );
     }

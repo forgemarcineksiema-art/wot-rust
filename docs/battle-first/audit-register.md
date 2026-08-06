@@ -196,6 +196,15 @@ previous one's hole and opened its own.
 
 ---
 
+## H. Contact and tracks program — found by measurement (2026-08-06)
+
+| # | finding | severity |
+|---|---|---|
+| **H1** | **Bots DO drive themselves into the drowning channel, and the test that promises they do not only looks at two seeds.** `bot_water.rs` opens with "no bot ever drives itself into the drowning channel" and asserts `depth < DROWN_DEPTH_M` (1.5 m) — over seeds 5 and 23. Measured across eight seeds on master, **seed 1234 reaches 2.107 m**, six hundred millimetres past the drowning line, on a live hull. The rest of the population sits at 0.91–1.28 m. This is not new and not caused by the contact work (the same probe reads 2.218 m after it — inside the ±0.11 m the change moves every seed by, in both directions). `terrain/src/ground.rs` already diagnosed the mechanism in its own words: the escape *is* engaged and "simply cannot win: on a descending slick bank, reverse thrust does not overcome gravity plus the water's drag… Extracting it needs the escape to steer ALONG the contour rather than straight back — a control redesign, not a constant." **Repro:** add `1234` to the seed list in `crates/runtime/battle_host/tests/bot_water.rs`. | `battle_host/tests/bot_water.rs:35`, `bot_routes.rs` |
+
+The lesson underneath it is the register's own recurring one: a soak that samples two seeds is a
+soak that promises a population and checks a pair. The promise is the right one; the sample is not.
+
 ## Withdrawn after verification
 
 - ~~"Maps-are-data is broken"~~ — measurement error: I counted test fixtures. Real dispatch is **22

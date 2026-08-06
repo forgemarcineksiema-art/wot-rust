@@ -19,7 +19,7 @@
 
 use glam::{Vec2, Vec3};
 
-use crate::collision::{TankFootprint, TankObstacle, obstacles_contact};
+use crate::collision::{TankFootprint, TankObstacle, footprint_contact_within, obstacles_contact};
 
 /// Coefficient of restitution for steel on steel. Zero: armour plate does not bounce, it shoves.
 const RESTITUTION: f32 = 0.0;
@@ -30,8 +30,8 @@ const RESTITUTION: f32 = 0.0;
 /// carry, and worth the same here: this loop runs over every pair, four iterations deep, twice a
 /// tick.
 fn contact_reach(body: &ContactBody) -> f32 {
-    let half_width = body.footprint.half_width_m + CONTACT_SKIN_M;
-    let half_length = body.footprint.half_length_m + CONTACT_SKIN_M;
+    let half_width = body.footprint.half_width_m + SPECULATIVE_MARGIN_M;
+    let half_length = body.footprint.half_length_m + SPECULATIVE_MARGIN_M;
     (half_width * half_width + half_length * half_length).sqrt()
 }
 
@@ -45,30 +45,21 @@ fn worth_testing(a: &ContactBody, b: &ContactBody, dt: f32) -> bool {
     dx * dx + dz * dz <= reach * reach
 }
 
-/// Where a hull will BE at the end of this tick if nothing stops it.
+/// How close a pair has to be before the solver bothers looking at it, over and above the ground
+/// they could cover this tick.
 ///
-/// Contacts are solved against these, not against where the hulls stand now, and that is the
-/// difference between a collision that is prevented and one that is merely repaired. Solved on
-/// current positions, two hulls a hand apart are "not touching", both move, they end the tick
-/// overlapped, and the correction only reaches their velocity in time for the NEXT tick — so a
-/// crowd pressing together gains ground every tick. Solved on predicted positions, the approach
-/// that would overlap is refused before it is taken.
-fn predicted(body: &ContactBody, velocity: Vec3, dt: f32) -> TankObstacle {
-    TankObstacle::new(
-        body.position + Vec3::new(velocity.x, 0.0, velocity.z) * dt,
-        body.yaw_rad,
-        body.footprint,
-    )
-}
-
-/// How close counts as touching.
+/// This is only a "is it worth solving" range, and that distinction is the whole of P1.2. It used
+/// to be a SKIN: one hull's footprint was grown by 0.12 m and any overlap of the grown shape was
+/// treated as contact, whereupon the solver cancelled the entire approach. That stopped the pair
+/// wherever they happened to be — which, measured, was a hitbox gap of 0.1217 m, the constant to
+/// the millimetre, and 0.40 m of daylight between two T-54s once the phantom hitbox margins were
+/// added. A detection range had quietly become a parking distance.
 ///
-/// This is load-bearing, and its absence was the first thing to go wrong here: the movement
-/// constraint refuses any move that WOULD overlap, so two hulls pressed together never actually
-/// overlap — a solver that waits for penetration therefore never sees a single contact and the
-/// whole exchange is silently dead. Hulls within a skin of each other are treated as in contact,
-/// which is the same trick `ramming.rs` uses to catch a genuine hull-to-hull touch.
-const CONTACT_SKIN_M: f32 = 0.12;
+/// Now the solver is told the REAL separation and allows exactly the closing that shuts it, so
+/// this number decides only how early the arithmetic starts, never where the hulls come to rest.
+/// Generous is therefore cheap and stingy is not: too small and a contact is missed, too large and
+/// a handful of pairs get projected that did not need it.
+const SPECULATIVE_MARGIN_M: f32 = 0.05;
 
 /// Coulomb friction at a steel-on-steel contact, as a fraction of the normal impulse.
 ///
@@ -81,6 +72,24 @@ const CONTACT_FRICTION_MU: f32 = 0.7;
 
 /// Overlap this deep is left alone, so hulls resting against each other do not jitter.
 const POSITION_SLOP_M: f32 = 0.02;
+
+/// Fraction of a remaining overlap the contact asks back per tick, as a VELOCITY.
+///
+/// Hulls do end up inside each other — a pivot swings an oriented footprint into a neighbour, a
+/// spawn lands badly — and something has to undo it. Doing that by moving the position is a
+/// teleport: the hull arrives somewhere it never travelled to, the drive knows nothing about it,
+/// the attitude and ride height were computed for where it used to be, and the measured result was
+/// a pair squirting apart at 1.19 m/s with no velocity behind it. Asking for the same separation
+/// as a velocity instead makes it an ordinary part of the tick — the drive can push back against
+/// it, friction applies to it, and the hull travels the distance rather than being placed at the
+/// end of it.
+///
+/// A fifth per tick: fast enough that a real overlap is gone in a few ticks, slow enough that the
+/// correction never becomes the loudest thing in the frame.
+const RECOVERY_RATE: f32 = 0.2;
+
+/// Ceiling on that recovery, so a deep spawn overlap eases apart instead of launching.
+const MAX_RECOVERY_MPS: f32 = 1.0;
 
 /// Fraction of the remaining overlap removed per iteration. Below 1 so a crowd converges instead
 /// of ringing; over [`ITERATIONS`] passes this clears essentially all of it within the tick.
@@ -107,18 +116,6 @@ pub struct ContactBody {
 impl ContactBody {
     fn obstacle(&self) -> TankObstacle {
         TankObstacle::new(self.position, self.yaw_rad, self.footprint)
-    }
-
-    /// The hull grown by the contact skin, so "resting against" registers as touching.
-    fn skinned_at(&self, position: Vec3) -> TankObstacle {
-        TankObstacle::new(
-            position,
-            self.yaw_rad,
-            TankFootprint {
-                half_width_m: self.footprint.half_width_m + CONTACT_SKIN_M,
-                half_length_m: self.footprint.half_length_m + CONTACT_SKIN_M,
-            },
-        )
     }
 
     fn inverse_mass(&self) -> f32 {
@@ -204,14 +201,15 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> ContactReport {
                 if !worth_testing(&bodies[a], &bodies[b], dt) {
                     continue;
                 }
-                // Where each hull is HEADING this tick, with the velocity the solve has reached
-                // so far. Re-predicted every iteration, so the pass converges on a set of
-                // velocities under which nobody ends the tick inside anybody.
-                let ahead_a = predicted(&bodies[a], velocity[a], dt);
-                let ahead_b = predicted(&bodies[b], velocity[b], dt);
-                let Some(contact) =
-                    obstacles_contact(&bodies[a].skinned_at(ahead_a.center), &ahead_b)
-                else {
+                // Where the hulls ARE, plus how far apart they still are — signed, so the same
+                // number covers "a hand apart" and "already inside each other". The pair is
+                // reached for while there is still room to stop it: the margin carries the ground
+                // both could cover before the next solve, so an approach is never seen for the
+                // first time from the far side of the plate it should have hit.
+                let reach =
+                    SPECULATIVE_MARGIN_M + (velocity[a].length() + velocity[b].length()) * dt;
+                let (here_a, here_b) = (bodies[a].obstacle(), bodies[b].obstacle());
+                let Some(contact) = footprint_contact_within(&here_a, &here_b, reach) else {
                     continue;
                 };
                 let normal = contact.normal;
@@ -226,10 +224,8 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> ContactReport {
                 // (They did not, at first — the torque took its sign from the role, and the
                 // order-independence test caught it.) Clamped to each hull's own reach so a deep
                 // overlap cannot invent a lever longer than the vehicle.
-                let delta = Vec2::new(
-                    ahead_b.center.x - ahead_a.center.x,
-                    ahead_b.center.z - ahead_a.center.z,
-                );
+                let delta =
+                    Vec2::new(here_b.center.x - here_a.center.x, here_b.center.z - here_a.center.z);
                 let offset = delta.dot(tangent) * 0.5;
                 let reach_a = bodies[a].reach_along(tangent);
                 let reach_b = bodies[b].reach_along(tangent);
@@ -241,8 +237,28 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> ContactReport {
                 let relative =
                     Vec2::new(velocity[b].x - velocity[a].x, velocity[b].z - velocity[a].z);
                 let approach = relative.dot(normal) - yaw_rate[b] * lever_b + yaw_rate[a] * lever_a;
-                if approach >= 0.0 {
-                    // Already separating: a contact constraint pushes, it never pulls.
+
+                // How fast this pair is ALLOWED to close, which is the whole of the change.
+                //
+                // Still apart: exactly fast enough to shut the remaining gap by the end of the
+                // tick and no faster. The hulls finish it TOUCHING instead of stopped a detection
+                // margin short of each other, and nothing has to be stopped dead to get there — a
+                // charge is trimmed to the gap, not cancelled.
+                //
+                // Already overlapped: the target turns positive and asks them to ease back out at
+                // `RECOVERY_RATE` of the excess, as a velocity rather than as a teleport. Overlap
+                // shallower than `POSITION_SLOP_M` is left alone, so a pair resting against each
+                // other is not endlessly nudged.
+                let separation = -contact.depth_m;
+                let target = if separation > 0.0 {
+                    -separation / dt
+                } else {
+                    (RECOVERY_RATE * (-separation - POSITION_SLOP_M).max(0.0) / dt)
+                        .min(MAX_RECOVERY_MPS)
+                };
+                if approach >= target {
+                    // Closing no faster than the gap allows, or already separating: a contact
+                    // constraint pushes, it never pulls.
                     continue;
                 }
 
@@ -253,7 +269,7 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> ContactReport {
                 if effective <= f32::EPSILON {
                     continue;
                 }
-                let magnitude = -(1.0 + RESTITUTION) * approach / effective;
+                let magnitude = (target - approach * (1.0 + RESTITUTION)) / effective;
                 let impulse = normal * magnitude;
 
                 delta_v[a] -= Vec3::new(impulse.x, 0.0, impulse.y) * inv_ma;
