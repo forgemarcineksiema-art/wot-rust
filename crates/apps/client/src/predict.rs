@@ -1,11 +1,15 @@
 use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec, TrackHealth};
 use glam::Vec3;
-use physics::{TankKinematicState, TankObstacle};
+use physics::{ContactBody, ContactCache, TankKinematicState};
 use sim::{
     AimingState, DriveModuleStatus, TankCommand, TankDriveState, TankDriveWorld, TrackDriveStatus,
-    recover_dispersion, step_tank_drive,
+    advance_tank_drive, recover_dispersion, settle_tank_drive,
 };
 use terrain::{HeightMap, StaticCoverObject};
+
+/// The local hull's slot in the predictor's own little roster. Neighbours carry their real tank
+/// ids, and no vehicle is ever id 0, so nothing can collide with it.
+const LOCAL_HULL_ID: u64 = 0;
 
 /// Lockstep client-side prediction of the local tank's hull: stepped with the same fixed
 /// dt and the same input as the authoritative server, so it matches the server tick-for-tick
@@ -35,6 +39,10 @@ pub struct LocalPredictor {
     /// The battle map's standing water — a map property, so it survives vehicle resets. The
     /// predicted wading drag must match the server's or fording would reconciliation-jitter.
     water: Option<terrain::WaterBody>,
+    /// The contact solver's memory, exactly as the server keeps one. Without it the predicted hull
+    /// would rediscover every contact from nothing each tick while the authority did not, and the
+    /// two would disagree by more the longer they leaned on each other.
+    contacts: ContactCache,
 }
 
 impl LocalPredictor {
@@ -56,6 +64,7 @@ impl LocalPredictor {
             previous_forward_speed_mps: 0.0,
             tick_accel_long_mps2: 0.0,
             water: None,
+            contacts: ContactCache::default(),
             previous: PredictedPose {
                 position: Vec3::ZERO,
                 yaw_rad: 0.0,
@@ -111,7 +120,7 @@ impl LocalPredictor {
         command: TankCommand,
         heightmap: &HeightMap,
         cover: &[StaticCoverObject],
-        tank_obstacles: &[TankObstacle],
+        neighbours: &[ContactBody],
         rubble: &[terrain::RubbleMound],
         ground: Option<&terrain::GroundClassifier>,
         dt: f32,
@@ -122,7 +131,7 @@ impl LocalPredictor {
         self.previous = self.current_pose();
         let speed_before = self.drive.kinematic.forward_speed();
         self.previous_forward_speed_mps = speed_before;
-        self.step_drive(command, heightmap, cover, tank_obstacles, rubble, ground, dt);
+        self.step_drive(command, heightmap, cover, neighbours, rubble, ground, dt);
         self.tick_accel_long_mps2 =
             (self.drive.kinematic.forward_speed() - speed_before) / dt.max(1.0e-6);
     }
@@ -133,7 +142,7 @@ impl LocalPredictor {
         command: TankCommand,
         heightmap: &HeightMap,
         cover: &[StaticCoverObject],
-        tank_obstacles: &[TankObstacle],
+        neighbours: &[ContactBody],
         rubble: &[terrain::RubbleMound],
         ground: Option<&terrain::GroundClassifier>,
         dt: f32,
@@ -161,7 +170,9 @@ impl LocalPredictor {
         let world = TankDriveWorld {
             heightmap: Some(heightmap),
             cover,
-            tank_obstacles,
+            // Hull-to-hull is the contact solve's business, exactly as it is on the server. The
+            // drive step is handed no tank obstacles by either of them.
+            tank_obstacles: &[],
             footprint: Some(&footprint),
             water: self.water,
             rubble,
@@ -169,10 +180,49 @@ impl LocalPredictor {
             // differently on a road than the authority says it does.
             ground,
         };
+        let command = command.clamped();
+
+        // The authority's tick, in the authority's order: decide a velocity, exchange contacts
+        // against it, then spend what survived. The predictor used to REFUSE a move that would
+        // overlap a neighbour instead — a hard stop the server has not used since contact started
+        // carrying momentum, and the two answered differently by the whole of the old skin. It
+        // also meant a shove could never be predicted at all, only discovered as a correction.
+        let phase = advance_tank_drive(&mut self.drive, &self.spec, modules, world, command, dt);
+        self.exchange_contacts(neighbours, dt);
         let ground =
-            step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
+            settle_tank_drive(&mut self.drive, &self.spec, modules, world, command, phase, dt);
         self.pending_landing_impact_mps =
             self.pending_landing_impact_mps.max(ground.landing_impact_mps);
+    }
+
+    /// Solve the local hull against its neighbours, who are IMMOVABLE here: the client is not
+    /// authoritative over them, so it may predict being stopped and shoved by them but never
+    /// predict shoving them. The server solves the same contacts with both hulls movable and sends
+    /// the result; the local half of the answer is the half that has to match.
+    fn exchange_contacts(&mut self, neighbours: &[ContactBody], dt: f32) {
+        if neighbours.is_empty() {
+            self.contacts = ContactCache::default();
+            return;
+        }
+        let mut bodies = Vec::with_capacity(neighbours.len() + 1);
+        bodies.push(ContactBody {
+            id: LOCAL_HULL_ID,
+            position: self.drive.kinematic.position,
+            velocity: self.drive.kinematic.velocity,
+            yaw_rad: self.drive.kinematic.yaw_rad,
+            yaw_rate_rad_s: self.drive.kinematic.yaw_rate_rad_s,
+            footprint: physics::TankFootprint::from_hitbox(self.spec.hitbox),
+            mass_kg: self.spec.mass_kg,
+            movable: true,
+        });
+        bodies.extend_from_slice(neighbours);
+        let report = physics::resolve_contacts(&bodies, &mut self.contacts, dt);
+        let taken = report.bodies[0];
+        if taken.is_empty() {
+            return;
+        }
+        self.drive.kinematic.velocity += taken.delta_velocity;
+        self.drive.kinematic.yaw_rate_rad_s += taken.delta_yaw_rate_rad_s;
     }
 
     /// The hardest landing since the last call, consumed by the render loop for the camera slam.

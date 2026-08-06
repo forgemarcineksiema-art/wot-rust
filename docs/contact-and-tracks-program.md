@@ -260,9 +260,25 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
 
   Queue penetration halved again on top of P1.3: 5 hulls 0.0137 → **0.0032 m**, 7 hulls
   0.0197 → **0.0106 m**.
-- **P1.5 Predictor on the same model.** The client stops using the hard veto
-  (`predict/obstacle_tests.rs:65` currently locks it under a name the server no longer honours).
-  *Lock:* predictor and server resting positions agree within 1 mm over 300 ticks in contact.
+- **P1.5 Predictor on the same model — LANDED.** The client ran the authority's tick in the
+  authority's order now: decide a velocity, exchange contacts against it, spend what survived.
+  Neighbours enter the solve as **immovable** bodies — the client is not authoritative over them,
+  so it may predict being stopped and shoved by one, never predict shoving one. It keeps its own
+  `ContactCache`, because a predictor that rediscovers every contact from nothing while the
+  authority does not would disagree by more the longer the two leaned on anything.
+
+  *Lock:* predictor and authority rest **within 1 mm** while pressed against the same hull, over
+  the last 100 of 300 ticks.
+
+  The test that used to guard this was called `prediction_is_blocked_by_other_tanks_like_the_server`
+  and locked the predictor's hard veto — a stop the server had not used since contact started
+  carrying momentum, and until P1.2 it fired a whole 0.12 m later than the authority's. Two models,
+  one name, and a test that swore they agreed. Its replacement measures the two side by side.
+
+**Wave 1 is complete.** With the predictor off it, the hard veto (`physics::tank_resolve`) has no
+production caller left in the workspace — every `tank_obstacles` list handed to the drive step is
+now empty — so it goes the way rapier went, and `TankWorldObstacles` stops carrying a field nobody
+fills.
 
 ### Wave 2 — Honest shape (2 PR)
 

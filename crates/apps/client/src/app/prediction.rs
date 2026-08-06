@@ -1,6 +1,6 @@
 use glam::Vec3;
 use net::TankSnapshot;
-use physics::TankObstacle;
+use physics::ContactBody;
 use sim::DEFAULT_SERVER_TICK_HZ;
 
 use super::ClientApp;
@@ -21,7 +21,7 @@ impl ClientApp {
     }
 
     pub(super) fn step_prediction(&mut self, command: &sim::TankCommand) {
-        let tank_obstacles = self.tank_obstacles_for_prediction();
+        let neighbours = self.neighbours_for_prediction();
         self.predictor.step(
             *command,
             &self.battlefield.heightmap,
@@ -29,25 +29,39 @@ impl ClientApp {
             // drive step uses. Sight geometry (which still carries rubble mounds) would stop the
             // local hull where the authority does not.
             self.live_cover.movement(),
-            &tank_obstacles,
+            &neighbours,
             self.live_cover.rubble(),
             Some(&self.ground),
             TICK_DT,
         );
     }
 
-    fn tank_obstacles_for_prediction(&self) -> Vec<TankObstacle> {
+    /// The other hulls, as the contact solver sees them: IMMOVABLE, because the client is not
+    /// authoritative over them. It may predict being stopped and shoved by a neighbour; it may not
+    /// predict shoving one, and pretending otherwise would only mint a correction.
+    ///
+    /// They are also motionless. A remote hull's velocity is not on the wire — the snapshot
+    /// carries poses — so the predictor treats neighbours as standing still, which is the same
+    /// assumption it has always made and errs toward stopping the local hull sooner rather than
+    /// later.
+    fn neighbours_for_prediction(&self) -> Vec<ContactBody> {
         self.session
             .current_snapshot()
             .tanks
             .iter()
             .filter(|tank| tank.tank_id != self.player_tank)
             .map(|tank| {
-                TankObstacle::from_hitbox(
-                    Vec3::from_array(tank.position),
-                    tank.yaw_rad,
-                    game_core::HitboxProfile::for_vehicle(tank.vehicle),
-                )
+                let spec = tank.vehicle.spec();
+                ContactBody {
+                    id: tank.tank_id.0,
+                    position: Vec3::from_array(tank.position),
+                    velocity: Vec3::ZERO,
+                    yaw_rad: tank.yaw_rad,
+                    yaw_rate_rad_s: 0.0,
+                    footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+                    mass_kg: spec.mass_kg,
+                    movable: false,
+                }
             })
             .collect()
     }
@@ -193,10 +207,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn local_prediction_uses_the_full_local_server_roster_for_tank_obstacles() {
+    fn local_prediction_uses_the_full_local_server_roster_for_neighbours() {
         let app = ClientApp::new();
 
-        let obstacles = app.tank_obstacles_for_prediction();
+        let obstacles = app.neighbours_for_prediction();
         let full_roster = app.session.current_snapshot().tanks.len();
 
         assert_eq!(
