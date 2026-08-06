@@ -136,9 +136,22 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
   it does. *Lock:* for every playable vehicle, on the worst loadout the garage will build and the
   grippiest surface in the game, `tip_threshold > slide_threshold × 1.10`, plus a second test that
   the gate still touches the fleet rather than clearing by miles. No behaviour change.
-- **P0.3 Muzzle-inside-hull probe.** With the gun a ghost, a barrel pushed into another hull fires
-  from inside it, bypassing the front plate. Measure first; fix (a minimum muzzle-to-target
-  distance) only if it is real.
+- **P0.3 Muzzle-inside-hull probe — LANDED, and it was not a defect.**
+  `crates/runtime/sim/tests/ghost_barrel_honesty.rs`. The worry was that shells spawn at the
+  visible muzzle, so a barrel shoved into somebody would spawn its round past their armour and
+  shoving your gun into an enemy would become a way to delete their frontal plate. Measured as a
+  difference between two shots rather than against a written-down millimetre count, so it keeps
+  meaning something when the armour is re-authored:
+
+  | Shot | Plate | Nominal | Effective | Round arrives with |
+  |---|---|---|---|---|
+  | barrel buried (8 m, muzzle 1.2 m inside the target) | Mantlet/TurretFront | 200 mm | 247 mm | 188 mm |
+  | across the field (55 m) | Mantlet/TurretFront | 200 mm | 247 mm | 186 mm |
+
+  Same plate, same facing, same steel. The only difference is the 2 mm of penetration the closer
+  round keeps by bleeding less velocity — `pen(v)` doing its job, not the armour going missing.
+  Nothing to fix; the measurement stays as a lock, because it is exactly the property a future
+  change to muzzle placement or spawn logic could quietly break.
 
 ### Wave 1 — One contact solver (5 PR)
 
