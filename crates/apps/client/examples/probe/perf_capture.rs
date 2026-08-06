@@ -290,7 +290,21 @@ fn frame_time_capture() {
     for (handle, mesh) in catalog.take_pending_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
-    println!("battle lineup: 14 vehicles, {} render objects at the near tier", warm.len());
+    // Objects are NOT draws: the renderer batches by (mesh, material), so a tank's 192 shoe
+    // links collapse into one instanced draw. Printing both stops the object count being read
+    // as a draw-call count — the first thing anyone reaches for when a frame is slow.
+    let plan = renderer_wgpu::RenderFrameBatchPlan::from_frame(
+        &renderer_api::RenderFrame {
+            objects: warm.clone(),
+            ..renderer_api::RenderFrame::default()
+        },
+        std::mem::size_of::<[f32; 24]>(),
+    );
+    println!(
+        "battle lineup: 14 vehicles, {} render objects at the near tier -> {} batched draws",
+        warm.len(),
+        plan.draws().len(),
+    );
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
