@@ -60,32 +60,39 @@ const GROUNDS: [GroundMaterial; 3] =
 /// * **The surfaces barely separate anything.** Grip spans 0.95..1.04 by design (see
 ///   `GroundMaterial::properties`, which says as much in its own words), so the ground axis is
 ///   almost entirely a rolling-resistance story today.
+///
+/// **Re-blessed 2026-08-06 for P4.5, and the diff is the argument.** Exactly ONE column moved —
+/// `pivot_rad_s` — and only for the six hulls whose gearbox cannot reverse a track. The Tiger I
+/// (0.5800) and the Centurion (0.6200) are untouched to the digit, because their steering is
+/// regenerative and they really do counter-rotate. Nothing else shifted: top speed, launch,
+/// braking, turn radius under power and gradeability are identical, which is what "this PR is
+/// about the pivot and not about the drive model" looks like when it is true.
 const BASELINE: &str = "\
 # vehicle   ground  vmax_mps launch_s brake_m pivot_rad_s radius_m gradeability
-T54_1951    Grass   13.8777  8.7167   16.9116 0.7800      6.9084   0.4170
-T54_1951    Dirt    13.2859  8.4667   15.2397 0.7410      7.0969   0.3935
-T54_1951    Rock    13.8690  8.3667   16.9797 0.7800      6.9752   0.4318
+T54_1951    Grass   13.8777  8.7167   16.9116 0.3900      6.9084   0.4170
+T54_1951    Dirt    13.2859  8.4667   15.2397 0.3705      7.0969   0.3935
+T54_1951    Rock    13.8690  8.3667   16.9797 0.3900      6.9752   0.4318
 TigerI      Grass   10.5464  5.9667   9.6461  0.5800      8.8912   0.4170
 TigerI      Dirt    10.1463  5.8167   8.7801  0.5510      9.0502   0.3935
 TigerI      Rock    10.5565  5.8000   9.7134  0.5800      8.9877   0.4318
-TigerII     Grass   10.5494  7.6500   9.8647  0.4500      11.3060  0.4170
-TigerII     Dirt    10.0298  7.3500   8.7620  0.4275      11.3548  0.3935
-TigerII     Rock    10.5562  7.3500   9.9290  0.4500      11.4618  0.4318
-Jagdtiger   Grass   9.6010   8.3333   8.2684  0.3200      14.9752  0.3551
-Jagdtiger   Dirt    9.0334   7.9167   7.1884  0.3040      15.0632  0.3448
-Jagdtiger   Rock    9.5997   7.9167   8.3093  0.3200      14.9665  0.3573
-PantherII   Grass   12.7702  10.0500  14.5749 0.6400      7.8367   0.4170
-PantherII   Dirt    12.0792  9.5833   12.8124 0.6080      7.9551   0.3935
-PantherII   Rock    12.7636  9.5500   14.6375 0.6400      7.9321   0.4318
-IS3         Grass   11.0882  7.3500   10.8244 0.5800      8.6957   0.4170
-IS3         Dirt    10.5905  7.1000   9.7069  0.5510      8.8196   0.3935
-IS3         Rock    11.0985  7.1000   10.9000 0.5800      8.7992   0.4318
+TigerII     Grass   10.5494  7.6500   9.8647  0.2250      11.3060  0.4170
+TigerII     Dirt    10.0298  7.3500   8.7620  0.2137      11.3548  0.3935
+TigerII     Rock    10.5562  7.3500   9.9290  0.2250      11.4618  0.4318
+Jagdtiger   Grass   9.6010   8.3333   8.2684  0.1600      14.9752  0.3551
+Jagdtiger   Dirt    9.0334   7.9167   7.1884  0.1520      15.0632  0.3448
+Jagdtiger   Rock    9.5997   7.9167   8.3093  0.1600      14.9665  0.3573
+PantherII   Grass   12.7702  10.0500  14.5749 0.3200      7.8367   0.4170
+PantherII   Dirt    12.0792  9.5833   12.8124 0.3040      7.9551   0.3935
+PantherII   Rock    12.7636  9.5500   14.6375 0.3200      7.9321   0.4318
+IS3         Grass   11.0882  7.3500   10.8244 0.2900      8.6957   0.4170
+IS3         Dirt    10.5905  7.1000   9.7069  0.2755      8.8196   0.3935
+IS3         Rock    11.0985  7.1000   10.9000 0.2900      8.7992   0.4318
 Centurion   Grass   9.5833   4.4500   7.7853  0.6200      7.7293   0.4170
 Centurion   Dirt    9.2906   4.3833   7.1984  0.5890      8.1191   0.3935
 Centurion   Rock    9.5773   4.3000   7.8151  0.6200      7.7187   0.4318
-T34_85      Grass   14.9879  9.6167   19.7725 0.8000      6.9456   0.4170
-T34_85      Dirt    14.3345  9.3167   17.7821 0.7600      7.1476   0.3935
-T34_85      Rock    14.9926  9.2500   19.8849 0.8000      7.0110   0.4318
+T34_85      Grass   14.9879  9.6167   19.7725 0.4000      6.9456   0.4170
+T34_85      Dirt    14.3345  9.3167   17.7821 0.3800      7.1476   0.3935
+T34_85      Rock    14.9926  9.2500   19.8849 0.4000      7.0110   0.4318
 ";
 
 /// Relative band the re-measurement must stay inside. On one binary the model is bit-stable, so

@@ -122,7 +122,21 @@ pub fn advance_hull_drive(
     // like grass. Same scale the force model uses; grass is exactly 1.0.
     let turn_grip =
         (contact.traction * contact.ground.grip - contact.roughness * 0.2).clamp(0.25, 1.0);
-    let target_yaw_rate = steer * steering_direction * settings.turn_rate_rad_s * turn_grip;
+    // A hull that cannot drive one track BACKWARDS does not spin about its own centre. It slows
+    // or stops the inner belt and swings about THAT, which costs it half the rate for the same
+    // track speed — half as much track is doing the work. See `game_core::SteeringKind`: the
+    // Tiger I and the Centurion counter-rotate, and nothing else in the roster does.
+    // A pivot is a COMMAND — no throttle, steer applied — and it is recognised as one while the
+    // hull is going no faster than a braked-belt pivot could itself carry it. Gating on the hull
+    // being stationary instead would be circular: the walk below is what a braked-belt pivot
+    // produces, so using it to cancel the pivot cancels the cause with its own effect (measured:
+    // it flip-flopped tick to tick and averaged back to the full rate).
+    let pivot_walk = settings.turn_rate_rad_s * settings.pivot_arm_m;
+    let pivoting =
+        throttle.abs() <= 0.01 && steer.abs() > 0.01 && forward_speed.abs() <= pivot_walk * 1.5;
+    let mechanism = if pivoting && !settings.steering.counter_rotates() { 0.5 } else { 1.0 };
+    let target_yaw_rate =
+        steer * steering_direction * settings.turn_rate_rad_s * turn_grip * mechanism;
     state.yaw_rate_rad_s =
         move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
     state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
@@ -133,8 +147,16 @@ pub fn advance_hull_drive(
     // that survives a heading change reappear as lateral velocity: momentum-through-turns and drift.
     let forward = horizontal_forward(state.yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
-    let v_f = state.velocity.dot(forward);
+    let mut v_f = state.velocity.dot(forward);
     let v_r = state.velocity.dot(right);
+
+    // ...and swinging about a belt is a rotation AND a forward motion, inseparably: the hull's
+    // centre travels the arc around the stopped track, `omega * half_gauge` along the heading. A
+    // tank steered this way does not turn on a coin — it walks itself round, which is the whole
+    // difference in a street the width of a tank.
+    if pivoting && !settings.steering.counter_rotates() {
+        v_f = state.yaw_rate_rad_s.abs() * settings.pivot_arm_m;
+    }
     state.velocity = crate::forces::resolve_ground_velocity(
         v_f,
         v_r,
