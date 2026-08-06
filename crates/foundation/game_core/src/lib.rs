@@ -10,6 +10,7 @@ pub mod math;
 pub mod mobility;
 mod modules;
 mod mount;
+pub mod stability;
 mod tank;
 mod track;
 mod vehicle_blueprint;
@@ -51,6 +52,7 @@ pub use modules::{
     suspension_agility_fraction,
 };
 pub use mount::{MountFrame, MountFrames};
+pub use stability::{Stability, stability, stock_stability};
 pub use tank::{HitboxProfile, TankSpec};
 pub use track::{
     TRACK_HP_MAX, TrackDamageMask, TrackHealth, TrackSeverity, TrackSide, track_hit_damage,
