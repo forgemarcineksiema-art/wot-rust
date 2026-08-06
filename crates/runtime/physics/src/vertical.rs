@@ -27,6 +27,15 @@ pub const MIN_FOLLOW_DROP_M: f32 = 0.03;
 pub struct GroundStep {
     pub grounded: bool,
     pub landing_impact_mps: f32,
+    /// How far the hull's roll was off the plane it landed on, at the instant the ground caught
+    /// it (radians, sign as `roll_rad`: + means the ground's right side is higher than the hull's).
+    ///
+    /// Zero unless this tick ended a flight. Flight freezes the attitude a hull left the ground
+    /// with, so a hull that took off level and comes down over a bank arrives at an angle to it —
+    /// one track touches first, and that is the difference between a landing and a landing on one
+    /// track. The sim turns it into a roll excursion; `physics` only reports it, because the
+    /// arithmetic needs a mass and a track gauge that live on the vehicle.
+    pub landing_roll_mismatch_rad: f32,
     /// The world velocity the DRIVE produced this tick, before any obstacle trimmed it.
     ///
     /// The contact solver needs this and nothing else will do. Collision resolution zeroes the
@@ -39,7 +48,12 @@ pub struct GroundStep {
 impl GroundStep {
     /// The resting outcome: on the ground, nothing absorbed.
     pub const fn resting() -> Self {
-        Self { grounded: true, landing_impact_mps: 0.0, drive_velocity: glam::Vec3::ZERO }
+        Self {
+            grounded: true,
+            landing_impact_mps: 0.0,
+            landing_roll_mismatch_rad: 0.0,
+            drive_velocity: glam::Vec3::ZERO,
+        }
     }
 }
 
