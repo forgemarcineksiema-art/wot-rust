@@ -5,9 +5,9 @@
 
 use terrain::{
     BattlefieldMap, HeightMap, MapFeature, RiverSpec, Road, ScatterRegion, SceneryInstance,
-    SpawnZone, StaticCoverObject, StrategicPoint, WaterBody, ground_position, grounded_cover,
-    grounded_feature, grounded_point, grounded_spawn_zone, heightmap_from_fn, inside_any_cover,
-    scatter_mirrored,
+    SceneryKind, SpawnZone, StaticCoverKind, StaticCoverObject, StrategicPoint, WaterBody,
+    ground_position, grounded_cover, grounded_feature, grounded_point, grounded_spawn_zone,
+    heightmap_from_fn, inside_any_cover, scatter_mirrored,
 };
 
 use crate::blueprint::{
@@ -109,9 +109,16 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     });
 
     let water = blueprint.water.map(|w| WaterBody { surface_level_m: w.surface_level_m });
-    let static_cover = expand_objects(blueprint, &heightmap);
+    let mut static_cover = expand_objects(blueprint, &heightmap);
     let roads = expand_roads(blueprint);
     let scenery = expand_scenery(blueprint, &heightmap, &static_cover, &roads);
+    // A hero oak is not a painting: its trunk stops a shell, blocks an eye and stands in a
+    // hull's way until the hull pushes it over. Deriving the boxes HERE — from the scenery the
+    // scatter just produced — is what keeps that promise honest: every authored tree gets one,
+    // a mirrored pair gets mirrored trunks, and the two can never drift apart the way a
+    // hand-authored box list would. They come after `expand_scenery` on purpose: a tree has no
+    // business avoiding its own trunk.
+    static_cover.extend(hero_oak_trunk_cover(&scenery));
     let (spawn_zones, strategic_points, features) = expand_gameplay(blueprint, &heightmap);
     let capture_zones = blueprint
         .gameplay
@@ -240,6 +247,50 @@ fn expand_roads(blueprint: &MapBlueprint) -> Vec<Road> {
         }
     }
     out
+}
+
+/// The hero oak's trunk as a gameplay solid, one box per authored tree.
+///
+/// Sized to the VISIBLE trunk, because the doctrine is that a cover box IS the footprint the
+/// eye reads: the mesh stands ~21 m with a ~1.4 m butt, and the column below the crown is what
+/// a hull meets and a shell stops in. The canopy above it is deliberately NOT covered — leaves
+/// do not stop an AP round, and a box that pretended otherwise would hand crews cover they
+/// cannot see themselves taking.
+///
+/// `TreeTrunk` is the kind that says exactly this and nothing more: crushable, so a hull pushes
+/// the tree over instead of parking against it forever; destructible by shells; wrecked into the
+/// same stumps a felled hedgerow leaves — and alone among the kinds it bakes no box of its own,
+/// because the tree's mesh is already standing there.
+fn hero_oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
+    /// Half-width of the trunk at chest height on an unscaled tree, metres.
+    const TRUNK_HALF_M: f32 = 0.7;
+    /// Half-height of the covered column: the clear bole under the first limbs.
+    const TRUNK_HALF_HEIGHT_M: f32 = 5.0;
+    /// The render's species factor for `FloraTree` (`scene_build::foliage::imported_flora_scale`).
+    /// Mirrored here rather than imported: gameplay may not depend on a rendering crate, and a
+    /// silent divergence would show up as a shell passing through visible bark.
+    const SPECIES_SCALE: f32 = 1.7;
+
+    scenery
+        .iter()
+        .filter(|instance| instance.kind == SceneryKind::FloraTree)
+        .enumerate()
+        .map(|(index, instance)| {
+            let scale = instance.scale * SPECIES_SCALE;
+            let half_height = TRUNK_HALF_HEIGHT_M * scale;
+            StaticCoverObject {
+                id: format!("hero_oak_trunk_{index:03}"),
+                name: "hero oak trunk".to_string(),
+                kind: StaticCoverKind::TreeTrunk,
+                center: [
+                    instance.position[0],
+                    instance.position[1] + half_height,
+                    instance.position[2],
+                ],
+                half_extents_m: [TRUNK_HALF_M * scale, half_height, TRUNK_HALF_M * scale],
+            }
+        })
+        .collect()
 }
 
 fn expand_scenery(

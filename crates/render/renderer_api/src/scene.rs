@@ -97,6 +97,10 @@ pub mod surface_role {
     /// the shared 34-48 m outer fade. The wind lane remains a normalized bend allowance;
     /// the shader converts it to metres with the instance's model scale.
     pub const GRASS_BLADE: f32 = 6.0;
+    /// Imported tree canopy (hero flora): thin cutout cards. The fragment stage swaps the
+    /// hard lambert key for a wrapped term plus a small back-lit transmission lobe — a leaf
+    /// is not an opaque wall, and the hard falloff read as black patches inside the crown.
+    pub const FOLIAGE: f32 = 7.0;
 }
 
 impl SceneVertex {

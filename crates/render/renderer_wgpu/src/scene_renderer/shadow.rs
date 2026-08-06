@@ -16,6 +16,11 @@ const CASCADE_MARGIN_UV: f32 = 0.02;
 pub fn shadow_shader_source() -> String {
     crate::shader_library::compose_shader(&[
         crate::shader_library::CAMERA_COMMON_WGSL,
+        // The wind field, so a swaying canopy's SHADOW sways with it: the cutout caster
+        // displaces its vertices exactly as the colour pass does. Without it the leaves would
+        // move over a shadow nailed to the ground — the one place the mismatch is unmissable.
+        crate::shader_library::NOISE_COMMON_WGSL,
+        crate::shader_library::MEADOW_COMMON_WGSL,
         include_str!("../shaders/shadow.wgsl"),
     ])
 }
@@ -26,8 +31,10 @@ const SHADOW_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
 /// can cut a leaf's shadow to its mask. Explicit offsets: uv sits at byte 52 of SceneVertex
 /// (pinned by `renderer_api/tests/scene_vertex_lanes.rs`) — `vertex_attr_array!` would pack
 /// it right after position and read garbage.
-const SHADOW_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+const SHADOW_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
     wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x3, offset: 0, shader_location: 0 },
+    // The wind lane (byte 48), so a caster bends with the same gust its lit copy does.
+    wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32, offset: 48, shader_location: 11 },
     wgpu::VertexAttribute {
         format: wgpu::VertexFormat::Float32x2,
         offset: 52,

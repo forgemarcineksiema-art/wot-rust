@@ -1,7 +1,8 @@
-//! THE Flora 2.0 look gate (FL-4): imported CC0 foliage side by side with the baked
-//! procedural trees, one frame, same light — the render the per-species accept/reject
-//! verdict is made on. Front row: imported tree, pine, bush (textured, alpha-cut, atlas-fed).
-//! Back row: procedural Oak, Pine, Bush (trees 2.0). One PNG:
+//! THE flora look gate (FL-4): imported foliage side by side with the baked procedural
+//! trees, one frame, same light — the render the accept/reject verdict is made on. Front
+//! row: the hero oak behind `FloraTree` (photoscan-textured, alpha-cut, atlas-fed) and the
+//! two retired slots, which now bake to nothing on purpose — their emptiness beside the
+//! procedural back row (Oak, Pine, Bush) IS the state of the family. One PNG:
 //! `cargo run -p client --example probe -- flora_probe`
 
 use std::fs::File;
@@ -44,7 +45,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
     let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips);
+    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips, flora.normal_mips.as_ref());
     renderer.set_battlefield_ground(
         &ctx,
         &ground_v,
@@ -55,9 +56,28 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 
-    let eye = [498.0, ground(498.0, 478.0) + 3.2, 478.0];
-    let look = [499.0, ground(499.0, 500.0) + 3.5, 500.0];
+    // Pulled back and tilted up for the hero oak: at ~22 m it is three times the stylized
+    // assets this shot was framed for, and a look gate that crops the canopy judges nothing.
+    let eye = [498.0, ground(498.0, 455.0) + 4.0, 455.0];
+    let look = [499.0, ground(499.0, 500.0) + 11.0, 500.0];
     renderer.shadow_focus = Some(look);
+    // The hero oak draws from the instanced LOD ladder now, not the statics bake — the look
+    // gate submits it the way the battle frame does, at the rung this camera distance picks.
+    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
+    let mut lod_state = scene_build::tree_lod::TreeLodState::default();
+    let tree_frame = renderer_api::RenderFrame {
+        objects: scene_build::tree_lod::tree_frame_objects(
+            &battlefield.scenery,
+            &battlefield.static_cover,
+            &[],
+            glam::Vec3::from_array(eye),
+            &mut lod_state,
+        ),
+        ..renderer_api::RenderFrame::default()
+    };
+    renderer.set_render_frame(&ctx, &tree_frame);
     let camera = Camera { eye, target: look, vertical_fov_degrees: 55.0 };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(

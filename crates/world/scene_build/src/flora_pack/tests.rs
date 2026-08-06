@@ -16,7 +16,7 @@ fn shipped_atlas_chain_is_complete_deterministic_and_white_at_the_origin() {
 
 #[test]
 fn shipped_assets_keep_cutout_coverage_through_the_sampled_levels() {
-    for (asset, rgba) in decode_shipped().expect("decode") {
+    for (asset, rgba, _normal) in decode_shipped().expect("decode") {
         let source_coverage = flora_test_coverage(&rgba);
         let levels = mips::build_asset_mip_chain(asset.texture_width, asset.texture_height, rgba);
         for (index, level) in levels.iter().enumerate().take(FLORA_MAX_SAMPLED_MIP as usize + 1) {
@@ -120,8 +120,11 @@ fn safe_tail_has_non_overlapping_content_and_gutters_for_every_shipped_region() 
 #[test]
 fn remapped_uvs_stay_on_texel_centers_inside_their_region() {
     let catalog = flora_catalog();
-    for name in ["stylized-tree", "stylized-pine", "stylized-bush"] {
-        let (asset, region) = catalog.get(name).expect("shipped");
+    // The roster is data (`SHIPPED`), so the lock walks whatever actually ships — today the
+    // hero oak alone — and survives the family growing without a hand-synced name list.
+    assert!(catalog.get("dab-hero").is_some(), "the hero oak ships");
+    for (asset, region) in &catalog.entries {
+        let name = asset.name.as_str();
         for uv in &asset.uvs {
             let u = region.u_offset + uv[0] * region.u_scale;
             let v = region.v_offset + uv[1] * region.v_scale;

@@ -65,6 +65,7 @@ fn fs_depth(input: VsDepthOut) {
 
 struct VsInCutout {
     @location(0) position: vec3<f32>,
+    @location(11) sway: f32,
     @location(12) uv: vec2<f32>,
     @location(6) model_0: vec4<f32>,
     @location(7) model_1: vec4<f32>,
@@ -89,24 +90,37 @@ fn depth_out_cutout(clip: vec4<f32>, world_pos: vec3<f32>, damage_index: u32, uv
     return out;
 }
 
+// The caster's world position, wind included: a vertex that opted into the sway lane rides the
+// SAME gust field and the same instance-scale conversion as the colour pass (scene.wgsl). Roots
+// carry sway 0 and stay planted, so a trunk's shadow never crawls.
+fn cutout_caster_world(input: VsInCutout) -> vec4<f32> {
+    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
+    var world = model * vec4<f32>(input.position, 1.0);
+    if (input.sway > 0.0) {
+        let root = model[3].xyz;
+        let model_scale = length(model[1].xyz);
+        let offset =
+            meadow_wind_offset(world.xz, root.xz, input.sway * model_scale, camera.time_params.x);
+        world = vec4<f32>(world.xyz + offset, world.w);
+    }
+    return world;
+}
+
 @vertex
 fn vs_main_cutout(input: VsInCutout) -> VsDepthOutCutout {
-    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    let world = model * vec4<f32>(input.position, 1.0);
+    let world = cutout_caster_world(input);
     return depth_out_cutout(camera.light_view_proj * world, world.xyz, input.damage_index, input.uv);
 }
 
 @vertex
 fn vs_far_cutout(input: VsInCutout) -> VsDepthOutCutout {
-    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    let world = model * vec4<f32>(input.position, 1.0);
+    let world = cutout_caster_world(input);
     return depth_out_cutout(camera.light_view_proj_far * world, world.xyz, input.damage_index, input.uv);
 }
 
 @vertex
 fn vs_prepass_cutout(input: VsInCutout) -> VsDepthOutCutout {
-    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    let world = model * vec4<f32>(input.position, 1.0);
+    let world = cutout_caster_world(input);
     return depth_out_cutout(camera.view_proj * world, world.xyz, input.damage_index, input.uv);
 }
 

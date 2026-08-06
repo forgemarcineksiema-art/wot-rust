@@ -16,6 +16,7 @@ pub(crate) mod hangar_props;
 pub mod review_views;
 pub mod tank_mesh;
 pub mod terrain_maps;
+pub mod tree_lod;
 pub mod water;
 pub mod weather;
 pub mod weather_timeline;

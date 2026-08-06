@@ -153,8 +153,12 @@ impl WindowRenderer {
 
     /// Replace the foliage atlas (Imported Flora 2.0, FL-2) — see
     /// [`crate::SceneRenderer::set_foliage_atlas`].
-    pub fn set_foliage_atlas(&mut self, chain: &renderer_api::Rgba8MipChain) {
-        self.scene.set_foliage_atlas(&self.ctx, chain);
+    pub fn set_foliage_atlas(
+        &mut self,
+        chain: &renderer_api::Rgba8MipChain,
+        normals: Option<&renderer_api::Rgba8MipChain>,
+    ) {
+        self.scene.set_foliage_atlas(&self.ctx, chain, normals);
     }
 
     pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {

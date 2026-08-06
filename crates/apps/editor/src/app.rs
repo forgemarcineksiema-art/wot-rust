@@ -1666,7 +1666,7 @@ impl ApplicationHandler for EditorApp {
                 // The imported-flora atlas (FL-4): the editor previews the same textured
                 // foliage the battle draws.
                 let flora = scene_build::flora_pack::flora_catalog();
-                renderer.set_foliage_atlas(&flora.atlas_mips);
+                renderer.set_foliage_atlas(&flora.atlas_mips, flora.normal_mips.as_ref());
                 self.renderer = Some(renderer);
             }
             Err(error) => {

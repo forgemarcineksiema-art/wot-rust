@@ -87,6 +87,11 @@ struct FloraManifest {
     spdx: String,
     author: String,
     source_url: String,
+    /// Optional per-asset triangle budget (hero flora). Bounded by
+    /// `world_forge::flora::FLORA_TRI_CEILING`; raising it is a measured, per-item
+    /// decision — cite a `flora_frame_probe` before/after in the PR body.
+    #[serde(default)]
+    tri_budget: Option<usize>,
 }
 
 /// Import a CC0 foliage model (FL-3): read the glTF/GLB, merge its triangle primitives,
@@ -116,6 +121,10 @@ fn import_flora(
     // MATERIALS — taking only the first texture dresses the canopy in bark (the red-pine
     // lesson). Every primitive's texture is composited into ONE per-asset sheet below.
     let mut vertex_runs: Vec<(usize, usize, usize)> = Vec::new();
+    // Which normal image dresses each colour image (first primitive to name a pair wins; a
+    // source that mixes them would be an authoring error, and the sheet below refuses it).
+    let mut normal_of_colour: std::collections::BTreeMap<usize, Option<usize>> =
+        std::collections::BTreeMap::new();
     // Walk the SCENE, not the raw mesh list: authored node transforms (Quaternius models
     // carry real scales) are part of the geometry's truth — reading bare accessors imports
     // a 2 cm bush.
@@ -166,8 +175,33 @@ fn import_flora(
             // brown. Bake the factor into vertex colors — the runtime multiplies
             // vertex color x texel, so the product reconstructs the authored look
             // (the red-pine lesson, FL-4 look gate).
+            //
+            // Hero flora goes further: the source bakes per-vertex COLOR_0 — crown-interior
+            // ambient occlusion, a vertical light gradient and per-frond hue jitter — which
+            // is exactly the depth cue the flat-lit scene pass cannot compute at runtime.
+            // When the attribute exists, multiply it into the factor; when it does not,
+            // the old factor-only path is unchanged.
             let factor = primitive.material().pbr_metallic_roughness().base_color_factor();
-            colors.extend(std::iter::repeat_n([factor[0], factor[1], factor[2]], uv_count));
+            match reader.read_colors(0) {
+                Some(vertex_colors) => {
+                    let mut appended = 0usize;
+                    colors.extend(vertex_colors.into_rgb_f32().map(|c| {
+                        appended += 1;
+                        [
+                            (c[0] * factor[0]).clamp(0.0, 1.0),
+                            (c[1] * factor[1]).clamp(0.0, 1.0),
+                            (c[2] * factor[2]).clamp(0.0, 1.0),
+                        ]
+                    }));
+                    anyhow::ensure!(
+                        appended == uv_count,
+                        "COLOR_0 stream disagrees with TEXCOORD_0 ({appended} vs {uv_count})"
+                    );
+                }
+                None => {
+                    colors.extend(std::iter::repeat_n([factor[0], factor[1], factor[2]], uv_count));
+                }
+            }
             let prim_indices = reader
                 .read_indices()
                 .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
@@ -179,6 +213,13 @@ fn import_flora(
                 .base_color_texture()
                 .map(|info| info.texture().source().index())
                 .ok_or_else(|| anyhow::anyhow!("primitive without a base-color texture"))?;
+            // The tangent-space normal map, when the source has one: the runtime gives foliage
+            // its bark relief from a SECOND atlas page laid out exactly like the colour one, so
+            // the pairing is captured here, at the only place that knows which image dresses
+            // which run.
+            let normal_texture =
+                primitive.material().normal_texture().map(|info| info.texture().source().index());
+            normal_of_colour.entry(texture).or_insert(normal_texture);
             vertex_runs.push((base as usize, uv_count, texture));
         }
     }
@@ -225,6 +266,43 @@ fn import_flora(
             uv[1] = v_offset + (uv[1].clamp(0.0, 1.0)) * v_scale;
         }
     }
+    // The NORMAL sheet: the same bands, in the same order, at the same sizes — that identity
+    // is what lets one set of UVs address both pages. It is all-or-nothing on purpose: a
+    // half-dressed asset would light half its surface from a texture and half from the flat
+    // default, which reads worse than no normal map at all.
+    let mut normal_rgba: Option<Vec<u8>> = {
+        // A band gets real normals only if its material carries a matching sheet; every other
+        // band stays FLAT. That is not a fallback, it is the perf lever: a flat texel decodes
+        // to +Z, and the shader's early-out then skips the whole tangent frame for those
+        // fragments. Bark — a sliver of the pixels — pays for its relief; leaf cards, which
+        // are where a canopy's overdraw lives, do not pay for a cue a thin card cannot show.
+        let mut any = false;
+        let mut sheet = vec![0u8; (sheet_width * sheet_height * 4) as usize];
+        for texel in sheet.chunks_exact_mut(4) {
+            texel.copy_from_slice(&[128, 128, 255, 255]);
+        }
+        let mut cursor_y = 0u32;
+        for (index, _, w, h) in &decoded {
+            let normal = normal_of_colour
+                .get(index)
+                .and_then(|slot| *slot)
+                .and_then(|normal| images.get(normal))
+                .filter(|image| image.width == *w && image.height == *h);
+            if let Some(image) = normal {
+                let pixels = image_to_rgba8(image)?;
+                for row in 0..*h as usize {
+                    let src = row * *w as usize * 4;
+                    let dst = ((cursor_y as usize + row) * sheet_width as usize) * 4;
+                    sheet[dst..dst + *w as usize * 4]
+                        .copy_from_slice(&pixels[src..src + *w as usize * 4]);
+                }
+                any = true;
+            }
+            cursor_y += h;
+        }
+        any.then_some(sheet)
+    };
+
     // Halve the sheet until it fits a sane per-asset footprint: many assets share ONE 2048
     // runtime atlas page (min-spec VRAM is the budget), and a stylized texture loses nothing
     // a battle camera can see at 512-1024. UVs are normalized, so they never change.
@@ -245,6 +323,23 @@ fn import_flora(
                 }
             }
         }
+        if let Some(source) = normal_rgba.as_ref() {
+            let mut halved_n = vec![0u8; (half_w * half_h * 4) as usize];
+            for y in 0..half_h as usize {
+                for x in 0..half_w as usize {
+                    for channel in 0..4 {
+                        let mut sum = 0u32;
+                        for (dy, dx) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+                            let src =
+                                ((y * 2 + dy) * sheet_width as usize + (x * 2 + dx)) * 4 + channel;
+                            sum += u32::from(source[src]);
+                        }
+                        halved_n[(y * half_w as usize + x) * 4 + channel] = (sum / 4) as u8;
+                    }
+                }
+            }
+            normal_rgba = Some(halved_n);
+        }
         sheet_width = half_w;
         sheet_height = half_h;
         rgba = halved;
@@ -253,8 +348,12 @@ fn import_flora(
     // Over-budget sources get DECIMATED here, loudly — the validate gate's "decimate the
     // source" is a step of this pipeline, never a raised ceiling. meshopt preserves the
     // silhouette as far as the budget allows; how it looks is the FL-4 look gate's verdict.
+    let tri_budget = manifest
+        .tri_budget
+        .unwrap_or(world_forge::flora::FLORA_MAX_TRIS)
+        .min(world_forge::flora::FLORA_TRI_CEILING);
     let source_tris = indices.len() / 3;
-    if source_tris > world_forge::flora::FLORA_MAX_TRIS {
+    if source_tris > tri_budget {
         let vertex_bytes: &[u8] = bytemuck::cast_slice(&positions);
         let adapter =
             meshopt::VertexDataAdapter::new(vertex_bytes, std::mem::size_of::<[f32; 3]>(), 0)
@@ -267,12 +366,12 @@ fn import_flora(
             simplified = meshopt::simplify(
                 &indices,
                 &adapter,
-                world_forge::flora::FLORA_MAX_TRIS * 3,
+                tri_budget * 3,
                 target_error,
                 meshopt::SimplifyOptions::None,
                 None,
             );
-            if simplified.len() / 3 <= world_forge::flora::FLORA_MAX_TRIS {
+            if simplified.len() / 3 <= tri_budget {
                 break;
             }
         }
@@ -340,6 +439,8 @@ fn import_flora(
     }
 
     let texture_file = format!("{}.flora.png", manifest.name);
+    let normal_texture_file =
+        normal_rgba.as_ref().map(|_| format!("{}.flora.normal.png", manifest.name));
     let asset = world_forge::flora::FloraAsset {
         name: manifest.name.clone(),
         license: world_forge::flora::FloraLicense {
@@ -348,6 +449,7 @@ fn import_flora(
             source_url: manifest.source_url,
         },
         texture_file: texture_file.clone(),
+        normal_texture_file: normal_texture_file.clone(),
         texture_width: sheet_width,
         texture_height: sheet_height,
         height_m: max[1] - min[1],
@@ -356,6 +458,7 @@ fn import_flora(
         uvs,
         colors,
         indices,
+        tri_budget: manifest.tri_budget,
     };
     asset.validate().map_err(|reason| anyhow::anyhow!("{} refused: {reason}", input.display()))?;
 
@@ -367,14 +470,25 @@ fn import_flora(
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(&rgba)?;
+    if let (Some(name), Some(pixels)) = (&normal_texture_file, &normal_rgba) {
+        let path = out_dir.join(name);
+        let file = std::fs::File::create(&path)
+            .with_context(|| format!("failed to create {}", path.display()))?;
+        let mut encoder =
+            png::Encoder::new(std::io::BufWriter::new(file), sheet_width, sheet_height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header()?.write_image_data(pixels)?;
+    }
     let json_path = out_dir.join(format!("{}.flora.json", asset.name));
     write_json(json_path.clone(), &asset)?;
     println!(
-        "imported {}: {} tris, {}x{} texture, {:.2} m tall -> {}",
+        "imported {}: {} tris, {}x{} texture{}, {:.2} m tall -> {}",
         asset.name,
         asset.triangle_count(),
         asset.texture_width,
         asset.texture_height,
+        if asset.normal_texture_file.is_some() { " + normals" } else { "" },
         asset.height_m,
         json_path.display()
     );

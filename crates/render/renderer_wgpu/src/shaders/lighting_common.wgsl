@@ -51,6 +51,26 @@ fn light_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> v
         + local_pools(world_pos, n) * ao;
 }
 
+// Canopy light (surface_role::FOLIAGE): leaves are thin scatterers, not opaque walls, so the
+// key wears a WRAPPED falloff — light reaches around a card the way it filters through a real
+// crown — plus a small transmission lobe when the sun stands behind the card. Both terms stay
+// inside the cast shadow, so a crown in a building's shade gains nothing. The asset's baked
+// vertex AO (COLOR_0) carries the deep-interior darkening; this keeps the SURFACE falloff soft.
+fn foliage_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> vec3<f32> {
+    let key_dir = normalize(camera.key_direction);
+    let wrap = 0.4;
+    let n_dot_key = dot(n, key_dir);
+    let key = clamp((n_dot_key + wrap) / (1.0 + wrap), 0.0, 1.0) * shadow;
+    let transmit = max(-n_dot_key, 0.0) * 0.22 * shadow;
+    let fill = max(dot(n, normalize(camera.fill_direction)), 0.0) * ao;
+    let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
+    return hemi_ambient(n) * ao
+        + camera.key_rgb * (key + transmit)
+        + camera.fill_rgb * fill
+        + camera.rim_rgb * rim
+        + local_pools(world_pos, n) * ao;
+}
+
 // The analytic sky gradient every smooth material reflects (slate, wet stone, hull steel, the
 // river): horizon to zenith by the ray's up fraction. The dome itself shades a softer power curve
 // in sky.wgsl; reflections use this cheaper sqrt form everywhere so they all agree.

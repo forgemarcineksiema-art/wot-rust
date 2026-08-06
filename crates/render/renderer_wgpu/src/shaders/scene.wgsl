@@ -40,6 +40,9 @@ struct VsOut {
 // cut its silhouette.
 @group(1) @binding(0) var foliage_atlas: texture_2d<f32>;
 @group(1) @binding(1) var foliage_sampler: sampler;
+// The tangent-normal page: same regions, same UVs as the colour atlas (hero flora). When
+// nothing shipped normals this is a 1x1 flat texel and the maths below is a no-op.
+@group(1) @binding(2) var foliage_normal_atlas: texture_2d<f32>;
 
 // The costume hand-off (Jedna Trawa P4): near tufts fold down EXACTLY where far tufts
 // stand up, per place. The radius is not a circle but a coastline — world-anchored noise
@@ -220,6 +223,39 @@ fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
     return normalize(n + bend);
 }
 
+// Tangent-space normal for flora, with the frame RECONSTRUCTED from screen-space
+// derivatives instead of a per-vertex tangent lane. The lane would cost eight bytes on every
+// vertex in the world — terrain, buildings, every tank — to dress one asset family; the
+// derivatives cost a handful of ALU on the fragments that actually sample bark.
+//
+// Degenerate patches (a card seen exactly edge-on, where the UV derivatives collapse) fall
+// back to the geometric normal rather than to a divide-by-zero.
+fn foliage_normal(n: vec3<f32>, world_pos: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
+    let packed = textureSample(foliage_normal_atlas, foliage_sampler, uv).xyz;
+    let tangent_normal = packed * 2.0 - vec3<f32>(1.0, 1.0, 1.0);
+    // A flat texel decodes to +Z: nothing to rotate, so skip the frame entirely. The
+    // threshold has to clear 8-bit quantization — the flat encoding 128/255 decodes to
+    // 0.0039 per axis, so a tighter bound would make every "flat" fragment pay for the
+    // tangent frame anyway, which is precisely the cost this early-out exists to avoid.
+    if (abs(tangent_normal.x) + abs(tangent_normal.y) < 0.02) {
+        return n;
+    }
+    let dp1 = dpdx(world_pos);
+    let dp2 = dpdy(world_pos);
+    let duv1 = dpdx(uv);
+    let duv2 = dpdy(uv);
+    let det = duv1.x * duv2.y - duv2.x * duv1.y;
+    if (abs(det) < 1.0e-12) {
+        return n;
+    }
+    let t = (dp1 * duv2.y - dp2 * duv1.y) / det;
+    let tangent = normalize(t - n * dot(n, t));
+    let bitangent = cross(n, tangent);
+    return normalize(
+        tangent * tangent_normal.x + bitangent * tangent_normal.y + n * tangent_normal.z
+    );
+}
+
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // The foliage cutout (FL-2): sample first so a cut texel skips the whole shade. On the
@@ -257,7 +293,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
-    var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
+    var radiance = light_radiance(input.world_pos, n, shadow, ao);
+    // Canopy cards trade the hard lambert for the wrapped/transmissive foliage model, and
+    // the bark takes its relief from the normal page.
+    if (abs(input.surface - 7.0) < 0.5) {
+        radiance = foliage_radiance(input.world_pos, foliage_normal(n, input.world_pos, input.uv), shadow, ao);
+    }
+    var lit = albedo * radiance;
     // Baked indirect radiance (Hala 2.0 GI bake): already premultiplied by albedo and already
     // geometrically occluded by the bake's own ray casts, so it joins as a plain add — screen
     // AO on top would double-count the very occlusion the rays measured. Zeros outdoors.

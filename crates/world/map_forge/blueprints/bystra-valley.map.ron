@@ -336,45 +336,9 @@ MapBlueprint(
     ],
     scenery: [
         Scatter(
-            seed: 3044695264,
-            kind: Willow,
-            pairs: 14,
-            region: ScatterRect(
-                x: (470.0, 545.0),
-                z: (60.0, 470.0),
-            ),
-            exclude: Exclusion(
-                river_margin_m: Some(2.0),
-                river_max_m: Some(16.0),
-                crossing_lanes: Some(CrossingLanes(band_margin_m: 30.0, windows: [(0.0, 16.0), (180.0, 26.0), (320.0, 14.0)])),
-                axis_band_m: None,
-                exclusion_circles: [(400.0, 150.0, 70.0), (400.0, 850.0, 70.0)],
-                road_margin_m: None,
-                cover_margin_m: Some(2.5),
-            ),
-        ),
-        Scatter(
-            seed: 3044695265,
-            kind: Willow,
-            pairs: 14,
-            region: ScatterRect(
-                x: (600.0, 660.0),
-                z: (60.0, 470.0),
-            ),
-            exclude: Exclusion(
-                river_margin_m: Some(2.0),
-                river_max_m: Some(16.0),
-                crossing_lanes: Some(CrossingLanes(band_margin_m: 30.0, windows: [(0.0, 16.0), (180.0, 26.0), (320.0, 14.0)])),
-                axis_band_m: None,
-                exclusion_circles: [(400.0, 150.0, 70.0), (400.0, 850.0, 70.0)],
-                road_margin_m: None,
-                cover_margin_m: Some(2.5),
-            ),
-        ),
-        Scatter(
             seed: 3044695274,
             kind: FloraTree,
-            pairs: 22,
+            pairs: 3,
             region: ScatterRect(
                 x: (60.0, 460.0),
                 z: (60.0, 460.0),
@@ -410,7 +374,7 @@ MapBlueprint(
         Scatter(
             seed: 3044695276,
             kind: FloraTree,
-            pairs: 16,
+            pairs: 3,
             region: ScatterRect(
                 x: (608.0, 648.0),
                 z: (278.0, 322.0),
@@ -428,7 +392,7 @@ MapBlueprint(
         Scatter(
             seed: 3044695277,
             kind: FloraTree,
-            pairs: 12,
+            pairs: 3,
             region: ScatterRect(
                 x: (272.0, 328.0),
                 z: (232.0, 248.0),
@@ -442,18 +406,6 @@ MapBlueprint(
                 road_margin_m: None,
                 cover_margin_m: None,
             ),
-        ),
-        Row(
-            kind: Poplar,
-            xs: [
-                168.0,
-                194.0,
-            ],
-            z_start_m: 260.0,
-            z_step_m: 26.0,
-            count: 7,
-            yaw_rad: 0.35,
-            scale: 1.0,
         ),
         Fixed(
             kind: FloraTree,

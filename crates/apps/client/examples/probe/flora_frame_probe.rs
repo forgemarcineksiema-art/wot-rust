@@ -63,6 +63,24 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     baseline.shadow_focus = Some(camera.target);
     flora.shadow_focus = Some(camera.target);
+    // Hero trees left the statics bake for the instanced LOD ladder, so the flora side has to
+    // submit them the way the battle frame does — otherwise this probe measures an empty map
+    // and reports a delta of zero. The baseline keeps submitting nothing: that IS the A/B.
+    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        flora.register_mesh(&ctx, handle, &mesh);
+    }
+    let mut lod_state = scene_build::tree_lod::TreeLodState::default();
+    let tree_frame = renderer_api::RenderFrame {
+        objects: scene_build::tree_lod::tree_frame_objects(
+            &full.scenery,
+            &full.static_cover,
+            &born,
+            glam::Vec3::from_array(camera.eye),
+            &mut lod_state,
+        ),
+        ..renderer_api::RenderFrame::default()
+    };
+    flora.set_render_frame(&ctx, &tree_frame);
     warm(&ctx, &target, &baseline, view_proj, camera.eye)?;
     warm(&ctx, &target, &flora, view_proj, camera.eye)?;
 
@@ -105,7 +123,8 @@ fn configure_renderer(
         ground_maps,
         &terrain_material_set_for(terrain::MapId::Ostrogorsk),
     );
-    renderer.set_foliage_atlas(ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
+    let catalog = scene_build::flora_pack::flora_catalog();
+    renderer.set_foliage_atlas(ctx, &catalog.atlas_mips, catalog.normal_mips.as_ref());
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 }

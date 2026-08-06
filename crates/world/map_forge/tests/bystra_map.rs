@@ -177,7 +177,10 @@ fn sight_clear(map: &terrain::BattlefieldMap, from: [f32; 3], to: [f32; 3]) -> b
 #[test]
 fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
     let map = battlefield(MapId::BystraValley);
-    assert!(map.scenery.len() >= 100, "the valley is dressed, got {}", map.scenery.len());
+    // The hero-flora program (2026-08-05) thinned the dressing on purpose: the procedural
+    // willows and poplars are retired and the hero oak stands sparsely, so "dressed" now
+    // means rocks plus a handful of landmark oaks (~40 instances), not a forest.
+    assert!(map.scenery.len() >= 30, "the valley is dressed, got {}", map.scenery.len());
     assert!(map.scenery.len() <= 1200, "instance budget breached: {}", map.scenery.len());
     assert!(map.scenery.len().is_multiple_of(2), "mirrored pairs come in twos");
 
