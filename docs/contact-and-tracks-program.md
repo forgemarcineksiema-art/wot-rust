@@ -383,10 +383,28 @@ static hold block, `climb_slip`, the direction-change brake hack, the designed-w
   purpose as a slip-dependent grip falloff, not left to die quietly.
 - **P4.5 `SteeringKind` per era.** `ClutchBrake` (era I) / `ControlledDifferential` /
   `Regenerative`. Precedent: `SuspensionKind` already sits on the blueprint. **Blocked on P4.6.**
-- **P4.6 IS-3 running-gear dossier.** Our blueprint says contact run 4.60 m on a 2.50 m gauge
-  (L/B 1.84); published figures are nearer 4.30 on 2.44 (L/B 1.76). Before "the IS-3 can barely
-  pivot" becomes a character trait, the geometry gets the 1:1 treatment the T-54 got — and the claim
-  about its steering mechanism is sourced, not assumed.
+- **P4.6 IS-3 running-gear dossier — DONE, and it re-scopes P4.5.** The gate said: before "the
+  IS-3 can barely pivot" becomes a character trait, the geometry gets the treatment the T-54 got.
+  Researched 2026-08-06 (full findings in `docs/vehicles/is-3.md`). It settled one half and
+  refused the other, and the refusal is the useful part.
+
+  **Not settled:** the vehicle's own width spans **3.07 / 3.09 / 3.15 / 3.39 m** across sources —
+  32 cm — and the single published ground-contact figure (3.65 m against our 4.60) comes from a
+  table whose companion "track gauge 3.37 m" is impossible against its own 3.07 m width. The L/B
+  ratio therefore cannot be pinned, and **no gameplay trait may be derived from it.**
+
+  **Settled, and better:** the IS-3 steers with **two-stage planetary side mechanisms (ПМП)** —
+  three independent sources — one per track at the ends of the main shaft, with multi-disc dry
+  locking clutches and band brakes. Two states per side, full speed and a reduced ratio, plus a
+  brake. **It cannot drive a track backwards**, so its tightest turn is a pivot about a stopped
+  track and never about its own centre. No neutral steer.
+
+  That is a documented mechanical fact about the vehicle, and it is the actual CAUSE of the
+  ponderous handling the L/B ratio was standing in for. So **P4.5 keys off the transmission, not
+  off geometry** — which is the better design anyway: a vehicle handles the way it handles because
+  of what it has, and what it has is researchable per vehicle. P4.5 is unblocked on those terms;
+  the geometry stays owed as a 1:1 session with drawings.
+
 - **P4.7 Terrain can throw a track.** Hard lateral scrub on rock, a landing above a threshold, or a
   belt driven into a hard step at speed. Rare and telegraphed — tuned to a stated rate the way
   `docs/` tunes fires. `BROKEN_ONE_DRIFT_BIAS` is deleted: the pull toward the dead side falls out
