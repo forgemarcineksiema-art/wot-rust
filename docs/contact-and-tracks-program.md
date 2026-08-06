@@ -155,9 +155,26 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
 
 ### Wave 1 — One contact solver (5 PR)
 
-- **P1.1 Contact feature IDs.** `obstacles_contact` reports which face/vertex produced the MTV,
-  stable across ticks. *Lock:* the same pose pair yields the same ID; the ID changes only when the
-  touching feature genuinely changes.
+- **P1.1 Contact feature IDs — LANDED.** `obstacles_contact` now reports a `ContactFeature`: which
+  hull owns the reference face, which of its axes the face lies on, which side, and which corner of
+  the other hull is pressed into it — all in the hulls' own frames, so a pair grinding past each
+  other keeps one identity instead of minting a new one as they rotate. Additive: the normal and
+  the depth are untouched, so no verdict anywhere moves.
+
+  **Finding, and it is an input to P1.3 rather than a defect here.** Two hulls at a small relative
+  yaw have two nearly equal ways out — across one flank or the other — and which is shallower
+  CROSSES OVER as they slide past each other. Measured: the identity turns over up to twice across
+  a 4 m grind, in the middle of exactly the sustained contact warm starting exists to smooth. The
+  normal only swings by the relative yaw when it happens (11° in the test case, not the 90° an axis
+  flip could cost), so this is not the chatter the separation pass was measured for in the opening
+  audit — but it *is* a cache miss. **P1.3 must bias toward the incumbent axis**, which needs the
+  previous tick and therefore belongs to the pass that owns the cache, not to the SAT.
+
+  Second finding, smaller: a genuinely FLAT contact has both corners of the touching face at equal
+  depth, and "the deepest one" is then a coin toss f32 noise can call differently every tick. A
+  100 µm tie width settles it deterministically, but that is a tie-break and not hysteresis — the
+  real answer for a face pressed flat on a face is TWO contact points, and that manifold belongs
+  with the solver that would use it.
 - **P1.2 Speculative contacts + soft bias.** The skin stops being a standoff: it detects the
   approach, the constraint stops the hull *at touch*. Penetration up to a slop is pushed out by a
   bias **velocity**, never by moving the position. *Lock:* resting hitbox gap ≤ 0.03 m (today
