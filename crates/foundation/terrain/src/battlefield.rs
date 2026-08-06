@@ -82,6 +82,14 @@ pub enum StaticCoverKind {
     /// (crushable). Destroyed or crushed it goes fully clear — never a hull-blocking mound;
     /// the breach dressing is presentation, not collision.
     StoneWall,
+    /// The bole of a single hero tree (hero-flora phase 3): the metre-and-a-half of bark a
+    /// hull meets, a shell stops in and an eye cannot see past. It is the one kind that bakes
+    /// NO box of its own — the tree's mesh IS its visual, and drawing a second solid around
+    /// it would put a green pillar inside the trunk the player is looking at. Everything else
+    /// it inherits from a hedgerow: crushable (a hull pushes the tree over), destructible,
+    /// and its wreckage is the same stumps-and-fallen-trunk dressing. Appended last — the
+    /// order is frozen.
+    TreeTrunk,
 }
 
 impl StaticCoverKind {
@@ -89,7 +97,7 @@ impl StaticCoverKind {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [StaticCoverKind; 7] = [
+    pub const ALL: [StaticCoverKind; 8] = [
         StaticCoverKind::FarmBuilding,
         StaticCoverKind::RailCover,
         StaticCoverKind::TreeLine,
@@ -97,6 +105,7 @@ impl StaticCoverKind {
         StaticCoverKind::WoodenFence,
         StaticCoverKind::CityBuilding,
         StaticCoverKind::StoneWall,
+        StaticCoverKind::TreeTrunk,
     ];
 
     /// Structural health before the object is destroyed; `None` is indestructible (rail
@@ -108,6 +117,9 @@ impl StaticCoverKind {
             // before it comes down (urban-map doctrine decision 2).
             StaticCoverKind::CityBuilding => Some(1500),
             StaticCoverKind::TreeLine => Some(120),
+            // A mature oak's bole is not a hedgerow: it takes real shellfire to fell, and a
+            // hull leans on it before it goes over.
+            StaticCoverKind::TreeTrunk => Some(240),
             // A garden wall is bricks, not a bunker: a couple of shells open it.
             StaticCoverKind::StoneWall => Some(150),
             // Any shell sweeps a fence span away (the kinetic chip already deals 80).
@@ -122,7 +134,10 @@ impl StaticCoverKind {
     pub fn is_crushable(self) -> bool {
         matches!(
             self,
-            StaticCoverKind::TreeLine | StaticCoverKind::WoodenFence | StaticCoverKind::StoneWall
+            StaticCoverKind::TreeLine
+                | StaticCoverKind::TreeTrunk
+                | StaticCoverKind::WoodenFence
+                | StaticCoverKind::StoneWall
         )
     }
 

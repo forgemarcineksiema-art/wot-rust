@@ -200,7 +200,10 @@ pub fn battlefield_statics_bucket_mesh(
                 // along the run. A breached STONE WALL (PR-10) leaves its toppled course —
                 // knee-high, non-blocking, a door with bricks at its feet. Other kinds
                 // (fences, foliage mass) clear to nothing.
-                if cover.kind == StaticCoverKind::TreeLine {
+                if matches!(cover.kind, StaticCoverKind::TreeLine | StaticCoverKind::TreeTrunk) {
+                    // A felled hero oak leaves the same evidence a felled hedgerow does — a
+                    // stump where it stood and its trunk lying beside it — sized to the box,
+                    // which for a single bole is exactly one stump and one trunk.
                     append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover);
                 } else if cover.kind == StaticCoverKind::StoneWall {
                     append_toppled_wall(&mut vertices, &mut indices, cover);
@@ -646,6 +649,11 @@ fn append_cover_box(
             // itself darkens into their shadow instead of competing with the canopies.
             push_surfaced_box(vertices, indices, center, half, [0.11, 0.20, 0.10], 0.05);
         }
+        // A hero oak's bole draws NOTHING here: the instanced tree mesh already stands in this
+        // box, to the metre. Baking a solid as well would put a second trunk inside the first —
+        // the one kind whose "the box IS the visual footprint" promise is kept by the dressing
+        // rather than by a box of its own.
+        StaticCoverKind::TreeTrunk => {}
         StaticCoverKind::Wreck => {
             // Burnt steel: the glossiest thing on the field short of water.
             push_surfaced_box(vertices, indices, center, half, [0.25, 0.20, 0.17], 0.30);
@@ -1961,6 +1969,17 @@ mod tests {
         assert!(vertices.len() > terrain_vertices.len(), "cover must add geometry");
         assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
         for cover in &battlefield.static_cover {
+            // A hero oak's bole is the one box the BAKE does not draw — its visual is the
+            // instanced tree, so the promise is kept by proving a tree actually stands in it.
+            // The doctrine is unchanged: every box is something the player can see.
+            if cover.kind == StaticCoverKind::TreeTrunk {
+                assert!(
+                    dressed_by_a_hero_tree(&battlefield, cover),
+                    "trunk box {} must have the tree it claims to be",
+                    cover.id
+                );
+                continue;
+            }
             let center = Vec3::from_array(cover.center);
             let half = Vec3::from_array(cover.half_extents_m);
             let rendered = vertices.iter().any(|vertex| {
@@ -1971,6 +1990,19 @@ mod tests {
             });
             assert!(rendered, "static cover {} must be part of the battlefield mesh", cover.id);
         }
+    }
+
+    /// A `TreeTrunk` box is honest only if a hero tree really stands in it: same footprint,
+    /// same ground. This is the substitute proof for the geometry check the bake cannot make.
+    fn dressed_by_a_hero_tree(
+        battlefield: &terrain::BattlefieldMap,
+        cover: &terrain::StaticCoverObject,
+    ) -> bool {
+        battlefield.scenery.iter().any(|instance| {
+            instance.kind == terrain::SceneryKind::FloraTree
+                && (instance.position[0] - cover.center[0]).abs() < 0.05
+                && (instance.position[2] - cover.center[2]).abs() < 0.05
+        })
     }
 
     /// THE partial-rebake lock (urban-map program PR-04): collapse one building, re-bake ONLY
@@ -2029,6 +2061,12 @@ mod tests {
         assert_eq!(buckets.len(), STATICS_BUCKET_COUNT);
         let (vertices, _) = assemble_statics_mesh(&buckets);
         for cover in &battlefield.static_cover {
+            // Trunk boxes bake nothing (their tree is instanced), so there is no bucket
+            // geometry to survive — what must survive is the tree standing in them.
+            if cover.kind == StaticCoverKind::TreeTrunk {
+                assert!(dressed_by_a_hero_tree(&battlefield, cover), "trunk {} kept", cover.id);
+                continue;
+            }
             let center = Vec3::from_array(cover.center);
             let half = Vec3::from_array(cover.half_extents_m);
             let rendered = vertices.iter().any(|vertex| {

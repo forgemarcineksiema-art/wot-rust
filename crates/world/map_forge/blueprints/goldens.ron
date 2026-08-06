@@ -20,10 +20,20 @@
     // Ostrogorsk: 26 trees at 15.62 ms of the 16.667 ms min-spec gate (42 measured 16.16 —
     // a pass with no room, which is not a pass). Dressing only; cover, terrain, roads and
     // gameplay stand untouched.
-    ("bystra_valley", "c9dc0490489362b8"),
-    ("orliny_pereval", "aaf6b55231566206"),
+    // Re-blessed 2026-08-06 (hero flora, solid trunks), ALL FOUR MAPS: the hero oak stops
+    // being a painting. Every authored tree now compiles a TreeLine box around its VISIBLE
+    // trunk — a shell stops in bark, an eye stops with it, and a hull pushes the tree over
+    // instead of driving through it. The canopy is deliberately left uncovered: leaves do not
+    // stop an AP round, and cover a crew cannot see itself taking is the dishonest kind. The
+    // boxes are DERIVED from the scatter, so a mirrored pair gets mirrored trunks and the two
+    // can never drift. They wear the new `TreeTrunk` kind — a hedgerow's crushable, felling
+    // behaviour with a mature bole's 240 hp, and the only kind that bakes no box of its own,
+    // because the tree's mesh is already standing in it. Trunks per map: 26 / 26 / 18 / 16.
+    // Playability, symmetry and the cover contracts held un-relaxed.
+    ("bystra_valley", "9cb15c9f4492855d"),
+    ("orliny_pereval", "164c0b3f69aa2c5c"),
     // Re-blessed 2026-08-05 (teren C4): the berm's east borrow ditch, broken at the gates
     // — the dossier's own sculpt-session TODO, closed with form + materia, no mechanism.
-    ("ostrogorsk", "deb5f985fac3c803"),
-    ("prokhorovka_hill_252_2", "f643181db756ba52"),
+    ("ostrogorsk", "b5f17ba3cca56752"),
+    ("prokhorovka_hill_252_2", "88024bec70291d54"),
 ]
