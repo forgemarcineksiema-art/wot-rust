@@ -110,6 +110,7 @@ fn push_imported_flora(
         let uv = asset.uvs[index];
         vertices.push(
             SceneVertex::surfaced(world.to_array(), normal.to_array(), asset.colors[index], 0.07)
+                .with_surface(renderer_api::surface_role::FOLIAGE)
                 .with_uv([
                     region.u_offset + uv[0] * region.u_scale,
                     region.v_offset + uv[1] * region.v_scale,

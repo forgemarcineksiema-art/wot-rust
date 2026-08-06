@@ -257,7 +257,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
-    var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
+    var radiance = light_radiance(input.world_pos, n, shadow, ao);
+    // Canopy cards trade the hard lambert for the wrapped/transmissive foliage model.
+    if (abs(input.surface - 7.0) < 0.5) {
+        radiance = foliage_radiance(input.world_pos, n, shadow, ao);
+    }
+    var lit = albedo * radiance;
     // Baked indirect radiance (Hala 2.0 GI bake): already premultiplied by albedo and already
     // geometrically occluded by the bake's own ray casts, so it joins as a plain add — screen
     // AO on top would double-count the very occlusion the rays measured. Zeros outdoors.
