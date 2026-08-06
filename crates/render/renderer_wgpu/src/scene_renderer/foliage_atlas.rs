@@ -65,6 +65,10 @@ fn upload_foliage_atlas(
         mipmap_filter: wgpu::MipmapFilterMode::Linear,
         lod_min_clamp: 0.0,
         lod_max_clamp: chain.max_sampled_level() as f32,
+        // Leaf cards live at grazing angles (a crown seen from a tank is all oblique
+        // quads); isotropic mips smear them into streaks. 8x anisotropy is the standard
+        // foliage fix and costs a rounding error on this generation of hardware.
+        anisotropy_clamp: 8,
         ..Default::default()
     });
     let texture = device.create_texture(&wgpu::TextureDescriptor {

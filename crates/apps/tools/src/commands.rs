@@ -171,8 +171,33 @@ fn import_flora(
             // brown. Bake the factor into vertex colors — the runtime multiplies
             // vertex color x texel, so the product reconstructs the authored look
             // (the red-pine lesson, FL-4 look gate).
+            //
+            // Hero flora goes further: the source bakes per-vertex COLOR_0 — crown-interior
+            // ambient occlusion, a vertical light gradient and per-frond hue jitter — which
+            // is exactly the depth cue the flat-lit scene pass cannot compute at runtime.
+            // When the attribute exists, multiply it into the factor; when it does not,
+            // the old factor-only path is unchanged.
             let factor = primitive.material().pbr_metallic_roughness().base_color_factor();
-            colors.extend(std::iter::repeat_n([factor[0], factor[1], factor[2]], uv_count));
+            match reader.read_colors(0) {
+                Some(vertex_colors) => {
+                    let mut appended = 0usize;
+                    colors.extend(vertex_colors.into_rgb_f32().map(|c| {
+                        appended += 1;
+                        [
+                            (c[0] * factor[0]).clamp(0.0, 1.0),
+                            (c[1] * factor[1]).clamp(0.0, 1.0),
+                            (c[2] * factor[2]).clamp(0.0, 1.0),
+                        ]
+                    }));
+                    anyhow::ensure!(
+                        appended == uv_count,
+                        "COLOR_0 stream disagrees with TEXCOORD_0 ({appended} vs {uv_count})"
+                    );
+                }
+                None => {
+                    colors.extend(std::iter::repeat_n([factor[0], factor[1], factor[2]], uv_count));
+                }
+            }
             let prim_indices = reader
                 .read_indices()
                 .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
