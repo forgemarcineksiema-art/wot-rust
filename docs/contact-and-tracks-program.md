@@ -314,21 +314,51 @@ precede drive.
 
   M14 is **halved**: `a_hull_is_blocked_by_exactly_the_metal_it_is_drawn_with` asserts zero, not a
   ceiling. The shell half keeps the 0.141 m ceiling and stays the user's decision.
-- **P2.2 Low obstacles are ground.** Anything shorter than the vehicle's step height (the road-wheel
-  radius — 0.405 m on a T-54) enters the support envelope like rubble instead of blocking in plan.
-  *Lock:* a 0.30 m obstacle is driven over with a tilt and a speed bleed; a 0.60 m one still blocks.
+- **P2.2 Low obstacles are ground — MEASURED OUT, deferred.** The plan was that anything shorter
+  than a vehicle's step height should enter the support envelope instead of blocking in plan.
+  Measured across all four shipped maps first: **272 cover objects, none below 0.80 m.** The
+  shortest object anywhere is a 1.10 m rail cover; the shortest KIND in the vocabulary is the
+  1.30 m wooden fence, which is already crushable. The mechanism would have had nothing to
+  reclassify.
+
+  Two things came out of measuring rather than building. The step height itself was wrong — the
+  design conversation guessed "the road-wheel radius" (0.275–0.415 m across the fleet) where the
+  documented vertical obstacle for these tanks is around 0.8 m, so hulls would have climbed half of
+  what they should. And the real gap is not physics: **terrain already carries a hull over
+  everything small** (ruts, crater rims, rubble all go through the support envelope), so what is
+  missing is that a map author has no low object to place.
+
+  Deferred as a **paired content-and-physics item**: a low tier in `StaticCoverKind` (append-only,
+  wire identity — the user's call) shipping in the same PR as the physics that carries a hull over
+  it, so the mechanism arrives with a caller. Building it first would be the shape this repo
+  purged rapier, `tank_resolve` and the parry query for.
 
 ### Wave 3 — The one reachable rollover (2 PR)
 
 The tipping edge is `outer_x` — the number Wave 2 makes honest. This wave follows it.
 
-- **P3.1 Asymmetric-landing roll excursion.** From the existing `landing_impact_mps` plus the
-  left/right support-height difference at the catch. Authoritative, one extra `f32`, decaying at a
-  fixed rate — no spring, no oscillation state, replay-safe. *Lock:* a 3 m drop onto one track
-  produces ≥ 35° of roll that returns to the support plane; a symmetric landing produces none.
-- **P3.2 Consequences.** The gun line follows the excursion, suspension damage scales with the
-  asymmetry, the camera reads it. *Lock:* gun elevation limits are computed against the excursed
-  hull, not the support plane.
+- **P3.1 Asymmetric-landing roll excursion — LANDED, and P3.2 came free with it.** A hull that
+  took off level and comes down across a bank arrives at an angle to it: one track touches first,
+  the landing impulse acts a half-gauge out from the centreline, and the hull turns about that
+  belt. The rate is `m·v·b / I` about the contact edge and the excursion is the share of the
+  TIPPING energy that rate represents, mapped onto the tipping angle — so the size comes from the
+  fall and the vehicle, not from taste.
+
+  | fall | peak roll | settles to |
+  |---|---|---|
+  | 3 m onto a 10° bank | **35.5°** | 10.0° — the bank it is standing on |
+  | 3 m onto level ground | **0.00°** | level |
+  | 3 m onto 8°/15°/25°/30° | 35.6 / 33.4 / 29.3 / 30.0° | always under the 52.5° tipping angle |
+
+  **Nothing new is stored.** The excursion is added to the authoritative `hull_roll_rad`, and the
+  attitude system's existing rate limit (1.4 rad/s) walks it back over the following half second. A
+  spring would have carried oscillation state into the authoritative simulation, and every attitude
+  in this game is deliberately spring-free so replays and the client predictor stay exact.
+
+  That choice is also why **P3.2 needs no PR of its own**: because the excursion IS the hull's roll,
+  the gun line follows it, the hitbox tilts with it, armour impact angles include it, the camera
+  reads it and the wire carries it — all through paths that already existed. Suspension damage
+  already scales with the landing impact that produced it.
 
 ### Wave 4 — Force per track (7 PR)
 

@@ -444,6 +444,7 @@ impl SimulationState {
             apply_landing_impact(
                 tank,
                 ground.landing_impact_mps,
+                ground.landing_roll_mismatch_rad,
                 &mut self.damage_events,
                 &mut event_stamp,
             );

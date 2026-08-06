@@ -242,6 +242,7 @@ pub fn settle_tank_on_world(
         });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
+        let airborne_roll = state.roll_rad;
         let mut step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
         step.drive_velocity = drive_velocity;
         if step.grounded {
@@ -252,6 +253,12 @@ pub fn settle_tank_on_world(
                 Some(support) => (support.pitch_rad, support.roll_rad),
                 None => (next_contact.forward_slope.atan(), next_contact.side_slope.atan()),
             };
+            // Read BEFORE the attitude is stepped: how far the hull arrived off the plane it
+            // came down on. Only meaningful on the tick a flight ended — a hull that has been on
+            // the ground is already parallel to it, give or take one rate-limited step.
+            if step.landing_impact_mps > 0.0 {
+                step.landing_roll_mismatch_rad = target_roll - airborne_roll;
+            }
             advance_hull_attitude(state, target_pitch, target_roll, dt_seconds);
         }
         return step;
