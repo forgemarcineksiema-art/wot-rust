@@ -17,7 +17,7 @@ pub use contact::{GroundScales, TerrainContact, sample_tank_terrain_contact};
 pub use contact_impulse::{
     ContactBody, ContactCache, ContactImpulse, ContactPair, ContactReport, resolve_contacts,
 };
-pub use controller_settings::TankControllerSettings;
+pub use controller_settings::{BeltDrive, TankControllerSettings};
 pub use cover::{
     footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
 };

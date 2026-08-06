@@ -73,18 +73,65 @@ fn one_thrown_track_crawls_under_power_but_slower_than_healthy() {
 }
 
 #[test]
-fn one_thrown_track_drift_is_counter_steerable() {
-    // Left thrown: under power the hull drifts toward the dead (left) side. A full counter-steer
-    // must not just dent that — it must overpower it and turn the hull the other way.
+fn a_thrown_track_cannot_be_counter_steered_away() {
+    // THE PROMISE THIS REPLACES, AND WHY. The old one was
+    // `one_thrown_track_drift_is_counter_steerable`, and it asked for exactly what it said: a full
+    // counter-steer had to overpower the drift and turn the hull the other way. It got it, because
+    // the drift was a fixed 0.18 ADDED TO THE PLAYER'S STEER. Measured against the real drive over
+    // ten seconds, holding 0.18 of counter-steer took a T-54 with a dead left track down a dead
+    // straight line at 7.67 m/s — the identical speed it made with no steer at all, and 2 m further
+    // for not having to arc. The track was thrown and it cost nothing but throttle.
+    //
+    // A tracked hull steers by running its belts at different speeds; that difference IS the yaw.
+    // A dead belt cannot be sped up to match its partner, so the turn is not a bias to be argued
+    // with — it is the geometry of having one belt. The only way to straighten out is to slow the
+    // live belt down to nothing, which is stopping.
     let drift = driven(health_with(0, 100), TankCommand::drive(1.0, 0.0), 45);
     let countered = driven(health_with(0, 100), TankCommand::drive(1.0, 1.0), 45);
 
-    assert!(drift.kinematic.yaw_rad < -0.01, "uncorrected, it drifts toward the dead side");
+    assert!(drift.kinematic.yaw_rad < -0.01, "uncorrected, it swings toward the dead side");
     assert!(
-        countered.kinematic.yaw_rad > drift.kinematic.yaw_rad + 0.05,
-        "a counter-steer overrides the drift (drift {}, countered {})",
-        drift.kinematic.yaw_rad,
+        countered.kinematic.yaw_rad < 0.0,
+        "a full counter-steer must not turn the hull the other way: it can only ask the dead belt \
+         to outrun the live one, and a dead belt outruns nothing (countered {})",
         countered.kinematic.yaw_rad
+    );
+}
+
+/// Stopping is the one thing that DOES straighten a crippled hull, because the forced turn is a
+/// belt-speed difference and a stopped hull has no belt speed to differ by. This is what keeps the
+/// damage from removing the player: plant it and the turret still fights.
+#[test]
+fn a_stopped_hull_on_one_track_is_not_forced_to_turn() {
+    let rolling = driven(health_with(0, 100), TankCommand::drive(1.0, 0.0), 45);
+    let planted = driven(health_with(0, 100), TankCommand::drive(0.0, 0.0), 45);
+
+    assert!(rolling.kinematic.yaw_rad.abs() > 0.05, "under power it is forced round");
+    assert!(
+        planted.kinematic.yaw_rad.abs() < 0.01,
+        "stopped, nothing forces it round (yaw {})",
+        planted.kinematic.yaw_rad
+    );
+}
+
+/// An unevenly drained (but unthrown) pair pulls toward the worse belt — the same rule as the
+/// thrown case, applied to a difference that is merely small. An EVEN pair, however damaged, does
+/// not pull at all: equal belts do not turn a hull.
+#[test]
+fn uneven_belts_pull_but_even_ones_do_not() {
+    let uneven = driven(health_with(40, 100), TankCommand::drive(1.0, 0.0), 60);
+    let even = driven(health_with(40, 40), TankCommand::drive(1.0, 0.0), 60);
+
+    assert!(
+        uneven.kinematic.yaw_rad.abs() > even.kinematic.yaw_rad.abs(),
+        "the worse belt pulls the hull toward itself (uneven {}, even {})",
+        uneven.kinematic.yaw_rad,
+        even.kinematic.yaw_rad
+    );
+    assert!(
+        even.kinematic.yaw_rad.abs() < 0.005,
+        "an evenly damaged pair still drives where it is pointed (yaw {})",
+        even.kinematic.yaw_rad
     );
 }
 

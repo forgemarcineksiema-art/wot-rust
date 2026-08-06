@@ -498,3 +498,55 @@ exists — no new fields), the shared server/predictor step, the map contract's 
 3. Calibrate to the "before" table within the stated band.
 4. *Then* let the differences that should appear appear: L/B, per-track ground, damaged-track pull.
 5. One deliberate replay re-bless, with the before/after table in the commit message.
+
+## Wave 4 — LANDED, and the shape of it changed on contact with the mechanism
+
+The plan above split this into "per-track forces first, emergent steering later". **That split does
+not survive.** In a tracked vehicle steering IS the belt difference — `omega = (v_left - v_right) /
+gauge`, and nothing else. You cannot make belts produce force independently and keep a commanded
+yaw rate on top: the servo would simply erase whatever the belts did. So the change is not "belts
+make force"; it is one sentence about what a steer input MEANS.
+
+**A steer input is a request for a belt-speed difference, not a yaw rate.** Two whole belts on
+uniform ground always satisfy it, exactly as authored — so the fleet's mobility table did not move
+a digit and every replay stayed valid. A belt that cannot drive cannot supply its half, and the
+difference that remains is forced.
+
+What that removed, measured on a T-54 with a dead left track at full throttle over ten seconds:
+
+| input | before | after |
+|---|---|---|
+| no steer | −48.1°, 62.4 m, 7.67 m/s | forced round, 11.7 m from start, 6.27 m/s |
+| counter-steer 0.18 | **+0.0°, 64.7 m, 7.67 m/s** | cannot straighten it at any input |
+
+The old drift was a constant `0.18` added to the player's steer, so holding exactly `0.18` of
+counter-steer drove a thrown-track hull in a dead straight line, at the same speed, two metres
+FURTHER than not steering at all for not having to arc. A track you can counter-steer away is not
+damage. The falsified promise was a test named `one_thrown_track_drift_is_counter_steerable`; it is
+replaced by `a_thrown_track_cannot_be_counter_steered_away`.
+
+Two things fell out for free, both locked:
+- **Stopping straightens you.** The forced rate is proportional to speed, so a planted hull is not
+  turned at all and still fights with its turret. Damage takes the player's line, not their agency.
+- **An unevenly drained (unthrown) pair pulls** toward the worse belt — the same rule, applied to a
+  small difference. An evenly damaged pair does not pull, however damaged: equal belts do not turn
+  a hull.
+
+### The one number that is a choice, and is labelled as one
+
+`DEAD_BELT_PIVOT_BITE = 0.25`. Both ends of its range are real damage states and both were measured:
+a belt jammed solid is a pin (radius `2 * half_gauge` = 2.6 m, a pirouette); a belt simply gone
+imposes nothing (the rolling-drag-to-grip ratio puts that at 42 m, barely a penalty). A thrown track
+is neither — the belt is off the sprocket but bunched under the running gear. **The attempt to
+derive the constant from rolling resistance failed and was discarded rather than dressed up**; 0.25
+is a modelling choice inside the realistic 5–15 m band, made for what it does to play: a ~10.6 m
+radius means a 90° swing costs 17 m of arc and ~2.7 s, so a crippled hull can lurch into cover that
+is abeam but can never retreat down a road.
+
+### Still open
+
+Per-belt GROUND (one track on mud, the other on grass) is the other half of the payoff and is not
+done. The seam is ready for it — `BeltDrive` takes any pair of fractions — but `TerrainContact`
+samples material at the hull centre by deliberate design (`contact.rs`: "a track is on one thing at
+a time"), so it needs a second and third sample at the belt centres, and a perf measurement for the
+two extra `GroundClassifier` lookups per hull per tick.

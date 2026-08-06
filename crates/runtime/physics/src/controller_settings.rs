@@ -62,6 +62,78 @@ pub struct TankControllerSettings {
     /// are momentum-climbable — the grip slips but does not vanish, so a committed run-up scrabbles
     /// the hull a bounded way up a hump.
     pub momentum_climb_ceiling: f32,
+    /// What each belt can still put on the ground, `[left, right]`, as a fraction of nominal:
+    /// 1.0 healthy, 0.0 a thrown track or a belt with no grip under it. Both 1.0 is the whole
+    /// fleet's normal state and costs nothing — see [`BeltDrive`]. `serde(default)` keeps every
+    /// pre-belt fixture loading with two whole tracks.
+    #[serde(default = "BeltDrive::healthy")]
+    pub belts: BeltDrive,
+}
+
+/// What each track belt can still deliver. Steering in a tracked vehicle is not a yaw command; it
+/// is a SPEED DIFFERENCE BETWEEN THE BELTS, and `omega = (v_left - v_right) / gauge` falls out of
+/// it. So a belt that cannot drive cannot contribute its half of a turn — and, crucially, cannot be
+/// made to. With one belt thrown, the working belt walks the hull around the dead one and there is
+/// no input that straightens it: going straight would mean matching the belts, which means stopping.
+///
+/// Both belts healthy leaves every number in the drive untouched (the window below is unbounded),
+/// so the fleet's mobility table and every replay stay bit-identical.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct BeltDrive {
+    pub left: f32,
+    pub right: f32,
+}
+
+/// How much of a PINNED pivot a dead belt actually imposes.
+///
+/// The two ends of the range are both real damage states. A belt jammed solid is a pin: the hull
+/// swings on it and the turn radius is pure geometry, `2 * half_gauge` — 2.6 m for a T-54, a
+/// pirouette. A belt that is simply GONE imposes nothing, and the ratio of rolling drag to the grip
+/// cap puts that at a 42 m radius, which is barely a penalty at all. Measured, both.
+///
+/// A thrown track is neither. The belt is off the sprocket but bunched under the running gear, and
+/// the road wheels ride down into it — far more drag than free rolling, far less than a pin.
+///
+/// **This constant is a modelling choice inside that band, not a derivation, and it was chosen for
+/// what it does to play.** At 0.25 the forced radius is ~10.6 m: a 90° swing takes 17 m of arc and
+/// about 2.7 seconds, so a crippled hull can still lurch into cover that is roughly abeam but can
+/// never retreat down a road. And because the forced rate scales with SPEED, stopping cancels it
+/// outright — a one-track tank can always plant itself and fight with the turret. Damage takes the
+/// player's line away, not their agency.
+const DEAD_BELT_PIVOT_BITE: f32 = 0.25;
+
+impl BeltDrive {
+    /// Both belts whole — the state every tank is in until something breaks it.
+    pub const HEALTHY: Self = Self { left: 1.0, right: 1.0 };
+
+    /// `HEALTHY` as a function, for `serde(default)`.
+    pub fn healthy() -> Self {
+        Self::HEALTHY
+    }
+
+    pub fn new(left: f32, right: f32) -> Self {
+        Self { left: left.clamp(0.0, 1.0), right: right.clamp(0.0, 1.0) }
+    }
+
+    /// The yaw rate the belts FORCE at this speed, signed in the hull's convention (+ = turning
+    /// right, because a right turn is the left belt outrunning the right one).
+    ///
+    /// A weak belt cannot match its partner, so the difference — and the turn — is not optional.
+    /// The magnitude is the shortfall carried over the pivot arm: a fully dead belt gives
+    /// `v / half_gauge`, which is exactly the working belt walking the hull round the dead one.
+    /// Equal belts give zero, whatever their absolute grip, because equal belts do not turn a hull.
+    pub fn forced_yaw_rate(&self, forward_speed_mps: f32, half_gauge_m: f32) -> f32 {
+        if half_gauge_m <= f32::EPSILON {
+            return 0.0;
+        }
+        // + shortfall on the right = the left belt outruns it = a forced RIGHT turn.
+        DEAD_BELT_PIVOT_BITE * (self.left - self.right) * forward_speed_mps / (2.0 * half_gauge_m)
+    }
+
+    /// Share of nominal drive the pair can still transmit: the mean of the two belts.
+    pub fn drive_fraction(&self) -> f32 {
+        (self.left + self.right) * 0.5
+    }
 }
 
 /// Maximum uphill grade (rise/run) a tank can climb. Steeper faces -- like the railway
@@ -140,6 +212,7 @@ impl TankControllerSettings {
             momentum_climb_ceiling: MOMENTUM_CLIMB_CEILING,
             steering: SteeringKind::for_vehicle(spec.kind),
             pivot_arm_m: spec.contact_footprint().half_gauge_x,
+            belts: BeltDrive::HEALTHY,
         }
     }
 }
