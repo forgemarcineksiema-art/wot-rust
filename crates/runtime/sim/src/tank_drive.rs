@@ -1,7 +1,7 @@
 use game_core::{ModuleSlot, TankSpec};
 use physics::{
     GroundStep, TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState,
-    TankObstacle, TankWorldObstacles,
+    TankWorldObstacles,
 };
 use terrain::{HeightMap, StaticCoverObject};
 
@@ -43,7 +43,6 @@ pub struct TankDriveState {
 pub struct TankDriveWorld<'a> {
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
-    pub tank_obstacles: &'a [TankObstacle],
     /// Running-gear contact stations for the support envelope (trench bridging, crest overhang).
     /// `None` keeps the legacy centre-probe ride height.
     pub footprint: Option<&'a game_core::ContactFootprint>,
@@ -149,14 +148,10 @@ pub fn settle_tank_drive(
 }
 
 fn drive_obstacles<'a>(spec: &TankSpec, world: TankDriveWorld<'a>) -> TankWorldObstacles<'a> {
-    TankWorldObstacles::new(
-        world.cover,
-        TankFootprint::from_hitbox(spec.hitbox),
-        world.tank_obstacles,
-    )
-    .with_water(world.water)
-    .with_rubble(world.rubble)
-    .with_ground(world.ground)
+    TankWorldObstacles::new(world.cover, TankFootprint::from_hitbox(spec.hitbox))
+        .with_water(world.water)
+        .with_rubble(world.rubble)
+        .with_ground(world.ground)
 }
 
 /// How hard a hull can actually stop on ground of the given grip scale.

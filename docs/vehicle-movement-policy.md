@@ -67,14 +67,32 @@ dispersion tick-for-tick.
 
 A tick runs in the rigid-body order, and the order is the point:
 
-1. every hull decides a velocity, and **nobody moves**;
-2. hull-to-hull contacts are solved against where those velocities *would* put them;
-3. the surviving velocities are spent and resolved against the world;
-4. anything still overlapping is eased apart.
+1. every living hull decides a velocity, and **nobody moves** — commanded or not, because a tank
+   nobody gave an order to is a tank sitting still, not a tank exempt from physics;
+2. hull-to-hull contacts are solved against how far apart the hulls actually are;
+3. the surviving velocities are spent and resolved against the world.
 
-`physics::advance_tank_on_world` and `settle_tank_on_world` are steps 1 and 3;
-`step_tank_on_world_with_tanks` is still their composition, which is what the client predictor
-calls (it simulates one hull against neighbours it treats as static).
+`physics::advance_tank_on_world` and `settle_tank_on_world` are steps 1 and 3, and the client
+predictor runs the same three in the same order — its neighbours enter the contact solve as
+immovable bodies, because the client is not authoritative over them.
+
+There is no fourth step. A positional pass used to end the tick by pushing anything still
+overlapping apart, and it was the last place a hull could arrive somewhere it never travelled to:
+measured, it cleared a three-metre spawn overlap in ONE TICK by moving a hull 1.49 m — eighty-nine
+metres per second on a vehicle whose top speed is fourteen. Separation is a velocity now, all of
+it, capped at a metre per second plus another for every metre a hull is buried.
+
+Contact is **speculative**: the separating-axis test reports how far apart two hulls are, signed,
+and the constraint allows exactly the closing that shuts that gap this tick and no more. Hulls
+therefore come to rest TOUCHING rather than a detection margin short of each other — the margin
+that used to decide where they parked held two T-54s 0.12 m apart at the box and 0.40 m apart at
+the metal. The solver also remembers: each contact is filed under the pair's identity and the
+touching feature, and starts the next tick holding the impulse it ended this one with, which is
+what keeps a long queue from sinking into itself.
+
+Hull-to-hull is NOT a veto anywhere any more. `resolve_tank_collision` — a hard "hold the previous
+position" stop with an interpenetration escape hatch beside it — lost its last caller when the
+predictor moved onto the solver, and left the workspace the way rapier did.
 
 Contact is an **impulse**, not a veto. Touching hulls exchange normal momentum, an off-centre
 contact exchanges angular momentum too (a t-bone slews its victim), and Coulomb friction bounded

@@ -10,7 +10,6 @@ use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
     TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
 };
-use crate::tank_resolve::{footprint_blocked_by_tanks, resolve_tank_collision_with_velocity};
 use crate::track_contact::{sample_support, support_height};
 use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 
@@ -71,7 +70,7 @@ pub fn step_tank_on_world(
         input,
         settings,
         Some(heightmap),
-        TankWorldObstacles::new(cover, default_tank_footprint(), &[]),
+        TankWorldObstacles::new(cover, default_tank_footprint()),
         None,
         dt_seconds,
     )
@@ -187,17 +186,18 @@ pub fn settle_tank_on_world(
         ..
     } = step;
     integrate_hull_position(state, dt_seconds);
-    // Rotation is collision-resolved like translation: a pivot that would grind the hull's
-    // corners INTO a wall or a neighbour is refused (yaw reverts, the rotation rate dies),
-    // exactly as a blocked move holds its position. Tested at the PREVIOUS position so pure
-    // rotation is judged on its own; and only when the OLD yaw was clear — a hull already
-    // overlapped (spawn accident, pileup) keeps its freedom to rotate its way out.
+    // Rotation is collision-resolved against COVER like translation is: a pivot that would grind
+    // the hull's corners into a wall is refused (yaw reverts, the rotation rate dies), exactly as
+    // a blocked move holds its position. Tested at the PREVIOUS position so pure rotation is
+    // judged on its own; and only when the OLD yaw was clear — a hull already overlapped keeps its
+    // freedom to rotate its way out.
+    //
+    // Hull-to-hull is deliberately NOT here. A pivot into a neighbour is an impulse the contact
+    // solver exchanges (measured after P1.4: zero overlap without any veto), and a veto on top
+    // would put a hard stop back where a shove belongs.
     {
         let fp = obstacles.tank_footprint;
-        let blocked = |yaw: f32| {
-            footprint_blocked_by_cover(previous, yaw, fp, obstacles.cover)
-                || footprint_blocked_by_tanks(previous, yaw, fp, obstacles.tanks)
-        };
+        let blocked = |yaw: f32| footprint_blocked_by_cover(previous, yaw, fp, obstacles.cover);
         if state.yaw_rad != previous_yaw && blocked(state.yaw_rad) && !blocked(previous_yaw) {
             state.yaw_rad = previous_yaw;
             state.yaw_rate_rad_s = 0.0;
@@ -210,17 +210,6 @@ pub fn settle_tank_on_world(
         state.velocity,
         obstacles.tank_footprint,
         obstacles.cover,
-    );
-    state.position = position;
-    state.velocity = velocity;
-
-    let (position, velocity) = resolve_tank_collision_with_velocity(
-        previous,
-        state.position,
-        state.yaw_rad,
-        state.velocity,
-        obstacles.tank_footprint,
-        obstacles.tanks,
     );
     state.position = position;
     state.velocity = velocity;

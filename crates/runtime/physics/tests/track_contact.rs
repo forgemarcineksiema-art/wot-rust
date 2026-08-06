@@ -41,7 +41,7 @@ fn min_height_crossing(footprint: Option<&ContactFootprint>) -> f32 {
             TankControlInput { throttle: 0.3, steer: 0.0, brake: 0.0 },
             &settings,
             Some(&map),
-            TankWorldObstacles::new(&[], obstacles_footprint, &[]),
+            TankWorldObstacles::new(&[], obstacles_footprint),
             footprint,
             DT,
         );

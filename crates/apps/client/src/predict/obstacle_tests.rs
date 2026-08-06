@@ -1,4 +1,5 @@
 use net::TankSnapshot;
+use physics::ContactBody;
 
 use super::*;
 
@@ -61,27 +62,93 @@ fn prediction_is_blocked_by_static_cover_like_the_server() {
     assert!(pos.z > 20.0, "the hull should still advance up to the barn (z = {})", pos.z);
 }
 
+/// THE NAME THIS TEST USED TO CARRY WAS A LIE, and the lie is worth recording because it is the
+/// shape of the whole P1.5 defect.
+///
+/// It was called `prediction_is_blocked_by_other_tanks_like_the_server`, and it locked the
+/// predictor stopping the instant two collision boxes touched — a hard "hold the previous
+/// position" veto. The server stopped doing that the day contact started carrying momentum: it
+/// solves an impulse instead, and until P1.2 it stopped a whole 0.12 m skin earlier than the
+/// client did. Two models, one name, and a test that swore they agreed.
+///
+/// What the predictor does now is what the authority does: decide a velocity, exchange contacts
+/// against it, spend what survived. Neighbours are immovable here because the client is not
+/// authoritative over them.
 #[test]
-fn prediction_is_blocked_by_other_tanks_like_the_server() {
+fn the_predictor_meets_another_hull_the_way_the_server_does() {
     let flat = HeightMap::flat(64, 64, 4.0, 0.0).unwrap();
     let spec = TankSpec::t54_1951();
-    let obstacles =
-        [physics::TankObstacle::from_hitbox(Vec3::new(10.0, 0.0, 18.0), 0.0, spec.hitbox)];
+    let neighbour = ContactBody {
+        id: 2,
+        position: Vec3::new(10.0, 0.0, 18.0),
+        velocity: Vec3::ZERO,
+        yaw_rad: 0.0,
+        yaw_rate_rad_s: 0.0,
+        footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+        mass_kg: spec.mass_kg,
+        movable: false,
+    };
     let mut predictor = LocalPredictor::new(&spec);
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     let drive = TankCommand::drive(1.0, 0.0);
     for _ in 0..240 {
-        predictor.step(drive, &flat, &[], &obstacles, &[], None, 1.0 / 60.0);
+        predictor.step(drive, &flat, &[], &[neighbour], &[], None, 1.0 / 60.0);
     }
 
-    // The hulls meet nose-to-tail: the obstacle's near face minus our own half length.
-    let contact_z = 18.0 - 2.0 * spec.hitbox.half_length_m;
-    let pos = predictor.position();
+    // Hulls MEET: the boxes come to rest touching, not a detection margin short of each other.
+    let touching = 18.0 - 2.0 * spec.hitbox.half_length_m;
+    let gap = touching - predictor.position().z;
     assert!(
-        pos.z <= contact_z + 0.05,
-        "tank obstacle should stop the predicted hull (z = {}, contact at {contact_z})",
-        pos.z
+        gap.abs() <= 0.03,
+        "the predicted hull settled {gap:.4} m from contact (touching at z = {touching})"
     );
-    assert!(pos.z > contact_z - 0.5, "the hull should still advance to contact (z = {})", pos.z);
+    // ...and it does not walk through the neighbour it is leaning on.
+    assert!(predictor.position().z < 18.0);
+}
+
+/// The lock the program asked for: predictor and authority agree while pressed together, tick after
+/// tick, rather than agreeing on average and arguing every frame.
+#[test]
+fn predictor_and_server_rest_in_the_same_place() {
+    let flat = HeightMap::flat(64, 64, 4.0, 0.0).unwrap();
+    let spec = TankSpec::t54_1951();
+
+    // The authority: two hulls, the far one a wreck so it blocks without giving ground — the same
+    // thing the predictor's immovable neighbour represents.
+    let mut server = sim::SimulationState::new();
+    let mover = server.spawn_tank(game_core::TeamId(1), spec.clone(), Vec3::new(10.0, 0.0, 10.0));
+    let blocker = server.spawn_tank(game_core::TeamId(2), spec.clone(), Vec3::new(10.0, 0.0, 18.0));
+    server.tank_mut(blocker).expect("blocker").hit_points = 0;
+
+    let neighbour = ContactBody {
+        id: 2,
+        position: Vec3::new(10.0, 0.0, 18.0),
+        velocity: Vec3::ZERO,
+        yaw_rad: 0.0,
+        yaw_rate_rad_s: 0.0,
+        footprint: physics::TankFootprint::from_hitbox(spec.hitbox),
+        mass_kg: spec.mass_kg,
+        movable: false,
+    };
+    let mut predictor = LocalPredictor::new(&spec);
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+
+    let drive = TankCommand::drive(1.0, 0.0);
+    let step = sim::FixedTimestep::from_hz(60);
+    let mut worst = 0.0_f32;
+    for tick in 0..300 {
+        server.apply_commands(&[(mover, drive)], step);
+        predictor.step(drive, &flat, &[], &[neighbour], &[], None, 1.0 / 60.0);
+        // The approach itself is a race the two can legitimately run a hair apart; what must not
+        // drift is where they END UP and how they behave once they are leaning on the thing.
+        if tick > 200 {
+            let authority = server.tank(mover).expect("mover").position.z;
+            worst = worst.max((predictor.position().z - authority).abs());
+        }
+    }
+    assert!(
+        worst <= 0.001,
+        "predictor and authority rest {worst:.5} m apart while pressed against the same hull"
+    );
 }

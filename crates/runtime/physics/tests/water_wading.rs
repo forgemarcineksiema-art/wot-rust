@@ -17,7 +17,7 @@ fn run(water: Option<WaterBody>, seconds: f32) -> TankKinematicState {
     let mut state =
         TankKinematicState { position: Vec3::new(30.0, 0.0, 20.0), ..Default::default() };
     let footprint = TankFootprint::from_hitbox(TankSpec::t54_1951().hitbox);
-    let obstacles = TankWorldObstacles::new(&[], footprint, &[]).with_water(water);
+    let obstacles = TankWorldObstacles::new(&[], footprint).with_water(water);
     for _ in 0..(seconds / DT) as u32 {
         step_tank_on_world_with_tanks(
             &mut state,

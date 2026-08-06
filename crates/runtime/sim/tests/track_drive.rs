@@ -50,7 +50,6 @@ fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
     let world = TankDriveWorld {
         heightmap: None,
         cover: &[],
-        tank_obstacles: &[],
         footprint: None,
         water: None,
         rubble: &[],
