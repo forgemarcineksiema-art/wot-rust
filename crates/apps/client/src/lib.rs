@@ -70,7 +70,9 @@ pub use vehicle::render_frame::{
     split_pbr_vehicle_render_frame_on_terrain, split_vehicle_render_frame,
 };
 pub use vehicle::render_objects::VehicleMeshCatalog;
-pub use vehicle::render_objects_draw::{tank_render_objects, tank_render_objects_from_eye};
+pub use vehicle::render_objects_draw::{
+    GearTier, tank_render_objects, tank_render_objects_from_eye, tank_render_objects_tiered,
+};
 pub use vehicle::track_ribbon::{TrackRibbon, ribbon_render_objects, thrown_remnant_objects};
 pub use vehicle::turret_popoff::TurretPopoff;
 pub use vehicle::variation::{

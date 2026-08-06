@@ -181,7 +181,7 @@ pub(crate) fn run() {
 fn battle_lineup(
     battlefield: &terrain::BattlefieldMap,
     catalog: &mut client::VehicleMeshCatalog,
-    eye: Option<[f32; 3]>,
+    tier: client::GearTier,
 ) -> Vec<renderer_api::RenderObject> {
     use game_core::VehicleKind;
 
@@ -228,7 +228,7 @@ fn battle_lineup(
             rack_fire_remaining_s: None,
         };
         let tint = if team == 0 { [0.34, 0.38, 0.30] } else { [0.40, 0.34, 0.28] };
-        objects.append(&mut client::tank_render_objects_from_eye(catalog, &snapshot, tint, eye));
+        objects.append(&mut client::tank_render_objects_tiered(catalog, &snapshot, tint, tier));
     }
     objects
 }
@@ -286,7 +286,7 @@ fn frame_time_capture() {
     // Pre-warm: creating a vehicle's catalog entry registers BOTH gear tiers, so one build puts
     // every mesh the rotation can ask for on the GPU before any frame is timed.
     let mut catalog = client::VehicleMeshCatalog::default();
-    let warm = battle_lineup(&battlefield, &mut catalog, None);
+    let warm = battle_lineup(&battlefield, &mut catalog, client::GearTier::FromEye(None));
     for (handle, mesh) in catalog.take_pending_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
@@ -320,17 +320,35 @@ fn frame_time_capture() {
     // The last field is the fleet: "full scene" and "full + 7v7" are the SAME frame apart from
     // 14 vehicles, so their delta is what putting the fleet on screen costs — the number the
     // running-gear budget has never been checked against.
-    let configs: [(&str, bool, bool, f32, bool); 5] = [
-        ("full scene", true, true, 60.0, false),
-        ("no card meadow", false, true, 60.0, false),
-        ("no near ring", true, false, 60.0, false),
-        ("scope 18deg", true, true, 18.0, false),
-        ("full + 7v7", true, true, 60.0, true),
+    // `None` = no vehicles. `Some(tier)` = the fleet at that tier. The two FORCED rows bracket
+    // what the distance tier can ever buy, and they sit in the SAME rotation as everything else
+    // because a tier A/B run as separate processes measures this laptop's thermal ramp instead
+    // (the baseline moved 19.2 -> 23.8 ms across four sequential runs while nothing changed).
+    let configs: [(&str, bool, bool, f32, Option<client::GearTier>); 7] = [
+        ("full scene", true, true, 60.0, None),
+        ("no card meadow", false, true, 60.0, None),
+        ("no near ring", true, false, 60.0, None),
+        ("scope 18deg", true, true, 18.0, None),
+        ("full + 7v7", true, true, 60.0, Some(client::GearTier::FromEye(None))),
+        (
+            "7v7 gear NEAR forced",
+            true,
+            true,
+            60.0,
+            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Near)),
+        ),
+        (
+            "7v7 gear FAR forced",
+            true,
+            true,
+            60.0,
+            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Far)),
+        ),
     ];
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
-    let mut samples: [Vec<f64>; 5] = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+    let mut samples: [Vec<f64>; 7] = std::array::from_fn(|_| Vec::new());
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -353,8 +371,7 @@ fn frame_time_capture() {
     let _ = target.read_rgba8(&ctx);
 
     for _cycle in 0..CYCLES {
-        for (config, &(_, with_dressing, with_grass, fov, with_tanks)) in configs.iter().enumerate()
-        {
+        for (config, &(_, with_dressing, with_grass, fov, tanks)) in configs.iter().enumerate() {
             // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
             if with_dressing != dressing_bound {
                 if with_dressing {
@@ -396,8 +413,12 @@ fn frame_time_capture() {
                 // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
                 // detail tier a tank draws at is a function of where the camera is this frame.
                 let mut grass = grass;
-                if with_tanks {
-                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, Some(eye.into())));
+                if let Some(tier) = tanks {
+                    let tier = match tier {
+                        client::GearTier::FromEye(_) => client::GearTier::FromEye(Some(eye.into())),
+                        forced => forced,
+                    };
+                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, tier));
                     for (handle, mesh) in catalog.take_pending_meshes() {
                         renderer.register_mesh(&ctx, handle, &mesh);
                     }
