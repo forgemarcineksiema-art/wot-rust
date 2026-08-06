@@ -415,8 +415,6 @@ impl SimulationState {
             let world = TankDriveWorld {
                 heightmap,
                 cover: live_cover.movement(),
-                // Hull-to-hull is phase 2's and phase 3's business, not the drive's.
-                tank_obstacles: &[],
                 footprint: Some(&footprint),
                 water: self.water,
                 rubble: &rubble,
@@ -435,7 +433,6 @@ impl SimulationState {
             let world = TankDriveWorld {
                 heightmap,
                 cover: live_cover.movement(),
-                tank_obstacles: &[],
                 footprint: Some(&footprint),
                 water: self.water,
                 rubble: &rubble,

@@ -97,7 +97,7 @@ fn climb(start: Vec3, yaw_rad: f32, rubble: &[RubbleMound], ticks: usize) -> (f3
             Some(&map),
             // No cover: this is the world as it stands once rubble stops blocking movement. The
             // debris is the ONLY thing between the hull and flat ground.
-            TankWorldObstacles::new(&[], hull, &[]).with_rubble(rubble),
+            TankWorldObstacles::new(&[], hull).with_rubble(rubble),
             Some(&footprint),
             DT,
         );
@@ -122,7 +122,7 @@ fn distance_covered(start: Vec3, yaw_rad: f32, rubble: &[RubbleMound], ticks: us
             DRIVE,
             &settings,
             Some(&map),
-            TankWorldObstacles::new(&[], hull, &[]).with_rubble(rubble),
+            TankWorldObstacles::new(&[], hull).with_rubble(rubble),
             Some(&footprint),
             DT,
         );

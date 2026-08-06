@@ -36,7 +36,7 @@ fn drive_into_wall(footprint: TankFootprint) -> (f32, f32) {
             TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 },
             &settings,
             Some(&heightmap),
-            TankWorldObstacles::new(std::slice::from_ref(&wall), footprint, &[]),
+            TankWorldObstacles::new(std::slice::from_ref(&wall), footprint),
             None,
             1.0 / 60.0,
         );

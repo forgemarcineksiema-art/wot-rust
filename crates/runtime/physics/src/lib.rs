@@ -7,7 +7,6 @@ mod forces;
 mod hull_attitude;
 mod movement;
 mod parry_query;
-mod tank_resolve;
 mod track_contact;
 mod vertical;
 pub mod water;
@@ -28,7 +27,6 @@ pub use movement::{
     step_custom_tank_controller, step_custom_tank_controller_on_contact,
 };
 pub use parry_query::tank_footprints_intersect_query;
-pub use tank_resolve::{resolve_tank_collision, resolve_tank_collision_with_velocity};
 pub use track_contact::{SupportContact, sample_support, support_height};
 pub use vertical::{GroundStep, is_grounded, resolve_vertical};
 pub use world::{

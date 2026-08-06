@@ -1,7 +1,6 @@
 use physics::{
-    TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState, TankObstacle,
-    resolve_tank_collision, step_custom_tank_controller, step_tank_on_heightmap,
-    step_tank_on_world,
+    TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState,
+    step_custom_tank_controller, step_tank_on_heightmap, step_tank_on_world,
 };
 use terrain::MapId;
 
@@ -205,83 +204,14 @@ fn cover_collision_cancels_forward_speed_when_hull_is_fully_blocked() {
     );
 }
 
-#[test]
-fn tank_collision_blocks_head_on_and_keeps_the_unblocked_axis() {
-    let footprint = TankFootprint { half_width_m: 1.6, half_length_m: 3.2 };
-    let obstacles = [TankObstacle::new(glam::Vec3::new(0.0, 0.0, 8.0), 0.0, footprint)];
-    let previous = glam::Vec3::new(0.0, 0.0, 1.0);
-
-    let clear = resolve_tank_collision(
-        previous,
-        glam::Vec3::new(0.0, 0.0, 1.2),
-        0.0,
-        footprint,
-        &obstacles,
-    );
-    assert_eq!(clear, glam::Vec3::new(0.0, 0.0, 1.2));
-
-    let head_on = resolve_tank_collision(
-        previous,
-        glam::Vec3::new(0.0, 0.0, 4.9),
-        0.0,
-        footprint,
-        &obstacles,
-    );
-    assert_eq!(head_on, previous);
-
-    let slide = resolve_tank_collision(
-        previous,
-        glam::Vec3::new(2.0, 0.0, 4.9),
-        0.0,
-        footprint,
-        &obstacles,
-    );
-    assert!((slide.x - 2.0).abs() < 1.0e-6, "x slide preserved, got {}", slide.x);
-    assert!((slide.z - previous.z).abs() < 1.0e-6, "z into tank blocked, got {}", slide.z);
-}
-
-/// Two hulls can END UP interpenetrated (a pivot swings the unresolved yaw footprint into a
-/// neighbor; two hulls step into the same space on one tick). From that state the resolver must
-/// let a tank back OUT — rejecting every move deadlocked both tanks for the rest of the battle —
-/// while still refusing moves that grind deeper in.
-#[test]
-fn interpenetrating_hulls_can_back_out_but_not_dig_deeper() {
-    let footprint = TankFootprint { half_width_m: 1.6, half_length_m: 3.2 };
-    // Overlapped start: centres 4 m apart along z, combined half-lengths 6.4 m.
-    let obstacles = [TankObstacle::new(glam::Vec3::new(0.0, 0.0, 4.0), 0.0, footprint)];
-    let previous = glam::Vec3::ZERO;
-
-    let back_out = resolve_tank_collision(
-        previous,
-        glam::Vec3::new(0.0, 0.0, -0.3),
-        0.0,
-        footprint,
-        &obstacles,
-    );
-    assert_eq!(back_out, glam::Vec3::new(0.0, 0.0, -0.3), "backing out must be allowed");
-
-    let deeper = resolve_tank_collision(
-        previous,
-        glam::Vec3::new(0.0, 0.0, 0.3),
-        0.0,
-        footprint,
-        &obstacles,
-    );
-    assert_eq!(deeper, previous, "digging deeper must stay blocked");
-
-    // Repeated back-out ticks fully separate the hulls, after which normal blocking resumes.
-    let mut position = previous;
-    for _ in 0..40 {
-        position = resolve_tank_collision(
-            position,
-            position - glam::Vec3::Z * 0.3,
-            0.0,
-            footprint,
-            &obstacles,
-        );
-    }
-    assert!(position.z < -2.4, "the hull must escape the overlap, got z {}", position.z);
-}
+// The two tests that lived here — `tank_collision_blocks_head_on_and_keeps_the_unblocked_axis`
+// and `interpenetrating_hulls_can_back_out_but_not_dig_deeper` — went with the hard veto they
+// tested (P1.5). Both were about `resolve_tank_collision`: a hull-to-hull stop that refused a move
+// and, because refusing every move from an overlapped start would deadlock a pile-up, an
+// interpenetration escape hatch bolted beside it. Neither mechanism exists now. The contact solver
+// answers both questions with an impulse, and what replaced these is measured rather than asserted
+// in shape: `sim/tests/hulls_touch.rs`, `sim/tests/queue_holds.rs` and
+// `sim/tests/separation_travels.rs`.
 
 fn cover_box(center: [f32; 3], half_extents_m: [f32; 3]) -> terrain::StaticCoverObject {
     terrain::StaticCoverObject {

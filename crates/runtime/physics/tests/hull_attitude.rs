@@ -40,7 +40,7 @@ fn settle(
             input,
             &settings,
             Some(map),
-            TankWorldObstacles::new(&[], obstacles, &[]),
+            TankWorldObstacles::new(&[], obstacles),
             Some(&footprint),
             DT,
         );
@@ -111,7 +111,7 @@ fn flight_freezes_the_attitude_until_landing() {
             full,
             &settings,
             Some(&map),
-            TankWorldObstacles::new(&[], obstacles, &[]),
+            TankWorldObstacles::new(&[], obstacles),
             Some(&footprint),
             DT,
         );

@@ -170,9 +170,6 @@ impl LocalPredictor {
         let world = TankDriveWorld {
             heightmap: Some(heightmap),
             cover,
-            // Hull-to-hull is the contact solve's business, exactly as it is on the server. The
-            // drive step is handed no tank obstacles by either of them.
-            tank_obstacles: &[],
             footprint: Some(&footprint),
             water: self.water,
             rubble,

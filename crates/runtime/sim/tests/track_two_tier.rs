@@ -21,7 +21,6 @@ fn driven(tracks: TrackDriveStatus, command: TankCommand, ticks: u32) -> TankDri
     let world = TankDriveWorld {
         heightmap: None,
         cover: &[],
-        tank_obstacles: &[],
         footprint: None,
         water: None,
         rubble: &[],
