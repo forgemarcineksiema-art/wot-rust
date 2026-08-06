@@ -35,6 +35,20 @@ pub const NEAR_MAX_M: f32 = 55.0;
 pub const MID_MAX_M: f32 = 150.0;
 pub const HYSTERESIS_M: f32 = 8.0;
 
+/// How deep a trunk is set into the ground it stands on, metres.
+///
+/// The importer normalizes every flora asset by grounding its min-y to 0, so a tree planted at
+/// the sampled terrain height stands exactly ON the surface: not one centimetre of the root
+/// flare is buried, and the moment the ground tilts, the downhill side of a 1.1 m flare lifts
+/// clear and the tree reads as a prop set down on the field. Real trunks meet soil. Sinking by
+/// a third of the flare's radius keeps the swell in contact across the terrain's ordinary
+/// grade while leaving the visible root buttresses above ground.
+///
+/// Applied identically to all three rungs, so a LOD swap never shifts a tree vertically. The
+/// trunk's cover box is deliberately NOT moved with it: that column blocks from the ground
+/// line up, and the part being buried here is the part below it.
+const TRUNK_SINK_M: f32 = 0.35;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeLod {
     Near,
@@ -223,7 +237,7 @@ pub fn tree_frame_objects(
         let transform = Mat4::from_scale_rotation_translation(
             Vec3::splat(scale),
             Quat::from_rotation_y(instance.yaw_rad),
-            base,
+            base - Vec3::Y * TRUNK_SINK_M,
         );
         objects.push(RenderObject {
             tank_id: None,
@@ -320,7 +334,13 @@ mod tests {
         assert_eq!(objects.len(), 1, "rocks are not trees");
         assert_eq!(objects[0].mesh, TREE_NEAR_MESH, "ten metres away is the near rung");
         let translation = objects[0].transform[3];
-        assert_eq!([translation[0], translation[1], translation[2]], [100.0, 5.0, 100.0]);
+        // Planted, not parked on top: the trunk is set into its ground by `TRUNK_SINK_M`,
+        // because the importer grounds every asset's min-y to 0 and a tree left at exactly
+        // the sampled height shows daylight under its flare the moment the field tilts.
+        assert_eq!(
+            [translation[0], translation[1], translation[2]],
+            [100.0, 5.0 - TRUNK_SINK_M, 100.0]
+        );
         assert_eq!(state.levels(), &[Some(TreeLod::Near)]);
     }
 

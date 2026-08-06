@@ -22,7 +22,19 @@ pub const FLORA_MAX_TRIS: usize = 1500;
 /// budgets are raised PER ITEM with a measurement (`flora_frame_probe` before/after in the
 /// PR body), never fleet-wide — this constant keeps "hero flora" a deliberate, bounded
 /// exception rather than a new default.
-pub const FLORA_TRI_CEILING: usize = 8000;
+///
+/// Raised 8k -> 20k for the hero oak's canopy rebuild. The 8k bound forced frond cards two
+/// to three metres long, and a card that big is individually legible: edge-on it reads as a
+/// sliver, face-on as a wall, and two crossing ones show their intersection. Worse, the SDF
+/// fusion that built the trunk melted every branch thinner than its voxel, so the cards had
+/// nothing to sit on — measured on the shipped asset, branch geometry stopped at 7.9 m while
+/// leaves reached 11.8 m, and 91% of cards hung further than 30 cm from anything.
+///
+/// Triangles are the right currency to spend here. The bottleneck this whole program keeps
+/// measuring is alpha-cutout OVERDRAW, and shrinking cards while holding total leaf area
+/// covers the same pixels — the added cost is vertex work, on the NEAR rung only, which the
+/// LOD ladder already bounds to trees inside 55 m.
+pub const FLORA_TRI_CEILING: usize = 20_000;
 
 /// The provenance record — part of the asset, not a side note.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
