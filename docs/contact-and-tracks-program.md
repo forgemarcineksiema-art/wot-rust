@@ -232,9 +232,34 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
 
   Cheaper, too: the geometry is projected once per tick instead of once per iteration, because
   positions do not move during a solve — only velocities do.
-- **P1.4 Rotation into the solver; delete the teleport.** Yaw is constrained like translation, and
-  `separate_overlaps` stops writing positions. *Lock:* a pivot against a neighbour transfers through
-  velocity and shows up in the ram bill; no code path assigns `tank.position` outside integration.
+- **P1.4 The teleport is gone — LANDED, and it needed no yaw veto.** The plan said "constrain yaw
+  like translation". Measured first: with P1.2 and P1.3 in place a pivot into a neighbour already
+  leaves **zero** overlap — the solver's angular term holds it, and adding a hard veto on top would
+  only have reintroduced a stop where a shove belongs. What was still there was the positional
+  pass, and on the case it existed for it was at its worst:
+
+  | spawn overlap | before (position) | after (velocity) |
+  |---|---|---|
+  | 3.00 m | 1 tick, **1.489 m/tick — 89 m/s** | 97 ticks, **0.033 m/tick** |
+  | 1.50 m | 0 ticks, 0.740 m/tick | 69 ticks, 0.021 m/tick |
+  | 0.10 m | 0 ticks, 0.040 m/tick | 19 ticks, 0.008 m/tick |
+
+  Eighty-nine metres per second of travel that never happened, on a vehicle whose top speed is
+  fourteen. `separate_overlaps` is deleted; the recovery ceiling scales instead — a hull separates
+  at a metre per second plus another for every metre it is buried, so gross overlap is gone inside
+  two seconds and it got there by driving. The pivot squirt halved as a side effect
+  (0.0148 → 0.0077 m/tick): the teleport had been contributing there too, clearing its own evidence
+  inside the tick.
+
+  **Deleting it exposed a defect it had been papering over.** A hull nobody commanded that tick was
+  never stepped, so it took contact impulses it never spent — shoved every tick, moving never, its
+  velocity climbing without bound. Every living hull is stepped now, commanded or not, the same
+  rule `settle_wrecks` already carries for the vertical. That is the movement policy's own
+  invariant: nothing may DELETE momentum, and a hull that never spends its momentum has had it
+  deleted just as surely.
+
+  Queue penetration halved again on top of P1.3: 5 hulls 0.0137 → **0.0032 m**, 7 hulls
+  0.0197 → **0.0106 m**.
 - **P1.5 Predictor on the same model.** The client stops using the hard veto
   (`predict/obstacle_tests.rs:65` currently locks it under a name the server no longer honours).
   *Lock:* predictor and server resting positions agree within 1 mm over 300 ticks in contact.
