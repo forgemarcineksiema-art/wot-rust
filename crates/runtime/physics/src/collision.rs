@@ -138,7 +138,7 @@ pub struct FootprintContact {
 /// Everything here is expressed in the hulls' OWN frames, not the world's, so a pair grinding
 /// slowly past each other keeps one identity through the whole slide instead of minting a new one
 /// every time the pair rotates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ContactFeature {
     /// Which hull owns the face the contact resolves against: `false` = `a`, `true` = `b`.
     pub reference_is_b: bool,
@@ -160,7 +160,7 @@ const OVERLAP_EPSILON_M: f32 = 1.0e-5;
 /// they overlap. [`obstacles_overlap`] is this test's yes/no answer and stays bit-identical to it:
 /// the separation threshold is the same, so no blocking verdict anywhere moves.
 pub(crate) fn obstacles_contact(a: &TankObstacle, b: &TankObstacle) -> Option<FootprintContact> {
-    footprint_contact_within(a, b, 0.0).filter(|contact| contact.depth_m > OVERLAP_EPSILON_M)
+    footprint_contact_within(a, b, 0.0, None).filter(|contact| contact.depth_m > OVERLAP_EPSILON_M)
 }
 
 /// The same separating-axis test, but reporting a contact for hulls that are merely CLOSE as well
@@ -180,6 +180,7 @@ pub(crate) fn footprint_contact_within(
     a: &TankObstacle,
     b: &TankObstacle,
     margin_m: f32,
+    incumbent: Option<ContactFeature>,
 ) -> Option<FootprintContact> {
     let center_a = Vec2::new(a.center.x, a.center.z);
     let center_b = Vec2::new(b.center.x, b.center.z);
@@ -207,8 +208,54 @@ pub(crate) fn footprint_contact_within(
         }
     }
     let (index, normal, depth_m) = shallowest?;
+    // Hold the axis that was already winning while the two ways out are within a hair of each
+    // other. Two hulls at a small relative yaw have two nearly equal ways out — across one flank
+    // or across the other — and which is shallower CROSSES OVER as they slide past each other
+    // (measured in P1.1: up to twice across a 4 m grind). Letting the crossover through costs a
+    // cache miss in the middle of exactly the sustained contact a cache exists to smooth, and buys
+    // nothing: the two axes differ by the relative yaw, so the answer is the same contact either
+    // way. Preferring the incumbent inside the band keeps one answer.
+    let (index, normal, depth_m) = match incumbent
+        .map(axis_index_of)
+        .filter(|&preferred| preferred != index)
+    {
+        Some(preferred) if depth_along(a, b, &axes, preferred).0 <= depth_m + AXIS_HYSTERESIS_M => {
+            let (depth, normal) = depth_along(a, b, &axes, preferred);
+            (preferred, normal, depth)
+        }
+        _ => (index, normal, depth_m),
+    };
     Some(FootprintContact { normal, depth_m, feature: feature_at(a, b, &axes, index, normal) })
 }
+
+/// How far apart the pair is along one named axis, with the normal oriented `a` -> `b`.
+fn depth_along(
+    a: &TankObstacle,
+    b: &TankObstacle,
+    axes: &[[Vec2; 2]; 2],
+    index: usize,
+) -> (f32, Vec2) {
+    let axis = axes[index / 2][index % 2];
+    let [right_a, forward_a] = axes[0];
+    let [right_b, forward_b] = axes[1];
+    let radius_a = a.footprint.half_width_m * axis.dot(right_a).abs()
+        + a.footprint.half_length_m * axis.dot(forward_a).abs();
+    let radius_b = b.footprint.half_width_m * axis.dot(right_b).abs()
+        + b.footprint.half_length_m * axis.dot(forward_b).abs();
+    let delta = Vec2::new(b.center.x - a.center.x, b.center.z - a.center.z);
+    let separation = delta.dot(axis);
+    let depth = radius_a + radius_b - separation.abs();
+    (depth, if separation < 0.0 { -axis } else { axis })
+}
+
+/// Which of the four projected axes a remembered feature was resolved against.
+fn axis_index_of(feature: ContactFeature) -> usize {
+    usize::from(feature.reference_is_b) * 2 + usize::from(feature.reference_is_end)
+}
+
+/// How much shallower a rival axis has to be before the contact changes hands. Two hulls at a
+/// small relative yaw sit inside this for the whole of a grind, which is the point.
+const AXIS_HYSTERESIS_M: f32 = 0.05;
 
 /// Name the features the winning separating axis picked out: the face it belongs to, and the
 /// corner of the other hull pressed into it.

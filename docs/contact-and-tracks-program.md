@@ -200,9 +200,38 @@ instrument (see `docs/battle-first/audit-register.md` and the playtest retractio
   wading 2.107 m on master, six hundred millimetres past the drowning line the soak's own opening
   line promises no bot reaches.** Filed as register **H1**; the mechanism was already diagnosed in
   `terrain/src/ground.rs` and needs a control redesign, not a constant.
-- **P1.3 Warm start + accumulated friction cone.** Impulses cached per contact ID; the tangential
-  impulse bounded by μ × the *accumulated* normal, not one iteration's. *Lock:* five hulls pressed
-  in a queue settle to < 1 mm/tick.
+- **P1.3 Warm start + accumulated friction cone — LANDED, and the program predicted the wrong
+  symptom.** The lock written here was "five hulls pressed in a queue settle to < 1 mm/tick".
+  Measured before touching anything: **they already did — 0.00000 m/tick at 2, 3, 5 and 7 hulls.**
+  A queue does not shake. What it does is SINK, and the deeper the queue the worse, exactly where
+  the arithmetic says a Jacobi pass runs out of reach (it propagates one hull per iteration, so
+  four iterations reach four hulls).
+
+  | queue | before | after |
+  |---|---|---|
+  | 2 hulls | 0.0202 m | **0.0006 m** |
+  | 3 hulls | 0.0215 m | **0.0014 m** |
+  | 5 hulls | 0.0277 m | **0.0137 m** |
+  | 7 hulls | 0.0368 m | **0.0197 m** |
+
+  Every length now rests inside the 0.020 m of overlap the solver is designed to allow; a
+  seven-hull queue used to blow through it by 84%. Drift stays 0.00000 m/tick throughout.
+
+  Three pieces, and they only work together. The solver keeps a **memory** (`ContactCache`) keyed
+  by vehicle identity and touching feature — never by roster slot, a lesson the ram bill already
+  paid for — so each contact starts the tick holding the impulse its predecessor ended with. The
+  normal impulse is **accumulated and clamped at zero** rather than recomputed per iteration, which
+  is what lets a contact give back impulse it no longer needs without ever pulling. And friction is
+  bounded by μ × the **accumulated** normal: capping each increment separately let four iterations
+  spend four times the budget one contact actually has, which is not a cone at all.
+
+  The fourth piece is P1.1's finding, cashed in: the SAT now **holds the axis that was already
+  winning** while the two ways out are within 0.05 m of each other. Without it the reference face
+  changes hands mid-grind and the cache misses in the middle of exactly the sustained contact it
+  exists to smooth.
+
+  Cheaper, too: the geometry is projected once per tick instead of once per iteration, because
+  positions do not move during a solve — only velocities do.
 - **P1.4 Rotation into the solver; delete the teleport.** Yaw is constrained like translation, and
   `separate_overlaps` stops writing positions. *Lock:* a pivot against a neighbour transfers through
   velocity and shows up in the ram bill; no code path assigns `tank.position` outside integration.

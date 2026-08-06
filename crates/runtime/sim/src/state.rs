@@ -18,6 +18,12 @@ use crate::{FixedTimestep, TankCommand};
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimulationState {
+    /// The contact solver's memory of last tick (see [`physics::ContactCache`]). Authoritative
+    /// state, because it shapes this tick's impulses — but derived state too: a battle replayed
+    /// from its spawn rebuilds it identically, so `serde(default)` keeps older fixtures loading
+    /// with an empty one.
+    #[serde(default)]
+    contact_cache: physics::ContactCache,
     tick: u64,
     next_tank_id: u64,
     tanks: Vec<TankState>,
@@ -94,6 +100,7 @@ const COVER_CRUSH_APPROACH_M: f32 = 0.8;
 impl SimulationState {
     pub fn new() -> Self {
         Self {
+            contact_cache: physics::ContactCache::default(),
             tick: 0,
             next_tank_id: 1,
             tanks: Vec::new(),
@@ -559,7 +566,7 @@ impl SimulationState {
             return Vec::new();
         }
         let bodies = self.contact_bodies();
-        let report = physics::resolve_contacts(&bodies, dt);
+        let report = physics::resolve_contacts(&bodies, &mut self.contact_cache, dt);
         for (index, impulse) in report.bodies.iter().enumerate() {
             if impulse.is_empty() || self.tanks[index].hit_points == 0 {
                 continue;
@@ -609,6 +616,7 @@ impl SimulationState {
         self.tanks
             .iter()
             .map(|tank| ContactBody {
+                id: tank.id.0,
                 position: tank.position,
                 velocity: tank.velocity_mps,
                 yaw_rad: tank.yaw_rad,
