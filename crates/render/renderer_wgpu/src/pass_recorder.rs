@@ -77,6 +77,32 @@ impl FrameCounts {
     }
 }
 
+/// Which pass owns which timestamp slot, for the frame that just ran.
+///
+/// Slots are handed out in encoding order, so slot `2i` is the start of `slots[i]` and `2i + 1`
+/// its end. Reading the query set back without this is reading numbers with no names on them.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PassOrder {
+    slots: [Option<PassId>; PassId::COUNT],
+    len: usize,
+}
+
+impl PassOrder {
+    /// How many passes this frame encoded — and so how many timestamp PAIRS it wrote.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Each encoded pass with its slot index, in the order the frame encoded them.
+    pub fn iter(&self) -> impl Iterator<Item = (usize, PassId)> + '_ {
+        self.slots[..self.len].iter().enumerate().filter_map(|(i, id)| id.map(|id| (i, id)))
+    }
+}
+
 /// Which end(s) of a pass this call writes a timestamp at.
 ///
 /// Only the bloom ladder needs anything but [`TimestampSpan::Whole`]: it is 2N passes under one
@@ -216,6 +242,16 @@ impl<'p> PassRecorder<'p> {
     /// feature, so this half of the instrument works on adapters that cannot time a thing.
     pub(crate) fn counts(&self) -> FrameCounts {
         self.counts
+    }
+
+    /// Which pass owns which timestamp slot this frame — the names for the numbers the query set
+    /// gives back.
+    pub(crate) fn order(&self) -> PassOrder {
+        let mut slots = [None; PassId::COUNT];
+        for (slot, pass) in self.order.iter().enumerate() {
+            slots[slot] = Some(*pass);
+        }
+        PassOrder { slots, len: self.order.len() }
     }
 
     /// Copy this frame's timestamps out of the query set, ready to be read back.

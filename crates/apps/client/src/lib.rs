@@ -8,6 +8,7 @@ mod hit_indicator;
 mod hud;
 mod look_harness;
 mod loop_policy;
+mod pass_stats;
 mod predict;
 mod render_state;
 mod ui_strings;
@@ -35,6 +36,7 @@ pub use look_harness::{
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
+pub use pass_stats::{Percentiles, RotationStats};
 pub use render_state::InterpolatedBattleState;
 pub use scene_build::battlefield::{
     STATICS_BACKDROP_BUCKET, STATICS_BUCKET_COUNT, assemble_statics_mesh,

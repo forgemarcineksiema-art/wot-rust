@@ -159,6 +159,9 @@ pub struct SceneRenderer {
     /// no GPU feature, so unlike the timings this half is available on any adapter and inside an
     /// ordinary test. A `Cell` because `render` takes `&self`, like `skipped_mesh_draws`.
     frame_counts: Cell<crate::pass_recorder::FrameCounts>,
+    /// Which pass owned which timestamp slot in the last frame — the names for the numbers the
+    /// query set gives back. Meaningless while the profiler is `Disabled`, and unread then.
+    frame_pass_order: Cell<crate::pass_recorder::PassOrder>,
 }
 
 impl SceneRenderer {
@@ -227,6 +230,18 @@ impl SceneRenderer {
     /// can time anything.
     pub fn last_frame_counts(&self) -> crate::pass_recorder::FrameCounts {
         self.frame_counts.get()
+    }
+
+    /// What each pass of the last frame cost on the GPU, if this renderer is armed for timing.
+    ///
+    /// Blocks on the device, so it belongs after a probe's own fence and never in a shipped
+    /// frame. `None` means the instrument is not armed or the frame encoded nothing — never a
+    /// table of zeroes, which would read as a free frame.
+    pub fn read_pass_timings(
+        &self,
+        ctx: &GpuContext,
+    ) -> Option<crate::frame_profiler::FrameTimings> {
+        self.profiler.active()?.read(&ctx.device, self.frame_pass_order.get())
     }
 
     pub fn new(
@@ -502,6 +517,7 @@ impl SceneRenderer {
             skipped_mesh_draws: Cell::new(0),
             profiler: crate::frame_profiler::FrameProfiler::Disabled,
             frame_counts: Cell::new(crate::pass_recorder::FrameCounts::default()),
+            frame_pass_order: Cell::new(crate::pass_recorder::PassOrder::default()),
         })
     }
 }

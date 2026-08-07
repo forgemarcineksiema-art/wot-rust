@@ -284,7 +284,14 @@ fn frame_time_capture() {
     let (dressing_v, dressing_i) =
         client::grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
 
-    let Ok(ctx) = renderer_wgpu::GpuContext::headless() else {
+    // Armed for per-pass timing. Every config in the rotation pays the same query writes, so the
+    // DELTAS between them are untouched; the absolutes carry whatever the instrument costs, which
+    // is the honest trade for knowing where the time goes.
+    let Ok(ctx) =
+        renderer_wgpu::GpuContext::headless_with_options(renderer_wgpu::GpuContextOptions {
+            pass_timing: true,
+        })
+    else {
         println!("frame time: no headless GPU adapter — skipped");
         return;
     };
@@ -319,6 +326,12 @@ fn frame_time_capture() {
         adapter.device_type,
         adapter.driver,
     );
+    let profiler = renderer_wgpu::FrameProfiler::new(&ctx.device, &ctx.queue, true);
+    if let Some(reason) = profiler.unavailable_reason() {
+        println!("per-pass timing unavailable: {reason}");
+    }
+    let timed = profiler.active().is_some();
+    renderer.set_pass_profiler(profiler);
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
@@ -383,6 +396,10 @@ fn frame_time_capture() {
     // Every timed frame of a config walks the same path and draws the same content, so one
     // frame's counts describe the config.
     let mut counts: [renderer_wgpu::FrameCounts; 7] = Default::default();
+    // Per-pass GPU time, kept per config AND per rotation cycle. The ledger refuses to report if
+    // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
+    // authority, which is the exact reading the rotation exists to prevent.
+    let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -404,7 +421,7 @@ fn frame_time_capture() {
     }
     let _ = target.read_rgba8(&ctx);
 
-    for _cycle in 0..CYCLES {
+    for cycle in 0..CYCLES {
         for (config, &(_, with_dressing, with_grass, fov, tanks)) in configs.iter().enumerate() {
             // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
             if with_dressing != dressing_bound {
@@ -489,6 +506,16 @@ fn frame_time_capture() {
                 if block_frame >= BLOCK_WARMUP {
                     samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
                     counts[config] = renderer.last_frame_counts();
+                    // Read AFTER the wall-clock sample: the readback maps a buffer and would
+                    // otherwise be timed as frame cost, which is how an instrument starts
+                    // measuring itself.
+                    if let Some(timings) = renderer.read_pass_timings(&ctx) {
+                        let per_pass: Vec<Option<f32>> = renderer_wgpu::PassId::ALL
+                            .iter()
+                            .map(|id| timings.pass_ms(*id))
+                            .collect();
+                        stats.record(config, cycle, timings.frame_ms(), &per_pass);
+                    }
                 }
             }
         }
@@ -543,8 +570,61 @@ fn frame_time_capture() {
         }
     }
     println!(
-        "  the 7v7 lineup is {lineup_objects} render objects; the draw counts above are what the          renderer actually submitted after batching by (mesh, material)."
+        "  the 7v7 lineup is {lineup_objects} render objects; the counts above are what the renderer actually submitted after batching by (mesh, material)."
     );
+
+    // Per-pass GPU time. Printed only if the rotation completed: the whole defence against this
+    // laptop's thermal ramp is that every config visited every cycle, and an aggregate over a
+    // half-finished rotation compares a cold config against a hot one while looking rigorous.
+    if !timed {
+        println!(
+            "
+per-pass GPU time: unavailable on this adapter"
+        );
+    } else if let Some(complaint) = stats.imbalance() {
+        println!(
+            "
+per-pass GPU time: {complaint}"
+        );
+    } else {
+        println!(
+            "
+per-pass GPU time (ms, timestamp queries; every config equally armed):"
+        );
+        for (config, (name, _, _, _, _)) in configs.iter().enumerate() {
+            let frame = stats.frame(config);
+            println!(
+                "  [{name}] frame p50 {:.3}  p95 {:.3}  p99 {:.3}  max {:.3}  ({} samples)",
+                frame.p50, frame.p95, frame.p99, frame.max, frame.samples,
+            );
+            // The SHARE is the number that survives a hot box. Absolutes drift with the
+            // laptop's thermal state by a factor of two; the split between passes does not,
+            // which makes it the part of this table worth acting on.
+            let share = |ms: f32| if frame.p50 > 0.0 { 100.0 * ms / frame.p50 } else { 0.0 };
+            for (index, id) in renderer_wgpu::PassId::ALL.iter().enumerate() {
+                let Some(pass) = stats.pass(config, index) else { continue };
+                println!(
+                    "      {:<18} p50 {:>7.3}  p95 {:>7.3}  p99 {:>7.3}   {:>5.1}% of frame",
+                    id.label(),
+                    pass.p50,
+                    pass.p95,
+                    pass.p99,
+                    share(pass.p50),
+                );
+            }
+            // Always, even at zero: a table that only mentions the gap when it is large teaches
+            // the reader that the passes are the whole frame.
+            let gap = stats.unattributed(config);
+            println!(
+                "      {:<18} p50 {:>7.3}  p95 {:>7.3}  p99 {:>7.3}   {:>5.1}% <- outside every pass",
+                "unattributed",
+                gap.p50,
+                gap.p95,
+                gap.p99,
+                share(gap.p50),
+            );
+        }
+    }
     println!(
         "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",
         (full_p50 - fence_p50).max(0.0)

@@ -17,6 +17,7 @@
 //! nothing is a test rather than a promise.
 
 use crate::frame_graph::PassId;
+use crate::pass_recorder::PassOrder;
 
 /// Two timestamps per pass: one written at the start of the pass, one at the end.
 const SLOTS_PER_PASS: u32 = 2;
@@ -32,6 +33,43 @@ pub(crate) fn required_features(want_timing: bool, available: wgpu::Features) ->
         wgpu::Features::TIMESTAMP_QUERY
     } else {
         wgpu::Features::empty()
+    }
+}
+
+/// What each pass of one frame cost on the GPU, in milliseconds.
+///
+/// `frame_ms` is the span from the first pass's start to the last pass's end, so it is NOT the sum
+/// of the parts: whatever the GPU spends between passes — resolves, layout transitions, idle
+/// waiting on a previous submit — lands in the gap. That gap is reported rather than hidden,
+/// because a per-pass table that quietly sums to less than the frame invites the reader to
+/// believe the passes are the whole story.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FrameTimings {
+    per_pass_ms: [f32; PassId::COUNT],
+    ran: [bool; PassId::COUNT],
+    frame_ms: f32,
+}
+
+impl FrameTimings {
+    /// What this pass cost, or `None` if the frame did not encode it.
+    pub fn pass_ms(&self, id: PassId) -> Option<f32> {
+        self.ran[id.index()].then(|| self.per_pass_ms[id.index()])
+    }
+
+    /// The passes added up.
+    pub fn sum_ms(&self) -> f32 {
+        self.per_pass_ms.iter().sum()
+    }
+
+    /// First start to last end.
+    pub fn frame_ms(&self) -> f32 {
+        self.frame_ms
+    }
+
+    /// What the frame spent outside any pass. Never negative in practice; clamped so a
+    /// nanosecond of measurement noise cannot print as a negative residual.
+    pub fn unattributed_ms(&self) -> f32 {
+        (self.frame_ms - self.sum_ms()).max(0.0)
     }
 }
 
@@ -85,6 +123,52 @@ impl ActiveProfiler {
     pub fn slots(&self, pass: PassId) -> (u32, u32) {
         let base = pass.index() as u32 * SLOTS_PER_PASS;
         (base, base + 1)
+    }
+
+    /// Read the last resolved frame's timestamps back and turn ticks into milliseconds.
+    ///
+    /// Blocks on the device: the caller is a probe that has already fenced the frame, and a
+    /// non-blocking read would hand back the frame before last with nothing saying so. Returns
+    /// `None` when the frame encoded no passes or the mapping failed — never a zeroed table,
+    /// which would read as "every pass was free".
+    pub fn read(&self, device: &wgpu::Device, order: PassOrder) -> Option<FrameTimings> {
+        if order.is_empty() {
+            return None;
+        }
+        let written = order.len() * SLOTS_PER_PASS as usize;
+        let bytes = (written * std::mem::size_of::<u64>()) as u64;
+        let slice = self.readback.slice(..bytes);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        if device.poll(wgpu::PollType::wait_indefinitely()).is_err() {
+            return None;
+        }
+        let ticks: Vec<u64> = slice
+            .get_mapped_range()
+            .chunks_exact(std::mem::size_of::<u64>())
+            .map(|bytes| u64::from_le_bytes(bytes.try_into().expect("eight bytes")))
+            .collect();
+        self.readback.unmap();
+        if ticks.len() < written {
+            return None;
+        }
+
+        let to_ms = |ticks: u64| ticks as f64 * f64::from(self.period_ns) / 1.0e6;
+        let mut timings = FrameTimings::default();
+        for (slot, pass) in order.iter() {
+            let begin = ticks[slot * 2];
+            let end = ticks[slot * 2 + 1];
+            // A pass whose end precedes its start is a driver reporting nonsense, not a negative
+            // duration; drop it rather than let it eat the residual.
+            if end < begin {
+                continue;
+            }
+            timings.per_pass_ms[pass.index()] = to_ms(end - begin) as f32;
+            timings.ran[pass.index()] = true;
+        }
+        let first = ticks[0];
+        let last = ticks[written - 1];
+        timings.frame_ms = if last >= first { to_ms(last - first) as f32 } else { 0.0 };
+        Some(timings)
     }
 }
 

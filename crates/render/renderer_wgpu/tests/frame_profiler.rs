@@ -231,3 +231,67 @@ fn an_armed_frame_writes_timestamps_the_gpu_actually_fills_in() {
         (ticks[1] - ticks[0]) as f64 * f64::from(active.period_ns()) / 1.0e6,
     );
 }
+
+/// The readback the aggregation is about to be built on: every pass the frame encoded comes back
+/// with a positive duration, and the parts never exceed the whole.
+///
+/// The residual between them is the point of reporting `frame_ms` separately. A per-pass table
+/// that silently sums to less than the frame invites the reader to believe the passes are the
+/// whole story, and the gap — resolves, transitions, waiting on a previous submit — is exactly
+/// where an unexplained millisecond would hide.
+#[test]
+fn a_timed_frame_reads_back_a_table_whose_parts_fit_inside_the_whole() {
+    let Ok(ctx) = GpuContext::headless_with_options(GpuContextOptions { pass_timing: true }) else {
+        eprintln!("skipping timing readback test: no headless adapter");
+        return;
+    };
+    let profiler = FrameProfiler::new(&ctx.device, &ctx.queue, true);
+    if profiler.active().is_none() {
+        eprintln!(
+            "skipping timing readback test: {}",
+            profiler.unavailable_reason().unwrap_or("?")
+        );
+        return;
+    }
+
+    let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+    let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+    renderer.set_pass_profiler(profiler);
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    renderer
+        .render(
+            &ctx,
+            target.render_target(),
+            view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+            camera.eye,
+        )
+        .expect("render");
+    let _ = target.read_rgba8(&ctx);
+
+    let timings = renderer.read_pass_timings(&ctx).expect("an armed frame must report timings");
+    let mut named = 0;
+    for id in PassId::ALL {
+        if let Some(ms) = timings.pass_ms(*id) {
+            assert!(ms >= 0.0, "{} reported a negative duration", id.label());
+            eprintln!("{:<18} {:.4} ms", id.label(), ms);
+            named += 1;
+        }
+    }
+    assert!(named >= 3, "a frame that drew something encoded more than {named} passes");
+    assert!(
+        timings.sum_ms() <= timings.frame_ms() + 1.0e-3,
+        "the passes ({:.4} ms) cannot outweigh the frame ({:.4} ms)",
+        timings.sum_ms(),
+        timings.frame_ms()
+    );
+    eprintln!(
+        "frame {:.4} ms, passes {:.4} ms, unattributed {:.4} ms",
+        timings.frame_ms(),
+        timings.sum_ms(),
+        timings.unattributed_ms()
+    );
+}

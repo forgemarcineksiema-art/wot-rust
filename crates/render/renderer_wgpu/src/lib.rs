@@ -32,7 +32,7 @@ use renderer_api::{
 };
 
 pub use frame_graph::PassId;
-pub use frame_profiler::{ActiveProfiler, FrameProfiler};
+pub use frame_profiler::{ActiveProfiler, FrameProfiler, FrameTimings};
 pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::{GpuContext, GpuContextOptions};
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
@@ -41,7 +41,7 @@ pub use gpu_layout::{
     tank_vertex_bytes,
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
-pub use pass_recorder::{FrameCounts, PassCounts};
+pub use pass_recorder::{FrameCounts, PassCounts, PassOrder};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
 pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};

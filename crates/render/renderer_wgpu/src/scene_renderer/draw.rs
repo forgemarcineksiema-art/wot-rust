@@ -326,6 +326,7 @@ impl super::SceneRenderer {
         recorder.resolve(&mut encoder);
         // The counts, unlike the timings, are always there to take.
         self.frame_counts.set(recorder.counts());
+        self.frame_pass_order.set(recorder.order());
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
     }
