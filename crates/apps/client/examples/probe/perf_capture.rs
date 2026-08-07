@@ -170,59 +170,94 @@ pub(crate) fn run() {
 /// "one look" policy is stated in. The vehicles are spread in depth on purpose: the gear switches
 /// detail tier by distance, so a battle's real cost is a MIX of tiers, and a lineup parked at one
 /// range would measure a tier the game never draws alone.
+/// How this config decides each tank's running-gear tier.
+///
+/// The shipping builder derives the tier from ONE input -- the distance from the eye -- and
+/// nothing else reads that argument. So the brackets are expressed by lying about where the eye
+/// is, rather than by a second tier mechanism the probe would own: `None` is the builder's
+/// documented "no camera" case (authored construction, i.e. near), and a distant sentinel forces
+/// the far tier on every tank. The probe therefore has no tier rule of its own to drift from the
+/// game's.
+#[derive(Clone, Copy)]
+enum FleetGear {
+    /// The battle's own rule, applied per tank from this frame's real eye.
+    FromEye,
+    ForcedNear,
+    ForcedFar,
+}
+
+impl FleetGear {
+    fn eye(self, actual: [f32; 3]) -> Option<[f32; 3]> {
+        match self {
+            FleetGear::FromEye => Some(actual),
+            FleetGear::ForcedNear => None,
+            FleetGear::ForcedFar => Some([0.0, 0.0, -10_000.0]),
+        }
+    }
+}
+
+/// The 7v7, built through the SAME call the battle makes.
+///
+/// It used to be built through `tank_render_objects_tiered` into the SCENE frame -- a second
+/// vehicle path the game does not use. That drew the fleet with the scene shader instead of
+/// `vehicle.wgsl`, without vehicle materials, and INTO THE FAR SHADOW CASCADE the battle
+/// deliberately excludes it from. Every fleet cost this probe ever reported described a fleet
+/// drawn as scenery.
 fn battle_lineup(
     battlefield: &terrain::BattlefieldMap,
-    catalog: &mut client::VehicleMeshCatalog,
-    tier: client::GearTier,
-) -> Vec<renderer_api::RenderObject> {
+    catalog: &mut client::VehicleAssetCatalog,
+    eye: Option<[f32; 3]>,
+) -> client::VehicleRenderFrame {
     use game_core::VehicleKind;
 
     // An engagement, not a parade: the fourteen sit 27..180 m out from the eye path (which walks
-    // +Z from z=380 to z≈443), so about four of them fall inside the 60 m gear-detail threshold
+    // +Z from z=380 to z~443), so about four of them fall inside the 60 m gear-detail threshold
     // at the closest point and the rest stay on the distance tier. A lineup parked at ONE range
-    // would measure a tier the game never draws alone; passing `eye` applies the battle's own
-    // rule per tank, which the first version of this instrument did not — it built every tank at
-    // the near tier and so measured gear the game does not draw at that distance.
+    // would measure a tier the game never draws alone.
     let roster = VehicleKind::PLAYABLE;
-    let mut objects = Vec::new();
-    for slot in 0..14 {
+    let mut tanks = Vec::with_capacity(14);
+    for slot in 0..14u32 {
         let team = slot / 7;
         let file = slot % 7;
-        let kind = roster[slot % roster.len()];
+        let kind = roster[slot as usize % roster.len()];
         let x = 442.0 + (file as f32 - 3.0) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
         let z = 470.0 + slot as f32 * 9.0;
         let ground = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
-        let snapshot = net::TankSnapshot {
-            tank_id: game_core::TankId(slot as u64 + 1),
+        tanks.push(engine::PresentationTank {
+            id: game_core::TankId(u64::from(slot) + 1),
             team: game_core::TeamId(team as u16 + 1),
             vehicle: kind,
-            position: [x, ground, z],
-            yaw_rad: if team == 0 { 0.4 } else { 3.5 },
-            hull_pitch_rad: 0.0,
-            hull_roll_rad: 0.0,
+            translation: [x, ground, z],
+            hull_yaw_rad: if team == 0 { 0.4 } else { 3.5 },
             turret_yaw_rad: 0.1,
-            turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.05,
             hit_points: 1000,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
-            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
-            track_damage_mask: 0,
-            track_hp: [game_core::TRACK_HP_MAX; 2],
-            ammo_counts: game_core::AmmoLoadout::default().counts,
-            selected_ammo: 0,
             spotted_by_teams_mask: 0,
-            armor_breaches: Default::default(),
+            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
+            track_damage_mask: 0,
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
-            rack_fire_remaining_s: None,
-        };
-        let tint = if team == 0 { [0.34, 0.38, 0.30] } else { [0.40, 0.34, 0.28] };
-        objects.append(&mut client::tank_render_objects_tiered(catalog, &snapshot, tint, tier));
+            armor_breaches: Default::default(),
+            track_left_m: 0.0,
+            track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
+        });
     }
-    objects
+    client::split_pbr_vehicle_render_frame_on_terrain(
+        catalog,
+        tanks,
+        game_core::TankId(1),
+        1.0,
+        Some(&battlefield.heightmap),
+        0,
+        eye,
+    )
 }
 
 /// Render a real battle scene offscreen and report the frame-time distribution.
@@ -296,16 +331,22 @@ fn frame_time_capture() {
     // any other.
     // Pre-warm: creating a vehicle's catalog entry registers BOTH gear tiers, so one build puts
     // every mesh the rotation can ask for on the GPU before any frame is timed.
-    let mut catalog = client::VehicleMeshCatalog::default();
-    let warm = battle_lineup(&battlefield, &mut catalog, client::GearTier::FromEye(None));
-    for (handle, mesh) in catalog.take_pending_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
+    let mut catalog = client::VehicleAssetCatalog::default();
+    // Both tiers are built once, so every mesh the rotation can ask for is on the GPU before any
+    // frame is timed; a first-use bake inside a timed block would be measured as frame cost.
+    let warm = battle_lineup(&battlefield, &mut catalog, None);
+    let _ = battle_lineup(&battlefield, &mut catalog, Some([0.0, 0.0, -10_000.0]));
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+    }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(&ctx, handle, &maps);
     }
     // Objects are NOT draws: the renderer batches by (mesh, material), so a tank's 192 shoe
     // links collapse into one instanced draw. Both numbers are reported below, per config, and
     // the draw count now comes from the FRAMES THEMSELVES rather than from a second, parallel
     // implementation of batching that nothing else used and nothing kept honest.
-    let lineup_objects = warm.len();
+    let lineup_objects = warm.objects.len();
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
@@ -325,26 +366,14 @@ fn frame_time_capture() {
     // what the distance tier can ever buy, and they sit in the SAME rotation as everything else
     // because a tier A/B run as separate processes measures this laptop's thermal ramp instead
     // (the baseline moved 19.2 -> 23.8 ms across four sequential runs while nothing changed).
-    let configs: [(&str, bool, bool, f32, Option<client::GearTier>); 7] = [
+    let configs: [(&str, bool, bool, f32, Option<FleetGear>); 7] = [
         ("full scene", true, true, 60.0, None),
         ("no card meadow", false, true, 60.0, None),
         ("no near ring", true, false, 60.0, None),
         ("scope 18deg", true, true, 18.0, None),
-        ("full + 7v7", true, true, 60.0, Some(client::GearTier::FromEye(None))),
-        (
-            "7v7 gear NEAR forced",
-            true,
-            true,
-            60.0,
-            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Near)),
-        ),
-        (
-            "7v7 gear FAR forced",
-            true,
-            true,
-            60.0,
-            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Far)),
-        ),
+        ("full + 7v7", true, true, 60.0, Some(FleetGear::FromEye)),
+        ("7v7 gear NEAR forced", true, true, 60.0, Some(FleetGear::ForcedNear)),
+        ("7v7 gear FAR forced", true, true, 60.0, Some(FleetGear::ForcedFar)),
     ];
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
@@ -417,16 +446,15 @@ fn frame_time_capture() {
 
                 // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
                 // detail tier a tank draws at is a function of where the camera is this frame.
-                let mut grass = grass;
-                if let Some(tier) = tanks {
-                    let tier = match tier {
-                        client::GearTier::FromEye(_) => client::GearTier::FromEye(Some(eye.into())),
-                        forced => forced,
-                    };
-                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, tier));
-                    for (handle, mesh) in catalog.take_pending_meshes() {
-                        renderer.register_mesh(&ctx, handle, &mesh);
-                    }
+                let fleet = tanks.map_or_else(
+                    || client::VehicleRenderFrame { objects: Vec::new(), armor_damage: Vec::new() },
+                    |gear| battle_lineup(&battlefield, &mut catalog, gear.eye(eye.into())),
+                );
+                for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+                    renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+                }
+                for (handle, maps) in catalog.take_pending_vehicle_materials() {
+                    renderer.register_vehicle_material(&ctx, handle, &maps);
                 }
 
                 let t = Instant::now();
@@ -434,6 +462,16 @@ fn frame_time_capture() {
                     &ctx,
                     &renderer_api::RenderFrame {
                         objects: grass,
+                        ..renderer_api::RenderFrame::default()
+                    },
+                );
+                // Always set it, even when empty: otherwise the previous config's fleet would
+                // linger into a config that is supposed to have none.
+                renderer.set_vehicle_render_frame(
+                    &ctx,
+                    &renderer_api::RenderFrame {
+                        objects: fleet.objects,
+                        armor_damage: fleet.armor_damage,
                         ..renderer_api::RenderFrame::default()
                     },
                 );
