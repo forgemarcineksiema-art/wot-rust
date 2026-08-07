@@ -24,7 +24,7 @@ use std::cell::Cell;
 
 use renderer_api::{RenderError, SceneLighting, SceneVertex};
 
-use crate::msaa::{default_sample_count, validate_msaa_support};
+use crate::msaa::{review_sample_count, shipped_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::scene_pipeline::{build_hud_pipeline, build_scene_pipeline};
 use crate::scene_resources::{SceneMeshRegistry, SceneObjectDraw};
@@ -155,12 +155,31 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
+    /// A renderer for a REVIEW image, multisampled at `msaa::review_sample_count` — not what the
+    /// game runs. For a frame-time capture use [`Self::for_offscreen_as_shipped`].
     pub fn for_offscreen(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
         terrain_indices: &[u32],
     ) -> Result<Self, RenderError> {
         Self::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb, terrain_vertices, terrain_indices)
+    }
+
+    /// A renderer whose sample count resolves the way the window's does, so an offscreen capture
+    /// measures the frame the player pays for. Pair it with [`crate::OffscreenTarget::new_as_shipped`].
+    pub fn for_offscreen_as_shipped(
+        ctx: &GpuContext,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+    ) -> Result<Self, RenderError> {
+        Self::new_with_sample_count_and_quality(
+            ctx,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            shipped_sample_count(renderer_api::DEFAULT_MSAA_SAMPLES),
+            terrain_vertices,
+            terrain_indices,
+            None,
+        )
     }
 
     /// As [`Self::for_offscreen`] with an EXPLICIT lighting quality, bypassing the adapter
@@ -202,7 +221,7 @@ impl SceneRenderer {
         Self::new_with_sample_count_and_quality(
             ctx,
             color_format,
-            default_sample_count(),
+            review_sample_count(),
             terrain_vertices,
             terrain_indices,
             quality_override,

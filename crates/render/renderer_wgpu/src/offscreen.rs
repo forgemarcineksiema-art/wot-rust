@@ -1,7 +1,7 @@
 use renderer_api::RenderError;
 
 use crate::GpuContext;
-use crate::msaa::{default_sample_count, validate_msaa_support};
+use crate::msaa::{review_sample_count, shipped_sample_count, validate_msaa_support};
 use crate::scene_target::{SceneRenderTarget, store_op_for_target};
 
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -25,8 +25,22 @@ pub struct OffscreenTarget {
 }
 
 impl OffscreenTarget {
+    /// A target for a REVIEW image — a golden frame, a studio tile, a probe picture a human
+    /// looks at. Multisampled at [`review_sample_count`], which the shipped game is not; see
+    /// that function for why the gap is held rather than closed.
+    ///
+    /// If you are measuring the game rather than looking at it, use [`Self::new_as_shipped`].
     pub fn new(ctx: &GpuContext, width: u32, height: u32) -> Result<Self, RenderError> {
-        Self::new_with_sample_count(ctx, width, height, default_sample_count())
+        Self::new_with_sample_count(ctx, width, height, review_sample_count())
+    }
+
+    /// A target that resolves its sample count exactly the way the window does, so an offscreen
+    /// frame-time capture measures the picture the player gets. Pair it with
+    /// [`crate::SceneRenderer::for_offscreen_as_shipped`] — the renderer and the target must
+    /// agree or `SceneRenderer::render` refuses the frame.
+    pub fn new_as_shipped(ctx: &GpuContext, width: u32, height: u32) -> Result<Self, RenderError> {
+        let samples = shipped_sample_count(renderer_api::DEFAULT_MSAA_SAMPLES);
+        Self::new_with_sample_count(ctx, width, height, samples)
     }
 
     pub fn new_with_sample_count(

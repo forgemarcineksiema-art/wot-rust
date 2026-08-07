@@ -253,16 +253,26 @@ fn frame_time_capture() {
         println!("frame time: no headless GPU adapter — skipped");
         return;
     };
-    let Ok(target) = renderer_wgpu::OffscreenTarget::new(&ctx, width, height) else {
+    // The SHIPPED sample count, not the review one. Until this line existed the capture built
+    // its scene at 4x MSAA while the window ships 1x on every adapter, so every frame-time
+    // number this project has quoted described a picture nobody plays — more expensive in fill
+    // and cleaner on distant geometry than the real thing.
+    let Ok(target) = renderer_wgpu::OffscreenTarget::new_as_shipped(&ctx, width, height) else {
         println!("frame time: offscreen target unavailable — skipped");
         return;
     };
     let Ok(mut renderer) =
-        renderer_wgpu::SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &statics_v, &statics_i)
     else {
         println!("frame time: scene renderer unavailable — skipped");
         return;
     };
+    println!(
+        "frame time: {}x{} offscreen, {}x MSAA (the shipped count — review images use 4x)",
+        width,
+        height,
+        target.sample_count(),
+    );
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);

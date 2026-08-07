@@ -1,6 +1,6 @@
 use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex};
 
-use crate::msaa::{resolve_msaa_samples, validate_msaa_support};
+use crate::msaa::{shipped_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
@@ -69,12 +69,9 @@ impl WindowRenderer {
         // between the stick and the screen, for no smoothness in return.
         config.desired_maximum_frame_latency = 1;
         // One-look policy: MSAA follows the same canonical/rich split as the lighting profile.
-        let rich = std::env::var("WOT_QUALITY").ok().as_deref().map(str::trim) == Some("high");
-        let sample_count = resolve_msaa_samples(
-            settings.msaa_samples,
-            rich,
-            std::env::var("WOT_MSAA").ok().as_deref(),
-        );
+        // Resolved through the shared helper, not inline, so an offscreen instrument that claims
+        // to measure this frame reaches the same number by construction.
+        let sample_count = shipped_sample_count(settings.msaa_samples);
         validate_msaa_support(&ctx, config.format, DEPTH_FORMAT, sample_count)?;
         surface.configure(&ctx.device, &config);
 

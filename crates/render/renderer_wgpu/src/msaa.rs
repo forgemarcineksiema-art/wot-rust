@@ -2,8 +2,38 @@ use renderer_api::{DEFAULT_MSAA_SAMPLES, RenderError};
 
 use crate::GpuContext;
 
-pub(crate) fn default_sample_count() -> u32 {
+/// The sample count REVIEW images are rendered at: golden look frames, studio tiles, and every
+/// `*_probe` that produces a picture for a human to judge.
+///
+/// This is NOT what the game renders. The window resolves to 1x on every adapter
+/// ([`resolve_msaa_samples`]), so a review frame is multisampled 4x while the shipped frame is
+/// not. That divergence is a KNOWN DEBT, deliberately held here rather than fixed by flipping
+/// the goldens: re-recording 24 committed frames is an art-direction decision, and it needs the
+/// measured 1x-versus-4x cost per pass before anyone can take it. Until then the debt is at
+/// least named, and it is pinned by
+/// `the_review_path_is_pinned_and_does_not_claim_to_be_the_shipped_game`.
+///
+/// Anything that MEASURES the game — frame-time probes — must use [`shipped_sample_count`]
+/// instead, so the instrument and the thing it measures are the same picture.
+pub(crate) fn review_sample_count() -> u32 {
     u32::from(DEFAULT_MSAA_SAMPLES)
+}
+
+/// The sample count the SHIPPED game resolves to, read through the same two knobs the window
+/// reads. This is the one place that resolution lives, so an offscreen instrument and the window
+/// cannot drift apart — they did, silently, and every frame-time number this project has ever
+/// quoted was taken at 4x while the game ran at 1x.
+pub(crate) fn shipped_sample_count(requested: u8) -> u32 {
+    resolve_msaa_samples(
+        requested,
+        rich_profile_requested(),
+        std::env::var("WOT_MSAA").ok().as_deref(),
+    )
+}
+
+/// The dev-only `WOT_QUALITY=high` profile, read the same way on every path that asks.
+pub(crate) fn rich_profile_requested() -> bool {
+    std::env::var("WOT_QUALITY").ok().as_deref().map(str::trim) == Some("high")
 }
 
 /// The sample count the window renderer actually uses: the caller's request, cut to 1× on
@@ -63,7 +93,29 @@ fn validate_sample_count(sample_count: u32) -> Result<(), RenderError> {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_msaa_samples;
+    use renderer_api::DEFAULT_MSAA_SAMPLES;
+
+    use super::{resolve_msaa_samples, review_sample_count};
+
+    /// The review path is multisampled and the shipped game is not — the divergence that made
+    /// every frame-time number this project has quoted describe a picture nobody plays, and made
+    /// every golden PNG a cleaner image than the one on screen.
+    ///
+    /// Both numbers are written down here so the gap is a decision with a size, not a surprise
+    /// waiting to be found a third time. When the goldens move to the shipped count, this test
+    /// fails on its own `assert_ne!` — that is the signal to delete it together with the debt
+    /// note on [`review_sample_count`].
+    #[test]
+    fn the_review_path_is_pinned_and_does_not_claim_to_be_the_shipped_game() {
+        let shipped = resolve_msaa_samples(DEFAULT_MSAA_SAMPLES, false, None);
+        assert_eq!(review_sample_count(), 4, "review images stay multisampled for now");
+        assert_eq!(shipped, 1, "the shipped window is 1x on every adapter");
+        assert_ne!(
+            review_sample_count(),
+            shipped,
+            "the review path and the game agree now — retire this test and the debt it names"
+        );
+    }
 
     /// One-look policy: the shipped picture is 1× on EVERY adapter; only the dev-only rich
     /// profile keeps the requested count, and the env override wins over both.

@@ -28,7 +28,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         .expect("midfield review view");
 
     let ctx = GpuContext::headless()?;
-    let target = OffscreenTarget::new(&ctx, width, height)?;
+    // Frame-time probe: the shipped sample count, so the A/B prices the player's frame.
+    let target = OffscreenTarget::new_as_shipped(&ctx, width, height)?;
     let camera = Camera { eye: view.eye, target: view.target, vertical_fov_degrees: 55.0 };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(
@@ -41,7 +42,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     {
         // The mask resolves at renderer construction from WOT_GPU_DETAIL, set by the caller —
         // one process per mask is exactly the honest A/B: same scene, only the bits differ.
-        let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
+        let mut renderer = SceneRenderer::for_offscreen_as_shipped(&ctx, &statics_v, &statics_i)?;
         renderer.set_battlefield_ground(
             &ctx,
             &ground_v,

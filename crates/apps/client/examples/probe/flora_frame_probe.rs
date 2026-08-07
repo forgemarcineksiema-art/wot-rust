@@ -41,9 +41,14 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         full_vertices.len(),
         baseline_vertices.len()
     );
-    let target = OffscreenTarget::new(&ctx, WIDTH, HEIGHT)?;
-    let mut baseline = SceneRenderer::for_offscreen(&ctx, &baseline_vertices, &baseline_indices)?;
-    let mut flora = SceneRenderer::for_offscreen(&ctx, &full_vertices, &full_indices)?;
+    // A frame-time probe measures the shipped picture, not the review one: the window ships 1x
+    // MSAA on every adapter, so building this scene at the review count would price fill the
+    // player never pays.
+    let target = OffscreenTarget::new_as_shipped(&ctx, WIDTH, HEIGHT)?;
+    let mut baseline =
+        SceneRenderer::for_offscreen_as_shipped(&ctx, &baseline_vertices, &baseline_indices)?;
+    let mut flora = SceneRenderer::for_offscreen_as_shipped(&ctx, &full_vertices, &full_indices)?;
+    println!("sample count: {}x MSAA (shipped; review images use 4x)", target.sample_count());
     configure_renderer(&ctx, &mut baseline, &ground_vertices, &ground_indices, &ground_maps);
     configure_renderer(&ctx, &mut flora, &ground_vertices, &ground_indices, &ground_maps);
 
