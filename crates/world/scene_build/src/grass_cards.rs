@@ -153,6 +153,101 @@ pub fn grass_card_dressing_mesh(
     (vertices, indices)
 }
 
+/// A coarse map of WHERE the meadow stands, so a crater can be asked whether it could have
+/// changed anything without baking 68 MiB to find out.
+///
+/// The bake is not cheap — 130-250 ms of worker CPU on a shelled 1000 m map — and the crater
+/// ledger fires it on every ground impact for the whole late game, because the ledger caps at
+/// 256 and recycles, so a long match sits on the cap. Almost every one of those bakes reproduces
+/// the mesh it replaced, byte for byte, because a shell has to land ON a card to change one.
+/// This is how that is known in advance instead of afterwards.
+///
+/// One bit per meadow cell, conservative in the only direction that matters: a cell holding any
+/// card at all reads as occupied, and a disc that touches such a cell reads as a possible change.
+/// It can say "maybe" about a burst that turns out to change nothing (which costs one needless
+/// bake), and it can never say "no" about one that does.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeadowFootprint {
+    cell_m: f32,
+    cols: usize,
+    rows: usize,
+    occupied: Vec<bool>,
+}
+
+impl MeadowFootprint {
+    /// Read the footprint off a baked meadow. Linear in vertices, and it runs on the bake worker
+    /// beside the bake that produced them.
+    pub fn of(vertices: &[SceneVertex], extent: [f32; 2]) -> Self {
+        let cell_m = CELL_M;
+        let cols = (extent[0] / cell_m).ceil().max(1.0) as usize;
+        let rows = (extent[1] / cell_m).ceil().max(1.0) as usize;
+        let mut occupied = vec![false; cols * rows];
+        for vertex in vertices {
+            let column = (vertex.position[0] / cell_m).floor();
+            let row = (vertex.position[2] / cell_m).floor();
+            if column < 0.0 || row < 0.0 {
+                continue;
+            }
+            let (column, row) = (column as usize, row as usize);
+            if column < cols && row < rows {
+                occupied[row * cols + column] = true;
+            }
+        }
+        Self { cell_m, cols, rows, occupied }
+    }
+
+    /// Could a disc of `radius_m` about `(x, z)` hold a card? True whenever any cell the disc
+    /// overlaps holds one — the cell, not the disc, is the resolution of the answer.
+    pub fn touched(&self, x: f32, z: f32, radius_m: f32) -> bool {
+        let lo_column = ((x - radius_m) / self.cell_m).floor().max(0.0) as usize;
+        let lo_row = ((z - radius_m) / self.cell_m).floor().max(0.0) as usize;
+        let hi_column = (((x + radius_m) / self.cell_m).floor().max(0.0) as usize)
+            .min(self.cols.saturating_sub(1));
+        let hi_row = (((z + radius_m) / self.cell_m).floor().max(0.0) as usize)
+            .min(self.rows.saturating_sub(1));
+        (lo_row..=hi_row).any(|row| {
+            (lo_column..=hi_column)
+                .any(|column| self.occupied.get(row * self.cols + column).copied().unwrap_or(false))
+        })
+    }
+
+    /// Cells holding at least one card — a diagnostic, and what the locks measure against.
+    pub fn occupied_cells(&self) -> usize {
+        self.occupied.iter().filter(|cell| **cell).count()
+    }
+}
+
+/// How far from a crater's centre the meadow can possibly differ: the kill disc that mows cards,
+/// or the bowl's height influence, whichever reaches further. A card outside both stands where it
+/// stood, on ground that did not move.
+pub fn meadow_reach_of(crater: &terrain::CraterRecord) -> f32 {
+    (crater.radius_m() * CRATER_KILL_FACTOR).max(crater.influence_radius_m())
+}
+
+/// Whether a crater-ledger change can have altered the card meadow at all.
+///
+/// The meadow reads the ledger exactly twice: cards inside a burst's kill disc are mowed, and
+/// cards near a bowl stand on ground the bowl moved. So only craters that ENTERED or LEFT the
+/// ledger matter — a record present in both sets has already had its say — and only if their
+/// reach touches ground the meadow actually occupies.
+///
+/// Removals count as much as additions: the ledger recycles its oldest record once full, and a
+/// crater leaving means grass grows back where it stood and the ground under it comes up again.
+///
+/// Conservative by construction: `true` whenever it cannot prove otherwise, including when the
+/// two ledgers differ in ways this cannot reason about.
+pub fn meadow_changed_by(
+    baked_against: &[terrain::CraterRecord],
+    now: &[terrain::CraterRecord],
+    footprint: &MeadowFootprint,
+) -> bool {
+    let entered = now.iter().filter(|record| !baked_against.contains(record));
+    let left = baked_against.iter().filter(|record| !now.contains(record));
+    entered
+        .chain(left)
+        .any(|record| footprint.touched(record.x_m(), record.z_m(), meadow_reach_of(record)))
+}
+
 /// The exact tone of the ground under a card: splat-weighted layer albedo with a small sky
 /// lift — blades catch more light than the soil they stand on, but stay the SAME color
 /// family, so the card field dissolves into the ground instead of contrasting with it.
@@ -693,5 +788,148 @@ mod tests {
             "identical meshes must fingerprint identically, or the upload is never skipped and \
              the frame keeps paying for a crater that changed nothing",
         );
+    }
+
+    /// A crater record at a place, sized the way the sim sizes a 122 mm burst.
+    fn burst_at(x: f32, z: f32) -> terrain::CraterRecord {
+        terrain::CraterRecord::from_world(
+            x,
+            z,
+            terrain::he_crater_radius_m(122.0),
+            terrain::he_crater_depth_m(122.0),
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        )
+    }
+
+    /// The bake skip end to end: a burst the footprint clears, put through the real bake on the
+    /// real map, really does reproduce the mesh byte for byte.
+    ///
+    /// It checks ONE position — the first the sweep clears — and that position is usually deep in
+    /// empty ground where the disc radius makes no difference. So this states that the chain is
+    /// wired correctly, not that the footprint is conservative;
+    /// `the_footprint_never_clears_a_disc_that_holds_a_card` is the lock that carries that, and
+    /// it is the one that fails when the radius shrinks.
+    #[test]
+    fn a_burst_the_footprint_clears_leaves_the_meadow_byte_identical() {
+        let mut battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let maps = bake_terrain_ground_maps(&battlefield);
+        let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
+        let (before_v, before_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        let extent = battlefield.heightmap.extent_m();
+        let footprint = MeadowFootprint::of(&before_v, extent);
+        assert!(footprint.occupied_cells() > 0, "a map with no meadow proves nothing here");
+
+        let reach = meadow_reach_of(&burst_at(0.0, 0.0));
+        let step = reach.max(1.0);
+        let spot = (0..)
+            .map(|index| {
+                let columns = (extent[0] / step).ceil() as usize + 1;
+                let x = (index % columns) as f32 * step;
+                let z = (index / columns) as f32 * step;
+                (x, z)
+            })
+            .take_while(|(_, z)| *z <= extent[1])
+            .find(|(x, z)| !footprint.touched(*x, *z, reach))
+            .expect("a 1000 m battlefield has ground the meadow does not occupy");
+
+        let crater = burst_at(spot.0, spot.1);
+        assert!(
+            !meadow_changed_by(&[], &[crater], &footprint),
+            "the search picked a spot the footprint does not clear",
+        );
+        battlefield.heightmap.set_craters(&[crater]);
+        let (after_v, after_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        assert_eq!(
+            before_v, after_v,
+            "the footprint cleared a burst at ({}, {}) that DID change the meadow; the client \
+             would have skipped the rebake and frozen it",
+            spot.0, spot.1,
+        );
+        assert_eq!(before_i, after_i, "same, for the indices");
+    }
+
+    /// And the half that keeps the skip from being free: a burst standing ON a card is never
+    /// cleared, in either direction. Removals count as much as arrivals — the ledger recycles its
+    /// oldest record once full, and a crater LEAVING means grass grows back where it stood.
+    #[test]
+    fn a_burst_standing_on_a_card_is_never_cleared_arriving_or_leaving() {
+        let (battlefield, maps) = flat_battlefield();
+        let materials = TerrainMaterialSet::default();
+        let (vertices, _) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        assert!(!vertices.is_empty(), "the flat field must grow a meadow to stand on");
+        let footprint = MeadowFootprint::of(&vertices, battlefield.heightmap.extent_m());
+        let card = vertices[0].position;
+        let crater = burst_at(card[0], card[2]);
+        assert!(
+            meadow_changed_by(&[], &[crater], &footprint),
+            "a burst arriving on top of a card was cleared as harmless",
+        );
+        assert!(
+            meadow_changed_by(&[crater], &[], &footprint),
+            "a burst LEAVING the ledger uncovers the ground it mowed; that is a change too",
+        );
+        assert!(
+            !meadow_changed_by(&[crater], &[crater], &footprint),
+            "a ledger that did not move is not a change",
+        );
+    }
+
+    /// The footprint's actual contract, and the only direction of it that matters: it may say
+    /// "maybe" about a burst that turns out to change nothing (which costs one needless bake),
+    /// and it must NEVER say "no" about one that could.
+    ///
+    /// Checked against an INDEPENDENT card index at eight times the footprint's resolution, over
+    /// a sweep of the real map — not against the footprint's own arithmetic, and not at one
+    /// hand-picked spot. An earlier version of this lock searched for the first position the
+    /// footprint cleared and checked only that one; it always found the empty map corner, where
+    /// the disc radius makes no difference, so shrinking the radius to zero passed it.
+    #[test]
+    fn the_footprint_never_clears_a_disc_that_holds_a_card() {
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let maps = bake_terrain_ground_maps(&battlefield);
+        let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
+        let (vertices, _) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        let extent = battlefield.heightmap.extent_m();
+        let footprint = MeadowFootprint::of(&vertices, extent);
+        let reach = meadow_reach_of(&burst_at(0.0, 0.0));
+
+        // The independent index: one metre cells, built straight from the cards.
+        const FINE_M: f32 = 1.0;
+        let fine_cols = (extent[0] / FINE_M).ceil() as usize + 1;
+        let fine_rows = (extent[1] / FINE_M).ceil() as usize + 1;
+        let mut fine = vec![false; fine_cols * fine_rows];
+        for vertex in &vertices {
+            let column = (vertex.position[0] / FINE_M).floor().max(0.0) as usize;
+            let row = (vertex.position[2] / FINE_M).floor().max(0.0) as usize;
+            if column < fine_cols && row < fine_rows {
+                fine[row * fine_cols + column] = true;
+            }
+        }
+        let card_within = |x: f32, z: f32, radius: f32| -> bool {
+            let lo_c = ((x - radius) / FINE_M).floor().max(0.0) as usize;
+            let lo_r = ((z - radius) / FINE_M).floor().max(0.0) as usize;
+            let hi_c = (((x + radius) / FINE_M).floor().max(0.0) as usize).min(fine_cols - 1);
+            let hi_r = (((z + radius) / FINE_M).floor().max(0.0) as usize).min(fine_rows - 1);
+            (lo_r..=hi_r).any(|row| (lo_c..=hi_c).any(|column| fine[row * fine_cols + column]))
+        };
+
+        const SAMPLES: usize = 160;
+        let mut cleared = 0usize;
+        for row in 0..SAMPLES {
+            for column in 0..SAMPLES {
+                let x = (column as f32 + 0.5) * extent[0] / SAMPLES as f32;
+                let z = (row as f32 + 0.5) * extent[1] / SAMPLES as f32;
+                if footprint.touched(x, z, reach) {
+                    continue;
+                }
+                cleared += 1;
+                assert!(
+                    !card_within(x, z, reach),
+                    "the footprint cleared a burst at ({x}, {z}) with a card inside its {reach} m \
+                     reach; the client would skip a bake it needed and freeze the meadow",
+                );
+            }
+        }
+        assert!(cleared > 0, "every sample was occupied ground; this lock proved nothing");
     }
 }

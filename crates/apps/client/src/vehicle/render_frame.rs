@@ -115,8 +115,12 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     now_tick: u64,
     eye: Option<[f32; 3]>,
 ) -> VehicleRenderFrame {
-    let mut objects = Vec::new();
-    let mut armor_damage = Vec::new();
+    // Sized up front: a 7v7 of the instance-heaviest vehicle is ~200 gear parts plus hull,
+    // turret and gun per tank, and growing into that from nothing is a dozen reallocations of a
+    // buffer this function rebuilds every presented frame.
+    const OBJECTS_PER_TANK: usize = 208;
+    let mut objects = Vec::with_capacity(tanks.len() * OBJECTS_PER_TANK);
+    let mut armor_damage = Vec::with_capacity(tanks.len());
     let player_team = player_team_of(&tanks, player_tank);
     for tank in tanks {
         // Identity still decides the GUN: only the player's installed barrel may differ from the
@@ -171,6 +175,9 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
+    // AFTER the frame's tanks have been asked: the cache evicts whatever went unasked, which is
+    // every tank that left the field. Called earlier it would evict the whole roster.
+    catalog.gear_placements.retain_live();
     VehicleRenderFrame { objects, armor_damage }
 }
 

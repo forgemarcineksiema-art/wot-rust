@@ -41,6 +41,10 @@ pub struct VehicleAssetCatalog {
     /// requests must never re-run the full vehicle bake on the main thread — on the hybrid T-54
     /// that is a visible frame hitch on every new hit.
     baked_sources: HashMap<VehicleKind, Arc<BakedVehicle>>,
+    /// Per-tank running-gear placements kept between frames (`gear_cache.rs`). It lives here
+    /// because the catalog is already threaded to every caller that builds gear, so caching costs
+    /// no signature anywhere.
+    pub(crate) gear_placements: super::gear_cache::GearPlacementCache,
 }
 
 /// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame

@@ -50,6 +50,30 @@ pub fn running_gear_placements_dynamic(
     dynamics: GearDynamics<'_>,
 ) -> Vec<GearPlacement> {
     let mut placements = Vec::new();
+    running_gear_placements_dynamic_into(
+        &mut placements,
+        kin,
+        left_phase_m,
+        right_phase_m,
+        dynamics,
+    );
+    placements
+}
+
+/// As [`running_gear_placements_dynamic`], into a buffer the caller keeps.
+///
+/// A battle rebuilds this for every tank on every presented frame — 204 placements per T-54,
+/// 2,856 for a 7v7 — and the returning form allocated a fresh `Vec` for each one and dropped it
+/// the same frame. The client caches per tank against the pose that shapes them
+/// (`vehicle/gear_cache.rs`), and reuses one buffer per tank across frames through this.
+pub fn running_gear_placements_dynamic_into(
+    placements: &mut Vec<GearPlacement>,
+    kin: &RunningGearKinematics,
+    left_phase_m: f32,
+    right_phase_m: f32,
+    dynamics: GearDynamics<'_>,
+) {
+    placements.clear();
     for (side_sign, phase, travel, sag_scale, break_t) in [
         (
             1.0_f32,
@@ -73,10 +97,9 @@ pub fn running_gear_placements_dynamic(
             travel,
             dynamics.sag(kin, sag_scale),
             break_t,
-            &mut placements,
+            placements,
         );
     }
-    placements
 }
 
 /// Vertical travel for the wheel at `index` (0 = rest for anything the caller did not provide).

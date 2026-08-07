@@ -165,20 +165,6 @@ pub(crate) fn run() {
     );
     match vehicle_geometry::RunningGearKinematics::for_vehicle(game_core::VehicleKind::T54_1951) {
         Some(kin) => {
-            let gear_ms = timed(50, || {
-                let mut placements = 0usize;
-                for tank in 0..14 {
-                    let phase = tank as f32 * 0.37;
-                    placements += vehicle_geometry::running_gear_placements_dynamic(
-                        &kin,
-                        phase,
-                        phase,
-                        vehicle_geometry::GearDynamics::default(),
-                    )
-                    .len();
-                }
-                placements
-            });
             let per_tank = vehicle_geometry::running_gear_placements_dynamic(
                 &kin,
                 0.0,
@@ -186,11 +172,63 @@ pub(crate) fn run() {
                 vehicle_geometry::GearDynamics::default(),
             )
             .len();
+            // The two forms, INTERLEAVED. Run one after the other they disagree by a factor of
+            // two in whichever order they are run — the same trap the config rotation exists for
+            // elsewhere in this file. Alternating them per sample is the only reading worth
+            // quoting.
+            let mut buffers: Vec<Vec<vehicle_geometry::GearPlacement>> =
+                (0..14).map(|_| Vec::new()).collect();
+            let mut fresh: Vec<f64> = Vec::new();
+            let mut reused: Vec<f64> = Vec::new();
+            for round in 0..200 {
+                let start = std::time::Instant::now();
+                let mut total = 0usize;
+                for tank in 0..14 {
+                    let phase = tank as f32 * 0.37 + round as f32 * 0.01;
+                    total += vehicle_geometry::running_gear_placements_dynamic(
+                        &kin,
+                        phase,
+                        phase,
+                        vehicle_geometry::GearDynamics::default(),
+                    )
+                    .len();
+                }
+                std::hint::black_box(total);
+                fresh.push(start.elapsed().as_secs_f64() * 1000.0);
+
+                let start = std::time::Instant::now();
+                for (tank, buffer) in buffers.iter_mut().enumerate() {
+                    let phase = tank as f32 * 0.37 + round as f32 * 0.01;
+                    vehicle_geometry::running_gear_placements_dynamic_into(
+                        buffer,
+                        &kin,
+                        phase,
+                        phase,
+                        vehicle_geometry::GearDynamics::default(),
+                    );
+                }
+                std::hint::black_box(buffers.len());
+                reused.push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            fresh.sort_by(f64::total_cmp);
+            reused.sort_by(f64::total_cmp);
+            let fresh_ms = fresh[fresh.len() / 2];
+            let reused_ms = reused[reused.len() / 2];
             println!(
-                "  {per_tank} placements per tank, {} for a 7v7: {gear_ms:.3} ms per frame,",
+                "  {per_tank} placements per tank, {} for a 7v7: {fresh_ms:.3} ms into fresh Vecs,",
                 per_tank * 14,
             );
-            println!("  in 14 freshly allocated unsized `Vec`s that are dropped the same frame.");
+            println!(
+                "  {reused_ms:.3} ms into buffers the caller keeps ({:+.1}%).",
+                100.0 * (reused_ms - fresh_ms) / fresh_ms.max(1.0e-9),
+            );
+            println!(
+                "  And a hull that did not move now costs NEITHER: the placements are hull-local,"
+            );
+            println!("  so a wreck — or a tank holding a firing position — reuses last frame's");
+            println!(
+                "  (client::vehicle::gear_cache, locked by `a_pose_that_did_not_move_is_not_rebuilt`)."
+            );
         }
         None => println!("  T-54 has no running-gear kinematics; nothing to measure."),
     }
