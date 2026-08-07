@@ -98,7 +98,13 @@ proceduralne), assets/flora delete, notices, docs.
   klatka full-flora ~20,8 ms — przed/po wewnątrz szumu termicznego maszyny; gate
   16,667 ms FAIL to stan wcześniejszy, nie z tego PR. Bless goldenów budynków; lock:
   `urban_glass_is_recessed_into_a_pierced_leaf`.
-- **PR 4 — Fasady wiejskie.** Cottage/Barn/Townhouse/Church.
+- **PR 4 — Fasady wiejskie.** (**LANDED 2026-08-07**): Cottage/Townhouse/Church — prawdziwe
+  otwory, szyby wpuszczone w mur, parapety; drzwi WCIĘTE w liść (ścianka dzielona na biegi),
+  nie przyklejone. Obróbka wg tradycji: drewno (cottage/barn — okiennice zamiast szkła w
+  stodole, portal wozowy w OBU szczytach) / kamień (townhouse/church — prezbiterium z
+  przyporami, dzwonnica z PRAWIDZIWYMI otworami: 4 słupy narożne + żaluzje). Budżety per
+  styl: Cottage 320 i Barn 310 mieszczą się we wspólnym 400; Townhouse 644→800,
+  Church 464→600. Lock: `village_glass_is_recessed_and_the_barn_has_none`.
 - **PR 5 — TreeLine 2.0.** Boxy LOS do 15–25 m RAZEM z geometrią szpaleru (rzędy pni +
   podszyt w AABB); dowód AABB przed/po; jeden świadomy bless map.
 - **PR 6 — Wraki 2.0.** Generator sylwetki (kadłub+wieża+lufa w AABB) + naprawa
