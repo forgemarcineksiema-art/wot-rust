@@ -95,7 +95,12 @@ dispersion radius. The same squaring is what produces the center bias.
 
 Client reticle prediction uses the same muzzle origin and obstacle segment
 sweep shape as the local shell preview path: terrain, static cover, and vehicle
-hitboxes are all considered. The result drives the reticle status in both modes
+hitboxes are all considered — and the same BODY. The crosshair sweep carries the
+selected shell's calibre radius, not a needle's zero: a ray that threads a roof
+the round would graze puts the crosshair on a target the shot can never reach,
+with nothing on screen to say so (register I3). Light has no calibre, so the
+sight ray is the one place this is a choice rather than a fact, and the choice is
+the shell's. The result drives the reticle status in both modes
 and the sniper-mode impact marker; third person does not render the actual
 impact point as a player aid.
 

@@ -129,6 +129,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
             TeamId(1),
             muzzle,
             Vec3::Z,
+            0.0,
         )
     };
 

@@ -78,21 +78,32 @@ eye cannot tell them apart.** One place on screen, two unrelated meanings, both 
 |---|---|---|
 | 1 | **The sight sits on the gun's line.** `SNIPER_SIGHT_ABOVE_TRUNNION_M` 0.35 → 0.12 m, the band a real TSh-2-22 occupies; locked by the optic-band test and the seam ratchet. | DONE |
 | 2 | **A refusal names its cause.** A blocked shot prints the metres to whatever eats the round, under the range, in the broken marker's own grey; a distant impact X is led back to the crosshair by a hairline. | DONE |
-| 3 | **The sight probes the world with the shell's body.** `aim_point_with_sweep` gets the calibre radius the trace already uses, so the crosshair stops on the barn roof instead of threading it. | |
+| 3 | **The sight probes the world with the shell's body.** `aim_point_with_sweep` carries the selected shell's calibre radius, the one the trace beside it already flew, so the crosshair stops ON the barn roof instead of threading it. | DONE |
 | 4 | **One green, one meaning.** The breech-shut ring stops speaking the penetration verdict's word. | |
 
-### Wave 1 result
+### Results, same instrument throughout
 
-| | Bystra | Prokhorovka |
-|---|---|---|
-| refused | 11.8 ‰ → **3.8 ‰** | 19.9 ‰ → **5.2 ‰** |
-| whole tank open and refused | 3.1 ‰ → **2.8 ‰** | 2.5 ‰ → **1.2 ‰** |
+Per ten thousand believable shots (per mille stopped resolving after wave 3 — six refusals in
+9 849 rounds to zero there):
 
-−68 % and −74 % of all refusals from one constant. What survives on Bystra is almost entirely the
-barn-roof graze, which is wave 3's; what survives on Prokhorovka is real landform.
+| | Bystra refused | Bystra **open and refused** | Prokhorovka refused | Prokhorovka **open and refused** |
+|---|---|---|---|---|
+| before | 118 | 31 | 199 | 25 |
+| after wave 1 | 38 | 28 | 52 | 12 |
+| **after wave 3** | **6** | **1** | **29** | **7** |
+| ratchet ceiling | 10 | 4 | 40 | 12 |
 
-The trade is deliberate: the sniper eye drops 23 cm, so peeking a crest costs what the GUN needs
-to be exposed, not what the camera wanted. That is the honesty doctrine applied to the sight —
+**−95 % on Bystra and −85 % on Prokhorovka**, and the population that matters — the target standing
+completely open with the shot refused anyway — went from 31 cases to **1** on Bystra and from 17 to
+5 on Prokhorovka.
+
+Wave 1 did the bulk of it (−68 % and −74 %) from one constant. Wave 3 took almost all of what wave 1
+left on Bystra, because what survived there was the barn-roof graze and nothing else. What survives
+now is real landform: a fold the gun genuinely cannot shoot past, which wave 2 makes the sight name
+in metres.
+
+The wave 1 trade is deliberate: the sniper eye drops 23 cm, so peeking a crest costs what the GUN
+needs to be exposed, not what the camera wanted. That is the honesty doctrine applied to the sight —
 what blocks the shell blocks the eye, from the same height.
 
 ## The rule this leaves behind
