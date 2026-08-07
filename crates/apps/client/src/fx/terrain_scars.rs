@@ -94,9 +94,57 @@ impl TerrainScars {
     /// ground marks draw first — they are literally the farthest surface layer, and smoke must
     /// composite over them, not under.
     pub fn append_quads(&self, vertices: &mut Vec<FxVertex>) {
-        for scar in &self.scars {
+        self.append_quads_within(vertices, usize::MAX);
+    }
+
+    /// Append the live scars that fit `budget` vertices, keeping the NEWEST.
+    ///
+    /// A high-explosive scar carries ~330 vertices and the pool holds 128, so a shelled field
+    /// asks for ~42k against an FX buffer of 26k that the blasts and tracers have first call on.
+    /// Something has to give, and it must not be the tracers: a mark left by a shell two minutes
+    /// ago is scenery, the round in the air is the game. So the OLDEST marks are the ones
+    /// dropped, and only they.
+    ///
+    /// Selection is by age; emission is in POOL ORDER, untouched. The two are deliberately
+    /// separate, because the FX pass blends premultiplied source-over with depth writes off —
+    /// order is compositing. A survivor must land exactly where it always landed, and pool order
+    /// is not age order: [`Self::record`] recycles a full pool by overwriting the oldest slot in
+    /// place, so the vector is in arbitrary age order the moment the pool fills.
+    ///
+    /// Returns how many scars were dropped.
+    pub fn append_quads_within(&self, vertices: &mut Vec<FxVertex>, budget: usize) -> usize {
+        // The common case: everything fits, so nothing is selected and nothing is allocated.
+        if self.live_vertex_count() <= budget {
+            self.append_live(vertices, |_| true);
+            return 0;
+        }
+        // Youngest first, spending until the budget is gone. A big mark that does not fit does
+        // not end the walk — a smaller, older one behind it still may, and an unspent vertex
+        // helps nobody.
+        let mut by_age: Vec<usize> =
+            (0..self.scars.len()).filter(|&index| self.scars[index].opacity() > 0.0).collect();
+        by_age.sort_by(|&a, &b| self.scars[a].age_s.total_cmp(&self.scars[b].age_s));
+        let mut keep = vec![false; self.scars.len()];
+        let mut spend = 0usize;
+        let mut dropped = 0usize;
+        for index in by_age {
+            let cost = self.scars[index].stamps.len();
+            if spend + cost > budget {
+                dropped += 1;
+                continue;
+            }
+            spend += cost;
+            keep[index] = true;
+        }
+        self.append_live(vertices, |index| keep[index]);
+        dropped
+    }
+
+    /// Emit the live scars `wanted` selects, in pool order, each faded to its current opacity.
+    fn append_live(&self, vertices: &mut Vec<FxVertex>, wanted: impl Fn(usize) -> bool) {
+        for (index, scar) in self.scars.iter().enumerate() {
             let opacity = scar.opacity();
-            if opacity <= 0.0 {
+            if opacity <= 0.0 || !wanted(index) {
                 continue;
             }
             // Premultiplied colors: one uniform scale of all four lanes IS the fade.
@@ -108,6 +156,12 @@ impl TerrainScars {
                 faded
             }));
         }
+    }
+
+    /// What [`Self::append_quads`] would emit this frame, without emitting it — the number the
+    /// FX frame budgets against before it decides how much the ground marks may spend.
+    pub fn live_vertex_count(&self) -> usize {
+        self.scars.iter().filter(|scar| scar.opacity() > 0.0).map(|scar| scar.stamps.len()).sum()
     }
 
     #[cfg(test)]
@@ -567,5 +621,48 @@ mod tests {
             scars.tick(0.1);
         }
         assert_eq!(scars.live_scars(), 0, "a fully faded crater leaves the pool");
+    }
+
+    /// The squeeze rule, and the half of it that is easy to get wrong. When the FX buffer cannot
+    /// hold every scorch mark, the ones that go are the OLDEST — the round that just landed must
+    /// still leave its mark. And the survivors keep their place in the batch, because the FX pass
+    /// blends source-over with depth writes off, so where a quad sits in the buffer IS what it
+    /// composites over.
+    ///
+    /// Pool order is deliberately NOT age order here: `record` recycles a full pool by
+    /// overwriting the oldest slot in place, so selecting a suffix (or a prefix) of the vector
+    /// would drop an arbitrary set of marks and quietly reorder the rest.
+    #[test]
+    fn a_squeezed_pool_drops_its_oldest_marks_without_moving_the_rest() {
+        let map = HeightMap::flat(65, 65, 5.0, 0.0).expect("flat map");
+        let mut scars = TerrainScars::default();
+        // Four marks at distinct places, each a second older than the one after it.
+        for index in 0..4 {
+            scars.record(&he_impact(Vec3::new(20.0 + index as f32 * 40.0, 0.0, 40.0)), &map);
+            scars.tick(1.0);
+        }
+        // HE marks do not all carry the same stamp count, so the budget is the exact size of
+        // the two newest rather than a multiple of any one of them.
+        let newest_two = scars.scars[2].stamps.len() + scars.scars[3].stamps.len();
+        assert!(newest_two > 0, "an HE mark must carry stamps for this test to mean anything");
+
+        let mut squeezed = Vec::new();
+        let dropped = scars.append_quads_within(&mut squeezed, newest_two);
+        assert_eq!(dropped, 2, "two marks had to go");
+        assert_eq!(squeezed.len(), newest_two, "and exactly the two newest had to stay");
+
+        // The survivors are the two YOUNGEST, which stand at the two largest x.
+        let min_x = squeezed.iter().map(|v| v.position[0]).fold(f32::MAX, f32::min);
+        assert!(
+            min_x > 60.0,
+            "the squeeze kept a mark at x={min_x}, which is one of the two oldest; the newest              marks stand at x=100 and x=140",
+        );
+
+        // And they sit exactly where the unsqueezed batch put them: the survivors are a
+        // subsequence of the full batch, in the same order, not a reshuffle.
+        let mut whole = Vec::new();
+        scars.append_quads(&mut whole);
+        let tail = &whole[whole.len() - squeezed.len()..];
+        assert_eq!(tail, squeezed.as_slice(), "the survivors moved within the batch");
     }
 }

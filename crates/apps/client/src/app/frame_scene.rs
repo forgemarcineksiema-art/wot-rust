@@ -64,6 +64,16 @@ impl ClientApp {
     /// shell (stateless — rebuilt each frame from the interpolated shell snapshots), and the
     /// on-tank scar decals.
     ///
+    /// All of it shares ONE vertex buffer, and a shelled field asks for more than fits: 128
+    /// terrain scars alone want ~42k vertices against a budget of 13k, reached about forty
+    /// ground impacts into a match. So the batch is budgeted before it is built. The layers that
+    /// carry the game — blasts, tracers, the holes punched in hulls — are built first and take
+    /// what they need; the marks in the ground get what is left and drop their OLDEST to fit.
+    ///
+    /// Emission order is unchanged: ruts, scorch marks, particles, tracers, hull decals. The
+    /// FX pass blends premultiplied source-over with depth writes off, so order IS compositing
+    /// — budgeting decides what is in the batch, never where it sits in it.
+    ///
     /// (See `tank_can_reach_the_screen` below for the vehicle cull this batch is NOT subject
     /// to — FX are cheap quads; vehicles are hundreds of gear instances.)
     pub(super) fn fx_frame_vertices(
@@ -72,13 +82,20 @@ impl ClientApp {
         target: [f32; 3],
     ) -> Vec<renderer_api::FxVertex> {
         let eye = glam::Vec3::from_array(eye);
-        let mut fx_vertices = Vec::new();
-        self.track_marks.append_quads(&mut fx_vertices);
-        self.terrain_scars.append_quads(&mut fx_vertices);
-        fx_vertices.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
+        let budget = renderer_wgpu::fx_vertex_budget();
+        // Built first to learn their size, appended last to keep their place in the composite.
+        let mut live = Vec::new();
+        live.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
-        crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
-        self.append_scar_quads(&mut fx_vertices);
+        crate::fx::append_shell_tracers(&mut live, &shells, eye);
+        self.append_scar_quads(&mut live);
+
+        let ground = budget.saturating_sub(live.len());
+        let mut fx_vertices = Vec::with_capacity(budget.min(ground + live.len()));
+        self.track_marks.append_quads_within(&mut fx_vertices, ground);
+        let left = ground - fx_vertices.len().min(ground);
+        self.terrain_scars.append_quads_within(&mut fx_vertices, left);
+        fx_vertices.extend(live);
         fx_vertices
     }
 }

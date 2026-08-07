@@ -176,10 +176,42 @@ impl TrackMarks {
 
     /// Append every live rut to this frame's FX batch. Called before the craters so a shell
     /// death composites over the ruts it churned through.
+    /// Every live rut, unbudgeted — the shape the tests state facts about. The battle frame
+    /// always goes through [`Self::append_quads_within`], because in a battle there is always a
+    /// budget.
+    #[cfg(test)]
     pub fn append_quads(&self, vertices: &mut Vec<FxVertex>) {
-        for mark in &self.marks {
-            let opacity = ((mark.lifetime_s() - mark.age_s) / mark.fade_s()).clamp(0.0, 1.0);
-            if opacity <= 0.0 {
+        self.append_quads_within(vertices, usize::MAX);
+    }
+
+    /// Append the live ruts that fit `budget` vertices, keeping the NEWEST — the same rule the
+    /// scorch marks follow, and for the same reason: when the FX buffer runs out, the ground
+    /// gives way and the things happening right now do not. One rut is six vertices, so this
+    /// only bites when the effects above it have already taken nearly everything.
+    ///
+    /// As with the scars, the age cut chooses WHICH ruts survive and pool order decides where
+    /// they sit, because order is compositing — a shell death still composites over the ruts it
+    /// churned through. Pool order is not age order once the pool is full: [`Self::record`]
+    /// overwrites the oldest slot in place.
+    pub fn append_quads_within(&self, vertices: &mut Vec<FxVertex>, budget: usize) -> usize {
+        const VERTICES_PER_MARK: usize = 6;
+        let live: Vec<usize> = (0..self.marks.len())
+            .filter(|&index| Self::opacity_of(&self.marks[index]) > 0.0)
+            .collect();
+        let affordable = budget / VERTICES_PER_MARK;
+        let dropped = live.len().saturating_sub(affordable);
+        // The `dropped` oldest are cut; everything else keeps its place.
+        let mut cut = vec![false; self.marks.len()];
+        if dropped > 0 {
+            let mut by_age = live;
+            by_age.sort_by(|&a, &b| self.marks[b].age_s.total_cmp(&self.marks[a].age_s));
+            for &index in by_age.iter().take(dropped) {
+                cut[index] = true;
+            }
+        }
+        for (index, mark) in self.marks.iter().enumerate() {
+            let opacity = Self::opacity_of(mark);
+            if opacity <= 0.0 || cut[index] {
                 continue;
             }
             let (tone, alpha) = mark.tone_alpha();
@@ -197,6 +229,12 @@ impl TrackMarks {
                 premul(tone, alpha * opacity),
             );
         }
+        dropped
+    }
+
+    /// How visible a rut is right now: full strength until its fade window, then out.
+    fn opacity_of(mark: &TrackMark) -> f32 {
+        ((mark.lifetime_s() - mark.age_s) / mark.fade_s()).clamp(0.0, 1.0)
     }
 
     #[cfg(test)]

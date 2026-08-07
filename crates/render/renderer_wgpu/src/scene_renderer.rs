@@ -40,8 +40,31 @@ const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 23;
 /// 36x36-cell minimap — with headroom; `set_hud` truncates (with a warning) instead of
 /// blanking the frame if a regression ever exceeds it.
 const HUD_VERTEX_CAPACITY: u64 = 1 << 19;
-/// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
-const FX_VERTEX_CAPACITY: u64 = 1 << 19;
+/// Battle-FX vertex budget. Everything the FX pass draws shares it: rolling ruts, the scorch
+/// marks shells leave in the ground, particles, tracers and the holes punched in hulls.
+///
+/// It used to be described as "~2048 soft quads with headroom", which was arithmetic about the
+/// buffer rather than about the battle. The battle wants more: 128 terrain scars alone ask for
+/// ~42k vertices, three times what fits, and they reach the ceiling about forty ground impacts
+/// into a match. `set_fx` answered that with a bare `return` — the entire FX layer stopped
+/// drawing, silently, while the client kept building the vertices every frame and discarding
+/// them. It now truncates like the HUD does, and the CLIENT decides what gets truncated:
+/// [`fx_vertex_budget`] is what it budgets against, so the marks in the mud give way and the
+/// tracers, blasts and perforations never do.
+///
+/// 1 MiB = 26,214 vertices. The size is chosen against a measurement, not rounded up for
+/// comfort: a saturated 7v7 submits 15,480 vertices that must never be dropped (a full particle
+/// pool, every hull battered to its decal cap, two rounds per tank in the air), which did not
+/// fit the 512 KiB this used to be. What is left over — about 10.7k — is what the marks in the
+/// ground get to spend, and `client::fx::budget` locks both halves. The buffer is only ever
+/// written as far as the frame fills it, so a quiet frame costs a quiet upload.
+const FX_VERTEX_CAPACITY: u64 = 1 << 20;
+
+/// How many `FxVertex` fit [`FX_VERTEX_CAPACITY`] — what the client budgets its FX frame
+/// against, so an overrun costs the oldest scorch mark instead of the whole layer.
+pub const fn fx_vertex_budget() -> usize {
+    (FX_VERTEX_CAPACITY as usize) / std::mem::size_of::<renderer_api::FxVertex>()
+}
 pub use armor_damage::armor_damage_aperture_budget;
 pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
 

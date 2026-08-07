@@ -35,11 +35,6 @@ const MAP: terrain::MapId = terrain::MapId::ProkhorovkaHill252_2;
 /// it rather than approaching it.
 const LEDGER_CAP: usize = 256;
 
-/// `renderer_wgpu`'s `FX_VERTEX_CAPACITY`. It is a private const there, and — unlike
-/// `vehicle_instance_budget()` and `armor_damage_aperture_budget()` — it is neither exported nor
-/// locked by any test. That asymmetry is half of what this probe is here to show.
-const FX_BUFFER_BYTES: usize = 1 << 19;
-
 pub(crate) fn run() {
     let pristine = map_forge::battlefield(MAP);
     let maps = client::bake_terrain_ground_maps(&pristine);
@@ -125,10 +120,10 @@ pub(crate) fn run() {
 
     println!("\nB. THE FX LEDGER — what the FX layer asks for, against what the buffer holds.");
     let vertex_bytes = size_of::<renderer_api::FxVertex>();
-    let capacity = FX_BUFFER_BYTES / vertex_bytes;
+    let capacity = renderer_wgpu::fx_vertex_budget();
     println!(
-        "  FxVertex is {vertex_bytes} B; the FX buffer is {} KiB, so it holds {capacity} vertices.",
-        FX_BUFFER_BYTES / 1024,
+        "  FxVertex is {vertex_bytes} B; the FX buffer holds {capacity} vertices ({} KiB).",
+        capacity * vertex_bytes / 1024,
     );
 
     let mut scars = client::TerrainScars::default();
@@ -148,38 +143,22 @@ pub(crate) fn run() {
     let mut vertices = Vec::new();
     scars.append_quads(&mut vertices);
     println!(
-        "  {recorded} impacts recorded -> {} vertices per frame ({:.0} KiB), built in {build_ms:.2} ms",
+        "  {recorded} impacts recorded -> scorch marks alone want {} vertices ({:.0} KiB), built in {build_ms:.2} ms",
         vertices.len(),
         (vertices.len() * vertex_bytes) as f64 / 1024.0,
     );
-    if vertices.len() > capacity {
-        println!(
-            "  OVER BUDGET by {:.1}x — and `set_fx` answers an oversized upload with a bare",
-            vertices.len() as f64 / capacity as f64,
-        );
-        println!("  `return`, so the WHOLE FX layer stops drawing. Terrain scars alone do this.");
-    }
-    // How much battle it takes to get there, in marks.
-    let mut probe_scars = client::TerrainScars::default();
-    let mut fill_at = None;
-    for index in 0..(LEDGER_CAP * 2) {
-        probe_scars.record(&impact(index, extent), &pristine.heightmap);
-        let mut probe_vertices = Vec::new();
-        probe_scars.append_quads(&mut probe_vertices);
-        if probe_vertices.len() > capacity {
-            fill_at = Some(index + 1);
-            break;
-        }
-    }
-    match fill_at {
-        Some(marks) => {
-            println!("  The buffer is full at {marks} ground impacts — with nothing else in it: no",)
-        }
-        None => println!("  Terrain scars alone never fill it; the ceiling is elsewhere."),
-    }
-    if fill_at.is_some() {
-        println!("  particles, no ruts, no tracers, no hull decals, all of which share it.");
-    }
+    // What the frame actually submits. The ground marks are given only what the undroppable
+    // layers leave, and drop their OLDEST to fit — so the appetite above is an appetite, not a
+    // submission. Before that budgeting existed `set_fx` answered it with a bare `return`, and
+    // the whole FX layer went off the screen.
+    let allowance = capacity / 2;
+    let mut squeezed = Vec::new();
+    let dropped = scars.append_quads_within(&mut squeezed, allowance);
+    println!(
+        "  given a {allowance}-vertex allowance it submits {} and drops its {dropped} oldest marks;",
+        squeezed.len(),
+    );
+    println!("  the blasts, tracers and hull perforations are never what gives way.");
 
     println!(
         "\nC. THE PER-FRAME FLEET BUILD — running gear, rebuilt for all 14 tanks every frame."

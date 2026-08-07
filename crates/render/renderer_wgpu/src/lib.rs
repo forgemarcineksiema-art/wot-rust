@@ -53,7 +53,8 @@ pub use scene_renderer::ground::terrain_shader_source;
 pub use scene_renderer::shadow::shadow_shader_source;
 pub use scene_renderer::ssao::ssao_shader_source;
 pub use scene_renderer::{
-    VEHICLE_INSTANCE_CAPACITY, armor_damage_aperture_budget, vehicle_instance_budget,
+    VEHICLE_INSTANCE_CAPACITY, armor_damage_aperture_budget, fx_vertex_budget,
+    vehicle_instance_budget,
 };
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
