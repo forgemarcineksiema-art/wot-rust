@@ -178,7 +178,8 @@ impl SceneRenderer {
     }
 
     /// A renderer whose sample count resolves the way the window's does, so an offscreen capture
-    /// measures the frame the player pays for. Pair it with [`crate::OffscreenTarget::new_as_shipped`].
+    /// measures the frame the player pays for. The target carries no sample count of its own —
+    /// this constructor is the only place the shipped count enters an offscreen capture.
     pub fn for_offscreen_as_shipped(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
@@ -218,6 +219,12 @@ impl SceneRenderer {
     /// same command stream it always did, so arming is a probe's decision and never a default.
     pub fn set_pass_profiler(&mut self, profiler: crate::frame_profiler::FrameProfiler) {
         self.profiler = profiler;
+    }
+
+    /// How many samples this renderer's colour and depth attachments carry. The renderer is the
+    /// only owner of that number now, so it is the only thing that can be asked.
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
     }
 
     /// The timing instrument this renderer holds — `Disabled` unless a probe armed one.

@@ -52,6 +52,11 @@ pub(crate) struct HdrTargets {
     pub multisampled: bool,
     /// The formed LDR picture (post pass output, sRGB-encoded bytes) the FXAA pass reads.
     pub ldr_view: wgpu::TextureView,
+    /// The scene's depth buffer. It lives HERE, beside the colour it is written with, because the
+    /// two must agree on size and sample count exactly — and while the caller owned depth and the
+    /// renderer owned colour, the only thing keeping them agreed was a runtime guard comparing two
+    /// numbers that were computed in different files.
+    pub depth_view: wgpu::TextureView,
     /// The resolved HDR texture, kept for the diagnostic readback.
     resolve_texture: wgpu::Texture,
     /// Water-refraction grab: a single-sample HDR texture the opaque pass resolves into so the
@@ -236,6 +241,18 @@ impl PostResources {
                 view_formats: &[],
             })
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_view = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("scene_depth"),
+                size,
+                mip_level_count: 1,
+                sample_count,
+                dimension: wgpu::TextureDimension::D2,
+                format: crate::offscreen::DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            })
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let multisampled = sample_count > 1;
         let color_view = if multisampled {
             device
@@ -276,6 +293,7 @@ impl PostResources {
             resolve_view,
             multisampled,
             ldr_view,
+            depth_view,
             resolve_texture,
             grab_view,
         });

@@ -331,7 +331,7 @@ fn frame_time_capture() {
     // its scene at 4x MSAA while the window ships 1x on every adapter, so every frame-time
     // number this project has quoted described a picture nobody plays — more expensive in fill
     // and cleaner on distant geometry than the real thing.
-    let Ok(target) = renderer_wgpu::OffscreenTarget::new_as_shipped(&ctx, width, height) else {
+    let Ok(target) = renderer_wgpu::OffscreenTarget::new(&ctx, width, height) else {
         println!("frame time: offscreen target unavailable — skipped");
         return;
     };
@@ -352,7 +352,7 @@ fn frame_time_capture() {
          adapter: {} ({:?}, {:?}, driver {})",
         width,
         height,
-        target.sample_count(),
+        renderer.sample_count(),
         adapter.name,
         adapter.backend,
         adapter.device_type,

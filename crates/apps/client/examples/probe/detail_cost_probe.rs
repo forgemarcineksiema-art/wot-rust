@@ -29,7 +29,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let ctx = GpuContext::headless()?;
     // Frame-time probe: the shipped sample count, so the A/B prices the player's frame.
-    let target = OffscreenTarget::new_as_shipped(&ctx, width, height)?;
+    let target = OffscreenTarget::new(&ctx, width, height)?;
     let camera = Camera { eye: view.eye, target: view.target, vertical_fov_degrees: 55.0 };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(

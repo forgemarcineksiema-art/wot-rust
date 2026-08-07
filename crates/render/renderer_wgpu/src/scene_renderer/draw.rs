@@ -21,12 +21,6 @@ impl super::SceneRenderer {
         view_proj: [[f32; 4]; 4],
         camera_pos: [f32; 3],
     ) -> Result<(), RenderError> {
-        if target.sample_count != self.sample_count {
-            return Err(RenderError::new(format!(
-                "scene renderer sample count {} does not match render target sample count {}",
-                self.sample_count, target.sample_count
-            )));
-        }
         // Focus the sun-shadow box on the subject. Studio shots set an explicit focus (the tank); the
         // battlefield leaves it unset, so the box is pushed forward along the view so its coverage
         // lands on the field the chase camera looks at, not the empty ground behind it. Then build
@@ -189,7 +183,7 @@ impl super::SceneRenderer {
                         },
                     })],
                     Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: target.depth_view,
+                        view: &hdr.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Clear(1.0),
                             store: wgpu::StoreOp::Store,
@@ -214,7 +208,7 @@ impl super::SceneRenderer {
                         },
                     })],
                     Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: target.depth_view,
+                        view: &hdr.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Load,
                             store: wgpu::StoreOp::Discard,
@@ -245,7 +239,7 @@ impl super::SceneRenderer {
                     },
                 })],
                 Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: target.depth_view,
+                    view: &hdr.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Discard,
@@ -294,7 +288,7 @@ impl super::SceneRenderer {
         // game's only AA). The HUD draws after it, un-graded and never softened: the UI reads
         // the battle, it is not part of the painting.
         {
-            let output_view = target.resolve_target.unwrap_or(target.color_view);
+            let output_view = target.output_view;
             let mut pass = recorder.begin(
                 &mut encoder,
                 crate::frame_graph::PassId::Fxaa,
