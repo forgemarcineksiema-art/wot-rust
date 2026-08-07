@@ -25,6 +25,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         gun_clip: Some([0.035, 0.02]),
         aim_radius_clip: 0.06,
         target_distance_m: Some(214.0),
+        block_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: Some(PenetrationHint {
             penetrates: true,

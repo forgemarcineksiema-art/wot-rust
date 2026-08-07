@@ -24,6 +24,7 @@ pub(super) fn reticle_at(
         gun_clip: None,
         aim_radius_clip: 0.08,
         target_distance_m: None,
+        block_distance_m: None,
         status,
         penetration_hint: hint,
         reload_fraction: 1.0,

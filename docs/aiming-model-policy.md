@@ -46,6 +46,7 @@ millimeter duel is the skill loop.
 | Real-impact marker (amber X) | never | yes, fades in as it separates |
 | BLOCKED broken form | yes | yes |
 | Target distance | yes | yes |
+| Block range (refusals only) | yes | yes |
 | Reload arc / hit confirm | yes | yes |
 
 Third person must not show penetration colors, weak-spot hints, guaranteed hit
@@ -112,9 +113,20 @@ dies on terrain, cover, an ally or a wreck along the way. An open-sky shot that
 simply expires is not blocked; it has no target, which is different. The
 arrival window follows the ARRIVAL ANGLE rather than the range: a plunging shot
 is judged in centimetres, a grazing one touches shallow ground metres early
-through the same few centimetres of vertical slack. There is no second
-geometry — no straight-line chord — because a ballistic arc rides above its own
-chord and a crest the chord grazes is not a blocked shot (register G1–G3).
+through the same few centimetres of vertical slack.
+
+There is no second geometry — no straight-line chord — because a ballistic arc
+rides above its own chord and a crest the chord grazes is not a blocked shot
+(register G1–G3).
+
+And a refusal must NAME ITS CAUSE. "Blocked" on its own leaves the only number
+on screen — the range — answering a question the player cannot act on, because
+while blocked that range belongs to something the gun cannot reach. So a shot
+stopped SHORT of the crosshair prints the metres to whatever eats it, on the row
+under the range, in the broken marker's grey, and a distant impact X is led back
+to the crosshair by a hairline. A shot that sails PAST the sight point prints
+nothing: it was obstructed by nothing, and its range is a fact about the shell's
+lifetime, not about the battlefield.
 
 The server remains authoritative for firing, projectile travel, penetration,
 damage, module state, and snapshots. The client reticle is predictive only; if a

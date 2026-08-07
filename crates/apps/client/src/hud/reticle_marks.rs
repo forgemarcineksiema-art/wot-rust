@@ -297,6 +297,37 @@ pub(super) fn impact_separation_alpha(
     ((separation - low) / (high - low).max(1.0e-4)).clamp(0.0, 1.0)
 }
 
+/// A hairline amber leader from the crosshair to the real impact, so a refusal reads as one
+/// statement instead of two marks. It stops short at both ends: at the aim it clears the marker
+/// and the dispersion ring, and at the impact it stops before the X, so neither glyph is
+/// overdrawn by the line that points at it.
+pub(super) fn push_impact_leader(
+    vertices: &mut Vec<HudVertex>,
+    aim_clip: [f32; 2],
+    impact_clip: [f32; 2],
+    alpha: f32,
+) {
+    // Dimmer than the X it points at: the answer is the mark, this only carries the eye there.
+    let mut color = RETICLE_IMPACT;
+    color[3] *= alpha * 0.45;
+    let span = [impact_clip[0] - aim_clip[0], impact_clip[1] - aim_clip[1]];
+    let length = (span[0] * span[0] + span[1] * span[1]).sqrt();
+    // Below this the X is already inside the marker's own space and the line would be a smudge.
+    const CLEAR_OF_MARKER: f32 = 0.040;
+    const CLEAR_OF_X: f32 = 0.022;
+    if length <= CLEAR_OF_MARKER + CLEAR_OF_X {
+        return;
+    }
+    let unit = [span[0] / length, span[1] / length];
+    push_segment(
+        vertices,
+        [aim_clip[0] + unit[0] * CLEAR_OF_MARKER, aim_clip[1] + unit[1] * CLEAR_OF_MARKER],
+        [impact_clip[0] - unit[0] * CLEAR_OF_X, impact_clip[1] - unit[1] * CLEAR_OF_X],
+        0.0012,
+        color,
+    );
+}
+
 /// A small amber "X" marking where the shell actually lands.
 pub(super) fn push_impact_marker(
     vertices: &mut Vec<HudVertex>,

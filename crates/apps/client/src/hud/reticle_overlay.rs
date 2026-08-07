@@ -13,7 +13,7 @@ use renderer_api::HudVertex;
 use super::push_quad;
 use super::reticle_marks::{
     impact_separation_alpha, push_blocked_marker, push_crosshair, push_dispersion_ring,
-    push_gun_marker, push_impact_marker, push_reload_arc,
+    push_gun_marker, push_impact_leader, push_impact_marker, push_reload_arc,
 };
 use crate::hud::reticle::{PenetrationHint, ReticleMode, ReticleStatus};
 use crate::hud::reticle_readouts::HitConfirm;
@@ -95,6 +95,9 @@ pub(crate) struct HudReticle {
     pub gun_clip: Option<[f32; 2]>,
     pub aim_radius_clip: f32,
     pub target_distance_m: Option<f32>,
+    /// Metres to whatever eats the round, when the shot dies short of the crosshair. Drawn under
+    /// the range in the BLOCKED grey, so a refusal says WHERE instead of only "no".
+    pub block_distance_m: Option<f32>,
     pub status: ReticleStatus,
     pub penetration_hint: Option<PenetrationHint>,
     /// Reload progress in `[0, 1]` (1 = ready). Below 1 the reticle arc shows what remains.
@@ -162,6 +165,14 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
         let alpha =
             impact_separation_alpha(reticle.aim_clip, impact_clip, reticle.aim_radius_clip, aspect);
         if alpha > 0.0 {
+            // A refused shot dies far from the crosshair — a fold 60 m out projects most of a
+            // screen below the aim at maximum zoom — and an unconnected mark down there reads as
+            // clutter rather than as an answer. The leader ties the two into one sentence:
+            // "not there; HERE". Only while blocked: on an arriving shot the X is the ordinary
+            // drop marker and a line to it would be noise on every long shot in the game.
+            if reticle.status == ReticleStatus::Blocked {
+                push_impact_leader(vertices, reticle.aim_clip, impact_clip, alpha);
+            }
             push_impact_marker(vertices, impact_clip, aspect, alpha);
         }
     }
@@ -185,5 +196,18 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
                 aspect,
             );
         }
+    }
+    // The second row, in the broken marker's own grey. It never collides with the pen millimetres
+    // that share the row: a blocked shot reaches no armour, so there are no millimetres to print.
+    // Both modes — like the BLOCKED form itself, it reports the player's own gun and leaks
+    // nothing about the target.
+    if let Some(block_m) = reticle.block_distance_m {
+        super::reticle_readouts::push_block_distance(
+            vertices,
+            reticle.aim_clip,
+            reticle.aim_radius_clip,
+            block_m,
+            aspect,
+        );
     }
 }

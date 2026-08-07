@@ -24,6 +24,67 @@ fn feedback_marks_a_ridge_the_shell_dies_on() {
     assert!(feedback.actual_impact_world_point.z < aim.z, "impact should stop before the target");
 }
 
+/// A refusal has to name its cause. "Blocked" alone taught nothing: the range readout beside it
+/// keeps answering "how far is what I am pointing at", which while blocked is a distance to
+/// something this gun cannot reach — so the only number on screen was the one number that could
+/// not be acted on (register I2). The feedback now carries the other one: metres to whatever eats
+/// the round.
+#[test]
+fn a_blocked_shot_reports_how_far_it_actually_gets() {
+    let heightmap = ridge_heightmap();
+    let muzzle = Vec3::new(20.0, 2.0, 5.0);
+    let aim = Vec3::new(20.0, 0.0, 35.0);
+
+    let feedback = reticle_feedback(query(&heightmap, &[], &[], muzzle, aim, 0.0, 0.0));
+
+    assert_eq!(feedback.status, ReticleStatus::Blocked);
+    let block = feedback.block_distance_m.expect("a blocked shot must say where it dies");
+    assert!(
+        (block - feedback.actual_impact_world_point.distance(muzzle)).abs() < 1.0e-3,
+        "the number is the range to the real impact, got {block}"
+    );
+    assert!(
+        block < aim.distance(muzzle),
+        "and it is SHORT of the crosshair — {block} against a {} m sight point",
+        aim.distance(muzzle)
+    );
+}
+
+/// An arriving shot has nothing to explain, and neither has one that sails PAST the sight point:
+/// a round that expires downrange was obstructed by nothing at all, so its range is a fact about
+/// the shell's lifetime rather than about the battlefield. Printing it would put a number on the
+/// screen that answers no question the player asked.
+#[test]
+fn only_a_shot_stopped_short_prints_a_block_range() {
+    let flat = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+    let muzzle = Vec3::new(40.0, 1.15, 40.0);
+    let aim = Vec3::new(40.0, 0.0, 140.0);
+    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
+    let arriving = reticle_feedback(query(&flat, &[], &[], muzzle, aim, 0.0, pitch));
+    assert_eq!(arriving.status, ReticleStatus::Clear);
+    assert_eq!(arriving.block_distance_m, None, "an arriving shot explains nothing");
+
+    // Out of arc: the gun cannot depress to the sight point, so the round leaves flatter than
+    // asked and comes down well BEYOND it. Blocked, correctly — and with nothing to point at.
+    let steep = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+    let over = reticle_feedback(query(
+        &steep,
+        &[],
+        &[],
+        Vec3::new(40.0, 4.0, 40.0),
+        Vec3::new(40.0, 0.0, 60.0),
+        0.0,
+        -0.14,
+    ));
+    assert_eq!(over.status, ReticleStatus::Blocked);
+    assert!(
+        over.actual_impact_world_point.distance(Vec3::new(40.0, 4.0, 40.0))
+            > Vec3::new(40.0, 0.0, 60.0).distance(Vec3::new(40.0, 4.0, 40.0)),
+        "the shot really does land beyond the sight point"
+    );
+    assert_eq!(over.block_distance_m, None, "an over-shot was obstructed by nothing");
+}
+
 #[test]
 fn feedback_is_clear_when_current_gun_arc_lands_near_the_aim_point() {
     let heightmap = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();

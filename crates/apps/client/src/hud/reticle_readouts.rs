@@ -120,6 +120,47 @@ pub(super) fn push_pen_numbers(
     );
 }
 
+/// Metres to whatever eats the round, drawn under the range in the broken marker's own grey.
+///
+/// The row is the one the penetration millimetres use, and the two can never collide: a shot that
+/// does not arrive reaches no armour, so there are no millimetres to print. Sharing the row is
+/// deliberate rather than convenient — this line and that one answer the same question ("what
+/// happens at the other end of this shot"), and giving the refusal its own third row would push
+/// the column into the incoming-hit arcs.
+///
+/// It is a smaller, dimmer number than the range on purpose: the range is what the player asked
+/// for, this is why they cannot have it.
+pub(super) fn push_block_distance(
+    vertices: &mut Vec<HudVertex>,
+    aim_clip: [f32; 2],
+    ring_radius: f32,
+    distance_m: f32,
+    aspect: f32,
+) {
+    const HEIGHT: f32 = 0.038;
+    let metres = distance_m.round().clamp(0.0, 9_999.0) as u32;
+    let [right_x, top_y] =
+        readout_anchor(aim_clip, ring_radius, 0.105, digits_width(metres, HEIGHT, aspect), aspect);
+    crate::hud::number::push_number(
+        vertices,
+        metres,
+        right_x,
+        top_y,
+        HEIGHT,
+        aspect,
+        crate::hud::reticle_overlay::RETICLE_BLOCKED,
+    );
+    crate::hud::font::push_text(
+        vertices,
+        crate::ui_strings::battle::DISTANCE_UNIT,
+        right_x + 0.006,
+        top_y,
+        HEIGHT,
+        aspect,
+        crate::hud::number::UNIT_COLOR,
+    );
+}
+
 pub(super) fn push_target_distance(
     vertices: &mut Vec<HudVertex>,
     aim_clip: [f32; 2],

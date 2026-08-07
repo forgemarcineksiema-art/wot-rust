@@ -49,6 +49,15 @@ pub(crate) struct ReticleFeedback {
     pub aim_world_point: Vec3,
     pub gun_world_point: Vec3,
     pub actual_impact_world_point: Vec3,
+    /// How far the shot actually gets, when that is SHORT of where the player is pointing.
+    ///
+    /// A refusal has to name its cause or it teaches nothing. The range readout answers "how far
+    /// is what I am pointing at", which while blocked is a distance to something the gun cannot
+    /// reach — the sight's one outright lie (register I2). This is the other number: metres to
+    /// the ground, wall or hull that eats the round. `None` whenever the shot arrives, and
+    /// whenever it dies BEYOND the sight point (an over-shot that expires downrange is a miss,
+    /// not an obstruction, and printing its range would be noise).
+    pub block_distance_m: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -174,12 +183,18 @@ fn feedback_from_outcome(
     let status = if in_arc && arrives { ReticleStatus::Clear } else { ReticleStatus::Blocked };
     // The gun marker reports the LIVE barrel, not the solution — that is its whole job.
     let gun_world_point = query.muzzle + query.gun_direction.normalize_or_zero() * distance;
+    // Where the shot really stops, but only when that is short of the crosshair: a round that
+    // sails past the sight point and expires downrange was not obstructed by anything, and its
+    // range is a fact about the shell's lifetime rather than about the battlefield.
+    let reach = actual_impact_world_point.distance(query.muzzle);
+    let block_distance_m = (status == ReticleStatus::Blocked && reach < distance).then_some(reach);
 
     ReticleFeedback {
         status,
         aim_world_point: query.aim,
         gun_world_point,
         actual_impact_world_point,
+        block_distance_m,
     }
 }
 
