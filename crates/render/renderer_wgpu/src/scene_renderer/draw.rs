@@ -324,6 +324,8 @@ impl super::SceneRenderer {
         // later encoder would read a query set the GPU may not have finished writing. A no-op
         // while the profiler is Disabled.
         recorder.resolve(&mut encoder);
+        // The counts, unlike the timings, are always there to take.
+        self.frame_counts.set(recorder.counts());
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
     }
@@ -333,7 +335,7 @@ impl super::SceneRenderer {
     /// pass (analytic water) and the refraction opaque pass.
     fn draw_world_opaque(
         &self,
-        pass: &mut wgpu::RenderPass<'_>,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
         camera_frustum: &Frustum,
         eye: [f32; 3],
         band_scale: f32,
@@ -433,7 +435,11 @@ impl super::SceneRenderer {
     /// refraction pipeline sampling the opaque grab at group 1; `None` uses the analytic pipeline.
     /// Depth-tested (banks and hulls above the waterline occlude it) but never depth-writing, so a
     /// wading hull's submerged running gear reads through and the FX splashes composite over it.
-    fn draw_water_surface(&self, pass: &mut wgpu::RenderPass<'_>, grab: Option<&wgpu::BindGroup>) {
+    fn draw_water_surface(
+        &self,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
+        grab: Option<&wgpu::BindGroup>,
+    ) {
         if self.water_index_count > 0
             && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
         {
@@ -456,7 +462,7 @@ impl super::SceneRenderer {
 
     /// Battle FX then rain into the current pass, over the water and opaque world before the HUD:
     /// FX reuse the scene camera group for view_proj; rain is stateless vertex-shader streaks.
-    fn draw_overlay_fx(&self, pass: &mut wgpu::RenderPass<'_>) {
+    fn draw_overlay_fx(&self, pass: &mut crate::pass_recorder::CountedPass<'_, '_>) {
         if self.fx_vertex_count > 0 {
             pass.set_pipeline(&self.fx_pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);

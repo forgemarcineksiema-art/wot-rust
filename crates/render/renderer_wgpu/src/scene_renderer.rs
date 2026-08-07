@@ -155,6 +155,10 @@ pub struct SceneRenderer {
     /// Per-pass GPU timing. `Disabled` unless a probe arms it, and while disabled the encoder
     /// emits exactly the command stream it emitted before this field existed.
     profiler: crate::frame_profiler::FrameProfiler,
+    /// What the last frame submitted, per pass. Counted on EVERY frame — draws and triangles need
+    /// no GPU feature, so unlike the timings this half is available on any adapter and inside an
+    /// ordinary test. A `Cell` because `render` takes `&self`, like `skipped_mesh_draws`.
+    frame_counts: Cell<crate::pass_recorder::FrameCounts>,
 }
 
 impl SceneRenderer {
@@ -214,6 +218,15 @@ impl SceneRenderer {
     /// The timing instrument this renderer holds — `Disabled` unless a probe armed one.
     pub fn pass_profiler(&self) -> &crate::frame_profiler::FrameProfiler {
         &self.profiler
+    }
+
+    /// What the last rendered frame submitted, per pass: draws, triangles and instances.
+    ///
+    /// Always populated, on every adapter — this is the half of the instrument that costs nothing
+    /// and needs no optional feature, so a draw-call question can be answered without a GPU that
+    /// can time anything.
+    pub fn last_frame_counts(&self) -> crate::pass_recorder::FrameCounts {
+        self.frame_counts.get()
     }
 
     pub fn new(
@@ -488,6 +501,7 @@ impl SceneRenderer {
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
             profiler: crate::frame_profiler::FrameProfiler::Disabled,
+            frame_counts: Cell::new(crate::pass_recorder::FrameCounts::default()),
         })
     }
 }

@@ -302,20 +302,10 @@ fn frame_time_capture() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
     // Objects are NOT draws: the renderer batches by (mesh, material), so a tank's 192 shoe
-    // links collapse into one instanced draw. Printing both stops the object count being read
-    // as a draw-call count — the first thing anyone reaches for when a frame is slow.
-    let plan = renderer_wgpu::RenderFrameBatchPlan::from_frame(
-        &renderer_api::RenderFrame {
-            objects: warm.clone(),
-            ..renderer_api::RenderFrame::default()
-        },
-        std::mem::size_of::<[f32; 24]>(),
-    );
-    println!(
-        "battle lineup: 14 vehicles, {} render objects at the near tier -> {} batched draws",
-        warm.len(),
-        plan.draws().len(),
-    );
+    // links collapse into one instanced draw. Both numbers are reported below, per config, and
+    // the draw count now comes from the FRAMES THEMSELVES rather than from a second, parallel
+    // implementation of batching that nothing else used and nothing kept honest.
+    let lineup_objects = warm.len();
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
@@ -360,6 +350,10 @@ fn frame_time_capture() {
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
     let mut samples: [Vec<f64>; 7] = std::array::from_fn(|_| Vec::new());
+    // What each config actually submitted, taken off the last timed frame of its last block.
+    // Every timed frame of a config walks the same path and draws the same content, so one
+    // frame's counts describe the config.
+    let mut counts: [renderer_wgpu::FrameCounts; 7] = Default::default();
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -456,6 +450,7 @@ fn frame_time_capture() {
                 }
                 if block_frame >= BLOCK_WARMUP {
                     samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
+                    counts[config] = renderer.last_frame_counts();
                 }
             }
         }
@@ -482,6 +477,7 @@ fn frame_time_capture() {
         if config == 0 {
             full_p50 = at(0.50);
         }
+        let submitted = counts[config].total();
         println!(
             "frame time @{width}x{height} [{name}] ({} samples, {CYCLES} interleaved cycles): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms  (Δ vs full {:+.2} ms p50)",
             series.len(),
@@ -491,7 +487,26 @@ fn frame_time_capture() {
             series[series.len() - 1],
             at(0.50) - full_p50,
         );
+        println!(
+            "    submitted: {} draws, {} triangles, {} instances",
+            submitted.draws, submitted.triangles, submitted.instances,
+        );
+        for id in renderer_wgpu::PassId::ALL {
+            let pass = counts[config].pass(*id);
+            if pass.draws > 0 {
+                println!(
+                    "      {:<18} {:>4} draws  {:>9} tris  {:>6} inst",
+                    id.label(),
+                    pass.draws,
+                    pass.triangles,
+                    pass.instances,
+                );
+            }
+        }
     }
+    println!(
+        "  the 7v7 lineup is {lineup_objects} render objects; the draw counts above are what the          renderer actually submitted after batching by (mesh, material)."
+    );
     println!(
         "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",
         (full_p50 - fence_p50).max(0.0)

@@ -308,7 +308,11 @@ impl SceneRenderer {
 
     /// Issue the ground draws for one depth/colour pass: bind the ground buffers and draw the
     /// chunks `frustum` sees. The caller has already set the pass pipeline and bind groups.
-    pub(super) fn draw_visible_ground(&self, pass: &mut wgpu::RenderPass<'_>, frustum: &Frustum) {
+    pub(super) fn draw_visible_ground(
+        &self,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
+        frustum: &Frustum,
+    ) {
         let Some(binding) = self.ground.binding.as_ref() else {
             return;
         };

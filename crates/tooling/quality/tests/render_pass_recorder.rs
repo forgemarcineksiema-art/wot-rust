@@ -84,3 +84,71 @@ fn the_allowlist_describes_call_sites_that_actually_exist() {
         stale.join("\n  ")
     );
 }
+
+/// No module but the recorder may so much as NAME `wgpu::RenderPass`.
+///
+/// This is the counting half of the same rule, and it is deliberately stated as "cannot hold the
+/// type" rather than "must not call draw". `CountedPass` owns the pass privately and exposes only
+/// counting draws, so an uncounted draw is not something a call site can write — it would first
+/// have to get its hands on the raw pass. Forbidding the type forbids that, and it is a rule a
+/// text scan can actually check, unlike "did you call the counting draw or the other one".
+#[test]
+fn no_draw_bypasses_the_counter() {
+    let root = workspace_root();
+    let src = crate_src_dir(&root, "renderer_wgpu");
+    let mut offenders = Vec::new();
+
+    for path in rust_files(&src) {
+        if path.file_name().and_then(|n| n.to_str()) == Some(RECORDER) {
+            continue;
+        }
+        let Ok(source) = fs::read_to_string(&path) else { continue };
+        for (index, line) in source.lines().enumerate() {
+            // The descriptor types are fine — they are how a pass is described, not held.
+            if line.contains("wgpu::RenderPass<")
+                || line.contains("wgpu::RenderPass)")
+                || line.contains("wgpu::RenderPass ")
+            {
+                offenders.push(format!("{}:{}", repo_relative(&path, &root), index + 1));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "a raw `wgpu::RenderPass` is held outside {RECORDER}:\n  {}\n\nTake \
+         `&mut CountedPass<'_, '_>` instead. A raw pass can be drawn into without counting, and a \
+         frame whose draw total quietly misses one is worse than no counter at all.",
+        offenders.join("\n  ")
+    );
+}
+
+/// The triangle arithmetic divides vertex and index counts by three, which is only true because
+/// every pipeline in this renderer is a triangle list. A strip or a fan would not fail anything —
+/// it would silently report a third of the triangles it drew, and a budget would be set against
+/// the wrong number.
+#[test]
+fn every_pipeline_is_a_triangle_list() {
+    let root = workspace_root();
+    let src = crate_src_dir(&root, "renderer_wgpu");
+    let mut offenders = Vec::new();
+
+    for path in rust_files(&src) {
+        let Ok(source) = fs::read_to_string(&path) else { continue };
+        for (index, line) in source.lines().enumerate() {
+            if line.contains("PrimitiveTopology::")
+                && !line.contains("PrimitiveTopology::TriangleList")
+            {
+                offenders.push(format!("{}:{}", repo_relative(&path, &root), index + 1));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "a pipeline uses a topology the triangle counter cannot read:\n  {}\n\nThe counter \
+         divides by three. Teach it this topology in `CountedPass::draw*` before shipping the \
+         pipeline, or the frame will under-report its geometry.",
+        offenders.join("\n  ")
+    );
+}

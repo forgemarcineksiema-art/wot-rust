@@ -283,25 +283,23 @@ impl BloomResources {
 }
 
 /// One rung of the bloom ladder, opened through the recorder like every other pass.
-fn begin_rung(
-    recorder: &mut crate::pass_recorder::PassRecorder<'_>,
-    encoder: &mut wgpu::CommandEncoder,
+fn begin_rung<'e, 'r>(
+    recorder: &'r mut crate::pass_recorder::PassRecorder<'_>,
+    encoder: &'e mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
     load: wgpu::LoadOp<wgpu::Color>,
     span: crate::pass_recorder::TimestampSpan,
-) -> wgpu::RenderPass<'static> {
-    recorder
-        .begin_span(
-            encoder,
-            crate::frame_graph::PassId::Bloom,
-            span,
-            &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                depth_slice: None,
-                ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
-            })],
-            None,
-        )
-        .forget_lifetime()
+) -> crate::pass_recorder::CountedPass<'e, 'r> {
+    recorder.begin_span(
+        encoder,
+        crate::frame_graph::PassId::Bloom,
+        span,
+        &[Some(wgpu::RenderPassColorAttachment {
+            view,
+            resolve_target: None,
+            depth_slice: None,
+            ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
+        })],
+        None,
+    )
 }

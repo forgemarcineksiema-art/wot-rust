@@ -76,7 +76,7 @@ impl SceneRenderer {
     /// look through a hole the CPU never submitted.
     pub(super) fn draw_visible_dressing(
         &self,
-        pass: &mut wgpu::RenderPass<'_>,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
         frustum: &Frustum,
         eye: [f32; 3],
         band_scale: f32,

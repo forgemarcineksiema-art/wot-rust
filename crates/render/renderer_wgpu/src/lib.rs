@@ -10,7 +10,6 @@ mod pass_recorder;
 mod pipeline_registry;
 mod rain_pipeline;
 mod readback_queue;
-mod render_frame_batch;
 mod renderer;
 mod scene_pipeline;
 mod scene_renderer;
@@ -42,10 +41,10 @@ pub use gpu_layout::{
     tank_vertex_bytes,
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
+pub use pass_recorder::{FrameCounts, PassCounts};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
 pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
-pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
 pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
