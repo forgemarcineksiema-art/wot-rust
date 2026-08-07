@@ -138,7 +138,11 @@ impl super::SceneRenderer {
         // Refraction takes the two-pass grab path only when the tier enables it AND the frame is
         // multisampled (the grab is produced by the MSAA resolve). Rebind the water's group-1 grab
         // whenever the HDR chain was recreated.
-        let refraction_active = self.refraction && self.sample_count > 1;
+        // The graph decides what this frame encodes. The switches are read off the renderer once
+        // and then ASKED, so a pass cannot be gated by one rule here and described by another
+        // there.
+        let switches = self.frame_switches();
+        let refraction_active = switches.refraction;
         if refraction_active {
             let targets = self.post.targets.borrow();
             let hdr = targets.as_ref().expect("post targets just ensured");
@@ -157,7 +161,7 @@ impl super::SceneRenderer {
         let mut recorder = crate::pass_recorder::PassRecorder::new(&self.profiler);
         self.encode_shadow_pass(&mut recorder, &mut encoder, &light_frustum);
         self.encode_far_shadow_pass(&mut recorder, &mut encoder, &light_frustum_far);
-        if self.ssao.strength > 0.0 {
+        if switches.encodes(crate::frame_graph::PassId::SsaoPrepass) {
             self.encode_ssao_prepass(&mut recorder, &mut encoder, &camera_frustum);
             self.ssao.encode_ao_passes(&mut recorder, &mut encoder, &self.camera_bind_group);
         }
@@ -255,7 +259,7 @@ impl super::SceneRenderer {
         }
         // The bloom ladder blurs the resolved HDR frame down and back up before the post pass
         // composites it (rule 6); skipped entirely at weight 0 or bloom_mips 0.
-        if self.scene_lighting.bloom_weight > 0.0 {
+        if switches.encodes(crate::frame_graph::PassId::Bloom) {
             self.bloom.encode(&mut recorder, &mut encoder);
         }
         // The post pass: one fullscreen triangle applies the display transform (exposure ->
@@ -397,7 +401,7 @@ impl super::SceneRenderer {
         }
         if self.vehicle_instance_count > 0 {
             pass.set_pipeline(&self.vehicle_pipeline);
-            pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
             pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
             for draw in &self.vehicle_draws {

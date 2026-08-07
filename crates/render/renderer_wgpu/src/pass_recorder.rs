@@ -225,7 +225,11 @@ impl<'p> PassRecorder<'p> {
         color_attachments: &[Option<wgpu::RenderPassColorAttachment<'_>>],
         depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'_>>,
     ) -> CountedPass<'e, 'r> {
-        let timestamp_writes = self.timestamp_writes(pass, span);
+        // Recorded whether or not anything is timing: which passes a frame encoded is a fact
+        // about the frame, not about the instrument, and the check that the graph does not lie
+        // should not need a GPU feature to run.
+        let slot = self.slot_for(pass);
+        let timestamp_writes = self.timestamp_writes(pass, span, slot);
         let counts = &mut self.counts.per_pass[pass.index()];
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(pass.label()),
@@ -278,14 +282,14 @@ impl<'p> PassRecorder<'p> {
 
     fn timestamp_writes(
         &mut self,
-        pass: PassId,
+        _pass: PassId,
         span: TimestampSpan,
+        base: u32,
     ) -> Option<wgpu::RenderPassTimestampWrites<'p>> {
         let active = self.profiler.active()?;
         if span == TimestampSpan::Inside {
             return None;
         }
-        let base = self.slot_for(pass);
         let (beginning_of_pass_write_index, end_of_pass_write_index) = match span {
             TimestampSpan::Whole => (Some(base), Some(base + 1)),
             TimestampSpan::Start => (Some(base), None),
@@ -331,13 +335,20 @@ mod tests {
                 TimestampSpan::End,
                 TimestampSpan::Inside,
             ] {
+                let slot = recorder.slot_for(*pass);
                 assert!(
-                    recorder.timestamp_writes(*pass, span).is_none(),
+                    recorder.timestamp_writes(*pass, span, slot).is_none(),
                     "{pass:?} would write a timestamp with the profiler disabled"
                 );
             }
         }
-        assert!(recorder.order.is_empty(), "a disabled frame allocated a timestamp slot");
+        // The slot LEDGER is kept regardless — it is what says which passes ran — but no pass
+        // asked the GPU to write anything into those slots.
+        assert_eq!(
+            recorder.order.len(),
+            PassId::COUNT,
+            "the encoded order is recorded whether or not anything is timing"
+        );
     }
 
     /// Slots are handed out in ENCODING order, not per pass, so the written queries stay a

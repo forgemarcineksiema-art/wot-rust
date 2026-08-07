@@ -31,7 +31,7 @@ use renderer_api::{
     RenderLimitsSummary, TextureCompressionSupport,
 };
 
-pub use frame_graph::{FRAME_GRAPH, FrameResource, PassCondition, PassId, PassNode};
+pub use frame_graph::{FRAME_GRAPH, FrameResource, FrameSwitches, PassCondition, PassId, PassNode};
 pub use frame_profiler::{ActiveProfiler, FrameProfiler, FrameTimings};
 pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::{GpuContext, GpuContextOptions};

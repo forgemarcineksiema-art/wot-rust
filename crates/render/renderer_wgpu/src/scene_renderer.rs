@@ -71,7 +71,6 @@ pub struct SceneRenderer {
     frame_draws: Vec<SceneObjectDraw>,
     static_meshes: SceneMeshRegistry,
     vehicle_pipeline: wgpu::RenderPipeline,
-    vehicle_camera_bind_group: wgpu::BindGroup,
     vehicle_materials: vehicle_materials::VehicleMaterialRegistry,
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
@@ -224,6 +223,22 @@ impl SceneRenderer {
     /// The timing instrument this renderer holds — `Disabled` unless a probe armed one.
     pub fn pass_profiler(&self) -> &crate::frame_profiler::FrameProfiler {
         &self.profiler
+    }
+
+    /// The three switches that decide which passes this frame encodes, read off the renderer.
+    pub fn frame_switches(&self) -> crate::frame_graph::FrameSwitches {
+        crate::frame_graph::FrameSwitches {
+            ssao: self.ssao.strength > 0.0,
+            // Weight AND depth: a tier that sets `bloom_mips` to zero encodes no ladder no matter
+            // what the lighting asks for, and the graph has to say what the frame does.
+            bloom: self.scene_lighting.bloom_weight > 0.0 && self.bloom.mips > 0,
+            refraction: self.refraction && self.sample_count > 1,
+        }
+    }
+
+    /// Which passes the last frame encoded, in order. Recorded on every frame, armed or not.
+    pub fn last_frame_pass_order(&self) -> crate::pass_recorder::PassOrder {
+        self.frame_pass_order.get()
     }
 
     /// What the last rendered frame submitted, per pass: draws, triangles and instances.
@@ -408,21 +423,6 @@ impl SceneRenderer {
                 },
             ],
         });
-        let vehicle_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("vehicle_camera_bg"),
-            layout: &camera_bgl,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: camera_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: armor_damage.headers.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: armor_damage.apertures.as_entire_binding(),
-                },
-            ],
-        });
 
         let (chunked_indices, terrain_chunks) =
             terrain::chunk_initial_terrain(terrain_vertices, terrain_indices);
@@ -468,7 +468,6 @@ impl SceneRenderer {
             frame_draws: Vec::new(),
             static_meshes: SceneMeshRegistry::default(),
             vehicle_pipeline,
-            vehicle_camera_bind_group,
             vehicle_materials,
             vehicle_instances: buffers.vehicle_instances,
             vehicle_instance_count: 0,

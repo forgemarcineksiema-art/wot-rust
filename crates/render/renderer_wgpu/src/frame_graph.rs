@@ -254,3 +254,39 @@ pub const FRAME_GRAPH: &[PassNode] = &[
         writes: &[FrameResource::Output],
     },
 ];
+
+/// The three switches that decide which passes a frame encodes, read off the renderer once and
+/// then asked rather than re-derived.
+///
+/// Before this existed the conditions lived as four scattered `if`s in `render`, and the graph's
+/// copy of them was a claim nothing checked. Now the code asks the table, so the two cannot
+/// disagree about WHETHER a pass runs — only about whether the table is right, which is what
+/// `the_encoded_passes_match_the_graph` is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameSwitches {
+    pub ssao: bool,
+    pub bloom: bool,
+    pub refraction: bool,
+}
+
+impl FrameSwitches {
+    /// Whether this frame encodes the given pass.
+    pub fn encodes(self, id: PassId) -> bool {
+        id.node().condition.holds(self.ssao, self.bloom, self.refraction)
+    }
+
+    /// Every pass this frame encodes, in order.
+    pub fn passes(self) -> impl Iterator<Item = PassId> {
+        FRAME_GRAPH.iter().filter(move |node| self.encodes(node.id)).map(|node| node.id)
+    }
+}
+
+impl PassId {
+    /// This pass's row in the frame graph.
+    pub fn node(self) -> &'static PassNode {
+        FRAME_GRAPH
+            .iter()
+            .find(|node| node.id == self)
+            .expect("every PassId has a row in FRAME_GRAPH")
+    }
+}

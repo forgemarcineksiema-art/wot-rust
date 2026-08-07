@@ -159,3 +159,66 @@ fn a_frame_draws_its_world_exactly_once() {
         );
     }
 }
+
+/// The lock the whole table hangs from: what the renderer ENCODES must equal what the graph says
+/// it encodes.
+///
+/// Every other test here checks the table against itself, which would pass just as happily if the
+/// table described a different renderer. This one renders real frames and compares the passes that
+/// actually opened against the passes the graph predicts — so the description cannot drift from
+/// the thing described without something going red.
+///
+/// It needs a GPU but NOT `TIMESTAMP_QUERY`: which passes a frame encoded is a fact about the
+/// frame, and the recorder keeps it whether or not anything is timing.
+#[test]
+fn the_encoded_passes_match_the_graph() {
+    let Ok(ctx) = renderer_wgpu::GpuContext::headless() else {
+        eprintln!("skipping graph/encoding agreement test: no headless adapter");
+        return;
+    };
+    let target = renderer_wgpu::OffscreenTarget::new(&ctx, 64, 64).expect("target");
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let view_proj = renderer_api::view_projection_matrix(&camera, 1.0, 0.1, 20.0);
+
+    let check = |renderer: &mut renderer_wgpu::SceneRenderer, what: &str| {
+        renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
+        let predicted: Vec<PassId> = renderer.frame_switches().passes().collect();
+        let encoded: Vec<PassId> =
+            renderer.last_frame_pass_order().iter().map(|(_, id)| id).collect();
+        assert_eq!(
+            encoded,
+            predicted,
+            "{what}: the frame graph and the renderer disagree about which passes a frame is \
+             made of (switches: {:?})",
+            renderer.frame_switches()
+        );
+        assert!(!encoded.is_empty(), "{what}: a frame that encoded nothing is not a frame");
+    };
+
+    // The shipped tier: SSAO on, bloom off, refraction off.
+    let mut shipped =
+        renderer_wgpu::SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+    check(&mut shipped, "canonical");
+
+    // With SSAO switched off, three passes must vanish from BOTH sides at once.
+    shipped.set_ssao_enabled(false);
+    check(&mut shipped, "ssao off");
+    assert!(
+        !shipped.frame_switches().ssao,
+        "turning SSAO off must be visible in the switches, or the check above proved nothing"
+    );
+
+    // And the dev-only rich tier, which is the only configuration that runs the bloom ladder.
+    let mut rich = renderer_wgpu::SceneRenderer::for_offscreen_with_quality(
+        &ctx,
+        &[],
+        &[],
+        renderer_api::LightingQuality::rich(),
+    )
+    .expect("rich renderer");
+    check(&mut rich, "rich");
+}
