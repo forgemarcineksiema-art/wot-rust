@@ -843,17 +843,16 @@ fn check_roads(map: &BattlefieldMap, report: &mut MapReport) {
 
 /// Dressing obeys its own rules: grounded, out of cover, and (when mirrored) in pairs.
 fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
-    let [w, d] = map.size_m;
+    // The "grows outside the map" guard this check used to carry was DELETED 2026-08-07, when
+    // writing the test that trips it (`scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover`)
+    // showed it could not be tripped. Every path into `map.scenery` runs through
+    // `compile::push_mirrored` or `terrain::scatter_mirrored`, and both DROP a point whose
+    // `sample_height` comes back `None` — so an out-of-map instance never reaches a compiled map
+    // to be warned about. Grounding is the stronger guarantee, and a branch nothing can take is
+    // not a promise (the `data_contracts` gate's own words). What survives is the guard that can
+    // still fire: a scatter with too small a `cover_margin_m` growing a tree through a barn.
     for instance in &map.scenery {
         let [x, _, z] = instance.position;
-        if !(0.0..=w).contains(&x) || !(0.0..=d).contains(&z) {
-            report.push(
-                "scenery",
-                Severity::Warning,
-                format!("{:?} grows outside the map", instance.kind),
-                Some(instance.position),
-            );
-        }
         if map.static_cover.iter().any(|c| {
             (x - c.center[0]).abs() < c.half_extents_m[0]
                 && (z - c.center[2]).abs() < c.half_extents_m[2]

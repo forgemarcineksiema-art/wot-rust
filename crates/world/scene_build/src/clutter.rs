@@ -73,11 +73,51 @@ pub fn push_scenery_instance(
         | SceneryKind::FruitTree
         | SceneryKind::Bush
         | SceneryKind::Pine => push_baked_tree(vertices, indices, instance),
-        SceneryKind::Rock => push_rock(vertices, indices, instance, stone),
-        SceneryKind::Lamppost | SceneryKind::DebrisHeap => {
-            push_scenery_instance_far(vertices, indices, instance, stone)
+        SceneryKind::Rock => {
+            push_rock(vertices, indices, instance, stone, world_forge::rock::RockForm::Erratic)
         }
+        SceneryKind::DebrisHeap => push_debris_heap(vertices, indices, instance, stone),
+        SceneryKind::Lamppost => push_scenery_instance_far(vertices, indices, instance, stone),
     }
+}
+
+/// The masonry spill, transformed and dressed. Its vertices carry the world's OWN material
+/// vocabulary, decoded through the single function the building facades use — so the plaster,
+/// the tile and the timber wear the same treatments here as they do on the wall they fell off.
+fn push_debris_heap(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    instance: &SceneryInstance,
+    stone: StoneTone,
+) {
+    let base = Vec3::from_array(instance.position);
+    let seed =
+        instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
+    let spill = world_forge::spill::bake_debris_spill(seed);
+    let rotation = Mat3::from_rotation_y(instance.yaw_rad);
+    // Debris has no per-building palette to inherit — it is authored street dressing, not the
+    // wreck of a named house — so walls and roofs take the material's own PBR-lite defaults.
+    // The dressed stone alone is the MAP's, so a broken sill matches the town's own stone.
+    let palette = crate::world_material::Palette {
+        wall: world_forge::WorldMaterial::Wall.albedo(),
+        roof: world_forge::WorldMaterial::Roof.albedo(),
+        roof_gloss: 1.0 - world_forge::WorldMaterial::Roof.roughness(),
+        stone: (stone.albedo, stone.gloss),
+    };
+    let start = vertices.len() as u32;
+    for vertex in spill.vertices() {
+        let position = base + rotation * (vertex.position * instance.scale);
+        let normal = (rotation * vertex.normal).normalize_or_zero();
+        let (color, gloss, role) = crate::world_material::to_scene(
+            world_forge::WorldMaterial::from_carrier(vertex.material),
+            palette,
+        );
+        vertices.push(
+            SceneVertex::surfaced(position.to_array(), normal.to_array(), color, gloss)
+                .with_surface(role),
+        );
+    }
+    indices.extend(spill.indices().iter().map(|index| index + start));
 }
 
 /// The far representation: the original flat-shaded frusta. The backdrop ring calls this
@@ -175,19 +215,20 @@ pub fn push_scenery_instance_far(
     }
 }
 
-/// The baked field stone, transformed and coloured into the static scene mesh. The seed comes
-/// from the instance's position bits — the same trick the trees use, so a scatter never repeats
-/// a stone yet every bake of the map is identical.
+/// A baked stone — one erratic, or a whole talus drift — transformed and coloured into the static
+/// scene mesh. The seed comes from the instance's position bits, the same trick the trees use, so
+/// a scatter never repeats a stone yet every bake of the map is identical.
 fn push_rock(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
     stone: StoneTone,
+    form: world_forge::rock::RockForm,
 ) {
     let base = Vec3::from_array(instance.position);
     let seed =
         instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
-    let rock = world_forge::rock::bake_rock(world_forge::rock::RockForm::Erratic, seed);
+    let rock = world_forge::rock::bake_rock(form, seed);
     let rotation = Mat3::from_rotation_y(instance.yaw_rad);
     let start = vertices.len() as u32;
     for vertex in rock.body.vertices() {
@@ -312,6 +353,36 @@ mod tests {
             let top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - ground;
             assert!((0.3 * scale..=1.6 * scale).contains(&top), "scale {scale} height {top}");
         }
+    }
+
+    /// The spill wears the materials of the building it fell from, so the scene shader dresses
+    /// each in its own treatment — plaster blotches, roof courses, plank grain. The defect this
+    /// replaces was three lumps of ONE grey in a town built of four materials.
+    #[test]
+    fn the_debris_heap_is_made_of_the_building_it_fell_from() {
+        let instance = SceneryInstance {
+            kind: SceneryKind::DebrisHeap,
+            position: [12.0, 2.0, 8.0],
+            yaw_rad: 1.1,
+            scale: 1.0,
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        push_scenery_instance(&mut vertices, &mut indices, &instance, StoneTone::NEUTRAL);
+        assert!(!indices.is_empty(), "a debris heap draws something");
+        for (role, name) in [
+            (surface_role::PLASTER, "rendered masonry"),
+            (surface_role::SLATE, "roof tile"),
+            (surface_role::PLANK, "snapped timber"),
+        ] {
+            assert!(
+                vertices.iter().any(|v| (v.surface - role).abs() < 0.01),
+                "the spill carries no {name} — it is a grey pile again"
+            );
+        }
+        // Honest-blockers rule: knee-high, whatever the seed and scale.
+        let top = vertices.iter().map(|v| v.position[1] - 2.0).fold(f32::MIN, f32::max);
+        assert!(top <= world_forge::spill::SPILL_HEIGHT_CAP_M + 1.0e-4, "spill stands {top} m");
     }
 
     /// Per-map identity: the boulders are made of the stone the map's own splat paints. A map

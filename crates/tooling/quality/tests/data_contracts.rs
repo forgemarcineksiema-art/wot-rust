@@ -25,6 +25,13 @@ use quality::workspace::{crate_src_dir, integration_test_files, workspace_root};
 /// check by check as maps needed them, and the tests were written for the checks whose failures
 /// somebody had actually hit. Burn it down by writing the map that trips the check — that map is
 /// also the documentation of what the check means.
+///
+/// **`scenery` came off 2026-08-07 (eight left), and it paid the rule's own thesis back.** Writing
+/// the map that trips it found that half of it could not be tripped: the "grows outside the map"
+/// warning was unreachable, because both scenery expanders already drop a point the heightmap
+/// refuses to ground. That half is deleted and the reachable half — a tree growing through a barn
+/// — is now exercised by `scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover`. A
+/// branch never taken really was indistinguishable from a branch that cannot be taken.
 const UNEXERCISED_CHECK_ALLOWLIST: &[(&str, &str)] = &[
     ("cover_overlap", "no test builds two static cover boxes that interpenetrate"),
     ("environment", "no test ships a map with a malformed environment block"),
@@ -36,7 +43,6 @@ const UNEXERCISED_CHECK_ALLOWLIST: &[(&str, &str)] = &[
         "the saturation window is tested by name; the rest of the material contract is not",
     ),
     ("roads", "no test authors a road that breaks its own contract"),
-    ("scenery", "no test authors scenery that violates the scenery rules"),
     ("water_contract", "the drowning depth is asserted in map tests, never through this check"),
 ];
 

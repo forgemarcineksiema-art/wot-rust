@@ -138,8 +138,30 @@ proceduralne), assets/flora delete, notices, docs.
     (patrz pomiar w opisie PR). Uczciwe ścięcie pod linię brzucha to PR 8c, razem z osłoną,
     która przejmie duże kamienie — żeby nie było okna, w którym góra traci kamienie i jeszcze
     ich nie dostała.
-  - **PR 8b — piarg i rozsyp.** `SceneryKind::Scree` (kępa 5–12 odłamków z jednej instancji,
-    klumping w forge'u — bez zmian w `SceneryOp`) + `DebrisHeap` z materiałów fasad.
+  - **PR 8b — rozsyp ZROBIONY, piarg ZMIERZONY I SKASOWANY 2026-08-07.**
+    - **`DebrisHeap` 2.0 (zostaje):** budowany w nowym `world_forge::spill` z materiałów fasad
+      (`Wall`/`Roof`/`Timber`) — masa 7-ścienna, trzy odrzucone kawałki muru, dwie dachówki
+      i **pęknięta belka**, ta jedna mocna przekątna, przez którą kupka przestaje być geologią
+      a staje się kawałkiem domu. Dekoduje się przez TĘ SAMĄ funkcję co fasady (nowy
+      `scene_build::world_material` — wyciągnięty z `battlefield.rs`, bo decyzja zapisana dwa
+      razy to decyzja, która zaraz się rozjedzie), więc dziedziczy traktowania Fasady 2.0 za
+      darmo. 42→72 tris/instancja, czyli **Ostrogorsk +720 tris (+1,2 % wierzchołków)**.
+      Wyższy niż stary (0,42 → do 0,62 m) i wciąż pod regułą kolanową.
+    - **`Scree` — ZBUDOWANY, ZMIERZONY, SKASOWANY.** Forma `Talus` (12 odłamków, rozmiary wg
+      prawa potęgowego, gęściej do środka, czapka 0,22 m), `SceneryKind::Scree`, klumping
+      w forge'u, 48 instancji na Orlinym + 20 na Bystrej — wszystko działało i miało locki.
+      **I nie widać go z żadnej odległości.** Trzy rendery: ~125 m, ~40 m i wycelowany
+      w policzone współrzędne dryfu z ~15 m — dryf nie pojawia się ani razu.
+      **Przyczyna jest strukturalna, nie strojeniowa: trawa ma czapkę 0,6 m, piarg 0,22 m.**
+      Dekoracja jest trzy razy niższa od tego, co ją przykrywa.
+      To dokładnie „Rejected 1" z [[jedna-trawa-program]] („mata rozet — zbudowana, zmierzona,
+      skasowana; pokrycie LICZBĄ instancji się nie opłaca"), więc dostaje ten sam los, nie
+      wyjątek. Cofnięte: forma z forge'a, wariant enuma (nigdy niezacommitowany, więc brak
+      długu wire identity), autorstwo obu map i ich goldeny.
+      **Warunek powrotu:** piarg potrzebuje GOŁEJ ziemi — rozstawiania świadomego terenu
+      (waga wegetacji / przełamanie splatu na skałę), czyli maszynerii z **PR 16 „Scatter 2.0"**.
+      Drugie wyjście — podnieść odłamki ponad trawę — jest zamknięte: powyżej linii brzucha
+      lita bryła musi być osłoną, nie scenerią.
   - **PR 8c — `StaticCoverKind::Outcrop`** (wychodnia w AABB) + uczciwy podział rozmiarów:
     sceneria `Rock` schodzi pod linię brzucha, duże instancje wracają jako osłona.
   - **PR 8d — `StaticCoverKind::Boulder` + fizyka niskiego progu (P2.2).**

@@ -6,7 +6,74 @@
 //! others, which is precisely the failure the golden hashes exist to make loud.
 
 use glam::Vec3;
-use vehicle_geometry::GeometryMesh;
+use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
+
+use crate::WorldMaterial;
+
+/// A fracture fragment: an irregular n-gon in the bedding plane, pulled to a crest above and a
+/// shallower keel below, both offset sideways so the solid is never a symmetric bipyramid. Closed
+/// and outward-wound by construction, `2 * sides` triangles, flat-shaded — a fracture face has no
+/// curvature to smooth.
+///
+/// Shared, because broken stone and broken masonry break the same way: the rock forge's shards,
+/// its frost spall and its talus drifts are this solid in `PlinthStone`, and the debris a
+/// collapsed wall spills is this solid in `Wall` and `Roof`.
+pub(crate) fn fracture_solid(
+    rng: &mut Rng,
+    center: Vec3,
+    radius_m: f32,
+    rise_m: f32,
+    depth_m: f32,
+    sides: u32,
+    material: WorldMaterial,
+) -> GeometryMesh {
+    let ring: Vec<Vec3> = (0..sides)
+        .map(|side| {
+            let step = std::f32::consts::TAU / sides as f32;
+            let angle = side as f32 * step + rng.signed() * step * 0.3;
+            let radius = radius_m * (0.62 + rng.unit() * 0.52);
+            center + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius)
+        })
+        .collect();
+    let crest =
+        center + Vec3::new(rng.signed() * radius_m * 0.35, rise_m, rng.signed() * radius_m * 0.35);
+    let keel = center
+        + Vec3::new(rng.signed() * radius_m * 0.25, -depth_m, rng.signed() * radius_m * 0.25);
+
+    let mut vertices = Vec::with_capacity(sides as usize * 6);
+    let mut indices = Vec::with_capacity(sides as usize * 6);
+    for side in 0..sides as usize {
+        let next = (side + 1) % sides as usize;
+        // The ring runs counter-clockwise in the XZ plane, which is CLOCKWISE seen from above:
+        // the upper fan therefore takes the ring backwards to face outward, the lower fan
+        // forwards. Locked by `every_rock_triangle_winds_outward`.
+        push_flat_triangle(&mut vertices, &mut indices, ring[next], ring[side], crest, material);
+        push_flat_triangle(&mut vertices, &mut indices, ring[side], ring[next], keel, material);
+    }
+    GeometryMesh::new(vertices, indices)
+}
+
+/// One flat-shaded triangle: the geometric normal is the face's own, so the facet reads hard.
+pub(crate) fn push_flat_triangle(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+    material: WorldMaterial,
+) {
+    let normal = (b - a).cross(c - a).normalize_or_zero();
+    let base = vertices.len() as u32;
+    for corner in [a, b, c] {
+        vertices.push(GeometryVertex::new(
+            corner,
+            normal,
+            material.carrier(),
+            SmoothingGroup::hard_edges(),
+        ));
+    }
+    indices.extend_from_slice(&[base, base + 1, base + 2]);
+}
 
 /// Deterministic splitmix64 walk — the house randomness: process-stable, seed-keyed, no
 /// dependency. The forges' goldens rest on this sequence, so a change here re-blesses the world.

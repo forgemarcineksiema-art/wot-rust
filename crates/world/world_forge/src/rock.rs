@@ -18,7 +18,7 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
 
 use crate::WorldMaterial;
-use crate::shape::{Rng, icosphere, merge_meshes};
+use crate::shape::{Rng, fracture_solid, icosphere, merge_meshes};
 
 /// What broke this stone. Append-only in spirit for the same reason the species table is: the
 /// golden hashes below name each form.
@@ -115,48 +115,12 @@ const ERRATIC_SINK_M: f32 = 0.09;
 pub fn bake_rock(form: RockForm, seed: u64) -> BakedRock {
     let mut rng = Rng(seed ^ 0x5709_E000 ^ form as u64);
     let body = match form {
-        RockForm::Shard => shard(&mut rng, Vec3::ZERO, 0.34, 0.30, 0.12, 6),
+        RockForm::Shard => {
+            fracture_solid(&mut rng, Vec3::ZERO, 0.34, 0.30, 0.12, 6, WorldMaterial::PlinthStone)
+        }
         RockForm::Erratic => erratic(&mut rng),
     };
     BakedRock { form, body }
-}
-
-/// A fracture fragment: an irregular n-gon in the bedding plane, pulled to a crest above and a
-/// shallower keel below, both offset sideways so the solid is never a symmetric bipyramid. Closed
-/// and outward-wound by construction, `2 * sides` triangles, flat-shaded — a fracture face has no
-/// curvature to smooth.
-fn shard(
-    rng: &mut Rng,
-    center: Vec3,
-    radius_m: f32,
-    rise_m: f32,
-    depth_m: f32,
-    sides: u32,
-) -> GeometryMesh {
-    let ring: Vec<Vec3> = (0..sides)
-        .map(|side| {
-            let step = std::f32::consts::TAU / sides as f32;
-            let angle = side as f32 * step + rng.signed() * step * 0.3;
-            let radius = radius_m * (0.62 + rng.unit() * 0.52);
-            center + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius)
-        })
-        .collect();
-    let crest =
-        center + Vec3::new(rng.signed() * radius_m * 0.35, rise_m, rng.signed() * radius_m * 0.35);
-    let keel = center
-        + Vec3::new(rng.signed() * radius_m * 0.25, -depth_m, rng.signed() * radius_m * 0.25);
-
-    let mut vertices = Vec::with_capacity(sides as usize * 6);
-    let mut indices = Vec::with_capacity(sides as usize * 6);
-    for side in 0..sides as usize {
-        let next = (side + 1) % sides as usize;
-        // The ring runs counter-clockwise in the XZ plane, which is CLOCKWISE seen from above:
-        // the upper fan therefore takes the ring backwards to face outward, the lower fan
-        // forwards. Locked by `every_rock_triangle_winds_outward`.
-        push_flat_triangle(&mut vertices, &mut indices, ring[next], ring[side], crest);
-        push_flat_triangle(&mut vertices, &mut indices, ring[side], ring[next], keel);
-    }
-    GeometryMesh::new(vertices, indices)
 }
 
 /// A weathered field stone: an ellipsoid displaced by the two relief octaves, cut flat underneath
@@ -220,30 +184,20 @@ fn erratic(rng: &mut Rng) -> GeometryMesh {
             angle.sin() * radius.z * reach,
         );
         let size = radius.y * (0.24 + rng.unit() * 0.20);
-        body = merge_meshes(body, shard(rng, center, size, size * 0.75, size * 0.4, 5));
+        body = merge_meshes(
+            body,
+            fracture_solid(
+                rng,
+                center,
+                size,
+                size * 0.75,
+                size * 0.4,
+                5,
+                WorldMaterial::PlinthStone,
+            ),
+        );
     }
     body
-}
-
-/// One flat-shaded triangle: the geometric normal is the face's own, so the facet reads hard.
-fn push_flat_triangle(
-    vertices: &mut Vec<GeometryVertex>,
-    indices: &mut Vec<u32>,
-    a: Vec3,
-    b: Vec3,
-    c: Vec3,
-) {
-    let normal = (b - a).cross(c - a).normalize_or_zero();
-    let base = vertices.len() as u32;
-    for corner in [a, b, c] {
-        vertices.push(GeometryVertex::new(
-            corner,
-            normal,
-            WorldMaterial::PlinthStone.carrier(),
-            SmoothingGroup::hard_edges(),
-        ));
-    }
-    indices.extend_from_slice(&[base, base + 1, base + 2]);
 }
 
 /// Area-weighted vertex normals over the DISPLACED surface. Taking the undisplaced sphere normal

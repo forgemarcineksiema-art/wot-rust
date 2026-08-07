@@ -1165,18 +1165,10 @@ fn append_building(
             // heuristics; walls and roofs keep the per-building palette, the joinery and
             // the dressed-stone trim (plinth, sills, lintel bands, lesenes) wear per-id
             // tones (Fasada 2.0 — the hard black plinth of D19 is retired).
-            use renderer_api::surface_role;
-            use world_forge::WorldMaterial;
-            let (color, gloss, role) = match WorldMaterial::from_carrier(vertex.material) {
-                WorldMaterial::Roof => (roof, roof_gloss, surface_role::SLATE),
-                WorldMaterial::PlinthStone => (stone.0, stone.1, surface_role::DRESSED_STONE),
-                WorldMaterial::WindowGlass => (WINDOW.0, WINDOW.1, surface_role::LEGACY),
-                WorldMaterial::PlankDoor => (DOOR.0, DOOR.1, surface_role::PLANK),
-                material @ WorldMaterial::Timber => {
-                    (material.albedo(), 1.0 - material.roughness(), surface_role::PLANK)
-                }
-                _ => (wall, 0.10, surface_role::PLASTER),
-            };
+            let (color, gloss, role) = crate::world_material::to_scene(
+                world_forge::WorldMaterial::from_carrier(vertex.material),
+                crate::world_material::Palette { wall, roof, roof_gloss, stone },
+            );
             let scene_vertex = SceneVertex::surfaced(
                 (ground + local).to_array(),
                 n.normalize_or_zero().to_array(),
@@ -1189,11 +1181,6 @@ fn append_building(
         indices.extend(mesh.indices().iter().map(|index| index + base));
     }
 }
-
-/// Window glass: near-black with a glazed sheen — the one thing on a wall that answers the sky.
-const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
-/// Plank door: dark weathered timber, matte.
-const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
 
 /// The ONE style-derivation table (B4 + urban-map PR-08). Landmarks and the urban block
 /// stand by NAME — explicit id substrings are the primary mechanism (`church`, `windmill`,
@@ -2153,12 +2140,13 @@ mod tests {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         append_cover_box(&mut vertices, &mut indices, barn);
-        let windows = vertices.iter().filter(|v| v.color == WINDOW.0).count();
-        let doors = vertices.iter().filter(|v| v.color == DOOR.0).count();
+        let windows =
+            vertices.iter().filter(|v| v.color == crate::world_material::WINDOW.0).count();
+        let doors = vertices.iter().filter(|v| v.color == crate::world_material::DOOR.0).count();
         assert!(windows >= 8, "a barn wall carries windows, got {windows} verts");
         assert!(doors >= 4, "a door stands proud of the plaster, got {doors} verts");
         // Glass answers the sky harder than the plaster around it.
-        assert!(WINDOW.1 > 0.10, "window glaze outshines the wall");
+        assert!(crate::world_material::WINDOW.1 > 0.10, "window glaze outshines the wall");
     }
 
     /// Materia Świata 3: a building names its materials down the surface lane — rendered
@@ -2181,7 +2169,7 @@ mod tests {
         assert!(count(surface_role::SLATE) > 0, "the roof runs in courses");
         assert!(count(surface_role::PLANK) >= 4, "the door is sawn boards");
         for vertex in &vertices {
-            if vertex.color == WINDOW.0 {
+            if vertex.color == crate::world_material::WINDOW.0 {
                 assert_eq!(vertex.surface, surface_role::LEGACY, "glass takes no treatment");
             }
         }
