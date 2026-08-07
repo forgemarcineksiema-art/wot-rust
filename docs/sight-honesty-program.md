@@ -79,7 +79,7 @@ eye cannot tell them apart.** One place on screen, two unrelated meanings, both 
 | 1 | **The sight sits on the gun's line.** `SNIPER_SIGHT_ABOVE_TRUNNION_M` 0.35 → 0.12 m, the band a real TSh-2-22 occupies; locked by the optic-band test and the seam ratchet. | DONE |
 | 2 | **A refusal names its cause.** A blocked shot prints the metres to whatever eats the round, under the range, in the broken marker's own grey; a distant impact X is led back to the crosshair by a hairline. | DONE |
 | 3 | **The sight probes the world with the shell's body.** `aim_point_with_sweep` carries the selected shell's calibre radius, the one the trace beside it already flew, so the crosshair stops ON the barn roof instead of threading it. | DONE |
-| 4 | **One green, one meaning.** The breech-shut ring stops speaking the penetration verdict's word. | |
+| 4 | **One green, one meaning.** The breech-shut ring moves to steel cyan; green belongs to the armour verdict alone. | DONE |
 
 ### Results, same instrument throughout
 
@@ -106,6 +106,13 @@ The wave 1 trade is deliberate: the sniper eye drops 23 cm, so peeking a crest c
 needs to be exposed, not what the camera wanted. That is the honesty doctrine applied to the sight —
 what blocks the shell blocks the eye, from the same height.
 
+### What is left, and it is the honest part
+
+Six refusals in 9 849 on Bystra, twenty-nine in ten thousand on Prokhorovka — and all but one of
+them now CUT the target in the picture. That is a fold the gun genuinely cannot shoot past, with a
+tank visibly sitting behind it, which is hull-down working. Wave 2 makes the sight say so in
+metres. Nobody is owed that shot.
+
 ## The rule this leaves behind
 
 The ratchet in `seam_tests.rs` is the point of the whole program. Every earlier sight fix (register
@@ -114,6 +121,18 @@ reached the player. Ceilings there are **measured, not chosen**, and raising one
 belongs in this file — never a way to get a run green.
 
 Re-measure with `cargo test -p client --lib what_the_sniper_eye_reaches -- --nocapture`.
+
+Two smaller rules came out of the same work and are worth stating on their own:
+
+- **A proxy assertion outlives what it protects.** The ready ring's "no vertex may be
+  blue-dominant" was guarding *"do not bring back the expanding flash"* and could never have caught
+  an expanding ring that happened to be green. It is now measured directly: same radius as the
+  drained arc, same radius mid-hold as at the instant it closes. When a lock has to be overridden,
+  the question is what it was actually protecting.
+- **An instrument that shares a mistake with the thing it measures sees nothing.** The seam test
+  runs two probes on purpose — the sight sweep carries the shell's body, the silhouette probe
+  carries none, because light has no calibre. Giving both the same radius would have made the
+  instrument agree with itself by construction. (Register H2, learned the hard way once already.)
 
 ## Not in scope, recorded
 

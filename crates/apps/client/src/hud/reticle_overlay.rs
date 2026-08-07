@@ -43,10 +43,25 @@ pub(crate) const RETICLE_IMPACT: [f32; 4] = [0.98, 0.66, 0.18, 0.92];
 /// than the pen verdict's [`RETICLE_NO_PEN`], but deliberately the same family: both say "no
 /// damage from here, now".
 pub(crate) const RETICLE_RELOAD: [f32; 4] = [0.86, 0.24, 0.18, 0.86];
-/// The completed reload: the drained arc closes into one full green circle at the same radius,
-/// holds, and dissolves. Green is already the sight's "yes" (pen verdict, landed-hit ticks), so a
-/// loaded gun speaks the same word. Its own bytes so the locks can tag it apart from those two.
-pub(crate) const RETICLE_LOADED: [f32; 4] = [0.40, 0.90, 0.42, 0.88];
+/// The completed reload: the drained arc closes into one full circle at the same radius, holds,
+/// and dissolves.
+///
+/// It used to be GREEN, on the reasoning that green is already the sight's "yes" so a loaded gun
+/// may speak the same word. Measured against a player instead of against a palette, that was the
+/// defect the 2026-08-07 report opened with: `[0.40, 0.90, 0.42]` against the pen verdict's
+/// `[0.35, 0.85, 0.40]` is five per cent apart, and this is the LOUDER of the two — a full circle
+/// at ~46 px radius against a marker whose arms span 24 px. The sight's most visible green meant
+/// the thing that has nothing to do with the target.
+///
+/// Red's two meanings can share a family because they agree by construction (`RETICLE_RELOAD` and
+/// `RETICLE_NO_PEN` both say "no damage from here, now"). Loaded and penetrates are independent —
+/// all four combinations occur — so sharing a colour there is a homonym, and a colour that
+/// answers two independent questions answers neither.
+///
+/// Steel cyan is the only cool hue at this sight, which is the argument for it: this is the one
+/// signal that reports the MACHINE rather than the target or the ground, and that difference
+/// should arrive before the shape is read.
+pub(crate) const RETICLE_LOADED: [f32; 4] = [0.45, 0.82, 0.92, 0.88];
 
 /// Seconds of easing on the central marker's colour. Long enough that a verdict flipping across
 /// a plate edge reads as one settling colour instead of a strobe, short enough that a deliberate
