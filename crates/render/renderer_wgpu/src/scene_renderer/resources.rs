@@ -4,7 +4,7 @@ use renderer_api::{
 };
 
 use crate::GpuContext;
-use crate::scene_resources::{SceneInstance, clip_instances_to_capacity, frame_instances};
+use crate::scene_resources::{SceneInstance, frame_instances_into};
 
 impl super::SceneRenderer {
     pub fn set_dynamic_mesh(
@@ -58,14 +58,20 @@ impl super::SceneRenderer {
     /// whole: a dropped upload leaves the previous instances on screen, so every object would
     /// freeze in its last uploaded pose while the simulation drives on without it.
     pub fn set_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
-        let (mut instances, mut draws) = frame_instances(frame);
         let capacity = buffer_instance_capacity(&self.frame_instances);
-        if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {
+        frame_instances_into(&mut self.instance_scratch, frame);
+        if self.instance_scratch.clip_to_capacity(capacity) {
             tracing::warn!(kept = capacity, "scene instance budget exceeded; truncating frame");
         }
-        ctx.queue.write_buffer(&self.frame_instances, 0, bytemuck::cast_slice(&instances));
-        self.frame_instance_count = instances.len() as u32;
-        self.frame_draws = draws;
+        ctx.queue.write_buffer(
+            &self.frame_instances,
+            0,
+            bytemuck::cast_slice(self.instance_scratch.instances()),
+        );
+        self.frame_instance_count = self.instance_scratch.instances().len() as u32;
+        // Reuses this Vec's allocation too; the draw list is rebuilt every frame either way.
+        self.frame_draws.clear();
+        self.frame_draws.extend_from_slice(self.instance_scratch.draws());
     }
 
     /// See [`Self::set_render_frame`]: truncate-and-warn, never a silent whole-frame drop — that
@@ -73,14 +79,19 @@ impl super::SceneRenderer {
     pub fn set_vehicle_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
         self.armor_damage.upload(ctx, &frame.armor_damage);
         self.collect_grass_crushers(frame);
-        let (mut instances, mut draws) = frame_instances(frame);
         let capacity = buffer_instance_capacity(&self.vehicle_instances);
-        if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {
+        frame_instances_into(&mut self.instance_scratch, frame);
+        if self.instance_scratch.clip_to_capacity(capacity) {
             tracing::warn!(kept = capacity, "vehicle instance budget exceeded; truncating frame");
         }
-        ctx.queue.write_buffer(&self.vehicle_instances, 0, bytemuck::cast_slice(&instances));
-        self.vehicle_instance_count = instances.len() as u32;
-        self.vehicle_draws = draws;
+        ctx.queue.write_buffer(
+            &self.vehicle_instances,
+            0,
+            bytemuck::cast_slice(self.instance_scratch.instances()),
+        );
+        self.vehicle_instance_count = self.instance_scratch.instances().len() as u32;
+        self.vehicle_draws.clear();
+        self.vehicle_draws.extend_from_slice(self.instance_scratch.draws());
     }
 
     /// Where the vehicles stand, for the meadow to be pressed by (Jedna Trawa P9).

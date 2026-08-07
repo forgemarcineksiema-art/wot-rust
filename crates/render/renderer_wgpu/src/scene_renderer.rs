@@ -162,6 +162,9 @@ pub struct SceneRenderer {
     /// Which pass owned which timestamp slot in the last frame — the names for the numbers the
     /// query set gives back. Meaningless while the profiler is `Disabled`, and unread then.
     frame_pass_order: Cell<crate::pass_recorder::PassOrder>,
+    /// Reused working set for batching a frame's objects into instanced draws. Both the scene and
+    /// the vehicle frame run through it, one after the other, so one is enough.
+    instance_scratch: crate::scene_resources::InstanceScratch,
 }
 
 impl SceneRenderer {
@@ -518,6 +521,7 @@ impl SceneRenderer {
             profiler: crate::frame_profiler::FrameProfiler::Disabled,
             frame_counts: Cell::new(crate::pass_recorder::FrameCounts::default()),
             frame_pass_order: Cell::new(crate::pass_recorder::PassOrder::default()),
+            instance_scratch: crate::scene_resources::InstanceScratch::default(),
         })
     }
 }

@@ -439,6 +439,11 @@ fn frame_time_capture() {
     // Every timed frame of a config walks the same path and draws the same content, so one
     // frame's counts describe the config.
     let mut counts: [renderer_wgpu::FrameCounts; CONFIGS] = Default::default();
+    // The CPU half of the frame, split three ways. The GPU table says where the GPU's time goes;
+    // these say where the ~2 ms it does NOT account for goes.
+    let mut cpu_scene: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    let mut cpu_vehicle: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    let mut cpu_encode: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
     // Per-pass GPU time, kept per config AND per rotation cycle. The ledger refuses to report if
     // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
     // authority, which is the exact reading the rotation exists to prevent.
@@ -521,6 +526,11 @@ fn frame_time_capture() {
                     renderer.register_vehicle_material(&ctx, handle, &maps);
                 }
 
+                // The timed window splits into three CPU phases and a fence. The whole frame minus
+                // the fence runs ~2 ms longer than the GPU says the frame took, so about that much
+                // is CPU — and until these three timers existed, nothing said WHICH of the three
+                // it was. `render` returns after submit, which is asynchronous, so its wall time
+                // is encode cost rather than GPU work.
                 let t = Instant::now();
                 renderer.set_render_frame(
                     &ctx,
@@ -529,6 +539,7 @@ fn frame_time_capture() {
                         ..renderer_api::RenderFrame::default()
                     },
                 );
+                let t_scene = t.elapsed();
                 // Always set it, even when empty: otherwise the previous config's fleet would
                 // linger into a config that is supposed to have none.
                 renderer.set_vehicle_render_frame(
@@ -539,10 +550,12 @@ fn frame_time_capture() {
                         ..renderer_api::RenderFrame::default()
                     },
                 );
+                let t_vehicle = t.elapsed();
                 if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
                     println!("frame time: a render failed — skipped");
                     return;
                 }
+                let t_encode = t.elapsed();
                 // The GPU is asynchronous. Without a fence this times command SUBMISSION and
                 // reports a fiction; the readback is the cheapest fence available here — and it
                 // is NOT free, so its cost is measured separately below and reported alongside.
@@ -552,6 +565,9 @@ fn frame_time_capture() {
                 }
                 if block_frame >= BLOCK_WARMUP {
                     samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
+                    cpu_scene[config].push(t_scene.as_secs_f64() * 1000.0);
+                    cpu_vehicle[config].push((t_vehicle - t_scene).as_secs_f64() * 1000.0);
+                    cpu_encode[config].push((t_encode - t_vehicle).as_secs_f64() * 1000.0);
                     counts[config] = renderer.last_frame_counts();
                     // Read AFTER the wall-clock sample: the readback maps a buffer and would
                     // otherwise be timed as frame cost, which is how an instrument starts
@@ -604,6 +620,14 @@ fn frame_time_capture() {
             "    submitted: {} draws, {} triangles, {} instances",
             submitted.draws, submitted.triangles, submitted.instances,
         );
+        let cpu = |label: &str, series: &mut Vec<f64>| {
+            series.sort_by(f64::total_cmp);
+            let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
+            println!("    cpu {label:<16} p50 {:>6.3} ms  p95 {:>6.3} ms", at(0.50), at(0.95));
+        };
+        cpu("set_render_frame", &mut cpu_scene[config]);
+        cpu("set_vehicle_frame", &mut cpu_vehicle[config]);
+        cpu("encode+submit", &mut cpu_encode[config]);
         for id in renderer_wgpu::PassId::ALL {
             let pass = counts[config].pass(*id);
             if pass.draws > 0 {
