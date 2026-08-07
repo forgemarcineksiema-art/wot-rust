@@ -160,8 +160,9 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
     // Grass roles are geometry categories, not woody materials. One cheap world-space octave
     // keeps the meadow coherent without paying the generic three-octave ground treatment on
     // tens of thousands of card fragments. The old catch-all painted bark striations across
-    // every card and blade and made the field read noisy at driving distance.
-    if (role > 4.5) {
+    // every card and blade and made the field read noisy at driving distance. The band is
+    // EXPLICIT (5–7): role 8 (dressed stone) is a woody material and must not fall in here.
+    if (role > 4.5 && role < 7.5) {
         return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;
     }
     // The wall-plane frame: h runs along the face, world.y climbs it.
@@ -198,10 +199,24 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
         let joint = smoothstep(0.0, 0.010, row_edge) * (0.85 + 0.15 * smoothstep(0.0, 0.012, col_edge));
         return (0.88 + tone) * (0.70 + 0.30 * joint);
     }
-    // Bark: vertical striations with deeper grooves riding them.
-    let striae = value_noise(vec2<f32>(h * 9.0, world.y * 0.7));
-    let groove = value_noise(vec2<f32>(h * 18.0, world.y * 2.4));
-    return 0.80 + striae * 0.24 + groove * 0.12;
+    if (role < 4.5) {
+        // Bark: vertical striations with deeper grooves riding them.
+        let striae = value_noise(vec2<f32>(h * 9.0, world.y * 0.7));
+        let groove = value_noise(vec2<f32>(h * 18.0, world.y * 2.4));
+        return 0.80 + striae * 0.24 + groove * 0.12;
+    }
+    // Dressed stone (Fasada 2.0): ashlar courses — 0.30 m rows of staggered 0.55 m blocks,
+    // one tone per block, dark joints. Plinths, sills, lintel bands, lesenes, portals.
+    let srow = floor(world.y / 0.30);
+    let soffset = fract(srow * 0.5) * 0.55;
+    let scol = floor((h + soffset) / 0.55);
+    let stone_tone = detail_hash(vec2<f32>(scol * 1.7 + 3.0, srow)) * 0.14;
+    let sfy = fract(world.y / 0.30);
+    let srow_edge = min(sfy, 1.0 - sfy) * 0.30;
+    let sfx = fract((h + soffset) / 0.55);
+    let scol_edge = min(sfx, 1.0 - sfx) * 0.55;
+    let sjoint = smoothstep(0.0, 0.018, srow_edge) * (0.86 + 0.14 * smoothstep(0.0, 0.022, scol_edge));
+    return (0.90 + stone_tone) * (0.76 + 0.24 * sjoint);
 }
 
 // Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one

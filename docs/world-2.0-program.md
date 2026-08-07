@@ -87,9 +87,17 @@ proceduralne), assets/flora delete, notices, docs.
   świadomie zostają na stabilnym 55° — werdykt FOV idzie przez pary z `fov_probe`.
 
 ### Fala 2 — Cover 2.0 (D6 + D19 + W5)
-- **PR 3 — Fasady Tenement/FactoryHall.** Filary/pasy nadproży, prawdziwe wnęki okienne,
-  ramy + parapety, cokół z paletą; budżet 400→600 z pomiarem na Ostrogorsku; bless
-  goldenów budynków.
+- **PR 3 — Fasady Tenement/FactoryHall.** (**LANDED 2026-08-07**): prawdziwe otwory w
+  płytkich liściach muru (szyba wpuszczona 9 cm w mur, kamienna rama + krzyż szprosów,
+  parapet), pas nadproży z kamienia, gzymsy kondygnacji, lizeny narożne, kornisz,
+  podwójny portal wejściowy; hala: pilastry na osi przęseł, portal wozowy w szczycie,
+  klerstory ze stalowym rytmem szprosów. Cokół z palety (`stone_palette`), nowa rola
+  `DRESSED_STONE` (8.0) z własnym połom w `scene.wgsl` (poziome kłady ciosu). Budżet
+  400→**1500** (decyzja usera: mocno podnieść): Tenement 274→1290, FactoryHall 122→752
+  tris. Pomiar Ostrogorsk (MX330, 1080p): statics 82 398→202 838 wierzchołków (+146 %),
+  klatka full-flora ~20,8 ms — przed/po wewnątrz szumu termicznego maszyny; gate
+  16,667 ms FAIL to stan wcześniejszy, nie z tego PR. Bless goldenów budynków; lock:
+  `urban_glass_is_recessed_into_a_pierced_leaf`.
 - **PR 4 — Fasady wiejskie.** Cottage/Barn/Townhouse/Church.
 - **PR 5 — TreeLine 2.0.** Boxy LOS do 15–25 m RAZEM z geometrią szpaleru (rzędy pni +
   podszyt w AABB); dowód AABB przed/po; jeden świadomy bless map.

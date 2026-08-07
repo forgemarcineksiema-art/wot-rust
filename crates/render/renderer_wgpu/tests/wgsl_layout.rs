@@ -140,9 +140,27 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
 
     // Grass geometry roles must not fall through to bark or the costlier generic ground path;
     // the single octave rides the shared fine frame so the cards match the ground's grain.
-    assert!(source.contains("if (role > 4.5)"));
+    // The band is explicit (5–7): role 8 (dressed stone) is a woody material, not grass.
+    assert!(source.contains("if (role > 4.5 && role < 7.5)"));
     assert!(
         source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
+    );
+}
+
+/// Fasada 2.0 (Świat 2.0 PR 3): the DRESSED_STONE role is an append-only CPU/GPU protocol
+/// value, locked at both ends — and the shader's dispatch must reach it (bark stays 4, the
+/// grass shortcut must not swallow it).
+#[test]
+fn dressed_stone_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::DRESSED_STONE, 8.0);
+    // Bark's branch is bounded below it, and stone is the fall-through: ashlar courses of
+    // staggered blocks with per-block tone, for plinths, sills, lintel bands and portals.
+    assert!(source.contains("if (role < 4.5)"), "bark is explicit so stone can exist past it");
+    assert!(source.contains("let srow = floor(world.y / 0.30);"), "stone courses climb the wall");
+    assert!(
+        source.contains("detail_hash(vec2<f32>(scol * 1.7 + 3.0, srow))"),
+        "one tone per block"
     );
 }
 

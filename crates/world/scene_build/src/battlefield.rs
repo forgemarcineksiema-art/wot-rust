@@ -880,7 +880,7 @@ fn append_building(
     } else {
         Vec3::new(half.x / footprint.x, half.y / footprint.y, half.z / footprint.z)
     };
-    let plinth = ([0.24_f32, 0.22, 0.20], 0.15_f32);
+    let stone = stone_palette(&cover.id);
     for mesh in [&baked.walls, &baked.roof] {
         let base = vertices.len() as u32;
         for vertex in mesh.vertices() {
@@ -892,15 +892,16 @@ fn append_building(
             let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
             // Colour names the palette; the surface-role lane names the MATERIAL the scene
             // shader dresses it in (Materia Świata 3): rendered walls, coursed roofs, plank
-            // doors. Glass and plinth stone keep the untreated look. The vertex tag decodes
-            // to the world's OWN vocabulary (M2b) — no vehicle roles, no style heuristics;
-            // walls and roofs keep the per-building palette, the joinery wears the
-            // material's PBR-lite defaults.
+            // doors, ashlar stone. Glass alone keeps the untreated look. The vertex tag
+            // decodes to the world's OWN vocabulary (M2b) — no vehicle roles, no style
+            // heuristics; walls and roofs keep the per-building palette, the joinery and
+            // the dressed-stone trim (plinth, sills, lintel bands, lesenes) wear per-id
+            // tones (Fasada 2.0 — the hard black plinth of D19 is retired).
             use renderer_api::surface_role;
             use world_forge::WorldMaterial;
             let (color, gloss, role) = match WorldMaterial::from_carrier(vertex.material) {
                 WorldMaterial::Roof => (roof, roof_gloss, surface_role::SLATE),
-                WorldMaterial::PlinthStone => (plinth.0, plinth.1, surface_role::LEGACY),
+                WorldMaterial::PlinthStone => (stone.0, stone.1, surface_role::DRESSED_STONE),
                 WorldMaterial::WindowGlass => (WINDOW.0, WINDOW.1, surface_role::LEGACY),
                 WorldMaterial::PlankDoor => (DOOR.0, DOOR.1, surface_role::PLANK),
                 material @ WorldMaterial::Timber => {
@@ -972,6 +973,25 @@ fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     ];
     let (roof, roof_gloss) = ROOFS[((hash >> 8) % 3) as usize];
     (WALLS[(hash % 4) as usize], roof, roof_gloss)
+}
+
+/// The dressed-stone palette (Fasada 2.0): plinth, sills, lintel bands, lesenes and portals
+/// share ONE stone tone per building — a wall and its trim are one masonry story. Seeded
+/// apart from the wall/roof palette so the trim never tracks the plaster; every tone sits
+/// far above the old hard-black plinth (D19).
+fn stone_palette(id: &str) -> ([f32; 3], f32) {
+    let mut hash = 0x9e37_79b9_7f4a_7c15_u64;
+    for byte in id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    const STONES: [([f32; 3], f32); 4] = [
+        ([0.48, 0.44, 0.37], 0.18), // warm limestone
+        ([0.42, 0.39, 0.34], 0.16), // cool sandstone
+        ([0.37, 0.35, 0.32], 0.14), // grey granite
+        ([0.52, 0.47, 0.38], 0.20), // pale ashlar
+    ];
+    STONES[(hash % 4) as usize]
 }
 
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so

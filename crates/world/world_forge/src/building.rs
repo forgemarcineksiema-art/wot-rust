@@ -194,8 +194,8 @@ pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 7] = [
     (BuildingStyle::Townhouse, 0xc72d_90df_09d2_f880),
     (BuildingStyle::Church, 0xe6b4_6a85_bda2_598b),
     (BuildingStyle::Windmill, 0xeb28_4dff_02e0_1929),
-    (BuildingStyle::Tenement, 0x5cb8_be3a_8953_2a48),
-    (BuildingStyle::FactoryHall, 0x71cb_9750_5e35_0fe4),
+    (BuildingStyle::Tenement, 0x8525_c30b_4231_ab98),
+    (BuildingStyle::FactoryHall, 0xc2a7_6240_a862_1b1a),
 ];
 
 pub fn bake_building(style: BuildingStyle, seed: u64, form: StructureForm) -> BakedBuilding {
@@ -385,17 +385,18 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     }
 }
 
-/// The tenement (urban-map PR-08): three storeys of masonry read as FLOORS — the plinth,
-/// then a window row per storey between string courses, under a shallow roof. The mechanical
-/// logic is civic, not rural: floors land near 3.2 m, windows align in a grid (the per-slot
-/// jitter is a hand-set tolerance, not a scatter), the entrance is a pair, and the courses
-/// carry the masonry story across the whole street front.
+/// The tenement (Fasada 2.0, Świat 2.0 PR 3): three storeys of masonry read as FLOORS, and
+/// the facade is BUILT, not painted — each street front is a leaf pierced by true window
+/// openings (apron, dressed-stone lintel band, piers), the pane sits a hand INSIDE the leaf
+/// behind a stone frame and mullion cross, a sill ledge stands proud, corner lesenes and an
+/// eaves cornice carry the civic order, and a string course marks each floor line. The
+/// mechanical logic is civic, not rural: floors land near 3.2 m, windows align in a grid
+/// (the per-slot jitter is a hand-set tolerance, not a scatter), and the entrance is a pair.
 fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
     let mut rng = Rng(seed ^ 0x7E4E_0000);
-    let recess = 0.1;
     let mut walls = Vec::new();
     let mut wall_indices = Vec::new();
-    // Tall stone plinth, then the recessed masonry body up to the eaves.
+    // Tall stone plinth (the full footprint), then the pierced leaves above it.
     push_box(
         &mut walls,
         &mut wall_indices,
@@ -403,62 +404,121 @@ fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
         Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
         WorldMaterial::PlinthStone,
     );
-    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
-    push_box(
-        &mut walls,
-        &mut wall_indices,
-        Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
-        Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
-        WorldMaterial::Wall,
-    );
-    // Three storeys between plinth and eaves; a stone string course marks each floor line.
+    // The recess is the leaf's room: the outer plane stands 0.1 m inside the footprint, and
+    // every proud mark (sills, lesenes, courses, cornice) stays inside that allowance.
+    let face = params.half_width - 0.1;
+    let leaf_depth = params.half_depth - 0.1;
     const STOREYS: u32 = 3;
     let storey_h = (params.eaves_height - params.plinth_height) / STOREYS as f32;
+    let (window_w, window_h) = params.window_size;
+    let half_w = window_w * 0.5;
+    // The window grid: one row per storey on BOTH street fronts, aligned in slots with a
+    // hand-set jitter per bay. The SAME slots cut the leaf and take the window assembly.
+    for side in [-1.0_f32, 1.0] {
+        for storey in 0..STOREYS {
+            let floor = params.plinth_height + storey_h * storey as f32;
+            let sill = floor + 0.85;
+            let head = sill + window_h;
+            let slots: Vec<(f32, f32)> = (0..params.windows_per_side)
+                .map(|slot| {
+                    let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
+                    let jitter = rng.signed() * 0.05;
+                    ((along + jitter) * (params.half_depth * 0.7), half_w)
+                })
+                .collect();
+            push_pierced_wall(
+                &mut walls,
+                &mut wall_indices,
+                WallSpec {
+                    side,
+                    face,
+                    thickness: 0.2,
+                    span_half: leaf_depth,
+                    base: floor,
+                    top: floor + storey_h,
+                    sill,
+                    head,
+                },
+                &slots,
+            );
+            for &(z, hw) in &slots {
+                push_window(&mut walls, &mut wall_indices, side, face, z, sill, head, hw);
+            }
+        }
+    }
+    // The gable ends close the shell (no openings — the party walls of the row).
+    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
+    for end in [-1.0_f32, 1.0] {
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(0.0, params.plinth_height + body_half_y, end * (leaf_depth - 0.1)),
+            Vec3::new(face, body_half_y, 0.1),
+            WorldMaterial::Wall,
+        );
+    }
+    // A stone string course marks each floor line, wrapping the leaves.
     for course in 1..STOREYS {
         push_box(
             &mut walls,
             &mut wall_indices,
             Vec3::new(0.0, params.plinth_height + storey_h * course as f32, 0.0),
-            Vec3::new(params.half_width - recess * 0.3, 0.07, params.half_depth - recess * 0.3),
+            Vec3::new(params.half_width - 0.03, 0.07, params.half_depth - 0.03),
             WorldMaterial::PlinthStone,
         );
     }
-    // The window grid: one row per storey on BOTH street fronts, aligned in slots with a
-    // hand-set jitter per pane. Glass sits proud of the recessed render, inside the footprint.
-    let (window_w, window_h) = params.window_size;
-    for storey in 0..STOREYS {
-        let sill = params.plinth_height + storey_h * storey as f32 + 0.85;
-        for side in [-1.0_f32, 1.0] {
-            for slot in 0..params.windows_per_side {
-                let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
-                let jitter = rng.signed() * 0.05;
-                push_box(
-                    &mut walls,
-                    &mut wall_indices,
-                    Vec3::new(
-                        side * (params.half_width - recess * 0.5),
-                        sill + window_h * 0.5,
-                        (along + jitter) * (params.half_depth * 0.7),
-                    ),
-                    Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
-                    WorldMaterial::WindowGlass,
-                );
-            }
+    // Corner lesenes: the shallow piers of the civic order, plinth to eaves, prouder than
+    // the courses so the storey lines read as running INTO them.
+    for side in [-1.0_f32, 1.0] {
+        for end in [-1.0_f32, 1.0] {
+            push_box(
+                &mut walls,
+                &mut wall_indices,
+                Vec3::new(
+                    side * (face + 0.04),
+                    params.plinth_height + body_half_y,
+                    end * (leaf_depth - 0.24),
+                ),
+                Vec3::new(0.04, body_half_y, 0.24),
+                WorldMaterial::PlinthStone,
+            );
         }
     }
-    // The paired entrance on the +X street front: two doors flanking the middle bay.
-    let (door_w, door_h) = params.door_size;
-    for door_side in [-1.0_f32, 1.0] {
+    // The eaves cornice: the facade's top line, on all four faces.
+    for side in [-1.0_f32, 1.0] {
         push_box(
             &mut walls,
             &mut wall_indices,
-            Vec3::new(
-                params.half_width - recess * 0.5,
-                params.plinth_height + door_h * 0.5,
-                door_side * params.half_depth * 0.35,
-            ),
-            Vec3::new(recess * 0.5, door_h * 0.5, door_w * 0.5),
+            Vec3::new(side * (face + 0.04), params.eaves_height - 0.11, 0.0),
+            Vec3::new(0.04, 0.11, params.half_depth - 0.03),
+            WorldMaterial::PlinthStone,
+        );
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(0.0, params.eaves_height - 0.11, side * (leaf_depth + 0.04)),
+            Vec3::new(face - 0.06, 0.11, 0.04),
+            WorldMaterial::PlinthStone,
+        );
+    }
+    // The paired entrance on the +X street front: two doors under their own lintels,
+    // standing proud of the ground-storey's piers.
+    let (door_w, door_h) = params.door_size;
+    for door_side in [-1.0_f32, 1.0] {
+        let door_z = door_side * params.half_depth * 0.35;
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(face + 0.05, params.plinth_height + door_h * 0.5, door_z),
+            Vec3::new(0.05, door_h * 0.5, door_w * 0.5),
             WorldMaterial::PlankDoor,
+        );
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(face + 0.04, params.plinth_height + door_h + 0.09, door_z),
+            Vec3::new(0.05, 0.09, door_w * 0.5 + 0.14),
+            WorldMaterial::PlinthStone,
         );
     }
 
@@ -481,14 +541,15 @@ fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
     }
 }
 
-/// The factory hall (urban-map PR-09): one working span. The mechanical story — high sills
-/// because machine lines own the walls below, a gable-end doorway a loaded wagon clears
-/// under its stone lintel, and the glazed clerestory band riding the ridge (the hall's real
-/// daylight) under a flat industrial cap. Halls stand by NAME (`factory` in the id): the
-/// proportion heuristic never invents one.
+/// The factory hall (Fasada 2.0, Świat 2.0 PR 3): one working span, and its order is BUILT —
+/// full-height pilaster strips carry the long walls between bays, the high windows sit in
+/// true openings under a dressed-stone lintel band (machine lines own the wall below the
+/// sills), the wagon doorway on the gable end is a real portal a loaded wagon clears, and
+/// the glazed clerestory band rides the ridge under its flat industrial cap with a steel-sash
+/// rhythm. Halls stand by NAME (`factory` in the id): the proportion heuristic never invents
+/// one.
 fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
     let mut rng = Rng(seed ^ 0xFAC7_0000);
-    let recess = 0.1;
     let mut walls = Vec::new();
     let mut wall_indices = Vec::new();
     push_box(
@@ -498,66 +559,160 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
         Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
         WorldMaterial::PlinthStone,
     );
-    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
-    push_box(
-        &mut walls,
-        &mut wall_indices,
-        Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
-        Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
-        WorldMaterial::Wall,
-    );
-    // Sparse HIGH windows on both long walls: the machine lines own the wall below the
-    // sills, so the glass starts at shoulder-of-the-hall height.
+    // The recess is the leaf's room (see the tenement): outer plane 0.1 m inside the
+    // footprint, proud marks inside that allowance.
+    let face = params.half_width - 0.1;
+    let leaf_depth = params.half_depth - 0.1;
     let (window_w, window_h) = params.window_size;
+    let half_w = window_w * 0.5;
     let sill = params.eaves_height - window_h - 1.1;
+    let head = sill + window_h;
+    // Both long walls: the working apron below the sills, the stone lintel band above the
+    // heads, leaf piers between the bays — then full-height pilaster strips standing proud
+    // over every pier, the brick order of a real hall.
     for side in [-1.0_f32, 1.0] {
-        for slot in 0..params.windows_per_side {
-            let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
-            let jitter = rng.signed() * 0.05;
+        let slots: Vec<(f32, f32)> = (0..params.windows_per_side)
+            .map(|slot| {
+                let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
+                let jitter = rng.signed() * 0.05;
+                ((along + jitter) * (params.half_depth * 0.78), half_w)
+            })
+            .collect();
+        push_pierced_wall(
+            &mut walls,
+            &mut wall_indices,
+            WallSpec {
+                side,
+                face,
+                thickness: 0.2,
+                span_half: leaf_depth,
+                base: params.plinth_height,
+                top: params.eaves_height,
+                sill,
+                head,
+            },
+            &slots,
+        );
+        for &(z, hw) in &slots {
+            push_window(&mut walls, &mut wall_indices, side, face, z, sill, head, hw);
+        }
+        // Pilaster strips: one over each gap, plinth to eaves, 12 cm proud of the leaf.
+        let mut edge = -leaf_depth;
+        for &(z, hw) in &slots {
+            let gap_mid = (edge + z - hw) * 0.5;
+            let gap_half = (z - hw - edge) * 0.5;
+            if gap_half > 0.3 {
+                push_box(
+                    &mut walls,
+                    &mut wall_indices,
+                    Vec3::new(
+                        side * (face + 0.03),
+                        (params.plinth_height + params.eaves_height) * 0.5,
+                        gap_mid,
+                    ),
+                    Vec3::new(0.06, (params.eaves_height - params.plinth_height) * 0.5, 0.26),
+                    WorldMaterial::Wall,
+                );
+            }
+            edge = z + hw;
+        }
+        let last_mid = (edge + leaf_depth) * 0.5;
+        if (leaf_depth - edge) * 0.5 > 0.3 {
             push_box(
                 &mut walls,
                 &mut wall_indices,
                 Vec3::new(
-                    side * (params.half_width - recess * 0.5),
-                    sill + window_h * 0.5,
-                    (along + jitter) * (params.half_depth * 0.78),
+                    side * (face + 0.03),
+                    (params.plinth_height + params.eaves_height) * 0.5,
+                    last_mid,
                 ),
-                Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
-                WorldMaterial::WindowGlass,
+                Vec3::new(0.06, (params.eaves_height - params.plinth_height) * 0.5, 0.26),
+                WorldMaterial::Wall,
             );
         }
     }
-    // The wagon door on the +Z gable end, under a stone lintel band; a worker door on the
-    // +X long wall near the corner.
+    // The gable ends: the -Z end is a plain leaf; the +Z end carries the wagon portal —
+    // side piers, a stone lintel over the clear span, and the door leaf recessed behind it.
+    let end_z = leaf_depth;
     let (door_w, door_h) = params.door_size;
     push_box(
         &mut walls,
         &mut wall_indices,
-        Vec3::new(0.0, params.plinth_height + door_h * 0.5, params.half_depth - recess * 0.5),
-        Vec3::new(door_w * 0.5, door_h * 0.5, recess * 0.5),
-        WorldMaterial::PlankDoor,
+        Vec3::new(0.0, (params.plinth_height + params.eaves_height) * 0.5, -(end_z - 0.1)),
+        Vec3::new(face, (params.eaves_height - params.plinth_height) * 0.5, 0.1),
+        WorldMaterial::Wall,
     );
-    push_box(
-        &mut walls,
-        &mut wall_indices,
-        Vec3::new(0.0, params.plinth_height + door_h + 0.25, params.half_depth - recess * 0.5),
-        Vec3::new(door_w * 0.5 + 0.35, 0.25, recess * 0.5),
-        WorldMaterial::PlinthStone,
-    );
+    let door_half = door_w * 0.5;
+    for door_side in [-1.0_f32, 1.0] {
+        // The pier beside the opening, and its dressed-stone jamb standing slightly proud.
+        let pier_half = (face - door_half) * 0.5;
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(
+                door_side * (door_half + pier_half),
+                (params.plinth_height + params.eaves_height) * 0.5,
+                end_z - 0.1,
+            ),
+            Vec3::new(pier_half, (params.eaves_height - params.plinth_height) * 0.5, 0.1),
+            WorldMaterial::Wall,
+        );
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(
+                door_side * (door_half + 0.16),
+                params.plinth_height + door_h * 0.5 + 0.08,
+                end_z + 0.01,
+            ),
+            Vec3::new(0.16, door_h * 0.5 + 0.08, 0.08),
+            WorldMaterial::PlinthStone,
+        );
+    }
     push_box(
         &mut walls,
         &mut wall_indices,
         Vec3::new(
-            params.half_width - recess * 0.5,
-            params.plinth_height + 1.05,
-            -params.half_depth * 0.72,
+            0.0,
+            params.plinth_height
+                + door_h
+                + (params.eaves_height - params.plinth_height - door_h) * 0.5,
+            end_z - 0.1,
         ),
-        Vec3::new(recess * 0.5, 1.05, 0.55),
+        Vec3::new(door_half, (params.eaves_height - params.plinth_height - door_h) * 0.5, 0.1),
+        WorldMaterial::PlinthStone,
+    );
+    // The door leaf itself, recessed into the portal; a worker door on the +X wall under a
+    // stone canopy near the corner.
+    push_quad(
+        &mut walls,
+        &mut wall_indices,
+        [
+            Vec3::new(-door_half + 0.05, params.plinth_height, end_z - 0.18),
+            Vec3::new(door_half - 0.05, params.plinth_height, end_z - 0.18),
+            Vec3::new(door_half - 0.05, params.plinth_height + door_h, end_z - 0.18),
+            Vec3::new(-door_half + 0.05, params.plinth_height + door_h, end_z - 0.18),
+        ],
+        Vec3::Z,
         WorldMaterial::PlankDoor,
+    );
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(face + 0.03, params.plinth_height + 1.05, -params.half_depth * 0.72),
+        Vec3::new(0.05, 1.05, 0.55),
+        WorldMaterial::PlankDoor,
+    );
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(face + 0.04, params.plinth_height + 2.2, -params.half_depth * 0.72),
+        Vec3::new(0.05, 0.06, 0.75),
+        WorldMaterial::PlinthStone,
     );
 
     // The roof story: the main gable stops short of the ridge cap, the glazed clerestory
-    // band rides the ridge line, and a flat slab caps it — industrial, not domestic.
+    // band rides the ridge line with a steel-sash rhythm, and a flat slab caps it.
     let gable_top = params.ridge_height - 1.0;
     let mut roof = Vec::new();
     let mut roof_indices = Vec::new();
@@ -577,6 +732,26 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
         clerestory_half,
         WorldMaterial::WindowGlass,
     );
+    // The sash bars: dark joinery rhythm across both glazed faces of the band.
+    for side in [-1.0_f32, 1.0] {
+        let pane_x = side * (clerestory_half.x + 0.012);
+        let bars = 9;
+        for bar in 0..bars {
+            let z = -clerestory_half.z + (bar as f32 + 0.5) / bars as f32 * clerestory_half.z * 2.0;
+            push_quad(
+                &mut walls,
+                &mut wall_indices,
+                [
+                    Vec3::new(pane_x, gable_top - 0.06, z - 0.035),
+                    Vec3::new(pane_x, gable_top - 0.06, z + 0.035),
+                    Vec3::new(pane_x, gable_top - 0.18 + clerestory_half.y * 2.0, z + 0.035),
+                    Vec3::new(pane_x, gable_top - 0.18 + clerestory_half.y * 2.0, z - 0.035),
+                ],
+                Vec3::X * side,
+                WorldMaterial::PlankDoor,
+            );
+        }
+    }
     push_box(
         &mut roof,
         &mut roof_indices,
@@ -723,6 +898,197 @@ fn push_box(
     let offset = vertices.len() as u32;
     vertices.extend_from_slice(mesh.vertices());
     indices.extend(mesh.indices().iter().map(|index| index + offset));
+}
+
+/// A single-sided material quad: corners in either winding, the indices are chosen to face
+/// `normal`. Glass panes and joinery strips — the cheapest honest mark; the wall's depth
+/// comes from the pierced-leaf boxes, not from thickness these marks do not need.
+fn push_quad(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    corners: [Vec3; 4],
+    normal: Vec3,
+    material: WorldMaterial,
+) {
+    let base = vertices.len() as u32;
+    for corner in corners {
+        vertices.push(GeometryVertex::new(
+            corner,
+            normal,
+            material.carrier(),
+            SmoothingGroup::hard_edges(),
+        ));
+    }
+    if (corners[1] - corners[0]).cross(corners[3] - corners[0]).dot(normal) >= 0.0 {
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    } else {
+        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+    }
+}
+
+/// The geometry of one pierced facade leaf (Fasada 2.0): an X-facing wall plane whose
+/// openings are TRUE holes — the leaf is built around them, so the recessed pane behind
+/// reads as depth, never as a painted rectangle.
+struct WallSpec {
+    /// Which X face the leaf stands on (-1 / +1).
+    side: f32,
+    /// The leaf's outer plane (|x|).
+    face: f32,
+    /// The leaf's thickness, reaching inward from `face`.
+    thickness: f32,
+    /// The leaf's half-length along Z.
+    span_half: f32,
+    /// The leaf's vertical span.
+    base: f32,
+    top: f32,
+    /// The openings' vertical span within it.
+    sill: f32,
+    head: f32,
+}
+
+/// Build one pierced leaf: the apron below the sills, the dressed-stone lintel band above
+/// the heads (the "pas nadproży" — one continuous band per row, not per window), and the
+/// piers between the openings. `slots` are (z centre, half width), sorted along the facade.
+fn push_pierced_wall(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    spec: WallSpec,
+    slots: &[(f32, f32)],
+) {
+    let half_x = spec.thickness * 0.5;
+    let cx = spec.side * (spec.face - half_x);
+    if spec.sill > spec.base {
+        push_box(
+            vertices,
+            indices,
+            Vec3::new(cx, (spec.base + spec.sill) * 0.5, 0.0),
+            Vec3::new(half_x, (spec.sill - spec.base) * 0.5, spec.span_half),
+            WorldMaterial::Wall,
+        );
+    }
+    if spec.top > spec.head {
+        push_box(
+            vertices,
+            indices,
+            Vec3::new(cx, (spec.head + spec.top) * 0.5, 0.0),
+            Vec3::new(half_x, (spec.top - spec.head) * 0.5, spec.span_half),
+            WorldMaterial::PlinthStone,
+        );
+    }
+    let mut pier = |edge: f32, next: f32| {
+        let gap_half = (next - edge) * 0.5;
+        push_box(
+            vertices,
+            indices,
+            Vec3::new(cx, (spec.sill + spec.head) * 0.5, edge + gap_half),
+            Vec3::new(half_x, (spec.head - spec.sill) * 0.5, gap_half),
+            WorldMaterial::Wall,
+        );
+    };
+    let mut edge = -spec.span_half;
+    for &(z, half_w) in slots {
+        if z - half_w > edge {
+            pier(edge, z - half_w);
+        }
+        edge = z + half_w;
+    }
+    if edge < spec.span_half {
+        pier(edge, spec.span_half);
+    }
+}
+
+/// One honest window behind its opening: the pane recessed a hand into the leaf, a
+/// dressed-stone frame (jambs and head — the sill ledge is the bottom rail) and a mullion
+/// cross on the pane, the sill ledge standing proud of the face. All inside the recess the
+/// leaf leaves in the footprint.
+#[allow(clippy::too_many_arguments)]
+fn push_window(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    side: f32,
+    face: f32,
+    z: f32,
+    sill: f32,
+    head: f32,
+    half_w: f32,
+) {
+    let pane_x = side * (face - 0.09);
+    let out = Vec3::X * side;
+    // The pane, a hand inside the leaf.
+    push_quad(
+        vertices,
+        indices,
+        [
+            Vec3::new(pane_x, sill, z - half_w),
+            Vec3::new(pane_x, sill, z + half_w),
+            Vec3::new(pane_x, head, z + half_w),
+            Vec3::new(pane_x, head, z - half_w),
+        ],
+        out,
+        WorldMaterial::WindowGlass,
+    );
+    // The frame: two jambs and the head rail, on the pane and a finger proud of it.
+    let frame_x = pane_x + side * 0.012;
+    for jamb in [-1.0_f32, 1.0] {
+        push_quad(
+            vertices,
+            indices,
+            [
+                Vec3::new(frame_x, sill, z + jamb * (half_w - 0.05)),
+                Vec3::new(frame_x, sill, z + jamb * half_w),
+                Vec3::new(frame_x, head, z + jamb * half_w),
+                Vec3::new(frame_x, head, z + jamb * (half_w - 0.05)),
+            ],
+            out,
+            WorldMaterial::PlinthStone,
+        );
+    }
+    push_quad(
+        vertices,
+        indices,
+        [
+            Vec3::new(frame_x, head - 0.05, z - half_w),
+            Vec3::new(frame_x, head - 0.05, z + half_w),
+            Vec3::new(frame_x, head, z + half_w),
+            Vec3::new(frame_x, head, z - half_w),
+        ],
+        out,
+        WorldMaterial::PlinthStone,
+    );
+    // The mullion cross: one vertical, one horizontal at the meeting rail's height.
+    push_quad(
+        vertices,
+        indices,
+        [
+            Vec3::new(frame_x, sill, z - 0.018),
+            Vec3::new(frame_x, sill, z + 0.018),
+            Vec3::new(frame_x, head, z + 0.018),
+            Vec3::new(frame_x, head, z - 0.018),
+        ],
+        out,
+        WorldMaterial::PlinthStone,
+    );
+    let meeting = sill + (head - sill) * 0.55;
+    push_quad(
+        vertices,
+        indices,
+        [
+            Vec3::new(frame_x, meeting - 0.018, z - half_w),
+            Vec3::new(frame_x, meeting - 0.018, z + half_w),
+            Vec3::new(frame_x, meeting + 0.018, z + half_w),
+            Vec3::new(frame_x, meeting + 0.018, z - half_w),
+        ],
+        out,
+        WorldMaterial::PlinthStone,
+    );
+    // The sill ledge: dressed stone, a touch wider than the opening, proud of the face.
+    push_box(
+        vertices,
+        indices,
+        Vec3::new(side * (face + 0.02), sill - 0.025, z),
+        Vec3::new(0.06, 0.045, half_w + 0.13),
+        WorldMaterial::PlinthStone,
+    );
 }
 
 fn push_gable(
@@ -941,6 +1307,19 @@ mod tests {
         }
     }
 
+    /// Per-style triangle budget (Fasada 2.0, Świat 2.0 PR 3): the shared envelope stays
+    /// 400 — a style raises ONLY its own number, with the frame measurement recorded in the
+    /// PR that raised it. The two urban styles carry true openings, dressed-stone trim,
+    /// sills and the cornice: ~1.3k (Tenement) and ~0.8k (FactoryHall), locked with headroom
+    /// at 1500 against the Ostrogorsk frame numbers. The village styles raise their own
+    /// number in their own PR.
+    fn triangle_budget(style: BuildingStyle) -> std::ops::RangeInclusive<usize> {
+        match style {
+            BuildingStyle::Tenement | BuildingStyle::FactoryHall => 30..=1500,
+            _ => 30..=400,
+        }
+    }
+
     #[test]
     fn styles_bake_deterministic_on_their_goldens_and_within_budget() {
         for (style, golden) in BUILDING_GOLDEN_HASHES {
@@ -948,7 +1327,7 @@ mod tests {
             let second = bake_building(style, 0, StructureForm::Intact);
             assert_eq!(first.deterministic_hash(), second.deterministic_hash());
             assert!(
-                (30..=400).contains(&first.triangle_count()),
+                triangle_budget(style).contains(&first.triangle_count()),
                 "{style:?} budget: {} tris",
                 first.triangle_count()
             );
@@ -958,6 +1337,38 @@ mod tests {
                 "{style:?}: the look changed — bless deliberately (0x{:016x})",
                 first.deterministic_hash()
             );
+        }
+    }
+
+    /// Fasada 2.0's whole point, locked: on the urban styles every pane sits INSIDE the
+    /// pierced leaf — no glass stands proud of the wall plane (the painted-rectangle look
+    /// this wave retired) — and the facade carries real dressed stone: sills, lintel bands,
+    /// frames, lesenes.
+    #[test]
+    fn urban_glass_is_recessed_into_a_pierced_leaf() {
+        for (style, half_width) in
+            [(BuildingStyle::Tenement, 4.6_f32), (BuildingStyle::FactoryHall, 6.5)]
+        {
+            let building = bake_building(style, 0, StructureForm::Intact);
+            let face = half_width - 0.1;
+            let mut panes = 0usize;
+            let mut stone = 0usize;
+            for vertex in building.walls.vertices() {
+                match WorldMaterial::from_carrier(vertex.material) {
+                    WorldMaterial::WindowGlass => {
+                        panes += 1;
+                        assert!(
+                            vertex.position.x.abs() <= face - 0.04,
+                            "{style:?}: pane proud of the wall plane at {:?}",
+                            vertex.position
+                        );
+                    }
+                    WorldMaterial::PlinthStone => stone += 1,
+                    _ => {}
+                }
+            }
+            assert!(panes >= 40, "{style:?}: a facade carries its panes, got {panes} verts");
+            assert!(stone >= 200, "{style:?}: the trim is real geometry, got {stone} verts");
         }
     }
 
