@@ -293,8 +293,17 @@ pub fn resolve_contacts(
             let (a, b) = (constraint.a, constraint.b);
             let (normal, tangent) = (constraint.normal, constraint.tangent);
             let relative = Vec2::new(velocity[b].x - velocity[a].x, velocity[b].z - velocity[a].z);
-            let approach = relative.dot(normal) - yaw_rate[b] * constraint.lever_b
-                + yaw_rate[a] * constraint.lever_a;
+            // Positive = separating. The two angular terms follow THIS codebase's yaw convention,
+            // which is worth deriving rather than assuming: `forward = (sin yaw, cos yaw)`, so a
+            // point at offset `r` from a hull's centre moves at `omega * (r.z, -r.x)`, and its
+            // speed along the contact normal is `omega * (r . tangent)` — the lever.
+            //
+            // Both signs were inverted here, and so was the torque in `deltas_for`. Consistently
+            // inverted is not harmlessly inverted: it made a contact ANTI-DAMP rotation. On its own
+            // it changes little, because a single contact point gives rotation nothing to violate
+            // — see the register entry — but it has to be right before a manifold can be.
+            let approach = relative.dot(normal) + yaw_rate[b] * constraint.lever_b
+                - yaw_rate[a] * constraint.lever_a;
 
             // Solve for the TOTAL impulse this contact should be carrying, then apply only the
             // change. Clamping the accumulation at zero (rather than the increment) is what lets a
@@ -452,6 +461,10 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
     constraints
 }
 
+/// Torque from an impulse `J` at offset `r` is `magnitude * (r . tangent)` in this convention,
+/// which falls out of the power balance: `F . v = omega * (F.x*r.z - F.z*r.x)`. Body `b` takes
+/// `+J` and body `a` takes `-J`, so the signs are the other way round from what this used to apply.
+///
 /// The velocity and spin an impulse at this contact hands each hull. Returned rather than applied,
 /// so the warm start can push it straight onto the working state while the iterations gather it.
 /// Only the NORMAL share carries torque — friction acts across the contact, not about it.
@@ -466,11 +479,11 @@ fn deltas_for(
     (
         (
             -push * bodies[a].inverse_mass(),
-            constraint.lever_a * normal_step * bodies[a].inverse_inertia(),
+            -constraint.lever_a * normal_step * bodies[a].inverse_inertia(),
         ),
         (
             push * bodies[b].inverse_mass(),
-            -constraint.lever_b * normal_step * bodies[b].inverse_inertia(),
+            constraint.lever_b * normal_step * bodies[b].inverse_inertia(),
         ),
     )
 }

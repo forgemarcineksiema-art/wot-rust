@@ -192,10 +192,16 @@ impl LocalPredictor {
             self.pending_landing_impact_mps.max(ground.landing_impact_mps);
     }
 
-    /// Solve the local hull against its neighbours, who are IMMOVABLE here: the client is not
-    /// authoritative over them, so it may predict being stopped and shoved by them but never
-    /// predict shoving them. The server solves the same contacts with both hulls movable and sends
-    /// the result; the local half of the answer is the half that has to match.
+    /// Solve the local hull against its neighbours under the SERVER'S rules — both hulls movable,
+    /// because that is what the authority solves and the local half of the answer is the half that
+    /// has to match. Only `bodies[0]` is taken: the neighbour's share of the exchange is computed
+    /// and thrown away, so the client still never predicts where anyone else ends up.
+    ///
+    /// This used to pin neighbours immovable, reasoning that predicting a shove would "only mint a
+    /// correction". It was backwards. Refusing to predict the shove is what minted the correction:
+    /// the server let the local hull push a hull aside and kept its speed, the predictor stopped it
+    /// dead, and every snapshot yanked the camera forward to catch up — 20 times a second, for
+    /// about a second, on every flank ram. Measured in `parity_tests`.
     fn exchange_contacts(&mut self, neighbours: &[ContactBody], dt: f32) {
         if neighbours.is_empty() {
             self.contacts = ContactCache::default();

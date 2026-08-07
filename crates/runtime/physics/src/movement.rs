@@ -135,8 +135,33 @@ pub fn advance_hull_drive(
     let pivoting =
         throttle.abs() <= 0.01 && steer.abs() > 0.01 && forward_speed.abs() <= pivot_walk * 1.5;
     let mechanism = if pivoting && !settings.steering.counter_rotates() { 0.5 } else { 1.0 };
-    let target_yaw_rate =
+    let mut target_yaw_rate =
         steer * steering_direction * settings.turn_rate_rad_s * turn_grip * mechanism;
+
+    // A tracked hull does not HAVE a yaw command. It has two belts, and the yaw is whatever their
+    // speed difference makes it: `omega = (v_left - v_right) / gauge`. So the commanded rate above
+    // is really a REQUEST FOR A DIFFERENTIAL, and a belt that cannot drive cannot supply its half.
+    //
+    // With one belt thrown the difference is not optional and cannot be steered out: straightening
+    // means matching the belts, and the only way to match a dead belt is to stop. The clamp is
+    // one-sided for exactly that reason — you may always turn HARDER toward the dead side (brake
+    // the good belt), never away from it. Equal belts force nothing, so a healthy hull keeps every
+    // number it had.
+    // ...but only while the hull is DRIVING. During a commanded pivot the driver is setting the
+    // belt difference deliberately, and a braked-belt hull's forward "speed" is then just the walk
+    // around the stopped belt (below) — feeding that back in as a reason to turn more would be the
+    // same circle P4.5 already fell into once, a cause cancelled by its own effect. A pivot's belt
+    // health is already priced into `turn_rate_rad_s` by the caller.
+    let forced = if pivoting {
+        0.0
+    } else {
+        settings.belts.forced_yaw_rate(forward_speed, settings.pivot_arm_m)
+    };
+    if forced > 0.0 {
+        target_yaw_rate = target_yaw_rate.max(forced);
+    } else if forced < 0.0 {
+        target_yaw_rate = target_yaw_rate.min(forced);
+    }
     state.yaw_rate_rad_s =
         move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
     state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);

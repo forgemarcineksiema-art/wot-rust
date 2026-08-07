@@ -36,14 +36,15 @@ impl ClientApp {
         );
     }
 
-    /// The other hulls, as the contact solver sees them: IMMOVABLE, because the client is not
-    /// authoritative over them. It may predict being stopped and shoved by a neighbour; it may not
-    /// predict shoving one, and pretending otherwise would only mint a correction.
+    /// The other hulls, as the contact solver sees them — built to the AUTHORITY'S rules, because
+    /// a prediction that models contact differently from the server is a correction waiting to
+    /// happen. Movable, with mass, and moving: the local hull's share of a shove is then the same
+    /// share the server computes.
     ///
-    /// They are also motionless. A remote hull's velocity is not on the wire — the snapshot
-    /// carries poses — so the predictor treats neighbours as standing still, which is the same
-    /// assumption it has always made and errs toward stopping the local hull sooner rather than
-    /// later.
+    /// A remote hull's velocity is not on the wire; the snapshot carries poses. It does not need to
+    /// be — `TankMotion` already derives speed and yaw rate from the snapshot PAIR, in the tick
+    /// domain, memoized for the frame. Treating neighbours as motionless (the old assumption) made
+    /// the predictor re-plant a hull that the server already had sliding away.
     fn neighbours_for_prediction(&self) -> Vec<ContactBody> {
         self.session
             .current_snapshot()
@@ -52,15 +53,17 @@ impl ClientApp {
             .filter(|tank| tank.tank_id != self.player_tank)
             .map(|tank| {
                 let spec = tank.vehicle.spec();
+                let motion = self.render_state.motion_of(tank.tank_id);
+                let heading = Vec3::new(tank.yaw_rad.sin(), 0.0, tank.yaw_rad.cos());
                 ContactBody {
                     id: tank.tank_id.0,
                     position: Vec3::from_array(tank.position),
-                    velocity: Vec3::ZERO,
+                    velocity: heading * motion.forward_speed_mps,
                     yaw_rad: tank.yaw_rad,
-                    yaw_rate_rad_s: 0.0,
+                    yaw_rate_rad_s: motion.yaw_rate_rad_s,
                     footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
                     mass_kg: spec.mass_kg,
-                    movable: false,
+                    movable: true,
                 }
             })
             .collect()

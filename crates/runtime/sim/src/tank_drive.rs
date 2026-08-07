@@ -20,12 +20,6 @@ const DAMAGED_SPEED_FLOOR: f32 = 0.75;
 const BROKEN_ONE_THROTTLE_SCALE: f32 = 0.55;
 /// ...and it turns this sluggishly on the one good track.
 const BROKEN_ONE_TURN_SCALE: f32 = 0.6;
-/// Under power a one-track hull drifts toward the dead side by this much steer — small enough that
-/// a counter-steer overrides it, so the hull stays drivable where you point it.
-const BROKEN_ONE_DRIFT_BIAS: f32 = 0.18;
-/// Throttle magnitude below this reads as "no drive input": no drift bias is applied, so a hull
-/// with one thrown track sits still at rest instead of pivoting in place forever.
-const DRIVE_INPUT_EPS: f32 = 0.05;
 
 /// The minimal per-tank state a fixed-tick drive step reads and writes: hull kinematics, turret/gun
 /// aim, and the live aim dispersion. The server projects a `TankState` into this; the client
@@ -184,33 +178,42 @@ fn drive_inputs(
     settings.turn_rate_rad_s *= modules.suspension_agility;
     settings.yaw_accel_rad_s2 *= modules.suspension_agility;
     // A dead engine removes drive; damaged/thrown tracks shape the rest.
-    let (mut throttle, mut steer) =
+    let (mut throttle, steer) =
         if modules.engine_ok { (command.throttle, command.steer) } else { (0.0, 0.0) };
+    // What each belt can still put down, whatever tier it is on. Two whole belts are exactly
+    // (1.0, 1.0), which forces no turn at all, so the healthy drive stays bit-identical and the
+    // fleet's mobility table does not move. Everything below is what a DIFFERENCE between the two
+    // does — and a difference is the only thing that turns a tracked hull.
+    settings.belts =
+        physics::BeltDrive::new(modules.tracks.left.traction(), modules.tracks.right.traction());
     if modules.tracks.both_ok() {
-        // Both sides rolling. A Damaged pool only dulls agility (and shaves a little top speed);
-        // it never biases the steer, so the hull still drives exactly where it is pointed and can
-        // be a hair twitchy but never squirrelly. Both healthy → traction is exactly 1.0, so every
-        // factor below is 1.0 and the healthy drive stays bit-identical (replay-locked). One light
-        // hit is imperceptible; two damaged sides compound.
+        // Both sides rolling. A Damaged pool dulls agility and shaves a little top speed — and now,
+        // if the two sides are drained UNEVENLY, it also pulls, gently, toward the worse belt. That
+        // is not a new rule; it is the same belt difference the thrown case uses, applied to a pair
+        // that is merely unequal. Both healthy → traction is exactly 1.0 on both sides, so every
+        // factor below is 1.0 and nothing pulls. One light hit is imperceptible; two damaged sides
+        // compound.
         let traction = modules.tracks.rolling_traction();
         settings.turn_rate_rad_s *= traction;
         settings.yaw_accel_rad_s2 *= traction;
         settings.drive_power_mps3 *= DAMAGED_SPEED_FLOOR + (1.0 - DAMAGED_SPEED_FLOOR) * traction;
     } else {
         // Exactly one side thrown (the both-thrown case is the hard stop in `advance_tank_drive`).
-        // The live side still drives, so the hull crawls — slow, but fully controllable and able
-        // to STOP. The working track pushes the hull around the dead one, so UNDER POWER it drifts
-        // toward the dead side. The drift is small, gated on real throttle input (so a released
-        // hull sits still instead of pivoting forever — the old idle-spin bug), and simply ADDED
-        // to the player's steer so a counter-steer overrides it.
+        // The live side still drives, so the hull crawls — slow, but able to STOP.
+        //
+        // Where it GOES is no longer a bias bolted onto the player's steer. It used to be: a fixed
+        // 0.18 added to `steer`, gated on throttle. That made a thrown track a speed tax you could
+        // buy your way out of — measured, holding exactly 0.18 of counter-steer drove a T-54 with
+        // a dead left track in a dead straight line, at the very same 7.67 m/s it managed with no
+        // steer at all, and 2 m FURTHER in ten seconds for not having to arc. A track you can
+        // counter-steer away is not damage.
+        //
+        // Now the dead belt is declared to the drive model and the turn falls out of the belt
+        // difference (`BeltDrive::forced_yaw_rate`). Counter-steering can no longer cancel it: the
+        // only way to match a dead belt is to slow the live one, which is a real price in speed.
         throttle *= BROKEN_ONE_THROTTLE_SCALE;
         settings.turn_rate_rad_s *= BROKEN_ONE_TURN_SCALE;
         settings.yaw_accel_rad_s2 *= BROKEN_ONE_TURN_SCALE;
-        if command.throttle.abs() > DRIVE_INPUT_EPS {
-            let dead_sign = if modules.tracks.right_ok() { -1.0 } else { 1.0 };
-            let drift = BROKEN_ONE_DRIFT_BIAS * dead_sign * command.throttle.signum();
-            steer = (steer + drift).clamp(-1.0, 1.0);
-        }
     }
     (settings, TankControlInput { throttle, steer, brake: command.brake })
 }
