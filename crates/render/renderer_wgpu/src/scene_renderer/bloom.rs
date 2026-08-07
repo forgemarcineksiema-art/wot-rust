@@ -211,7 +211,15 @@ impl BloomResources {
 
     /// Encode the ladder: HDR resolve -> mip0 -> ... -> mipN (downsample), then mipN -> ... ->
     /// mip0 (tent upsample, additive). The post pass then reads mip0.
-    pub fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
+    /// The whole ladder is ONE measured span: the first rung opens it, the last closes it, and
+    /// the rungs between write no timestamps of their own. Timing each rung separately would
+    /// report a dozen numbers nobody can act on — the actionable question is what the bloom chain
+    /// costs, not what its fourth downsample costs.
+    pub fn encode(
+        &self,
+        recorder: &mut crate::pass_recorder::PassRecorder<'_>,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
         if self.mips == 0 {
             return;
         }
@@ -219,29 +227,32 @@ impl BloomResources {
         let Some(t) = targets.as_ref() else {
             return;
         };
-        let pass_into = |view: &wgpu::TextureView,
-                         encoder: &mut wgpu::CommandEncoder,
-                         load: wgpu::LoadOp<wgpu::Color>|
-         -> wgpu::RenderPass<'static> {
-            encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("bloom_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view,
-                        resolve_target: None,
-                        depth_slice: None,
-                        ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                })
-                .forget_lifetime()
+        // A one-level ladder runs a single rung, so that rung has to carry both ends of the span
+        // rather than opening one nothing closes.
+        let rungs = t.levels.len() * 2 - 1;
+        let mut rung = 0usize;
+        let span_for = |index: usize| {
+            if rungs == 1 {
+                crate::pass_recorder::TimestampSpan::Whole
+            } else if index == 0 {
+                crate::pass_recorder::TimestampSpan::Start
+            } else if index + 1 == rungs {
+                crate::pass_recorder::TimestampSpan::End
+            } else {
+                crate::pass_recorder::TimestampSpan::Inside
+            }
         };
         // Down the ladder.
         for (index, level) in t.levels.iter().enumerate() {
-            let mut pass = pass_into(&level.view, encoder, wgpu::LoadOp::Clear(wgpu::Color::BLACK));
+            let span = span_for(rung);
+            rung += 1;
+            let mut pass = begin_rung(
+                recorder,
+                encoder,
+                &level.view,
+                wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                span,
+            );
             pass.set_pipeline(&self.down_pipeline);
             let src = if index == 0 { &t.hdr_read_bind } else { &t.levels[index - 1].read_bind };
             pass.set_bind_group(0, src, &[]);
@@ -249,7 +260,10 @@ impl BloomResources {
         }
         // Back up, accumulating.
         for index in (1..t.levels.len()).rev() {
-            let mut pass = pass_into(&t.levels[index - 1].view, encoder, wgpu::LoadOp::Load);
+            let span = span_for(rung);
+            rung += 1;
+            let mut pass =
+                begin_rung(recorder, encoder, &t.levels[index - 1].view, wgpu::LoadOp::Load, span);
             pass.set_pipeline(&self.up_pipeline);
             pass.set_bind_group(0, &t.levels[index].read_bind, &[]);
             pass.draw(0..3, 0..1);
@@ -266,4 +280,28 @@ impl BloomResources {
             t.black_view.clone()
         })
     }
+}
+
+/// One rung of the bloom ladder, opened through the recorder like every other pass.
+fn begin_rung(
+    recorder: &mut crate::pass_recorder::PassRecorder<'_>,
+    encoder: &mut wgpu::CommandEncoder,
+    view: &wgpu::TextureView,
+    load: wgpu::LoadOp<wgpu::Color>,
+    span: crate::pass_recorder::TimestampSpan,
+) -> wgpu::RenderPass<'static> {
+    recorder
+        .begin_span(
+            encoder,
+            crate::frame_graph::PassId::Bloom,
+            span,
+            &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
+            })],
+            None,
+        )
+        .forget_lifetime()
 }

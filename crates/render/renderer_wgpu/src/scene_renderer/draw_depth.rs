@@ -5,6 +5,9 @@
 
 use renderer_api::Frustum;
 
+use crate::frame_graph::PassId;
+use crate::pass_recorder::PassRecorder;
+
 impl super::SceneRenderer {
     /// Depth-only occluder pass: render the world from the sun's point of view into the shadow map
     /// so the scene and vehicle shaders can shade the key light. The **whole** static world casts —
@@ -14,13 +17,15 @@ impl super::SceneRenderer {
     /// draws occluders whenever shadows are on.
     pub(super) fn encode_shadow_pass(
         &self,
+        recorder: &mut PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         light_frustum: &Frustum,
     ) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("shadow_pass"),
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+        let mut pass = recorder.begin(
+            encoder,
+            PassId::ShadowNear,
+            &[],
+            Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.shadow.depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
@@ -28,10 +33,7 @@ impl super::SceneRenderer {
                 }),
                 stencil_ops: None,
             }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        );
         if self.shadow.strength <= 0.0 {
             return;
         }
@@ -96,13 +98,15 @@ impl super::SceneRenderer {
     /// so the far pass stays nearly free while hillsides and the far town finally ground.
     pub(super) fn encode_far_shadow_pass(
         &self,
+        recorder: &mut PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         light_frustum: &Frustum,
     ) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("shadow_pass_far"),
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+        let mut pass = recorder.begin(
+            encoder,
+            PassId::ShadowFar,
+            &[],
+            Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.shadow.far_depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
@@ -110,10 +114,7 @@ impl super::SceneRenderer {
                 }),
                 stencil_ops: None,
             }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        );
         if self.shadow.strength <= 0.0 || self.shadow.cascade_count < 2 {
             return;
         }
@@ -156,6 +157,7 @@ impl super::SceneRenderer {
     /// depth-only into the screen-sized prepass texture the SSAO pass evaluates.
     pub(super) fn encode_ssao_prepass(
         &self,
+        recorder: &mut PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         camera_frustum: &Frustum,
     ) {
@@ -163,10 +165,11 @@ impl super::SceneRenderer {
         let Some(targets) = targets.as_ref() else {
             return;
         };
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("ssao_prepass"),
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+        let mut pass = recorder.begin(
+            encoder,
+            PassId::SsaoPrepass,
+            &[],
+            Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &targets.depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
@@ -174,10 +177,7 @@ impl super::SceneRenderer {
                 }),
                 stencil_ops: None,
             }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        );
         pass.set_pipeline(&self.ssao.prepass_scene_pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);

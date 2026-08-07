@@ -176,6 +176,7 @@ impl SsaoResources {
     /// the geometry buffers).
     pub fn encode_ao_passes(
         &self,
+        recorder: &mut crate::pass_recorder::PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         camera_bind_group: &wgpu::BindGroup,
     ) {
@@ -183,18 +184,19 @@ impl SsaoResources {
         let Some(targets) = targets.as_ref() else {
             return;
         };
-        for (label, pipeline, output, extra_src) in [
-            ("ssao_pass", &self.ssao_pipeline, &targets.ao_view, None),
+        for (pass_id, pipeline, output, extra_src) in [
+            (crate::frame_graph::PassId::Ssao, &self.ssao_pipeline, &targets.ao_view, None),
             (
-                "ssao_blur_pass",
+                crate::frame_graph::PassId::SsaoBlur,
                 &self.blur_pipeline,
                 &targets.blur_view,
                 Some(&targets.blur_src_bind_group),
             ),
         ] {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some(label),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                encoder,
+                pass_id,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: output,
                     resolve_target: None,
                     depth_slice: None,
@@ -203,11 +205,8 @@ impl SsaoResources {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, camera_bind_group, &[]);
             pass.set_bind_group(1, &targets.depth_bind_group, &[]);

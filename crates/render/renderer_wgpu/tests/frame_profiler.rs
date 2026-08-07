@@ -1,10 +1,15 @@
-//! The per-pass timing instrument: its identity list, and whether this machine can arm it.
+//! The per-pass timing instrument: its identity list, whether this machine can arm it, and
+//! whether an armed frame actually comes back with numbers in it.
 //!
-//! Nothing here times a frame — that lands with the recorder. What is locked now is the part that
-//! would be expensive to get wrong later: the list of passes that budgets and measurements are
-//! keyed by, and the fact that a shipped context still asks the device for nothing.
+//! What is locked here is the part that would be expensive to get wrong later: the list of passes
+//! that budgets and measurements are keyed by, the fact that a shipped context still asks the
+//! device for nothing, and the end-to-end proof that the GPU fills the query set a real frame
+//! wrote — so the readback built on top of it is built on something seen working.
 
-use renderer_wgpu::{FrameProfiler, GpuContext, GpuContextOptions, PassId};
+use renderer_api::view_projection_matrix;
+use renderer_wgpu::{
+    FrameProfiler, GpuContext, GpuContextOptions, OffscreenTarget, PassId, SceneRenderer,
+};
 
 /// The pass list, pinned in encoding order.
 ///
@@ -44,33 +49,48 @@ fn pass_ids_are_append_only_and_carry_their_wgpu_labels() {
     }
 }
 
-/// The enum is only worth having if it names passes that EXIST. Every label has to appear in the
-/// renderer's own sources, or the profiler is measuring a frame it imagined.
+/// The enum is only worth having if every variant names a pass something actually opens. A
+/// `PassId` nobody encodes is a row in the budget table that will never be filled and a slot in
+/// the register that will always read zero.
 ///
-/// `frame_graph.rs` is excluded from the scan on purpose: it is where the labels are DEFINED, so
-/// including it would let every variant satisfy this test with its own declaration — a gate that
-/// passes by construction, which is the failure mode this repo already documents on
-/// `REGEN_WIRE_FIXTURES`. Verified by removing it and watching this test go red.
+/// This is the second shape of this test. The first checked that every label appeared as a
+/// literal at a `begin_render_pass` call site — a true statement until the recorder took the
+/// descriptor away from the call sites, which is exactly the point of the recorder. What survives
+/// the change is the question underneath: does anything actually ask for this pass?
+///
+/// `frame_graph.rs` is excluded because it DEFINES the variants; including it would let every one
+/// of them satisfy this test with its own declaration, a gate that passes by construction.
 #[test]
-fn every_pass_id_names_a_pass_the_renderer_actually_encodes() {
+fn every_pass_id_is_asked_for_by_a_call_site() {
     let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut sources = String::new();
     collect_rust_sources(&src, "frame_graph.rs", &mut sources);
     assert!(!sources.is_empty(), "found no renderer sources to scan");
 
-    let mut missing = Vec::new();
+    let mut unused = Vec::new();
     for id in PassId::ALL {
-        // `ssao_pass` / `ssao_blur_pass` reach their descriptor through a loop variable rather
-        // than a literal at the call site, so the literal is accepted anywhere in the renderer.
-        if !sources.contains(&format!("\"{}\"", id.label())) {
-            missing.push(format!("{id:?} -> {}", id.label()));
+        let needle = format!("PassId::{id:?}");
+        // `Scene` is a prefix of `SceneOpaque`, `Ssao` of `SsaoBlur` — a bare `contains` would
+        // let the shorter variant ride on the longer one's call site.
+        let referenced = sources.match_indices(&needle).any(|(at, _)| {
+            sources[at + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        });
+        if !referenced {
+            unused.push(format!("{id:?}"));
         }
     }
 
     assert!(
-        missing.is_empty(),
-        "these PassId variants name a pass no call site opens:\n  {}",
-        missing.join("\n  ")
+        unused.is_empty(),
+        "these PassId variants are never asked for by any call site:
+  {}",
+        unused.join(
+            "
+  "
+        )
     );
 }
 
@@ -151,4 +171,63 @@ fn the_profiler_reports_what_this_device_can_actually_do() {
             );
         }
     }
+}
+
+/// The armed instrument riding a REAL frame: the first time timestamps are written by the
+/// renderer rather than by a test's own encoder. Proves three things at once — the descriptor
+/// wgpu accepts, the resolve of a partial query set the frame actually wrote, and that the ticks
+/// come back ordered and non-zero. Without this the next change would be building a readback for
+/// numbers nobody had seen the GPU produce.
+#[test]
+fn an_armed_frame_writes_timestamps_the_gpu_actually_fills_in() {
+    let Ok(ctx) = GpuContext::headless_with_options(GpuContextOptions { pass_timing: true }) else {
+        eprintln!("skipping armed-frame test: no headless adapter");
+        return;
+    };
+    let profiler = FrameProfiler::new(&ctx.device, &ctx.queue, true);
+    if profiler.active().is_none() {
+        eprintln!("skipping armed-frame test: {}", profiler.unavailable_reason().unwrap_or("?"));
+        return;
+    }
+
+    let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+    let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+    renderer.set_pass_profiler(profiler);
+
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    renderer
+        .render(
+            &ctx,
+            target.render_target(),
+            view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+            camera.eye,
+        )
+        .expect("an armed frame must render");
+
+    let active = renderer.pass_profiler().active().expect("still armed after the frame");
+    let readback = active.readback_buffer();
+    readback.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+    ctx.device.poll(wgpu::PollType::wait_indefinitely()).expect("poll");
+    let mapped = readback.slice(..).get_mapped_range();
+    let ticks: Vec<u64> = mapped
+        .chunks_exact(8)
+        .map(|b| u64::from_le_bytes(b.try_into().expect("8 bytes")))
+        .collect();
+    drop(mapped);
+    readback.unmap();
+
+    // The first pass of any frame is the near shadow map, so slots 0 and 1 are always written.
+    assert!(ticks.len() >= 2, "the query set came back too small");
+    assert!(ticks[0] > 0, "the first pass never wrote its start timestamp");
+    assert!(ticks[1] > ticks[0], "a pass ended before it began: {} -> {}", ticks[0], ticks[1]);
+    eprintln!(
+        "first pass ({:?}) spanned {} ticks -> {:.3} ms",
+        PassId::ShadowNear,
+        ticks[1] - ticks[0],
+        (ticks[1] - ticks[0]) as f64 * f64::from(active.period_ns()) / 1.0e6,
+    );
 }

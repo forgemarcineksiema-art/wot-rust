@@ -152,6 +152,9 @@ pub struct SceneRenderer {
     /// The quality tier's bloom depth, kept so the battlefield can restore it after the
     /// garage's richer chain (`set_bloom_mips`).
     default_bloom_mips: u32,
+    /// Per-pass GPU timing. `Disabled` unless a probe arms it, and while disabled the encoder
+    /// emits exactly the command stream it emitted before this field existed.
+    profiler: crate::frame_profiler::FrameProfiler,
 }
 
 impl SceneRenderer {
@@ -200,6 +203,17 @@ impl SceneRenderer {
             terrain_indices,
             Some(quality),
         )
+    }
+
+    /// Hand this renderer a per-pass timing instrument. Until one is set the renderer emits the
+    /// same command stream it always did, so arming is a probe's decision and never a default.
+    pub fn set_pass_profiler(&mut self, profiler: crate::frame_profiler::FrameProfiler) {
+        self.profiler = profiler;
+    }
+
+    /// The timing instrument this renderer holds — `Disabled` unless a probe armed one.
+    pub fn pass_profiler(&self) -> &crate::frame_profiler::FrameProfiler {
+        &self.profiler
     }
 
     pub fn new(
@@ -473,6 +487,7 @@ impl SceneRenderer {
             shadow_focus_radius_m: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
+            profiler: crate::frame_profiler::FrameProfiler::Disabled,
         })
     }
 }

@@ -6,6 +6,7 @@ mod gpu_diagnostics;
 mod gpu_layout;
 mod msaa;
 mod offscreen;
+mod pass_recorder;
 mod pipeline_registry;
 mod rain_pipeline;
 mod readback_queue;

@@ -151,11 +151,15 @@ impl super::SceneRenderer {
 
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        self.encode_shadow_pass(&mut encoder, &light_frustum);
-        self.encode_far_shadow_pass(&mut encoder, &light_frustum_far);
+        // Every pass below is opened through the recorder, which owns the label and the timestamp
+        // writes. While the profiler is Disabled — the shipped path — it emits the same descriptor
+        // this code emitted before it existed.
+        let mut recorder = crate::pass_recorder::PassRecorder::new(&self.profiler);
+        self.encode_shadow_pass(&mut recorder, &mut encoder, &light_frustum);
+        self.encode_far_shadow_pass(&mut recorder, &mut encoder, &light_frustum_far);
         if self.ssao.strength > 0.0 {
-            self.encode_ssao_prepass(&mut encoder, &camera_frustum);
-            self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);
+            self.encode_ssao_prepass(&mut recorder, &mut encoder, &camera_frustum);
+            self.ssao.encode_ao_passes(&mut recorder, &mut encoder, &self.camera_bind_group);
         }
         // The world renders linear HDR into the internal Rgba16Float chain; the caller's target
         // receives only the post pass's display-transformed picture (plus the HUD).
@@ -168,9 +172,10 @@ impl super::SceneRenderer {
             // over the kept colour, resolving into the final HDR the post pass reads.
             let grab_view = hdr.grab_view.as_ref().expect("grab present when refraction active");
             {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("scene_opaque_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                let mut pass = recorder.begin(
+                    &mut encoder,
+                    crate::frame_graph::PassId::SceneOpaque,
+                    &[Some(wgpu::RenderPassColorAttachment {
                         view: &hdr.color_view,
                         resolve_target: Some(grab_view),
                         depth_slice: None,
@@ -179,7 +184,7 @@ impl super::SceneRenderer {
                             store: wgpu::StoreOp::Store,
                         },
                     })],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    Some(wgpu::RenderPassDepthStencilAttachment {
                         view: target.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Clear(1.0),
@@ -187,17 +192,15 @@ impl super::SceneRenderer {
                         }),
                         stencil_ops: None,
                     }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+                );
                 self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             }
             {
                 let grab_bg = self.water_refraction.bind_group.borrow();
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("scene_water_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                let mut pass = recorder.begin(
+                    &mut encoder,
+                    crate::frame_graph::PassId::SceneWater,
+                    &[Some(wgpu::RenderPassColorAttachment {
                         view: &hdr.color_view,
                         resolve_target: Some(&hdr.resolve_view),
                         depth_slice: None,
@@ -206,7 +209,7 @@ impl super::SceneRenderer {
                             store: wgpu::StoreOp::Discard,
                         },
                     })],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    Some(wgpu::RenderPassDepthStencilAttachment {
                         view: target.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Load,
@@ -214,19 +217,17 @@ impl super::SceneRenderer {
                         }),
                         stencil_ops: None,
                     }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+                );
                 self.draw_water_surface(&mut pass, grab_bg.as_ref());
                 self.draw_overlay_fx(&mut pass);
             }
         } else {
             // Single-pass path (analytic water) — the integrated/software route, byte-for-byte the
             // pre-refraction frame: opaque world, analytic water inline, then FX and rain.
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("scene_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Scene,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: &hdr.color_view,
                     resolve_target: hdr.multisampled.then_some(&hdr.resolve_view),
                     depth_slice: None,
@@ -239,7 +240,7 @@ impl super::SceneRenderer {
                         },
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                Some(wgpu::RenderPassDepthStencilAttachment {
                     view: target.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
@@ -247,10 +248,7 @@ impl super::SceneRenderer {
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            );
             self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             self.draw_water_surface(&mut pass, None);
             self.draw_overlay_fx(&mut pass);
@@ -258,15 +256,16 @@ impl super::SceneRenderer {
         // The bloom ladder blurs the resolved HDR frame down and back up before the post pass
         // composites it (rule 6); skipped entirely at weight 0 or bloom_mips 0.
         if self.scene_lighting.bloom_weight > 0.0 {
-            self.bloom.encode(&mut encoder);
+            self.bloom.encode(&mut recorder, &mut encoder);
         }
         // The post pass: one fullscreen triangle applies the display transform (exposure ->
         // ACES -> grade -> dither) to the resolved HDR frame and writes the ENCODED picture
         // into the LDR intermediate — the single place the picture is formed.
         {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("post_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Post,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: &hdr.ldr_view,
                     resolve_target: None,
                     depth_slice: None,
@@ -275,11 +274,8 @@ impl super::SceneRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(&self.post.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(
@@ -295,9 +291,10 @@ impl super::SceneRenderer {
         // the battle, it is not part of the painting.
         {
             let output_view = target.resolve_target.unwrap_or(target.color_view);
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("fxaa_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Fxaa,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: output_view,
                     resolve_target: None,
                     depth_slice: None,
@@ -306,11 +303,8 @@ impl super::SceneRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(&self.fxaa.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(
@@ -326,6 +320,10 @@ impl super::SceneRenderer {
                 pass.draw(0..self.hud_vertex_count, 0..1);
             }
         }
+        // Copy this frame's timestamps out on the SAME encoder, before submit: a resolve on a
+        // later encoder would read a query set the GPU may not have finished writing. A no-op
+        // while the profiler is Disabled.
+        recorder.resolve(&mut encoder);
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
     }
