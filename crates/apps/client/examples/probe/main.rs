@@ -22,6 +22,7 @@ mod factory_probe;
 mod farmyard_views;
 mod flora_frame_probe;
 mod flora_probe;
+mod fov_probe;
 mod garage_hangar_review;
 mod garage_techview;
 mod grass_costumes;
@@ -79,6 +80,7 @@ const PROBES: &[ProbeEntry] = &[
     ("farmyard_views", farmyard_views::run),
     ("flora_frame_probe", flora_frame_probe::run),
     ("flora_probe", flora_probe::run),
+    ("fov_probe", fov_probe::run),
     ("garage_hangar_review", garage_hangar_review::run),
     ("garage_techview", garage_techview::run),
     ("grass_costumes", grass_costumes::run),

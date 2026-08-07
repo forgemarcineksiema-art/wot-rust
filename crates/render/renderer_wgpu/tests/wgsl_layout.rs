@@ -233,16 +233,19 @@ fn a_hull_presses_the_meadow_flat_and_overrules_the_wind() {
 #[test]
 fn the_grass_band_magnification_is_one_off_scope_and_capped_on_it() {
     let proj_y = |fov_degrees: f32| 1.0 / (fov_degrees.to_radians() * 0.5).tan();
-    for battle_fov in [55.0, 60.0, 65.0, 75.0] {
+    for battle_fov in [48.0, 55.0, 60.0, 65.0, 75.0] {
         assert_eq!(
             renderer_api::grass_zoom_band_scale(proj_y(battle_fov)),
             1.0,
             "a normal battle view at {battle_fov}° is not magnified"
         );
     }
-    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step.
+    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step. The stretch
+    // was ~3.3x while the reference sat at 55°; the Świat 2.0 lens moved the reference to 48°,
+    // and a narrower normal view makes the SAME scope a smaller relative jump — cot(9°)/2.2461
+    // = 2.81. The scope did not change; what it is measured against did.
     let entry = renderer_api::grass_zoom_band_scale(proj_y(18.0));
-    assert!((3.0..3.6).contains(&entry), "the entry scope step stretches ~3.3x: {entry}");
+    assert!((2.6..3.0).contains(&entry), "the entry scope step stretches ~2.8x: {entry}");
     for narrow in [8.0, 5.0, 3.0] {
         assert_eq!(
             renderer_api::grass_zoom_band_scale(proj_y(narrow)),

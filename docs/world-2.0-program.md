@@ -81,7 +81,9 @@ proceduralne), assets/flora delete, notices, docs.
   Y lift), bole-scale pniaki/logs on felled TreeLine/TreeTrunk, and far-frustum mature floors.
 - **PR 2 — Kamera.** (**LANDED 2026-08-07**): FOV 62°→48° pion; `fov_probe` wyrenderował
   przed/po (62/55/48) na 4 mapach; werdykt okiem usera: **48° zostaje**. Grass-zoom
-  reference przeszedł na cot(48°/2)=2.246 (battle camera = skala 1.0); look goldens
+  reference przeszedł na cot(48°/2)=2.2461 — zaokrąglone W GÓRĘ, bo clamp podpiera od 1.0
+  i obcięta wartość każe spoczynkowej kamerze czytać się jako powiększona (battle camera =
+  skala 1.0; wejście lunety spadło przez to z ~3.3× na ~2.81×); look goldens
   świadomie zostają na stabilnym 55° — werdykt FOV idzie przez pary z `fov_probe`.
 
 ### Fala 2 — Cover 2.0 (D6 + D19 + W5)
