@@ -162,6 +162,31 @@ fn dressed_stone_role_is_bound_at_both_ends() {
         source.contains("detail_hash(vec2<f32>(scol * 1.7 + 3.0, srow))"),
         "one tone per block"
     );
+    // Dressed stone stopped being the fall-through when natural rock was appended past it.
+    assert!(source.contains("if (role < 8.5)"), "ashlar is explicit so rock can exist past it");
+}
+
+/// Skały 1.0 (Świat 2.0 PR 8): the ROCK_FACE role is the append after DRESSED_STONE, locked at
+/// both ends. The two must never share a treatment — role 8 is stone a mason CUT (courses,
+/// joints, one tone per block), role 9 is stone nobody touched.
+#[test]
+fn rock_face_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::ROCK_FACE, 9.0);
+    assert_eq!(surface_role::ROCK_FACE, surface_role::DRESSED_STONE + 1.0, "append-only");
+    // No courses: the ashlar joint machinery must not reach the boulder.
+    assert!(
+        !source.contains("let rrow = floor"),
+        "natural rock has no courses — that is what separates it from role 8"
+    );
+    // Art-direction rule 5: two octaves, never one, and both on the SHARED frames (D26 — the
+    // repo has exactly one noise lattice, and a new hash here would print its own grid).
+    assert!(source.contains("octave_frame_broad(face_frame)"));
+    assert!(source.contains("octave_frame_fine(face_frame)"));
+    assert!(source.contains("octave_frame_broad(top_frame)"));
+    assert!(source.contains("octave_frame_fine(top_frame)"));
+    // The weathering split is the whole read: an upward face is lifted, an undercut is not.
+    assert!(source.contains("(0.90 + 0.16 * up)"), "the sky bleaches what it can reach");
 }
 
 /// Costume C (P5): the ground carries the meadow's darkness, and the curve it takes over on

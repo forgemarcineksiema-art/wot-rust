@@ -117,6 +117,33 @@ proceduralne), assets/flora delete, notices, docs.
   lock `the_rail_cover_wears_a_revetment_inside_its_box`. Bez zmian boxów LOS (bez bless).
 - **PR 8 — Skały i drobnica.** Nowy `world_forge::rock` (deterministyczny, niski budżet)
   + bogatszy DebrisHeap; `Rock` przestaje być pudłem.
+  **Rozszerzone decyzją usera 2026-08-07 na program skały (5 PR)** — sceneria + głaz jako
+  osłona + odroczony niski próg P2.2 z jego fizyką + szeroki słownik drobnicy.
+  - **PR 8a ZROBIONE 2026-08-07.** `world_forge::rock` (`Shard` = odłamek spękania,
+    `Erratic` = eratyk: przemieszczona elipsoida, dno ścięte i ZATOPIONE, dwie oktawy
+    reliefu, frost spall u stopy) + `scene_build::clutter` (sceneria nie-roślinna wychodzi
+    z `foliage`) + `surface_role::ROCK_FACE = 9.0` z traktowaniem w `scene.wgsl`
+    (dwie oktawy na wspólnych ramkach, wietrzenie od `n.y` — niebo wybiela to, co dosięga)
+    + **barwa z palety mapy** (warstwa splatu A), więc cztery mapy przestają nosić jeden
+    szary. Locki: goldeny+budżety+winding w forge'u, `a_rock_sits_in_the_ground_it_stands_on`,
+    `each_map_carries_its_own_stone`, `rock_face_role_is_bound_at_both_ends`,
+    `the_belly_line_is_the_fleet_measurement`. Przy okazji: `Rng`/`icosphere`/`merge_meshes`
+    wyniesione do `world_forge::shape` (były trzy kopie tego samego splitmix64).
+    **Pomiar (statyki, CPU, przed→po):** Orliny 55 102→64 774 v (+17,6 %) / 31 790→42 702
+    tris przy 124 instancjach; Bystra +2,6 %; Prochorowka +3,8 %; Ostrogorsk bez zmian
+    (0 skał). Per instancja: +78 v / +88 tris. Wzrost ląduje na NAJLŻEJSZEJ mapie —
+    Orliny po zmianie wciąż 3,5× lżejsze od Ostrogorska, który już dziś trzyma 60 FPS.
+    **Rozmiar:** ten PR naprawia BRYŁĘ, nie doktrynę rozmiaru — ale pasmo sylwetki przestaje
+    być stałe. Stary box miał ZAWSZE 0,95 × scale wysokości; eratyk zmienia się per ziarno
+    (patrz pomiar w opisie PR). Uczciwe ścięcie pod linię brzucha to PR 8c, razem z osłoną,
+    która przejmie duże kamienie — żeby nie było okna, w którym góra traci kamienie i jeszcze
+    ich nie dostała.
+  - **PR 8b — piarg i rozsyp.** `SceneryKind::Scree` (kępa 5–12 odłamków z jednej instancji,
+    klumping w forge'u — bez zmian w `SceneryOp`) + `DebrisHeap` z materiałów fasad.
+  - **PR 8c — `StaticCoverKind::Outcrop`** (wychodnia w AABB) + uczciwy podział rozmiarów:
+    sceneria `Rock` schodzi pod linię brzucha, duże instancje wracają jako osłona.
+  - **PR 8d — `StaticCoverKind::Boulder` + fizyka niskiego progu (P2.2).**
+  - **PR 8e — `Stump` + `TelegraphPole`.**
 - **PR 9 — Landmarki pion (W5).** Kościoły 25–35, wiatrak 12–18, silosy 20–30, dłuższa
   hala, latarnie 6–9 m; bless.
 

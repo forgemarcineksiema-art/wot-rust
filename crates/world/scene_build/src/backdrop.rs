@@ -33,6 +33,9 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
     let mut vertices: Vec<SceneVertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
     let mut seed = 0x8ACD_0D11_u64;
+    // The ring plants only trees today, so the stone never comes up — passed anyway so a ring
+    // that ever scatters rock is made of the same stone as the map it encloses.
+    let stone = crate::clutter::StoneTone::of_map(battlefield);
     for _ in 0..180 {
         let hx = backdrop_hash(&mut seed);
         let hz = backdrop_hash(&mut seed);
@@ -55,7 +58,7 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
         let kind =
             if backdrop_hash(&mut seed) > 0.35 { SceneryKind::Oak } else { SceneryKind::Poplar };
         let ground = map_forge::backdrop_height(blueprint, x, z);
-        crate::foliage::push_scenery_instance_far(
+        crate::clutter::push_scenery_instance_far(
             &mut vertices,
             &mut indices,
             &SceneryInstance {
@@ -64,6 +67,7 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
                 yaw_rad: backdrop_hash(&mut seed) * std::f32::consts::TAU,
                 scale: 1.1 + backdrop_hash(&mut seed) * 0.6,
             },
+            stone,
         );
     }
     (vertices, indices)

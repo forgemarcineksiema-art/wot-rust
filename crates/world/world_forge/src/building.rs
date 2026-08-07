@@ -10,6 +10,7 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
 
 use crate::WorldMaterial;
+use crate::shape::Rng;
 
 /// The authored styles. Kamienna's street fronts, the farmyards and the mill all compose from
 /// these three; the church tower joins with map dressing (B4).
@@ -262,7 +263,7 @@ fn push_doorway(
         trim,
     );
     // The door leaf itself, recessed into the opening.
-    push_quad(
+    push_face(
         vertices,
         indices,
         [
@@ -530,7 +531,7 @@ fn bake_barn(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuil
             Vec3::new(door_half + 0.12, 0.06, 0.05),
             WorldMaterial::Timber,
         );
-        push_quad(
+        push_face(
             &mut walls,
             &mut wall_indices,
             [
@@ -787,7 +788,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
         Vec3::new(door_half + 0.14, 0.07, 0.06),
         WorldMaterial::PlinthStone,
     );
-    push_quad(
+    push_face(
         &mut walls,
         &mut wall_indices,
         [
@@ -816,7 +817,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     let opening_half = pier_off - 0.18;
     for face_side in [-1.0_f32, 1.0] {
         // The ±X faces.
-        push_quad(
+        push_face(
             &mut walls,
             &mut wall_indices,
             [
@@ -837,7 +838,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
             WorldMaterial::PlankDoor,
         );
         // The ±Z faces.
-        push_quad(
+        push_face(
             &mut walls,
             &mut wall_indices,
             [
@@ -1217,7 +1218,7 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
     );
     // The door leaf itself, recessed into the portal; a worker door on the +X wall under a
     // stone canopy near the corner.
-    push_quad(
+    push_face(
         &mut walls,
         &mut wall_indices,
         [
@@ -1271,7 +1272,7 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
         let bars = 9;
         for bar in 0..bars {
             let z = -clerestory_half.z + (bar as f32 + 0.5) / bars as f32 * clerestory_half.z * 2.0;
-            push_quad(
+            push_face(
                 &mut walls,
                 &mut wall_indices,
                 [
@@ -1400,26 +1401,6 @@ fn bake_rubble(
     }
 }
 
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn unit(&mut self) -> f32 {
-        (self.next() >> 40) as f32 / (1u64 << 24) as f32
-    }
-
-    fn signed(&mut self) -> f32 {
-        self.unit() * 2.0 - 1.0
-    }
-}
-
 fn push_box(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
@@ -1436,7 +1417,10 @@ fn push_box(
 /// A single-sided material quad: corners in either winding, the indices are chosen to face
 /// `normal`. Glass panes and joinery strips — the cheapest honest mark; the wall's depth
 /// comes from the pierced-leaf boxes, not from thickness these marks do not need.
-fn push_quad(
+/// One four-corner face of a structure, indexed and flat-shaded. Named for the world it builds:
+/// the HUD's `ui_kit::push_quad` is a 2D triangle pair with no indices and no normal, and two
+/// unrelated helpers sharing one name is how an edit reaches the wrong one.
+fn push_face(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
     corners: [Vec3; 4],
@@ -1559,7 +1543,7 @@ fn push_window(
     let pane_x = side * (face - 0.09);
     let out = Vec3::X * side;
     // The pane, a hand inside the leaf.
-    push_quad(
+    push_face(
         vertices,
         indices,
         [
@@ -1574,7 +1558,7 @@ fn push_window(
     // The frame: two jambs and the head rail, on the pane and a finger proud of it.
     let frame_x = pane_x + side * 0.012;
     for jamb in [-1.0_f32, 1.0] {
-        push_quad(
+        push_face(
             vertices,
             indices,
             [
@@ -1587,7 +1571,7 @@ fn push_window(
             trim,
         );
     }
-    push_quad(
+    push_face(
         vertices,
         indices,
         [
@@ -1600,7 +1584,7 @@ fn push_window(
         trim,
     );
     // The mullion cross: one vertical, one horizontal at the meeting rail's height.
-    push_quad(
+    push_face(
         vertices,
         indices,
         [
@@ -1613,7 +1597,7 @@ fn push_window(
         trim,
     );
     let meeting = sill + (head - sill) * 0.55;
-    push_quad(
+    push_face(
         vertices,
         indices,
         [

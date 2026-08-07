@@ -179,9 +179,24 @@ not history):
    shell-trace slab tests by segment-vs-box XZ overlap, and movement SAT by an XZ distance
    early-out. Deterministic, no data structure, provably result-identical (property test),
    and the `urban_150` bench fixture proves the budget instead of assuming it.
-8. **Street furniture: only `Lamppost` and `DebrisHeap`** (knee-high) as scenery kinds.
-   Sandbags/barricades are skipped: anything that *reads* as cover must be a cover box
-   (honest-blockers rule), and authored `Wreck`/`StoneWall` boxes already fill that role.
+8. **Scenery admits itself by two measured lines, not by a list of allowed names**
+   (Skały 1.0, 2026-08-07 — this replaces „only `Lamppost` and `DebrisHeap`", which was a
+   roster where a rule belonged). Both numbers come off the vehicles, not off taste:
+   - the **belly line** — the fleet's lowest ground clearance, **0.40 m** (the T-34-85, not
+     the benchmark T-54's 0.425). Derived in `scene_build::clutter::BELLY_LINE_M` and locked
+     by `the_belly_line_is_the_fleet_measurement`, so a lower-slung vehicle moves the rule.
+   - the **climb line** — ~0.80 m, the documented vertical obstacle for these tanks
+     (`docs/contact-and-tracks-program.md`).
+
+   The rule: **a SOLID scenery object stays under the belly line; only LOOSE dressing may go
+   above it.** A hull drives through grass, brush and a spilled rubble heap and nothing lies;
+   it cannot drive through a metre of granite, so a boulder that tall is not scenery — it is
+   a cover box, and above the climb line it is one that blocks movement too.
+
+   This is the honest-blockers rule with its second half written down. The eye half still
+   stands (anything that *reads* as cover must be a cover box); the belly half is what caught
+   `SceneryKind::Rock` shipping a **solid 1.24 m** cuboid that blocked nothing. Sandbags and
+   barricades stay skipped for the eye reason; authored `Wreck`/`StoneWall` boxes fill that role.
 9. **Triangle budgets rise deliberately, per style, with proof.** Tenement/FactoryHall
    ≤ 600 tris; landmark styles (Church) may reach ~1200 now that bucket culling has landed.
    Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR

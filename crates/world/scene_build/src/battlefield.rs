@@ -214,6 +214,7 @@ pub fn battlefield_statics_bucket_mesh(
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
     // cover box fell with it, so it is left out of the rebuilt scene.
+    let stone = crate::clutter::StoneTone::of_map(battlefield);
     for instance in &battlefield.scenery {
         if statics_bucket_of_position(battlefield, instance.position[0], instance.position[2])
             != bucket
@@ -223,7 +224,7 @@ pub fn battlefield_statics_bucket_mesh(
         if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
             continue;
         }
-        crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+        crate::clutter::push_scenery_instance(&mut vertices, &mut indices, instance, stone);
     }
     (vertices, indices)
 }

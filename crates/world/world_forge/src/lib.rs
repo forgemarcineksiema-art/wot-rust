@@ -8,6 +8,8 @@
 //! (2026-08-06) — vegetation is procedural-only.
 
 pub mod building;
+pub mod rock;
+pub(crate) mod shape;
 pub mod tree;
 
 use glam::Vec3;

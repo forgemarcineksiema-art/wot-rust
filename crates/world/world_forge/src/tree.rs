@@ -9,6 +9,7 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
 
 use crate::WorldMaterial;
+use crate::shape::{Rng, icosphere, merge_meshes};
 
 /// The authored species. Numbers live in [`TreeSpecies::params`] — one table, review-gated by
 /// the goldens below.
@@ -359,36 +360,6 @@ fn scale_tree_y(tree: BakedTree, scale: f32) -> BakedTree {
     }
 }
 
-/// Deterministic splitmix64 walk (the house randomness: process-stable, seed-keyed).
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn unit(&mut self) -> f32 {
-        (self.next() >> 40) as f32 / (1u64 << 24) as f32
-    }
-
-    fn signed(&mut self) -> f32 {
-        self.unit() * 2.0 - 1.0
-    }
-}
-
-fn merge_meshes(a: GeometryMesh, b: GeometryMesh) -> GeometryMesh {
-    let mut vertices = a.vertices().to_vec();
-    let offset = vertices.len() as u32;
-    vertices.extend_from_slice(b.vertices());
-    let mut indices = a.indices().to_vec();
-    indices.extend(b.indices().iter().map(|index| index + offset));
-    GeometryMesh::new(vertices, indices)
-}
-
 /// A tapered open tube from `a` to `b` (no caps: the base sits in the ground, the tip inside
 /// the canopy). Flat side facets — bark reads hard-edged at battle range.
 fn tapered_tube(a: Vec3, b: Vec3, radius_a: f32, radius_b: f32, sides: u32) -> GeometryMesh {
@@ -423,54 +394,6 @@ fn tapered_tube(a: Vec3, b: Vec3, radius_a: f32, radius_b: f32, sides: u32) -> G
         indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
     }
     GeometryMesh::new(vertices, indices)
-}
-
-/// A unit icosphere: the icosahedron, optionally subdivided once (0 → 20 tris, 1 → 80 tris).
-fn icosphere(subdivisions: u32) -> (Vec<Vec3>, Vec<u32>) {
-    let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
-    let mut positions: Vec<Vec3> = [
-        (-1.0, phi, 0.0),
-        (1.0, phi, 0.0),
-        (-1.0, -phi, 0.0),
-        (1.0, -phi, 0.0),
-        (0.0, -1.0, phi),
-        (0.0, 1.0, phi),
-        (0.0, -1.0, -phi),
-        (0.0, 1.0, -phi),
-        (phi, 0.0, -1.0),
-        (phi, 0.0, 1.0),
-        (-phi, 0.0, -1.0),
-        (-phi, 0.0, 1.0),
-    ]
-    .into_iter()
-    .map(|(x, y, z)| Vec3::new(x, y, z).normalize())
-    .collect();
-    let mut indices: Vec<u32> = vec![
-        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7,
-        1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9,
-        8, 1,
-    ];
-    for _ in 0..subdivisions {
-        let mut next_indices = Vec::with_capacity(indices.len() * 4);
-        let mut midpoints = std::collections::HashMap::new();
-        let mut midpoint = |a: u32, b: u32, positions: &mut Vec<Vec3>| -> u32 {
-            let key = (a.min(b), a.max(b));
-            *midpoints.entry(key).or_insert_with(|| {
-                let mid = ((positions[a as usize] + positions[b as usize]) * 0.5).normalize();
-                positions.push(mid);
-                (positions.len() - 1) as u32
-            })
-        };
-        for triangle in indices.chunks_exact(3) {
-            let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
-            let ab = midpoint(a, b, &mut positions);
-            let bc = midpoint(b, c, &mut positions);
-            let ca = midpoint(c, a, &mut positions);
-            next_indices.extend_from_slice(&[a, ab, ca, b, bc, ab, c, ca, bc, ab, bc, ca]);
-        }
-        indices = next_indices;
-    }
-    (positions, indices)
 }
 
 #[cfg(test)]

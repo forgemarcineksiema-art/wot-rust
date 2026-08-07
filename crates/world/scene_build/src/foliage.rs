@@ -1,52 +1,33 @@
-//! Procedural foliage meshes — trees 2.0 (B2): battlefield trees now come BAKED from
+//! Procedural foliage meshes — trees 2.0 (B2): battlefield trees come BAKED from
 //! `world_forge::tree` (species as a parameter set, painterly crown normals), colored here and
 //! folded into the static scene mesh, so a dressed valley still costs the frame nothing. The
 //! old flat-shaded frusta remain as the FAR representation (the backdrop ring uses them
-//! explicitly — at kilometers they read identically and cost almost nothing). Wind sway (D4)
-//! arrives with the weather package as a shader effect.
+//! explicitly — at kilometers they read identically and cost almost nothing).
+//!
+//! This module is the VEGETAL half of the scenery vocabulary. The scatter's dispatch and its
+//! non-plant kinds (stone, street furniture, debris) live in `crate::clutter` — they moved out
+//! with Skały 1.0, when a rock stopped being a cuboid and stopped being a leaf's business.
 
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
 use terrain::{SceneryInstance, SceneryKind};
 
-use crate::tank_mesh::push_oriented_box;
-
-pub fn push_scenery_instance(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    instance: &SceneryInstance,
-) {
-    // Battlefield trees are the baked species; rocks keep their mineral box below.
-    let species = match instance.kind {
+/// Which species a scenery kind grows, if it grows one at all.
+pub(crate) fn tree_species(kind: SceneryKind) -> Option<world_forge::tree::TreeSpecies> {
+    match kind {
         SceneryKind::Oak => Some(world_forge::tree::TreeSpecies::Oak),
         SceneryKind::Poplar => Some(world_forge::tree::TreeSpecies::Poplar),
         SceneryKind::Willow => Some(world_forge::tree::TreeSpecies::Willow),
         SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
         SceneryKind::Bush => Some(world_forge::tree::TreeSpecies::Bush),
         SceneryKind::Pine => Some(world_forge::tree::TreeSpecies::Pine),
-        SceneryKind::Rock | SceneryKind::Lamppost | SceneryKind::DebrisHeap => None,
-        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => None,
-    };
-    // The battlefield oak left the statics bake (phase 2): it draws from the instanced mesh
-    // path with runtime LOD (`crate::tree_lod`), so baking it here too would draw every tree
-    // twice — once at full detail regardless of distance, which is the cost the ladder exists
-    // to end.
-    if instance.kind == SceneryKind::Oak {
-        return;
+        SceneryKind::Rock
+        | SceneryKind::Lamppost
+        | SceneryKind::DebrisHeap
+        | SceneryKind::FloraTree
+        | SceneryKind::FloraPine
+        | SceneryKind::FloraBush => None,
     }
-    // Retired imported kinds (procedural-only decision, Świat 2.0) bake to NOTHING: falling
-    // through to the painted far frusta would resurrect the retired silhouette at close range.
-    if matches!(
-        instance.kind,
-        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush
-    ) {
-        return;
-    }
-    if let Some(species) = species {
-        push_baked_tree(vertices, indices, instance, species);
-        return;
-    }
-    push_scenery_instance_far(vertices, indices, instance);
 }
 
 /// The trees-to-scale multiplier for a BACKDROP-ring frustum stack. The far stack is coarser and
@@ -66,20 +47,22 @@ fn far_frustum_scale(kind: SceneryKind) -> f32 {
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
 /// from the instance's position bits, so a shelterbelt never repeats a tree yet every scene
-/// bake is identical.
-fn push_baked_tree(
+/// bake is identical. A non-tree kind draws nothing.
+pub(crate) fn push_baked_tree(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
-    species: world_forge::tree::TreeSpecies,
 ) {
+    let Some(species) = tree_species(instance.kind) else {
+        return;
+    };
     let base = Vec3::from_array(instance.position);
     let seed =
         instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
     let tree = world_forge::tree::bake_tree_lod(species, seed, world_forge::tree::TreeLod::Mid);
     let rotation = Mat3::from_rotation_y(instance.yaw_rad);
     let scale = instance.scale;
-    let canopy_color = canopy_color_for(species);
+    let canopy_color = canopy_color_for_species(species);
     for (mesh, (color, gloss), lit_by_sky) in
         [(&tree.trunk, TRUNK, false), (&tree.canopy, canopy_color, true)]
     {
@@ -109,10 +92,6 @@ fn push_baked_tree(
     }
 }
 
-fn canopy_color_for(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
-    canopy_color_for_species(species)
-}
-
 /// The species canopy tone, shared by the statics bake and the instanced LOD ladder
 /// (`tree_lod`) so the two paths agree on the tree's colour.
 pub(crate) fn canopy_color_for_species(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
@@ -126,10 +105,10 @@ pub(crate) fn canopy_color_for_species(species: world_forge::tree::TreeSpecies) 
     }
 }
 
-/// The far representation: the original flat-shaded frusta. The backdrop ring calls this
-/// directly — at its distances the baked crown and the painted cone are the same picture, and
-/// the ring has thousands of instances.
-pub fn push_scenery_instance_far(
+/// The far representation of a PLANT: the original flat-shaded frusta. The backdrop ring reaches
+/// this through `crate::clutter::push_scenery_instance_far` — at its distances the baked crown
+/// and the painted cone are the same picture, and the ring has thousands of instances.
+pub(crate) fn push_scenery_tree_far(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
@@ -138,7 +117,6 @@ pub fn push_scenery_instance_far(
     // Trees-to-scale: the backdrop silhouette rises to the same mature height the near mesh now
     // has (furniture stays at 1.0). See `far_frustum_scale`.
     let s = instance.scale * far_frustum_scale(instance.kind);
-    let yaw = instance.yaw_rad;
     match instance.kind {
         SceneryKind::Oak => {
             push_frustum(vertices, indices, base, 0.26 * s, 0.18 * s, 2.2 * s, TRUNK);
@@ -181,77 +159,14 @@ pub fn push_scenery_instance_far(
             let tip = skirt + Vec3::Y * 2.6 * s;
             push_frustum(vertices, indices, tip, 1.1 * s, 0.04 * s, 2.9 * s, CANOPY_PINE);
         }
-        SceneryKind::Lamppost => {
-            // Cast iron (urban-map PR-11): the tapering column, the short arm reaching over
-            // the roadway along the instance yaw, and the warm glass head under it.
-            push_frustum(vertices, indices, base, 0.09 * s, 0.055 * s, 4.0 * s, IRON);
-            let reach = Vec3::new(yaw.sin(), 0.0, yaw.cos());
-            let arm_root = base + Vec3::Y * 4.0 * s;
-            let start = vertices.len();
-            push_oriented_box(
-                vertices,
-                indices,
-                arm_root + reach * 0.35 * s + Vec3::Y * 0.06 * s,
-                Vec3::new(0.045 * s, 0.045 * s, 0.42 * s),
-                Mat3::from_rotation_y(yaw),
-                IRON.0,
-            );
-            push_oriented_box(
-                vertices,
-                indices,
-                arm_root + reach * 0.72 * s - Vec3::Y * 0.12 * s,
-                Vec3::new(0.11 * s, 0.16 * s, 0.11 * s),
-                Mat3::from_rotation_y(yaw),
-                LAMP_GLASS.0,
-            );
-            for vertex in &mut vertices[start..] {
-                vertex.gloss = if vertex.color == LAMP_GLASS.0 { LAMP_GLASS.1 } else { IRON.1 };
-            }
-        }
-        SceneryKind::DebrisHeap => {
-            // A knee-high masonry spill (urban-map PR-11): a low mound with two tumbled
-            // slabs. Deliberately under bush height — dressing, never implied cover.
-            push_frustum(vertices, indices, base, 0.95 * s, 0.3 * s, 0.42 * s, RUBBLE);
-            let start = vertices.len();
-            push_oriented_box(
-                vertices,
-                indices,
-                base + Vec3::new(0.45 * s, 0.14 * s, -0.2 * s),
-                Vec3::new(0.3 * s, 0.12 * s, 0.2 * s),
-                Mat3::from_rotation_y(yaw + 0.5),
-                RUBBLE.0,
-            );
-            push_oriented_box(
-                vertices,
-                indices,
-                base + Vec3::new(-0.4 * s, 0.1 * s, 0.3 * s),
-                Vec3::new(0.24 * s, 0.09 * s, 0.17 * s),
-                Mat3::from_rotation_y(yaw - 0.8),
-                RUBBLE.0,
-            );
-            for vertex in &mut vertices[start..] {
-                vertex.gloss = RUBBLE.1;
-            }
-        }
-        // Retired imported kinds (procedural-only, Świat 2.0): they draw nothing anywhere —
-        // not here, not in the near bake. The variants stay in the enum (append-only wire
-        // identity) but are never authored; this arm only exists so the match is total.
-        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
-        SceneryKind::Rock => {
-            // Bare mineral faces catch the sky harder than anything vegetal around them.
-            let start = vertices.len();
-            push_oriented_box(
-                vertices,
-                indices,
-                base + Vec3::Y * 0.45 * s,
-                Vec3::new(0.9, 0.5, 0.7) * s,
-                Mat3::from_rotation_y(yaw),
-                [0.42, 0.40, 0.37],
-            );
-            for vertex in &mut vertices[start..] {
-                vertex.gloss = 0.18;
-            }
-        }
+        // Not a plant: `crate::clutter` owns these, and the retired imported kinds draw nothing
+        // anywhere. This arm only exists so the match is total.
+        SceneryKind::Rock
+        | SceneryKind::Lamppost
+        | SceneryKind::DebrisHeap
+        | SceneryKind::FloraTree
+        | SceneryKind::FloraPine
+        | SceneryKind::FloraBush => {}
     }
 }
 
@@ -264,14 +179,10 @@ const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
 const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
 const CANOPY_PINE: ([f32; 3], f32) = ([0.10, 0.22, 0.13], 0.05);
-/// Cast iron and its warm glass head (urban-map PR-11); masonry spill for the debris heap.
-const IRON: ([f32; 3], f32) = ([0.16, 0.17, 0.18], 0.25);
-const LAMP_GLASS: ([f32; 3], f32) = ([0.75, 0.68, 0.45], 0.5);
-const RUBBLE: ([f32; 3], f32) = ([0.44, 0.40, 0.35], 0.07);
 
 /// A flat-shaded n-gon frustum standing on `base`: `r0` at the bottom, `r1` at the top,
 /// closed with a top fan. Six segments keep a tree ~50 tris.
-fn push_frustum(
+pub(crate) fn push_frustum(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     base: Vec3,
@@ -311,76 +222,9 @@ fn push_frustum(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Per-kind triangle budget guard: a baked mid-LOD tree tops out at the world_forge LOD1
-    /// budget; rocks stay a box.
-    const MAX_TRIS_PER_INSTANCE: usize = world_forge::tree::TREE_LOD1_MAX_TRIS;
-
-    #[test]
-    fn every_kind_stays_inside_the_triangle_budget_with_sane_indices() {
-        // Imported kinds (Flora 2.0) carry their own DELIBERATE ceiling: the whole program
-        // exists to spend more triangles on close-range foliage, and the import gate already
-        // enforces it per asset — the raise is per-kind, never a fleet-wide envelope bump.
-        // Kinds that contribute NOTHING to the statics bake: the retired imported kinds
-        // (no asset named) and the battlefield oak (drawn from the instanced LOD path
-        // instead, where its own budget is locked by `tree_lod`'s tests).
-        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush, SceneryKind::FloraTree] {
-            let mut vertices = Vec::new();
-            let mut indices = Vec::new();
-            push_scenery_instance(
-                &mut vertices,
-                &mut indices,
-                &SceneryInstance {
-                    kind: retired,
-                    position: [10.0, 3.0, 10.0],
-                    yaw_rad: 0.7,
-                    scale: 1.3,
-                },
-            );
-            assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
-        }
-        for (kind, ceiling) in [
-            (SceneryKind::Poplar, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::Willow, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::FruitTree, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::Rock, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::Bush, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::Pine, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::Lamppost, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::DebrisHeap, MAX_TRIS_PER_INSTANCE),
-        ] {
-            let mut vertices = Vec::new();
-            let mut indices = Vec::new();
-            push_scenery_instance(
-                &mut vertices,
-                &mut indices,
-                &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
-            );
-            assert!(!indices.is_empty(), "{kind:?} must draw something");
-            assert!(indices.len().is_multiple_of(3));
-            if kind == SceneryKind::DebrisHeap {
-                let top = vertices.iter().map(|v| v.position[1] - 3.0).fold(f32::MIN, f32::max);
-                assert!(
-                    top <= 0.7 * 1.3,
-                    "a debris heap stays knee-high (honest-blockers rule), got {top}"
-                );
-            }
-            assert!(
-                indices.len() / 3 <= ceiling,
-                "{kind:?} broke the per-instance triangle budget: {}",
-                indices.len() / 3
-            );
-            assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
-            // Nothing floats far below its ground point (rocks legitimately embed a little).
-            assert!(vertices.iter().all(|vertex| vertex.position[1] >= 3.0 - 1.0));
-        }
-    }
-}
-
-#[cfg(test)]
 mod baked_tree_tests {
+    use crate::clutter::{StoneTone, push_scenery_instance, push_scenery_instance_far};
+
     use super::*;
 
     /// B2's on-screen contract for the species that still bake into the statics (the oak is
@@ -398,7 +242,7 @@ mod baked_tree_tests {
         let build = |instance: &SceneryInstance| {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
-            push_scenery_instance(&mut vertices, &mut indices, instance);
+            push_scenery_instance(&mut vertices, &mut indices, instance, StoneTone::NEUTRAL);
             (vertices, indices)
         };
         let (vertices_a, indices_a) = build(&instance(10.0));
@@ -438,6 +282,7 @@ mod baked_tree_tests {
                 yaw_rad: 0.0,
                 scale: 1.0,
             },
+            StoneTone::NEUTRAL,
         );
         assert!(indices.len() / 3 <= 60, "the far oak stays ~50 tris: {}", indices.len() / 3);
     }
@@ -453,11 +298,78 @@ mod baked_tree_tests {
                 &mut vertices,
                 &mut indices,
                 &SceneryInstance { kind, position: [0.0, 0.0, 0.0], yaw_rad: 0.0, scale: 1.0 },
+                StoneTone::NEUTRAL,
             );
             vertices.iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
         };
         assert!(tip(SceneryKind::Oak) > 15.0, "far oak: {}", tip(SceneryKind::Oak));
         assert!(tip(SceneryKind::Pine) > 18.0, "far pine: {}", tip(SceneryKind::Pine));
         assert!(tip(SceneryKind::Poplar) > 19.0, "far poplar: {}", tip(SceneryKind::Poplar));
+    }
+
+    /// Per-kind triangle budgets, and the two promises that bound the whole scatter: retired
+    /// kinds draw nothing, live kinds draw something, and the debris heap stays knee-high.
+    ///
+    /// Budgets are PER KIND now. They used to be one borrowed constant — the tree's LOD1 ceiling
+    /// standing in for every kind in the vocabulary, which is a ratchet wearing a budget's name
+    /// (a rock has nothing to do with a mid-LOD tree). Each number below is what that kind's own
+    /// construction costs, plus a little headroom.
+    #[test]
+    fn every_kind_stays_inside_its_own_triangle_budget_with_sane_indices() {
+        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush, SceneryKind::FloraTree] {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance(
+                &mut vertices,
+                &mut indices,
+                &SceneryInstance {
+                    kind: retired,
+                    position: [10.0, 3.0, 10.0],
+                    yaw_rad: 0.7,
+                    scale: 1.3,
+                },
+                StoneTone::NEUTRAL,
+            );
+            assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
+        }
+        let tree_ceiling = world_forge::tree::TREE_LOD1_MAX_TRIS;
+        for (kind, ceiling) in [
+            (SceneryKind::Poplar, tree_ceiling),
+            (SceneryKind::Willow, tree_ceiling),
+            (SceneryKind::FruitTree, tree_ceiling),
+            (SceneryKind::Bush, tree_ceiling),
+            (SceneryKind::Pine, tree_ceiling),
+            // The forged field stone: 80 triangles of displaced body plus its two frost chips.
+            (SceneryKind::Rock, 108),
+            // Street furniture, unchanged frustum kits.
+            (SceneryKind::Lamppost, 60),
+            (SceneryKind::DebrisHeap, 60),
+        ] {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance(
+                &mut vertices,
+                &mut indices,
+                &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
+                StoneTone::NEUTRAL,
+            );
+            assert!(!indices.is_empty(), "{kind:?} must draw something");
+            assert!(indices.len().is_multiple_of(3));
+            if kind == SceneryKind::DebrisHeap {
+                let top = vertices.iter().map(|v| v.position[1] - 3.0).fold(f32::MIN, f32::max);
+                assert!(
+                    top <= 0.7 * 1.3,
+                    "a debris heap stays knee-high (honest-blockers rule), got {top}"
+                );
+            }
+            assert!(
+                indices.len() / 3 <= ceiling,
+                "{kind:?} broke its per-instance triangle budget: {}",
+                indices.len() / 3
+            );
+            assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
+            // Nothing floats far below its ground point (rocks legitimately embed a little).
+            assert!(vertices.iter().all(|vertex| vertex.position[1] >= 3.0 - 1.0));
+        }
     }
 }
