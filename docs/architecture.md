@@ -46,8 +46,8 @@ move), and the app-to-app allowlist is empty.
 - `map_forge`: map authoring as data — the RON blueprint schema, structural terrain op
   vocabulary, deterministic blueprint→battlefield compiler, contract report, shipped-map
   catalog, and golden compile hashes. Renderer-free by rule.
-- `world_forge`: structures, flora and props authored like vehicles — RON blueprint per
-  object, deterministic bake, golden hashes.
+- `world_forge`: structures and procedural flora authored like vehicles — parameterised
+  generators (`building`, `tree`), golden hashes as the review gate.
 - `scene_build`: turns a `BattlefieldMap` or the hangar into renderer-ready meshes
   (terrain, cover, foliage, grass, water, backdrop, weather looks); depends on
   `renderer_api` types only.

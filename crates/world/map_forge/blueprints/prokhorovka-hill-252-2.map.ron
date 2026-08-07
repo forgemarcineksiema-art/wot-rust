@@ -294,14 +294,14 @@ MapBlueprint(
             name: "Psel treeline screen (south)",
             kind: TreeLine,
             at: (Fixed(130.0), Fixed(350.0)),
-            half_extents_m: (22.0, 5.0, 3.0),
+            half_extents_m: (22.0, 11.0, 3.0),
         ),
         Cover(
             id: "psel_treeline_north",
             name: "Psel treeline screen (north)",
             kind: TreeLine,
             at: (Fixed(130.0), Fixed(650.0)),
-            half_extents_m: (22.0, 5.0, 3.0),
+            half_extents_m: (22.0, 11.0, 3.0),
         ),
         Cover(
             id: "hill_wreck_south",
@@ -322,14 +322,14 @@ MapBlueprint(
             name: "steppe shelterbelt (south)",
             kind: TreeLine,
             at: (Fixed(618.0), Fixed(330.0)),
-            half_extents_m: (3.0, 5.0, 24.0),
+            half_extents_m: (3.0, 9.4, 24.0),
         ),
         Cover(
             id: "steppe_shelterbelt_north",
             name: "steppe shelterbelt (north)",
             kind: TreeLine,
             at: (Fixed(618.0), Fixed(670.0)),
-            half_extents_m: (3.0, 5.0, 24.0),
+            half_extents_m: (3.0, 9.4, 24.0),
         ),
         Cover(
             id: "ditch_wreck_south",
@@ -403,7 +403,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976116,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (430.0, 545.0),
@@ -421,7 +421,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976117,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (110.0, 150.0),
@@ -457,7 +457,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976120,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (430.0, 545.0),

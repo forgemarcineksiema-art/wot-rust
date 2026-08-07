@@ -59,17 +59,30 @@ fn hull_rotation_carries_angular_inertia() {
 }
 
 #[test]
-fn neutral_steer_pivots_in_place_without_throttle() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+fn a_pivot_stays_put_only_when_the_gearbox_can_reverse_a_track() {
+    // Rewritten for P4.5. This used to assert that a T-54's neutral steer rotates the hull
+    // WITHOUT translating it, which was true of the model and false of the tank: a two-stage
+    // planetary steering mechanism cannot drive a belt backwards, so the hull swings about the
+    // inner one and walks itself round. What stays put is a hull whose gearbox really does
+    // counter-rotate — and in this roster that is the Tiger I and the Centurion, nobody else.
+    // See `game_core::SteeringKind` for the source behind each vehicle.
+    let regenerative = TankControllerSettings::from_spec(&game_core::VehicleKind::TigerI.spec());
     let mut state = TankKinematicState::default();
-
-    // Steer with no throttle: the hull should rotate (counter-rotating tracks) but not translate.
-    drive(&mut state, &settings, 0.0, 1.0, TerrainContact::flat(0.0), 30);
-
+    drive(&mut state, &regenerative, 0.0, 1.0, TerrainContact::flat(0.0), 30);
     assert!(state.yaw_rad > 0.05, "neutral steer must rotate the hull, got yaw {}", state.yaw_rad);
     assert!(
         state.velocity.length() < 0.05,
-        "a pivot must not translate the hull, got speed {}",
+        "a counter-rotating pivot must not translate the hull, got speed {}",
+        state.velocity.length()
+    );
+
+    let braked = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let mut state = TankKinematicState::default();
+    drive(&mut state, &braked, 0.0, 1.0, TerrainContact::flat(0.0), 30);
+    assert!(state.yaw_rad > 0.05, "a braked-belt pivot must still turn the hull");
+    assert!(
+        state.velocity.length() > 0.1,
+        "a hull swinging about a belt must walk itself round, got speed {}",
         state.velocity.length()
     );
 }

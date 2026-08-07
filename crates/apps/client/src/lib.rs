@@ -29,7 +29,9 @@ pub use hud::{HudVitals, build_hud};
 // The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
 // empty, so the ten forwarding names here had no caller left in the workspace.
-pub use look_harness::{render_hangar_review_views, render_review_views};
+pub use look_harness::{
+    render_hangar_review_views, render_review_views, render_review_views_with_fov,
+};
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
@@ -70,7 +72,9 @@ pub use vehicle::render_frame::{
     split_pbr_vehicle_render_frame_on_terrain, split_vehicle_render_frame,
 };
 pub use vehicle::render_objects::VehicleMeshCatalog;
-pub use vehicle::render_objects_draw::tank_render_objects;
+pub use vehicle::render_objects_draw::{
+    GearTier, tank_render_objects, tank_render_objects_from_eye, tank_render_objects_tiered,
+};
 pub use vehicle::track_ribbon::{TrackRibbon, ribbon_render_objects, thrown_remnant_objects};
 pub use vehicle::turret_popoff::TurretPopoff;
 pub use vehicle::variation::{

@@ -8,7 +8,7 @@
 // (ssao_params.w = cot(fov_y/2)), which the renderer recovers from the view-projection every
 // frame — so this is the SAME number the CPU chunk cutoff uses, with no camera state to
 // synchronise. Mirrors renderer_api::grass_zoom_band_scale; wgsl_layout locks the two ends.
-const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 1.921;
+const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 2.2461;
 const GRASS_ZOOM_BAND_CAP: f32 = 4.0;
 
 fn grass_zoom_band_scale() -> f32 {

@@ -37,7 +37,10 @@ impl Default for BattleCameraSettings {
             // swept the whole sight lane sideways (the scene "slid left" on every scroll).
             third_person_lateral_offset_m: 0.0,
             third_person_pitch_rad: 0.42,
-            third_person_fov_degrees: 62.0,
+            // Świat 2.0 PR2 (kamera): 62° read the world as a diorama — wide-angle foreshortening
+            // shrank every tree, tenement and wreck beside the hull. 48° is the tank-sim band:
+            // long enough to read the flank at 12 m boom, tight enough that a 17 m oak towers.
+            third_person_fov_degrees: 48.0,
             sniper_fov_degrees: 8.0,
             terrain_clearance_m: 0.45,
             obstacle_clearance_m: 0.35,

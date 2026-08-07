@@ -1,5 +1,6 @@
-//! FL-5 runtime gate: hot 1080p frame throughput for Ostrogorsk's full imported-flora scatter
-//! against the same view with only the imported scenery removed.
+//! Runtime gate (Świat 2.0 — procedural-only): hot 1080p frame throughput for Ostrogorsk's
+//! full battlefield-oak scatter (the instanced LOD ladder) against the same view with only
+//! those trees removed.
 //!
 //! `cargo run -p client --release --example probe -- flora_frame_probe`
 
@@ -18,16 +19,14 @@ const SIXTY_FPS_FRAME_MS: f64 = 1_000.0 / 60.0;
 
 pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let full = map_forge::battlefield(terrain::MapId::Ostrogorsk);
-    let mut without_imported = full.clone();
-    without_imported.scenery.retain(|instance| {
-        !matches!(instance.kind, terrain::SceneryKind::FloraTree | terrain::SceneryKind::FloraPine)
-    });
-    let imported_count = full.scenery.len() - without_imported.scenery.len();
+    let mut without_trees = full.clone();
+    without_trees.scenery.retain(|instance| instance.kind != terrain::SceneryKind::Oak);
+    let tree_count = full.scenery.len() - without_trees.scenery.len();
     let born = terrain::initial_cover_phase_bytes(&full.static_cover);
     let ((ground_vertices, ground_indices), (full_vertices, full_indices)) =
         battlefield_ground_and_statics_meshes(&full, &born);
     let (_, (baseline_vertices, baseline_indices)) =
-        battlefield_ground_and_statics_meshes(&without_imported, &born);
+        battlefield_ground_and_statics_meshes(&without_trees, &born);
     let ground_maps = bake_terrain_ground_maps(&full);
 
     let ctx = GpuContext::headless()?;
@@ -37,7 +36,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         info.name, info.backend, info.device_type, info.driver
     );
     println!(
-        "scene: Ostrogorsk, {WIDTH}x{HEIGHT}, {imported_count} imported flora, \
+        "scene: Ostrogorsk, {WIDTH}x{HEIGHT}, {tree_count} battlefield oaks, \
          full {} vertices vs baseline {}",
         full_vertices.len(),
         baseline_vertices.len()
@@ -63,9 +62,10 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     baseline.shadow_focus = Some(camera.target);
     flora.shadow_focus = Some(camera.target);
-    // Hero trees left the statics bake for the instanced LOD ladder, so the flora side has to
-    // submit them the way the battle frame does — otherwise this probe measures an empty map
-    // and reports a delta of zero. The baseline keeps submitting nothing: that IS the A/B.
+    // Battlefield oaks draw from the instanced LOD ladder, not the statics bake, so the flora
+    // side has to submit them the way the battle frame does — otherwise this probe measures an
+    // empty map and reports a delta of zero. The baseline keeps submitting nothing: that IS
+    // the A/B.
     for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
         flora.register_mesh(&ctx, handle, &mesh);
     }
@@ -103,7 +103,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("baseline median: {baseline_ms:.3} ms/frame  {baseline_samples:?}");
     println!("full flora median: {flora_ms:.3} ms/frame  {flora_samples:?}");
     println!(
-        "imported flora delta: {overhead_ms:+.3} ms/frame; 60 FPS gate ({SIXTY_FPS_FRAME_MS:.3} ms): {}",
+        "battlefield-oak delta: {overhead_ms:+.3} ms/frame; 60 FPS gate ({SIXTY_FPS_FRAME_MS:.3} ms): {}",
         if flora_ms <= SIXTY_FPS_FRAME_MS { "PASS" } else { "FAIL" }
     );
     Ok(())
@@ -123,8 +123,6 @@ fn configure_renderer(
         ground_maps,
         &terrain_material_set_for(terrain::MapId::Ostrogorsk),
     );
-    let catalog = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(ctx, &catalog.atlas_mips, catalog.normal_mips.as_ref());
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 }

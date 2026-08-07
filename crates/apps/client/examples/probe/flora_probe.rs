@@ -1,8 +1,9 @@
-//! THE flora look gate (FL-4): imported foliage side by side with the baked procedural
-//! trees, one frame, same light — the render the accept/reject verdict is made on. Front
-//! row: the hero oak behind `FloraTree` (photoscan-textured, alpha-cut, atlas-fed) and the
-//! two retired slots, which now bake to nothing on purpose — their emptiness beside the
-//! procedural back row (Oak, Pine, Bush) IS the state of the family. One PNG:
+//! THE flora look gate (Świat 2.0 — procedural-only): the procedural species side by side,
+//! one frame, same light — the render the accept/reject verdict is made on. The battlefield
+//! oak (front) draws through the instanced LOD ladder exactly the way the battle frame
+//! submits it; the back row is the statics-bake set (Poplar, Pine, Bush, Willow, FruitTree)
+//! plus the retired imported kinds, which draw nothing on purpose — their emptiness IS the
+//! state of the family. One PNG:
 //! `cargo run -p client --example probe -- flora_probe`
 
 use std::fs::File;
@@ -27,14 +28,16 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         scale: 1.0,
     };
     battlefield.scenery = vec![
-        // Front row: the imported CC0 set.
-        plant(SceneryKind::FloraTree, 488.0, 492.0),
-        plant(SceneryKind::FloraPine, 500.0, 492.0),
-        plant(SceneryKind::FloraBush, 510.0, 492.0),
-        // Back row: the procedural species they compete with.
-        plant(SceneryKind::Oak, 488.0, 510.0),
-        plant(SceneryKind::Pine, 500.0, 510.0),
-        plant(SceneryKind::Bush, 510.0, 510.0),
+        // Front row: the battlefield oak (instanced LOD) — the tree that carries a trunk box.
+        plant(SceneryKind::Oak, 490.0, 492.0),
+        // The retired imported kinds: they draw nothing, on purpose.
+        plant(SceneryKind::FloraTree, 500.0, 492.0),
+        plant(SceneryKind::FloraPine, 510.0, 492.0),
+        // Back row: the statics-bake species.
+        plant(SceneryKind::Poplar, 486.0, 512.0),
+        plant(SceneryKind::Pine, 496.0, 512.0),
+        plant(SceneryKind::Bush, 506.0, 512.0),
+        plant(SceneryKind::Willow, 516.0, 512.0),
     ];
 
     let ((ground_v, ground_i), (statics_v, statics_i)) =
@@ -44,8 +47,6 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
-    let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips, flora.normal_mips.as_ref());
     renderer.set_battlefield_ground(
         &ctx,
         &ground_v,
@@ -56,13 +57,12 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 
-    // Pulled back and tilted up for the hero oak: at ~22 m it is three times the stylized
-    // assets this shot was framed for, and a look gate that crops the canopy judges nothing.
-    let eye = [498.0, ground(498.0, 455.0) + 4.0, 455.0];
-    let look = [499.0, ground(499.0, 500.0) + 11.0, 500.0];
+    let eye = [498.0, ground(498.0, 452.0) + 4.0, 452.0];
+    let look = [499.0, ground(499.0, 500.0) + 9.0, 500.0];
     renderer.shadow_focus = Some(look);
-    // The hero oak draws from the instanced LOD ladder now, not the statics bake — the look
-    // gate submits it the way the battle frame does, at the rung this camera distance picks.
+    // The battlefield oak draws from the instanced LOD ladder, not the statics bake — the
+    // look gate submits it the way the battle frame does, at the rung this camera distance
+    // picks.
     for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }

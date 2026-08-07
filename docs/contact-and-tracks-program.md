@@ -45,9 +45,13 @@ oscillation in a straight press (gap dead stable, v = 0.000).
 - **The gun stays a ghost.** No barrel capsule in motion or in aiming. Accepted consequence:
   barrels clip through hulls and buildings.
 - **Rollover exists but is unreachable except one way.** See below.
-- **The IS-3 keeps its geometry's consequences**, including an impaired neutral steer — *subject to
-  the dossier gate* below.
-- **`SteeringKind` per era**: clutch-brake / controlled differential / regenerative.
+- **The IS-3 keeps its impaired neutral steer — but for its GEARBOX, not its geometry.** The dossier
+  gate (P4.6) refused to pin the L/B ratio (sources span 32 cm on the hull's own width) and settled
+  the mechanism instead: two-stage planetary side mechanisms cannot drive a belt backwards, so the
+  IS-3 pivots about a stopped track and never about its centre.
+- **`SteeringKind` is per GEARBOX SCHOOL, not per era** — and it is two variants, not three:
+  can the transmission drive one belt backwards or only slow it? The 1942 Tiger I turns about its
+  own centre and the 1951 T-54 does not, so the era ladder was the wrong axis (P4.5).
 - **No gearbox, no torque curve, no engine RPM.** The engine stays one number: power.
 
 ## Rollover, as arithmetic
@@ -362,6 +366,33 @@ The tipping edge is `outer_x` — the number Wave 2 makes honest. This wave foll
 
 ### Wave 4 — Force per track (7 PR)
 
+**Decided 2026-08-06: climbing is a DISCIPLINE**, and that decision is what this wave is now for.
+
+Climbing was never a feature anybody wrote. It falls out of the force model resolving against
+`forward_slope` — the grade along the hull's HEADING — so taking a face obliquely presents a
+shallower one. Measured and now locked (`physics/tests/climb_envelope.rs`):
+
+| | head-on | 15° | 30° | 45° | 60° off square |
+|---|---|---|---|---|---|
+| T-54, standing | 0.56 (**29°**) | 0.56 | 0.61 | 0.74 | 0.73 |
+| T-54, run-up | 0.68 (**34°**) | 0.70 | 0.79 | 0.96 | **1.36 (54°)** |
+| Tiger II, standing | 0.49 (26°) | 0.49 | 0.53 | 0.64 | 0.69 |
+| any hull, run-up | 0.68 | 0.70 | 0.79 | 0.96 | 1.36 |
+
+Two properties worth keeping on purpose: **from a standstill the vehicle matters** (power-to-weight
+shows: Tiger II 26° against a T-54's 29°), and **with a run-up every hull is identical** — climbing
+is a driver's skill, not a stat anyone can buy.
+
+**What Wave 4 is actually for, restated.** Today a face past the momentum ceiling zeroes the
+forward speed: the hull stops dead, which is the least readable failure mode available. With two
+track forces the uphill belt loses normal load, spins, and the hull slews off and slides back down
+— a failure you can see and learn from. That is the one place in this wave where per-track forces
+buy LEGIBILITY rather than fidelity, and with climbing a discipline it is the headline.
+
+**And the envelope above is the acceptance test.** The failure mode changes; the envelope does not.
+A hull that can suddenly scrabble up faces the map contract walls off has not been improved, it has
+been unmapped.
+
 The idea in one line: **a track is a friction constraint with a non-zero target velocity.** The
 drive is not a force added to the hull; it is a commanded belt speed, and the solver computes the
 force that realises it, bounded by the friction cone on that track's normal load.
@@ -381,9 +412,43 @@ static hold block, `climb_slip`, the direction-change brake hack, the designed-w
 - **P4.4 Retire the special cases.** Each deletion in its own commit with the behaviour it replaces
   measured. The **momentum-climb band (0.60–0.68) is a deliberate design** and must be re-added on
   purpose as a slip-dependent grip falloff, not left to die quietly.
-- **P4.5 `SteeringKind` per era.** `ClutchBrake` (era I) / `ControlledDifferential` /
-  `Regenerative`. Precedent: `SuspensionKind` already sits on the blueprint. **Blocked on P4.6.**
-- **P4.6 IS-3 running-gear dossier — DONE, and it re-scopes P4.5.** The gate said: before "the
+- **P4.5 `SteeringKind` — LANDED, and the split is not the era ladder.** The plan sketched three
+  kinds mapped onto the three eras, later meaning better. The research says otherwise: the **1942
+  Tiger I turns about its own centre and the 1951 T-54 does not.** What separates them is the
+  design school — the British Merritt-Brown triple differential and the Argus unit Henschel derived
+  from it are regenerative, while the Soviet school standardised on two-stage planetary side
+  mechanisms and the German mediums on single-radius gearboxes.
+
+  A gearbox that can drive one belt BACKWARDS turns the hull about its centre. One that can only
+  slow or stop a belt turns the hull about THAT: still a pivot, but around a point a half-gauge off
+  centre, at half the rate, and it walks forward while it does it. Two variants, not five, because
+  those are the two behaviours the sources actually distinguish.
+
+  | | gearbox | turns in 3 s | walks |
+  |---|---|---|---|
+  | Centurion | Merritt-Brown Z51R triple differential | **100°** | **0.00 m** |
+  | Tiger I | Argus regenerative (Merritt-Brown derived) | **92°** | **0.00 m** |
+  | T-34-85 | clutch-and-brake side clutches | 67° | 1.29 m |
+  | T-54 | two-stage planetary (ПМП) | 66° | 1.34 m |
+  | Panther II | MAN single-radius | 53° | 1.12 m |
+  | IS-3 | two-stage planetary (ПМП) | 48° | 0.94 m |
+  | Tiger II | L 801 double-radius (inferred from a 2.08 m minimum) | 37° | 0.83 m |
+  | Jagdtiger | Tiger II chassis (L 801) | 26° | 0.53 m |
+
+  Sources are cited per vehicle in `game_core::SteeringKind::for_vehicle`, including which claim is
+  the weakest (the Tiger II's, inferred from a stated minimum radius rather than from an explicit
+  statement about neutral steer).
+
+  **The P0.1 table caught it and the diff is the argument.** Exactly one column moved —
+  `pivot_rad_s` — and only for the six hulls that cannot counter-rotate. Top speed, launch,
+  braking, turn radius under power and gradeability are identical to the digit. That is what "this
+  is about the pivot, not the drive model" looks like when it is true.
+
+  Two tests had promised the old behaviour and were corrected rather than re-numbered:
+  `neutral_steer_pivots_in_place_without_throttle` asserted that a T-54 rotates without
+  translating, which was true of the model and false of the tank.
+
+- **P4.6 IS-3 running-gear dossier — DONE, and it re-scoped P4.5.** The gate said: before "the
   IS-3 can barely pivot" becomes a character trait, the geometry gets the treatment the T-54 got.
   Researched 2026-08-06 (full findings in `docs/vehicles/is-3.md`). It settled one half and
   refused the other, and the refusal is the useful part.
@@ -402,9 +467,12 @@ static hold block, `climb_slip`, the direction-change brake hack, the designed-w
   That is a documented mechanical fact about the vehicle, and it is the actual CAUSE of the
   ponderous handling the L/B ratio was standing in for. So **P4.5 keys off the transmission, not
   off geometry** — which is the better design anyway: a vehicle handles the way it handles because
-  of what it has, and what it has is researchable per vehicle. P4.5 is unblocked on those terms;
-  the geometry stays owed as a 1:1 session with drawings.
+  of what it has, and what it has is researchable per vehicle.
 
+  **P4.5 then landed on exactly those terms** (above): its table keys every hull off its gearbox,
+  and the IS-3's row is this dossier's finding — ПМП, 48° in 3 s, walking 0.94 m, no neutral
+  steer. **The geometry stays owed** as a 1:1 session with drawings; nothing in P4.5 rests on it,
+  which is the point of refusing to pin the L/B ratio rather than picking a number.
 - **P4.7 Terrain can throw a track.** Hard lateral scrub on rock, a landing above a threshold, or a
   belt driven into a hard step at speed. Rare and telegraphed — tuned to a stated rate the way
   `docs/` tunes fires. `BROKEN_ONE_DRIFT_BIAS` is deleted: the pull toward the dead side falls out
