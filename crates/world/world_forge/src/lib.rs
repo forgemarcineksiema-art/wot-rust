@@ -1,16 +1,15 @@
-//! The world's forge (Inna Liga B1): structures, flora and props authored the same way vehicles
-//! are — a RON blueprint per object, a deterministic bake onto the shared `GeometryMesh`
-//! contract, golden hashes as the review gate, and a strict renderer-free rule so every consumer
-//! (scene builder, collision footprint, destruction forms) reads ONE source of truth.
+//! The world's forge (Inna Liga B1): structures and procedural flora authored the same way
+//! vehicles are — a deterministic bake onto the shared `GeometryMesh` contract, golden
+//! hashes as the review gate, and a strict renderer-free rule so every consumer (scene
+//! builder, collision footprint, destruction forms) reads ONE source of truth.
 //!
-//! The generic RON world-object path this crate opened with (`WorldObjectBlueprint`, its bake and
-//! its two authored `.world.ron` files) was deleted 2026-08-03 with zero callers outside its own
-//! tests: every shipped structure goes through the parameterised generators in `building`, `tree`
-//! and `flora` instead, and the fence the RON file described is hand-built in `scene_build`. The
-//! capability was authored before a part needed it, and no part ever did.
+//! Every shipped structure goes through the parameterised generators in `building` and
+//! `tree`. Imported flora (`FloraAsset`, `import-flora`) was removed under Świat 2.0
+//! (2026-08-06) — vegetation is procedural-only.
 
 pub mod building;
-pub mod flora;
+pub mod rock;
+pub(crate) mod shape;
 pub mod tree;
 
 use glam::Vec3;

@@ -333,10 +333,6 @@ impl ClientApp {
             &meshes.statics_vertices,
             &meshes.statics_indices,
         )?;
-        // The imported-flora atlas (Flora 2.0, FL-4): packed once per process, uploaded once
-        // per renderer — the FL-2 group-1 slot leaves its white-texel no-op default here.
-        let flora = scene_build::flora_pack::flora_catalog();
-        renderer.set_foliage_atlas(&flora.atlas_mips, flora.normal_mips.as_ref());
         renderer.set_battlefield_ground(
             &meshes.ground_vertices,
             &meshes.ground_indices,
@@ -348,7 +344,7 @@ impl ClientApp {
         for (handle, mesh) in scene_build::grass::grass_species_meshes() {
             renderer.register_mesh(handle, &mesh);
         }
-        // The hero-tree LOD ladder (phase 2): three uploads at deployment serve every oak on
+        // The battlefield-tree LOD ladder: three uploads at deployment serve every oak on
         // the map, and the battle frame picks a rung per tree per frame.
         for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
             renderer.register_mesh(handle, &mesh);
@@ -622,10 +618,10 @@ impl ClientApp {
             self.grass_cache_eye = Some(eye);
             self.grass_cache_crater_fingerprint = crater_fingerprint;
         }
-        // Hero trees ride the same instancing path, but they are rebuilt EVERY frame: there
-        // are ten of them and the rung a tree draws depends on where the camera is right now.
-        // They are appended to the grass allocation and trimmed off again, so the per-frame
-        // scene submission still costs no allocation.
+        // Battlefield oaks ride the same instancing path, but they are rebuilt EVERY frame:
+        // there are ten of them and the rung a tree draws depends on where the camera is right
+        // now. They are appended to the grass allocation and trimmed off again, so the
+        // per-frame scene submission still costs no allocation.
         let grass_len = self.grass_cache.len();
         self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects(
             &self.battlefield.scenery,

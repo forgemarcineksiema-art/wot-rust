@@ -32,12 +32,12 @@ pub enum SceneryKind {
     /// A knee-high masonry debris pile — street dressing for a fought-over city. Low enough
     /// that it can never read as the cover it honestly is not.
     DebrisHeap,
-    /// Imported flora (Flora 2.0, FL-4): the CC0 broadleaf tree from `assets/flora`. Render
-    /// only, like all scenery — and textured through the FL-2 atlas, unlike everything else.
+    /// RETIRED (procedural-only, Świat 2.0, 2026-08-06): the imported CC0 broadleaf tree.
+    /// Kept for wire identity only (append-only enum) — never authored, bakes to nothing.
     FloraTree,
-    /// Imported flora: the CC0 pine.
+    /// RETIRED imported flora: the CC0 pine. Wire identity only.
     FloraPine,
-    /// Imported flora: the CC0 bush.
+    /// RETIRED imported flora: the CC0 bush. Wire identity only.
     FloraBush,
 }
 

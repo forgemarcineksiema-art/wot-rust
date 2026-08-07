@@ -110,7 +110,16 @@ pub const SHADOWLESS_DRESSING_MESH_BASE: u32 = 0xFFFF_0000;
 
 /// The projection Y scale (`P[1][1]` = cot(fov_y / 2)) of the widest normal battle view.
 /// Anything narrower than this is MAGNIFIED — the sniper scope, and nothing else.
-pub const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 1.921;
+/// cot(48°/2): the Świat 2.0 third-person lens. The battle camera must sit AT the reference
+/// (scale 1.0); only the scope ladder narrows past it. Speed only ever WIDENS the lens
+/// (`SPEED_FOV_BOOST_DEG`, +2.5° at 14 m/s), so the resting 48° is the NARROWEST normal
+/// battle view and therefore the one the reference has to cover.
+///
+/// Rounded UP from cot(24°) = 2.2460368, and the direction is load-bearing: the scale below
+/// clamps at 1.0 from beneath, so a reference truncated even slightly under the shipped lens
+/// leaves the resting battle view reading as magnified (measured: 1.0000163x) and the meadow
+/// silently believing it is looking down a scope.
+pub const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 2.2461;
 /// How far the grass bands may stretch under magnification (Jedna Trawa D3/P4b). The scope
 /// ladder reaches ~20× angular magnification at its 3° step; letting the bands follow that
 /// literally would ask for grass geometry kilometres out. The cap is a measured compromise,

@@ -32,8 +32,6 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         &ground_maps,
         &terrain_material_set_for(terrain::MapId::Ostrogorsk),
     );
-    let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips, flora.normal_mips.as_ref());
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 

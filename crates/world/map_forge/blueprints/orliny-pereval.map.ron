@@ -212,14 +212,14 @@ MapBlueprint(
             name: "Dolina hedgerow screen (south)",
             kind: TreeLine,
             at: (Fixed(240.0), Fixed(260.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 8.4, 3.0),
         ),
         Cover(
             id: "dolina_screen_north",
             name: "Dolina hedgerow screen (north)",
             kind: TreeLine,
             at: (Fixed(240.0), Fixed(740.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 8.4, 3.0),
         ),
         TownGrid(
             id_prefix: "orlinoye_house",
@@ -281,7 +281,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 7811004,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (140.0, 300.0),
@@ -363,7 +363,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 7811007,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (430.0, 570.0),
@@ -375,7 +375,7 @@ MapBlueprint(
             ),
         ),
         Fixed(
-            kind: FloraTree,
+            kind: Oak,
             spots: [
                 (468.0, 460.0),
                 (532.0, 462.0),

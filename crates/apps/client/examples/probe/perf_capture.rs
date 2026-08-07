@@ -79,25 +79,17 @@ pub(crate) fn run() {
     );
 
     // The URBAN map (urban-map program PR-15): the dense-core numbers - the one-look FPS
-    // sign-off is measured, not promised. FL-5 deliberately runs this with every accepted
-    // imported-flora instance present, so the capture cannot silently benchmark the old trees.
+    // sign-off is measured, not promised. The battlefield oaks draw through the instanced LOD
+    // ladder, so they are NOT in the statics bake — the tree cost lives in flora_frame_probe.
     let city = map_forge::battlefield(terrain::MapId::Ostrogorsk);
-    let imported_flora = city
-        .scenery
-        .iter()
-        .filter(|instance| {
-            matches!(
-                instance.kind,
-                terrain::SceneryKind::FloraTree | terrain::SceneryKind::FloraPine
-            )
-        })
-        .count();
+    let battlefield_oaks =
+        city.scenery.iter().filter(|instance| instance.kind == terrain::SceneryKind::Oak).count();
     let born = terrain::initial_cover_phase_bytes(&city.static_cover);
     let t = Instant::now();
     let mut city_buckets = client::battlefield_statics_buckets(&city, &born, &[]);
     let (cv, ci) = client::assemble_statics_mesh(&city_buckets);
     println!(
-        "ostrogorsk statics bake ({} boxes, {imported_flora} imported flora): {:.1} ms ({} v / {} i)",
+        "ostrogorsk statics bake ({} boxes, {battlefield_oaks} oaks off-bake): {:.1} ms ({} v / {} i)",
         city.static_cover.len(),
         t.elapsed().as_secs_f64() * 1000.0,
         cv.len(),
@@ -274,8 +266,6 @@ fn frame_time_capture() {
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
-    let flora_catalog = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora_catalog.atlas_mips, flora_catalog.normal_mips.as_ref());
     for (handle, mesh) in client::grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }

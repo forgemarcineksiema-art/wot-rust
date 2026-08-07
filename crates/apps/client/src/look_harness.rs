@@ -24,7 +24,9 @@ pub type LookHarnessError = Box<dyn std::error::Error>;
 /// grass sway both crawl on it: a wall-clock here would make the goldens unlockable.
 const REVIEW_SCENE_TIME_S: f32 = 12.0;
 
-/// The vertical FOV the review camera reads the world through.
+/// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the
+/// look goldens predate the Świat 2.0 battle lens (48°) and stay a stable instrument — the
+/// battle FOV verdict renders through the `fov_probe` before/after pair instead.
 const REVIEW_FOV_DEGREES: f32 = 55.0;
 
 /// Render `views` on `map` at `width` x `height`, returning one RGBA8 buffer per view in order.
@@ -38,6 +40,18 @@ pub fn render_review_views(
     views: &[ReviewView],
     width: u32,
     height: u32,
+) -> Result<Vec<Vec<u8>>, LookHarnessError> {
+    render_review_views_with_fov(map, views, width, height, REVIEW_FOV_DEGREES)
+}
+
+/// The same render with an explicit lens. The goldens never call this — it exists for the
+/// Świat 2.0 FOV before/after probes, where the whole point is a frame the goldens do NOT lock.
+pub fn render_review_views_with_fov(
+    map: MapId,
+    views: &[ReviewView],
+    width: u32,
+    height: u32,
+    vertical_fov_degrees: f32,
 ) -> Result<Vec<Vec<u8>>, LookHarnessError> {
     let battlefield = map_forge::battlefield(map);
     let materials = crate::terrain_material_set_for(map);
@@ -60,11 +74,6 @@ pub fn render_review_views(
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.set_dressing(&ctx, &dressing_vertices, &dressing_indices);
-    // The lane the drift cost us: imported flora samples this atlas, and without it every leaf
-    // and trunk reads as the 1x1 white default. The live client has always bound it
-    // (`app::render`); the review path had not.
-    let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips, flora.normal_mips.as_ref());
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
     for (handle, mesh) in crate::grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
@@ -116,8 +125,7 @@ pub fn render_review_views(
         // exists, and off-centre it falls outside the crisp box.
         renderer.shadow_focus = Some(view.vehicle.map_or(view.target, |v| v.position));
 
-        let camera =
-            Camera { eye: view.eye, target: view.target, vertical_fov_degrees: REVIEW_FOV_DEGREES };
+        let camera = Camera { eye: view.eye, target: view.target, vertical_fov_degrees };
         let view_proj = view_projection_matrix(
             &camera,
             width as f32 / height as f32,

@@ -112,13 +112,13 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     let mut static_cover = expand_objects(blueprint, &heightmap);
     let roads = expand_roads(blueprint);
     let scenery = expand_scenery(blueprint, &heightmap, &static_cover, &roads);
-    // A hero oak is not a painting: its trunk stops a shell, blocks an eye and stands in a
+    // An oak is not a painting: its trunk stops a shell, blocks an eye and stands in a
     // hull's way until the hull pushes it over. Deriving the boxes HERE — from the scenery the
     // scatter just produced — is what keeps that promise honest: every authored tree gets one,
     // a mirrored pair gets mirrored trunks, and the two can never drift apart the way a
     // hand-authored box list would. They come after `expand_scenery` on purpose: a tree has no
     // business avoiding its own trunk.
-    static_cover.extend(hero_oak_trunk_cover(&scenery));
+    static_cover.extend(oak_trunk_cover(&scenery));
     let (spawn_zones, strategic_points, features) = expand_gameplay(blueprint, &heightmap);
     let capture_zones = blueprint
         .gameplay
@@ -249,38 +249,41 @@ fn expand_roads(blueprint: &MapBlueprint) -> Vec<Road> {
     out
 }
 
-/// The hero oak's trunk as a gameplay solid, one box per authored tree.
+/// The procedural oak's trunk as a gameplay solid, one box per authored tree.
 ///
 /// Sized to the VISIBLE trunk, because the doctrine is that a cover box IS the footprint the
-/// eye reads: the mesh stands ~21 m with a ~1.4 m butt, and the column below the crown is what
-/// a hull meets and a shell stops in. The canopy above it is deliberately NOT covered — leaves
-/// do not stop an AP round, and a box that pretended otherwise would hand crews cover they
-/// cannot see themselves taking.
+/// eye reads: a mature procedural oak (`world_forge::tree`) stands ~17–18 m with a ~1.0 m
+/// butt, and the column below the crown is what a hull meets and a shell stops in. The canopy
+/// above it is deliberately NOT covered — leaves do not stop an AP round, and a box that
+/// pretended otherwise would hand crews cover they cannot see themselves taking.
 ///
 /// `TreeTrunk` is the kind that says exactly this and nothing more: crushable, so a hull pushes
 /// the tree over instead of parking against it forever; destructible by shells; wrecked into the
 /// same stumps a felled hedgerow leaves — and alone among the kinds it bakes no box of its own,
 /// because the tree's mesh is already standing there.
-fn hero_oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
-    /// Half-width of the trunk at chest height on an unscaled tree, metres.
-    const TRUNK_HALF_M: f32 = 0.7;
-    /// Half-height of the covered column: the clear bole under the first limbs.
+fn oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
+    /// Half-width of the trunk at chest height on an unscaled tree, metres. The procedural
+    /// oak's `trunk_radius` is 0.52 m; 0.6 covers the butt at chest height with a small
+    /// margin for the deterministic lean.
+    const TRUNK_HALF_M: f32 = 0.6;
+    /// Half-height of the covered column: the clear bole under the first limbs (the oak's
+    /// limbs start at ~55% of the 9.2 m trunk, i.e. ~5 m).
     const TRUNK_HALF_HEIGHT_M: f32 = 5.0;
-    /// The render's species factor for `FloraTree` (`scene_build::foliage::imported_flora_scale`).
-    /// Mirrored here rather than imported: gameplay may not depend on a rendering crate, and a
-    /// silent divergence would show up as a shell passing through visible bark.
-    const SPECIES_SCALE: f32 = 1.7;
+    /// The procedural oak bakes at mature scale already — the only factor is the instance's
+    /// own scatter scale. (The retired imported oak needed a 1.7 species fix; the procedural
+    /// species table IS 1:1.)
+    const SPECIES_SCALE: f32 = 1.0;
 
     scenery
         .iter()
-        .filter(|instance| instance.kind == SceneryKind::FloraTree)
+        .filter(|instance| instance.kind == SceneryKind::Oak)
         .enumerate()
         .map(|(index, instance)| {
             let scale = instance.scale * SPECIES_SCALE;
             let half_height = TRUNK_HALF_HEIGHT_M * scale;
             StaticCoverObject {
-                id: format!("hero_oak_trunk_{index:03}"),
-                name: "hero oak trunk".to_string(),
+                id: format!("oak_trunk_{index:03}"),
+                name: "oak trunk".to_string(),
                 kind: StaticCoverKind::TreeTrunk,
                 center: [
                     instance.position[0],
