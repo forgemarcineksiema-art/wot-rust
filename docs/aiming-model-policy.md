@@ -120,6 +120,33 @@ The server remains authoritative for firing, projectile travel, penetration,
 damage, module state, and snapshots. The client reticle is predictive only; if a
 debug server-reticle overlay is added later, it must be clearly optional.
 
+## The Sight's Promise
+
+**If the sight shows you a whole tank, either you can hit it, or the sight tells
+you in metres where the shot dies.**
+
+The reticle can always be right and still be useless, and that is exactly what
+happened (`docs/sight-honesty-program.md`): a refusal is correct, honest, and
+unactionable when nothing in the picture or the readouts says what refused it.
+The promise is therefore about the SEAM, not the verdict — between what the eye
+reaches and what the gun can reach there must be no silent gap.
+
+Two rules carry it:
+
+- **The eye is the gun's telescope, not a vantage point.** The sniper eye stands
+  in the band a real gunner's optic occupies over the bore (0.08–0.16 m; the
+  T-54's TSh-2-22, the T-34-85's TSh-16 and the Panther's TZF-12a all live
+  there). Height at the origin is not a free comfort: a 320 m shot leaves the
+  muzzle about 2 mrad above the line to its target, so **every centimetre of eye
+  above the bore buys about five metres of ground the eye clears and the shell
+  does not**. The number is a reference measurement, guarded by
+  `camera/sniper.rs::the_sniper_eye_sits_where_a_real_gunners_telescope_does`.
+- **The seam is measured, not argued.** `hud/reticle/seam_tests.rs` sweeps 30 000
+  hull placements per shipped map through the live path and ratchets the share of
+  sight-reachable hulls the gun cannot reach. The ceilings there are measured
+  numbers; raising one is a decision for the program doc, never a way to get a
+  run green.
+
 ## Sniper Camera
 
 Sniper camera eye placement is anchored to the current hull/turret sight mount

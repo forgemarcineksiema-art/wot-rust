@@ -19,8 +19,30 @@ use renderer_api::Camera;
 use super::controller::BattleCameraController;
 use super::{BattleCameraEnvironment, CameraSubject, collision};
 
-/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
-pub(crate) const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
+/// Sniper sight height above the gun trunnion: the gunner's telescope, which on this generation
+/// of tank is bolted to the gun's own cradle a hand's breadth over the bore (T-54 TSh-2-22,
+/// T-34-85 TSh-16, Panther TZF-12a all sit in the same 0.10..0.15 m band).
+///
+/// It used to be 0.35 m — "roughly where the gunner's optics sit", a guess, never measured. That
+/// guess is the whole of the defect reported from the game on 2026-08-07 and is what
+/// `hud/reticle/seam_tests.rs` now ratchets. A shell sent 320 m leaves the muzzle about 2 mrad
+/// above the line to its target, so height at the origin buys enormous reach along the ground:
+/// **35 cm of eye is roughly 175 m of it**. The eye looked over folds the shell flew into,
+/// mid-field ground the sight cleared by 20 cm ate the round, and the picture showed nothing —
+/// the fold is BELOW the sight line by definition. Measured through the seam test over 30 000
+/// placements per map, the share of sight-reachable hulls the gun cannot reach fell from
+/// **11.8 to 3.8 per mille on Bystra and 19.9 to 5.2 on Prokhorovka** when this constant came
+/// down from that guess to the real optic.
+///
+/// The trade is deliberate and is the honest one: the eye no longer peeks over a crest the gun
+/// cannot shoot past, so hull-down exposure is what the GUN needs, not what the camera wanted.
+pub(crate) const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.12;
+
+/// The band a gunner's telescope of this era occupies over the bore. The sight height is a
+/// *reference* number, not a taste knob, and this is the assertion that says so — the constant
+/// above may be tuned inside the band a real optic lives in and nowhere else.
+#[cfg(test)]
+const OPTIC_BAND_ABOVE_BORE_M: (f32, f32) = (0.08, 0.16);
 
 /// World position of the sniper eye from a base anchor and hull pose: the turret-ring axis at
 /// optic height. It rides the ring, NOT the gun, so it is independent of turret traverse. That
@@ -87,6 +109,35 @@ mod tests {
             desired_yaw_rad: 0.0,
             desired_pitch_rad,
         }
+    }
+
+    /// The sniper eye is the gun's own telescope, so it must sit in the band a real one occupies
+    /// over the bore — and, whatever the number, ON the gun axis in height terms rather than a
+    /// hand above the deck.
+    ///
+    /// This is the guard on the constant that caused the 2026-08-07 report: at 0.35 m the eye
+    /// looked over ground the shell flew into, and the only thing holding that number in place
+    /// was a comment saying "roughly". A sight height is a reference measurement; the reticle's
+    /// whole honesty rests on it, and `hud/reticle/seam_tests.rs` prices what raising it costs.
+    #[test]
+    fn the_sniper_eye_sits_where_a_real_gunners_telescope_does() {
+        let (low, high) = OPTIC_BAND_ABOVE_BORE_M;
+        assert!(
+            (low..=high).contains(&SNIPER_SIGHT_ABOVE_TRUNNION_M),
+            "the sniper sight must stand {low}..{high} m over the bore (T-54 TSh-2-22 and its \
+             generation), got {SNIPER_SIGHT_ABOVE_TRUNNION_M}"
+        );
+
+        // And it is really applied: the eye rides the trunnion height plus that offset, on the
+        // ring axis, carried by the hull.
+        let mounts = MountFrames::for_vehicle(game_core::VehicleKind::T54_1951);
+        let level = game_core::math::HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 };
+        let eye = sniper_eye_from_base(game_core::VehicleKind::T54_1951, Vec3::ZERO, level);
+        assert!(
+            (eye.y - (mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M)).abs()
+                < 1.0e-6,
+            "eye {eye:?} must be the trunnion plus the optic offset"
+        );
     }
 
     /// The sight ray is world-space: the sniper view elevation equals the desired world pitch no

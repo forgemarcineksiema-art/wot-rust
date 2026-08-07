@@ -224,6 +224,28 @@ and reported the CUMULATIVE drift (1.77 m), which is not what anyone sees. The c
 every snapshot, so the quantity that moves the camera is the size of ONE correction. Same failure
 as the Wave 1 rulers — a number that is real, related, and answering a different question.
 
+## I. The sight's seam — reported from the game 2026-08-07
+
+Three screenshots: a T-54 at 321–327 m on Bystra, plainly visible, no terrain across it, the
+crosshair on its hull — and the marker was the **gray broken BLOCKED form**, with the shell in the
+ground. A metre forward or a hair of elevation turned it green.
+
+The register's own recurring lesson, worn a fourth way. **Section G audited the sight down to the
+pixels and found twelve things. It could not have found this one**, because every reticle test —
+all twelve of them — hands the reticle a synthetic heightmap and asks whether it answers
+correctly. It always did: the trace was right, the status was right, the shell really died in the
+dirt. The defect lived one layer out, in the seam between the eye's origin and the muzzle's, which
+nothing measured. Programme: `docs/sight-honesty-program.md`.
+
+| # | finding | where |
+|---|---|---|
+| **I1** | ~~**The sniper eye stood 0.35 m over the gun axis on the strength of a comment.**~~ — **FIXED (wave 1).** Its only justification was the word "roughly" beside it. A 320 m shot leaves the muzzle ~2 mrad above the line to its target, so at that departure angle **0.35 m of eye is ~175 m of ground**: the eye looked over folds the shell flew into, and a fold under the sight line cannot appear in the picture. Measured over 30 000 placements per map: **11.8 → 3.8 per mille on Bystra, 19.9 → 5.2 on Prokhorovka** of sight-reachable hulls the gun cannot reach, from that one constant. Median block sat **61 m in front of the shooter**, the sight clearing that crest by **0.21 m**, and **1.0 mrad** of extra elevation — 19 px of mouse at ×16 — would have hit. | `camera/sniper.rs:23` |
+| **I2** | **A refusal does not say what refused it.** While BLOCKED the range readout still prints the distance to the TARGET (327 M in the report) — a tank the gun cannot reach. It is the sight's one outright lie, and the amber X that does mark the real impact carries no number and no line back to the crosshair. | `hud/reticle_readouts.rs:123` |
+| **I3** | **The sight ray probes the world with a zero-radius body; the shell carries its calibre.** `aim_point_with_sweep` passes `projectile_radius_m: 0.0` while the trace passes `collision_radius_m()`. That difference alone is **35 of the 36** Bystra refusals where the target is not cut anywhere in the picture: the ray threads a barn roof by ~7 cm and the shell grazes it. | `aim.rs:122` |
+| **I4** | **Two greens, one place, unrelated meanings.** `RETICLE_LOADED` `[0.40, 0.90, 0.42]` (breech shut, 0.95 s) against `RETICLE_PEN` `[0.35, 0.85, 0.40]` (your shell goes through) — 5 % apart and indistinguishable. The report read the loaded ring as the penetration verdict, which is exactly what the colour says. The code comment already admits it: the distinct bytes exist "so the locks can tag it apart", i.e. for tests, not for eyes. | `hud/reticle_overlay.rs:45` |
+| I5 | **Doctrine, not a bug: three quarters of refusals are honest.** Broken out by how much of the target's silhouette the eye reaches, 78 of 145 Bystra refusals show turret only — ordinary hull-down, correctly refused. The population that matters is the **whole tank open and refused** one, and that is what the ratchet guards separately. | `hud/reticle/seam_tests.rs` |
+| I6 | **Out of scope, recorded: the T-54's −5° on a hilly map.** On Prokhorovka **3.5 %** of sight-reachable hulls (329 of 9 326) sit outside the gun's arc entirely. Honest, visibly signalled, and a vehicle/map balance question rather than a sight one. | `docs/vehicles/t-54.md` |
+
 ## Withdrawn after verification
 
 - ~~"Maps-are-data is broken"~~ — measurement error: I counted test fixtures. Real dispatch is **22

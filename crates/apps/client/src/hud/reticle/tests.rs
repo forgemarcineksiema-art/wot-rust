@@ -263,7 +263,7 @@ fn ridge_heightmap() -> HeightMap {
     HeightMap::new(5, 5, 10.0, samples).unwrap()
 }
 
-fn tank_snapshot(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
+pub(super) fn tank_snapshot(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
     let spec = game_core::VehicleKind::T54_1951.spec();
     TankSnapshot {
         tank_id,
