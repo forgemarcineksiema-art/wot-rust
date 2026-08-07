@@ -487,3 +487,77 @@ fn the_census_counts_fightable_crests_and_the_report_warns_below_the_floor() {
         "a wall must count for nothing — the census is a gauge of cover, not of steepness"
     );
 }
+
+/// The scenery contract, exercised at last (it was on the `data_contracts` allowlist as
+/// "no test authors scenery that violates the scenery rules"). It guards an AUTHOR's two
+/// mistakes, and both are warnings rather than errors because either can be deliberate: a
+/// dressing point may be pushed off the map by a region that overhangs the border, and a
+/// scatter with no `cover_margin_m` may drop a stone inside a barn.
+///
+/// This test IS the documentation of what the check means — which is the whole reason the gate
+/// asks for the check's name to appear in one.
+#[test]
+fn scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover() {
+    use map_forge::blueprint::{ObjectSpec, SceneryOp, XCoord};
+    use terrain::{SceneryKind, StaticCoverKind};
+
+    // Clean first: a stone on open ground inside the map trips nothing. Without this the test
+    // could pass on a check that fires for everything.
+    let mut clean = flat_square();
+    clean.scenery.push(SceneryOp::Fixed {
+        kind: SceneryKind::Rock,
+        spots: vec![[80.0, 80.0]],
+        yaw_rad: 0.0,
+        scale: 1.0,
+    });
+    let (_, report) = compile(&clean);
+    assert!(
+        !report.warnings().any(|entry| entry.check == "scenery"),
+        "a stone on open ground inside the map is not a contract violation"
+    );
+
+    // The border half of this check is GONE, and finding that out is what this test was for:
+    // an out-of-map dressing point never reaches a compiled map at all, because both scenery
+    // expanders drop a point the heightmap refuses to ground. Proven here rather than asserted,
+    // so the day someone adds a path that skips grounding, this fails and the guard comes back.
+    let mut outside = flat_square();
+    outside.scenery.push(SceneryOp::Fixed {
+        kind: SceneryKind::Rock,
+        spots: vec![[420.0, 80.0]],
+        yaw_rad: 0.0,
+        scale: 1.0,
+    });
+    let (map, report) = compile(&outside);
+    assert!(
+        map.scenery.is_empty(),
+        "grounding is the real guard: an off-map dressing point must never be emitted"
+    );
+    assert!(
+        !report.warnings().any(|entry| entry.check == "scenery"),
+        "nothing was emitted, so there is nothing to warn about"
+    );
+
+    // Through a cover footprint: a tree growing out of a barn's roof.
+    let mut inside_cover = flat_square();
+    inside_cover.objects.push(ObjectSpec::Cover {
+        id: "barn".into(),
+        name: "Barn".into(),
+        kind: StaticCoverKind::FarmBuilding,
+        at: [XCoord::Fixed(150.0), XCoord::Fixed(200.0)],
+        half_extents_m: [6.0, 4.0, 9.0],
+    });
+    inside_cover.scenery.push(SceneryOp::Fixed {
+        kind: SceneryKind::Oak,
+        spots: vec![[150.0, 200.0]],
+        yaw_rad: 0.0,
+        scale: 1.0,
+    });
+    let (_, report) = compile(&inside_cover);
+    assert!(
+        report
+            .warnings()
+            .any(|entry| entry.check == "scenery"
+                && entry.message.contains("through a cover footprint")),
+        "a tree standing inside a barn must be reported"
+    );
+}

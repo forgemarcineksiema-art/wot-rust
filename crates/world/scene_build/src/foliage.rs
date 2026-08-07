@@ -341,9 +341,12 @@ mod baked_tree_tests {
             (SceneryKind::Pine, tree_ceiling),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.
             (SceneryKind::Rock, 108),
-            // Street furniture, unchanged frustum kits.
+            // The masonry spill, raised from the old 60 with its construction: a 7-sided mass,
+            // three tumbled wall pieces, two roof shards and a snapped joist. It buys the thing
+            // the grey frustum kit could not — the pile reads as a piece of a building.
+            (SceneryKind::DebrisHeap, world_forge::spill::SPILL_MAX_TRIS),
+            // Street furniture, unchanged frustum kit.
             (SceneryKind::Lamppost, 60),
-            (SceneryKind::DebrisHeap, 60),
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();

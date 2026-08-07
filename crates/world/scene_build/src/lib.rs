@@ -20,3 +20,4 @@ pub mod tree_lod;
 pub mod water;
 pub mod weather;
 pub mod weather_timeline;
+pub(crate) mod world_material;

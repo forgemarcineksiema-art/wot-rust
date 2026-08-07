@@ -10,6 +10,7 @@
 pub mod building;
 pub mod rock;
 pub(crate) mod shape;
+pub mod spill;
 pub mod tree;
 
 use glam::Vec3;
