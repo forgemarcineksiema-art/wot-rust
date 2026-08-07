@@ -48,8 +48,8 @@ impl SceneRenderer {
             return;
         }
         self.bloom.mips = mips;
-        *self.bloom.targets.borrow_mut() = None;
-        *self.post.bind_group.borrow_mut() = None;
+        self.bloom.targets = None;
+        self.post.bind_group = None;
     }
 
     /// The bloom depth this renderer was born with (the quality tier's value) — what the

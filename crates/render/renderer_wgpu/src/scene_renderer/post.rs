@@ -5,8 +5,6 @@
 //! writes the final picture to the caller's sRGB target. Bloom and vignette slot in here later
 //! — energy first, curve second, grade third.
 
-use std::cell::RefCell;
-
 use crate::GpuContext;
 use crate::shader_library::{CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, compose_shader};
 
@@ -69,10 +67,10 @@ pub(crate) struct PostResources {
     pub pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
-    pub targets: RefCell<Option<HdrTargets>>,
+    pub targets: Option<HdrTargets>,
     /// The pass's input bind group (HDR frame + bloom mip); rebuilt whenever either chain's
     /// targets are recreated.
-    pub bind_group: RefCell<Option<wgpu::BindGroup>>,
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
 impl PostResources {
@@ -154,46 +152,39 @@ impl PostResources {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self {
-            pipeline,
-            bind_group_layout,
-            sampler,
-            targets: RefCell::new(None),
-            bind_group: RefCell::new(None),
-        }
+        Self { pipeline, bind_group_layout, sampler, targets: None, bind_group: None }
     }
 
     /// Rebuild the pass's input bind group (called whenever the HDR or bloom targets change).
-    pub fn rebuild_bind_group(&self, device: &wgpu::Device, bloom_view: &wgpu::TextureView) {
-        let targets = self.targets.borrow();
+    pub fn rebuild_bind_group(&mut self, device: &wgpu::Device, bloom_view: &wgpu::TextureView) {
+        let targets = self.targets.as_ref();
         let Some(t) = targets.as_ref() else {
             return;
         };
-        *self.bind_group.borrow_mut() =
-            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("post_bg"),
-                layout: &self.bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&t.resolve_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(bloom_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                ],
-            }));
+        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("post_bg"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&t.resolve_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(bloom_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+            ],
+        }));
     }
 
     /// Make sure the HDR chain matches the output size/sample count; rebuilds lazily on change.
     /// Returns true when the targets were (re)created — the input bind group must follow.
     pub fn ensure_targets(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         width: u32,
         height: u32,
@@ -203,8 +194,7 @@ impl PostResources {
         // Refraction needs an MSAA-resolved grab of the opaque scene; single-sampled frames keep
         // the analytic water, so a grab there would be dead memory.
         let want_grab = refraction && sample_count > 1;
-        let current = self.targets.borrow();
-        if let Some(t) = current.as_ref()
+        if let Some(t) = self.targets.as_ref()
             && t.width == width
             && t.height == height
             && t.sample_count == sample_count
@@ -212,7 +202,6 @@ impl PostResources {
         {
             return false;
         }
-        drop(current);
 
         let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
         let resolve_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -285,7 +274,7 @@ impl PostResources {
                 })
                 .create_view(&wgpu::TextureViewDescriptor::default())
         });
-        *self.targets.borrow_mut() = Some(HdrTargets {
+        self.targets = Some(HdrTargets {
             width,
             height,
             sample_count,
@@ -309,7 +298,7 @@ pub(crate) struct FxaaResources {
     pub pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
-    pub bind_group: RefCell<Option<wgpu::BindGroup>>,
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
 impl FxaaResources {
@@ -381,26 +370,25 @@ impl FxaaResources {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self { pipeline, bind_group_layout, sampler, bind_group: RefCell::new(None) }
+        Self { pipeline, bind_group_layout, sampler, bind_group: None }
     }
 
     /// Rebuild the pass's input bind group (called whenever the LDR intermediate is recreated).
-    pub fn rebuild_bind_group(&self, device: &wgpu::Device, ldr_view: &wgpu::TextureView) {
-        *self.bind_group.borrow_mut() =
-            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("fxaa_bg"),
-                layout: &self.bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(ldr_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                ],
-            }));
+    pub fn rebuild_bind_group(&mut self, device: &wgpu::Device, ldr_view: &wgpu::TextureView) {
+        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("fxaa_bg"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(ldr_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+            ],
+        }));
     }
 }
 
@@ -409,7 +397,7 @@ impl super::SceneRenderer {
     /// tightly packed). This is the image-formation lock's window into the pipeline: values
     /// above 1.0 must survive to the post pass instead of clipping in an 8-bit framebuffer.
     pub fn read_hdr_rgba16(&self, ctx: &GpuContext) -> Option<Vec<u8>> {
-        let targets = self.post.targets.borrow();
+        let targets = self.post.targets.as_ref();
         let targets = targets.as_ref()?;
         let bytes_per_row_unpadded = targets.width * 8;
         let bpr = bytes_per_row_unpadded.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)

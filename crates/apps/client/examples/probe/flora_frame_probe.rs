@@ -86,18 +86,18 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         ..renderer_api::RenderFrame::default()
     };
     flora.set_render_frame(&ctx, &tree_frame);
-    warm(&ctx, &target, &baseline, view_proj, camera.eye)?;
-    warm(&ctx, &target, &flora, view_proj, camera.eye)?;
+    warm(&ctx, &target, &mut baseline, view_proj, camera.eye)?;
+    warm(&ctx, &target, &mut flora, view_proj, camera.eye)?;
 
     let mut baseline_samples = Vec::with_capacity(SAMPLE_ROUNDS);
     let mut flora_samples = Vec::with_capacity(SAMPLE_ROUNDS);
     for round in 0..SAMPLE_ROUNDS {
         if round.is_multiple_of(2) {
-            baseline_samples.push(measure(&ctx, &target, &baseline, view_proj, camera.eye)?);
-            flora_samples.push(measure(&ctx, &target, &flora, view_proj, camera.eye)?);
+            baseline_samples.push(measure(&ctx, &target, &mut baseline, view_proj, camera.eye)?);
+            flora_samples.push(measure(&ctx, &target, &mut flora, view_proj, camera.eye)?);
         } else {
-            flora_samples.push(measure(&ctx, &target, &flora, view_proj, camera.eye)?);
-            baseline_samples.push(measure(&ctx, &target, &baseline, view_proj, camera.eye)?);
+            flora_samples.push(measure(&ctx, &target, &mut flora, view_proj, camera.eye)?);
+            baseline_samples.push(measure(&ctx, &target, &mut baseline, view_proj, camera.eye)?);
         }
     }
     baseline_samples.sort_by(f64::total_cmp);
@@ -135,7 +135,7 @@ fn configure_renderer(
 fn warm(
     ctx: &GpuContext,
     target: &OffscreenTarget,
-    renderer: &SceneRenderer,
+    renderer: &mut SceneRenderer,
     view_proj: [[f32; 4]; 4],
     eye: [f32; 3],
 ) -> Result<(), renderer_api::RenderError> {
@@ -149,7 +149,7 @@ fn warm(
 fn measure(
     ctx: &GpuContext,
     target: &OffscreenTarget,
-    renderer: &SceneRenderer,
+    renderer: &mut SceneRenderer,
     view_proj: [[f32; 4]; 4],
     eye: [f32; 3],
 ) -> Result<f64, renderer_api::RenderError> {

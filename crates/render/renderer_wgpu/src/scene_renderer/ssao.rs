@@ -3,8 +3,6 @@
 //! pipelines sample the blurred target at group 2 (see `shadow.rs`); strength 0 is the capability
 //! fallback that leaves every surface fully open.
 
-use std::cell::RefCell;
-
 use renderer_api::CameraProjectionPolicy;
 
 use super::ssao_pipelines::{build_prepass_pipeline, fullscreen_pipeline, texture_bgl};
@@ -44,7 +42,7 @@ pub(crate) struct SsaoResources {
     blur_pipeline: wgpu::RenderPipeline,
     depth_bgl: wgpu::BindGroupLayout,
     src_bgl: wgpu::BindGroupLayout,
-    pub targets: RefCell<Option<SsaoTargets>>,
+    pub targets: Option<SsaoTargets>,
 }
 
 impl SsaoResources {
@@ -110,19 +108,18 @@ impl SsaoResources {
             blur_pipeline: fullscreen_pipeline(device, &shader, &blur_layout, "fs_blur"),
             depth_bgl,
             src_bgl,
-            targets: RefCell::new(None),
+            targets: None,
         }
     }
 
     /// Ensure the AO chain matches the `width`×`height` RENDER target (textures are created at
     /// `scale` times that size); returns `true` when it was (re)created and the group-2
     /// environment bind group must be re-pointed at the new blur view.
-    pub fn ensure_targets(&self, device: &wgpu::Device, width: u32, height: u32) -> bool {
-        let current = self.targets.borrow();
+    pub fn ensure_targets(&mut self, device: &wgpu::Device, width: u32, height: u32) -> bool {
+        let current = self.targets.as_ref();
         if current.as_ref().is_some_and(|t| t.width == width && t.height == height) {
             return false;
         }
-        drop(current);
 
         let scaled = |edge: u32| ((edge as f32 * self.scale.max(0.25)).round() as u32).max(1);
         let (ao_width, ao_height) = (scaled(width), scaled(height));
@@ -160,7 +157,7 @@ impl SsaoResources {
         };
         let depth_bind_group = bind(&self.depth_bgl, &depth_view, "ssao_depth_bg");
         let blur_src_bind_group = bind(&self.src_bgl, &ao_view, "ssao_blur_src_bg");
-        *self.targets.borrow_mut() = Some(SsaoTargets {
+        self.targets = Some(SsaoTargets {
             width,
             height,
             depth_view,
@@ -180,7 +177,7 @@ impl SsaoResources {
         encoder: &mut wgpu::CommandEncoder,
         camera_bind_group: &wgpu::BindGroup,
     ) {
-        let targets = self.targets.borrow();
+        let targets = self.targets.as_ref();
         let Some(targets) = targets.as_ref() else {
             return;
         };

@@ -61,7 +61,7 @@ pub(crate) const FOCUS_RADIUS_RANGE_M: std::ops::RangeInclusive<f32> = 4.0..=256
 pub(crate) struct ShadowResources {
     pub depth_view: wgpu::TextureView,
     pub far_depth_view: wgpu::TextureView,
-    pub bind_group: std::cell::RefCell<wgpu::BindGroup>,
+    pub bind_group: wgpu::BindGroup,
     pub pipeline_scene: wgpu::RenderPipeline,
     pub pipeline_vehicle: wgpu::RenderPipeline,
     /// The far-cascade occluder pipeline: scene vertex stride through `vs_far`. The fleet has no
@@ -203,7 +203,7 @@ impl ShadowResources {
         Self {
             depth_view,
             far_depth_view,
-            bind_group: std::cell::RefCell::new(bind_group),
+            bind_group,
             pipeline_scene,
             pipeline_vehicle,
             pipeline_scene_far,
@@ -221,12 +221,12 @@ impl ShadowResources {
 
     /// Re-point the group-2 environment bind group at a (re)created SSAO target.
     pub fn rebind_ao(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         shadow_bgl: &wgpu::BindGroupLayout,
         ao_view: &wgpu::TextureView,
     ) {
-        *self.bind_group.borrow_mut() = super::env_group::build_environment_bind_group(
+        self.bind_group = super::env_group::build_environment_bind_group(
             device,
             shadow_bgl,
             &self.depth_view,

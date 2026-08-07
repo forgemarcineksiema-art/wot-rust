@@ -152,3 +152,71 @@ fn every_pipeline_is_a_triangle_list() {
         offenders.join("\n  ")
     );
 }
+
+/// Regions that make up the ENCODE half of a frame, and where each begins. `None` means the whole
+/// file is encode-side.
+const ENCODE_REGIONS: &[(&str, Option<&str>)] = &[
+    ("draw.rs", Some("fn encode_frame(")),
+    ("draw_depth.rs", None),
+    ("bloom.rs", Some("pub fn encode(")),
+    ("ssao.rs", Some("pub fn encode_ao_passes(")),
+];
+
+/// What a frame CREATES and what it ENCODES are two phases, and only the first may allocate.
+///
+/// `render` splits into `prepare_frame(&mut self)` and `encode_frame(&self)` precisely so that a
+/// texture, buffer or bind group cannot appear halfway through a frame. Before the split the
+/// lazily-created targets lived behind `RefCell`s and a resource really was built inside the
+/// encoding path — the 1x1 black bloom stand-in, created between two passes, on any frame where
+/// the post pass needed rebinding.
+///
+/// A resource born mid-frame is not just untidy: it is a stall the frame budget never priced, on
+/// a frame nobody can predict, and it would land in whichever pass happened to be next.
+#[test]
+fn no_gpu_resource_is_created_during_encode() {
+    let root = workspace_root();
+    let src = crate_src_dir(&root, "renderer_wgpu");
+    let constructors =
+        ["create_texture(", "create_buffer(", "create_bind_group(", "create_sampler("];
+    let mut offenders = Vec::new();
+    let mut checked = 0;
+
+    for path in rust_files(&src) {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+        let Some((_, marker)) = ENCODE_REGIONS.iter().find(|(file, _)| *file == name) else {
+            continue;
+        };
+        let Ok(source) = fs::read_to_string(&path) else { continue };
+        let start = match marker {
+            Some(marker) => match source.find(marker) {
+                Some(at) => at,
+                None => panic!(
+                    "{}: the encode region starts at {marker:?}, which is no longer in the file — \
+                     this rule is now checking nothing",
+                    repo_relative(&path, &root)
+                ),
+            },
+            None => 0,
+        };
+        checked += 1;
+        let offset_line = source[..start].lines().count();
+        for (index, line) in source[start..].lines().enumerate() {
+            if constructors.iter().any(|needle| line.contains(needle)) {
+                offenders.push(format!(
+                    "{}:{}",
+                    repo_relative(&path, &root),
+                    offset_line + index + 1
+                ));
+            }
+        }
+    }
+
+    assert_eq!(checked, ENCODE_REGIONS.len(), "an encode region names a file that does not exist");
+    assert!(
+        offenders.is_empty(),
+        "a GPU resource is created while a frame is being encoded:\n  {}\n\nMove it into \
+         `prepare_frame`, which is the phase allowed to allocate. A resource born mid-frame is a \
+         stall the budget never priced, landing in whichever pass happens to be next.",
+        offenders.join("\n  ")
+    );
+}

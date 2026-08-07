@@ -161,8 +161,7 @@ impl super::SceneRenderer {
         encoder: &mut wgpu::CommandEncoder,
         camera_frustum: &Frustum,
     ) {
-        let targets = self.ssao.targets.borrow();
-        let Some(targets) = targets.as_ref() else {
+        let Some(targets) = self.ssao.targets.as_ref() else {
             return;
         };
         let mut pass = recorder.begin(

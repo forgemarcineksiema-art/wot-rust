@@ -4,8 +4,6 @@
 //! Threshold-free — energy decides what glows. Depth is a quality-tier knob
 //! (`LightingQuality::bloom_mips`; 0 skips the chain and the post pass reads a black pixel).
 
-use std::cell::RefCell;
-
 use crate::shader_library::compose_shader;
 
 use super::post::HDR_FORMAT;
@@ -39,7 +37,7 @@ pub(crate) struct BloomResources {
     pub sampler: wgpu::Sampler,
     /// Ladder depth from the quality tier; 0 disables the chain entirely.
     pub mips: u32,
-    pub targets: RefCell<Option<BloomTargets>>,
+    pub targets: Option<BloomTargets>,
 }
 
 impl BloomResources {
@@ -123,20 +121,13 @@ impl BloomResources {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        Self {
-            down_pipeline,
-            up_pipeline,
-            bind_group_layout,
-            sampler,
-            mips,
-            targets: RefCell::new(None),
-        }
+        Self { down_pipeline, up_pipeline, bind_group_layout, sampler, mips, targets: None }
     }
 
     /// (Re)build the ladder for the output size; also rebuilt when the HDR resolve view changes
     /// (the caller passes it fresh each ensure).
     pub fn ensure_targets(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         width: u32,
         height: u32,
@@ -146,7 +137,7 @@ impl BloomResources {
             return;
         }
         {
-            let current = self.targets.borrow();
+            let current = self.targets.as_ref();
             if let Some(t) = current.as_ref()
                 && t.width == width
                 && t.height == height
@@ -200,7 +191,7 @@ impl BloomResources {
             view_formats: &[],
         });
         let black_view = black.create_view(&wgpu::TextureViewDescriptor::default());
-        *self.targets.borrow_mut() = Some(BloomTargets {
+        self.targets = Some(BloomTargets {
             width,
             height,
             levels,
@@ -223,7 +214,7 @@ impl BloomResources {
         if self.mips == 0 {
             return;
         }
-        let targets = self.targets.borrow();
+        let targets = self.targets.as_ref();
         let Some(t) = targets.as_ref() else {
             return;
         };
@@ -272,7 +263,7 @@ impl BloomResources {
 
     /// The view the post pass composites (mip0), or the black fallback when the ladder is off.
     pub fn output_view(&self) -> Option<wgpu::TextureView> {
-        let targets = self.targets.borrow();
+        let targets = self.targets.as_ref();
         let t = targets.as_ref()?;
         Some(if self.mips > 0 && !t.levels.is_empty() {
             t.levels[0].view.clone()

@@ -36,7 +36,7 @@ fn the_scene_depth_always_matches_the_scene_colour() {
 
     for sample_count in [1, 4] {
         let target = OffscreenTarget::new(&ctx, 64, 64).expect("offscreen target");
-        let renderer = SceneRenderer::new_with_sample_count(
+        let mut renderer = SceneRenderer::new_with_sample_count(
             &ctx,
             wgpu::TextureFormat::Rgba8UnormSrgb,
             sample_count,
