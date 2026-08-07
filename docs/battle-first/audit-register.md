@@ -246,6 +246,35 @@ nothing measured. Programme: `docs/sight-honesty-program.md`.
 | I5 | **Doctrine, not a bug: three quarters of refusals are honest.** Broken out by how much of the target's silhouette the eye reaches, 78 of 145 Bystra refusals show turret only — ordinary hull-down, correctly refused. The population that matters is the **whole tank open and refused** one, and that is what the ratchet guards separately. | `hud/reticle/seam_tests.rs` |
 | I6 | **Out of scope, recorded: the T-54's −5° on a hilly map.** On Prokhorovka **3.5 %** of sight-reachable hulls (329 of 9 326) sit outside the gun's arc entirely. Honest, visibly signalled, and a vehicle/map balance question rather than a sight one. | `docs/vehicles/t-54.md` |
 
+## J. The late-battle drop — reported from the game 2026-08-07
+
+> "Ogólnie gra trzyma 60 fps, ale są jakieś spadki w późniejszej fazie gry. Całkiem spore
+> i czasem nagłe, do 20/30 fps."
+
+A different SHAPE of defect from everything measured before it. Every perf probe in this tree
+measures a SCENE — a fixed camera path over a pristine field with an empty crater ledger — and
+answers "is this content too heavy". It answered it, and the frame holds. It cannot answer this,
+because nothing about the scene changes: what changes is how much battle has already happened.
+The instrument had no axis for time-in-battle, so this class was invisible by construction.
+
+New instrument: `cargo run -p client --release --example probe -- battle_age_cost`.
+
+Everything below hangs off one fact: the replicated crater ledger holds `sim::MAX_CRATERS` = 256
+records and recycles its oldest, so a long match does not approach that cap, it SITS on it — and
+from then on every further ground impact moves the ledger fingerprint and re-fires everything
+keyed on it, once per shot, for the rest of the match.
+
+| # | finding | where |
+|---|---|---|
+| **J0** | **The game logic is innocent, measured.** `battle_host --bench battle_tick` (a real 7v7: 14 tanks, 13 bot brains, spotting, shells, ramming, snapshots) costs **83 µs** in its early window and **104 µs** at 1800 ticks — 0.6 % of a frame, growing 25 % across a match. `combat_hot_path`: 48 µs/tick, 75 µs on the urban map. Bots, spotting, shells, wrecks, destruction and the damage log are all capped and cheap; the damage log truncates and TTLs, per-tank scars and breaches are retained against the live roster, ruts cap at 256, scars at 128, particles at 2048. Look elsewhere. | `battle_host/benches/battle_tick.rs` |
+| **J1** | ~~**A crater re-uploaded the entire card meadow.**~~ — **FIXED.** The harvest frame re-uploaded the whole ground mesh AND the whole card meadow through `create_buffer_init` — fresh GPU allocations, not writes into buffers that already existed — preceded by a full CPU re-chunk of the indices, on the render thread. Measured: ground 5.1 → 14.1 MiB with crater count, meadow a flat **75.6 MiB that does not move at all**. Asked what one FURTHER crater changes, the probe is unambiguous: the ground moves its vertex count (159,795 → 160,281) and the meadow changes **NOTHING**. The worker now fingerprints its own output against what the dressing slot holds and sends the mesh only when it differs. | `client/src/app/render.rs:177` |
+| **J2** | ~~**The FX budget was locked against itself and never against the buffer.**~~ — **FIXED.** `fx/budget.rs` filled every capped pool through the real append paths and locked the total at 35,070 vertices — into a buffer holding 13,107. `set_fx` answered the overflow with a bare `return`, so from ~40 ground impacts the whole FX layer went off the screen, silently, while the client kept building and discarding 1–2 ms of vertices per frame. The locked worst case was understated twice by its fixture as well (penetration decals emit nothing, so the fleet counted as zero; the scar pool mixed HE with AP when HE is the expensive family). Now split into ESSENTIAL (never truncated; buffer grown to hold it) and GROUND (given the remainder, drops its oldest). See `docs/honest-steel-policy.md`. | `fx/budget.rs`, `scene_renderer/resources.rs:151` |
+| J3 | **The meadow is still BAKED on every crater.** 133–249 ms of worker CPU in the late game, resident on one core, almost always producing a byte-identical mesh. J1 stopped the upload, not the bake. The fix is spatial bucketing; the pattern already exists for destruction (`statics_buckets_touched_by_cover`). | `client/src/app/render.rs:235` |
+| J4 | **Running gear is rebuilt for all 14 tanks every frame into fresh unsized `Vec`s.** 204 placements per tank, 2,856 for a 7v7, **0.29 ms per frame**, allocated and dropped in the same frame. The register's own table names this exact lesson as one the codebase applies once and skips elsewhere. | `vehicle_geometry/src/running_gear_place.rs:52` |
+| J5 | **A wreck costs what a live tank costs.** There is no cheaper path for a destroyed hull: it still gets full animated running gear and per-wheel terrain sampling every frame, for the rest of the match. Not an accumulation (14 tanks are always 14), but late in a battle most of that work animates vehicles that will never move again. | `client/src/vehicle/render_frame.rs` |
+
+Programme and measurements: `probe -- battle_age_cost`.
+
 ## Withdrawn after verification
 
 - ~~"Maps-are-data is broken"~~ — measurement error: I counted test fixtures. Real dispatch is **22
