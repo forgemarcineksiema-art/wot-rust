@@ -225,4 +225,6 @@ pub(crate) fn world_to_clip_xy(point: Vec3, view_projection: [[f32; 4]; 4]) -> O
 }
 
 #[cfg(test)]
+mod seam_tests;
+#[cfg(test)]
 mod tests;
