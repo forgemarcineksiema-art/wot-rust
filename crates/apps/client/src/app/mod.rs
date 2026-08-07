@@ -486,13 +486,22 @@ pub(crate) struct ClientApp {
     /// geometry under the still-bound splat/macro maps.
     /// The channel carries (ground mesh, dressing mesh): the burst that dug the hole also
     /// mowed the card meadow around it, so both rebake from the same ledger in one worker.
+    ///
+    /// The dressing is `None` when the rebake produced the meadow already on the GPU. It usually
+    /// does: a shell has to land on a card to mow one, and most of them land where nothing grows.
+    /// The worker decides, because the alternative is the render thread re-uploading ~68 MiB of
+    /// unchanged mesh on the frame an HE round lands — measured, and worth a whole frame.
     #[allow(clippy::type_complexity)]
     ground_rebuild_rx: Option<
         std::sync::mpsc::Receiver<(
             (Vec<renderer_api::SceneVertex>, Vec<u32>),
-            (Vec<renderer_api::SceneVertex>, Vec<u32>),
+            Option<((Vec<renderer_api::SceneVertex>, Vec<u32>), u64)>,
         )>,
     >,
+    /// Fingerprint of the card meadow currently uploaded to the renderer's dressing slot, handed
+    /// to each bake worker so it can answer "unchanged" without the render thread comparing
+    /// anything. Zero until the first meadow lands.
+    dressing_uploaded_fingerprint: u64,
     /// Set when the replicated crater ledger changed: the next frame kicks a ground re-mesh.
     ground_deform_dirty: bool,
     /// The world-anchored grass population, cached with an invisible margin around the shader's
@@ -733,6 +742,7 @@ impl ClientApp {
             scene_rebuild_rx: None,
             cover_scar_list: Vec::new(),
             ground_rebuild_rx: None,
+            dressing_uploaded_fingerprint: 0,
             ground_deform_dirty: false,
             grass_cache: Vec::new(),
             grass_cache_eye: None,

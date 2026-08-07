@@ -105,6 +105,24 @@ pub(crate) fn run() {
     );
     println!("  pays them whole on the frame the bake lands.");
 
+    // How much of that upload the new crater actually justifies. The harvest re-uploads both
+    // meshes WHOLE; this is what a partial upload would have had to carry instead, and it is the
+    // number the shape of any fix hangs on.
+    let mut before = pristine.clone();
+    before.heightmap.set_craters(&ledger(LEDGER_CAP - 1, extent));
+    let mut after = pristine.clone();
+    after.heightmap.set_craters(&ledger(LEDGER_CAP, extent));
+    report_delta(
+        "ground",
+        client::battlefield_ground_mesh(&before),
+        client::battlefield_ground_mesh(&after),
+    );
+    report_delta(
+        "meadow",
+        client::grass_card_dressing_mesh(&before, &maps, &materials),
+        client::grass_card_dressing_mesh(&after, &maps, &materials),
+    );
+
     println!("\nB. THE FX LEDGER — what the FX layer asks for, against what the buffer holds.");
     let vertex_bytes = size_of::<renderer_api::FxVertex>();
     let capacity = FX_BUFFER_BYTES / vertex_bytes;
@@ -196,6 +214,56 @@ pub(crate) fn run() {
             println!("  in 14 freshly allocated unsized `Vec`s that are dropped the same frame.");
         }
         None => println!("  T-54 has no running-gear kinematics; nothing to measure."),
+    }
+}
+
+/// How much of a whole-mesh re-upload one further crater actually justifies: how many vertices
+/// differ at all, and the span between the first and the last of them — a buffer write is a
+/// RANGE, so no partial upload can ever be tighter than that span.
+fn report_delta(
+    label: &str,
+    before: (Vec<renderer_api::SceneVertex>, Vec<u32>),
+    after: (Vec<renderer_api::SceneVertex>, Vec<u32>),
+) {
+    let (old_v, _) = before;
+    let (new_v, _) = after;
+    let vertex_bytes = size_of::<renderer_api::SceneVertex>();
+    let whole_mib = (new_v.len() * vertex_bytes) as f64 / (1024.0 * 1024.0);
+    if old_v.len() != new_v.len() {
+        println!(
+            "  {label}: one more crater moves the vertex COUNT ({} -> {}), so everything after the",
+            old_v.len(),
+            new_v.len(),
+        );
+        println!("    first change shifts — a partial upload needs a stable layout first.");
+        return;
+    }
+    let mut first = None;
+    let mut last = 0usize;
+    let mut changed = 0usize;
+    for (index, (old, new)) in old_v.iter().zip(new_v.iter()).enumerate() {
+        if old != new {
+            first.get_or_insert(index);
+            last = index;
+            changed += 1;
+        }
+    }
+    match first {
+        None => println!(
+            "  {label}: one more crater changes NOTHING — the whole {whole_mib:.1} MiB re-upload is waste."
+        ),
+        Some(first) => {
+            let span = last - first + 1;
+            println!(
+                "  {label}: one more crater changes {changed} of {} vertices ({:.4}%), inside a span",
+                new_v.len(),
+                100.0 * changed as f64 / new_v.len() as f64,
+            );
+            println!(
+                "    of {span} vertices = {:.2} MiB, against a {whole_mib:.1} MiB whole-mesh upload.",
+                (span * vertex_bytes) as f64 / (1024.0 * 1024.0),
+            );
+        }
     }
 }
 

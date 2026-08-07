@@ -99,6 +99,40 @@ pub struct SceneChunk {
     pub aabb: Aabb,
 }
 
+/// A 64-bit fingerprint of a baked static mesh — the cheap answer to "is this the mesh the GPU
+/// already holds?".
+///
+/// A rebake is not a change. The client re-bakes the card meadow whenever the crater ledger
+/// moves, because a burst that digs a hole also mows the cards around it — but the overwhelming
+/// majority of shells land where no card grows, and the rebake then produces the mesh that is
+/// already uploaded, byte for byte. On a mesh measured in tens of megabytes, uploading it again
+/// anyway is the difference between a frame and a stutter, so it is worth one number to know.
+///
+/// Bit-exact by construction: `SceneVertex` is `Pod`, so this reads the same bytes the GPU would
+/// have received, and equal meshes always agree. It is a hash, so unequal meshes can agree too —
+/// the consequence being a skipped upload the eye needed, at 2^-64 per rebake. That is a far
+/// smaller risk than the stutter it removes, and unlike the stutter it is bounded.
+pub fn scene_mesh_fingerprint(vertices: &[SceneVertex], indices: &[u32]) -> u64 {
+    // FNV-style: one multiply per 8 bytes. The whole point is to be cheaper than the upload it
+    // decides against, and this runs on the bake worker rather than the render thread anyway.
+    const PRIME: u64 = 0x0000_0100_0000_01B3;
+    let mut state = 0xcbf2_9ce4_8422_2325_u64
+        ^ (vertices.len() as u64).rotate_left(17)
+        ^ (indices.len() as u64);
+    let words: &[u32] = bytemuck::cast_slice(vertices);
+    for pair in words.chunks(2) {
+        let word = u64::from(pair[0]) | (u64::from(pair.get(1).copied().unwrap_or(0)) << 32);
+        state = (state ^ word).wrapping_mul(PRIME);
+    }
+    // Indices ride the same buffer decision, and a mesh whose triangles were re-wound is a
+    // different picture even when every vertex survived.
+    for pair in indices.chunks(2) {
+        let word = u64::from(pair[0]) | (u64::from(pair.get(1).copied().unwrap_or(0)) << 32);
+        state = (state ^ word).wrapping_mul(PRIME);
+    }
+    state
+}
+
 /// Split a static scene mesh into spatial chunks on a regular XZ grid: triangles are bucketed
 /// by centroid, indices are reordered so each chunk's triangles are contiguous, and each chunk
 /// carries the exact 3D AABB of its triangles (not the flat grid cell — a triangle leaning out
