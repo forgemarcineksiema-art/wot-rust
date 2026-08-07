@@ -160,6 +160,8 @@ impl ClientApp {
                     renderer.clear_battlefield_ground();
                     // The hangar has no meadow: clear the dressing slot with the ground.
                     renderer.set_dressing(&[], &[]);
+                    self.dressing_uploaded_fingerprint =
+                        renderer_api::scene_mesh_fingerprint(&[], &[]);
                 }
                 SceneKind::Battle => {
                     let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
@@ -170,6 +172,10 @@ impl ClientApp {
                         &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
                     );
                     renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
+                    self.dressing_uploaded_fingerprint = renderer_api::scene_mesh_fingerprint(
+                        &meshes.dressing_vertices,
+                        &meshes.dressing_indices,
+                    );
                 }
             }
             renderer.set_water(water_vertices, water_indices);

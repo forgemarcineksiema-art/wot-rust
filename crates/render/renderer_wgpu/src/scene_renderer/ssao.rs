@@ -3,8 +3,6 @@
 //! pipelines sample the blurred target at group 2 (see `shadow.rs`); strength 0 is the capability
 //! fallback that leaves every surface fully open.
 
-use std::cell::RefCell;
-
 use renderer_api::CameraProjectionPolicy;
 
 use super::ssao_pipelines::{build_prepass_pipeline, fullscreen_pipeline, texture_bgl};
@@ -44,7 +42,7 @@ pub(crate) struct SsaoResources {
     blur_pipeline: wgpu::RenderPipeline,
     depth_bgl: wgpu::BindGroupLayout,
     src_bgl: wgpu::BindGroupLayout,
-    pub targets: RefCell<Option<SsaoTargets>>,
+    pub targets: Option<SsaoTargets>,
 }
 
 impl SsaoResources {
@@ -110,19 +108,18 @@ impl SsaoResources {
             blur_pipeline: fullscreen_pipeline(device, &shader, &blur_layout, "fs_blur"),
             depth_bgl,
             src_bgl,
-            targets: RefCell::new(None),
+            targets: None,
         }
     }
 
     /// Ensure the AO chain matches the `width`×`height` RENDER target (textures are created at
     /// `scale` times that size); returns `true` when it was (re)created and the group-2
     /// environment bind group must be re-pointed at the new blur view.
-    pub fn ensure_targets(&self, device: &wgpu::Device, width: u32, height: u32) -> bool {
-        let current = self.targets.borrow();
+    pub fn ensure_targets(&mut self, device: &wgpu::Device, width: u32, height: u32) -> bool {
+        let current = self.targets.as_ref();
         if current.as_ref().is_some_and(|t| t.width == width && t.height == height) {
             return false;
         }
-        drop(current);
 
         let scaled = |edge: u32| ((edge as f32 * self.scale.max(0.25)).round() as u32).max(1);
         let (ao_width, ao_height) = (scaled(width), scaled(height));
@@ -160,7 +157,7 @@ impl SsaoResources {
         };
         let depth_bind_group = bind(&self.depth_bgl, &depth_view, "ssao_depth_bg");
         let blur_src_bind_group = bind(&self.src_bgl, &ao_view, "ssao_blur_src_bg");
-        *self.targets.borrow_mut() = Some(SsaoTargets {
+        self.targets = Some(SsaoTargets {
             width,
             height,
             depth_view,
@@ -176,25 +173,27 @@ impl SsaoResources {
     /// the geometry buffers).
     pub fn encode_ao_passes(
         &self,
+        recorder: &mut crate::pass_recorder::PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         camera_bind_group: &wgpu::BindGroup,
     ) {
-        let targets = self.targets.borrow();
+        let targets = self.targets.as_ref();
         let Some(targets) = targets.as_ref() else {
             return;
         };
-        for (label, pipeline, output, extra_src) in [
-            ("ssao_pass", &self.ssao_pipeline, &targets.ao_view, None),
+        for (pass_id, pipeline, output, extra_src) in [
+            (crate::frame_graph::PassId::Ssao, &self.ssao_pipeline, &targets.ao_view, None),
             (
-                "ssao_blur_pass",
+                crate::frame_graph::PassId::SsaoBlur,
                 &self.blur_pipeline,
                 &targets.blur_view,
                 Some(&targets.blur_src_bind_group),
             ),
         ] {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some(label),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                encoder,
+                pass_id,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: output,
                     resolve_target: None,
                     depth_slice: None,
@@ -203,11 +202,8 @@ impl SsaoResources {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, camera_bind_group, &[]);
             pass.set_bind_group(1, &targets.depth_bind_group, &[]);

@@ -1,13 +1,15 @@
+mod frame_graph;
+mod frame_profiler;
 mod fx_pipeline;
 mod gpu_context;
 mod gpu_diagnostics;
 mod gpu_layout;
 mod msaa;
 mod offscreen;
+mod pass_recorder;
 mod pipeline_registry;
 mod rain_pipeline;
 mod readback_queue;
-mod render_frame_batch;
 mod renderer;
 mod scene_pipeline;
 mod scene_renderer;
@@ -29,18 +31,20 @@ use renderer_api::{
     RenderLimitsSummary, TextureCompressionSupport,
 };
 
+pub use frame_graph::{FRAME_GRAPH, FrameResource, FrameSwitches, PassCondition, PassId, PassNode};
+pub use frame_profiler::{ActiveProfiler, FrameProfiler, FrameTimings};
 pub use fx_pipeline::fx_shader_source;
-pub use gpu_context::GpuContext;
+pub use gpu_context::{GpuContext, GpuContextOptions};
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
 pub use gpu_layout::{
     CameraUniform, FramePassParams, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform,
     tank_vertex_bytes,
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
+pub use pass_recorder::{FrameCounts, PassCounts, PassOrder};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
 pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
-pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
 pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
@@ -49,7 +53,8 @@ pub use scene_renderer::ground::terrain_shader_source;
 pub use scene_renderer::shadow::shadow_shader_source;
 pub use scene_renderer::ssao::ssao_shader_source;
 pub use scene_renderer::{
-    VEHICLE_INSTANCE_CAPACITY, armor_damage_aperture_budget, vehicle_instance_budget,
+    VEHICLE_INSTANCE_CAPACITY, armor_damage_aperture_budget, fx_vertex_budget,
+    vehicle_instance_budget,
 };
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{

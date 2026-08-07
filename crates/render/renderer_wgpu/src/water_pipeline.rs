@@ -3,8 +3,6 @@
 //! blend under it below), depth-tested but never writing depth, alpha-blended. All animation
 //! is shader-side from the tick-domain presentation clock — the buffers upload once per scene.
 
-use std::cell::RefCell;
-
 use wgpu::util::DeviceExt;
 
 use crate::offscreen::DEPTH_FORMAT;
@@ -116,7 +114,7 @@ pub(crate) struct WaterRefraction {
     grab_bgl: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     params: wgpu::Buffer,
-    pub bind_group: RefCell<Option<wgpu::BindGroup>>,
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
 impl WaterRefraction {
@@ -192,27 +190,30 @@ impl WaterRefraction {
             }),
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        Self { pipeline, grab_bgl, sampler, params, bind_group: RefCell::new(None) }
+        Self { pipeline, grab_bgl, sampler, params, bind_group: None }
     }
 
     /// (Re)bind the group-1 resources to the current grab texture — call after the HDR chain is
     /// recreated (resize), exactly like the post pass rebinds its input.
-    pub(crate) fn rebuild_bind_group(&self, device: &wgpu::Device, grab_view: &wgpu::TextureView) {
-        *self.bind_group.borrow_mut() =
-            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("water_grab_bg"),
-                layout: &self.grab_bgl,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(grab_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                    wgpu::BindGroupEntry { binding: 2, resource: self.params.as_entire_binding() },
-                ],
-            }));
+    pub(crate) fn rebuild_bind_group(
+        &mut self,
+        device: &wgpu::Device,
+        grab_view: &wgpu::TextureView,
+    ) {
+        self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("water_grab_bg"),
+            layout: &self.grab_bgl,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(grab_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry { binding: 2, resource: self.params.as_entire_binding() },
+            ],
+        }));
     }
 }

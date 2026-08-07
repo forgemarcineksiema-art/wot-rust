@@ -54,7 +54,11 @@ impl SceneRenderer {
 
     /// Issue the draw calls for every chunk `frustum` can see. The caller has already bound the
     /// terrain vertex/index buffers and the pass pipeline; this only decides WHAT to draw.
-    pub(super) fn draw_visible_terrain(&self, pass: &mut wgpu::RenderPass<'_>, frustum: &Frustum) {
+    pub(super) fn draw_visible_terrain(
+        &self,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
+        frustum: &Frustum,
+    ) {
         for chunk in &self.terrain_chunks {
             if frustum.intersects_aabb(&chunk.aabb) {
                 pass.draw_indexed(

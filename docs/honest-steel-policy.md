@@ -148,6 +148,24 @@ rejection tests kept.
   Fizyczny Świat P2 (v30) replaces the radial ground mark with the physically-true kinetic
   furrow (elongated gouge + forward spoil, fewer stamps than the old crater), lowering the
   locked cap again to 17,040; P3 replaces the radial HE mark with rim+bowl+clods (16,638); P4c drapes the rim and bowl over the true deformation (25 cells each), raising the cap to 35,070 — the price of marks that line the bowl instead of sinking into it.
+- **FX frame vertices, corrected (2026-08-07).** Every number above was arithmetic about the
+  pools and none of it was ever compared to the GPU buffer the pools are uploaded into, which
+  held 13,107 vertices. `set_fx` met the overflow with a bare `return`: from about the fortieth
+  ground impact of a match the WHOLE FX layer — tracers, blasts, ruts, hull perforations — went
+  off the screen and stayed off, silently, while the client kept building 1–2 ms of vertices per
+  frame and discarding them. A budget nobody compares to a capacity is a number, not a budget.
+  The locked worst case was also understated twice by its fixture: the "battered" tank was
+  battered with `DecalKind::Penetration`, which by design emits no quads, so the whole fleet's
+  decals counted as ZERO; and the scar pool alternated HE with AP marks when HE is the expensive
+  family (42,132 at the cap, not 22,782). The budget is now split by what it costs to lose:
+  **ESSENTIAL 14,976** (full particle pool + every hull at its decal cap) plus a 504-vertex
+  tracer allowance, which `FX_VERTEX_CAPACITY` (grown 512 KiB → 1 MiB = 26,214 vertices) must
+  always hold; and **GROUND 43,668** (scars + ruts at cap), which is scenery and is given only
+  what the frame has left, dropping its OLDEST marks to fit. Selection is by age, emission by
+  pool position — the FX pass blends premultiplied source-over with depth writes off, so order
+  IS compositing and a survivor must land exactly where it always landed. Phases that add stamps
+  or raise caps still update the locked numbers in the same diff; what is new is that the numbers
+  are now checked against the buffer as well as against themselves.
 
 ## Honesty corrections (2026-07-28)
 

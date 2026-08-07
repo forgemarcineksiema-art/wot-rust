@@ -32,7 +32,7 @@ pub use capabilities::{
     GpuBackend, GpuDeviceType, RenderAdapterReport, RenderCapabilityTier, RenderLimitsSummary,
     TextureCompressionSupport,
 };
-pub use culling::{Aabb, Frustum, SceneChunk, chunk_scene_indices};
+pub use culling::{Aabb, Frustum, SceneChunk, chunk_scene_indices, scene_mesh_fingerprint};
 pub use debug_tools::{
     DebugDrawBatch, DebugDrawCommand, DebugDrawKind, DebugToolKind, DebugToolPlan, RgbaDebugColor,
 };

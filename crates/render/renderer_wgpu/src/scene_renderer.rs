@@ -24,7 +24,7 @@ use std::cell::Cell;
 
 use renderer_api::{RenderError, SceneLighting, SceneVertex};
 
-use crate::msaa::{default_sample_count, validate_msaa_support};
+use crate::msaa::{review_sample_count, shipped_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::scene_pipeline::{build_hud_pipeline, build_scene_pipeline};
 use crate::scene_resources::{SceneMeshRegistry, SceneObjectDraw};
@@ -40,8 +40,31 @@ const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 23;
 /// 36x36-cell minimap — with headroom; `set_hud` truncates (with a warning) instead of
 /// blanking the frame if a regression ever exceeds it.
 const HUD_VERTEX_CAPACITY: u64 = 1 << 19;
-/// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
-const FX_VERTEX_CAPACITY: u64 = 1 << 19;
+/// Battle-FX vertex budget. Everything the FX pass draws shares it: rolling ruts, the scorch
+/// marks shells leave in the ground, particles, tracers and the holes punched in hulls.
+///
+/// It used to be described as "~2048 soft quads with headroom", which was arithmetic about the
+/// buffer rather than about the battle. The battle wants more: 128 terrain scars alone ask for
+/// ~42k vertices, three times what fits, and they reach the ceiling about forty ground impacts
+/// into a match. `set_fx` answered that with a bare `return` — the entire FX layer stopped
+/// drawing, silently, while the client kept building the vertices every frame and discarding
+/// them. It now truncates like the HUD does, and the CLIENT decides what gets truncated:
+/// [`fx_vertex_budget`] is what it budgets against, so the marks in the mud give way and the
+/// tracers, blasts and perforations never do.
+///
+/// 1 MiB = 26,214 vertices. The size is chosen against a measurement, not rounded up for
+/// comfort: a saturated 7v7 submits 15,480 vertices that must never be dropped (a full particle
+/// pool, every hull battered to its decal cap, two rounds per tank in the air), which did not
+/// fit the 512 KiB this used to be. What is left over — about 10.7k — is what the marks in the
+/// ground get to spend, and `client::fx::budget` locks both halves. The buffer is only ever
+/// written as far as the frame fills it, so a quiet frame costs a quiet upload.
+const FX_VERTEX_CAPACITY: u64 = 1 << 20;
+
+/// How many `FxVertex` fit [`FX_VERTEX_CAPACITY`] — what the client budgets its FX frame
+/// against, so an overrun costs the oldest scorch mark instead of the whole layer.
+pub const fn fx_vertex_budget() -> usize {
+    (FX_VERTEX_CAPACITY as usize) / std::mem::size_of::<renderer_api::FxVertex>()
+}
 pub use armor_damage::armor_damage_aperture_budget;
 pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
 
@@ -71,7 +94,6 @@ pub struct SceneRenderer {
     frame_draws: Vec<SceneObjectDraw>,
     static_meshes: SceneMeshRegistry,
     vehicle_pipeline: wgpu::RenderPipeline,
-    vehicle_camera_bind_group: wgpu::BindGroup,
     vehicle_materials: vehicle_materials::VehicleMaterialRegistry,
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
@@ -152,15 +174,48 @@ pub struct SceneRenderer {
     /// The quality tier's bloom depth, kept so the battlefield can restore it after the
     /// garage's richer chain (`set_bloom_mips`).
     default_bloom_mips: u32,
+    /// Per-pass GPU timing. `Disabled` unless a probe arms it, and while disabled the encoder
+    /// emits exactly the command stream it emitted before this field existed.
+    profiler: crate::frame_profiler::FrameProfiler,
+    /// What the last frame submitted, per pass. Counted on EVERY frame — draws and triangles need
+    /// no GPU feature, so unlike the timings this half is available on any adapter and inside an
+    /// ordinary test. A `Cell` because `render` takes `&self`, like `skipped_mesh_draws`.
+    frame_counts: Cell<crate::pass_recorder::FrameCounts>,
+    /// Which pass owned which timestamp slot in the last frame — the names for the numbers the
+    /// query set gives back. Meaningless while the profiler is `Disabled`, and unread then.
+    frame_pass_order: Cell<crate::pass_recorder::PassOrder>,
+    /// Reused working set for batching a frame's objects into instanced draws. Both the scene and
+    /// the vehicle frame run through it, one after the other, so one is enough.
+    instance_scratch: crate::scene_resources::InstanceScratch,
 }
 
 impl SceneRenderer {
+    /// A renderer for a REVIEW image, multisampled at `msaa::review_sample_count` — not what the
+    /// game runs. For a frame-time capture use [`Self::for_offscreen_as_shipped`].
     pub fn for_offscreen(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
         terrain_indices: &[u32],
     ) -> Result<Self, RenderError> {
         Self::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb, terrain_vertices, terrain_indices)
+    }
+
+    /// A renderer whose sample count resolves the way the window's does, so an offscreen capture
+    /// measures the frame the player pays for. The target carries no sample count of its own —
+    /// this constructor is the only place the shipped count enters an offscreen capture.
+    pub fn for_offscreen_as_shipped(
+        ctx: &GpuContext,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+    ) -> Result<Self, RenderError> {
+        Self::new_with_sample_count_and_quality(
+            ctx,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            shipped_sample_count(renderer_api::DEFAULT_MSAA_SAMPLES),
+            terrain_vertices,
+            terrain_indices,
+            None,
+        )
     }
 
     /// As [`Self::for_offscreen`] with an EXPLICIT lighting quality, bypassing the adapter
@@ -183,6 +238,60 @@ impl SceneRenderer {
         )
     }
 
+    /// Hand this renderer a per-pass timing instrument. Until one is set the renderer emits the
+    /// same command stream it always did, so arming is a probe's decision and never a default.
+    pub fn set_pass_profiler(&mut self, profiler: crate::frame_profiler::FrameProfiler) {
+        self.profiler = profiler;
+    }
+
+    /// How many samples this renderer's colour and depth attachments carry. The renderer is the
+    /// only owner of that number now, so it is the only thing that can be asked.
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
+    }
+
+    /// The timing instrument this renderer holds — `Disabled` unless a probe armed one.
+    pub fn pass_profiler(&self) -> &crate::frame_profiler::FrameProfiler {
+        &self.profiler
+    }
+
+    /// The three switches that decide which passes this frame encodes, read off the renderer.
+    pub fn frame_switches(&self) -> crate::frame_graph::FrameSwitches {
+        crate::frame_graph::FrameSwitches {
+            ssao: self.ssao.strength > 0.0,
+            // Weight AND depth: a tier that sets `bloom_mips` to zero encodes no ladder no matter
+            // what the lighting asks for, and the graph has to say what the frame does.
+            bloom: self.scene_lighting.bloom_weight > 0.0 && self.bloom.mips > 0,
+            refraction: self.refraction && self.sample_count > 1,
+        }
+    }
+
+    /// Which passes the last frame encoded, in order. Recorded on every frame, armed or not.
+    pub fn last_frame_pass_order(&self) -> crate::pass_recorder::PassOrder {
+        self.frame_pass_order.get()
+    }
+
+    /// What the last rendered frame submitted, per pass: draws, triangles and instances.
+    ///
+    /// Always populated, on every adapter — this is the half of the instrument that costs nothing
+    /// and needs no optional feature, so a draw-call question can be answered without a GPU that
+    /// can time anything.
+    pub fn last_frame_counts(&self) -> crate::pass_recorder::FrameCounts {
+        self.frame_counts.get()
+    }
+
+    /// What each pass of the last frame cost on the GPU, if this renderer is armed for timing.
+    ///
+    /// Blocks on the device, so it belongs after a probe's own fence and never in a shipped
+    /// frame. `None` means the instrument is not armed or the frame encoded nothing — never a
+    /// table of zeroes, which would read as a free frame.
+    pub fn read_pass_timings(
+        &self,
+        ctx: &GpuContext,
+    ) -> Option<crate::frame_profiler::FrameTimings> {
+        self.profiler.active()?.read(&ctx.device, self.frame_pass_order.get())
+    }
+
     pub fn new(
         ctx: &GpuContext,
         color_format: wgpu::TextureFormat,
@@ -202,7 +311,7 @@ impl SceneRenderer {
         Self::new_with_sample_count_and_quality(
             ctx,
             color_format,
-            default_sample_count(),
+            review_sample_count(),
             terrain_vertices,
             terrain_indices,
             quality_override,
@@ -344,21 +453,6 @@ impl SceneRenderer {
                 },
             ],
         });
-        let vehicle_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("vehicle_camera_bg"),
-            layout: &camera_bgl,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: camera_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: armor_damage.headers.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: armor_damage.apertures.as_entire_binding(),
-                },
-            ],
-        });
 
         let (chunked_indices, terrain_chunks) =
             terrain::chunk_initial_terrain(terrain_vertices, terrain_indices);
@@ -404,7 +498,6 @@ impl SceneRenderer {
             frame_draws: Vec::new(),
             static_meshes: SceneMeshRegistry::default(),
             vehicle_pipeline,
-            vehicle_camera_bind_group,
             vehicle_materials,
             vehicle_instances: buffers.vehicle_instances,
             vehicle_instance_count: 0,
@@ -454,6 +547,10 @@ impl SceneRenderer {
             shadow_focus_radius_m: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
+            profiler: crate::frame_profiler::FrameProfiler::Disabled,
+            frame_counts: Cell::new(crate::pass_recorder::FrameCounts::default()),
+            frame_pass_order: Cell::new(crate::pass_recorder::PassOrder::default()),
+            instance_scratch: crate::scene_resources::InstanceScratch::default(),
         })
     }
 }

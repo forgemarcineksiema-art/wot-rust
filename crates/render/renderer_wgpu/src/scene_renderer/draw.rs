@@ -14,19 +14,97 @@ const SHADOW_FORWARD_OFFSET_M: f32 = 40.0;
 const FAR_SHADOW_FORWARD_OFFSET_M: f32 = 200.0;
 
 impl super::SceneRenderer {
+    /// Draw a frame: make sure this frame's resources exist, then encode it.
+    ///
+    /// The two halves are separate methods on purpose. Everything that can CREATE a GPU resource
+    /// lives in `prepare_frame`, which takes `&mut self`; encoding takes `&self` and can only
+    /// read. Before the split, `render` took `&self` and the lazily-created targets lived behind
+    /// `RefCell`s — so every access during encoding was a `borrow()` that could panic at runtime,
+    /// and nothing but care stopped a resource being created in the middle of a pass.
     pub fn render(
+        &mut self,
+        ctx: &GpuContext,
+        target: SceneRenderTarget<'_>,
+        view_proj: [[f32; 4]; 4],
+        camera_pos: [f32; 3],
+    ) -> Result<(), RenderError> {
+        self.prepare_frame(ctx, target.width, target.height);
+        self.encode_frame(ctx, target, view_proj, camera_pos)
+    }
+
+    /// Everything this frame needs to exist before a single pass opens: the HDR chain sized to the
+    /// target, the SSAO chain, the bloom ladder, and the bind groups that point at them.
+    ///
+    /// The one place in a frame allowed to create a GPU resource, which is what
+    /// `no_gpu_resource_is_created_during_encode` keeps true.
+    fn prepare_frame(&mut self, ctx: &GpuContext, width: u32, height: u32) {
+        let target = PrepareExtent { width, height };
+        if self.ssao.ensure_targets(&ctx.device, target.width, target.height) {
+            let blur_view =
+                &self.ssao.targets.as_ref().expect("ssao targets just created").blur_view;
+            self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
+        }
+        let hdr_recreated = self.post.ensure_targets(
+            &ctx.device,
+            target.width,
+            target.height,
+            self.sample_count,
+            self.refraction,
+        );
+        let resolve_view =
+            self.post.targets.as_ref().expect("post targets just ensured").resolve_view.clone();
+        self.bloom.ensure_targets(&ctx.device, target.width, target.height, &resolve_view);
+        if hdr_recreated || self.fxaa.bind_group.is_none() {
+            let ldr_view =
+                self.post.targets.as_ref().expect("post targets just ensured").ldr_view.clone();
+            self.fxaa.rebuild_bind_group(&ctx.device, &ldr_view);
+        }
+        if hdr_recreated || self.post.bind_group.is_none() {
+            // The post pass reads the HDR frame and the bloom mip; a black 1x1 stands in when
+            // the ladder is off (bloom_mips 0 / weight 0).
+            let bloom_view = self.bloom.output_view().unwrap_or_else(|| {
+                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("bloom_black_fallback"),
+                    size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
+                texture.create_view(&wgpu::TextureViewDescriptor::default())
+            });
+            self.post.rebuild_bind_group(&ctx.device, &bloom_view);
+        }
+
+        // Refraction takes the two-pass grab path only when the tier enables it AND the frame is
+        // multisampled (the grab is produced by the MSAA resolve). Rebind the water's group-1 grab
+        // whenever the HDR chain was recreated.
+        if self.frame_switches().refraction {
+            let grab =
+                self.post.targets.as_ref().expect("post targets just ensured").grab_view.clone();
+            if let Some(grab) = grab
+                && (hdr_recreated || self.water_refraction.bind_group.is_none())
+            {
+                self.water_refraction.rebuild_bind_group(&ctx.device, &grab);
+            }
+        }
+    }
+
+    fn encode_frame(
         &self,
         ctx: &GpuContext,
         target: SceneRenderTarget<'_>,
         view_proj: [[f32; 4]; 4],
         camera_pos: [f32; 3],
     ) -> Result<(), RenderError> {
-        if target.sample_count != self.sample_count {
-            return Err(RenderError::new(format!(
-                "scene renderer sample count {} does not match render target sample count {}",
-                self.sample_count, target.sample_count
-            )));
-        }
+        // The graph decides what this frame encodes. The switches are read off the renderer once
+        // and then ASKED, so a pass cannot be gated by one rule here and described by another
+        // there.
+        let switches = self.frame_switches();
+        let refraction_active = switches.refraction;
         // Focus the sun-shadow box on the subject. Studio shots set an explicit focus (the tank); the
         // battlefield leaves it unset, so the box is pushed forward along the view so its coverage
         // lands on the field the chase camera looks at, not the empty ground behind it. Then build
@@ -93,74 +171,21 @@ impl super::SceneRenderer {
         let light_frustum = Frustum::from_view_proj(&light_view_proj);
         let light_frustum_far = Frustum::from_view_proj(&light_view_proj_far);
 
-        if self.ssao.ensure_targets(&ctx.device, target.width, target.height) {
-            let targets = self.ssao.targets.borrow();
-            let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
-            self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
-        }
-        let hdr_recreated = self.post.ensure_targets(
-            &ctx.device,
-            target.width,
-            target.height,
-            self.sample_count,
-            self.refraction,
-        );
-        {
-            let targets = self.post.targets.borrow();
-            let hdr = targets.as_ref().expect("post targets just ensured");
-            self.bloom.ensure_targets(&ctx.device, target.width, target.height, &hdr.resolve_view);
-        }
-        if hdr_recreated || self.fxaa.bind_group.borrow().is_none() {
-            let targets = self.post.targets.borrow();
-            let hdr = targets.as_ref().expect("post targets just ensured");
-            self.fxaa.rebuild_bind_group(&ctx.device, &hdr.ldr_view);
-        }
-        if hdr_recreated || self.post.bind_group.borrow().is_none() {
-            // The post pass reads the HDR frame and the bloom mip; a black 1x1 stands in when
-            // the ladder is off (bloom_mips 0 / weight 0).
-            let bloom_view = self.bloom.output_view().unwrap_or_else(|| {
-                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("bloom_black_fallback"),
-                    size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba16Float,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[],
-                });
-                texture.create_view(&wgpu::TextureViewDescriptor::default())
-            });
-            self.post.rebuild_bind_group(&ctx.device, &bloom_view);
-        }
-
-        // Refraction takes the two-pass grab path only when the tier enables it AND the frame is
-        // multisampled (the grab is produced by the MSAA resolve). Rebind the water's group-1 grab
-        // whenever the HDR chain was recreated.
-        let refraction_active = self.refraction && self.sample_count > 1;
-        if refraction_active {
-            let targets = self.post.targets.borrow();
-            let hdr = targets.as_ref().expect("post targets just ensured");
-            if let Some(grab) = hdr.grab_view.as_ref()
-                && (hdr_recreated || self.water_refraction.bind_group.borrow().is_none())
-            {
-                self.water_refraction.rebuild_bind_group(&ctx.device, grab);
-            }
-        }
-
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        self.encode_shadow_pass(&mut encoder, &light_frustum);
-        self.encode_far_shadow_pass(&mut encoder, &light_frustum_far);
-        if self.ssao.strength > 0.0 {
-            self.encode_ssao_prepass(&mut encoder, &camera_frustum);
-            self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);
+        // Every pass below is opened through the recorder, which owns the label and the timestamp
+        // writes. While the profiler is Disabled — the shipped path — it emits the same descriptor
+        // this code emitted before it existed.
+        let mut recorder = crate::pass_recorder::PassRecorder::new(&self.profiler);
+        self.encode_shadow_pass(&mut recorder, &mut encoder, &light_frustum);
+        self.encode_far_shadow_pass(&mut recorder, &mut encoder, &light_frustum_far);
+        if switches.encodes(crate::frame_graph::PassId::SsaoPrepass) {
+            self.encode_ssao_prepass(&mut recorder, &mut encoder, &camera_frustum);
+            self.ssao.encode_ao_passes(&mut recorder, &mut encoder, &self.camera_bind_group);
         }
         // The world renders linear HDR into the internal Rgba16Float chain; the caller's target
         // receives only the post pass's display-transformed picture (plus the HUD).
-        let hdr = self.post.targets.borrow();
-        let hdr = hdr.as_ref().expect("post targets just ensured");
+        let hdr = self.post.targets.as_ref().expect("post targets just ensured");
         if refraction_active {
             // Refraction path (two passes). Pass 1 — the lit opaque world, RESOLVED into the grab
             // texture so the water can read the scene behind it; the MSAA colour and depth are kept
@@ -168,9 +193,10 @@ impl super::SceneRenderer {
             // over the kept colour, resolving into the final HDR the post pass reads.
             let grab_view = hdr.grab_view.as_ref().expect("grab present when refraction active");
             {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("scene_opaque_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                let mut pass = recorder.begin(
+                    &mut encoder,
+                    crate::frame_graph::PassId::SceneOpaque,
+                    &[Some(wgpu::RenderPassColorAttachment {
                         view: &hdr.color_view,
                         resolve_target: Some(grab_view),
                         depth_slice: None,
@@ -179,25 +205,23 @@ impl super::SceneRenderer {
                             store: wgpu::StoreOp::Store,
                         },
                     })],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: target.depth_view,
+                    Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &hdr.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Clear(1.0),
                             store: wgpu::StoreOp::Store,
                         }),
                         stencil_ops: None,
                     }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+                );
                 self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             }
             {
-                let grab_bg = self.water_refraction.bind_group.borrow();
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("scene_water_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                let grab_bg = self.water_refraction.bind_group.as_ref();
+                let mut pass = recorder.begin(
+                    &mut encoder,
+                    crate::frame_graph::PassId::SceneWater,
+                    &[Some(wgpu::RenderPassColorAttachment {
                         view: &hdr.color_view,
                         resolve_target: Some(&hdr.resolve_view),
                         depth_slice: None,
@@ -206,27 +230,25 @@ impl super::SceneRenderer {
                             store: wgpu::StoreOp::Discard,
                         },
                     })],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: target.depth_view,
+                    Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &hdr.depth_view,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Load,
                             store: wgpu::StoreOp::Discard,
                         }),
                         stencil_ops: None,
                     }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-                self.draw_water_surface(&mut pass, grab_bg.as_ref());
+                );
+                self.draw_water_surface(&mut pass, grab_bg);
                 self.draw_overlay_fx(&mut pass);
             }
         } else {
             // Single-pass path (analytic water) — the integrated/software route, byte-for-byte the
             // pre-refraction frame: opaque world, analytic water inline, then FX and rain.
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("scene_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Scene,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: &hdr.color_view,
                     resolve_target: hdr.multisampled.then_some(&hdr.resolve_view),
                     depth_slice: None,
@@ -239,34 +261,32 @@ impl super::SceneRenderer {
                         },
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: target.depth_view,
+                Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &hdr.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Discard,
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+            );
             self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             self.draw_water_surface(&mut pass, None);
             self.draw_overlay_fx(&mut pass);
         }
         // The bloom ladder blurs the resolved HDR frame down and back up before the post pass
         // composites it (rule 6); skipped entirely at weight 0 or bloom_mips 0.
-        if self.scene_lighting.bloom_weight > 0.0 {
-            self.bloom.encode(&mut encoder);
+        if switches.encodes(crate::frame_graph::PassId::Bloom) {
+            self.bloom.encode(&mut recorder, &mut encoder);
         }
         // The post pass: one fullscreen triangle applies the display transform (exposure ->
         // ACES -> grade -> dither) to the resolved HDR frame and writes the ENCODED picture
         // into the LDR intermediate — the single place the picture is formed.
         {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("post_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Post,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: &hdr.ldr_view,
                     resolve_target: None,
                     depth_slice: None,
@@ -275,16 +295,13 @@ impl super::SceneRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(&self.post.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(
                 1,
-                self.post.bind_group.borrow().as_ref().expect("post bind group just ensured"),
+                self.post.bind_group.as_ref().expect("post bind group just ensured"),
                 &[],
             );
             pass.draw(0..3, 0..1);
@@ -294,10 +311,11 @@ impl super::SceneRenderer {
         // game's only AA). The HUD draws after it, un-graded and never softened: the UI reads
         // the battle, it is not part of the painting.
         {
-            let output_view = target.resolve_target.unwrap_or(target.color_view);
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("fxaa_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            let output_view = target.output_view;
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Fxaa,
+                &[Some(wgpu::RenderPassColorAttachment {
                     view: output_view,
                     resolve_target: None,
                     depth_slice: None,
@@ -306,16 +324,13 @@ impl super::SceneRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
+                None,
+            );
             pass.set_pipeline(&self.fxaa.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(
                 1,
-                self.fxaa.bind_group.borrow().as_ref().expect("fxaa bind group just ensured"),
+                self.fxaa.bind_group.as_ref().expect("fxaa bind group just ensured"),
                 &[],
             );
             pass.draw(0..3, 0..1);
@@ -326,6 +341,13 @@ impl super::SceneRenderer {
                 pass.draw(0..self.hud_vertex_count, 0..1);
             }
         }
+        // Copy this frame's timestamps out on the SAME encoder, before submit: a resolve on a
+        // later encoder would read a query set the GPU may not have finished writing. A no-op
+        // while the profiler is Disabled.
+        recorder.resolve(&mut encoder);
+        // The counts, unlike the timings, are always there to take.
+        self.frame_counts.set(recorder.counts());
+        self.frame_pass_order.set(recorder.order());
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
     }
@@ -335,7 +357,7 @@ impl super::SceneRenderer {
     /// pass (analytic water) and the refraction opaque pass.
     fn draw_world_opaque(
         &self,
-        pass: &mut wgpu::RenderPass<'_>,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
         camera_frustum: &Frustum,
         eye: [f32; 3],
         band_scale: f32,
@@ -343,7 +365,7 @@ impl super::SceneRenderer {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
-        pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+        pass.set_bind_group(2, &self.shadow.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
@@ -390,14 +412,14 @@ impl super::SceneRenderer {
             pass.set_pipeline(&self.ground.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(1, &binding.bind_group, &[]);
-            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+            pass.set_bind_group(2, &self.shadow.bind_group, &[]);
             pass.set_vertex_buffer(1, self.identity_instance.slice(..));
             self.draw_visible_ground(pass, camera_frustum);
         }
         if self.vehicle_instance_count > 0 {
             pass.set_pipeline(&self.vehicle_pipeline);
-            pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
-            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_bind_group(2, &self.shadow.bind_group, &[]);
             pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
             for draw in &self.vehicle_draws {
                 pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
@@ -435,7 +457,11 @@ impl super::SceneRenderer {
     /// refraction pipeline sampling the opaque grab at group 1; `None` uses the analytic pipeline.
     /// Depth-tested (banks and hulls above the waterline occlude it) but never depth-writing, so a
     /// wading hull's submerged running gear reads through and the FX splashes composite over it.
-    fn draw_water_surface(&self, pass: &mut wgpu::RenderPass<'_>, grab: Option<&wgpu::BindGroup>) {
+    fn draw_water_surface(
+        &self,
+        pass: &mut crate::pass_recorder::CountedPass<'_, '_>,
+        grab: Option<&wgpu::BindGroup>,
+    ) {
         if self.water_index_count > 0
             && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
         {
@@ -458,7 +484,7 @@ impl super::SceneRenderer {
 
     /// Battle FX then rain into the current pass, over the water and opaque world before the HUD:
     /// FX reuse the scene camera group for view_proj; rain is stateless vertex-shader streaks.
-    fn draw_overlay_fx(&self, pass: &mut wgpu::RenderPass<'_>) {
+    fn draw_overlay_fx(&self, pass: &mut crate::pass_recorder::CountedPass<'_, '_>) {
         if self.fx_vertex_count > 0 {
             pass.set_pipeline(&self.fx_pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
@@ -473,4 +499,11 @@ impl super::SceneRenderer {
             pass.draw(0..6, 0..rain_streaks);
         }
     }
+}
+
+/// The two fields `prepare_frame` needs from the caller's target, so the moved body can keep
+/// reading `target.width` and `target.height` and the diff stays a move rather than a rewrite.
+struct PrepareExtent {
+    width: u32,
+    height: u32,
 }

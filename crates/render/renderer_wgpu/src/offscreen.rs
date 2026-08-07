@@ -1,8 +1,7 @@
 use renderer_api::RenderError;
 
 use crate::GpuContext;
-use crate::msaa::{default_sample_count, validate_msaa_support};
-use crate::scene_target::{SceneRenderTarget, store_op_for_target};
+use crate::scene_target::SceneRenderTarget;
 
 const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -16,26 +15,19 @@ fn padded_bytes_per_row(width: u32) -> u32 {
 pub struct OffscreenTarget {
     pub width: u32,
     pub height: u32,
-    sample_count: u32,
     color: wgpu::Texture,
     pub color_view: wgpu::TextureView,
-    msaa_color_view: Option<wgpu::TextureView>,
-    pub depth_view: wgpu::TextureView,
     readback: wgpu::Buffer,
 }
 
 impl OffscreenTarget {
+    /// A single-sample colour target with a mappable readback buffer.
+    ///
+    /// It carries no depth and no MSAA attachment any more: the renderer owns its own depth and
+    /// its own multisampled colour, and the picture that lands here is the resolved, formed,
+    /// anti-aliased one. That also means a target no longer has a sample count to disagree with
+    /// the renderer about — which is why `new_as_shipped` is gone rather than renamed.
     pub fn new(ctx: &GpuContext, width: u32, height: u32) -> Result<Self, RenderError> {
-        Self::new_with_sample_count(ctx, width, height, default_sample_count())
-    }
-
-    pub fn new_with_sample_count(
-        ctx: &GpuContext,
-        width: u32,
-        height: u32,
-        sample_count: u32,
-    ) -> Result<Self, RenderError> {
-        validate_msaa_support(ctx, COLOR_FORMAT, DEPTH_FORMAT, sample_count)?;
         let width = width.max(1);
         let height = height.max(1);
         let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
@@ -49,34 +41,6 @@ impl OffscreenTarget {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
-        let msaa_color_view = if sample_count > 1 {
-            Some(
-                ctx.device
-                    .create_texture(&wgpu::TextureDescriptor {
-                        label: Some("offscreen_msaa_color"),
-                        size,
-                        mip_level_count: 1,
-                        sample_count,
-                        dimension: wgpu::TextureDimension::D2,
-                        format: COLOR_FORMAT,
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                        view_formats: &[],
-                    })
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
-        } else {
-            None
-        };
-        let depth = ctx.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("offscreen_depth"),
-            size,
-            mip_level_count: 1,
-            sample_count,
-            dimension: wgpu::TextureDimension::D2,
-            format: DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
         let readback = ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("offscreen_readback"),
             size: u64::from(padded_bytes_per_row(width)) * u64::from(height),
@@ -86,28 +50,14 @@ impl OffscreenTarget {
         Ok(Self {
             width,
             height,
-            sample_count,
             color_view: color.create_view(&wgpu::TextureViewDescriptor::default()),
-            msaa_color_view,
-            depth_view: depth.create_view(&wgpu::TextureViewDescriptor::default()),
             color,
             readback,
         })
     }
 
-    pub fn sample_count(&self) -> u32 {
-        self.sample_count
-    }
-
     pub fn render_target(&self) -> SceneRenderTarget<'_> {
-        SceneRenderTarget {
-            color_view: self.msaa_color_view.as_ref().unwrap_or(&self.color_view),
-            resolve_target: self.msaa_color_view.as_ref().map(|_| &self.color_view),
-            depth_view: &self.depth_view,
-            sample_count: self.sample_count,
-            width: self.width,
-            height: self.height,
-        }
+        SceneRenderTarget { output_view: &self.color_view, width: self.width, height: self.height }
     }
 
     /// Copy the rendered color texture back into CPU memory as tightly-packed RGBA8.
@@ -158,13 +108,12 @@ pub fn clear_color(
     target: &OffscreenTarget,
     color: [f64; 4],
 ) -> Result<(), RenderError> {
-    let target_view = target.render_target();
     let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("clear"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: target_view.color_view,
-            resolve_target: target_view.resolve_target,
+            view: &target.color_view,
+            resolve_target: None,
             depth_slice: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -173,7 +122,7 @@ pub fn clear_color(
                     b: color[2],
                     a: color[3],
                 }),
-                store: store_op_for_target(target_view.resolve_target),
+                store: wgpu::StoreOp::Store,
             },
         })],
         depth_stencil_attachment: None,

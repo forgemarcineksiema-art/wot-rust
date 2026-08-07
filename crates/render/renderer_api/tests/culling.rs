@@ -171,3 +171,53 @@ fn chunk_culling_from_a_mid_map_camera_actually_culls() {
         chunks.len()
     );
 }
+
+/// The fingerprint's whole job is to answer "is this the mesh already uploaded?" without the
+/// render thread comparing tens of megabytes. Equal meshes MUST agree — otherwise the answer is
+/// always "changed" and the optimisation it exists for never fires.
+#[test]
+fn a_mesh_fingerprints_the_same_every_time_it_is_rebuilt() {
+    let (vertices, indices) = grid_mesh(24, 240.0);
+    let (again_v, again_i) = grid_mesh(24, 240.0);
+    assert_eq!(
+        renderer_api::scene_mesh_fingerprint(&vertices, &indices),
+        renderer_api::scene_mesh_fingerprint(&again_v, &again_i),
+        "a deterministic rebake fingerprinted differently; nothing downstream could ever skip",
+    );
+}
+
+/// And the half that makes skipping safe: a mesh that differs ANYWHERE must fingerprint
+/// differently. Each case below is a change a crater rebake can really produce — a moved vertex
+/// (ground pushed down), a recoloured one (a card mowed), a shorter mesh (cards removed), and a
+/// rewound triangle (the same vertices facing the other way).
+#[test]
+fn any_difference_in_a_mesh_moves_its_fingerprint() {
+    let (vertices, indices) = grid_mesh(12, 120.0);
+    let baseline = renderer_api::scene_mesh_fingerprint(&vertices, &indices);
+
+    let mut moved = vertices.clone();
+    moved[17].position[1] += 0.01;
+    assert_ne!(baseline, renderer_api::scene_mesh_fingerprint(&moved, &indices), "moved vertex");
+
+    let mut tinted = vertices.clone();
+    tinted[3].color[0] += 0.02;
+    assert_ne!(baseline, renderer_api::scene_mesh_fingerprint(&tinted, &indices), "recolored");
+
+    let mut shorter = vertices.clone();
+    shorter.pop();
+    let trimmed: Vec<u32> =
+        indices.iter().copied().filter(|i| (*i as usize) < shorter.len()).collect();
+    assert_ne!(
+        baseline,
+        renderer_api::scene_mesh_fingerprint(&shorter, &trimmed),
+        "a mesh that lost geometry",
+    );
+
+    let mut rewound = indices.clone();
+    rewound.swap(0, 2);
+    assert_ne!(
+        baseline,
+        renderer_api::scene_mesh_fingerprint(&vertices, &rewound),
+        "same vertices, triangle facing the other way",
+    );
+}

@@ -603,4 +603,95 @@ mod tests {
             );
         }
     }
+
+    /// A position at least `clearance` from every card, found through a coarse occupancy grid
+    /// rather than a distance sweep: the meadow carries over a million vertices, and the test
+    /// wants a bare patch, not a nearest-neighbour search.
+    fn bare_ground(cards: &[SceneVertex], extent: [f32; 2], clearance: f32) -> Option<(f32, f32)> {
+        let cell = clearance.max(1.0);
+        let cols = (extent[0] / cell).ceil() as usize + 1;
+        let rows = (extent[1] / cell).ceil() as usize + 1;
+        let mut occupied = vec![false; cols * rows];
+        for card in cards {
+            let cx = (card.position[0] / cell).floor().clamp(0.0, (cols - 1) as f32) as usize;
+            let cz = (card.position[2] / cell).floor().clamp(0.0, (rows - 1) as f32) as usize;
+            occupied[cz * cols + cx] = true;
+        }
+        // The whole 3x3 neighbourhood empty, so the burst stands a full cell clear of any card
+        // in every direction rather than merely inside an empty cell.
+        (1..rows - 1).find_map(|cz| {
+            (1..cols - 1)
+                .find(|cx| {
+                    (cz - 1..=cz + 1).all(|z| (cx - 1..=cx + 1).all(|x| !occupied[z * cols + x]))
+                })
+                .map(|cx| ((cx as f32 + 0.5) * cell, (cz as f32 + 0.5) * cell))
+        })
+    }
+
+    /// The crater rebake skips the dressing upload whenever the freshly baked meadow fingerprints
+    /// the same as the one the slot already holds (battle-age wave). This is the half that keeps
+    /// that safe: when a burst DOES mow a card the mesh changes, and the fingerprint has to say
+    /// so. One that slept through a real change would freeze the meadow for the rest of the match
+    /// — cards standing in a hole that swallowed them, and no upload ever coming to fix it.
+    #[test]
+    fn a_burst_on_a_card_changes_the_meadow_and_its_fingerprint() {
+        let (mut battlefield, maps) = flat_battlefield();
+        let materials = TerrainMaterialSet::default();
+        let (before_v, before_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        assert!(!before_v.is_empty(), "the flat field must grow a meadow before one can be mowed");
+        let card = before_v[0].position;
+        battlefield.heightmap.set_craters(&[terrain::CraterRecord::from_world(
+            card[0],
+            card[2],
+            terrain::he_crater_radius_m(122.0),
+            terrain::he_crater_depth_m(122.0),
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        )]);
+        let (after_v, after_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        assert_ne!(before_v, after_v, "a 122 mm burst standing on a card must mow it");
+        assert_ne!(
+            renderer_api::scene_mesh_fingerprint(&before_v, &before_i),
+            renderer_api::scene_mesh_fingerprint(&after_v, &after_i),
+            "the meadow changed and its fingerprint did not: the crater rebake would skip the \
+             upload and the eye would keep the mowed cards for the rest of the battle",
+        );
+    }
+
+    /// The other half, and the reason the skip is worth having at all: most shells land where
+    /// nothing grows, and the rebake then reproduces the mesh already on the GPU BYTE FOR BYTE.
+    /// Skipping that upload is correct rather than merely cheap — it is ~68 MiB of buffer
+    /// allocation and transfer on the render thread, on the frame an HE round lands, measured by
+    /// `cargo run -p client --release --example probe -- battle_age_cost`.
+    #[test]
+    fn a_burst_clear_of_every_card_leaves_the_meadow_byte_identical() {
+        let mut battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let maps = bake_terrain_ground_maps(&battlefield);
+        let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
+        let (before_v, before_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        let radius = terrain::he_crater_radius_m(122.0);
+        // Clear of the kill disc AND of the bowl's height influence: a card whose GROUND moved
+        // is a changed card even when the burst never touched the clump itself.
+        let clearance = radius * CRATER_KILL_FACTOR.max(terrain::CRATER_INFLUENCE_FACTOR) * 2.0;
+        let (x, z) = bare_ground(&before_v, battlefield.heightmap.extent_m(), clearance)
+            .expect("a 1000 m battlefield has ground with no card within a few metres");
+        battlefield.heightmap.set_craters(&[terrain::CraterRecord::from_world(
+            x,
+            z,
+            radius,
+            terrain::he_crater_depth_m(122.0),
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        )]);
+        let (after_v, after_i) = grass_card_dressing_mesh(&battlefield, &maps, &materials);
+        assert_eq!(
+            before_v, after_v,
+            "a burst on bare ground rebuilt a DIFFERENT meadow; the skip below would then be \
+             hiding a real change rather than an identical rebake",
+        );
+        assert_eq!(
+            renderer_api::scene_mesh_fingerprint(&before_v, &before_i),
+            renderer_api::scene_mesh_fingerprint(&after_v, &after_i),
+            "identical meshes must fingerprint identically, or the upload is never skipped and \
+             the frame keeps paying for a crater that changed nothing",
+        );
+    }
 }

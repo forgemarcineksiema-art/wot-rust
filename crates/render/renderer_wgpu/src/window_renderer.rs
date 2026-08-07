@@ -1,6 +1,6 @@
 use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex};
 
-use crate::msaa::{resolve_msaa_samples, validate_msaa_support};
+use crate::msaa::{shipped_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
@@ -8,16 +8,13 @@ use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
 mod settings;
 mod vehicle;
 
-/// The live windowed renderer: owns the GPU device, the presentation surface, a depth
-/// buffer, and the scene renderer. The caller passes its window handle (e.g. an
+/// The live windowed renderer: owns the GPU device, the presentation surface and the scene
+/// renderer. Depth and the multisampled colour belong to the scene renderer now. The caller passes its window handle (e.g. an
 /// `Arc<winit::window::Window>`) without ever naming a `wgpu` type.
 pub struct WindowRenderer {
     ctx: GpuContext,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
-    sample_count: u32,
-    msaa_color_view: Option<wgpu::TextureView>,
-    depth_view: wgpu::TextureView,
     scene: SceneRenderer,
 }
 
@@ -69,18 +66,12 @@ impl WindowRenderer {
         // between the stick and the screen, for no smoothness in return.
         config.desired_maximum_frame_latency = 1;
         // One-look policy: MSAA follows the same canonical/rich split as the lighting profile.
-        let rich = std::env::var("WOT_QUALITY").ok().as_deref().map(str::trim) == Some("high");
-        let sample_count = resolve_msaa_samples(
-            settings.msaa_samples,
-            rich,
-            std::env::var("WOT_MSAA").ok().as_deref(),
-        );
+        // Resolved through the shared helper, not inline, so an offscreen instrument that claims
+        // to measure this frame reaches the same number by construction.
+        let sample_count = shipped_sample_count(settings.msaa_samples);
         validate_msaa_support(&ctx, config.format, DEPTH_FORMAT, sample_count)?;
         surface.configure(&ctx.device, &config);
 
-        let msaa_color_view =
-            create_msaa_color_view(&ctx, config.format, config.width, config.height, sample_count);
-        let depth_view = create_depth_view(&ctx, config.width, config.height, sample_count);
         let scene = SceneRenderer::new_with_sample_count(
             &ctx,
             config.format,
@@ -88,7 +79,7 @@ impl WindowRenderer {
             terrain_vertices,
             terrain_indices,
         )?;
-        Ok(Self { ctx, surface, config, sample_count, msaa_color_view, depth_view, scene })
+        Ok(Self { ctx, surface, config, scene })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -98,9 +89,6 @@ impl WindowRenderer {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.ctx.device, &self.config);
-        self.msaa_color_view =
-            create_msaa_color_view(&self.ctx, self.config.format, width, height, self.sample_count);
-        self.depth_view = create_depth_view(&self.ctx, width, height, self.sample_count);
     }
 
     pub fn aspect_ratio(&self) -> f32 {
@@ -197,10 +185,7 @@ impl WindowRenderer {
         };
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let target = SceneRenderTarget {
-            color_view: self.msaa_color_view.as_ref().unwrap_or(&view),
-            resolve_target: self.msaa_color_view.as_ref().map(|_| &view),
-            depth_view: &self.depth_view,
-            sample_count: self.sample_count,
+            output_view: &view,
             width: self.config.width,
             height: self.config.height,
         };
@@ -208,55 +193,4 @@ impl WindowRenderer {
         frame.present();
         Ok(())
     }
-}
-
-fn create_msaa_color_view(
-    ctx: &GpuContext,
-    format: wgpu::TextureFormat,
-    width: u32,
-    height: u32,
-    sample_count: u32,
-) -> Option<wgpu::TextureView> {
-    if sample_count == 1 {
-        return None;
-    }
-
-    let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("window_msaa_color"),
-        size: wgpu::Extent3d {
-            width: width.max(1),
-            height: height.max(1),
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count,
-        dimension: wgpu::TextureDimension::D2,
-        format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        view_formats: &[],
-    });
-    Some(texture.create_view(&wgpu::TextureViewDescriptor::default()))
-}
-
-fn create_depth_view(
-    ctx: &GpuContext,
-    width: u32,
-    height: u32,
-    sample_count: u32,
-) -> wgpu::TextureView {
-    let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("window_depth"),
-        size: wgpu::Extent3d {
-            width: width.max(1),
-            height: height.max(1),
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count,
-        dimension: wgpu::TextureDimension::D2,
-        format: DEPTH_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        view_formats: &[],
-    });
-    texture.create_view(&wgpu::TextureViewDescriptor::default())
 }

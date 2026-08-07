@@ -170,59 +170,126 @@ pub(crate) fn run() {
 /// "one look" policy is stated in. The vehicles are spread in depth on purpose: the gear switches
 /// detail tier by distance, so a battle's real cost is a MIX of tiers, and a lineup parked at one
 /// range would measure a tier the game never draws alone.
+/// How this config decides each tank's running-gear tier.
+///
+/// The shipping builder derives the tier from ONE input -- the distance from the eye -- and
+/// nothing else reads that argument. So the brackets are expressed by lying about where the eye
+/// is, rather than by a second tier mechanism the probe would own: `None` is the builder's
+/// documented "no camera" case (authored construction, i.e. near), and a distant sentinel forces
+/// the far tier on every tank. The probe therefore has no tier rule of its own to drift from the
+/// game's.
+#[derive(Clone, Copy)]
+enum FleetGear {
+    /// The battle's own rule, applied per tank from this frame's real eye.
+    FromEye,
+    ForcedNear,
+    ForcedFar,
+}
+
+impl FleetGear {
+    fn eye(self, actual: [f32; 3]) -> Option<[f32; 3]> {
+        match self {
+            FleetGear::FromEye => Some(actual),
+            FleetGear::ForcedNear => None,
+            FleetGear::ForcedFar => Some([0.0, 0.0, -10_000.0]),
+        }
+    }
+}
+
+/// One row of the rotation: a scene the renderer already knows how to be, plus a name.
+///
+/// A struct rather than a tuple because the row grew to seven fields, and a reader counting
+/// `true, true, 60.0` positions to work out which flag is which is a reader about to misread a
+/// measurement.
+#[derive(Clone, Copy)]
+struct Config {
+    name: &'static str,
+    dressing: bool,
+    grass: bool,
+    fov: f32,
+    fleet: Option<FleetGear>,
+    shadows: bool,
+    ssao: bool,
+}
+
+impl Config {
+    /// The full battle scene. Every other row is this one with something taken away, so the
+    /// difference between them is the thing taken away and nothing else.
+    fn named(name: &'static str) -> Self {
+        Self {
+            name,
+            dressing: true,
+            grass: true,
+            fov: 60.0,
+            fleet: None,
+            shadows: true,
+            ssao: true,
+        }
+    }
+}
+
+/// The 7v7, built through the SAME call the battle makes.
+///
+/// It used to be built through `tank_render_objects_tiered` into the SCENE frame -- a second
+/// vehicle path the game does not use. That drew the fleet with the scene shader instead of
+/// `vehicle.wgsl`, without vehicle materials, and INTO THE FAR SHADOW CASCADE the battle
+/// deliberately excludes it from. Every fleet cost this probe ever reported described a fleet
+/// drawn as scenery.
 fn battle_lineup(
     battlefield: &terrain::BattlefieldMap,
-    catalog: &mut client::VehicleMeshCatalog,
-    tier: client::GearTier,
-) -> Vec<renderer_api::RenderObject> {
+    catalog: &mut client::VehicleAssetCatalog,
+    eye: Option<[f32; 3]>,
+) -> client::VehicleRenderFrame {
     use game_core::VehicleKind;
 
     // An engagement, not a parade: the fourteen sit 27..180 m out from the eye path (which walks
-    // +Z from z=380 to z≈443), so about four of them fall inside the 60 m gear-detail threshold
+    // +Z from z=380 to z~443), so about four of them fall inside the 60 m gear-detail threshold
     // at the closest point and the rest stay on the distance tier. A lineup parked at ONE range
-    // would measure a tier the game never draws alone; passing `eye` applies the battle's own
-    // rule per tank, which the first version of this instrument did not — it built every tank at
-    // the near tier and so measured gear the game does not draw at that distance.
+    // would measure a tier the game never draws alone.
     let roster = VehicleKind::PLAYABLE;
-    let mut objects = Vec::new();
-    for slot in 0..14 {
+    let mut tanks = Vec::with_capacity(14);
+    for slot in 0..14u32 {
         let team = slot / 7;
         let file = slot % 7;
-        let kind = roster[slot % roster.len()];
+        let kind = roster[slot as usize % roster.len()];
         let x = 442.0 + (file as f32 - 3.0) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
         let z = 470.0 + slot as f32 * 9.0;
         let ground = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
-        let snapshot = net::TankSnapshot {
-            tank_id: game_core::TankId(slot as u64 + 1),
+        tanks.push(engine::PresentationTank {
+            id: game_core::TankId(u64::from(slot) + 1),
             team: game_core::TeamId(team as u16 + 1),
             vehicle: kind,
-            position: [x, ground, z],
-            yaw_rad: if team == 0 { 0.4 } else { 3.5 },
-            hull_pitch_rad: 0.0,
-            hull_roll_rad: 0.0,
+            translation: [x, ground, z],
+            hull_yaw_rad: if team == 0 { 0.4 } else { 3.5 },
             turret_yaw_rad: 0.1,
-            turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.05,
             hit_points: 1000,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
-            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
-            track_damage_mask: 0,
-            track_hp: [game_core::TRACK_HP_MAX; 2],
-            ammo_counts: game_core::AmmoLoadout::default().counts,
-            selected_ammo: 0,
             spotted_by_teams_mask: 0,
-            armor_breaches: Default::default(),
+            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
+            track_damage_mask: 0,
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
-            rack_fire_remaining_s: None,
-        };
-        let tint = if team == 0 { [0.34, 0.38, 0.30] } else { [0.40, 0.34, 0.28] };
-        objects.append(&mut client::tank_render_objects_tiered(catalog, &snapshot, tint, tier));
+            armor_breaches: Default::default(),
+            track_left_m: 0.0,
+            track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
+        });
     }
-    objects
+    client::split_pbr_vehicle_render_frame_on_terrain(
+        catalog,
+        tanks,
+        game_core::TankId(1),
+        1.0,
+        Some(&battlefield.heightmap),
+        0,
+        eye,
+    )
 }
 
 /// Render a real battle scene offscreen and report the frame-time distribution.
@@ -249,20 +316,54 @@ fn frame_time_capture() {
     let (dressing_v, dressing_i) =
         client::grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
 
-    let Ok(ctx) = renderer_wgpu::GpuContext::headless() else {
+    // Armed for per-pass timing. Every config in the rotation pays the same query writes, so the
+    // DELTAS between them are untouched; the absolutes carry whatever the instrument costs, which
+    // is the honest trade for knowing where the time goes.
+    let Ok(ctx) =
+        renderer_wgpu::GpuContext::headless_with_options(renderer_wgpu::GpuContextOptions {
+            pass_timing: true,
+        })
+    else {
         println!("frame time: no headless GPU adapter — skipped");
         return;
     };
+    // The SHIPPED sample count, not the review one. Until this line existed the capture built
+    // its scene at 4x MSAA while the window ships 1x on every adapter, so every frame-time
+    // number this project has quoted described a picture nobody plays — more expensive in fill
+    // and cleaner on distant geometry than the real thing.
     let Ok(target) = renderer_wgpu::OffscreenTarget::new(&ctx, width, height) else {
         println!("frame time: offscreen target unavailable — skipped");
         return;
     };
     let Ok(mut renderer) =
-        renderer_wgpu::SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &statics_v, &statics_i)
     else {
         println!("frame time: scene renderer unavailable — skipped");
         return;
     };
+    // Which GPU produced these numbers, in the numbers themselves. The "one look" policy is
+    // stated in terms of one machine — the MX330 — and until this line every frame time this
+    // project quoted was attributed to that machine by belief, not by the instrument. This box
+    // carries two adapters (an Intel iGPU and the MX330); `PowerPreference::HighPerformance`
+    // should pick the discrete one, but "should" is not a measurement.
+    let adapter = ctx.adapter.get_info();
+    println!(
+        "frame time: {}x{} offscreen, {}x MSAA (the shipped count — review images use 4x), \
+         adapter: {} ({:?}, {:?}, driver {})",
+        width,
+        height,
+        renderer.sample_count(),
+        adapter.name,
+        adapter.backend,
+        adapter.device_type,
+        adapter.driver,
+    );
+    let profiler = renderer_wgpu::FrameProfiler::new(&ctx.device, &ctx.queue, true);
+    if let Some(reason) = profiler.unavailable_reason() {
+        println!("per-pass timing unavailable: {reason}");
+    }
+    let timed = profiler.active().is_some();
+    renderer.set_pass_profiler(profiler);
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
@@ -275,26 +376,22 @@ fn frame_time_capture() {
     // any other.
     // Pre-warm: creating a vehicle's catalog entry registers BOTH gear tiers, so one build puts
     // every mesh the rotation can ask for on the GPU before any frame is timed.
-    let mut catalog = client::VehicleMeshCatalog::default();
-    let warm = battle_lineup(&battlefield, &mut catalog, client::GearTier::FromEye(None));
-    for (handle, mesh) in catalog.take_pending_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
+    let mut catalog = client::VehicleAssetCatalog::default();
+    // Both tiers are built once, so every mesh the rotation can ask for is on the GPU before any
+    // frame is timed; a first-use bake inside a timed block would be measured as frame cost.
+    let warm = battle_lineup(&battlefield, &mut catalog, None);
+    let _ = battle_lineup(&battlefield, &mut catalog, Some([0.0, 0.0, -10_000.0]));
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+    }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(&ctx, handle, &maps);
     }
     // Objects are NOT draws: the renderer batches by (mesh, material), so a tank's 192 shoe
-    // links collapse into one instanced draw. Printing both stops the object count being read
-    // as a draw-call count — the first thing anyone reaches for when a frame is slow.
-    let plan = renderer_wgpu::RenderFrameBatchPlan::from_frame(
-        &renderer_api::RenderFrame {
-            objects: warm.clone(),
-            ..renderer_api::RenderFrame::default()
-        },
-        std::mem::size_of::<[f32; 24]>(),
-    );
-    println!(
-        "battle lineup: 14 vehicles, {} render objects at the near tier -> {} batched draws",
-        warm.len(),
-        plan.draws().len(),
-    );
+    // links collapse into one instanced draw. Both numbers are reported below, per config, and
+    // the draw count now comes from the FRAMES THEMSELVES rather than from a second, parallel
+    // implementation of batching that nothing else used and nothing kept honest.
+    let lineup_objects = warm.objects.len();
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 
@@ -314,31 +411,43 @@ fn frame_time_capture() {
     // what the distance tier can ever buy, and they sit in the SAME rotation as everything else
     // because a tier A/B run as separate processes measures this laptop's thermal ramp instead
     // (the baseline moved 19.2 -> 23.8 ms across four sequential runs while nothing changed).
-    let configs: [(&str, bool, bool, f32, Option<client::GearTier>); 7] = [
-        ("full scene", true, true, 60.0, None),
-        ("no card meadow", false, true, 60.0, None),
-        ("no near ring", true, false, 60.0, None),
-        ("scope 18deg", true, true, 18.0, None),
-        ("full + 7v7", true, true, 60.0, Some(client::GearTier::FromEye(None))),
-        (
-            "7v7 gear NEAR forced",
-            true,
-            true,
-            60.0,
-            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Near)),
-        ),
-        (
-            "7v7 gear FAR forced",
-            true,
-            true,
-            60.0,
-            Some(client::GearTier::Forced(vehicle_geometry::GearDetail::Far)),
-        ),
+    // The last two rows exist because the per-pass table said the scene pass is three quarters
+    // of the frame. Knowing a pass costs 12 ms is not the same as knowing WHY: shadows and SSAO
+    // each have their own passes AND a per-pixel cost inside the scene shader, and only turning
+    // them off separates the two. Both toggles are the renderer's own capability fallbacks, so
+    // this measures a configuration the renderer already knows how to be.
+    let configs = [
+        Config::named("full scene"),
+        Config { dressing: false, ..Config::named("no card meadow") },
+        Config { grass: false, ..Config::named("no near ring") },
+        Config { fov: 18.0, ..Config::named("scope 18deg") },
+        Config { fleet: Some(FleetGear::FromEye), ..Config::named("full + 7v7") },
+        Config { fleet: Some(FleetGear::ForcedNear), ..Config::named("7v7 gear NEAR forced") },
+        Config { fleet: Some(FleetGear::ForcedFar), ..Config::named("7v7 gear FAR forced") },
+        Config { shadows: false, ..Config::named("no shadows") },
+        Config { ssao: false, ..Config::named("no ssao") },
     ];
+    // The per-config arrays below are fixed-size, so a row added to the table without this
+    // number moving would silently drop off the end of the report.
+    const CONFIGS: usize = 9;
+    assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
-    let mut samples: [Vec<f64>; 7] = std::array::from_fn(|_| Vec::new());
+    let mut samples: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    // What each config actually submitted, taken off the last timed frame of its last block.
+    // Every timed frame of a config walks the same path and draws the same content, so one
+    // frame's counts describe the config.
+    let mut counts: [renderer_wgpu::FrameCounts; CONFIGS] = Default::default();
+    // The CPU half of the frame, split three ways. The GPU table says where the GPU's time goes;
+    // these say where the ~2 ms it does NOT account for goes.
+    let mut cpu_scene: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    let mut cpu_vehicle: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    let mut cpu_encode: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    // Per-pass GPU time, kept per config AND per rotation cycle. The ledger refuses to report if
+    // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
+    // authority, which is the exact reading the rotation exists to prevent.
+    let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -360,9 +469,11 @@ fn frame_time_capture() {
     }
     let _ = target.read_rgba8(&ctx);
 
-    for _cycle in 0..CYCLES {
-        for (config, &(_, with_dressing, with_grass, fov, tanks)) in configs.iter().enumerate() {
-            // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
+    for cycle in 0..CYCLES {
+        for (config, cfg) in configs.iter().enumerate() {
+            let Config { dressing: with_dressing, grass: with_grass, fov, fleet: tanks, .. } = *cfg;
+            // Buffer swaps and quality toggles happen OUTSIDE the timed frames; empty slices
+            // clear the slot.
             if with_dressing != dressing_bound {
                 if with_dressing {
                     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
@@ -371,6 +482,8 @@ fn frame_time_capture() {
                 }
                 dressing_bound = with_dressing;
             }
+            renderer.set_shadows_enabled(cfg.shadows);
+            renderer.set_ssao_enabled(cfg.ssao);
             for block_frame in 0..(BLOCK_WARMUP + block_frames) {
                 // Every block walks the SAME eye path: configs are compared on identical
                 // content, and nothing that caches per-position flatters a moving camera.
@@ -402,18 +515,22 @@ fn frame_time_capture() {
 
                 // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
                 // detail tier a tank draws at is a function of where the camera is this frame.
-                let mut grass = grass;
-                if let Some(tier) = tanks {
-                    let tier = match tier {
-                        client::GearTier::FromEye(_) => client::GearTier::FromEye(Some(eye.into())),
-                        forced => forced,
-                    };
-                    grass.append(&mut battle_lineup(&battlefield, &mut catalog, tier));
-                    for (handle, mesh) in catalog.take_pending_meshes() {
-                        renderer.register_mesh(&ctx, handle, &mesh);
-                    }
+                let fleet = tanks.map_or_else(
+                    || client::VehicleRenderFrame { objects: Vec::new(), armor_damage: Vec::new() },
+                    |gear| battle_lineup(&battlefield, &mut catalog, gear.eye(eye.into())),
+                );
+                for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+                    renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+                }
+                for (handle, maps) in catalog.take_pending_vehicle_materials() {
+                    renderer.register_vehicle_material(&ctx, handle, &maps);
                 }
 
+                // The timed window splits into three CPU phases and a fence. The whole frame minus
+                // the fence runs ~2 ms longer than the GPU says the frame took, so about that much
+                // is CPU — and until these three timers existed, nothing said WHICH of the three
+                // it was. `render` returns after submit, which is asynchronous, so its wall time
+                // is encode cost rather than GPU work.
                 let t = Instant::now();
                 renderer.set_render_frame(
                     &ctx,
@@ -422,10 +539,23 @@ fn frame_time_capture() {
                         ..renderer_api::RenderFrame::default()
                     },
                 );
+                let t_scene = t.elapsed();
+                // Always set it, even when empty: otherwise the previous config's fleet would
+                // linger into a config that is supposed to have none.
+                renderer.set_vehicle_render_frame(
+                    &ctx,
+                    &renderer_api::RenderFrame {
+                        objects: fleet.objects,
+                        armor_damage: fleet.armor_damage,
+                        ..renderer_api::RenderFrame::default()
+                    },
+                );
+                let t_vehicle = t.elapsed();
                 if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
                     println!("frame time: a render failed — skipped");
                     return;
                 }
+                let t_encode = t.elapsed();
                 // The GPU is asynchronous. Without a fence this times command SUBMISSION and
                 // reports a fiction; the readback is the cheapest fence available here — and it
                 // is NOT free, so its cost is measured separately below and reported alongside.
@@ -435,6 +565,20 @@ fn frame_time_capture() {
                 }
                 if block_frame >= BLOCK_WARMUP {
                     samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
+                    cpu_scene[config].push(t_scene.as_secs_f64() * 1000.0);
+                    cpu_vehicle[config].push((t_vehicle - t_scene).as_secs_f64() * 1000.0);
+                    cpu_encode[config].push((t_encode - t_vehicle).as_secs_f64() * 1000.0);
+                    counts[config] = renderer.last_frame_counts();
+                    // Read AFTER the wall-clock sample: the readback maps a buffer and would
+                    // otherwise be timed as frame cost, which is how an instrument starts
+                    // measuring itself.
+                    if let Some(timings) = renderer.read_pass_timings(&ctx) {
+                        let per_pass: Vec<Option<f32>> = renderer_wgpu::PassId::ALL
+                            .iter()
+                            .map(|id| timings.pass_ms(*id))
+                            .collect();
+                        stats.record(config, cycle, timings.frame_ms(), &per_pass);
+                    }
                 }
             }
         }
@@ -454,13 +598,15 @@ fn frame_time_capture() {
     let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
 
     let mut full_p50 = 0.0;
-    for (config, (name, _, _, _, _)) in configs.iter().enumerate() {
+    for (config, cfg) in configs.iter().enumerate() {
+        let name = cfg.name;
         let series = &mut samples[config];
         series.sort_by(f64::total_cmp);
         let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
         if config == 0 {
             full_p50 = at(0.50);
         }
+        let submitted = counts[config].total();
         println!(
             "frame time @{width}x{height} [{name}] ({} samples, {CYCLES} interleaved cycles): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms  (Δ vs full {:+.2} ms p50)",
             series.len(),
@@ -470,6 +616,87 @@ fn frame_time_capture() {
             series[series.len() - 1],
             at(0.50) - full_p50,
         );
+        println!(
+            "    submitted: {} draws, {} triangles, {} instances",
+            submitted.draws, submitted.triangles, submitted.instances,
+        );
+        let cpu = |label: &str, series: &mut Vec<f64>| {
+            series.sort_by(f64::total_cmp);
+            let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
+            println!("    cpu {label:<16} p50 {:>6.3} ms  p95 {:>6.3} ms", at(0.50), at(0.95));
+        };
+        cpu("set_render_frame", &mut cpu_scene[config]);
+        cpu("set_vehicle_frame", &mut cpu_vehicle[config]);
+        cpu("encode+submit", &mut cpu_encode[config]);
+        for id in renderer_wgpu::PassId::ALL {
+            let pass = counts[config].pass(*id);
+            if pass.draws > 0 {
+                println!(
+                    "      {:<18} {:>4} draws  {:>9} tris  {:>6} inst",
+                    id.label(),
+                    pass.draws,
+                    pass.triangles,
+                    pass.instances,
+                );
+            }
+        }
+    }
+    println!(
+        "  the 7v7 lineup is {lineup_objects} render objects; the counts above are what the renderer actually submitted after batching by (mesh, material)."
+    );
+
+    // Per-pass GPU time. Printed only if the rotation completed: the whole defence against this
+    // laptop's thermal ramp is that every config visited every cycle, and an aggregate over a
+    // half-finished rotation compares a cold config against a hot one while looking rigorous.
+    if !timed {
+        println!(
+            "
+per-pass GPU time: unavailable on this adapter"
+        );
+    } else if let Some(complaint) = stats.imbalance() {
+        println!(
+            "
+per-pass GPU time: {complaint}"
+        );
+    } else {
+        println!(
+            "
+per-pass GPU time (ms, timestamp queries; every config equally armed):"
+        );
+        for (config, cfg) in configs.iter().enumerate() {
+            let name = cfg.name;
+            let frame = stats.frame(config);
+            println!(
+                "  [{name}] frame p50 {:.3}  p95 {:.3}  p99 {:.3}  max {:.3}  ({} samples)",
+                frame.p50, frame.p95, frame.p99, frame.max, frame.samples,
+            );
+            // The SHARE is the number that survives a hot box. Absolutes drift with the
+            // laptop's thermal state by a factor of two; the split between passes does not,
+            // which makes it the part of this table worth acting on.
+            let share = |ms: f32| if frame.p50 > 0.0 { 100.0 * ms / frame.p50 } else { 0.0 };
+            for (index, id) in renderer_wgpu::PassId::ALL.iter().enumerate() {
+                let Some(pass) = stats.pass(config, index) else { continue };
+                println!(
+                    "      {:<18} p50 {:>7.3}  p95 {:>7.3}  p99 {:>7.3}   {:>5.1}% of frame",
+                    id.label(),
+                    pass.p50,
+                    pass.p95,
+                    pass.p99,
+                    share(pass.p50),
+                );
+            }
+            // Always, even at zero: a table that only mentions the gap when it is large teaches
+            // the reader that the passes are the whole frame.
+            let gap = stats.unattributed(config);
+            println!(
+                "      {:<18} p50 {:>7.3}  p95 {:>7.3}  p99 {:>7.3}   {:>5.1}% <- outside every pass",
+                "unattributed",
+                gap.p50,
+                gap.p95,
+                gap.p99,
+                share(gap.p50),
+            );
+        }
     }
     println!(
         "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",

@@ -179,18 +179,32 @@ impl ClientApp {
             match receiver.try_recv() {
                 Ok(rebuilt) => {
                     self.ground_rebuild_rx = None;
-                    let ((vertices, indices), (dressing_v, dressing_i)) = rebuilt;
+                    let ((vertices, indices), dressing) = rebuilt;
+                    // The fingerprint is recorded only where the upload actually happened, so a
+                    // harvest that arrives before the renderer exists cannot leave the client
+                    // believing the GPU holds a meadow it never received.
+                    let mut uploaded = None;
                     if let Some(renderer) = self.renderer.as_mut() {
                         renderer.update_battlefield_ground_geometry(&vertices, &indices);
                         // The card meadow follows the same ledger: the burst that dug the
-                        // hole also mowed the cards around it (Żywy Step P2).
-                        renderer.set_dressing(&dressing_v, &dressing_i);
+                        // hole also mowed the cards around it (Żywy Step P2). Usually it
+                        // mowed nothing, and then the worker sends `None` rather than the
+                        // ~68 MiB the slot already holds.
+                        if let Some(((dressing_v, dressing_i), fingerprint)) = dressing.as_ref() {
+                            renderer.set_dressing(dressing_v, dressing_i);
+                            uploaded = Some(*fingerprint);
+                        }
+                    }
+                    if let Some(fingerprint) = uploaded {
+                        self.dressing_uploaded_fingerprint = fingerprint;
                     }
                     if let Some(meshes) = self.battle_scene_meshes.as_mut() {
                         meshes.ground_vertices = vertices;
                         meshes.ground_indices = indices;
-                        meshes.dressing_vertices = dressing_v;
-                        meshes.dressing_indices = dressing_i;
+                        if let Some(((dressing_v, dressing_i), _)) = dressing {
+                            meshes.dressing_vertices = dressing_v;
+                            meshes.dressing_indices = dressing_i;
+                        }
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -218,6 +232,7 @@ impl ClientApp {
             .as_ref()
             .map(|meshes| std::sync::Arc::clone(&meshes.ground_maps));
         let materials = scene_build::terrain_maps::terrain_material_set_for(self.session.map_id());
+        let uploaded_dressing = self.dressing_uploaded_fingerprint;
         std::thread::spawn(move || {
             let ground = crate::battlefield_ground_mesh(&battlefield);
             let dressing = ground_maps
@@ -229,6 +244,13 @@ impl ClientApp {
                     )
                 })
                 .unwrap_or_default();
+            // A rebake is not a change. A shell has to land ON a card to mow one, and most of
+            // them land where nothing grows — so this mesh is usually the one already in the
+            // dressing slot, byte for byte. Deciding that HERE costs the worker a pass over its
+            // own output; deciding it on the render thread would cost the frame ~68 MiB of
+            // buffer allocation and upload, which is what it used to cost.
+            let fingerprint = renderer_api::scene_mesh_fingerprint(&dressing.0, &dressing.1);
+            let dressing = (fingerprint != uploaded_dressing).then_some((dressing, fingerprint));
             let _ = tx.send((ground, dressing));
         });
     }
@@ -353,8 +375,13 @@ impl ClientApp {
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
         renderer.set_water(&meshes.water_vertices, &meshes.water_indices);
-        // And its mid-field card meadow (Żywy Step P2) — the dressing slot.
+        // And its mid-field card meadow (Żywy Step P2) — the dressing slot. What went up is
+        // recorded, so the first crater rebake can recognise its own output and skip the upload.
         renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
+        self.dressing_uploaded_fingerprint = renderer_api::scene_mesh_fingerprint(
+            &meshes.dressing_vertices,
+            &meshes.dressing_indices,
+        );
         self.renderer = Some(renderer);
         // The renderer is born holding generic battlefield defaults; the app is born in battle,
         // so dress it in the actual match's weather right away.
