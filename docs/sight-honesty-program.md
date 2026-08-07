@@ -77,7 +77,7 @@ eye cannot tell them apart.** One place on screen, two unrelated meanings, both 
 | # | what | status |
 |---|---|---|
 | 1 | **The sight sits on the gun's line.** `SNIPER_SIGHT_ABOVE_TRUNNION_M` 0.35 → 0.12 m, the band a real TSh-2-22 occupies; locked by the optic-band test and the seam ratchet. | DONE |
-| 2 | **A refusal names its cause.** While BLOCKED the range readout prints the distance to where the shell actually stops, not to a tank that cannot be hit, and the amber X is led back to the crosshair. | |
+| 2 | **A refusal names its cause.** A blocked shot prints the metres to whatever eats the round, under the range, in the broken marker's own grey; a distant impact X is led back to the crosshair by a hairline. | DONE |
 | 3 | **The sight probes the world with the shell's body.** `aim_point_with_sweep` gets the calibre radius the trace already uses, so the crosshair stops on the barn roof instead of threading it. | |
 | 4 | **One green, one meaning.** The breech-shut ring stops speaking the penetration verdict's word. | |
 

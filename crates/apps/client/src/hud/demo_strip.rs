@@ -60,6 +60,7 @@ fn base(mode: ReticleMode) -> HudReticle {
         },
         // Out on purpose (see the module note): the readouts' fixed offsets would cross cells.
         target_distance_m: None,
+        block_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
         reload_fraction: 1.0,

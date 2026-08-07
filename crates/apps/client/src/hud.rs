@@ -174,6 +174,7 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         gun_clip: None,
         aim_radius_clip: 0.0,
         target_distance_m: None,
+        block_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
         reload_fraction: 1.0,

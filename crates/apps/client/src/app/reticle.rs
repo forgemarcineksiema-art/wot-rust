@@ -148,6 +148,10 @@ impl ClientApp {
             target_distance_m: sight
                 .on_surface
                 .then(|| (feedback.aim_world_point - muzzle).length()),
+            // A refusal names its cause: metres to whatever eats the round. The range above it
+            // answers "how far is what I am pointing at", which while blocked is a distance to
+            // something this gun cannot reach.
+            block_distance_m: feedback.block_distance_m,
             status: feedback.status,
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),

@@ -500,6 +500,93 @@ fn the_readout_column_clears_the_circle_and_the_incoming_hit_ring() {
     );
 }
 
+/// A refusal has to name its cause. The report of 2026-08-07 read exactly one number off a
+/// blocked sight — "327 M" — and that number is the range to a tank the gun cannot reach, which
+/// is the sight's one outright lie. The block range prints under it in the broken marker's own
+/// grey, so the two read as one statement: not there, and here is why.
+#[test]
+fn a_refusal_prints_where_the_shell_dies_under_the_range_it_cannot_have() {
+    for wrap_sniper in [false, true] {
+        let base = HudReticle {
+            aim_clip: [0.0, 0.0],
+            target_distance_m: Some(327.0),
+            block_distance_m: Some(61.0),
+            ..reticle_at(ReticleStatus::Blocked, None)
+        };
+        let hud = hud_with(if wrap_sniper { sniper(base) } else { base });
+
+        let block: Vec<_> =
+            hud.iter().filter(|v| v.color == RETICLE_BLOCKED).map(|v| v.position[1]).collect();
+        let range: Vec<_> = hud
+            .iter()
+            .filter(|v| v.color == TARGET_DISTANCE_COLOR)
+            .map(|v| v.position[1])
+            .collect();
+        assert!(!range.is_empty(), "the range still prints");
+        // The broken marker is also drawn in this grey, so the digits are the grey vertices that
+        // sit BELOW it, in the readout column.
+        let lowest_range = range.iter().copied().fold(f32::MAX, f32::min);
+        assert!(
+            block.iter().any(|y| *y < lowest_range),
+            "the block range draws under the target range: block {block:?}, range {range:?}"
+        );
+    }
+}
+
+#[test]
+fn an_arriving_shot_prints_no_block_range() {
+    let hud = hud_with(sniper(HudReticle {
+        target_distance_m: Some(327.0),
+        block_distance_m: None,
+        ..reticle_at(ReticleStatus::Clear, None)
+    }));
+    // Nothing in the broken grey at all: no marker, no digits.
+    assert!(
+        !hud.iter().any(|v| v.color == RETICLE_BLOCKED),
+        "a shot that arrives has nothing to explain"
+    );
+}
+
+/// The impact X answers a refusal, but at maximum zoom a fold 60 m out projects most of a screen
+/// below the crosshair, and an unconnected mark down there reads as clutter rather than as the
+/// answer. A hairline leader ties them into one sentence — and only while blocked, because on an
+/// arriving shot the X is the ordinary drop marker and a line to it would be noise on every long
+/// shot in the game.
+#[test]
+fn a_leader_ties_the_impact_x_to_the_crosshair_only_while_blocked() {
+    let dim_amber =
+        |v: &HudVertex| v.color[..3] == RETICLE_IMPACT[..3] && v.color[3] < RETICLE_IMPACT[3] * 0.6;
+    let far = Some([0.0, -0.55]);
+
+    let blocked = hud_with(sniper(HudReticle {
+        aim_clip: [0.0, 0.0],
+        impact_clip: far,
+        ..reticle_at(ReticleStatus::Blocked, None)
+    }));
+    let leader: Vec<_> = blocked.iter().filter(|v| dim_amber(v)).collect();
+    assert!(!leader.is_empty(), "a distant refusal is led back to the crosshair");
+    assert!(
+        leader.iter().all(|v| v.position[1] < -0.02 && v.position[1] > -0.54),
+        "the leader stops clear of the marker at one end and of the X at the other: {:?}",
+        leader.iter().map(|v| v.position[1]).collect::<Vec<_>>()
+    );
+
+    let arriving = hud_with(sniper(HudReticle {
+        aim_clip: [0.0, 0.0],
+        impact_clip: far,
+        ..reticle_at(ReticleStatus::Clear, None)
+    }));
+    assert!(!arriving.iter().any(&dim_amber), "an arriving shot's drop marker needs no leader");
+
+    // And a nearby impact gets none either — the line would be a smudge under the marker.
+    let close = hud_with(sniper(HudReticle {
+        aim_clip: [0.0, 0.0],
+        impact_clip: Some([0.0, -0.05]),
+        ..reticle_at(ReticleStatus::Blocked, None)
+    }));
+    assert!(!close.iter().any(dim_amber), "no leader inside the marker's own space");
+}
+
 /// Open sky has no range. The sight ray runs out at its own maximum reach and the sight aims at
 /// that point in mid-air — correct for laying the gun, a lie for a readout.
 #[test]
