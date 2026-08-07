@@ -22,8 +22,8 @@ fn arc_segments(radius: f32) -> u32 {
 }
 
 /// Where the gun's own state draws: just outside the live dispersion ring, never inside a
-/// hairline one. The loading arc and the loaded ring share it, so the red arc drains and the
-/// green circle closes on the SAME line — one gun, one place on screen.
+/// hairline one. The loading arc and the ready ring share it, so the red arc drains and the cyan
+/// circle closes on the SAME line — one gun, one place on screen.
 fn gun_state_radius(ring_radius: f32) -> f32 {
     (ring_radius + 0.008).max(RELOAD_ARC_MIN_RADIUS)
 }
@@ -103,7 +103,7 @@ pub(super) fn push_dispersion_ring(
 
 /// The remaining reload as a RED arc that DRAINS clockwise from the top: full circle right after
 /// firing, gone the instant the gun is ready. Red is the state, not an alarm — the trigger does
-/// nothing while this draws, and [`push_ready_ring`] closes the same line in green when it does.
+/// nothing while this draws, and [`push_ready_ring`] closes the same line when it does.
 pub(super) fn push_reload_arc(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
@@ -181,13 +181,16 @@ pub(super) fn push_denied_flash(
     }
 }
 
-/// The loaded gun: the drained arc CLOSES into one full green circle on the same line, holds,
-/// then dissolves into silence. No expansion, no second glyph — the state simply finished, and
-/// the whole engagement rhythm times itself against that closing.
+/// The loaded gun: the drained arc CLOSES into one full circle on the same line, holds, then
+/// dissolves into silence. No expansion, no second glyph — the state simply finished, and the
+/// whole engagement rhythm times itself against that closing.
 ///
-/// This replaced an expanding blue flash. That flash existed only because "ready" had no colour
-/// of its own (a loaded gun drew nothing), so the moment needed an event glyph to be seen at
-/// all; once red/green carry the state, the event is the colour change itself.
+/// The no-expansion rule is the durable half of an older decision: this ring replaced an
+/// expanding blue FLASH, which existed only because "ready" had no colour of its own (a loaded
+/// gun drew nothing), so the moment needed an event glyph to be seen at all. Once the arc's own
+/// line carries the state, the event is the state finishing, and no second glyph is needed. The
+/// hue moved on separately (see [`RETICLE_LOADED`]) — what mattered about that decision was the
+/// glyph, and the glyph is unchanged.
 pub(super) fn push_ready_ring(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],

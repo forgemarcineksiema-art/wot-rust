@@ -24,11 +24,22 @@ The persistent HUD reticle has three layers in every mode:
   trade for a promise that never breaks (register G11).
 
 The gun's own state is a COLOUR, on one line just outside the aiming circle:
-the reload arc drains RED, and closes into one full GREEN circle when the
-breech is shut. Green holds a beat and dissolves; a loaded gun then draws
-nothing. The circle brightens separately when the dispersion has settled onto
-THIS gun's minimum — damage included, since a wounded gun recovers toward a
-wider floor and reaching it is still "the aim has been taken".
+the reload arc drains RED, and closes into one full STEEL CYAN circle when the
+breech is shut. It holds a beat and dissolves; a loaded gun then draws nothing.
+No expansion and no second glyph — the ring closes on exactly the radius the arc
+drained on, which is what makes it a state finishing rather than an event
+announcing itself. The circle brightens separately when the dispersion has
+settled onto THIS gun's minimum — damage included, since a wounded gun recovers
+toward a wider floor and reaching it is still "the aim has been taken".
+
+**Green is the armour verdict and nothing else.** The gun's ready signal used to
+be green too, on the reasoning that green is already the sight's "yes" — and a
+player duly read the loaded ring as "I can shoot this" (register I4). Red may
+have two meanings at this sight because they agree by construction: the reload
+arc and the no-pen verdict both say "no damage from here, now". Loaded and
+penetrates are independent, so sharing a colour there is a homonym. Cyan is the
+only cool hue at the reticle, and it carries the one signal that reports the
+MACHINE rather than the target or the ground.
 
 ## The Hybrid Honesty Matrix
 

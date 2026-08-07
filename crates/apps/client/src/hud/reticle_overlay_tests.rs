@@ -662,11 +662,18 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
     )
 }
 
-/// The gun's state is a COLOUR the player already knows, not an invented event glyph: the arc
-/// drains RED while loading and closes into ONE full GREEN circle on the same line when it is
-/// done. The expanding blue flash is gone — no third colour may claim "ready" at the reticle.
+/// The gun's state is a COLOUR, on ONE line: the arc drains RED while loading and closes into
+/// one full circle on the same radius when it is done — no expansion, no second glyph.
+///
+/// The anti-expansion promise used to be asserted as "no vertex may be blue-dominant", because
+/// the closing ring replaced an expanding blue FLASH. That proxy outlived what it was protecting:
+/// the objection recorded beside the flash is about the GLYPH ("it existed only because ready had
+/// no colour of its own, so the moment needed an event glyph to be seen at all"), and the glyph is
+/// what this test now measures directly — same radius as the drained arc, and the same radius
+/// mid-hold as at the instant it closes. A hue check could never have caught an expanding ring
+/// that happened to be green.
 #[test]
-fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_line() {
+fn the_reload_arc_runs_red_and_the_ready_ring_closes_on_the_same_line_without_expanding() {
     use super::reticle_marks::{READY_RING_HOLD_S, READY_RING_TTL_S};
     use super::reticle_overlay::RETICLE_LOADED;
 
@@ -692,19 +699,15 @@ fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_li
         "nothing may read as loaded while the arc is still draining"
     );
 
-    // The moment it closes: one full green circle, at full strength, on the arc's own line.
+    // The moment it closes: one full circle, at full strength, on the arc's own line.
     let ready = hud_with_ready_age(loaded, Some(0.0));
-    let green: Vec<_> = ready.iter().filter(|v| v.color == RETICLE_LOADED).collect();
-    assert!(green.len() >= 12 * 6 && green.len() % 6 == 0, "one closed circle of whole quads");
+    let closed: Vec<_> = ready.iter().filter(|v| v.color == RETICLE_LOADED).collect();
+    assert!(closed.len() >= 12 * 6 && closed.len() % 6 == 0, "one closed circle of whole quads");
     let red_line = red.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
-    let green_line = green.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
+    let ready_line = closed.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
     assert!(
-        (red_line - green_line).abs() < 2.0e-3,
-        "the green ring must close on the line the red arc drained: {red_line} vs {green_line}"
-    );
-    assert!(
-        !ready.iter().any(|v| v.color[2] > v.color[0] + 0.2 && v.color[3] > 0.0),
-        "no blue flash: the colour change IS the ready event"
+        (red_line - ready_line).abs() < 2.0e-3,
+        "the ready ring must close on the line the red arc drained: {red_line} vs {ready_line}"
     );
 
     // It holds, then dissolves, then is silence again.
@@ -712,6 +715,15 @@ fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_li
     assert!(
         holding.iter().any(|v| v.color == RETICLE_LOADED),
         "the ring holds at full strength before dissolving"
+    );
+    // ...and holds its RADIUS too. This is the promise the deleted "no blue" assertion was
+    // proxying: an event glyph would have grown or shrunk across the beat, and a ring that stays
+    // exactly on the gun's own line cannot be one.
+    let held_line =
+        holding.iter().filter(|v| v.color == RETICLE_LOADED).map(radius).fold(0.0f32, f32::max);
+    assert!(
+        (held_line - ready_line).abs() < 1.0e-4,
+        "the ring must not expand or collapse across its beat: {ready_line} then {held_line}"
     );
     let dissolving = hud_with_ready_age(loaded, Some((READY_RING_HOLD_S + READY_RING_TTL_S) * 0.5));
     let fading: Vec<_> = dissolving
@@ -727,6 +739,56 @@ fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_li
     assert!(
         !expired.iter().any(|v| v.color[..3] == RETICLE_LOADED[..3]),
         "a loaded gun settles into silence: the ring is a beat, not a permanent glyph"
+    );
+}
+
+/// One green, one meaning.
+///
+/// The 2026-08-07 report read the breech-shut ring as "I can shoot this", which is exactly what
+/// its colour said: `[0.40, 0.90, 0.42]` against the pen verdict's `[0.35, 0.85, 0.40]`, five per
+/// cent apart, and the ring is the LOUDER of the two by a wide margin.
+///
+/// Not every close pair is a defect. Red's two — the reload arc and the no-pen verdict — agree by
+/// construction: both say "no damage from here, now", so they can never contradict each other and
+/// the family resemblance is doing real work. Loaded and penetrates are INDEPENDENT; all four
+/// combinations occur in play. That is what makes sharing a colour there a homonym rather than a
+/// family, and it is the distinction this test encodes — as a rule about the sight's language,
+/// not as today's bytes.
+#[test]
+fn the_guns_ready_ring_cannot_be_read_as_the_pen_verdict() {
+    use super::reticle_overlay::{RETICLE_LOADED, RETICLE_NO_PEN, RETICLE_RELOAD};
+
+    let distance = |a: [f32; 4], b: [f32; 4]| {
+        ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    };
+
+    // Green means one thing at this sight: the shell goes through. The gun's own state may not
+    // borrow it — and "not green" has to be structural, not a distance that a later tweak could
+    // drift back across.
+    let dominant = |c: [f32; 4]| (0..3).max_by(|a, b| c[*a].total_cmp(&c[*b])).expect("channels");
+    assert_eq!(
+        dominant(RETICLE_PEN),
+        1,
+        "the verdict is green-dominant, which is what makes green mean penetration"
+    );
+    assert_ne!(
+        dominant(RETICLE_LOADED),
+        1,
+        "the ready ring may not be green-dominant: {RETICLE_LOADED:?}"
+    );
+
+    // And far enough that no screen, no ground and no alpha blend brings them back together. The
+    // pair this replaced sat at 0.074; the reds that legitimately share a family sit at 0.100, so
+    // the bar is set well above BOTH — a homonym has to be further apart than a family is.
+    let homonym = distance(RETICLE_LOADED, RETICLE_PEN);
+    let family = distance(RETICLE_RELOAD, RETICLE_NO_PEN);
+    assert!(
+        homonym > 0.30,
+        "ready vs penetrates answer independent questions and must not be confusable: {homonym}"
+    );
+    assert!(
+        homonym > family * 3.0,
+        "two independent meanings must stand further apart than two that agree: {homonym} vs {family}"
     );
 }
 
