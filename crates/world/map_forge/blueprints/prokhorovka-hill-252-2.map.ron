@@ -403,7 +403,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976116,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (430.0, 545.0),
@@ -421,7 +421,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976117,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (110.0, 150.0),
@@ -457,7 +457,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 2617976120,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (430.0, 545.0),

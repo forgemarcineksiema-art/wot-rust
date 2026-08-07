@@ -20,20 +20,17 @@
     // Ostrogorsk: 26 trees at 15.62 ms of the 16.667 ms min-spec gate (42 measured 16.16 —
     // a pass with no room, which is not a pass). Dressing only; cover, terrain, roads and
     // gameplay stand untouched.
-    // Re-blessed 2026-08-06 (hero flora, solid trunks), ALL FOUR MAPS: the hero oak stops
-    // being a painting. Every authored tree now compiles a TreeLine box around its VISIBLE
-    // trunk — a shell stops in bark, an eye stops with it, and a hull pushes the tree over
-    // instead of driving through it. The canopy is deliberately left uncovered: leaves do not
-    // stop an AP round, and cover a crew cannot see itself taking is the dishonest kind. The
-    // boxes are DERIVED from the scatter, so a mirrored pair gets mirrored trunks and the two
-    // can never drift. They wear the new `TreeTrunk` kind — a hedgerow's crushable, felling
-    // behaviour with a mature bole's 240 hp, and the only kind that bakes no box of its own,
-    // because the tree's mesh is already standing in it. Trunks per map: 26 / 26 / 18 / 16.
+    // Re-blessed 2026-08-06 (Świat 2.0 — procedural-only flora), ALL FOUR MAPS: the imported
+    // CC0 hero oak is OUT. Every `FloraTree` scatter/row/fixed op became a procedural `Oak`
+    // (same seeds, regions, counts — a dressing swap, not a density change), the instanced
+    // LOD ladder in `scene_build::tree_lod` bakes from `world_forge::tree` now, and the trunk
+    // cover derives from the OAK (`map_forge::compile::oak_trunk_cover`, `TreeTrunk`, 240 hp,
+    // crushable — the canopy stays deliberately uncovered). The retired FloraTree/FloraPine/
+    // FloraBush kinds keep their wire identity and are never authored. Trunks per map:
+    // 26 / 26 / 18 / 16 (bystra / ostrogorsk / prokhorovka / orliny) — same trees, new bake.
     // Playability, symmetry and the cover contracts held un-relaxed.
-    ("bystra_valley", "9cb15c9f4492855d"),
-    ("orliny_pereval", "164c0b3f69aa2c5c"),
-    // Re-blessed 2026-08-05 (teren C4): the berm's east borrow ditch, broken at the gates
-    // — the dossier's own sculpt-session TODO, closed with form + materia, no mechanism.
-    ("ostrogorsk", "b5f17ba3cca56752"),
-    ("prokhorovka_hill_252_2", "88024bec70291d54"),
+    ("bystra_valley", "bc7f536d700a5dd2"),
+    ("orliny_pereval", "a08545de31aca7b3"),
+    ("ostrogorsk", "dd420156f2bb695a"),
+    ("prokhorovka_hill_252_2", "25169680a3214cb2"),
 ]

@@ -273,10 +273,11 @@ pub fn assemble_statics_mesh(buckets: &[SceneMeshData]) -> SceneMeshData {
     (vertices, indices)
 }
 
-/// The wreckage of a crushed tree line (Fizyczny Świat P11), zero wire: a stump where each of
-/// its scenery trees stood (the tree fell, its root did not), and one or two trunks lying
-/// along the run, seeded from the cover id so the same hedge always falls the same way. All
-/// of it low, non-blocking dressing inside the old footprint — matter, not a vacuum.
+/// The wreckage of a crushed tree line (Fizyczny Świat P11 / Świat 2.0 PR1), zero wire: a
+/// stump where each of its scenery trees stood (the tree fell, its root did not), and one or
+/// two trunks lying along the run, seeded from the cover id so the same hedge always falls
+/// the same way. Stumps are sized to the species' butt — a mature oak leaves a ~1 m bole,
+/// not a 26 cm diorama peg. All of it low, non-blocking dressing inside the old footprint.
 fn append_felled_tree_line(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -289,34 +290,41 @@ fn append_felled_tree_line(
     let half = Vec3::from_array(cover.half_extents_m);
     let ground_y = center.y - half.y;
 
-    // Stumps: one at the foot of every scenery tree the cleared box swallowed.
+    // Stumps: one at the foot of every tree the cleared box swallowed. Rocks and furniture
+    // standing in the footprint are not trees and do not leave a stump.
     for instance in &battlefield.scenery {
         let p = instance.position;
-        if (p[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
-            && (p[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+        if (p[0] - cover.center[0]).abs() > cover.half_extents_m[0]
+            || (p[2] - cover.center[2]).abs() > cover.half_extents_m[2]
         {
-            let stump_half = Vec3::new(0.13, 0.22, 0.13) * instance.scale.max(0.6);
-            push_surfaced_box(
-                vertices,
-                indices,
-                Vec3::new(p[0], ground_y + stump_half.y, p[2]),
-                stump_half,
-                BARK,
-                0.04,
-            );
-            // The sawn/torn top reads lighter — a thin heartwood cap.
-            push_surfaced_box(
-                vertices,
-                indices,
-                Vec3::new(p[0], ground_y + stump_half.y * 2.0 + 0.01, p[2]),
-                Vec3::new(stump_half.x * 0.9, 0.015, stump_half.z * 0.9),
-                HEARTWOOD,
-                0.06,
-            );
+            continue;
         }
+        let Some(species) = tree_species_for_scenery(instance.kind) else {
+            continue;
+        };
+        let stump_half = stump_half_extents(species, instance.scale);
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(p[0], ground_y + stump_half.y, p[2]),
+            stump_half,
+            BARK,
+            0.04,
+        );
+        // The sawn/torn top reads lighter — a thin heartwood cap.
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(p[0], ground_y + stump_half.y * 2.0 + 0.01, p[2]),
+            Vec3::new(stump_half.x * 0.9, 0.015, stump_half.z * 0.9),
+            HEARTWOOD,
+            0.06,
+        );
     }
 
     // Fallen trunks: one or two logs lying along the run, hashed from the cover id.
+    // A single TreeTrunk bole gets one log sized to a mature oak; a hedgerow keeps the
+    // along-run layout with bole-scale radius.
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in cover.id.bytes() {
         hash ^= u64::from(byte);
@@ -330,11 +338,22 @@ fn append_felled_tree_line(
     };
     let along_x = half.x >= half.z;
     let run = if along_x { half.x } else { half.z };
-    let logs = 1 + (next() * 1.99) as usize;
+    let single_bole = cover.kind == StaticCoverKind::TreeTrunk;
+    let logs = if single_bole { 1 } else { 1 + (next() * 1.99) as usize };
     for _ in 0..logs {
-        let length = (run * (0.35 + next() * 0.3)).clamp(1.2, 6.0);
-        let radius = 0.14 + next() * 0.08;
-        let slide = (next() - 0.5) * (run - length).max(0.0) * 1.6;
+        let length = if single_bole {
+            // A felled oak bole: most of the clear trunk, not a 6 m toothpick.
+            (world_forge::tree::TreeSpecies::Oak.trunk_height() * (0.7 + next() * 0.25))
+                .clamp(6.0, 12.0)
+        } else {
+            (run * (0.35 + next() * 0.3)).clamp(2.0, 10.0)
+        };
+        let radius = if single_bole {
+            world_forge::tree::TreeSpecies::Oak.trunk_radius() * (0.85 + next() * 0.2)
+        } else {
+            0.35 + next() * 0.2
+        };
+        let slide = (next() - 0.5) * (run - length * 0.5).max(0.0) * 1.6;
         let drift = (next() - 0.5) * (if along_x { half.z } else { half.x }) * 0.9;
         let yaw = (next() - 0.5) * 0.5 + if along_x { 0.0 } else { std::f32::consts::FRAC_PI_2 };
         let log_center = if along_x {
@@ -355,6 +374,38 @@ fn append_felled_tree_line(
             vertex.gloss = 0.04;
         }
     }
+}
+
+/// Map a scenery kind to the procedural species that sizes its stump. Retired Flora* kinds
+/// fall through to Oak (they are never authored; the arm keeps the match total).
+fn tree_species_for_scenery(kind: terrain::SceneryKind) -> Option<world_forge::tree::TreeSpecies> {
+    match kind {
+        terrain::SceneryKind::Oak | terrain::SceneryKind::FloraTree => {
+            Some(world_forge::tree::TreeSpecies::Oak)
+        }
+        terrain::SceneryKind::Poplar => Some(world_forge::tree::TreeSpecies::Poplar),
+        terrain::SceneryKind::Willow => Some(world_forge::tree::TreeSpecies::Willow),
+        terrain::SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
+        terrain::SceneryKind::Bush | terrain::SceneryKind::FloraBush => {
+            Some(world_forge::tree::TreeSpecies::Bush)
+        }
+        terrain::SceneryKind::Pine | terrain::SceneryKind::FloraPine => {
+            Some(world_forge::tree::TreeSpecies::Pine)
+        }
+        terrain::SceneryKind::Rock
+        | terrain::SceneryKind::Lamppost
+        | terrain::SceneryKind::DebrisHeap => None,
+    }
+}
+
+/// Half-extents of the stump a felled tree leaves: butt radius from the species table, knee-
+/// high so it reads as a bole and never as cover. Locked by the stump-scale test below.
+fn stump_half_extents(species: world_forge::tree::TreeSpecies, scale: f32) -> Vec3 {
+    let scale = scale.max(0.8);
+    let radius = species.trunk_radius() * scale;
+    // ~0.5 m tall on a mature oak; bushes stay knee-high relative to their own butt.
+    let half_height = (species.trunk_radius() * 1.0 * scale).clamp(0.25, 0.55);
+    Vec3::new(radius, half_height, radius)
 }
 
 /// Whether a scenery instance stands inside a cover box that has been cleared (phase gone), so it
@@ -1500,7 +1551,7 @@ mod tests {
 
     /// Levelling a tree line empties the volume it occupied and leaves wreckage on the ground.
     ///
-    /// The hero oaks that also dressed it are no longer part of this bake — they draw from the
+    /// The oaks that also dressed it are no longer part of this bake — they draw from the
     /// instanced LOD path, which drops them on the same rule (`tree_lod::tree_frame_objects`,
     /// locked by its own test). What this locks is the bake's half: nothing of the standing
     /// line survives up in its box, and something does survive down on the ground.
@@ -1578,6 +1629,53 @@ mod tests {
                 vertex.position[1]
             );
         }
+    }
+
+    /// Świat 2.0 PR1: a felled oak leaves a bole-scale stump, not a 26 cm diorama peg. The
+    /// stump's half-width tracks `TreeSpecies::Oak.trunk_radius` (~0.52 m).
+    #[test]
+    fn a_felled_oak_leaves_a_bole_scale_stump() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let trunk_index = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::TreeTrunk)
+            .expect("bystra oaks compile trunk cover");
+        let cover = &map.static_cover[trunk_index];
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[trunk_index] = 2;
+        let cleared = battlefield_scene_mesh_with_cover_states(&map, &states);
+        let bark = [0.26, 0.20, 0.13];
+        let ground_y = cover.center[1] - cover.half_extents_m[1];
+        // Stump verts sit near the trunk's XZ and within ~1.2 m of the ground (half-height
+        // ≤ 0.55 + cap). The fallen log also shares the bark colour but stretches far — keep
+        // only the near-footprint cluster.
+        let stump: Vec<_> = cleared
+            .0
+            .iter()
+            .filter(|v| {
+                v.color == bark
+                    && (v.position[0] - cover.center[0]).abs() < 1.2
+                    && (v.position[2] - cover.center[2]).abs() < 1.2
+                    && v.position[1] < ground_y + 1.2
+            })
+            .collect();
+        assert!(!stump.is_empty(), "a felled oak leaves a stump");
+        let max_half = stump
+            .iter()
+            .map(|v| {
+                (v.position[0] - cover.center[0]).abs().max((v.position[2] - cover.center[2]).abs())
+            })
+            .fold(0.0_f32, f32::max);
+        let oak_radius = world_forge::tree::TreeSpecies::Oak.trunk_radius();
+        assert!(
+            max_half >= oak_radius * 0.9,
+            "stump half-width {max_half} undershoots the oak butt {oak_radius}"
+        );
+        assert!(
+            max_half <= oak_radius * 1.15,
+            "stump half-width {max_half} overshoots the oak butt {oak_radius}"
+        );
     }
 
     #[test]
@@ -1969,12 +2067,12 @@ mod tests {
         assert!(vertices.len() > terrain_vertices.len(), "cover must add geometry");
         assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
         for cover in &battlefield.static_cover {
-            // A hero oak's bole is the one box the BAKE does not draw — its visual is the
+            // An oak's bole is the one box the BAKE does not draw — its visual is the
             // instanced tree, so the promise is kept by proving a tree actually stands in it.
             // The doctrine is unchanged: every box is something the player can see.
             if cover.kind == StaticCoverKind::TreeTrunk {
                 assert!(
-                    dressed_by_a_hero_tree(&battlefield, cover),
+                    dressed_by_an_oak(&battlefield, cover),
                     "trunk box {} must have the tree it claims to be",
                     cover.id
                 );
@@ -1992,14 +2090,15 @@ mod tests {
         }
     }
 
-    /// A `TreeTrunk` box is honest only if a hero tree really stands in it: same footprint,
-    /// same ground. This is the substitute proof for the geometry check the bake cannot make.
-    fn dressed_by_a_hero_tree(
+    /// A `TreeTrunk` box is honest only if a procedural oak really stands in it: same
+    /// footprint, same ground. This is the substitute proof for the geometry check the bake
+    /// cannot make.
+    fn dressed_by_an_oak(
         battlefield: &terrain::BattlefieldMap,
         cover: &terrain::StaticCoverObject,
     ) -> bool {
         battlefield.scenery.iter().any(|instance| {
-            instance.kind == terrain::SceneryKind::FloraTree
+            instance.kind == terrain::SceneryKind::Oak
                 && (instance.position[0] - cover.center[0]).abs() < 0.05
                 && (instance.position[2] - cover.center[2]).abs() < 0.05
         })
@@ -2064,7 +2163,7 @@ mod tests {
             // Trunk boxes bake nothing (their tree is instanced), so there is no bucket
             // geometry to survive — what must survive is the tree standing in them.
             if cover.kind == StaticCoverKind::TreeTrunk {
-                assert!(dressed_by_a_hero_tree(&battlefield, cover), "trunk {} kept", cover.id);
+                assert!(dressed_by_an_oak(&battlefield, cover), "trunk {} kept", cover.id);
                 continue;
             }
             let center = Vec3::from_array(cover.center);

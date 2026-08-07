@@ -27,20 +27,19 @@ pub fn push_scenery_instance(
         SceneryKind::Rock | SceneryKind::Lamppost | SceneryKind::DebrisHeap => None,
         SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => None,
     };
-    // Hero trees left the statics bake (phase 2): they draw from the instanced mesh path with
-    // runtime LOD (`crate::tree_lod`), so baking them here too would draw every tree twice —
-    // once at full detail regardless of distance, which is the cost the ladder exists to end.
-    if instance.kind == SceneryKind::FloraTree {
+    // The battlefield oak left the statics bake (phase 2): it draws from the instanced mesh
+    // path with runtime LOD (`crate::tree_lod`), so baking it here too would draw every tree
+    // twice — once at full detail regardless of distance, which is the cost the ladder exists
+    // to end.
+    if instance.kind == SceneryKind::Oak {
         return;
     }
-    if let Some(name) = imported_flora_name(instance.kind) {
-        push_imported_flora(vertices, indices, instance, name);
-        return;
-    }
-    // Retired imported kinds (hero-flora program) bake to NOTHING: falling through to the
-    // painted far frusta would resurrect the retired silhouette at close range under a
-    // hero-asset name.
-    if matches!(instance.kind, SceneryKind::FloraPine | SceneryKind::FloraBush) {
+    // Retired imported kinds (procedural-only decision, Świat 2.0) bake to NOTHING: falling
+    // through to the painted far frusta would resurrect the retired silhouette at close range.
+    if matches!(
+        instance.kind,
+        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush
+    ) {
         return;
     }
     if let Some(species) = species {
@@ -48,29 +47,6 @@ pub fn push_scenery_instance(
         return;
     }
     push_scenery_instance_far(vertices, indices, instance);
-}
-
-/// Which shipped `assets/flora` asset a scenery kind names, if any. The stylized download
-/// pack is retired (hero-flora program, 2026-08-05): `dab-hero` — a photoscan-textured oak
-/// distilled from the Blender master — is the first of the new family. `FloraPine` and
-/// `FloraBush` keep their wire identity (append-only enum) but currently name no asset and
-/// bake to nothing; they return when their hero counterparts are authored.
-fn imported_flora_name(kind: SceneryKind) -> Option<&'static str> {
-    match kind {
-        SceneryKind::FloraTree => Some("dab-hero"),
-        _ => None,
-    }
-}
-
-/// The trees-to-scale multiplier for an IMPORTED flora MESH (trees-to-scale, 2026-08-03;
-/// re-derived for hero flora 2026-08-05). `dab-hero` bakes at ~13 m — a young oak — and the
-/// world-scale program (W1, "Drzewa 1:1") wants a mature ~22 m specimen, so the species
-/// factor is 1.7 on top of the per-instance scatter scale.
-pub fn imported_flora_scale(kind: SceneryKind) -> f32 {
-    match kind {
-        SceneryKind::FloraTree => 1.7,
-        _ => 1.0,
-    }
 }
 
 /// The trees-to-scale multiplier for a BACKDROP-ring frustum stack. The far stack is coarser and
@@ -84,46 +60,8 @@ fn far_frustum_scale(kind: SceneryKind) -> f32 {
         SceneryKind::Poplar => 3.0,
         SceneryKind::Willow => 3.6,
         SceneryKind::Pine => 2.7,
-        SceneryKind::FloraTree => 3.3,
-        SceneryKind::FloraPine => 2.8,
         _ => 1.0,
     }
-}
-
-/// An imported CC0 asset, transformed into the static scene mesh with its UVs remapped into
-/// the packed atlas region (Flora 2.0, FL-4). Vertex color carries the baked material tint
-/// (base_color_factor from the source) and the FL-2 fragment path multiplies the sampled
-/// texel in — the product reconstructs the authored look; gloss keeps the leaf-wax sheen.
-/// No procedural surface treatment: the texture carries the detail.
-fn push_imported_flora(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    instance: &SceneryInstance,
-    name: &str,
-) {
-    let Some((asset, region)) = crate::flora_pack::flora_catalog().get(name) else {
-        // A kind naming a missing asset is a build error caught by the catalog tests; at
-        // runtime we draw nothing rather than lie with a placeholder.
-        return;
-    };
-    let base = Vec3::from_array(instance.position);
-    let rotation = Mat3::from_rotation_y(instance.yaw_rad);
-    let scale = instance.scale * imported_flora_scale(instance.kind);
-    let start = vertices.len() as u32;
-    for (index, position) in asset.positions.iter().enumerate() {
-        let world = base + rotation * (Vec3::from_array(*position) * scale);
-        let normal = (rotation * Vec3::from_array(asset.normals[index])).normalize_or_zero();
-        let uv = asset.uvs[index];
-        vertices.push(
-            SceneVertex::surfaced(world.to_array(), normal.to_array(), asset.colors[index], 0.07)
-                .with_surface(renderer_api::surface_role::FOLIAGE)
-                .with_uv([
-                    region.u_offset + uv[0] * region.u_scale,
-                    region.v_offset + uv[1] * region.v_scale,
-                ]),
-        );
-    }
-    indices.extend(asset.indices.iter().map(|index| index + start));
 }
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
@@ -172,6 +110,12 @@ fn push_baked_tree(
 }
 
 fn canopy_color_for(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
+    canopy_color_for_species(species)
+}
+
+/// The species canopy tone, shared by the statics bake and the instanced LOD ladder
+/// (`tree_lod`) so the two paths agree on the tree's colour.
+pub(crate) fn canopy_color_for_species(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
     match species {
         world_forge::tree::TreeSpecies::Oak => CANOPY_DARK,
         world_forge::tree::TreeSpecies::Poplar => CANOPY,
@@ -289,28 +233,10 @@ pub fn push_scenery_instance_far(
                 vertex.gloss = RUBBLE.1;
             }
         }
-        // Imported kinds at BACKDROP range: the painted frusta ARE the far representation
-        // (FL-4 LOD contract) — at kilometres a textured canopy and a cone read identically,
-        // and the ring carries thousands of instances.
-        SceneryKind::FloraTree => {
-            push_frustum(vertices, indices, base, 0.26 * s, 0.18 * s, 2.4 * s, TRUNK);
-            let crown = base + Vec3::Y * 2.1 * s;
-            push_frustum(vertices, indices, crown, 2.2 * s, 1.2 * s, 2.4 * s, CANOPY_DARK);
-            let top = crown + Vec3::Y * 2.4 * s;
-            push_frustum(vertices, indices, top, 1.2 * s, 0.3 * s, 1.6 * s, CANOPY);
-        }
-        SceneryKind::FloraPine => {
-            push_frustum(vertices, indices, base, 0.24 * s, 0.16 * s, 2.3 * s, TRUNK);
-            let skirt = base + Vec3::Y * 2.0 * s;
-            push_frustum(vertices, indices, skirt, 1.8 * s, 0.9 * s, 2.7 * s, CANOPY_PINE);
-            let tip = skirt + Vec3::Y * 2.7 * s;
-            push_frustum(vertices, indices, tip, 1.0 * s, 0.05 * s, 2.6 * s, CANOPY_PINE);
-        }
-        SceneryKind::FloraBush => {
-            push_frustum(vertices, indices, base, 1.1 * s, 0.8 * s, 0.6 * s, CANOPY_DARK);
-            let top = base + Vec3::Y * 0.55 * s;
-            push_frustum(vertices, indices, top, 0.75 * s, 0.2 * s, 0.55 * s, CANOPY);
-        }
+        // Retired imported kinds (procedural-only, Świat 2.0): they draw nothing anywhere —
+        // not here, not in the near bake. The variants stay in the enum (append-only wire
+        // identity) but are never authored; this arm only exists so the match is total.
+        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
         SceneryKind::Rock => {
             // Bare mineral faces catch the sky harder than anything vegetal around them.
             let start = vertices.len();
@@ -331,7 +257,9 @@ pub fn push_scenery_instance_far(
 
 // Each material is (color, gloss): bark is matte, leaf canopies carry the faint waxy sheen
 // that answers a wet sky without ever reading as plastic.
-const TRUNK: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
+pub(crate) const TRUNK_TONE: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
+#[allow(clippy::upper_case_acronyms)]
+const TRUNK: ([f32; 3], f32) = TRUNK_TONE;
 const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
 const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
@@ -395,9 +323,9 @@ mod tests {
         // Imported kinds (Flora 2.0) carry their own DELIBERATE ceiling: the whole program
         // exists to spend more triangles on close-range foliage, and the import gate already
         // enforces it per asset — the raise is per-kind, never a fleet-wide envelope bump.
-        // Kinds that contribute NOTHING to the statics bake: the retired imports (no asset
-        // named) and the hero oak (drawn from the instanced LOD path instead, where its own
-        // budget is locked by `tree_lod`'s tests).
+        // Kinds that contribute NOTHING to the statics bake: the retired imported kinds
+        // (no asset named) and the battlefield oak (drawn from the instanced LOD path
+        // instead, where its own budget is locked by `tree_lod`'s tests).
         for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush, SceneryKind::FloraTree] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -414,7 +342,6 @@ mod tests {
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
         for (kind, ceiling) in [
-            (SceneryKind::Oak, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::Poplar, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::Willow, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::FruitTree, MAX_TRIS_PER_INSTANCE),
@@ -450,44 +377,20 @@ mod tests {
             assert!(vertices.iter().all(|vertex| vertex.position[1] >= 3.0 - 1.0));
         }
     }
-
-    /// The imported kinds carry REMAPPED atlas UVs (never the whole page, never outside it)
-    /// on white vertices — the texture is the palette, exactly the FL-2 contract. Measured
-    /// on the hero oak, the one imported kind that still names an asset.
-    #[test]
-    fn imported_kinds_carry_remapped_atlas_uvs() {
-        // Measured on the instanced mesh: the hero oak no longer passes through the statics
-        // bake, but the UV contract it must honour is the packer's, not the bake's.
-        let mesh = crate::tree_lod::flora_mesh_asset("dab-hero").expect("the hero oak ships");
-        let vertices = mesh.vertices();
-        assert!(!vertices.is_empty());
-        let (region_area, page_area) = {
-            let (_, region) = crate::flora_pack::flora_catalog().get("dab-hero").expect("shipped");
-            (region.u_scale * region.v_scale, 1.0)
-        };
-        assert!(region_area < page_area, "the oak owns a region, not the page");
-        assert!(
-            vertices.iter().all(|v| {
-                (0.0..=1.0).contains(&v.uv[0])
-                    && (0.0..=1.0).contains(&v.uv[1])
-                    && v.color.iter().all(|channel| (0.0..=1.0).contains(channel))
-            }),
-            "in-page UVs with bounded material tints - factor x texel is the palette"
-        );
-    }
 }
 
 #[cfg(test)]
 mod baked_tree_tests {
     use super::*;
 
-    /// B2's on-screen contract: a battlefield tree is the BAKED species (hundreds of triangles,
-    /// canopy normals bent from the crown centroid), deterministic per position — the scene
-    /// bake is identical every time, yet no two shelterbelt oaks repeat.
+    /// B2's on-screen contract for the species that still bake into the statics (the oak is
+    /// instanced): a battlefield tree is the BAKED species (real geometry, canopy normals bent
+    /// from the crown centroid), deterministic per position — the scene bake is identical every
+    /// time, yet no two shelterbelt trees repeat.
     #[test]
     fn battlefield_trees_are_baked_species_deterministic_per_position() {
         let instance = |x: f32| SceneryInstance {
-            kind: SceneryKind::Oak,
+            kind: SceneryKind::Poplar,
             position: [x, 0.0, 4.0],
             yaw_rad: 0.3,
             scale: 1.0,
@@ -503,14 +406,14 @@ mod baked_tree_tests {
         assert_eq!(vertices_a.len(), vertices_b.len(), "the scene bake is deterministic");
         assert!(
             indices_a.len() / 3 > 60,
-            "a baked oak is real geometry, not a frustum stack: {} tris",
+            "a baked poplar is real geometry, not a frustum stack: {} tris",
             indices_a.len() / 3
         );
         let (vertices_c, _) = build(&instance(50.0));
         assert_ne!(
             vertices_a.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
             vertices_c.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
-            "two oaks at different spots are different individuals"
+            "two poplars at different spots are different individuals"
         );
         // Materia Świata 3: the trunk wears bark down the surface lane, the canopy does not.
         let barked = vertices_a
@@ -537,5 +440,24 @@ mod baked_tree_tests {
             },
         );
         assert!(indices.len() / 3 <= 60, "the far oak stays ~50 tris: {}", indices.len() / 3);
+    }
+
+    /// Świat 2.0 PR1: the backdrop silhouette must not undercut the mature near height — a
+    /// distant treeline that reads as a hedge undoes the trees-to-scale pass.
+    #[test]
+    fn far_frustum_oaks_and_pines_reach_mature_height() {
+        let tip = |kind: SceneryKind| {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance_far(
+                &mut vertices,
+                &mut indices,
+                &SceneryInstance { kind, position: [0.0, 0.0, 0.0], yaw_rad: 0.0, scale: 1.0 },
+            );
+            vertices.iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
+        };
+        assert!(tip(SceneryKind::Oak) > 15.0, "far oak: {}", tip(SceneryKind::Oak));
+        assert!(tip(SceneryKind::Pine) > 18.0, "far pine: {}", tip(SceneryKind::Pine));
+        assert!(tip(SceneryKind::Poplar) > 19.0, "far poplar: {}", tip(SceneryKind::Poplar));
     }
 }

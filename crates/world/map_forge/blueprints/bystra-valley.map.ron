@@ -337,7 +337,7 @@ MapBlueprint(
     scenery: [
         Scatter(
             seed: 3044695274,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (60.0, 460.0),
@@ -373,7 +373,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 3044695276,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (608.0, 648.0),
@@ -391,7 +391,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 3044695277,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (272.0, 328.0),
@@ -408,7 +408,7 @@ MapBlueprint(
             ),
         ),
         Fixed(
-            kind: FloraTree,
+            kind: Oak,
             spots: [
                 (712.0, 440.0),
                 (752.0, 438.0),

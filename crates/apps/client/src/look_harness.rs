@@ -60,11 +60,6 @@ pub fn render_review_views(
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.set_dressing(&ctx, &dressing_vertices, &dressing_indices);
-    // The lane the drift cost us: imported flora samples this atlas, and without it every leaf
-    // and trunk reads as the 1x1 white default. The live client has always bound it
-    // (`app::render`); the review path had not.
-    let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips, flora.normal_mips.as_ref());
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
     for (handle, mesh) in crate::grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);

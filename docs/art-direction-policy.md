@@ -144,9 +144,12 @@ What the set must cover, because a look this policy cannot see is a look it cann
 **One render path.** The reviewed frame and the locked frame must be produced by the same
 code, not by two hand-rolled copies of the same setup. They were once two copies, they
 drifted, and both silently stopped binding the foliage atlas — the committed goldens
-rendered imported flora as untextured white until the drift was closed. The shared harness
-(`crates/apps/client/src/look_harness.rs:66` binds the atlas for every reviewed and locked
-frame) is the structural form of the promise; the convention was not enough.
+rendered imported flora as untextured white until the drift was closed. That asset class is
+gone (flora is procedural-only since Świat 2.0, so there is no atlas left to forget to
+bind), which retires the specific bug and not the rule: what recurs is the DRIFT, and the
+next copy will forget some other binding. `look_harness::render_review_views` is the single
+path every reviewed and locked battlefield frame goes through — the structural form of the
+promise, because the convention was not enough.
 
 ## The garage is the same picture
 

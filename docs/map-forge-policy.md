@@ -186,13 +186,14 @@ not history):
    ≤ 600 tris; landmark styles (Church) may reach ~1200 now that bucket culling has landed.
    Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR
    description (one look: a dropped frame is a game bug, not a player problem).
-10. **Imported flora is CC0 only**, with a per-asset manifest (source, URL, author) in the
-    repo. No CC-BY — attribution management is a liability we do not take on. **Two
-    vegetation languages by design** (direction decision 2026-07-22): close-range
-    tree/bush quality comes from imported CC0 assets, never from more procedural work;
-    procedural trees stay as the far LOD and fallback. The look gate rules per species
-    (`flora_probe`): tree ACCEPTED, pine ACCEPTED, bush REJECTED (bad source model) —
-    **do not author `FloraBush` on maps** until a sourced replacement passes the gate.
+10. **Flora is procedural-only** (Świat 2.0 decision, 2026-08-06: „Florę CC0 usuwamy").
+    No imported meshes, no glTF/`.flora.*` pipeline, no license provenance to police — the
+    whole vegetation vocabulary is the `world_forge::tree` species table plus the grass
+    cards. The battlefield tree is the procedural **oak**: it draws through the instanced
+    LOD ladder (`scene_build::tree_lod`) and its trunk is a gameplay solid (`TreeTrunk`
+    cover derived in `map_forge`). The retired `FloraTree` / `FloraPine` / `FloraBush`
+    kinds keep their wire identity (append-only enum) but are **never authored** — the
+    `flora_integration` test locks that.
 
 ## The Editor
 

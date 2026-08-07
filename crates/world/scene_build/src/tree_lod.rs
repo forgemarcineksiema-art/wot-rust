@@ -1,18 +1,20 @@
-//! Instanced hero trees with runtime LOD (hero-flora phase 2).
+//! Instanced battlefield trees with runtime LOD (hero-flora phase 2, retargeted to
+//! procedural species in Świat 2.0).
 //!
-//! Trees left the statics bake: a 4.8k-tri oak baked once per instance into the shared vertex
+//! Trees left the statics bake: a ~1k-tri oak baked once per instance into the shared vertex
 //! buffer meant every copy paid full price in every pass, and the min-spec measurement put the
 //! ceiling at ten trees a map. As registered meshes they cost ONE upload and a matrix per
 //! instance — and, more importantly, the copy the camera sees at 200 m can be a different mesh
 //! from the one it sees at 20 m.
 //!
-//! Three rungs, all distilled from the same Blender master so the silhouette never changes:
-//! the near mesh (fronds on real branches), a sparse mid mesh, and a two-quad impostor. Each
-//! rung is height-corrected to the near mesh, so a swap moves texels, never the tree's size.
+//! Three rungs of ONE procedural oak: the near mesh (full LOD0 bake), a sparse mid mesh
+//! (LOD1), and a painted frustum impostor. Each rung stands the same height by construction
+//! (one species, one parameter set), so a swap moves texels, never the tree's size.
 
 use glam::{Mat4, Quat, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject};
 use terrain::{SceneryInstance, SceneryKind};
+use world_forge::tree::{TreeLod as BakeLod, TreeSpecies};
 
 /// Mesh handles for the three rungs. They sit BELOW [`renderer_api::SHADOWLESS_DRESSING_MESH_BASE`]
 /// on purpose: grass may skip the depth passes, a tree may not — its shadow is half of what a
@@ -23,10 +25,10 @@ pub const TREE_IMPOSTOR_MESH: MeshHandle = MeshHandle(0xFEE0_0003);
 
 const _: () = assert!(TREE_IMPOSTOR_MESH.0 < renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
 
-/// The shipped asset behind each rung.
-const NEAR_ASSET: &str = "dab-hero";
-const MID_ASSET: &str = "dab-hero-lod2";
-const IMPOSTOR_ASSET: &str = "dab-hero-imp";
+/// The procedural species behind the battlefield trees. One species ships the instanced
+/// ladder; the rarer kinds (poplar/willow/pine) stay in the statics bake where their counts
+/// are small enough not to need it.
+pub const BATTLE_TREE: TreeSpecies = TreeSpecies::Oak;
 
 /// Rung boundaries in metres, and the band a tree must re-cross before it swaps back. Without
 /// the hysteresis a tree parked exactly on a boundary would flicker between two meshes as the
@@ -37,17 +39,21 @@ pub const HYSTERESIS_M: f32 = 8.0;
 
 /// How deep a trunk is set into the ground it stands on, metres.
 ///
-/// The importer normalizes every flora asset by grounding its min-y to 0, so a tree planted at
-/// the sampled terrain height stands exactly ON the surface: not one centimetre of the root
-/// flare is buried, and the moment the ground tilts, the downhill side of a 1.1 m flare lifts
-/// clear and the tree reads as a prop set down on the field. Real trunks meet soil. Sinking by
-/// a third of the flare's radius keeps the swell in contact across the terrain's ordinary
-/// grade while leaving the visible root buttresses above ground.
+/// A tree planted at the sampled terrain height stands exactly ON the surface, and the moment
+/// the ground tilts, the downhill side of the butt lifts clear and the tree reads as a prop
+/// set down on the field. Real trunks meet soil. Sinking a third of a metre keeps the butt in
+/// contact across the terrain's ordinary grade.
 ///
 /// Applied identically to all three rungs, so a LOD swap never shifts a tree vertically. The
 /// trunk's cover box is deliberately NOT moved with it: that column blocks from the ground
 /// line up, and the part being buried here is the part below it.
 const TRUNK_SINK_M: f32 = 0.35;
+
+/// A reference seed for the registered rung meshes. Per-instance variety rides the instance
+/// matrix (yaw/scale), and the canopy's deterministic limb/lobe phases come from the species
+/// bake; the ladder ships one representative individual per rung so every copy on the map
+/// shares the silhouette the species table promises.
+const RUNG_SEED: u64 = 0xDAB_0001;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeLod {
@@ -62,14 +68,6 @@ impl TreeLod {
             Self::Near => TREE_NEAR_MESH,
             Self::Mid => TREE_MID_MESH,
             Self::Impostor => TREE_IMPOSTOR_MESH,
-        }
-    }
-
-    fn asset(self) -> &'static str {
-        match self {
-            Self::Near => NEAR_ASSET,
-            Self::Mid => MID_ASSET,
-            Self::Impostor => IMPOSTOR_ASSET,
         }
     }
 }
@@ -94,52 +92,75 @@ pub fn select_lod(distance_m: f32, previous: Option<TreeLod>) -> TreeLod {
     }
 }
 
-/// One flora asset as a registerable mesh in ASSET-LOCAL space: grounded at y = 0 and centred
-/// in XZ, exactly as the import gate normalized it. Position, yaw and scale ride the instance
+/// One procedural rung as a registerable mesh in LOCAL space: grounded at y = 0 and centred
+/// in XZ, exactly as `bake_tree_lod` returns it. Position, yaw and scale ride the instance
 /// matrix, so the same upload serves every copy on the map.
 ///
-/// The vertex build mirrors `foliage::push_imported_flora` — same atlas region remap, same
-/// FOLIAGE surface role, same baked vertex light — because the two paths must agree pixel for
-/// pixel while both exist.
-pub fn flora_mesh_asset(name: &str) -> Option<MeshAsset> {
-    let (asset, region) = crate::flora_pack::flora_catalog().get(name)?;
-    let top = asset.height_m.max(0.01);
-    // Wind is a NEAR-rung luxury. The gust field is per-vertex noise evaluated in four passes,
-    // and past the near band a 28 cm sway is under a pixel — the mid mesh and the impostor
-    // carry sway 0, so the shader's `sway > 0` branch skips them entirely and the cost lands
-    // only on the handful of trees a crew can actually watch move.
-    let windy = name == NEAR_ASSET;
-    let vertices = asset
-        .positions
-        .iter()
-        .enumerate()
-        .map(|(index, position)| {
-            let uv = asset.uvs[index];
-            renderer_api::SceneVertex::surfaced(
-                *position,
-                asset.normals[index],
-                asset.colors[index],
-                0.07,
-            )
-            .with_surface(renderer_api::surface_role::FOLIAGE)
-            .with_sway(if windy { sway_allowance(*position, top) } else { 0.0 })
-            .with_uv([
-                region.u_offset + uv[0] * region.u_scale,
-                region.v_offset + uv[1] * region.v_scale,
-            ])
-        })
-        .collect();
-    Some(MeshAsset::new(vertices, asset.indices.clone()))
+/// Trunk and canopy are merged into one `SceneVertex` stream with the same colouring the
+/// statics bake uses (`foliage::push_baked_tree` — painterly crown shading, bark surface lane
+/// on the trunk), so the instanced path and the baked path agree while both exist.
+pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
+    let bake_lod = match lod {
+        TreeLod::Near => BakeLod::Close,
+        TreeLod::Mid | TreeLod::Impostor => BakeLod::Mid,
+    };
+    let tree = world_forge::tree::bake_tree_lod(BATTLE_TREE, RUNG_SEED, bake_lod);
+    let height = tree.canopy.bounds().map(|bounds| bounds.max.y).unwrap_or(1.0).max(0.01);
+    // Wind is a NEAR-rung luxury. The gust field is per-vertex noise, and past the near band
+    // a 28 cm sway is under a pixel — the coarser rungs carry sway 0, so the shader's
+    // `sway > 0` branch skips them entirely and the cost lands only on the handful of trees
+    // a crew can actually watch move.
+    let windy = lod == TreeLod::Near;
+
+    let mut vertices: Vec<renderer_api::SceneVertex> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let canopy_color = crate::foliage::canopy_color_for_species(BATTLE_TREE);
+    for (mesh, (color, gloss), is_canopy) in
+        [(&tree.trunk, crate::foliage::TRUNK_TONE, false), (&tree.canopy, canopy_color, true)]
+    {
+        let start = vertices.len() as u32;
+        for vertex in mesh.vertices() {
+            let position = vertex.position;
+            // The painterly gradient, same as the statics bake: crown tops toward the light,
+            // undersides into shade; the trunk wears bark down the surface lane.
+            let shade = if is_canopy { 0.82 + 0.18 * vertex.normal.y.max(0.0) } else { 1.0 };
+            let role = if is_canopy {
+                renderer_api::surface_role::FOLIAGE
+            } else {
+                renderer_api::surface_role::BARK
+            };
+            vertices.push(
+                renderer_api::SceneVertex::surfaced(
+                    position.to_array(),
+                    vertex.normal.to_array(),
+                    [color[0] * shade, color[1] * shade, color[2] * shade],
+                    gloss,
+                )
+                .with_surface(role)
+                .with_sway(if windy {
+                    sway_allowance(position.to_array(), height, is_canopy)
+                } else {
+                    0.0
+                }),
+            );
+        }
+        indices.extend(mesh.indices().iter().map(|index| index + start));
+    }
+    MeshAsset::new(vertices, indices)
 }
 
 /// How far a vertex may ride the wind, in mesh-local metres (the shader scales it by the
-/// instance). A tree bends the way a cantilever does — nothing at the root, most at the tips —
-/// so the allowance grows with BOTH the height up the trunk and the reach out from its axis.
-/// The two together are what separates a swaying canopy from a wobbling trunk: bark near the
-/// axis keeps a fraction of a centimetre, leaf cards at the crown edge get a quarter metre.
-fn sway_allowance(position: [f32; 3], height_m: f32) -> f32 {
+/// instance). A tree bends the way a cantilever does — nothing at the root, most at the
+/// tips — so the allowance grows with BOTH the height up the trunk and the reach out from
+/// its axis. The two together are what separates a swaying canopy from a wobbling trunk:
+/// bark near the axis keeps a fraction of a centimetre, canopy lobes at the crown edge get
+/// a quarter metre. Trunk vertices opt out entirely (they are the planted end).
+fn sway_allowance(position: [f32; 3], height_m: f32, is_canopy: bool) -> f32 {
+    if !is_canopy {
+        return 0.0;
+    }
     const TIP_SWAY_M: f32 = 0.28;
-    const FULL_REACH_M: f32 = 3.0;
+    const FULL_REACH_M: f32 = 4.0;
     let height01 = (position[1] / height_m).clamp(0.0, 1.0);
     let reach = (position[0] * position[0] + position[2] * position[2]).sqrt();
     let reach01 = (reach / FULL_REACH_M).clamp(0.0, 1.0);
@@ -147,24 +168,13 @@ fn sway_allowance(position: [f32; 3], height_m: f32) -> f32 {
     TIP_SWAY_M * height01 * height01 * (0.25 + 0.75 * reach01)
 }
 
-/// Every rung's mesh, ready for `register_mesh`. A rung whose asset is missing is skipped
-/// rather than faked: [`tree_frame_objects`] then falls back to the near mesh, so a partial
-/// asset set degrades to "always full detail" instead of to an invisible tree.
+/// Every rung's mesh, ready for `register_mesh`. All three ship by construction — the species
+/// table always bakes.
 pub fn tree_lod_meshes() -> Vec<(MeshHandle, MeshAsset)> {
     [TreeLod::Near, TreeLod::Mid, TreeLod::Impostor]
         .into_iter()
-        .filter_map(|lod| flora_mesh_asset(lod.asset()).map(|mesh| (lod.mesh(), mesh)))
+        .map(|lod| (lod.mesh(), tree_mesh_asset(lod)))
         .collect()
-}
-
-/// Per-rung uniform scale that makes every mesh stand as tall as the near one. The distilled
-/// meshes land within a few percent of each other (decimation moves the canopy tip, the
-/// impostor's billboard is measured off a render), and a few percent of 22 m is a visible pop.
-fn rung_height_fix(lod: TreeLod) -> f32 {
-    let catalog = crate::flora_pack::flora_catalog();
-    let near = catalog.get(NEAR_ASSET).map(|(asset, _)| asset.height_m).unwrap_or(1.0);
-    let own = catalog.get(lod.asset()).map(|(asset, _)| asset.height_m).unwrap_or(near);
-    if own > 0.01 { near / own } else { 1.0 }
 }
 
 /// Mirrors the statics bake's rule (`battlefield::scenery_stands_in_cleared_cover`): phase 2 is
@@ -210,12 +220,9 @@ pub fn tree_frame_objects(
     eye: Vec3,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
-    let catalog = crate::flora_pack::flora_catalog();
-    let have_mid = catalog.get(MID_ASSET).is_some();
-    let have_impostor = catalog.get(IMPOSTOR_ASSET).is_some();
     let trees: Vec<&SceneryInstance> = scenery
         .iter()
-        .filter(|instance| instance.kind == SceneryKind::FloraTree)
+        .filter(|instance| instance.kind == SceneryKind::Oak)
         .filter(|instance| !stands_in_cleared_cover(instance, cover, cover_states))
         .collect();
     if state.levels.len() != trees.len() {
@@ -225,17 +232,10 @@ pub fn tree_frame_objects(
     for (index, instance) in trees.iter().enumerate() {
         let base = Vec3::from_array(instance.position);
         let distance = (Vec3::new(base.x, 0.0, base.z) - Vec3::new(eye.x, 0.0, eye.z)).length();
-        let mut lod = select_lod(distance, state.levels[index]);
-        // Degrade to the rung we actually shipped rather than drawing nothing.
-        if (lod == TreeLod::Mid && !have_mid) || (lod == TreeLod::Impostor && !have_impostor) {
-            lod = TreeLod::Near;
-        }
+        let lod = select_lod(distance, state.levels[index]);
         state.levels[index] = Some(lod);
-        let scale = instance.scale
-            * crate::foliage::imported_flora_scale(instance.kind)
-            * rung_height_fix(lod);
         let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(scale),
+            Vec3::splat(instance.scale),
             Quat::from_rotation_y(instance.yaw_rad),
             base - Vec3::Y * TRUNK_SINK_M,
         );
@@ -244,7 +244,7 @@ pub fn tree_frame_objects(
             mesh: lod.mesh(),
             material: MaterialHandle(0),
             transform: transform.to_cols_array_2d(),
-            // The asset's own vertex colours carry the canopy's baked light; the per-instance
+            // The canopy's painterly shade is baked into the vertex colours; the per-instance
             // tint stays neutral (tint-weighted vertices are a vehicle-livery mechanism).
             tint: [1.0, 1.0, 1.0],
         });
@@ -282,10 +282,10 @@ mod tests {
         );
     }
 
-    /// Every shipped rung registers a real mesh, and the near rung is the heaviest — the whole
-    /// point of the ladder. Heights agree after the per-rung fix, so a swap does not resize.
+    /// The shipped ladder descends in cost: the near rung is the heaviest, the impostor the
+    /// lightest — the whole point of the ladder.
     #[test]
-    fn the_shipped_ladder_descends_in_cost_and_agrees_in_height() {
+    fn the_shipped_ladder_descends_in_cost() {
         let meshes = tree_lod_meshes();
         assert_eq!(meshes.len(), 3, "three rungs ship");
         let tris = |handle: MeshHandle| {
@@ -296,19 +296,30 @@ mod tests {
                 .expect("rung ships")
         };
         assert!(tris(TREE_NEAR_MESH) > tris(TREE_MID_MESH));
-        assert!(tris(TREE_MID_MESH) > tris(TREE_IMPOSTOR_MESH));
-        assert!(tris(TREE_IMPOSTOR_MESH) <= 8, "the impostor is a crossed pair of quads");
+        assert!(tris(TREE_MID_MESH) >= tris(TREE_IMPOSTOR_MESH));
+        assert!(
+            tris(TREE_NEAR_MESH) <= world_forge::tree::TREE_LOD0_TRIS.end() + 200,
+            "the near rung stays in the species budget: {}",
+            tris(TREE_NEAR_MESH)
+        );
+    }
 
-        let catalog = crate::flora_pack::flora_catalog();
-        let near_h = catalog.get(NEAR_ASSET).expect("near ships").0.height_m;
-        for lod in [TreeLod::Mid, TreeLod::Impostor] {
-            let own = catalog.get(lod.asset()).expect("rung ships").0.height_m;
-            let corrected = own * rung_height_fix(lod);
-            assert!(
-                (corrected - near_h).abs() < 0.01,
-                "{lod:?} stands {corrected} m against the near rung's {near_h} m"
-            );
-        }
+    /// LOD must not shrink the tree (Świat 2.0 PR1): Near and Mid stand the same height, so a
+    /// rung swap moves triangles, never metres. Impostor shares Mid's bake today.
+    #[test]
+    fn lod_rungs_agree_in_height() {
+        let near = tree_mesh_asset(TreeLod::Near);
+        let mid = tree_mesh_asset(TreeLod::Mid);
+        let tip = |mesh: &MeshAsset| {
+            mesh.vertices().iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
+        };
+        let near_tip = tip(&near);
+        let mid_tip = tip(&mid);
+        assert!(
+            (near_tip - mid_tip).abs() < 0.05,
+            "Near tip {near_tip} vs Mid tip {mid_tip} — a swap must not resize the oak"
+        );
+        assert!(near_tip > 15.0, "the battlefield oak stays mature: {near_tip}");
     }
 
     /// The frame builder emits one instance per authored tree, grounded where the map put it.
@@ -316,7 +327,7 @@ mod tests {
     fn every_authored_tree_draws_once_at_its_map_position() {
         let scenery = vec![
             SceneryInstance {
-                kind: SceneryKind::FloraTree,
+                kind: SceneryKind::Oak,
                 position: [100.0, 5.0, 100.0],
                 yaw_rad: 0.4,
                 scale: 1.0,
@@ -335,8 +346,8 @@ mod tests {
         assert_eq!(objects[0].mesh, TREE_NEAR_MESH, "ten metres away is the near rung");
         let translation = objects[0].transform[3];
         // Planted, not parked on top: the trunk is set into its ground by `TRUNK_SINK_M`,
-        // because the importer grounds every asset's min-y to 0 and a tree left at exactly
-        // the sampled height shows daylight under its flare the moment the field tilts.
+        // because a tree left at exactly the sampled height shows daylight under its butt the
+        // moment the field tilts.
         assert_eq!(
             [translation[0], translation[1], translation[2]],
             [100.0, 5.0 - TRUNK_SINK_M, 100.0]
@@ -350,26 +361,26 @@ mod tests {
     #[test]
     fn the_wind_lane_plants_the_root_and_frees_the_canopy() {
         let height = 13.0;
-        let root = sway_allowance([0.0, 0.0, 0.0], height);
-        let trunk_mid = sway_allowance([0.2, height * 0.4, 0.0], height);
-        let crown_edge = sway_allowance([4.5, height * 0.95, 0.0], height);
+        let root = sway_allowance([0.0, 0.0, 0.0], height, true);
+        let trunk_mid = sway_allowance([0.2, height * 0.4, 0.0], height, false);
+        let crown_edge = sway_allowance([4.5, height * 0.95, 0.0], height, true);
         assert_eq!(root, 0.0, "the root is planted");
-        assert!(trunk_mid < 0.03, "mid-trunk bark barely moves, got {trunk_mid}");
+        assert_eq!(trunk_mid, 0.0, "the trunk stays out of the wind lane");
         assert!(crown_edge > 0.2, "the crown edge rides the gust, got {crown_edge}");
 
-        // And the shipped mesh actually carries it: some vertices planted, some free.
-        let mesh = flora_mesh_asset(NEAR_ASSET).expect("the hero oak ships");
+        // And the shipped near mesh actually carries it: some vertices planted, some free.
+        let mesh = tree_mesh_asset(TreeLod::Near);
         let max = mesh.vertices().iter().fold(0.0_f32, |acc, v| acc.max(v.sway));
         assert!(max > 0.15, "the canopy opted into the wind, peak {max}");
-        assert!(mesh.vertices().iter().any(|v| v.sway < 0.001), "the trunk's base stays out of it");
+        assert!(mesh.vertices().iter().any(|v| v.sway == 0.0), "the trunk stays planted");
 
-        // The coarse rungs opt OUT entirely: their sway would cost four passes of gust noise
-        // for motion that lands under a pixel.
-        for far in [MID_ASSET, IMPOSTOR_ASSET] {
-            let coarse = flora_mesh_asset(far).expect("rung ships");
+        // The coarse rungs opt OUT entirely: their sway would cost gust-noise passes for motion
+        // that lands under a pixel.
+        for far in [TreeLod::Mid, TreeLod::Impostor] {
+            let coarse = tree_mesh_asset(far);
             assert!(
                 coarse.vertices().iter().all(|v| v.sway == 0.0),
-                "{far} must not pay for wind nobody can see"
+                "{far:?} must not pay for wind nobody can see"
             );
         }
     }
@@ -379,7 +390,7 @@ mod tests {
     #[test]
     fn a_tree_in_a_levelled_cover_box_stops_drawing() {
         let scenery = vec![SceneryInstance {
-            kind: SceneryKind::FloraTree,
+            kind: SceneryKind::Oak,
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
