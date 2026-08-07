@@ -196,6 +196,38 @@ impl FleetGear {
     }
 }
 
+/// One row of the rotation: a scene the renderer already knows how to be, plus a name.
+///
+/// A struct rather than a tuple because the row grew to seven fields, and a reader counting
+/// `true, true, 60.0` positions to work out which flag is which is a reader about to misread a
+/// measurement.
+#[derive(Clone, Copy)]
+struct Config {
+    name: &'static str,
+    dressing: bool,
+    grass: bool,
+    fov: f32,
+    fleet: Option<FleetGear>,
+    shadows: bool,
+    ssao: bool,
+}
+
+impl Config {
+    /// The full battle scene. Every other row is this one with something taken away, so the
+    /// difference between them is the thing taken away and nothing else.
+    fn named(name: &'static str) -> Self {
+        Self {
+            name,
+            dressing: true,
+            grass: true,
+            fov: 60.0,
+            fleet: None,
+            shadows: true,
+            ssao: true,
+        }
+    }
+}
+
 /// The 7v7, built through the SAME call the battle makes.
 ///
 /// It used to be built through `tank_render_objects_tiered` into the SCENE frame -- a second
@@ -379,23 +411,34 @@ fn frame_time_capture() {
     // what the distance tier can ever buy, and they sit in the SAME rotation as everything else
     // because a tier A/B run as separate processes measures this laptop's thermal ramp instead
     // (the baseline moved 19.2 -> 23.8 ms across four sequential runs while nothing changed).
-    let configs: [(&str, bool, bool, f32, Option<FleetGear>); 7] = [
-        ("full scene", true, true, 60.0, None),
-        ("no card meadow", false, true, 60.0, None),
-        ("no near ring", true, false, 60.0, None),
-        ("scope 18deg", true, true, 18.0, None),
-        ("full + 7v7", true, true, 60.0, Some(FleetGear::FromEye)),
-        ("7v7 gear NEAR forced", true, true, 60.0, Some(FleetGear::ForcedNear)),
-        ("7v7 gear FAR forced", true, true, 60.0, Some(FleetGear::ForcedFar)),
+    // The last two rows exist because the per-pass table said the scene pass is three quarters
+    // of the frame. Knowing a pass costs 12 ms is not the same as knowing WHY: shadows and SSAO
+    // each have their own passes AND a per-pixel cost inside the scene shader, and only turning
+    // them off separates the two. Both toggles are the renderer's own capability fallbacks, so
+    // this measures a configuration the renderer already knows how to be.
+    let configs = [
+        Config::named("full scene"),
+        Config { dressing: false, ..Config::named("no card meadow") },
+        Config { grass: false, ..Config::named("no near ring") },
+        Config { fov: 18.0, ..Config::named("scope 18deg") },
+        Config { fleet: Some(FleetGear::FromEye), ..Config::named("full + 7v7") },
+        Config { fleet: Some(FleetGear::ForcedNear), ..Config::named("7v7 gear NEAR forced") },
+        Config { fleet: Some(FleetGear::ForcedFar), ..Config::named("7v7 gear FAR forced") },
+        Config { shadows: false, ..Config::named("no shadows") },
+        Config { ssao: false, ..Config::named("no ssao") },
     ];
+    // The per-config arrays below are fixed-size, so a row added to the table without this
+    // number moving would silently drop off the end of the report.
+    const CONFIGS: usize = 9;
+    assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
-    let mut samples: [Vec<f64>; 7] = std::array::from_fn(|_| Vec::new());
+    let mut samples: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
     // What each config actually submitted, taken off the last timed frame of its last block.
     // Every timed frame of a config walks the same path and draws the same content, so one
     // frame's counts describe the config.
-    let mut counts: [renderer_wgpu::FrameCounts; 7] = Default::default();
+    let mut counts: [renderer_wgpu::FrameCounts; CONFIGS] = Default::default();
     // Per-pass GPU time, kept per config AND per rotation cycle. The ledger refuses to report if
     // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
     // authority, which is the exact reading the rotation exists to prevent.
@@ -422,8 +465,10 @@ fn frame_time_capture() {
     let _ = target.read_rgba8(&ctx);
 
     for cycle in 0..CYCLES {
-        for (config, &(_, with_dressing, with_grass, fov, tanks)) in configs.iter().enumerate() {
-            // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
+        for (config, cfg) in configs.iter().enumerate() {
+            let Config { dressing: with_dressing, grass: with_grass, fov, fleet: tanks, .. } = *cfg;
+            // Buffer swaps and quality toggles happen OUTSIDE the timed frames; empty slices
+            // clear the slot.
             if with_dressing != dressing_bound {
                 if with_dressing {
                     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
@@ -432,6 +477,8 @@ fn frame_time_capture() {
                 }
                 dressing_bound = with_dressing;
             }
+            renderer.set_shadows_enabled(cfg.shadows);
+            renderer.set_ssao_enabled(cfg.ssao);
             for block_frame in 0..(BLOCK_WARMUP + block_frames) {
                 // Every block walks the SAME eye path: configs are compared on identical
                 // content, and nothing that caches per-position flatters a moving camera.
@@ -535,7 +582,8 @@ fn frame_time_capture() {
     let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
 
     let mut full_p50 = 0.0;
-    for (config, (name, _, _, _, _)) in configs.iter().enumerate() {
+    for (config, cfg) in configs.iter().enumerate() {
+        let name = cfg.name;
         let series = &mut samples[config];
         series.sort_by(f64::total_cmp);
         let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
@@ -591,7 +639,8 @@ per-pass GPU time: {complaint}"
             "
 per-pass GPU time (ms, timestamp queries; every config equally armed):"
         );
-        for (config, (name, _, _, _, _)) in configs.iter().enumerate() {
+        for (config, cfg) in configs.iter().enumerate() {
+            let name = cfg.name;
             let frame = stats.frame(config);
             println!(
                 "  [{name}] frame p50 {:.3}  p95 {:.3}  p99 {:.3}  max {:.3}  ({} samples)",
