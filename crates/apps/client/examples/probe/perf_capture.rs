@@ -267,11 +267,22 @@ fn frame_time_capture() {
         println!("frame time: scene renderer unavailable — skipped");
         return;
     };
+    // Which GPU produced these numbers, in the numbers themselves. The "one look" policy is
+    // stated in terms of one machine — the MX330 — and until this line every frame time this
+    // project quoted was attributed to that machine by belief, not by the instrument. This box
+    // carries two adapters (an Intel iGPU and the MX330); `PowerPreference::HighPerformance`
+    // should pick the discrete one, but "should" is not a measurement.
+    let adapter = ctx.adapter.get_info();
     println!(
-        "frame time: {}x{} offscreen, {}x MSAA (the shipped count — review images use 4x)",
+        "frame time: {}x{} offscreen, {}x MSAA (the shipped count — review images use 4x), \
+         adapter: {} ({:?}, {:?}, driver {})",
         width,
         height,
         target.sample_count(),
+        adapter.name,
+        adapter.backend,
+        adapter.device_type,
+        adapter.driver,
     );
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_v, &water_i);
