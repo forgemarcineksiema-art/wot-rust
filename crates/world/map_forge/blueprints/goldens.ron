@@ -29,8 +29,15 @@
     // FloraBush kinds keep their wire identity and are never authored. Trunks per map:
     // 26 / 26 / 18 / 16 (bystra / ostrogorsk / prokhorovka / orliny) — same trees, new bake.
     // Playability, symmetry and the cover contracts held un-relaxed.
-    ("bystra_valley", "bc7f536d700a5dd2"),
-    ("orliny_pereval", "a08545de31aca7b3"),
-    ("ostrogorsk", "dd420156f2bb695a"),
-    ("prokhorovka_hill_252_2", "25169680a3214cb2"),
+    // Re-blessed 2026-08-07 (Świat 2.0 Fala 2, PR 5 — TreeLine 2.0), ALL FOUR MAPS: the
+    // treeline LOS boxes grow from 8.4–10 m slabs to 15.6–22 m (half_y 7.8–11.0) so the
+    // collision wall towers over the mature oaks standing in it — before, a crew could be
+    // spotted OVER a wall its eyes could not see through. Footprints (X/Z), positions and
+    // every other cover entry stand untouched; the scene_build szpaler bake (undergrowth,
+    // staggered boles, undulating crown) fills the new volume and stays inside it, proven by
+    // `tree_line_boxes_contain_the_trees_they_host` and the all-maps cover-visuals lock.
+    ("bystra_valley", "8823049281b1443a"),
+    ("orliny_pereval", "c3363477b2635837"),
+    ("ostrogorsk", "d611b9d57e80de5e"),
+    ("prokhorovka_hill_252_2", "cf14583c8f3eec40"),
 ]

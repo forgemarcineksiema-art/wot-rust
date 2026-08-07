@@ -522,14 +522,14 @@ MapBlueprint(
             name: "far field windbreak (south)",
             kind: TreeLine,
             at: (Fixed(560.0), Fixed(175.0)),
-            half_extents_m: (16.0, 4.2, 2.8),
+            half_extents_m: (16.0, 8.2, 2.8),
         ),
         Cover(
             id: "field_screen_far_north",
             name: "far field windbreak (north)",
             kind: TreeLine,
             at: (Fixed(560.0), Fixed(825.0)),
-            half_extents_m: (16.0, 4.2, 2.8),
+            half_extents_m: (16.0, 8.2, 2.8),
         ),
         // Field screens between the rises and the boulevard: honest LOS blocks for the
         // open-flank run.
@@ -538,14 +538,14 @@ MapBlueprint(
             name: "field windbreak (south)",
             kind: TreeLine,
             at: (Fixed(600.0), Fixed(250.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 9.0, 3.0),
         ),
         Cover(
             id: "field_screen_north",
             name: "field windbreak (north)",
             kind: TreeLine,
             at: (Fixed(600.0), Fixed(750.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 9.0, 3.0),
         ),
         // The dense core (PR-12): four tenement columns, six mirrored rows — 48 masonry
         // blocks in street canyons, with the born-ruin pairs punched into the gaps above.

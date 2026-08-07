@@ -55,6 +55,20 @@ const TRUNK_SINK_M: f32 = 0.35;
 /// shares the silhouette the species table promises.
 const RUNG_SEED: u64 = 0xDAB_0001;
 
+/// The rendered canopy tip of one instanced battle tree, metres above the instance's map
+/// position: the rung mesh's tip at the instance scale, minus the trunk sink. The number a
+/// TreeLine collision box must tower over to honestly contain the oaks it hosts (PR 5).
+/// Test-only: the honesty lock `tree_line_boxes_contain_the_trees_they_host` is its caller.
+#[cfg(test)]
+pub(crate) fn battle_tree_rendered_top_m(scale: f32) -> f32 {
+    let tip = world_forge::tree::bake_tree_lod(BATTLE_TREE, RUNG_SEED, BakeLod::Close)
+        .canopy
+        .bounds()
+        .map(|bounds| bounds.max.y)
+        .unwrap_or(0.0);
+    tip * scale - TRUNK_SINK_M
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeLod {
     Near,

@@ -75,6 +75,17 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             wetness: 0.0,
         },
         View {
+            // Świat 2.0 PR 5: the field hedgerow as a szpaler — undergrowth, staggered boles,
+            // an undulating crown rising to its 17 m box, not the old dark slab.
+            name: "bystra_treeline",
+            eye: at(300.0, 10.0, 315.0),
+            target: at(300.0, 8.0, 240.0),
+            lighting: SceneLighting::bystra_clear_afternoon(),
+            sky: (0.62, 0.66, 0.72),
+            rain: 0.0,
+            wetness: 0.0,
+        },
+        View {
             name: "bystra_town_rain",
             eye: at(680.0, 5.0, 470.0),
             target: at(760.0, 3.0, 510.0),

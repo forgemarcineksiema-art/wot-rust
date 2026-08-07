@@ -29,11 +29,12 @@ Decyzje nadrzędne, od których program się wywodzi:
   cokół hardcode `[0.24, 0.22, 0.20]` + rola `LEGACY` (`world_forge/src/building.rs`,
   `scene_build/src/battlefield.rs`). Tenement ~366 tris przy locku 30–400; polityka już
   sankcjonuje ≤600 dla Tenement/FactoryHall.
-- TreeLine/Wreck/RailCover = pojedynczy vertex-colored AABB (`push_surfaced_box`); skała
-  to jeden obrócony box 12 tris (`foliage.rs`). Wzorzec „dobrej" konstrukcji istnieje:
-  WoodenFence/StoneWall (multi-box w AABB, locki uczciwości).
-- Skala: drzewa 7–10 m (realnie 20–35), horyzont 15 m
-  (realnie 60–200), wraki +90% ZA DUŻE, zero wariancji instancji. Kamera już docelowa:
+- TreeLine/RailCover = pojedynczy vertex-colored AABB (`push_surfaced_box`); skała
+  to jeden obrócony box 12 tris (`foliage.rs`). Wreck zostaje pudłem (poza programem).
+  Wzorzec „dobrej" konstrukcji istnieje: WoodenFence/StoneWall (multi-box w AABB,
+  locki uczciwości).
+- Skala: drzewa już 1:1, horyzont 15 m (realnie 60–200), wraki footprint już OK
+  (sylwetka poza programem), zero wariancji instancji. Kamera już docelowa:
   FOV 48° pion (PR 2, 2026-08-07).
 - Perf: Ostrogorsk z pełną florą ~438k wierzchołków statics, klatka pod 16.7 ms z małym
   zapasem — każda geometria WYMIENIA lub mierzy, nigdy „dokłada po cichu".
@@ -47,11 +48,11 @@ Decyzje nadrzędne, od których program się wywodzi:
 | 3 | Horyzont ~15 m; Prochorowka bez horyzontu | ściana doliny 60–200 m w realu |
 | 4 | Gęstość flory 64–190 drzew/km²; 180 drzew backdropu | dolina niesie tysiące |
 | 5 | Landmarki: kościoły 13–14 m, wiatrak 6 m, silosy 11 m | realnie 25–35 / 12–18 / 20–30 |
-| 6 | Pasy TreeLine 8,4–10 m | realnie 15–25 m |
+| 6 | Pasy TreeLine 8,4–10 m | **JUICZ** (PR 5, 2026-08-07): boxy LOS 15,6–22 m + geometria szpaleru w AABB |
 | 7 | Zero wariancji instancji (Row/Fixed jeden scale+yaw, budynki 0°/90°) | klony niszczą odbiór skali |
 | 8 | Teren: cell 5 m, relief ±1,3 m | NIE densyfikować — rzeźbić autorsko |
 | 9 | Mgła 0.00013 → 12% zaniku na 1 km | daleki plan w pełnym kontraście = płasko |
-| 10 | Wraki 6,8×3,2×12,4 m | **JUICZ** (bless 2026-08-03): wraki mają już footprint ~3,5×2,2×6,5 m; program dokłada im SYLWETKĘ (kadłub+wieża+lufa w AABB), nie wymiary |
+| 10 | Wraki 6,8×3,2×12,4 m | **JUICZ / OUT OF SCOPE** (bless 2026-08-03): footprint ~3,5×2,2×6,5 m; sylwetka (kadłub+wieża+lufa) **nie wchodzi** do programu — wraki zostają pudłem (decyzja 2026-08-07) |
 
 ## Flora: co „procedural-only" znaczy w kodzie (realizowane w tej samej zmianie)
 
@@ -105,11 +106,15 @@ proceduralne), assets/flora delete, notices, docs.
   przyporami, dzwonnica z PRAWIDZIWYMI otworami: 4 słupy narożne + żaluzje). Budżety per
   styl: Cottage 320 i Barn 310 mieszczą się we wspólnym 400; Townhouse 644→800,
   Church 464→600. Lock: `village_glass_is_recessed_and_the_barn_has_none`.
-- **PR 5 — TreeLine 2.0.** Boxy LOS do 15–25 m RAZEM z geometrią szpaleru (rzędy pni +
-  podszyt w AABB); dowód AABB przed/po; jeden świadomy bless map.
-- **PR 6 — Wraki 2.0.** Generator sylwetki (kadłub+wieża+lufa w AABB) + naprawa
-  pomylonych osi wraka fabrycznego Ostrogorska; bless.
-- **PR 7 — RailCover 2.0.** Geometria rewetmentu/nasypu w AABB.
+- **PR 5 — TreeLine 2.0.** (**in flight 2026-08-07**): boxy LOS 15,6–22 m RAZEM z
+  geometrią szpaleru (podszyt + staggered boles + undulating crown w AABB); locki
+  `tree_line_boxes_contain_the_trees_they_host` + `cover_visuals_never_leave_the_collision_box`
+  (wszystkie 4 mapy); bless goldenów; probe `bystra_treeline`.
+- ~~**PR 6 — Wraki 2.0.**~~ **OUT OF SCOPE (2026-08-07).** Footprint już OK; sylwetka
+  nie wchodzi — wraki zostają pudłem. Numer PR zostaje wolny (nie renumerujemy).
+- **PR 7 — RailCover 2.0.** (**in flight 2026-08-07**): geometria rewetmentu/nasypu w
+  AABB (fill + dressed face + coping + buttresses); square tall → coursed tower (silos);
+  lock `the_rail_cover_wears_a_revetment_inside_its_box`. Bez zmian boxów LOS (bez bless).
 - **PR 8 — Skały i drobnica.** Nowy `world_forge::rock` (deterministyczny, niski budżet)
   + bogatszy DebrisHeap; `Rock` przestaje być pudłem.
 - **PR 9 — Landmarki pion (W5).** Kościoły 25–35, wiatrak 12–18, silosy 20–30, dłuższa

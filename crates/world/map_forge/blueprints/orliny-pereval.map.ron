@@ -212,14 +212,14 @@ MapBlueprint(
             name: "Dolina hedgerow screen (south)",
             kind: TreeLine,
             at: (Fixed(240.0), Fixed(260.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 8.4, 3.0),
         ),
         Cover(
             id: "dolina_screen_north",
             name: "Dolina hedgerow screen (north)",
             kind: TreeLine,
             at: (Fixed(240.0), Fixed(740.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 8.4, 3.0),
         ),
         TownGrid(
             id_prefix: "orlinoye_house",

@@ -691,15 +691,8 @@ fn append_cover_box(
     let half = Vec3::from_array(cover.half_extents_m);
     match cover.kind {
         StaticCoverKind::FarmBuilding => append_building(vertices, indices, cover, center, half),
-        StaticCoverKind::RailCover => {
-            // Stone: walls, parapets, log revetments — a cool masonry tone with a worn sheen.
-            push_surfaced_box(vertices, indices, center, half, [0.40, 0.38, 0.34], 0.16);
-        }
-        StaticCoverKind::TreeLine => {
-            // The solid undergrowth mass; real trees (scenery) fill it visually, so the box
-            // itself darkens into their shadow instead of competing with the canopies.
-            push_surfaced_box(vertices, indices, center, half, [0.11, 0.20, 0.10], 0.05);
-        }
+        StaticCoverKind::RailCover => append_rail_cover(vertices, indices, center, half),
+        StaticCoverKind::TreeLine => append_tree_line(vertices, indices, cover),
         // A hero oak's bole draws NOTHING here: the instanced tree mesh already stands in this
         // box, to the metre. Baking a solid as well would put a second trunk inside the first —
         // the one kind whose "the box IS the visual footprint" promise is kept by the dressing
@@ -716,6 +709,280 @@ fn append_cover_box(
         StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
         StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
     }
+}
+
+/// The tree line as a szpaler (Świat 2.0 PR 5) — not a slab. A low undergrowth mass carries
+/// the run's foot, then two STAGGERED rows of boles rise to the crown line; the crowns stay
+/// the instanced oaks of the scenery in-fill. Every element lives INSIDE the collision box,
+/// which now towers to the trees' own height (15–25 m): what blocks the shell is what the
+/// eye sees standing there, and there is no dark slab left wearing the treeline's name.
+fn append_tree_line(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    const UNDERGROWTH: [f32; 3] = [0.10, 0.17, 0.09];
+    const BOLE: [f32; 3] = [0.27, 0.21, 0.14];
+    const CROWN: [f32; 3] = [0.13, 0.22, 0.10];
+    const CROWN_LIT: [f32; 3] = [0.17, 0.27, 0.12];
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+    let along_x = half.x >= half.z;
+    let run = if along_x { half.x } else { half.z };
+    let thin = if along_x { half.z } else { half.x };
+    let box_top = half.y * 2.0;
+
+    // The undergrowth: a dense knee-to-hull mass along the whole run, inset from the box
+    // faces so the silhouette stays leafy, not slab-sided.
+    let undergrowth_h = (box_top * 0.13).clamp(1.8, 2.6);
+    let (ux, uz) = if along_x { (run - 0.15, thin - 0.22) } else { (thin - 0.22, run - 0.15) };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + undergrowth_h * 0.5, center.z),
+        Vec3::new(ux, undergrowth_h * 0.5, uz),
+        UNDERGROWTH,
+        0.04,
+    );
+
+    // Two rows of boles up to the crown line, the second row offset by half a spacing so the
+    // gaps of one row stand behind the trunks of the other. Per-trunk height and girth vary
+    // by the cover-id hash — a planted row, not a fence of clones.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    let mut next = move || {
+        hash ^= hash << 13;
+        hash ^= hash >> 7;
+        hash ^= hash << 17;
+        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let crown_base = box_top * 0.55;
+    let spacing = 2.4_f32;
+    let trunks_per_row = ((run * 2.0 - 1.0) / spacing).floor().max(1.0) as usize;
+    for row in 0..2usize {
+        let across = (if row == 0 { -0.38_f32 } else { 0.38 }) * (thin - 0.2);
+        let stagger = if row == 0 { 0.0_f32 } else { spacing * 0.5 };
+        for index in 0..trunks_per_row {
+            let along = -run + 0.55 + stagger + index as f32 * spacing;
+            if along > run - 0.55 {
+                break;
+            }
+            let girth = 0.14 + next() * 0.07;
+            let bole_h = crown_base * (0.92 + next() * 0.12);
+            let (tx, tz) = if along_x {
+                (center.x + along, center.z + across)
+            } else {
+                (center.x + across, center.z + along)
+            };
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(tx, ground_y + bole_h * 0.5, tz),
+                Vec3::new(girth, bole_h * 0.5, girth),
+                BOLE,
+                0.05,
+            );
+        }
+    }
+
+    // The crown run: not a slab but a rhythm of masses — one segment over roughly every two
+    // boles, each with its own seeded top (88–100 % of the box top, never above it) and a
+    // narrow gap to its neighbours, so the skyline undulates like a planted row instead of
+    // wearing the old dark box. The lit cap reads as the sun-struck upper foliage.
+    let crown_lo = box_top * 0.45;
+    let seg_step = spacing * 1.8;
+    let segments = ((run * 2.0 - 1.2) / seg_step).floor().max(1.0) as usize;
+    for segment in 0..segments {
+        let seg_lo = -run + 0.6 + segment as f32 * seg_step;
+        let seg_half = seg_step * (0.40 + next() * 0.08);
+        let seg_top = box_top * (0.88 + next() * 0.12);
+        let seg_across = thin - 0.12 - next() * 0.25;
+        let seg_mid = seg_lo + seg_step * 0.5;
+        let (sx, sz, hx, hz) = if along_x {
+            (center.x + seg_mid, center.z, seg_half, seg_across)
+        } else {
+            (center.x, center.z + seg_mid, seg_across, seg_half)
+        };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(sx, ground_y + (crown_lo + seg_top) * 0.5, sz),
+            Vec3::new(hx, (seg_top - crown_lo) * 0.5, hz),
+            CROWN,
+            0.06,
+        );
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(sx, ground_y + seg_top - 0.3, sz),
+            Vec3::new(hx * 0.82, 0.3, hz * 0.82),
+            CROWN_LIT,
+            0.07,
+        );
+    }
+}
+
+/// RailCover 2.0 (Świat 2.0 PR 7): not a bare slab. Elongated boxes become a revetment —
+/// battered stone face, earth fill behind, coping course, buttresses on the longer runs.
+/// Square tall boxes (the Ostrogorsk elevator silos) become a coursed masonry tower with a
+/// cap. Every element lives INSIDE the collision AABB; the kind stays one wire identity.
+fn append_rail_cover(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    let along_x = half.x >= half.z;
+    let (run_half, thick_half) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+    // A tower reads square in plan and taller than it is wide — the silo case. Everything
+    // else is a run: parapet, berm, sangar, retaining wall, log cover.
+    let is_tower = thick_half >= run_half * 0.85 && half.y >= run_half * 1.4;
+    if is_tower {
+        append_rail_tower(vertices, indices, center, half);
+    } else {
+        append_rail_revetment(vertices, indices, center, half, along_x, run_half, thick_half);
+    }
+}
+
+fn append_rail_revetment(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+    along_x: bool,
+    run_half: f32,
+    thick_half: f32,
+) {
+    const FILL: ([f32; 3], f32) = ([0.34, 0.30, 0.24], 0.05);
+    const FACE: ([f32; 3], f32) = ([0.42, 0.40, 0.36], 0.14);
+    const COPING: ([f32; 3], f32) = ([0.50, 0.48, 0.44], 0.18);
+    let ground_y = center.y - half.y;
+    let coping_half_y = (half.y * 0.14).clamp(0.05, 0.16);
+    let body_half_y = (half.y - coping_half_y).max(0.08);
+
+    // Earth/ballast fill: most of the thickness, recessed so the dressed face reads proud.
+    let fill_thick = (thick_half * 0.72).max(thick_half - 0.35);
+    let fill = if along_x {
+        Vec3::new(run_half - 0.05, body_half_y, fill_thick)
+    } else {
+        Vec3::new(fill_thick, body_half_y, run_half - 0.05)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + body_half_y, center.z),
+        fill,
+        FILL.0,
+        FILL.1,
+    );
+
+    // Dressed stone face: a thin leaf along the long sides (both faces of a berm), inset
+    // from the run ends so corners don't overhang the box.
+    let face_thick = (thick_half - fill_thick).clamp(0.08, 0.35);
+    let face_inset = (run_half * 0.02).clamp(0.05, 0.25);
+    let face_run = (run_half - face_inset).max(0.2);
+    let face_y = ground_y + body_half_y * 0.92;
+    let face_half_y = body_half_y * 0.92;
+    for side in [-1.0_f32, 1.0] {
+        let across = side * (thick_half - face_thick);
+        let (pos, he) = if along_x {
+            (
+                Vec3::new(center.x, face_y, center.z + across),
+                Vec3::new(face_run, face_half_y, face_thick),
+            )
+        } else {
+            (
+                Vec3::new(center.x + across, face_y, center.z),
+                Vec3::new(face_thick, face_half_y, face_run),
+            )
+        };
+        push_surfaced_box(vertices, indices, pos, he, FACE.0, FACE.1);
+    }
+
+    // Coping: full thickness, the lighter crown that sheds rain along the whole run.
+    let coping = if along_x {
+        Vec3::new(run_half, coping_half_y, thick_half)
+    } else {
+        Vec3::new(thick_half, coping_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - coping_half_y, center.z),
+        coping,
+        COPING.0,
+        COPING.1,
+    );
+
+    // Buttresses on longer, taller runs — stone piers keyed into the face, never past the box.
+    if run_half >= 4.0 && half.y >= 0.8 {
+        let pier_count = ((run_half * 2.0 / 4.0).round() as u32).clamp(2, 6);
+        for pier in 0..pier_count {
+            let t = if pier_count == 1 {
+                0.0
+            } else {
+                (pier as f32 / (pier_count - 1) as f32) * 2.0 - 1.0
+            };
+            let along = t * (run_half - 0.45);
+            let pier_half_y = body_half_y * 0.95;
+            let pier_run = 0.28_f32.min(run_half * 0.12);
+            let pier_thick = (thick_half * 0.95).min(thick_half);
+            let (pos, he) = if along_x {
+                (
+                    Vec3::new(center.x + along, ground_y + pier_half_y, center.z),
+                    Vec3::new(pier_run, pier_half_y, pier_thick),
+                )
+            } else {
+                (
+                    Vec3::new(center.x, ground_y + pier_half_y, center.z + along),
+                    Vec3::new(pier_thick, pier_half_y, pier_run),
+                )
+            };
+            push_surfaced_box(vertices, indices, pos, he, FACE.0, FACE.1);
+        }
+    }
+}
+
+fn append_rail_tower(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const COURSE: ([f32; 3], f32) = ([0.40, 0.38, 0.34], 0.14);
+    const BAND: ([f32; 3], f32) = ([0.48, 0.46, 0.42], 0.16);
+    const CAP: ([f32; 3], f32) = ([0.52, 0.50, 0.46], 0.18);
+    let ground_y = center.y - half.y;
+    let plan = half.x.min(half.z);
+    let courses = 4_u32;
+    let course_h = (half.y * 2.0 - 0.35) / courses as f32;
+    for course in 0..courses {
+        let inset = 0.04 * course as f32;
+        let he_xz = (plan - inset).max(plan * 0.82);
+        let y0 = ground_y + course as f32 * course_h;
+        let tone = if course % 2 == 0 { COURSE } else { BAND };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x, y0 + course_h * 0.5, center.z),
+            Vec3::new(he_xz, course_h * 0.5, he_xz),
+            tone.0,
+            tone.1,
+        );
+    }
+    let cap_h = 0.18_f32.min(half.y * 0.12);
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - cap_h, center.z),
+        Vec3::new(plan, cap_h, plan),
+        CAP.0,
+        CAP.1,
+    );
 }
 
 /// The coursed masonry wall (urban-map PR-10): the brick body, a lighter COPING course
@@ -1729,6 +1996,8 @@ mod tests {
         for map in [
             map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
             map_forge::battlefield(terrain::MapId::BystraValley),
+            map_forge::battlefield(terrain::MapId::Ostrogorsk),
+            map_forge::battlefield(terrain::MapId::OrlinyPereval),
         ] {
             for cover in &map.static_cover {
                 let mut vertices = Vec::new();
@@ -1745,6 +2014,65 @@ mod tests {
                         "cover {} draws outside its collision box at {:?}",
                         cover.id,
                         vertex.position
+                    );
+                }
+            }
+        }
+    }
+
+    /// Świat 2.0 PR 5's load-bearing proof, the other direction of the treeline promise:
+    /// every TreeLine collision box on every shipped map TOWERS over the trees it hosts —
+    /// the LOS wall reaches at least the tallest crown standing inside it (15–25 m, the
+    /// register's mature band). Before PR 5 the boxes were 8.4–10 m slabs under 17–23 m
+    /// trees: a crew could be spotted OVER a wall its eyes could not see through.
+    #[test]
+    fn tree_line_boxes_contain_the_trees_they_host() {
+        for map_id in [
+            terrain::MapId::BystraValley,
+            terrain::MapId::Ostrogorsk,
+            terrain::MapId::ProkhorovkaHill252_2,
+            terrain::MapId::OrlinyPereval,
+        ] {
+            let map = map_forge::battlefield(map_id);
+            for cover in
+                map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
+            {
+                let box_top = cover.center[1] + cover.half_extents_m[1];
+                for instance in &map.scenery {
+                    let in_footprint = (instance.position[0] - cover.center[0]).abs()
+                        <= cover.half_extents_m[0]
+                        && (instance.position[2] - cover.center[2]).abs()
+                            <= cover.half_extents_m[2];
+                    if !in_footprint {
+                        continue;
+                    }
+                    let Some(species) = tree_species_for_scenery(instance.kind) else {
+                        continue;
+                    };
+                    let rendered_top = if instance.kind == terrain::SceneryKind::Oak {
+                        crate::tree_lod::battle_tree_rendered_top_m(instance.scale)
+                    } else {
+                        // The statics-bake path: per-position seed, Mid rung, no sink.
+                        let seed = instance.position[0].to_bits() as u64
+                            ^ ((instance.position[2].to_bits() as u64) << 32);
+                        world_forge::tree::bake_tree_lod(
+                            species,
+                            seed,
+                            world_forge::tree::TreeLod::Mid,
+                        )
+                        .canopy
+                        .bounds()
+                        .map(|bounds| bounds.max.y * instance.scale)
+                        .unwrap_or(0.0)
+                    };
+                    let tree_top = instance.position[1] + rendered_top;
+                    assert!(
+                        tree_top <= box_top + 0.05,
+                        "{map_id:?}/{}: a {:?} crown reaches {:.1} m but the LOS wall tops at {:.1} m",
+                        cover.id,
+                        instance.kind,
+                        tree_top,
+                        box_top,
                     );
                 }
             }
@@ -2007,6 +2335,58 @@ mod tests {
         let coping_lit =
             vertices.iter().any(|v| v.position[1] > 2.0 && v.color[0] > 0.48 && v.color[1] > 0.46);
         assert!(coping_lit, "the crown of the run wears the lighter coping stone");
+    }
+
+    /// Świat 2.0 PR 7: RailCover is a revetment (or a coursed tower for square silos), never
+    /// a single slab — more than one box of geometry, every vertex inside the collision AABB,
+    /// and a lighter coping/cap on the crown. Locked on a berm run and an Ostrogorsk silo.
+    #[test]
+    fn the_rail_cover_wears_a_revetment_inside_its_box() {
+        let cases = [
+            StaticCoverObject {
+                id: "berm_probe".into(),
+                name: "berm parapet".into(),
+                kind: StaticCoverKind::RailCover,
+                center: [0.0, 0.9, 0.0],
+                half_extents_m: [1.4, 0.9, 12.0],
+            },
+            StaticCoverObject {
+                id: "silo_probe".into(),
+                name: "elevator silo".into(),
+                kind: StaticCoverKind::RailCover,
+                center: [0.0, 5.5, 0.0],
+                half_extents_m: [2.2, 5.5, 2.2],
+            },
+        ];
+        for cover in &cases {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            append_cover_box(&mut vertices, &mut indices, cover);
+            assert!(
+                vertices.len() > 24,
+                "{}: revetment/tower adds geometry beyond one box, got {}",
+                cover.id,
+                vertices.len()
+            );
+            let center = Vec3::from_array(cover.center);
+            let half = Vec3::from_array(cover.half_extents_m);
+            for vertex in &vertices {
+                let delta = (Vec3::from_array(vertex.position) - center).abs();
+                assert!(
+                    delta.x <= half.x + 1.0e-3
+                        && delta.y <= half.y + 1.0e-3
+                        && delta.z <= half.z + 1.0e-3,
+                    "{} draws outside its collision box at {:?}",
+                    cover.id,
+                    vertex.position
+                );
+            }
+            let crown_y = center.y + half.y - 0.35;
+            let lit_crown = vertices
+                .iter()
+                .any(|v| v.position[1] >= crown_y && v.color[0] >= 0.48 && v.color[1] >= 0.46);
+            assert!(lit_crown, "{}: the crown wears the lighter coping/cap stone", cover.id);
+        }
     }
 
     /// The breach (urban-map PR-10): a Gone wall leaves a knee-high toppled course — inside
