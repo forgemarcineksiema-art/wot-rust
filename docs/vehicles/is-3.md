@@ -77,3 +77,34 @@ cage the German fleet carries:
   even says "2.44 m tank in a 2.49 m box" (`vehicle_recipes/tests/is3_benchmark.rs:143`) while
   the blueprint disagrees. Which number is right is dossier-and-measure work (W2-is3); the
   blueprint stays untouched until it is decided.
+
+- **The running gear's LENGTH is not verified, and the steering mechanism IS.** Opened by P4.6 of
+  `docs/contact-and-tracks-program.md`, which needed the IS-3's track-on-ground length before the
+  fleet's steering character could rest on geometry. Research (2026-08-06) settled one half and
+  refused the other:
+
+  | | finding | state |
+  |---|---|---|
+  | track width | 650 mm | settled, multiple sources, matches the blueprint |
+  | road wheels | six per side, 550 mm diameter | settled, matches `wheel_radius: 0.275` |
+  | shoes | 86 per side, ~160 mm pitch | settled, already locked in the benchmark cage |
+  | return rollers | three per side, **385 mm diameter** | count matches; the blueprint bakes `roller_radius: 0.11` against a documented 0.19 |
+  | overall width | **3.07 / 3.09 / 3.15 / 3.39 m** across sources | **NOT settled — a 32 cm spread** |
+  | ground contact length | one figure found, 3.65 m | **NOT settled** — from a table whose own "ширина колеи 3,37 m" is impossible against its own 3,07 m width |
+  | **steering mechanism** | **two-stage planetary side mechanisms (ПМП)**, one per track at the ends of the main shaft, multi-disc dry locking clutches and band brakes | **settled**, three independent sources |
+
+  The blueprint bakes a 4.60 m span between the first and last wheel centres — a 920 mm pitch on
+  550 mm wheels, leaving a quarter-metre of daylight between neighbours. The IS family's
+  recognition feature is wheels that nearly touch, and the one published contact length would put
+  the pitch at ~620 mm. That is a reason to doubt the blueprint, not a reason to edit it: the
+  number that would replace it comes from a table that contradicts itself.
+
+  **What the steering finding is worth on its own.** A two-stage ПМП has two states per side —
+  full speed and a reduced ratio — plus a band brake. It cannot drive a track BACKWARDS. So the
+  IS-3's tightest turn is a pivot about a stopped track, never about its own centre: it has no
+  neutral steer. That is a documented mechanical fact about the vehicle, and it is the actual
+  cause of the ponderous handling, rather than the length-over-gauge ratio that was standing in
+  for it.
+
+  **Owed:** a 1:1 running-gear session with drawings, the way the T-54 got one — not another web
+  table. Until then no gameplay trait may be derived from this vehicle's contact length.
