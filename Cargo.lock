@@ -2910,9 +2910,7 @@ dependencies = [
  "game_core",
  "glam",
  "map_forge",
- "png",
  "renderer_api",
- "serde_json",
  "sim",
  "terrain",
  "world_forge",
@@ -3383,20 +3381,15 @@ name = "tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bytemuck",
  "clap",
  "game_core",
- "glam",
  "gltf",
  "map_forge",
- "meshopt",
- "png",
  "ron",
  "serde",
  "serde_json",
  "terrain",
  "vehicle_forge",
- "world_forge",
 ]
 
 [[package]]

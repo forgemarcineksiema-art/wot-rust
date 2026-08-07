@@ -500,8 +500,8 @@ pub(crate) struct ClientApp {
     grass_cache: Vec<renderer_api::RenderObject>,
     grass_cache_eye: Option<glam::Vec3>,
     grass_cache_crater_fingerprint: u64,
-    /// Which LOD rung each hero tree drew last frame. Carried across frames so a tree parked on
-    /// a band boundary swaps once instead of flickering (see `scene_build::tree_lod`).
+    /// Which LOD rung each battlefield oak drew last frame. Carried across frames so a tree
+    /// parked on a band boundary swaps once instead of flickering (see `scene_build::tree_lod`).
     tree_lod_state: scene_build::tree_lod::TreeLodState,
     /// Shells whose flyby crack already played (D8): one N-wave per shell, ever.
     cracked_shells: std::collections::HashSet<game_core::ShellId>,

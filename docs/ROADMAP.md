@@ -34,7 +34,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   hitbox/armor/visuals; a review workshop with measurable gates (Studio, dossiers, ratios);
   no clones. Finish is UNEVEN — the T-54 is the benchmark, others trail it.
 - **Presentation**: wgpu renderer (cascaded shadows, SSAO, HDR+bloom, weather + timeline,
-  water, grass, battle FX, procedural buildings/trees + CC0 textured-flora pipeline),
+  water, grass, battle FX, fully procedural buildings/trees — no imported flora),
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD,
   frame-time p50/p95/p99 measurement backing the one-look budget.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
@@ -49,8 +49,8 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   ordered retransmit/ACK lane with exactly-once presentation instead of depending on snapshot loss.
 
 **PARTIAL** (works, known debt):
-- Flora sourcing (a replacement CC0 bush and textured birch). Alpha-preserving atlas mips,
-  the accepted tree/pine pipeline and the four-map scatter retrofit are complete (FL-5).
+- World close-range quality and authoring power (`docs/world-2.0-program.md`): Cover 2.0,
+  camera/horizon, District/Scatter 2.0 — flora is already procedural-only (F0 landed).
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.

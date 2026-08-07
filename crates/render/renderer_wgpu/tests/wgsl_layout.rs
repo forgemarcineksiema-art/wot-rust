@@ -140,10 +140,53 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
 
     // Grass geometry roles must not fall through to bark or the costlier generic ground path;
     // the single octave rides the shared fine frame so the cards match the ground's grain.
-    assert!(source.contains("if (role > 4.5)"));
+    // The band is explicit (5–7): role 8 (dressed stone) is a woody material, not grass.
+    assert!(source.contains("if (role > 4.5 && role < 7.5)"));
     assert!(
         source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
     );
+}
+
+/// Fasada 2.0 (Świat 2.0 PR 3): the DRESSED_STONE role is an append-only CPU/GPU protocol
+/// value, locked at both ends — and the shader's dispatch must reach it (bark stays 4, the
+/// grass shortcut must not swallow it).
+#[test]
+fn dressed_stone_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::DRESSED_STONE, 8.0);
+    // Bark's branch is bounded below it, and stone is the fall-through: ashlar courses of
+    // staggered blocks with per-block tone, for plinths, sills, lintel bands and portals.
+    assert!(source.contains("if (role < 4.5)"), "bark is explicit so stone can exist past it");
+    assert!(source.contains("let srow = floor(world.y / 0.30);"), "stone courses climb the wall");
+    assert!(
+        source.contains("detail_hash(vec2<f32>(scol * 1.7 + 3.0, srow))"),
+        "one tone per block"
+    );
+    // Dressed stone stopped being the fall-through when natural rock was appended past it.
+    assert!(source.contains("if (role < 8.5)"), "ashlar is explicit so rock can exist past it");
+}
+
+/// Skały 1.0 (Świat 2.0 PR 8): the ROCK_FACE role is the append after DRESSED_STONE, locked at
+/// both ends. The two must never share a treatment — role 8 is stone a mason CUT (courses,
+/// joints, one tone per block), role 9 is stone nobody touched.
+#[test]
+fn rock_face_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::ROCK_FACE, 9.0);
+    assert_eq!(surface_role::ROCK_FACE, surface_role::DRESSED_STONE + 1.0, "append-only");
+    // No courses: the ashlar joint machinery must not reach the boulder.
+    assert!(
+        !source.contains("let rrow = floor"),
+        "natural rock has no courses — that is what separates it from role 8"
+    );
+    // Art-direction rule 5: two octaves, never one, and both on the SHARED frames (D26 — the
+    // repo has exactly one noise lattice, and a new hash here would print its own grid).
+    assert!(source.contains("octave_frame_broad(face_frame)"));
+    assert!(source.contains("octave_frame_fine(face_frame)"));
+    assert!(source.contains("octave_frame_broad(top_frame)"));
+    assert!(source.contains("octave_frame_fine(top_frame)"));
+    // The weathering split is the whole read: an upward face is lifted, an undercut is not.
+    assert!(source.contains("(0.90 + 0.16 * up)"), "the sky bleaches what it can reach");
 }
 
 /// Costume C (P5): the ground carries the meadow's darkness, and the curve it takes over on
@@ -233,16 +276,19 @@ fn a_hull_presses_the_meadow_flat_and_overrules_the_wind() {
 #[test]
 fn the_grass_band_magnification_is_one_off_scope_and_capped_on_it() {
     let proj_y = |fov_degrees: f32| 1.0 / (fov_degrees.to_radians() * 0.5).tan();
-    for battle_fov in [55.0, 60.0, 65.0, 75.0] {
+    for battle_fov in [48.0, 55.0, 60.0, 65.0, 75.0] {
         assert_eq!(
             renderer_api::grass_zoom_band_scale(proj_y(battle_fov)),
             1.0,
             "a normal battle view at {battle_fov}° is not magnified"
         );
     }
-    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step.
+    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step. The stretch
+    // was ~3.3x while the reference sat at 55°; the Świat 2.0 lens moved the reference to 48°,
+    // and a narrower normal view makes the SAME scope a smaller relative jump — cot(9°)/2.2461
+    // = 2.81. The scope did not change; what it is measured against did.
     let entry = renderer_api::grass_zoom_band_scale(proj_y(18.0));
-    assert!((3.0..3.6).contains(&entry), "the entry scope step stretches ~3.3x: {entry}");
+    assert!((2.6..3.0).contains(&entry), "the entry scope step stretches ~2.8x: {entry}");
     for narrow in [8.0, 5.0, 3.0] {
         assert_eq!(
             renderer_api::grass_zoom_band_scale(proj_y(narrow)),

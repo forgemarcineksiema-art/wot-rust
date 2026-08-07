@@ -179,20 +179,36 @@ not history):
    shell-trace slab tests by segment-vs-box XZ overlap, and movement SAT by an XZ distance
    early-out. Deterministic, no data structure, provably result-identical (property test),
    and the `urban_150` bench fixture proves the budget instead of assuming it.
-8. **Street furniture: only `Lamppost` and `DebrisHeap`** (knee-high) as scenery kinds.
-   Sandbags/barricades are skipped: anything that *reads* as cover must be a cover box
-   (honest-blockers rule), and authored `Wreck`/`StoneWall` boxes already fill that role.
+8. **Scenery admits itself by two measured lines, not by a list of allowed names**
+   (Skały 1.0, 2026-08-07 — this replaces „only `Lamppost` and `DebrisHeap`", which was a
+   roster where a rule belonged). Both numbers come off the vehicles, not off taste:
+   - the **belly line** — the fleet's lowest ground clearance, **0.40 m** (the T-34-85, not
+     the benchmark T-54's 0.425). Derived in `scene_build::clutter::BELLY_LINE_M` and locked
+     by `the_belly_line_is_the_fleet_measurement`, so a lower-slung vehicle moves the rule.
+   - the **climb line** — ~0.80 m, the documented vertical obstacle for these tanks
+     (`docs/contact-and-tracks-program.md`).
+
+   The rule: **a SOLID scenery object stays under the belly line; only LOOSE dressing may go
+   above it.** A hull drives through grass, brush and a spilled rubble heap and nothing lies;
+   it cannot drive through a metre of granite, so a boulder that tall is not scenery — it is
+   a cover box, and above the climb line it is one that blocks movement too.
+
+   This is the honest-blockers rule with its second half written down. The eye half still
+   stands (anything that *reads* as cover must be a cover box); the belly half is what caught
+   `SceneryKind::Rock` shipping a **solid 1.24 m** cuboid that blocked nothing. Sandbags and
+   barricades stay skipped for the eye reason; authored `Wreck`/`StoneWall` boxes fill that role.
 9. **Triangle budgets rise deliberately, per style, with proof.** Tenement/FactoryHall
    ≤ 600 tris; landmark styles (Church) may reach ~1200 now that bucket culling has landed.
    Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR
    description (one look: a dropped frame is a game bug, not a player problem).
-10. **Imported flora is CC0 only**, with a per-asset manifest (source, URL, author) in the
-    repo. No CC-BY — attribution management is a liability we do not take on. **Two
-    vegetation languages by design** (direction decision 2026-07-22): close-range
-    tree/bush quality comes from imported CC0 assets, never from more procedural work;
-    procedural trees stay as the far LOD and fallback. The look gate rules per species
-    (`flora_probe`): tree ACCEPTED, pine ACCEPTED, bush REJECTED (bad source model) —
-    **do not author `FloraBush` on maps** until a sourced replacement passes the gate.
+10. **Flora is procedural-only** (Świat 2.0 decision, 2026-08-06: „Florę CC0 usuwamy").
+    No imported meshes, no glTF/`.flora.*` pipeline, no license provenance to police — the
+    whole vegetation vocabulary is the `world_forge::tree` species table plus the grass
+    cards. The battlefield tree is the procedural **oak**: it draws through the instanced
+    LOD ladder (`scene_build::tree_lod`) and its trunk is a gameplay solid (`TreeTrunk`
+    cover derived in `map_forge`). The retired `FloraTree` / `FloraPine` / `FloraBush`
+    kinds keep their wire identity (append-only enum) but are **never authored** — the
+    `flora_integration` test locks that.
 
 ## The Editor
 

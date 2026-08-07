@@ -9,6 +9,7 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
 
 use crate::WorldMaterial;
+use crate::shape::{Rng, icosphere, merge_meshes};
 
 /// The authored species. Numbers live in [`TreeSpecies::params`] — one table, review-gated by
 /// the goldens below.
@@ -31,6 +32,16 @@ impl TreeSpecies {
         TreeSpecies::Bush,
         TreeSpecies::Pine,
     ];
+
+    /// Trunk radius at the butt, metres — the stump a felled tree leaves is sized from this.
+    pub fn trunk_radius(self) -> f32 {
+        self.params().trunk_radius
+    }
+
+    /// Authored trunk height (ground to first crown mass), metres.
+    pub fn trunk_height(self) -> f32 {
+        self.params().trunk_height
+    }
 
     fn params(self) -> SpeciesParams {
         match self {
@@ -239,15 +250,18 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         trunk_sides,
     );
     // Limbs: level-one branches reaching from the upper trunk toward the crown.
-    if lod == TreeLod::Close {
-        for limb in 0..params.limbs {
-            let heading = rng.unit() * std::f32::consts::TAU
-                + limb as f32 / params.limbs.max(1) as f32 * std::f32::consts::TAU;
-            let pitch = params.limb_pitch + rng.signed() * 0.15;
-            let start = Vec3::new(0.0, params.trunk_height * (0.55 + rng.unit() * 0.25), 0.0);
-            let direction =
-                Vec3::new(heading.cos() * pitch.cos(), pitch.sin(), heading.sin() * pitch.cos());
-            let end = start + direction * (params.limb_length * (0.8 + rng.unit() * 0.4));
+    // Mid burns the same RNG draws Close spends on limbs so the crown identity — and the
+    // canopy tip — stay shared across LOD rungs. Without the burn, Mid's first lobe would
+    // consume a limb's entropy and the tree would silently shrink as the camera backed off.
+    for limb in 0..params.limbs {
+        let heading = rng.unit() * std::f32::consts::TAU
+            + limb as f32 / params.limbs.max(1) as f32 * std::f32::consts::TAU;
+        let pitch = params.limb_pitch + rng.signed() * 0.15;
+        let start = Vec3::new(0.0, params.trunk_height * (0.55 + rng.unit() * 0.25), 0.0);
+        let direction =
+            Vec3::new(heading.cos() * pitch.cos(), pitch.sin(), heading.sin() * pitch.cos());
+        let end = start + direction * (params.limb_length * (0.8 + rng.unit() * 0.4));
+        if lod == TreeLod::Close {
             let limb_mesh =
                 tapered_tube(start, end, params.trunk_radius * 0.42, params.trunk_radius * 0.16, 5);
             trunk = merge_meshes(trunk, limb_mesh);
@@ -305,37 +319,45 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         vertex.normal = (vertex.position - centroid).normalize_or_zero();
     }
 
-    BakedTree { species, trunk, canopy: GeometryMesh::new(canopy_vertices, canopy_indices) }
+    let mut tree =
+        BakedTree { species, trunk, canopy: GeometryMesh::new(canopy_vertices, canopy_indices) };
+    // LOD must not shrink the silhouette (Świat 2.0 PR1): Mid's coarser lobes undershoot the
+    // FBM peaks Close reaches. Lift Mid onto Close's tip so a rung swap moves triangles, never
+    // metres. Close is baked once here as the reference — Mid is the shipping far rung, so
+    // paying Close's cost at Mid bake time is the price of an honest ladder.
+    if lod == TreeLod::Mid {
+        let close_tip = canopy_tip(&bake_tree_lod(species, seed, TreeLod::Close));
+        let mid_tip = canopy_tip(&tree);
+        if mid_tip > 0.01 && close_tip > mid_tip * 1.002 {
+            tree = scale_tree_y(tree, close_tip / mid_tip);
+        }
+    }
+    tree
 }
 
-/// Deterministic splitmix64 walk (the house randomness: process-stable, seed-keyed).
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn unit(&mut self) -> f32 {
-        (self.next() >> 40) as f32 / (1u64 << 24) as f32
-    }
-
-    fn signed(&mut self) -> f32 {
-        self.unit() * 2.0 - 1.0
-    }
+fn canopy_tip(tree: &BakedTree) -> f32 {
+    tree.canopy.bounds().map(|bounds| bounds.max.y).unwrap_or(0.0)
 }
 
-fn merge_meshes(a: GeometryMesh, b: GeometryMesh) -> GeometryMesh {
-    let mut vertices = a.vertices().to_vec();
-    let offset = vertices.len() as u32;
-    vertices.extend_from_slice(b.vertices());
-    let mut indices = a.indices().to_vec();
-    indices.extend(b.indices().iter().map(|index| index + offset));
-    GeometryMesh::new(vertices, indices)
+/// Uniform Y scale around the ground plane — keeps the butt planted and lifts the tip.
+fn scale_tree_y(tree: BakedTree, scale: f32) -> BakedTree {
+    let scale_mesh = |mesh: GeometryMesh| {
+        let vertices: Vec<GeometryVertex> = mesh
+            .vertices()
+            .iter()
+            .map(|vertex| {
+                let mut scaled = *vertex;
+                scaled.position.y *= scale;
+                scaled
+            })
+            .collect();
+        GeometryMesh::new(vertices, mesh.indices().to_vec())
+    };
+    BakedTree {
+        species: tree.species,
+        trunk: scale_mesh(tree.trunk),
+        canopy: scale_mesh(tree.canopy),
+    }
 }
 
 /// A tapered open tube from `a` to `b` (no caps: the base sits in the ground, the tip inside
@@ -372,54 +394,6 @@ fn tapered_tube(a: Vec3, b: Vec3, radius_a: f32, radius_b: f32, sides: u32) -> G
         indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
     }
     GeometryMesh::new(vertices, indices)
-}
-
-/// A unit icosphere: the icosahedron, optionally subdivided once (0 → 20 tris, 1 → 80 tris).
-fn icosphere(subdivisions: u32) -> (Vec<Vec3>, Vec<u32>) {
-    let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
-    let mut positions: Vec<Vec3> = [
-        (-1.0, phi, 0.0),
-        (1.0, phi, 0.0),
-        (-1.0, -phi, 0.0),
-        (1.0, -phi, 0.0),
-        (0.0, -1.0, phi),
-        (0.0, 1.0, phi),
-        (0.0, -1.0, -phi),
-        (0.0, 1.0, -phi),
-        (phi, 0.0, -1.0),
-        (phi, 0.0, 1.0),
-        (-phi, 0.0, -1.0),
-        (-phi, 0.0, 1.0),
-    ]
-    .into_iter()
-    .map(|(x, y, z)| Vec3::new(x, y, z).normalize())
-    .collect();
-    let mut indices: Vec<u32> = vec![
-        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7,
-        1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9,
-        8, 1,
-    ];
-    for _ in 0..subdivisions {
-        let mut next_indices = Vec::with_capacity(indices.len() * 4);
-        let mut midpoints = std::collections::HashMap::new();
-        let mut midpoint = |a: u32, b: u32, positions: &mut Vec<Vec3>| -> u32 {
-            let key = (a.min(b), a.max(b));
-            *midpoints.entry(key).or_insert_with(|| {
-                let mid = ((positions[a as usize] + positions[b as usize]) * 0.5).normalize();
-                positions.push(mid);
-                (positions.len() - 1) as u32
-            })
-        };
-        for triangle in indices.chunks_exact(3) {
-            let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
-            let ab = midpoint(a, b, &mut positions);
-            let bc = midpoint(b, c, &mut positions);
-            let ca = midpoint(c, a, &mut positions);
-            next_indices.extend_from_slice(&[a, ab, ca, b, bc, ab, c, ca, bc, ab, bc, ca]);
-        }
-        indices = next_indices;
-    }
-    (positions, indices)
 }
 
 #[cfg(test)]
@@ -464,6 +438,28 @@ mod tests {
         assert!(top(TreeSpecies::Poplar) > 19.0, "poplar: {}", top(TreeSpecies::Poplar));
         assert!(top(TreeSpecies::Willow) > 12.0, "willow: {}", top(TreeSpecies::Willow));
         assert!(top(TreeSpecies::Pine) > 18.0, "pine: {}", top(TreeSpecies::Pine));
+    }
+
+    /// LOD must not shrink the tree (Świat 2.0 PR1): Mid stands at the same tip as Close, so a
+    /// rung swap moves triangles, never metres. Checked across a handful of seeds per species.
+    #[test]
+    fn mid_lod_does_not_shrink_the_canopy_tip() {
+        for species in TreeSpecies::ALL {
+            for seed in [0_u64, 1, 7, 42] {
+                let close = bake_tree_lod(species, seed, TreeLod::Close);
+                let mid = bake_tree_lod(species, seed, TreeLod::Mid);
+                let close_tip = canopy_tip(&close);
+                let mid_tip = canopy_tip(&mid);
+                assert!(
+                    (mid_tip - close_tip).abs() < 0.05,
+                    "{species:?} seed {seed}: Mid tip {mid_tip} vs Close tip {close_tip}"
+                );
+                assert!(
+                    mid.triangle_count() <= close.triangle_count(),
+                    "{species:?}: Mid must be the cheaper rung"
+                );
+            }
+        }
     }
 
     #[test]

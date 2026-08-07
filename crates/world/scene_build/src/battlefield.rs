@@ -214,6 +214,7 @@ pub fn battlefield_statics_bucket_mesh(
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
     // cover box fell with it, so it is left out of the rebuilt scene.
+    let stone = crate::clutter::StoneTone::of_map(battlefield);
     for instance in &battlefield.scenery {
         if statics_bucket_of_position(battlefield, instance.position[0], instance.position[2])
             != bucket
@@ -223,7 +224,7 @@ pub fn battlefield_statics_bucket_mesh(
         if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
             continue;
         }
-        crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+        crate::clutter::push_scenery_instance(&mut vertices, &mut indices, instance, stone);
     }
     (vertices, indices)
 }
@@ -273,10 +274,11 @@ pub fn assemble_statics_mesh(buckets: &[SceneMeshData]) -> SceneMeshData {
     (vertices, indices)
 }
 
-/// The wreckage of a crushed tree line (Fizyczny Świat P11), zero wire: a stump where each of
-/// its scenery trees stood (the tree fell, its root did not), and one or two trunks lying
-/// along the run, seeded from the cover id so the same hedge always falls the same way. All
-/// of it low, non-blocking dressing inside the old footprint — matter, not a vacuum.
+/// The wreckage of a crushed tree line (Fizyczny Świat P11 / Świat 2.0 PR1), zero wire: a
+/// stump where each of its scenery trees stood (the tree fell, its root did not), and one or
+/// two trunks lying along the run, seeded from the cover id so the same hedge always falls
+/// the same way. Stumps are sized to the species' butt — a mature oak leaves a ~1 m bole,
+/// not a 26 cm diorama peg. All of it low, non-blocking dressing inside the old footprint.
 fn append_felled_tree_line(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -289,34 +291,41 @@ fn append_felled_tree_line(
     let half = Vec3::from_array(cover.half_extents_m);
     let ground_y = center.y - half.y;
 
-    // Stumps: one at the foot of every scenery tree the cleared box swallowed.
+    // Stumps: one at the foot of every tree the cleared box swallowed. Rocks and furniture
+    // standing in the footprint are not trees and do not leave a stump.
     for instance in &battlefield.scenery {
         let p = instance.position;
-        if (p[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
-            && (p[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+        if (p[0] - cover.center[0]).abs() > cover.half_extents_m[0]
+            || (p[2] - cover.center[2]).abs() > cover.half_extents_m[2]
         {
-            let stump_half = Vec3::new(0.13, 0.22, 0.13) * instance.scale.max(0.6);
-            push_surfaced_box(
-                vertices,
-                indices,
-                Vec3::new(p[0], ground_y + stump_half.y, p[2]),
-                stump_half,
-                BARK,
-                0.04,
-            );
-            // The sawn/torn top reads lighter — a thin heartwood cap.
-            push_surfaced_box(
-                vertices,
-                indices,
-                Vec3::new(p[0], ground_y + stump_half.y * 2.0 + 0.01, p[2]),
-                Vec3::new(stump_half.x * 0.9, 0.015, stump_half.z * 0.9),
-                HEARTWOOD,
-                0.06,
-            );
+            continue;
         }
+        let Some(species) = tree_species_for_scenery(instance.kind) else {
+            continue;
+        };
+        let stump_half = stump_half_extents(species, instance.scale);
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(p[0], ground_y + stump_half.y, p[2]),
+            stump_half,
+            BARK,
+            0.04,
+        );
+        // The sawn/torn top reads lighter — a thin heartwood cap.
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(p[0], ground_y + stump_half.y * 2.0 + 0.01, p[2]),
+            Vec3::new(stump_half.x * 0.9, 0.015, stump_half.z * 0.9),
+            HEARTWOOD,
+            0.06,
+        );
     }
 
     // Fallen trunks: one or two logs lying along the run, hashed from the cover id.
+    // A single TreeTrunk bole gets one log sized to a mature oak; a hedgerow keeps the
+    // along-run layout with bole-scale radius.
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in cover.id.bytes() {
         hash ^= u64::from(byte);
@@ -330,11 +339,22 @@ fn append_felled_tree_line(
     };
     let along_x = half.x >= half.z;
     let run = if along_x { half.x } else { half.z };
-    let logs = 1 + (next() * 1.99) as usize;
+    let single_bole = cover.kind == StaticCoverKind::TreeTrunk;
+    let logs = if single_bole { 1 } else { 1 + (next() * 1.99) as usize };
     for _ in 0..logs {
-        let length = (run * (0.35 + next() * 0.3)).clamp(1.2, 6.0);
-        let radius = 0.14 + next() * 0.08;
-        let slide = (next() - 0.5) * (run - length).max(0.0) * 1.6;
+        let length = if single_bole {
+            // A felled oak bole: most of the clear trunk, not a 6 m toothpick.
+            (world_forge::tree::TreeSpecies::Oak.trunk_height() * (0.7 + next() * 0.25))
+                .clamp(6.0, 12.0)
+        } else {
+            (run * (0.35 + next() * 0.3)).clamp(2.0, 10.0)
+        };
+        let radius = if single_bole {
+            world_forge::tree::TreeSpecies::Oak.trunk_radius() * (0.85 + next() * 0.2)
+        } else {
+            0.35 + next() * 0.2
+        };
+        let slide = (next() - 0.5) * (run - length * 0.5).max(0.0) * 1.6;
         let drift = (next() - 0.5) * (if along_x { half.z } else { half.x }) * 0.9;
         let yaw = (next() - 0.5) * 0.5 + if along_x { 0.0 } else { std::f32::consts::FRAC_PI_2 };
         let log_center = if along_x {
@@ -355,6 +375,38 @@ fn append_felled_tree_line(
             vertex.gloss = 0.04;
         }
     }
+}
+
+/// Map a scenery kind to the procedural species that sizes its stump. Retired Flora* kinds
+/// fall through to Oak (they are never authored; the arm keeps the match total).
+fn tree_species_for_scenery(kind: terrain::SceneryKind) -> Option<world_forge::tree::TreeSpecies> {
+    match kind {
+        terrain::SceneryKind::Oak | terrain::SceneryKind::FloraTree => {
+            Some(world_forge::tree::TreeSpecies::Oak)
+        }
+        terrain::SceneryKind::Poplar => Some(world_forge::tree::TreeSpecies::Poplar),
+        terrain::SceneryKind::Willow => Some(world_forge::tree::TreeSpecies::Willow),
+        terrain::SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
+        terrain::SceneryKind::Bush | terrain::SceneryKind::FloraBush => {
+            Some(world_forge::tree::TreeSpecies::Bush)
+        }
+        terrain::SceneryKind::Pine | terrain::SceneryKind::FloraPine => {
+            Some(world_forge::tree::TreeSpecies::Pine)
+        }
+        terrain::SceneryKind::Rock
+        | terrain::SceneryKind::Lamppost
+        | terrain::SceneryKind::DebrisHeap => None,
+    }
+}
+
+/// Half-extents of the stump a felled tree leaves: butt radius from the species table, knee-
+/// high so it reads as a bole and never as cover. Locked by the stump-scale test below.
+fn stump_half_extents(species: world_forge::tree::TreeSpecies, scale: f32) -> Vec3 {
+    let scale = scale.max(0.8);
+    let radius = species.trunk_radius() * scale;
+    // ~0.5 m tall on a mature oak; bushes stay knee-high relative to their own butt.
+    let half_height = (species.trunk_radius() * 1.0 * scale).clamp(0.25, 0.55);
+    Vec3::new(radius, half_height, radius)
 }
 
 /// Whether a scenery instance stands inside a cover box that has been cleared (phase gone), so it
@@ -640,15 +692,8 @@ fn append_cover_box(
     let half = Vec3::from_array(cover.half_extents_m);
     match cover.kind {
         StaticCoverKind::FarmBuilding => append_building(vertices, indices, cover, center, half),
-        StaticCoverKind::RailCover => {
-            // Stone: walls, parapets, log revetments — a cool masonry tone with a worn sheen.
-            push_surfaced_box(vertices, indices, center, half, [0.40, 0.38, 0.34], 0.16);
-        }
-        StaticCoverKind::TreeLine => {
-            // The solid undergrowth mass; real trees (scenery) fill it visually, so the box
-            // itself darkens into their shadow instead of competing with the canopies.
-            push_surfaced_box(vertices, indices, center, half, [0.11, 0.20, 0.10], 0.05);
-        }
+        StaticCoverKind::RailCover => append_rail_cover(vertices, indices, center, half),
+        StaticCoverKind::TreeLine => append_tree_line(vertices, indices, cover),
         // A hero oak's bole draws NOTHING here: the instanced tree mesh already stands in this
         // box, to the metre. Baking a solid as well would put a second trunk inside the first —
         // the one kind whose "the box IS the visual footprint" promise is kept by the dressing
@@ -665,6 +710,280 @@ fn append_cover_box(
         StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
         StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
     }
+}
+
+/// The tree line as a szpaler (Świat 2.0 PR 5) — not a slab. A low undergrowth mass carries
+/// the run's foot, then two STAGGERED rows of boles rise to the crown line; the crowns stay
+/// the instanced oaks of the scenery in-fill. Every element lives INSIDE the collision box,
+/// which now towers to the trees' own height (15–25 m): what blocks the shell is what the
+/// eye sees standing there, and there is no dark slab left wearing the treeline's name.
+fn append_tree_line(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    const UNDERGROWTH: [f32; 3] = [0.10, 0.17, 0.09];
+    const BOLE: [f32; 3] = [0.27, 0.21, 0.14];
+    const CROWN: [f32; 3] = [0.13, 0.22, 0.10];
+    const CROWN_LIT: [f32; 3] = [0.17, 0.27, 0.12];
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+    let along_x = half.x >= half.z;
+    let run = if along_x { half.x } else { half.z };
+    let thin = if along_x { half.z } else { half.x };
+    let box_top = half.y * 2.0;
+
+    // The undergrowth: a dense knee-to-hull mass along the whole run, inset from the box
+    // faces so the silhouette stays leafy, not slab-sided.
+    let undergrowth_h = (box_top * 0.13).clamp(1.8, 2.6);
+    let (ux, uz) = if along_x { (run - 0.15, thin - 0.22) } else { (thin - 0.22, run - 0.15) };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + undergrowth_h * 0.5, center.z),
+        Vec3::new(ux, undergrowth_h * 0.5, uz),
+        UNDERGROWTH,
+        0.04,
+    );
+
+    // Two rows of boles up to the crown line, the second row offset by half a spacing so the
+    // gaps of one row stand behind the trunks of the other. Per-trunk height and girth vary
+    // by the cover-id hash — a planted row, not a fence of clones.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    let mut next = move || {
+        hash ^= hash << 13;
+        hash ^= hash >> 7;
+        hash ^= hash << 17;
+        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let crown_base = box_top * 0.55;
+    let spacing = 2.4_f32;
+    let trunks_per_row = ((run * 2.0 - 1.0) / spacing).floor().max(1.0) as usize;
+    for row in 0..2usize {
+        let across = (if row == 0 { -0.38_f32 } else { 0.38 }) * (thin - 0.2);
+        let stagger = if row == 0 { 0.0_f32 } else { spacing * 0.5 };
+        for index in 0..trunks_per_row {
+            let along = -run + 0.55 + stagger + index as f32 * spacing;
+            if along > run - 0.55 {
+                break;
+            }
+            let girth = 0.14 + next() * 0.07;
+            let bole_h = crown_base * (0.92 + next() * 0.12);
+            let (tx, tz) = if along_x {
+                (center.x + along, center.z + across)
+            } else {
+                (center.x + across, center.z + along)
+            };
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(tx, ground_y + bole_h * 0.5, tz),
+                Vec3::new(girth, bole_h * 0.5, girth),
+                BOLE,
+                0.05,
+            );
+        }
+    }
+
+    // The crown run: not a slab but a rhythm of masses — one segment over roughly every two
+    // boles, each with its own seeded top (88–100 % of the box top, never above it) and a
+    // narrow gap to its neighbours, so the skyline undulates like a planted row instead of
+    // wearing the old dark box. The lit cap reads as the sun-struck upper foliage.
+    let crown_lo = box_top * 0.45;
+    let seg_step = spacing * 1.8;
+    let segments = ((run * 2.0 - 1.2) / seg_step).floor().max(1.0) as usize;
+    for segment in 0..segments {
+        let seg_lo = -run + 0.6 + segment as f32 * seg_step;
+        let seg_half = seg_step * (0.40 + next() * 0.08);
+        let seg_top = box_top * (0.88 + next() * 0.12);
+        let seg_across = thin - 0.12 - next() * 0.25;
+        let seg_mid = seg_lo + seg_step * 0.5;
+        let (sx, sz, hx, hz) = if along_x {
+            (center.x + seg_mid, center.z, seg_half, seg_across)
+        } else {
+            (center.x, center.z + seg_mid, seg_across, seg_half)
+        };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(sx, ground_y + (crown_lo + seg_top) * 0.5, sz),
+            Vec3::new(hx, (seg_top - crown_lo) * 0.5, hz),
+            CROWN,
+            0.06,
+        );
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(sx, ground_y + seg_top - 0.3, sz),
+            Vec3::new(hx * 0.82, 0.3, hz * 0.82),
+            CROWN_LIT,
+            0.07,
+        );
+    }
+}
+
+/// RailCover 2.0 (Świat 2.0 PR 7): not a bare slab. Elongated boxes become a revetment —
+/// battered stone face, earth fill behind, coping course, buttresses on the longer runs.
+/// Square tall boxes (the Ostrogorsk elevator silos) become a coursed masonry tower with a
+/// cap. Every element lives INSIDE the collision AABB; the kind stays one wire identity.
+fn append_rail_cover(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    let along_x = half.x >= half.z;
+    let (run_half, thick_half) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+    // A tower reads square in plan and taller than it is wide — the silo case. Everything
+    // else is a run: parapet, berm, sangar, retaining wall, log cover.
+    let is_tower = thick_half >= run_half * 0.85 && half.y >= run_half * 1.4;
+    if is_tower {
+        append_rail_tower(vertices, indices, center, half);
+    } else {
+        append_rail_revetment(vertices, indices, center, half, along_x, run_half, thick_half);
+    }
+}
+
+fn append_rail_revetment(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+    along_x: bool,
+    run_half: f32,
+    thick_half: f32,
+) {
+    const FILL: ([f32; 3], f32) = ([0.34, 0.30, 0.24], 0.05);
+    const FACE: ([f32; 3], f32) = ([0.42, 0.40, 0.36], 0.14);
+    const COPING: ([f32; 3], f32) = ([0.50, 0.48, 0.44], 0.18);
+    let ground_y = center.y - half.y;
+    let coping_half_y = (half.y * 0.14).clamp(0.05, 0.16);
+    let body_half_y = (half.y - coping_half_y).max(0.08);
+
+    // Earth/ballast fill: most of the thickness, recessed so the dressed face reads proud.
+    let fill_thick = (thick_half * 0.72).max(thick_half - 0.35);
+    let fill = if along_x {
+        Vec3::new(run_half - 0.05, body_half_y, fill_thick)
+    } else {
+        Vec3::new(fill_thick, body_half_y, run_half - 0.05)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + body_half_y, center.z),
+        fill,
+        FILL.0,
+        FILL.1,
+    );
+
+    // Dressed stone face: a thin leaf along the long sides (both faces of a berm), inset
+    // from the run ends so corners don't overhang the box.
+    let face_thick = (thick_half - fill_thick).clamp(0.08, 0.35);
+    let face_inset = (run_half * 0.02).clamp(0.05, 0.25);
+    let face_run = (run_half - face_inset).max(0.2);
+    let face_y = ground_y + body_half_y * 0.92;
+    let face_half_y = body_half_y * 0.92;
+    for side in [-1.0_f32, 1.0] {
+        let across = side * (thick_half - face_thick);
+        let (pos, he) = if along_x {
+            (
+                Vec3::new(center.x, face_y, center.z + across),
+                Vec3::new(face_run, face_half_y, face_thick),
+            )
+        } else {
+            (
+                Vec3::new(center.x + across, face_y, center.z),
+                Vec3::new(face_thick, face_half_y, face_run),
+            )
+        };
+        push_surfaced_box(vertices, indices, pos, he, FACE.0, FACE.1);
+    }
+
+    // Coping: full thickness, the lighter crown that sheds rain along the whole run.
+    let coping = if along_x {
+        Vec3::new(run_half, coping_half_y, thick_half)
+    } else {
+        Vec3::new(thick_half, coping_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - coping_half_y, center.z),
+        coping,
+        COPING.0,
+        COPING.1,
+    );
+
+    // Buttresses on longer, taller runs — stone piers keyed into the face, never past the box.
+    if run_half >= 4.0 && half.y >= 0.8 {
+        let pier_count = ((run_half * 2.0 / 4.0).round() as u32).clamp(2, 6);
+        for pier in 0..pier_count {
+            let t = if pier_count == 1 {
+                0.0
+            } else {
+                (pier as f32 / (pier_count - 1) as f32) * 2.0 - 1.0
+            };
+            let along = t * (run_half - 0.45);
+            let pier_half_y = body_half_y * 0.95;
+            let pier_run = 0.28_f32.min(run_half * 0.12);
+            let pier_thick = (thick_half * 0.95).min(thick_half);
+            let (pos, he) = if along_x {
+                (
+                    Vec3::new(center.x + along, ground_y + pier_half_y, center.z),
+                    Vec3::new(pier_run, pier_half_y, pier_thick),
+                )
+            } else {
+                (
+                    Vec3::new(center.x, ground_y + pier_half_y, center.z + along),
+                    Vec3::new(pier_thick, pier_half_y, pier_run),
+                )
+            };
+            push_surfaced_box(vertices, indices, pos, he, FACE.0, FACE.1);
+        }
+    }
+}
+
+fn append_rail_tower(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const COURSE: ([f32; 3], f32) = ([0.40, 0.38, 0.34], 0.14);
+    const BAND: ([f32; 3], f32) = ([0.48, 0.46, 0.42], 0.16);
+    const CAP: ([f32; 3], f32) = ([0.52, 0.50, 0.46], 0.18);
+    let ground_y = center.y - half.y;
+    let plan = half.x.min(half.z);
+    let courses = 4_u32;
+    let course_h = (half.y * 2.0 - 0.35) / courses as f32;
+    for course in 0..courses {
+        let inset = 0.04 * course as f32;
+        let he_xz = (plan - inset).max(plan * 0.82);
+        let y0 = ground_y + course as f32 * course_h;
+        let tone = if course % 2 == 0 { COURSE } else { BAND };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x, y0 + course_h * 0.5, center.z),
+            Vec3::new(he_xz, course_h * 0.5, he_xz),
+            tone.0,
+            tone.1,
+        );
+    }
+    let cap_h = 0.18_f32.min(half.y * 0.12);
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - cap_h, center.z),
+        Vec3::new(plan, cap_h, plan),
+        CAP.0,
+        CAP.1,
+    );
 }
 
 /// The coursed masonry wall (urban-map PR-10): the brick body, a lighter COPING course
@@ -829,7 +1148,7 @@ fn append_building(
     } else {
         Vec3::new(half.x / footprint.x, half.y / footprint.y, half.z / footprint.z)
     };
-    let plinth = ([0.24_f32, 0.22, 0.20], 0.15_f32);
+    let stone = stone_palette(&cover.id);
     for mesh in [&baked.walls, &baked.roof] {
         let base = vertices.len() as u32;
         for vertex in mesh.vertices() {
@@ -841,22 +1160,15 @@ fn append_building(
             let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
             // Colour names the palette; the surface-role lane names the MATERIAL the scene
             // shader dresses it in (Materia Świata 3): rendered walls, coursed roofs, plank
-            // doors. Glass and plinth stone keep the untreated look. The vertex tag decodes
-            // to the world's OWN vocabulary (M2b) — no vehicle roles, no style heuristics;
-            // walls and roofs keep the per-building palette, the joinery wears the
-            // material's PBR-lite defaults.
-            use renderer_api::surface_role;
-            use world_forge::WorldMaterial;
-            let (color, gloss, role) = match WorldMaterial::from_carrier(vertex.material) {
-                WorldMaterial::Roof => (roof, roof_gloss, surface_role::SLATE),
-                WorldMaterial::PlinthStone => (plinth.0, plinth.1, surface_role::LEGACY),
-                WorldMaterial::WindowGlass => (WINDOW.0, WINDOW.1, surface_role::LEGACY),
-                WorldMaterial::PlankDoor => (DOOR.0, DOOR.1, surface_role::PLANK),
-                material @ WorldMaterial::Timber => {
-                    (material.albedo(), 1.0 - material.roughness(), surface_role::PLANK)
-                }
-                _ => (wall, 0.10, surface_role::PLASTER),
-            };
+            // doors, ashlar stone. Glass alone keeps the untreated look. The vertex tag
+            // decodes to the world's OWN vocabulary (M2b) — no vehicle roles, no style
+            // heuristics; walls and roofs keep the per-building palette, the joinery and
+            // the dressed-stone trim (plinth, sills, lintel bands, lesenes) wear per-id
+            // tones (Fasada 2.0 — the hard black plinth of D19 is retired).
+            let (color, gloss, role) = crate::world_material::to_scene(
+                world_forge::WorldMaterial::from_carrier(vertex.material),
+                crate::world_material::Palette { wall, roof, roof_gloss, stone },
+            );
             let scene_vertex = SceneVertex::surfaced(
                 (ground + local).to_array(),
                 n.normalize_or_zero().to_array(),
@@ -869,11 +1181,6 @@ fn append_building(
         indices.extend(mesh.indices().iter().map(|index| index + base));
     }
 }
-
-/// Window glass: near-black with a glazed sheen — the one thing on a wall that answers the sky.
-const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
-/// Plank door: dark weathered timber, matte.
-const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
 
 /// The ONE style-derivation table (B4 + urban-map PR-08). Landmarks and the urban block
 /// stand by NAME — explicit id substrings are the primary mechanism (`church`, `windmill`,
@@ -921,6 +1228,25 @@ fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     ];
     let (roof, roof_gloss) = ROOFS[((hash >> 8) % 3) as usize];
     (WALLS[(hash % 4) as usize], roof, roof_gloss)
+}
+
+/// The dressed-stone palette (Fasada 2.0): plinth, sills, lintel bands, lesenes and portals
+/// share ONE stone tone per building — a wall and its trim are one masonry story. Seeded
+/// apart from the wall/roof palette so the trim never tracks the plaster; every tone sits
+/// far above the old hard-black plinth (D19).
+fn stone_palette(id: &str) -> ([f32; 3], f32) {
+    let mut hash = 0x9e37_79b9_7f4a_7c15_u64;
+    for byte in id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    const STONES: [([f32; 3], f32); 4] = [
+        ([0.48, 0.44, 0.37], 0.18), // warm limestone
+        ([0.42, 0.39, 0.34], 0.16), // cool sandstone
+        ([0.37, 0.35, 0.32], 0.14), // grey granite
+        ([0.52, 0.47, 0.38], 0.20), // pale ashlar
+    ];
+    STONES[(hash % 4) as usize]
 }
 
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so
@@ -1500,7 +1826,7 @@ mod tests {
 
     /// Levelling a tree line empties the volume it occupied and leaves wreckage on the ground.
     ///
-    /// The hero oaks that also dressed it are no longer part of this bake — they draw from the
+    /// The oaks that also dressed it are no longer part of this bake — they draw from the
     /// instanced LOD path, which drops them on the same rule (`tree_lod::tree_frame_objects`,
     /// locked by its own test). What this locks is the bake's half: nothing of the standing
     /// line survives up in its box, and something does survive down on the ground.
@@ -1580,6 +1906,53 @@ mod tests {
         }
     }
 
+    /// Świat 2.0 PR1: a felled oak leaves a bole-scale stump, not a 26 cm diorama peg. The
+    /// stump's half-width tracks `TreeSpecies::Oak.trunk_radius` (~0.52 m).
+    #[test]
+    fn a_felled_oak_leaves_a_bole_scale_stump() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let trunk_index = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::TreeTrunk)
+            .expect("bystra oaks compile trunk cover");
+        let cover = &map.static_cover[trunk_index];
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[trunk_index] = 2;
+        let cleared = battlefield_scene_mesh_with_cover_states(&map, &states);
+        let bark = [0.26, 0.20, 0.13];
+        let ground_y = cover.center[1] - cover.half_extents_m[1];
+        // Stump verts sit near the trunk's XZ and within ~1.2 m of the ground (half-height
+        // ≤ 0.55 + cap). The fallen log also shares the bark colour but stretches far — keep
+        // only the near-footprint cluster.
+        let stump: Vec<_> = cleared
+            .0
+            .iter()
+            .filter(|v| {
+                v.color == bark
+                    && (v.position[0] - cover.center[0]).abs() < 1.2
+                    && (v.position[2] - cover.center[2]).abs() < 1.2
+                    && v.position[1] < ground_y + 1.2
+            })
+            .collect();
+        assert!(!stump.is_empty(), "a felled oak leaves a stump");
+        let max_half = stump
+            .iter()
+            .map(|v| {
+                (v.position[0] - cover.center[0]).abs().max((v.position[2] - cover.center[2]).abs())
+            })
+            .fold(0.0_f32, f32::max);
+        let oak_radius = world_forge::tree::TreeSpecies::Oak.trunk_radius();
+        assert!(
+            max_half >= oak_radius * 0.9,
+            "stump half-width {max_half} undershoots the oak butt {oak_radius}"
+        );
+        assert!(
+            max_half <= oak_radius * 1.15,
+            "stump half-width {max_half} overshoots the oak butt {oak_radius}"
+        );
+    }
+
     #[test]
     fn scenery_only_falls_where_the_cover_it_dressed_is_cleared() {
         let cover = vec![StaticCoverObject {
@@ -1611,6 +1984,8 @@ mod tests {
         for map in [
             map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
             map_forge::battlefield(terrain::MapId::BystraValley),
+            map_forge::battlefield(terrain::MapId::Ostrogorsk),
+            map_forge::battlefield(terrain::MapId::OrlinyPereval),
         ] {
             for cover in &map.static_cover {
                 let mut vertices = Vec::new();
@@ -1627,6 +2002,65 @@ mod tests {
                         "cover {} draws outside its collision box at {:?}",
                         cover.id,
                         vertex.position
+                    );
+                }
+            }
+        }
+    }
+
+    /// Świat 2.0 PR 5's load-bearing proof, the other direction of the treeline promise:
+    /// every TreeLine collision box on every shipped map TOWERS over the trees it hosts —
+    /// the LOS wall reaches at least the tallest crown standing inside it (15–25 m, the
+    /// register's mature band). Before PR 5 the boxes were 8.4–10 m slabs under 17–23 m
+    /// trees: a crew could be spotted OVER a wall its eyes could not see through.
+    #[test]
+    fn tree_line_boxes_contain_the_trees_they_host() {
+        for map_id in [
+            terrain::MapId::BystraValley,
+            terrain::MapId::Ostrogorsk,
+            terrain::MapId::ProkhorovkaHill252_2,
+            terrain::MapId::OrlinyPereval,
+        ] {
+            let map = map_forge::battlefield(map_id);
+            for cover in
+                map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
+            {
+                let box_top = cover.center[1] + cover.half_extents_m[1];
+                for instance in &map.scenery {
+                    let in_footprint = (instance.position[0] - cover.center[0]).abs()
+                        <= cover.half_extents_m[0]
+                        && (instance.position[2] - cover.center[2]).abs()
+                            <= cover.half_extents_m[2];
+                    if !in_footprint {
+                        continue;
+                    }
+                    let Some(species) = tree_species_for_scenery(instance.kind) else {
+                        continue;
+                    };
+                    let rendered_top = if instance.kind == terrain::SceneryKind::Oak {
+                        crate::tree_lod::battle_tree_rendered_top_m(instance.scale)
+                    } else {
+                        // The statics-bake path: per-position seed, Mid rung, no sink.
+                        let seed = instance.position[0].to_bits() as u64
+                            ^ ((instance.position[2].to_bits() as u64) << 32);
+                        world_forge::tree::bake_tree_lod(
+                            species,
+                            seed,
+                            world_forge::tree::TreeLod::Mid,
+                        )
+                        .canopy
+                        .bounds()
+                        .map(|bounds| bounds.max.y * instance.scale)
+                        .unwrap_or(0.0)
+                    };
+                    let tree_top = instance.position[1] + rendered_top;
+                    assert!(
+                        tree_top <= box_top + 0.05,
+                        "{map_id:?}/{}: a {:?} crown reaches {:.1} m but the LOS wall tops at {:.1} m",
+                        cover.id,
+                        instance.kind,
+                        tree_top,
+                        box_top,
                     );
                 }
             }
@@ -1706,12 +2140,13 @@ mod tests {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         append_cover_box(&mut vertices, &mut indices, barn);
-        let windows = vertices.iter().filter(|v| v.color == WINDOW.0).count();
-        let doors = vertices.iter().filter(|v| v.color == DOOR.0).count();
+        let windows =
+            vertices.iter().filter(|v| v.color == crate::world_material::WINDOW.0).count();
+        let doors = vertices.iter().filter(|v| v.color == crate::world_material::DOOR.0).count();
         assert!(windows >= 8, "a barn wall carries windows, got {windows} verts");
         assert!(doors >= 4, "a door stands proud of the plaster, got {doors} verts");
         // Glass answers the sky harder than the plaster around it.
-        assert!(WINDOW.1 > 0.10, "window glaze outshines the wall");
+        assert!(crate::world_material::WINDOW.1 > 0.10, "window glaze outshines the wall");
     }
 
     /// Materia Świata 3: a building names its materials down the surface lane — rendered
@@ -1734,7 +2169,7 @@ mod tests {
         assert!(count(surface_role::SLATE) > 0, "the roof runs in courses");
         assert!(count(surface_role::PLANK) >= 4, "the door is sawn boards");
         for vertex in &vertices {
-            if vertex.color == WINDOW.0 {
+            if vertex.color == crate::world_material::WINDOW.0 {
                 assert_eq!(vertex.surface, surface_role::LEGACY, "glass takes no treatment");
             }
         }
@@ -1891,6 +2326,58 @@ mod tests {
         assert!(coping_lit, "the crown of the run wears the lighter coping stone");
     }
 
+    /// Świat 2.0 PR 7: RailCover is a revetment (or a coursed tower for square silos), never
+    /// a single slab — more than one box of geometry, every vertex inside the collision AABB,
+    /// and a lighter coping/cap on the crown. Locked on a berm run and an Ostrogorsk silo.
+    #[test]
+    fn the_rail_cover_wears_a_revetment_inside_its_box() {
+        let cases = [
+            StaticCoverObject {
+                id: "berm_probe".into(),
+                name: "berm parapet".into(),
+                kind: StaticCoverKind::RailCover,
+                center: [0.0, 0.9, 0.0],
+                half_extents_m: [1.4, 0.9, 12.0],
+            },
+            StaticCoverObject {
+                id: "silo_probe".into(),
+                name: "elevator silo".into(),
+                kind: StaticCoverKind::RailCover,
+                center: [0.0, 5.5, 0.0],
+                half_extents_m: [2.2, 5.5, 2.2],
+            },
+        ];
+        for cover in &cases {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            append_cover_box(&mut vertices, &mut indices, cover);
+            assert!(
+                vertices.len() > 24,
+                "{}: revetment/tower adds geometry beyond one box, got {}",
+                cover.id,
+                vertices.len()
+            );
+            let center = Vec3::from_array(cover.center);
+            let half = Vec3::from_array(cover.half_extents_m);
+            for vertex in &vertices {
+                let delta = (Vec3::from_array(vertex.position) - center).abs();
+                assert!(
+                    delta.x <= half.x + 1.0e-3
+                        && delta.y <= half.y + 1.0e-3
+                        && delta.z <= half.z + 1.0e-3,
+                    "{} draws outside its collision box at {:?}",
+                    cover.id,
+                    vertex.position
+                );
+            }
+            let crown_y = center.y + half.y - 0.35;
+            let lit_crown = vertices
+                .iter()
+                .any(|v| v.position[1] >= crown_y && v.color[0] >= 0.48 && v.color[1] >= 0.46);
+            assert!(lit_crown, "{}: the crown wears the lighter coping/cap stone", cover.id);
+        }
+    }
+
     /// The breach (urban-map PR-10): a Gone wall leaves a knee-high toppled course — inside
     /// the old footprint, far below cover height, deterministic per id, and absent while the
     /// wall stands.
@@ -1969,12 +2456,12 @@ mod tests {
         assert!(vertices.len() > terrain_vertices.len(), "cover must add geometry");
         assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
         for cover in &battlefield.static_cover {
-            // A hero oak's bole is the one box the BAKE does not draw — its visual is the
+            // An oak's bole is the one box the BAKE does not draw — its visual is the
             // instanced tree, so the promise is kept by proving a tree actually stands in it.
             // The doctrine is unchanged: every box is something the player can see.
             if cover.kind == StaticCoverKind::TreeTrunk {
                 assert!(
-                    dressed_by_a_hero_tree(&battlefield, cover),
+                    dressed_by_an_oak(&battlefield, cover),
                     "trunk box {} must have the tree it claims to be",
                     cover.id
                 );
@@ -1992,14 +2479,15 @@ mod tests {
         }
     }
 
-    /// A `TreeTrunk` box is honest only if a hero tree really stands in it: same footprint,
-    /// same ground. This is the substitute proof for the geometry check the bake cannot make.
-    fn dressed_by_a_hero_tree(
+    /// A `TreeTrunk` box is honest only if a procedural oak really stands in it: same
+    /// footprint, same ground. This is the substitute proof for the geometry check the bake
+    /// cannot make.
+    fn dressed_by_an_oak(
         battlefield: &terrain::BattlefieldMap,
         cover: &terrain::StaticCoverObject,
     ) -> bool {
         battlefield.scenery.iter().any(|instance| {
-            instance.kind == terrain::SceneryKind::FloraTree
+            instance.kind == terrain::SceneryKind::Oak
                 && (instance.position[0] - cover.center[0]).abs() < 0.05
                 && (instance.position[2] - cover.center[2]).abs() < 0.05
         })
@@ -2064,7 +2552,7 @@ mod tests {
             // Trunk boxes bake nothing (their tree is instanced), so there is no bucket
             // geometry to survive — what must survive is the tree standing in them.
             if cover.kind == StaticCoverKind::TreeTrunk {
-                assert!(dressed_by_a_hero_tree(&battlefield, cover), "trunk {} kept", cover.id);
+                assert!(dressed_by_an_oak(&battlefield, cover), "trunk {} kept", cover.id);
                 continue;
             }
             let center = Vec3::from_array(cover.center);

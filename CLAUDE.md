@@ -16,7 +16,8 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
   `SceneryKind`, `RoadSurface`, vertex layouts. Never reorder.
 - **Maps are data**: RON blueprints in `crates/world/map_forge/blueprints/`, compiled +
   report-gated + golden-hashed (`blueprints/goldens.ron` — bless deliberately).
-- **No clones** in content; **CC0 only** for imported assets (license manifest required).
+- **No clones** in content; **CC0 only** for any future imported assets (license manifest
+  required). Flora is procedural-only — no imported trees.
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided
@@ -25,7 +26,8 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
   the target look, its 7 rules and their locks.
 - `docs/vehicles/t-54.md` — the benchmark vehicle dossier (the fleet's bar; siblings alongside).
-- `docs/map-forge-policy.md` — map + flora doctrine; `docs/maps/*.md` — per-map dossiers;
+- `docs/map-forge-policy.md` — map + flora doctrine (procedural-only); `docs/maps/*.md` —
+  per-map dossiers; `docs/world-2.0-program.md` — the live world program.
   editor: `cargo run -p editor`.
 - `docs/honest-steel-policy.md`, `docs/shadow-policy.md`.
 - `crates/tooling/quality` — **the ratchet**: 18 gate tests enforce the layer DAG, append-only

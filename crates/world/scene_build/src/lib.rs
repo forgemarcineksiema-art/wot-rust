@@ -5,7 +5,7 @@
 
 pub mod backdrop;
 pub mod battlefield;
-pub mod flora_pack;
+pub mod clutter;
 pub mod foliage;
 pub mod grass;
 pub mod grass_cards;
@@ -20,3 +20,4 @@ pub mod tree_lod;
 pub mod water;
 pub mod weather;
 pub mod weather_timeline;
+pub(crate) mod world_material;

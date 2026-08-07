@@ -29,9 +29,9 @@ WoT map anatomy as the genre reference.
      the west-facing crest shelf (crest x=726 / shelf x=752 — covers pushes from the
      centre) and the NEW axis-facing top ridge (a drawn Ridge stroke at z≈368/632 —
      covers the north–south standoff over the saddle).
-- Flora (FL-5): the farm and field broadleaf scatters use the accepted imported textured
-  tree; procedural bushes and willows retain the steppe's lowland vocabulary. `FloraBush`
-  remains unauthored because its source failed the look gate.
+- Flora (Świat 2.0): farm and field broadleaf scatters are procedural oaks (instanced LOD +
+  trunk cover); procedural bushes retain the steppe's lowland vocabulary. Retired imported
+  kinds are never authored.
 - **The balkas (drawn Valley strokes — what the rebuild adds):**
   - The **anti-tank ditch** is a meandering balka ~110 m before the axis (x 330→700,
     3.5 m deep): the covered east–west rotation of each half. A tank in it is in FULL

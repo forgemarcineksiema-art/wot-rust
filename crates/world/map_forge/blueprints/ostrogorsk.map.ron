@@ -522,14 +522,14 @@ MapBlueprint(
             name: "far field windbreak (south)",
             kind: TreeLine,
             at: (Fixed(560.0), Fixed(175.0)),
-            half_extents_m: (16.0, 4.2, 2.8),
+            half_extents_m: (16.0, 8.2, 2.8),
         ),
         Cover(
             id: "field_screen_far_north",
             name: "far field windbreak (north)",
             kind: TreeLine,
             at: (Fixed(560.0), Fixed(825.0)),
-            half_extents_m: (16.0, 4.2, 2.8),
+            half_extents_m: (16.0, 8.2, 2.8),
         ),
         // Field screens between the rises and the boulevard: honest LOS blocks for the
         // open-flank run.
@@ -538,14 +538,14 @@ MapBlueprint(
             name: "field windbreak (south)",
             kind: TreeLine,
             at: (Fixed(600.0), Fixed(250.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 9.0, 3.0),
         ),
         Cover(
             id: "field_screen_north",
             name: "field windbreak (north)",
             kind: TreeLine,
             at: (Fixed(600.0), Fixed(750.0)),
-            half_extents_m: (20.0, 4.5, 3.0),
+            half_extents_m: (20.0, 9.0, 3.0),
         ),
         // The dense core (PR-12): four tenement columns, six mirrored rows — 48 masonry
         // blocks in street canyons, with the born-ruin pairs punched into the gaps above.
@@ -572,10 +572,10 @@ MapBlueprint(
         ),
     ],
     scenery: [
-        // Imported broadleaf orchard and park behind the west edge of the city.
+        // Orchard and park behind the west edge of the city.
         Scatter(
             seed: 4310001,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (55.0, 115.0),
@@ -589,7 +589,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 4310002,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (60.0, 130.0),
@@ -630,12 +630,12 @@ MapBlueprint(
                 cover_margin_m: Some(2.5),
             ),
         ),
-        // The elevator orchard (PR-13, thinned by the hero-flora program): a couple of
+        // The elevator orchard (PR-13, thinned): a couple of
         // orchard oaks behind the compounds, and brush along the berm's west foot so the
         // fields run has soft texture up to the wall.
         Scatter(
             seed: 4310006,
-            kind: FloraTree,
+            kind: Oak,
             pairs: 3,
             region: ScatterRect(
                 x: (880.0, 960.0),
@@ -686,10 +686,10 @@ MapBlueprint(
                 cover_margin_m: Some(1.5),
             ),
         ),
-        // The boulevard avenue: imported broadleaf rows flanking the north-south promenade,
+        // The boulevard avenue: oak rows flanking the north-south promenade,
         // with a deliberate gap where the boulevard road crosses the axis.
         Row(
-            kind: FloraTree,
+            kind: Oak,
             xs: [
                 448.0,
                 472.0,

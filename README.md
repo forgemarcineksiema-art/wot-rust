@@ -27,9 +27,9 @@ release, and where the center of gravity should go next. Individual program docs
 - **Honest Steel destruction**: buildings pound to rubble, walls breach, fences crush,
   tracks take staged damage — gameplay on volumes, presentation contact-true, all replicated.
 - **A real renderer** (wgpu): cascaded sun shadows, SSAO, HDR + bloom, weather looks with a
-  fairness lock, chunked/culled statics, grass, battle FX, procedural building/tree
-  generators — plus a **CC0 flora import pipeline** (glTF → validated assets → one runtime
-  atlas with alpha-cutout foliage whose shadows are their masks).
+  fairness lock, chunked/culled statics, grass, battle FX, and **fully procedural building and
+  tree generators** — the world ships no imported art at all (flora is procedural-only, and a
+  battlefield oak's trunk is a gameplay solid, not a painting).
 - **Deterministic sim + netcode**: fixed-tick authoritative server, protocol snapshots,
   replay regression fixtures, per-era spotting, bots with route planning.
 
@@ -47,9 +47,8 @@ Review/QA artifacts:
 
 ```powershell
 cargo run -p client --release --example probe -- perf_capture      # the one-look FPS numbers
-cargo run -p client --example probe -- flora_probe                 # imported vs procedural trees
+cargo run -p client --example probe -- flora_probe                 # the procedural species lineup
 cargo run -p client --example probe -- ostrogorsk_views            # city review renders
-cargo run -p tools -- import-flora --input model.glb --manifest model.manifest.ron
 cargo run -p tools -- generate-map --map ostrogorsk --output assets/maps/ostrogorsk.terrain.json
 ```
 

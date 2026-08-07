@@ -101,6 +101,16 @@ pub mod surface_role {
     /// hard lambert key for a wrapped term plus a small back-lit transmission lobe — a leaf
     /// is not an opaque wall, and the hard falloff read as black patches inside the crown.
     pub const FOLIAGE: f32 = 7.0;
+    /// Dressed stone (Fasada 2.0): ashlar courses — staggered blocks with per-block tone —
+    /// for plinths, sills, lintel bands, lesenes and portal surrounds. The plinth's old
+    /// hard-black LEGACY look is retired (D19).
+    pub const DRESSED_STONE: f32 = 8.0;
+    /// Natural rock face (Skały 1.0, D6): unworked stone — boulders, field stones, the frost
+    /// spall at their feet. Distinct from [`DRESSED_STONE`], which is ashlar a mason cut: this
+    /// one has no courses at all, only two grain octaves and the weathering that bleaches an
+    /// upward face while the undercuts stay dark. That top-versus-undercut split is what tells
+    /// daylight it is looking at stone.
+    pub const ROCK_FACE: f32 = 9.0;
 }
 
 impl SceneVertex {

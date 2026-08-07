@@ -44,7 +44,7 @@ furrows buy-back (teren B1):       ±0.05 ms  (detail_cost_probe, mask 3 vs 67,
 water mesh:                         0.7 ms   (2 350 v)
 statics rebuild (cover collapse):  27.9 ms
 statics rebuild (single collapse):  21.9 ms  (362 382 v)
-ostrogorsk statics bake:           38.1 ms   (438 552 v / 660 150 i, 101 boxes + 118 flora)
+ostrogorsk statics bake:           (re-measure after Świat 2.0 F0 — oaks are off-bake)
 ostrogorsk rebuild (all-rubble):   49.9 ms
 grass conjure:                      352 us/frame (3 653 instances)
 church bake:                         0.02 ms (130 tris)
