@@ -87,3 +87,170 @@ impl PassId {
         Self::ALL.iter().position(|id| *id == self).expect("every PassId is listed in PassId::ALL")
     }
 }
+
+/// A resource one pass produces and another consumes, within a single frame.
+///
+/// Only PER-FRAME resources are here. The foliage atlas, the baked cloud tile and the material
+/// textures are inputs to the frame rather than products of it, so they carry no ordering
+/// constraint and would only make the graph look busier than the frame is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FrameResource {
+    /// The focused sun-shadow depth map.
+    ShadowNear,
+    /// The wide cascade's depth map, at half the resolution and without the fleet.
+    ShadowFar,
+    /// Half-resolution camera depth, produced solely to feed the AO evaluation.
+    SsaoDepth,
+    /// Raw ambient occlusion, before the blur that makes a half-resolution buffer usable.
+    SsaoRaw,
+    /// The AO the world shader actually samples.
+    SsaoBlurred,
+    /// The scene's depth buffer.
+    SceneDepth,
+    /// The multisampled HDR attachment the world renders into.
+    HdrColor,
+    /// The resolved opaque frame the water samples for refraction — the two-pass path only.
+    HdrGrab,
+    /// The resolved HDR frame the bloom ladder and the display transform read.
+    HdrResolved,
+    /// The blurred bloom mip chain.
+    BloomChain,
+    /// The display-transformed picture, encoded, before anti-aliasing.
+    LdrFormed,
+    /// The caller's target — the picture that leaves this renderer.
+    Output,
+}
+
+/// What has to be true for a pass to be encoded at all.
+///
+/// Three switches, and every one of them is read from renderer state inside `render`. They are
+/// named here so the graph can be checked for every combination rather than for the one the
+/// machine that runs the test happens to be in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PassCondition {
+    /// Encoded on every frame.
+    Always,
+    /// `ssao.strength > 0.0`.
+    Ssao,
+    /// `scene_lighting.bloom_weight > 0.0`.
+    Bloom,
+    /// `refraction && sample_count > 1` — the two-pass water grab.
+    Refraction,
+    /// The single-pass world, taken when the grab is not.
+    NoRefraction,
+}
+
+impl PassCondition {
+    /// Whether this condition holds for a given combination of the three switches.
+    pub fn holds(self, ssao: bool, bloom: bool, refraction: bool) -> bool {
+        match self {
+            PassCondition::Always => true,
+            PassCondition::Ssao => ssao,
+            PassCondition::Bloom => bloom,
+            PassCondition::Refraction => refraction,
+            PassCondition::NoRefraction => !refraction,
+        }
+    }
+}
+
+/// One pass, and what it needs and leaves behind.
+#[derive(Debug, Clone, Copy)]
+pub struct PassNode {
+    pub id: PassId,
+    pub condition: PassCondition,
+    /// Resources this pass cannot run without.
+    pub reads: &'static [FrameResource],
+    /// Resources it samples WHEN THEY EXIST, with a placeholder bound otherwise — the 1x1 open-AO
+    /// view and the 1x1 black bloom view. Modelling these as required reads would make the graph
+    /// refuse frames the renderer draws correctly every day.
+    pub optional_reads: &'static [FrameResource],
+    pub writes: &'static [FrameResource],
+}
+
+/// The frame, as it is encoded today.
+///
+/// Derived from the call sites rather than from intent: a pass reads what the bind groups it sets
+/// actually carry. That is why the water pass reads the grab and nothing else — `draw_water_surface`
+/// and `draw_overlay_fx` set group 0, and the refraction grab at group 1, but never group 2, so
+/// neither the water nor the FX sample the shadow maps or the AO. Only the opaque world does.
+///
+/// This table changes in the same commit as the code it describes; its diff is the review.
+pub const FRAME_GRAPH: &[PassNode] = &[
+    PassNode {
+        id: PassId::ShadowNear,
+        condition: PassCondition::Always,
+        reads: &[],
+        optional_reads: &[],
+        writes: &[FrameResource::ShadowNear],
+    },
+    PassNode {
+        id: PassId::ShadowFar,
+        condition: PassCondition::Always,
+        reads: &[],
+        optional_reads: &[],
+        writes: &[FrameResource::ShadowFar],
+    },
+    PassNode {
+        id: PassId::SsaoPrepass,
+        condition: PassCondition::Ssao,
+        reads: &[],
+        optional_reads: &[],
+        writes: &[FrameResource::SsaoDepth],
+    },
+    PassNode {
+        id: PassId::Ssao,
+        condition: PassCondition::Ssao,
+        reads: &[FrameResource::SsaoDepth],
+        optional_reads: &[],
+        writes: &[FrameResource::SsaoRaw],
+    },
+    PassNode {
+        id: PassId::SsaoBlur,
+        condition: PassCondition::Ssao,
+        reads: &[FrameResource::SsaoDepth, FrameResource::SsaoRaw],
+        optional_reads: &[],
+        writes: &[FrameResource::SsaoBlurred],
+    },
+    PassNode {
+        id: PassId::SceneOpaque,
+        condition: PassCondition::Refraction,
+        reads: &[FrameResource::ShadowNear, FrameResource::ShadowFar],
+        optional_reads: &[FrameResource::SsaoBlurred],
+        writes: &[FrameResource::SceneDepth, FrameResource::HdrColor, FrameResource::HdrGrab],
+    },
+    PassNode {
+        id: PassId::SceneWater,
+        condition: PassCondition::Refraction,
+        reads: &[FrameResource::HdrGrab, FrameResource::SceneDepth, FrameResource::HdrColor],
+        optional_reads: &[],
+        writes: &[FrameResource::HdrColor, FrameResource::HdrResolved],
+    },
+    PassNode {
+        id: PassId::Scene,
+        condition: PassCondition::NoRefraction,
+        reads: &[FrameResource::ShadowNear, FrameResource::ShadowFar],
+        optional_reads: &[FrameResource::SsaoBlurred],
+        writes: &[FrameResource::SceneDepth, FrameResource::HdrColor, FrameResource::HdrResolved],
+    },
+    PassNode {
+        id: PassId::Bloom,
+        condition: PassCondition::Bloom,
+        reads: &[FrameResource::HdrResolved],
+        optional_reads: &[],
+        writes: &[FrameResource::BloomChain],
+    },
+    PassNode {
+        id: PassId::Post,
+        condition: PassCondition::Always,
+        reads: &[FrameResource::HdrResolved],
+        optional_reads: &[FrameResource::BloomChain],
+        writes: &[FrameResource::LdrFormed],
+    },
+    PassNode {
+        id: PassId::Fxaa,
+        condition: PassCondition::Always,
+        reads: &[FrameResource::LdrFormed],
+        optional_reads: &[],
+        writes: &[FrameResource::Output],
+    },
+];
