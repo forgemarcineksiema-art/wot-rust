@@ -120,14 +120,20 @@ fn measure(map: MapId) -> Seam {
         let aim_at = target_position + Vec3::Y * 1.6;
         let forward = (aim_at - eye).normalize_or_zero();
         let sets = crate::hud::reticle_sweep::trace_sets(&tanks, TankId(1), TeamId(1));
+        // Two probes, two questions. The sight sweep carries the SHELL's body, exactly as
+        // `ClientApp::sight_point` does — it asks what this round would meet. The silhouette
+        // probe below carries none, because it asks what the picture SHOWS, and light has no
+        // calibre. Sharing one radius between them would make the instrument agree with itself
+        // by construction and see nothing.
         let world = sim::ShellTraceWorld {
-            projectile_radius_m: 0.0,
+            projectile_radius_m: shell.collision_radius_m(),
             tanks: &sets.targets,
             blockers: &sets.blockers,
             heightmap: Some(heightmap),
             cover,
             water: battlefield.water,
         };
+        let eye_world = sim::ShellTraceWorld { projectile_radius_m: 0.0, ..world };
         let sight = sim::segment_impact(eye, eye + forward * 1200.0, forward, &world);
         let Some(sim::SegmentImpact::Tank { .. }) = sight else { continue };
         let sight_point = sight.expect("matched above").point();
@@ -188,7 +194,7 @@ fn measure(map: MapId) -> Seam {
             let point = target_position + Vec3::Y * *height;
             let along = (point - eye).normalize_or_zero();
             matches!(
-                sim::segment_impact(eye, point + along * 0.5, along, &world),
+                sim::segment_impact(eye, point + along * 0.5, along, &eye_world),
                 Some(sim::SegmentImpact::Tank { .. })
             )
         });
@@ -199,22 +205,28 @@ fn measure(map: MapId) -> Seam {
     seam
 }
 
-/// Per-mille ceiling on refusals, so the ratchet is integer arithmetic rather than a float
-/// comparison that drifts with the last digit of a heightmap sample.
-fn per_mille(part: usize, whole: usize) -> usize {
-    part * 1000 / whole.max(1)
+/// Rate in parts per ten thousand, as integer arithmetic — no float comparison to drift with the
+/// last digit of a heightmap sample.
+///
+/// Per MILLE is the scale this started on and it has already stopped resolving: Bystra now refuses
+/// 6 shots in 9 849, which rounds to zero there. A ceiling that reads zero cannot be tightened and
+/// cannot say by how much it was missed.
+fn per_ten_thousand(part: usize, whole: usize) -> usize {
+    part * 10_000 / whole.max(1)
 }
 
 /// The sight may not offer a shot the gun cannot take — and above all, it may not offer one while
 /// the target stands completely open in the picture.
 ///
-/// The bounds below are MEASURED, not chosen: they are today's numbers with a little headroom, so
-/// they answer "did this change reopen the gap?" rather than "is this number pretty?". Raising one
-/// is a decision that belongs in `docs/sight-honesty-program.md`, never a way to get green.
+/// The bounds below are MEASURED, not chosen: today's numbers with roughly half again as headroom,
+/// so they answer "did this change reopen the gap?" rather than "is this number pretty?". They are
+/// tight enough that undoing either wave turns them red on its own — reverting the optic height
+/// alone puts Bystra at 38 against a ceiling of 10. Raising one is a decision that belongs in
+/// `docs/sight-honesty-program.md`, never a way to get a run green.
 #[test]
 fn what_the_sniper_eye_reaches_the_gun_can_reach() {
     for (map, refused_ceiling, uncut_ceiling) in
-        [(MapId::BystraValley, 5, 4), (MapId::ProkhorovkaHill252_2, 7, 3)]
+        [(MapId::BystraValley, 10, 4), (MapId::ProkhorovkaHill252_2, 40, 12)]
     {
         let seam = measure(map);
         assert!(
@@ -222,24 +234,24 @@ fn what_the_sniper_eye_reaches_the_gun_can_reach() {
             "{map:?}: the population must be large enough to mean something, got {}",
             seam.believable
         );
-        let refused = per_mille(seam.refused, seam.believable);
-        let uncut = per_mille(seam.refused_while_uncut, seam.believable);
+        let refused = per_ten_thousand(seam.refused, seam.believable);
+        let uncut = per_ten_thousand(seam.refused_while_uncut, seam.believable);
         // Printed, not just asserted: re-measuring after a terrain or ballistics change is the
         // point of this instrument, and `cargo test -- --nocapture` is how the numbers in
         // `docs/sight-honesty-program.md` were taken.
-        eprintln!("{map:?}: {seam:?}  refused={refused}/1000  uncut={uncut}/1000");
+        eprintln!("{map:?}: {seam:?}  refused={refused}/10000  uncut={uncut}/10000");
         assert!(
             refused <= refused_ceiling,
-            "{map:?}: {}/{} sight-reachable hulls the gun cannot reach = {refused} per mille, \
-             over the {refused_ceiling} ceiling",
+            "{map:?}: {}/{} sight-reachable hulls the gun cannot reach = {refused} per ten \
+             thousand, over the {refused_ceiling} ceiling",
             seam.refused,
             seam.believable,
         );
         assert!(
             uncut <= uncut_ceiling,
             "{map:?}: {}/{} refusals with the target NOT cut anywhere in the picture = {uncut} \
-             per mille, over the {uncut_ceiling} ceiling — the sight is refusing a shot the \
-             player has no way to know is refused",
+             per ten thousand, over the {uncut_ceiling} ceiling — the sight is refusing a shot \
+             the player has no way to know is refused",
             seam.refused_while_uncut,
             seam.believable,
         );

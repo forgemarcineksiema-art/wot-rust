@@ -105,6 +105,16 @@ pub(crate) struct SightPoint {
     pub on_surface: bool,
 }
 
+/// `projectile_radius_m` is the BODY the sight probes the world with, and it must be the loaded
+/// shell's — the same radius the trace beside it flies.
+///
+/// It used to be zero: the ray asked "what would a needle hit along this line" while the trace
+/// asked "what would THIS SHELL hit", and the two disagreed by exactly one radius. Measured on
+/// Bystra, that difference WAS the defect for **35 of the 36** refusals where the target is not
+/// cut anywhere in the picture (register I3): the needle threaded a barn roof by about 7 cm, the
+/// shell grazed it, and the crosshair sat on a tank at 327 m while the round died on masonry at
+/// 120 m. With the shell's own body the sweep stops ON that roof — the readout says 120 M and the
+/// player is visibly aiming at a barn, which is a picture that explains itself.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
@@ -115,10 +125,11 @@ pub(crate) fn aim_point_with_sweep(
     owner_team: TeamId,
     eye: Vec3,
     forward: Vec3,
+    projectile_radius_m: f32,
 ) -> SightPoint {
     let sets = crate::hud::reticle_sweep::trace_sets(tanks, owner, owner_team);
     let world = ShellTraceWorld {
-        projectile_radius_m: 0.0,
+        projectile_radius_m,
         tanks: &sets.targets,
         blockers: &sets.blockers,
         heightmap: Some(heightmap),
@@ -374,6 +385,7 @@ mod tests {
                 TeamId(1),
                 eye,
                 forward,
+                0.0,
             );
             let slow = oracle(eye, forward);
             assert!(
@@ -392,7 +404,7 @@ mod tests {
         let flat = HeightMap::flat(64, 64, 5.0, 0.0).unwrap();
         let eye = Vec3::new(100.0, 10.0, 100.0);
         let sweep = |forward: Vec3| {
-            aim_point_with_sweep(&flat, &[], None, &[], TankId(1), TeamId(1), eye, forward)
+            aim_point_with_sweep(&flat, &[], None, &[], TankId(1), TeamId(1), eye, forward, 0.0)
         };
 
         let ground = sweep(Vec3::new(0.0, -1.0, 1.0).normalize());
@@ -403,6 +415,61 @@ mod tests {
         assert!(
             (sky.point - eye).length() > AIM_MAX_RANGE_M - 1.0,
             "and it ends at the ray's own reach"
+        );
+    }
+
+    /// The sight probes the world with the SHELL'S body, not with a needle.
+    ///
+    /// Zero radius here against the trace's calibre radius beside it was the whole of register I3:
+    /// on Bystra it produced 35 of the 36 refusals where the target stands completely open in the
+    /// picture. The ray threaded a barn roof by centimetres, the round grazed it, and the sight
+    /// showed a clean shot at a tank three hundred metres past the masonry that ate it.
+    ///
+    /// The scene below is that graze, minimised: a slab whose top sits just under the ray. The
+    /// needle passes; the shell does not. Both halves are asserted, so this turns red if the
+    /// radius stops being wired through — not merely if the geometry moves.
+    #[test]
+    fn the_sight_ray_stops_on_what_the_shell_cannot_clear() {
+        let flat = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+        let eye = Vec3::new(40.0, 2.0, 40.0);
+        let forward = Vec3::Z;
+        // Roof at 2.0 - 0.03: three centimetres under a level ray, inside a 100 mm shell's radius.
+        let barn = StaticCoverObject {
+            id: "barn".to_string(),
+            name: "barn".to_string(),
+            kind: terrain::StaticCoverKind::FarmBuilding,
+            center: [40.0, 0.985, 80.0],
+            half_extents_m: [6.0, 0.985, 4.0],
+        };
+        let sweep = |radius| {
+            aim_point_with_sweep(
+                &flat,
+                std::slice::from_ref(&barn),
+                None,
+                &[],
+                TankId(1),
+                TeamId(1),
+                eye,
+                forward,
+                radius,
+            )
+        };
+
+        let needle = sweep(0.0);
+        assert!(
+            needle.point.z > 200.0,
+            "the scene must be a genuine graze: a needle threads it, landing at {:?}",
+            needle.point
+        );
+
+        let shell = game_core::VehicleKind::T54_1951.spec().gun.shell;
+        assert!(shell.collision_radius_m() > 0.03, "the T-54's round is wider than the gap");
+        let round = sweep(shell.collision_radius_m());
+        assert!(round.on_surface, "the shell's body meets the roof");
+        assert!(
+            (round.point.z - 76.0).abs() < 1.0,
+            "and the crosshair stops ON the barn instead of a target beyond it: {:?}",
+            round.point
         );
     }
 

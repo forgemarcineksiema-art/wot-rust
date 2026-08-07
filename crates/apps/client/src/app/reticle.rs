@@ -188,6 +188,9 @@ impl ClientApp {
                 self.player_team(),
                 eye,
                 forward,
+                // The sight probes the world with the body the SELECTED shell has, so the
+                // crosshair can never land on something this round would graze on the way.
+                self.predictor.selected_shell().collision_radius_m(),
             )
         })
     }
