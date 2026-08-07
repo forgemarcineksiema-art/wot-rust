@@ -10,7 +10,7 @@ use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 
 use super::asset_catalog::VehicleAssetCatalog;
 use super::pose::VehiclePose;
-use super::running_gear_objects::gear_render_objects;
+use super::running_gear_objects::gear_objects_from;
 use super::variation::VehicleVariation;
 
 /// Presentation-only barrel droop for a knocked-out gun: the elevation gear is dead, so the
@@ -180,15 +180,24 @@ pub fn tank_vehicle_render_objects_posed(
     {
         let track_left_m = if variation.left_track_broken() { 0.0 } else { track_left_m };
         let track_right_m = if variation.right_track_broken() { 0.0 } else { track_right_m };
-        objects.extend(gear_render_objects(
+        // `vehicle_entry` hands back a COPY, so nothing is still borrowing the catalog here and
+        // the placement cache can be reached through it. The cache is why a wreck — and a tank
+        // holding a firing position — stops rebuilding 204 matrices it did not move.
+        let material = entry.material;
+        let placements = catalog.gear_placements.placements(
             snapshot.tank_id,
-            handles,
-            entry.material,
-            hull_transform,
+            snapshot.vehicle,
             &kin,
             track_left_m,
             track_right_m,
             gear_dynamics,
+        );
+        objects.extend(gear_objects_from(
+            snapshot.tank_id,
+            handles,
+            material,
+            hull_transform,
+            placements,
             tint,
             gear_detail,
         ));

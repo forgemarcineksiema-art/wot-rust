@@ -179,7 +179,7 @@ impl ClientApp {
             match receiver.try_recv() {
                 Ok(rebuilt) => {
                     self.ground_rebuild_rx = None;
-                    let ((vertices, indices), dressing) = rebuilt;
+                    let super::GroundRebuild { ground: (vertices, indices), dressing } = rebuilt;
                     // The fingerprint is recorded only where the upload actually happened, so a
                     // harvest that arrives before the renderer exists cannot leave the client
                     // believing the GPU holds a meadow it never received.
@@ -187,12 +187,11 @@ impl ClientApp {
                     if let Some(renderer) = self.renderer.as_mut() {
                         renderer.update_battlefield_ground_geometry(&vertices, &indices);
                         // The card meadow follows the same ledger: the burst that dug the
-                        // hole also mowed the cards around it (Żywy Step P2). Usually it
-                        // mowed nothing, and then the worker sends `None` rather than the
-                        // ~68 MiB the slot already holds.
-                        if let Some(((dressing_v, dressing_i), fingerprint)) = dressing.as_ref() {
-                            renderer.set_dressing(dressing_v, dressing_i);
-                            uploaded = Some(*fingerprint);
+                        // hole also mowed the cards around it (Żywy Step P2). Usually it mowed
+                        // nothing — and then the worker did not even bake one.
+                        if let Some(rebuild) = dressing.as_ref() {
+                            renderer.set_dressing(&rebuild.mesh.0, &rebuild.mesh.1);
+                            uploaded = Some(rebuild.fingerprint);
                         }
                     }
                     if let Some(fingerprint) = uploaded {
@@ -201,9 +200,11 @@ impl ClientApp {
                     if let Some(meshes) = self.battle_scene_meshes.as_mut() {
                         meshes.ground_vertices = vertices;
                         meshes.ground_indices = indices;
-                        if let Some(((dressing_v, dressing_i), _)) = dressing {
-                            meshes.dressing_vertices = dressing_v;
-                            meshes.dressing_indices = dressing_i;
+                        if let Some(rebuild) = dressing {
+                            meshes.dressing_vertices = rebuild.mesh.0;
+                            meshes.dressing_indices = rebuild.mesh.1;
+                            meshes.meadow_footprint = rebuild.footprint;
+                            meshes.meadow_baked_craters = rebuild.craters;
                         }
                     }
                 }
@@ -227,31 +228,51 @@ impl ClientApp {
         // ~12 MB memcpy on the RENDER thread in the very frame an HE round landed — the bake
         // was moved off this thread precisely so the frame would not pay for the crater.
         let battlefield = std::sync::Arc::clone(&self.battlefield);
-        let ground_maps = self
-            .battle_scene_meshes
-            .as_ref()
-            .map(|meshes| std::sync::Arc::clone(&meshes.ground_maps));
         let materials = scene_build::terrain_maps::terrain_material_set_for(self.session.map_id());
         let uploaded_dressing = self.dressing_uploaded_fingerprint;
+        // Whether the meadow is worth baking at all. The ground always is — the hole is real —
+        // but the meadow reads the ledger only through the cards a burst mows and the ground a
+        // bowl moves, so a shell that landed clear of every card cannot have changed it. That is
+        // decided HERE, from a coarse footprint of where the meadow stands, in microseconds,
+        // instead of by baking 130-250 ms of mesh and comparing it afterwards.
+        let meadow = self.battle_scene_meshes.as_ref().map(|meshes| {
+            (
+                std::sync::Arc::clone(&meshes.ground_maps),
+                meshes.meadow_footprint.clone(),
+                meshes.meadow_baked_craters.clone(),
+            )
+        });
+        let bake_meadow = meadow.as_ref().is_none_or(|(_, footprint, baked)| {
+            crate::meadow_changed_by(baked, self.battlefield.heightmap.crater_records(), footprint)
+        });
         std::thread::spawn(move || {
             let ground = crate::battlefield_ground_mesh(&battlefield);
-            let dressing = ground_maps
-                .map(|maps| {
-                    scene_build::grass_cards::grass_card_dressing_mesh(
+            let dressing = bake_meadow
+                .then(|| {
+                    let (maps, _, _) = meadow.as_ref()?;
+                    let mesh = scene_build::grass_cards::grass_card_dressing_mesh(
                         &battlefield,
-                        &maps,
+                        maps,
                         &materials,
-                    )
+                    );
+                    // A bake is not a change either. Even when a burst DID reach the meadow's
+                    // footprint, the cell it reached may have had nothing standing in it — the
+                    // footprint is a cell-resolution answer, deliberately conservative. So the
+                    // upload is still decided by comparing what came out against what the GPU
+                    // holds; the render thread only ever compares two `u64`s.
+                    let fingerprint = renderer_api::scene_mesh_fingerprint(&mesh.0, &mesh.1);
+                    (fingerprint != uploaded_dressing).then(|| super::DressingRebuild {
+                        footprint: crate::MeadowFootprint::of(
+                            &mesh.0,
+                            battlefield.heightmap.extent_m(),
+                        ),
+                        craters: battlefield.heightmap.crater_records().to_vec(),
+                        mesh,
+                        fingerprint,
+                    })
                 })
-                .unwrap_or_default();
-            // A rebake is not a change. A shell has to land ON a card to mow one, and most of
-            // them land where nothing grows — so this mesh is usually the one already in the
-            // dressing slot, byte for byte. Deciding that HERE costs the worker a pass over its
-            // own output; deciding it on the render thread would cost the frame ~68 MiB of
-            // buffer allocation and upload, which is what it used to cost.
-            let fingerprint = renderer_api::scene_mesh_fingerprint(&dressing.0, &dressing.1);
-            let dressing = (fingerprint != uploaded_dressing).then_some((dressing, fingerprint));
-            let _ = tx.send((ground, dressing));
+                .flatten();
+            let _ = tx.send(super::GroundRebuild { ground, dressing });
         });
     }
 

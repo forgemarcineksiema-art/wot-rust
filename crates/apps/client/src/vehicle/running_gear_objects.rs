@@ -7,7 +7,8 @@ use game_core::TankId;
 use glam::Mat4;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
 use vehicle_geometry::{
-    GearDetail, GearDynamics, GearPart, RunningGearKinematics, running_gear_placements_dynamic,
+    GearDetail, GearDynamics, GearPart, GearPlacement, RunningGearKinematics,
+    running_gear_placements_dynamic,
 };
 
 /// Cached unit-mesh handles for one vehicle's animatable running gear, at one detail tier.
@@ -58,11 +59,29 @@ pub(crate) fn gear_render_objects(
     tint: [f32; 3],
     detail: GearDetail,
 ) -> Vec<RenderObject> {
+    let placements = running_gear_placements_dynamic(kin, left_m, right_m, dynamics);
+    gear_objects_from(tank_id, handles, material, hull_transform, &placements, tint, detail)
+}
+
+/// The same, from placements the caller already has. The battle path keeps them in a per-tank
+/// cache (`gear_cache.rs`) because most frames do not move them; this half is the only part that
+/// has to run either way.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn gear_objects_from(
+    tank_id: TankId,
+    handles: GearMeshHandles,
+    material: MaterialHandle,
+    hull_transform: Mat4,
+    placements: &[GearPlacement],
+    tint: [f32; 3],
+    detail: GearDetail,
+) -> Vec<RenderObject> {
     // The tier picks MESHES, never placements: a tank at range stands in the same place, on the
-    // same number of wheels, with the same track scroll as one up close.
+    // same number of wheels, with the same track scroll as one up close. That is also why the
+    // tier is not part of the placement cache's key.
     let set = handles.set(detail);
-    running_gear_placements_dynamic(kin, left_m, right_m, dynamics)
-        .into_iter()
+    placements
+        .iter()
         .map(|placement| {
             let mesh = match placement.part {
                 GearPart::RoadWheel => set.road_wheel,

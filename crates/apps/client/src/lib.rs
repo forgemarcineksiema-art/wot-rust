@@ -48,7 +48,9 @@ pub use scene_build::battlefield::{
 pub use scene_build::grass::{
     GRASS_MESH_HANDLE, GrassSpecies, grass_frame_objects, grass_species_meshes, grass_tuft_mesh,
 };
-pub use scene_build::grass_cards::grass_card_dressing_mesh;
+pub use scene_build::grass_cards::{
+    MeadowFootprint, grass_card_dressing_mesh, meadow_changed_by, meadow_reach_of,
+};
 pub use scene_build::hangar::{
     HERO_FOV_DEGREES, INTERIOR_BACKGROUND, TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh,
     hero_orbit_eye,

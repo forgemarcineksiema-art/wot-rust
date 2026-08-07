@@ -12,6 +12,7 @@ mod damage_skin_tests;
 pub(crate) mod damage_worker;
 pub(crate) mod default_material;
 pub(crate) mod equipment;
+pub(crate) mod gear_cache;
 pub(crate) mod geometry_mesh;
 pub(crate) mod mesh;
 pub(crate) mod pbr_mesh;

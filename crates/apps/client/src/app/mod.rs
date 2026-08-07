@@ -73,6 +73,26 @@ pub(crate) struct StaticsRebuild {
 }
 
 /// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
+/// What one crater re-mesh produces. The ground is always rebuilt — a hole you can drive into is
+/// a real change — but the card meadow usually is not rebuilt at all, and when it is, usually did
+/// not change.
+pub(crate) struct GroundRebuild {
+    pub(crate) ground: (Vec<renderer_api::SceneVertex>, Vec<u32>),
+    /// `None` when the meadow was not baked (nothing that changed could reach a card) or was
+    /// baked and came out byte-identical to what the dressing slot already holds.
+    pub(crate) dressing: Option<DressingRebuild>,
+}
+
+/// A card meadow that genuinely differs from the one on the GPU, with everything the client needs
+/// to record about it.
+pub(crate) struct DressingRebuild {
+    pub(crate) mesh: (Vec<renderer_api::SceneVertex>, Vec<u32>),
+    pub(crate) fingerprint: u64,
+    pub(crate) footprint: crate::MeadowFootprint,
+    /// The ledger this meadow was baked against — what the next change is diffed from.
+    pub(crate) craters: Vec<terrain::CraterRecord>,
+}
+
 pub(crate) struct BattleSceneMeshes {
     /// The heightfield the terrain pipeline shades (splat layers + macro normals).
     pub(crate) ground_vertices: Vec<renderer_api::SceneVertex>,
@@ -87,6 +107,11 @@ pub(crate) struct BattleSceneMeshes {
     /// The mid-field card meadow (Żywy Step P2) — the renderer's dressing slot.
     pub(crate) dressing_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) dressing_indices: Vec<u32>,
+    /// Where that meadow stands, coarsely, and the crater ledger it was baked against. Together
+    /// they answer "can this new crater have changed the meadow?" without baking one to find out
+    /// — which is 130-250 ms of worker CPU that a shelled late game was paying on every shot.
+    pub(crate) meadow_footprint: crate::MeadowFootprint,
+    pub(crate) meadow_baked_craters: Vec<terrain::CraterRecord>,
     /// Cover, backdrop skirt and scenery — the generic scene pipeline's slot, assembled from
     /// the per-bucket fragments below.
     pub(crate) statics_vertices: Vec<renderer_api::SceneVertex>,
@@ -181,12 +206,16 @@ fn bake_battle_scene_meshes(
         &ground_maps,
         &scene_build::terrain_maps::terrain_material_set_for(map),
     );
+    let meadow_footprint =
+        crate::MeadowFootprint::of(&dressing_vertices, battlefield.heightmap.extent_m());
     BattleSceneMeshes {
         ground_vertices,
         ground_indices,
         ground_maps,
         dressing_vertices,
         dressing_indices,
+        meadow_footprint,
+        meadow_baked_craters: battlefield.heightmap.crater_records().to_vec(),
         statics_vertices,
         statics_indices,
         statics_buckets,
@@ -484,20 +513,8 @@ pub(crate) struct ClientApp {
     /// An in-flight background GROUND re-mesh (true deformation, protocol v31): fresh craters
     /// re-mesh the heightfield on a worker thread; the render thread harvests and swaps the
     /// geometry under the still-bound splat/macro maps.
-    /// The channel carries (ground mesh, dressing mesh): the burst that dug the hole also
-    /// mowed the card meadow around it, so both rebake from the same ledger in one worker.
-    ///
-    /// The dressing is `None` when the rebake produced the meadow already on the GPU. It usually
-    /// does: a shell has to land on a card to mow one, and most of them land where nothing grows.
-    /// The worker decides, because the alternative is the render thread re-uploading ~68 MiB of
-    /// unchanged mesh on the frame an HE round lands — measured, and worth a whole frame.
-    #[allow(clippy::type_complexity)]
-    ground_rebuild_rx: Option<
-        std::sync::mpsc::Receiver<(
-            (Vec<renderer_api::SceneVertex>, Vec<u32>),
-            Option<((Vec<renderer_api::SceneVertex>, Vec<u32>), u64)>,
-        )>,
-    >,
+    /// The channel the crater re-mesh worker reports through. See [`GroundRebuild`].
+    ground_rebuild_rx: Option<std::sync::mpsc::Receiver<GroundRebuild>>,
     /// Fingerprint of the card meadow currently uploaded to the renderer's dressing slot, handed
     /// to each bake worker so it can answer "unchanged" without the render thread comparing
     /// anything. Zero until the first meadow lands.

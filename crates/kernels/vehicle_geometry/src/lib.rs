@@ -47,7 +47,7 @@ pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket
 pub use running_gear_geom::track_link_unit_mesh;
 pub use running_gear_place::{
     GearDynamics, running_gear_placements, running_gear_placements_dynamic,
-    thrown_remnant_placements,
+    running_gear_placements_dynamic_into, thrown_remnant_placements,
 };
 pub use running_gear_wheels::{return_roller_unit_mesh, road_wheel_unit_mesh};
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
