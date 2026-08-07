@@ -7,6 +7,7 @@
 //! and positional args reading through [`sub_arg`]. No subcommand (or an unknown one) prints
 //! the roster instead of guessing.
 
+mod battle_age_cost;
 mod battle_hud;
 mod border_probe;
 mod bystra_views;
@@ -62,6 +63,10 @@ type ProbeEntry = (&'static str, fn() -> ProbeResult);
 
 /// Every probe, by the name its file (and its output paths) always had.
 const PROBES: &[ProbeEntry] = &[
+    ("battle_age_cost", || {
+        battle_age_cost::run();
+        Ok(())
+    }),
     ("battle_hud", battle_hud::run),
     ("border_probe", border_probe::run),
     ("bystra_views", bystra_views::run),
