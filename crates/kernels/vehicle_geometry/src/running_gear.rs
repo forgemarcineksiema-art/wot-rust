@@ -8,7 +8,6 @@
 //! given per-side phase. The belt's overlap skin belongs to each link, so every visible running
 //! gear part moves, tensions, and disappears with the track it represents.
 
-use std::f32::consts::PI;
 
 use game_core::{VehicleBlueprint, VehicleKind};
 use glam::Mat4;
@@ -154,10 +153,9 @@ impl RunningGearKinematics {
         // hand-tuned gear constants living outside the blueprint.
         let wheel_half_width = track.wheel_half_width.max(0.03);
         let link_half_width = track.link_half_width.max(0.02);
-        let link_count = track.link_count.unwrap_or_else(|| {
-            let loop_len = 4.0 * half_run + 2.0 * PI * track.end_radius.max(0.05);
-            (loop_len / LINK_SPACING_M).round().max(4.0) as usize
-        });
+        // Provisional: the belt path below reads only the loop's GEOMETRY, never the link count,
+        // so the count can be settled once the kinematics exist.
+        let link_count = 1;
         // Return rollers spread evenly along the middle of the wheel run, clear of the end
         // wraps; the roller TOP carries the belt's top run, so the axle sits one radius below.
         let roller_zs: Vec<f32> = (0..track.return_rollers)
@@ -166,7 +164,7 @@ impl RunningGearKinematics {
                 cz - half_run * 0.72 + (half_run * 1.44) * t
             })
             .collect();
-        Self {
+        let mut kinematics = Self {
             center_x: track.center_x,
             cy,
             cz,
@@ -198,7 +196,25 @@ impl RunningGearKinematics {
             segments: track.segments.max(12),
             detail: GearDetail::Near,
             link_count,
-        }
+        };
+        // Settle the shoe count against the REAL loop.
+        //
+        // The fallback used to measure a STADIUM — `4 * half_run + 2 * PI * end_radius` — while
+        // `running_gear_place` spread those links over the true ramped `belt_length()`. Every
+        // vehicle in this fleet carries its idler and sprocket beyond and above the road-wheel
+        // line, so the stadium is short by about a quarter, and the shoes were stretched to cover
+        // the difference. Measured 2026-08-08 across the five vehicles that had no authored
+        // count: 283-307 mm of rendered pitch against 150-172 mm of real track — shoes
+        // 1.65-2.05x too long, a belt reading as a chunky chain rather than a track.
+        //
+        // Authoring the documented count is still the right answer and the whole fleet now does
+        // it; this is what a NEW vehicle gets before someone looks its track up, and it is now
+        // wrong by rounding rather than by a factor of two.
+        kinematics.link_count = match track.link_count {
+            Some(authored) => authored,
+            None => (kinematics.belt_length() / LINK_SPACING_M).round().max(4.0) as usize,
+        };
+        kinematics
     }
 
     /// Length of the closed belt loop (ground run, end wraps, sagging top run, and — where the

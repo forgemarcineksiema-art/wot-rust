@@ -52,7 +52,7 @@ BlueprintFile(
         overlap_inner_dx: 0.0,
         wheel_half_width: 0.16,
         link_half_width: 0.22,
-        link_count: None,
+        link_count: Some(72), // the 500 mm waffle track
         top_sag_m: 0.05,
         wheel_spokes: 6,
         shoe_pattern: Waffle,

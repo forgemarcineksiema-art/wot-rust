@@ -76,7 +76,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             overlap_inner_dx: 0.0,
             wheel_half_width: 0.12,
             link_half_width: 0.24,
-            link_count: None,
+            link_count: Some(102), // the Mk 3 double-pin track
             top_sag_m: 0.035,
             wheel_spokes: 6,
             shoe_pattern: ShoePattern::BritishCast,
