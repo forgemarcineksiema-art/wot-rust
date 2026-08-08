@@ -1,7 +1,14 @@
 use game_core::VehicleKind;
 use vehicle_forge::{
-    BakeProfile, ForgeArtifact, ReviewCamera, ReviewCameraSet, bake_production_vehicle,
+    BakeProfile, ForgeArtifact, MaterialFamily, ReviewCamera, ReviewCameraSet,
+    bake_production_vehicle,
 };
+
+/// Derived, never written down. The artifact carries one PNG per material family per map kind, and
+/// the family count grew from five to eight when canvas, glass and timber stopped sharing the
+/// rubber layer. A literal here was one of five places that count lived as its own number.
+const MAP_KINDS: usize = 4;
+const EXPECTED_TEXTURE_MAPS: usize = MaterialFamily::ALL.len() * MAP_KINDS;
 
 #[test]
 fn production_t54_bake_is_the_hybrid_description_at_the_requested_lod() {
@@ -27,10 +34,10 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Hull"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Turret"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Gun"));
-    // Role-aware material families: five roles × four maps, each tagged with its role and semantic.
+    // Role-aware material families: every family × four maps, each tagged with role and semantic.
     let texture_maps: Vec<&str> = manifest.texture_maps().iter().map(|map| map.file()).collect();
-    assert_eq!(texture_maps.len(), 20, "five families × four maps");
-    for role in ["rolled_armor", "cast_armor", "barrel_steel", "track_metal", "rubber"] {
+    assert_eq!(texture_maps.len(), EXPECTED_TEXTURE_MAPS, "every family × four maps");
+    for role in MaterialFamily::ALL.map(|family| family.slug()) {
         for semantic in ["albedo", "normal", "ao_roughness_metalness", "cavity"] {
             let file = format!("{role}_{semantic}.png");
             let entry = manifest
@@ -85,8 +92,12 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
                     "{kind:?} {profile:?} missing {sub}"
                 );
             }
-            // The full baked material-family set is present regardless of vehicle (5 roles × 4 maps).
-            assert_eq!(manifest.texture_maps().len(), 20, "{kind:?} material set incomplete");
+            // The full baked material-family set is present regardless of vehicle.
+            assert_eq!(
+                manifest.texture_maps().len(),
+                EXPECTED_TEXTURE_MAPS,
+                "{kind:?} material set incomplete"
+            );
             // Review cameras come from the per-vehicle forge spec: the T-54 benchmark carries the
             // extra close-ups (11); the geometry-derived line gets the generic six.
             let expected_cameras = if kind == VehicleKind::T54_1951 { 11 } else { 6 };

@@ -76,10 +76,15 @@ impl DefaultMaterialFamily {
     }
 }
 
-static DEFAULT_MATERIAL_FAMILIES: OnceLock<[DefaultMaterialFamily; 5]> = OnceLock::new();
+/// Derived from [`MaterialFamily::ALL`] rather than written down, because it was written down as
+/// `5` and the family list grew to 8 without it: the same fact held as two numbers, which is the
+/// failure `vehicle_material_ids.rs` exists to prevent one layer up.
+pub const FAMILY_COUNT: usize = MaterialFamily::ALL.len();
 
-/// The five material families in renderer `material_id` order, generated only once per process.
-pub fn default_material_families() -> &'static [DefaultMaterialFamily; 5] {
+static DEFAULT_MATERIAL_FAMILIES: OnceLock<[DefaultMaterialFamily; FAMILY_COUNT]> = OnceLock::new();
+
+/// Every material family in renderer layer order, generated only once per process.
+pub fn default_material_families() -> &'static [DefaultMaterialFamily; FAMILY_COUNT] {
     DEFAULT_MATERIAL_FAMILIES.get_or_init(|| MaterialFamily::ALL.map(bake_family))
 }
 
@@ -183,16 +188,21 @@ mod tests {
                 "{:?} albedo has an implausible RGB dominant",
                 family.family()
             );
-            // The invariant is that this stays a VALID tangent-space normal: +Z dominant, tilt
-            // inside a plausible angle for a surface treatment. It is not a licence to decide how
-            // much surface character a material may have.
+            // The invariant is that this stays a VALID tangent-space normal — +Z dominant, tilt
+            // inside a plausible angle — and that a crevice never crushes to black. Neither bound
+            // is a licence to decide how much surface character a material may have.
             //
-            // It used to be `(122..=134)` on X and Y — a +-6/255 window, about 2.7 degrees of
-            // tilt. That is not a physical bound, it is a look decision wearing a test's clothes,
-            // and it was the thing holding the fleet flat: raising the synthesis amplitudes to
-            // where a casting reads as a casting fails it immediately. Widened to +-48 (~20.6
-            // degrees), which is still unmistakably a gentle detail normal and no longer decides
-            // the art direction. `tests/material_floor.rs` holds the other end.
+            // They used to be `(122..=134)` on the normal's X/Y (a +-6/255 window, about 2.7
+            // degrees) and `cavity >= 210` (a crevice may darken by at most 18%). Neither is
+            // physical; both are look decisions wearing a test's clothes. **Two independent
+            // changes hit them from different directions within a day** — the amplitude
+            // calibration, which needed a casting to read as a casting, and canvas/glass/timber
+            // arriving with surfaces of their own. Two different reasons striking the same wall
+            // is what makes it evidence rather than coincidence.
+            //
+            // Widened to +-48 (~20.6 degrees), still unmistakably a gentle detail normal, and to
+            // 140/255 of cavity, which keeps the honest half of "readable indirect light".
+            // `tests/material_floor.rs` holds the other end.
             assert!(
                 family.normal().rgba().chunks_exact(4).all(|p| {
                     (80..=176).contains(&p[0])

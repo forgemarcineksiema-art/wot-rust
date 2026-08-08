@@ -84,3 +84,90 @@ fn only_interior_roles_take_the_aperture_lighting() {
         );
     }
 }
+
+/// Ids the shader's `material_layer` answers for, paired with the layer it returns.
+fn layers_the_shader_maps() -> Vec<(u32, u32)> {
+    let source = vehicle_shader_source();
+    let body =
+        source.split_once("fn material_layer(").expect("vehicle.wgsl defines material_layer").1;
+    let body = body.split_once("\n}").expect("material_layer has a body").0;
+    body.lines()
+        .filter_map(|line| {
+            let (_, rest) = line.split_once("id == ")?;
+            let (id, rest) = rest.split_once('u')?;
+            let (_, rest) = rest.split_once("return ")?;
+            let (layer, _) = rest.split_once(';')?;
+            Some((id.trim().parse().ok()?, layer.trim().parse().ok()?))
+        })
+        .collect()
+}
+
+/// THE LAYER TABLE, held in both languages at once.
+///
+/// The shader used to pick its texture layer with `min(material_id, 4u)`. That is a clamp, not a
+/// mapping: with five layers and twelve roles it sent the interior three, torn steel, canvas,
+/// glass and timber all to the RUBBER layer — a headlight lens wearing a tyre, a tarpaulin wearing
+/// a tyre, an unditching beam wearing a tyre. Nothing failed; it simply looked wrong.
+#[test]
+fn the_shader_maps_every_role_to_the_layer_the_renderer_says_it_has() {
+    let mapped = layers_the_shader_maps();
+    assert!(!mapped.is_empty(), "the branch scan found nothing — has material_layer been renamed?");
+
+    for role in MaterialRole::ALL {
+        let id = client::material_role_id(role);
+        let expected = client::material_layer_id(role);
+        let found = mapped.iter().find(|(shader_id, _)| *shader_id == id);
+        let Some((_, shader_layer)) = found else {
+            panic!("{role:?} (id {id}) has no branch in the shader's material_layer");
+        };
+        assert_eq!(
+            *shader_layer, expected,
+            "{role:?} (id {id}): Rust says layer {expected}, the shader says {shader_layer}"
+        );
+    }
+}
+
+/// Every layer the table names must actually exist in the uploaded texture array.
+#[test]
+fn no_role_points_past_the_end_of_the_texture_array() {
+    for role in MaterialRole::ALL {
+        let layer = client::material_layer_id(role) as usize;
+        assert!(
+            layer < renderer_api::VehicleMaterialFamilies::LAYERS,
+            "{role:?} maps to layer {layer}, past the {} the renderer uploads",
+            renderer_api::VehicleMaterialFamilies::LAYERS
+        );
+    }
+}
+
+/// The three roles that argue for their own existence must not share a layer with anything.
+///
+/// `Canvas`, `Glass` and `Timber` each carry the same sentence at their declaration — *one
+/// material for two things is one of them rendered wrong* — and all three were the same wrong
+/// thing until they had layers of their own.
+#[test]
+fn canvas_glass_and_timber_do_not_share_a_layer_with_any_other_role() {
+    for distinct in [MaterialRole::Canvas, MaterialRole::Glass, MaterialRole::Timber] {
+        let layer = client::material_layer_id(distinct);
+        let mut compared = 0;
+        for other in MaterialRole::ALL {
+            if other == distinct {
+                continue;
+            }
+            compared += 1;
+            assert_ne!(
+                client::material_layer_id(other),
+                layer,
+                "{distinct:?} shares layer {layer} with {other:?} — the exact mistake its own doc \
+                 comment exists to prevent"
+            );
+        }
+        // The floor the ratchet asks for, and it is not ceremony: a walk that `continue`s past
+        // its own subject would pass having compared nothing at all.
+        assert_eq!(
+            compared,
+            MaterialRole::ALL.len() - 1,
+            "{distinct:?} was compared against {compared} roles, not the whole enum"
+        );
+    }
+}

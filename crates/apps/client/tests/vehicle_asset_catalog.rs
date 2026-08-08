@@ -116,8 +116,15 @@ fn loaded_forge_artifact_queues_decoded_material_maps_for_gpu_upload() {
 
     assert_eq!(materials.len(), 1, "one vehicle should queue one material upload");
     let (_, families) = &materials[0];
-    // One role-aware family per material_id layer; each is a square RGBA8 map decoded tightly.
-    assert_eq!(families.families().len(), 5, "five material-role layers");
+    // One family per texture layer; each is a square RGBA8 map decoded tightly. Bound to the
+    // contract rather than a literal — this was the FOURTH place the layer count was written by
+    // hand, and holding one fact as four numbers is precisely how the shader came to clamp twelve
+    // material roles into five layers with nothing failing.
+    assert_eq!(
+        families.families().len(),
+        renderer_api::VehicleMaterialFamilies::LAYERS,
+        "one family per uploaded texture layer"
+    );
     for layer in families.families() {
         for map in [layer.albedo(), layer.normal(), layer.ao_roughness()] {
             assert!(map.width() >= 256 && map.width() == map.height());

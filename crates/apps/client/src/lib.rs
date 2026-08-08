@@ -69,7 +69,7 @@ pub use vehicle::damage_budget::{DamageBudgetCapture, capture_damage_mesh_budget
 pub use vehicle::damage_worker::DamageMeshBudgetReport;
 pub use vehicle::equipment::{EquipmentAnchor, EquipmentPoint, equipment_points};
 pub use vehicle::mesh::{append_tank_mesh, tank_scene_mesh};
-pub use vehicle::pbr_mesh::{material_role_id, vehicle_submesh_vertices};
+pub use vehicle::pbr_mesh::{material_layer_id, material_role_id, vehicle_submesh_vertices};
 pub use vehicle::render_frame::{
     VEHICLE_GUN_OBJECT, VEHICLE_HULL_OBJECT, VEHICLE_TURRET_OBJECT, VehicleRenderFrame,
     armor_damage_instance, render_frame_from_objects, split_pbr_vehicle_render_frame,
