@@ -88,6 +88,32 @@ The first surface pass uses the existing vertex format:
   hatches, and subtle dirt.
 - team or ownership color as a tint layer, not the vehicle's identity.
 
+### The material law
+
+**A part is rendered as what it is MADE OF.** `MaterialRole` carries twelve roles, and `Canvas`,
+`Glass` and `Timber` each record the same sentence at their own declaration: *one material for two
+things is one of them rendered wrong.* That reasoning was applied once — to the T-54 — and did not
+become a rule, which is the whole failure mode this policy now closes.
+
+Measured 2026-08-08 across the shipped bakes: the T-54 used ten roles and **seven of eight
+vehicles used four** — `RolledArmor`, `CastArmor`, `BarrelSteel`, `TrackMetal` and nothing else.
+Every headlight lens and every periscope prism outside the T-54 was drawn as one of four kinds of
+steel, which is a vehicle that reads as one flat colour with two dark accents no matter how good
+the lighting gets.
+
+The rule, locked by `vehicle_forge/tests/material_law.rs`:
+
+- every vehicle's shipped bake carries `Glass` on a real surface — crews and lamps look through
+  glass, and a lens rendered as its drum is a disc;
+- no vehicle falls back to the four-steel palette (`MIN_MATERIAL_ROLES`, a floor that may only
+  travel upward as roles land);
+- a role only counts when a real surface carries it, so the floor cannot be cleared by tagging a
+  sliver.
+
+The floor is deliberately a FLOOR. Every other budget in this crate is a ceiling derived from what
+the thing already costs, which can stop a regression but can never ask for more quality; this one
+asks.
+
 Vertex-format growth is append-only, and a new lane lands WITH its instruments in the same change:
 a layout test (`renderer_wgpu/tests/wgsl_layout.rs` plus the `SceneVertex` size assert) and a
 comparison golden proving existing content unchanged. The UV lane (Imported Flora 2.0, FL-1)

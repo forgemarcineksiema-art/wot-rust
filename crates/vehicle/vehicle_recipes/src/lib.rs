@@ -89,6 +89,7 @@ pub(crate) use turret_fittings::{
     add_british_cupola, add_broad_mantlet_socket, add_commander_periscope, add_cupola,
     add_flush_ring_hatch, add_german_cast_cupola, add_mantlet_socket, add_oval_mantlet_socket,
     add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, cast_turret_shell,
+    vision_prism,
 };
 
 /// Bake the procedural geometry for `kind`.
