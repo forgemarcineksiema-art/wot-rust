@@ -100,6 +100,41 @@ pub fn t54_periscope(center: Vec3, half: Vec3) -> ConvexSolid {
     ConvexSolid::box_at(center, half).clipped_by(Plane::new(normal, normal.dot(through)))
 }
 
+/// The PRISM a periscope looks through: a thin glass slab lying in the head's raked face, inset
+/// from its edges so the housing frames it, standing a hair proud so the two never z-fight.
+///
+/// The head alone is a box with one corner cut — seven planes — and that is what both the driver's
+/// and the turret's periscopes were. A vision device is a housing, a guard and a prism face; the
+/// glass is the part a crewman actually uses and the only part that catches the sun.
+pub fn t54_periscope_prism(center: Vec3, half: Vec3) -> ConvexSolid {
+    let cut = 0.7 * half.y.min(half.z);
+    let normal = Vec3::new(0.0, 1.0, 1.0).normalize();
+    let face = Vec3::new(center.x, center.y + half.y - cut, center.z + half.z);
+    // A hair proud of the housing's rake, so the glass reads as glass rather than as z-fighting.
+    let outer = normal.dot(face) + 0.0015;
+    let thickness = (cut * 0.5).min(0.012);
+    ConvexSolid::box_at(center, half * 0.82)
+        .clipped_by(Plane::new(normal, outer))
+        .clipped_by(Plane::new(-normal, -(outer - thickness)))
+}
+
+/// The armoured cheeks either side of a periscope head. A prism standing bare on a roof is a
+/// prism nobody kept; the cheeks are why the crew still has one after the first burst.
+pub fn t54_periscope_guards(center: Vec3, half: Vec3) -> [ConvexSolid; 2] {
+    let thickness = (half.x * 0.22).max(0.006);
+    [-1.0_f32, 1.0].map(|side| {
+        chamfered_box(
+            Vec3::new(
+                center.x + side * (half.x + thickness),
+                center.y + half.y * 0.20,
+                center.z + half.z * 0.10,
+            ),
+            Vec3::new(thickness, half.y * 0.90, half.z * 0.78),
+            thickness * 0.4,
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

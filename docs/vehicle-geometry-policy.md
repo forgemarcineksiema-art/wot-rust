@@ -197,7 +197,11 @@ than from a name list, so a new interior part classifies itself.
 Two tests keep the list honest in both directions: one fails when a part is unclassified, the
 other fails when a debt entry no longer fails. It can neither rot nor outlive its cause.
 
-Standing debt at introduction (2026-08-08), from the geometry audit's measurements: `deck_grille`
-(eleven flat boxes where the deck needs louvres with depth, a frame and a mesh), `driver_periscope`
-and `turret_periscope` (a vision device is a housing, a guard and a prism face; today a box with
-one corner cut).
+The floor opened with three debt entries and closed them the same day, which is the shape the
+countdown is meant to have. `driver_periscope` and `turret_periscope` were built: each is now the
+raked housing, a `Glass` prism lying in its rake, and two armoured cheeks. `deck_grille` was
+WITHDRAWN as my measurement error — it is already a shadowed well, four frame rails and raked
+louvres; a rail being a box is correct.
+
+A part key's parts count as their UNION, not as their weakest piece: a prism really is a six-plane
+pane and correctly so, and a device has to be judged as a device.

@@ -378,6 +378,45 @@ pub(crate) fn detail_plate(
     }
 }
 
+/// One vision device, built as one: the raked housing, the GLASS prism it looks through, and the
+/// armoured cheeks that keep the prism. The head alone is a box with a corner cut — seven planes —
+/// which is what the construction floor lists both periscope keys as debt for.
+///
+/// The prism and the guards carry the same `PartKey` name as the head on purpose: the
+/// construction floor counts a key's parts as their UNION, so the device is judged as a device
+/// rather than as its flattest piece — a prism really is a six-plane pane and correctly so — and
+/// the anchors and the manifest keep naming one periscope rather than four fragments.
+fn periscope_parts(
+    name: &'static str,
+    submesh: SubmeshKind,
+    instance: u16,
+    center: Vec3,
+    half: Vec3,
+) -> Vec<VehiclePart> {
+    let mut parts = vec![
+        detail_plate(
+            PartKey::indexed(name, instance * 4),
+            submesh,
+            MaterialRole::RolledArmor,
+            solid::t54_periscope(center, half),
+        ),
+        detail_plate(
+            PartKey::indexed(name, instance * 4 + 1),
+            submesh,
+            MaterialRole::Glass,
+            solid::t54_periscope_prism(center, half),
+        ),
+    ];
+    for (k, guard) in solid::t54_periscope_guards(center, half).into_iter().enumerate() {
+        parts.push(detail_plate(
+            PartKey::indexed(name, instance * 4 + 2 + k as u16),
+            submesh,
+            MaterialRole::RolledArmor,
+            guard,
+        ));
+    }
+    parts
+}
 /// Every factory detail part for the T-54, all at `PartLod::Detail`.
 pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
     let d = &v.detail;
@@ -421,11 +460,12 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
     // Each is a raked prism head (forward-looking glass), not a plain block.
     for (i, side) in [d.periscope_center.x, -d.periscope_center.x].into_iter().enumerate() {
         let center = Vec3::new(side, d.periscope_center.y, d.periscope_center.z);
-        parts.push(detail_plate(
-            PartKey::indexed("turret_periscope", i as u16),
+        parts.extend(periscope_parts(
+            "turret_periscope",
             SubmeshKind::Turret,
-            MaterialRole::RolledArmor,
-            solid::t54_periscope(center, d.periscope_half),
+            i as u16,
+            center,
+            d.periscope_half,
         ));
     }
 
@@ -436,11 +476,12 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
     let driver_peri_half = Vec3::new(0.055, 0.05, 0.05);
     for (i, dx) in [-0.26_f32, 0.26].into_iter().enumerate() {
         let center = Vec3::new(dh.x + dx, dh.y, dh.z + 0.08);
-        parts.push(detail_plate(
-            PartKey::indexed("driver_periscope", i as u16),
+        parts.extend(periscope_parts(
+            "driver_periscope",
             SubmeshKind::Hull,
-            MaterialRole::RolledArmor,
-            solid::t54_periscope(center, driver_peri_half),
+            i as u16,
+            center,
+            driver_peri_half,
         ));
     }
 
