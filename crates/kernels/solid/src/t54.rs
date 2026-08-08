@@ -5,6 +5,8 @@
 //! visible rake of each facet is the same angle the penetration model uses — what you see is what
 //! you shoot.
 
+use crate::chamfer;
+use crate::t54_fittings::chamfered_box;
 use game_core::{BoxVisual, DetailVisual, HullPlatesVisual, HullShape, HullVisual};
 use glam::Vec3;
 
@@ -114,10 +116,30 @@ pub fn t54_deck_grille(d: &DetailVisual, deck_top: f32) -> Vec<ConvexSolid> {
             Vec3::new(c.x, deck_top + 0.002 - depth * 0.5, c.z),
             Vec3::new(h.x - rail, depth * 0.5, h.z - rail),
         ),
-        ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z + h.z), Vec3::new(h.x, h.y, rail)),
-        ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z - h.z), Vec3::new(h.x, h.y, rail)),
-        ConvexSolid::box_at(Vec3::new(c.x + h.x, c.y, c.z), Vec3::new(rail, h.y, h.z)),
-        ConvexSolid::box_at(Vec3::new(c.x - h.x, c.y, c.z), Vec3::new(rail, h.y, h.z)),
+        // THE BEVEL LAW, applied the way this repo already knew how. A flame-cut frame rail has an
+        // arris a viewer reads as the light on the edge of steel; a perfectly sharp one has no
+        // face turned to the sky at all, and that missing highlight is the most reliable tell
+        // that a shape came out of a computer. `chamfer::FLAME_CUT` is what a torch leaves.
+        chamfered_box(
+            Vec3::new(c.x, c.y, c.z + h.z),
+            Vec3::new(h.x, h.y, rail),
+            chamfer::FLAME_CUT,
+        ),
+        chamfered_box(
+            Vec3::new(c.x, c.y, c.z - h.z),
+            Vec3::new(h.x, h.y, rail),
+            chamfer::FLAME_CUT,
+        ),
+        chamfered_box(
+            Vec3::new(c.x + h.x, c.y, c.z),
+            Vec3::new(rail, h.y, h.z),
+            chamfer::FLAME_CUT,
+        ),
+        chamfered_box(
+            Vec3::new(c.x - h.x, c.y, c.z),
+            Vec3::new(rail, h.y, h.z),
+            chamfer::FLAME_CUT,
+        ),
     ];
     let slats = d.grille_slats.max(1);
     let slat_half_z = (h.z - rail) / (slats as f32 * 2.0);
