@@ -6,6 +6,7 @@
 //! and the dossier is explicit that obr. 1951 carried none (register M10). A fitting nobody can
 //! cite is a fitting the vehicle does not have.
 
+use game_core::roundness::round_segments;
 use game_core::{CompleteVisual, TurretLoftVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
@@ -47,7 +48,7 @@ fn beam_bands(v: CompleteVisual<'_>) -> VehiclePart {
             0.030,
             0.020,
             MaterialRole::BarrelSteel,
-            12,
+            round_segments(0.118),
         ));
     }
     VehiclePart {
@@ -151,7 +152,7 @@ fn course_mg_port(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
             &revolve::revolve(
                 Vec3::Z,
                 &profile,
-                16,
+                round_segments(0.17),
                 MaterialRole::RolledArmor,
                 vehicle_geometry::SmoothingGroup(3),
             ),
@@ -195,7 +196,7 @@ fn smoke_canisters(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
                 &revolve::revolve(
                     Vec3::X,
                     &profile,
-                    14,
+                    round_segments(RADIUS),
                     MaterialRole::TrackMetal,
                     vehicle_geometry::SmoothingGroup(3),
                 ),
@@ -214,7 +215,7 @@ fn smoke_canisters(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
                 0.030,
                 0.014,
                 MaterialRole::BarrelSteel,
-                12,
+                round_segments(RADIUS),
             ));
         }
         parts.push(VehiclePart {
@@ -354,7 +355,7 @@ fn cable_hardware(index: u16, path: &[Vec3]) -> VehiclePart {
             0.024,
             0.020,
             MaterialRole::BarrelSteel,
-            12,
+            round_segments(0.052),
         ));
     }
     // Clamps: straps over the run at the quarter points, where a fitter would put them.

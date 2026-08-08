@@ -290,7 +290,14 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // gains the lid seam, hinge and latch that make a box a bin; and the unditching beam becomes a
     // hewn timber instead of a twelve-sided lathe turning, which is a pipe.
     // Previous: 0x77c8_bbaf_eb61_92e6 (PR-27, the periscopes as devices).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xb8d6_7fbe_9b1d_8a07;
+    // Re-recorded 2026-08-08 (Wave 1 closing): every hatch lid stops being a flat puck — it domes
+    // toward its crown and steps at the rim where it seats on its coaming, all INSIDE the height
+    // it already had, because `hitbox_fit` correctly refused a lid that raised the vehicle. And
+    // the roundness law reaches `vehicle_build` at last: thirteen hand-written segment counts —
+    // the cupola, the DShK's ring, post, pin and sight, the beam bands, the MG port, the smoke
+    // canisters and the tow-cable hardware — now come from their own radius.
+    // Previous: 0xb8d6_7fbe_9b1d_8a07 (PR-28, the construction pass).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xc308_5dcf_814b_3e57;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
