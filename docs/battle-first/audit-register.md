@@ -22,6 +22,22 @@ The codebase knows how to do things right, and does them right **once**:
 24–28 inconsistently wound edges while every gate stayed green: *"A contract nobody runs on the
 real thing is a document, not a gate."* The diagnosis was perfect; the fix was an edit.
 
+**2026-08-08, geometry pipeline audit** — four more rows for the same table, all measured
+(`docs/geometry-pipeline-audit-2026-08-08.md`):
+
+| lesson | applied | skipped |
+|---|---|---|
+| author the documented track shoe count | T-54, Tiger I, IS-3 | 5 vehicles render shoes 1.65–2.05× too long |
+| lock the visible mesh inside its armour volume | T-54 turret, IS-3 pike | 7 of 9 vehicles |
+| build parts through `VehiclePart` | T-54 | 8 of 9 vehicles, by a migration `production_bake.rs` calls temporary |
+| author visual data as `.visual.ron` | Tiger I, one part | the rest, hardcoded in Rust |
+
+That audit also found the fleet's flat look was **not** a modelling defect: per-role normal maps
+were wired end to end and running at a 1.2% amplitude (`normal_jitter` 3/255). Nothing was broken,
+no gate went red, and it read as a geometry problem for months. Two defects it opened and did not
+close: the roughness channel has span 0 in every material family, and `vehicle.wgsl` clamps the
+texture layer with `min(material_id, 4u)`, so roles 5–11 sample the Rubber layer.
+
 ---
 
 ## A. Gameplay — found by playing (the first measured battle, 2026-08-01)
