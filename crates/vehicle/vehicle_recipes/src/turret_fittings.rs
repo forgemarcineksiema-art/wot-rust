@@ -4,6 +4,8 @@ mod socket;
 
 use glam::{Vec2, Vec3};
 
+use game_core::roundness::round_segments;
+
 use super::{SG_CAST, SG_CUPOLA, SG_HARD, SG_MANTLET, SG_RING};
 use socket::oval_socket_mesh;
 use vehicle_geometry::{
@@ -35,7 +37,7 @@ pub(crate) fn add_cupola(
         RevolveSpec {
             profile,
             axis: Axis::Y,
-            segments: 12,
+            segments: round_segments(radius),
             material: MaterialRole::CastArmor,
             smoothing: SG_CUPOLA,
         },
@@ -65,7 +67,7 @@ pub(crate) fn add_german_cast_cupola(
                 ProfilePoint::new(radius * 0.90, base_y + drum_h),
             ],
             axis: Axis::Y,
-            segments: 12,
+            segments: round_segments(radius),
             material: MaterialRole::CastArmor,
             smoothing: SG_CUPOLA,
         },
@@ -93,7 +95,7 @@ pub(crate) fn add_german_cast_cupola(
                     ProfilePoint::new(radius * 0.58, lid_y + height * 0.12),
                 ],
                 axis: Axis::Y,
-                segments: 12,
+                segments: round_segments(radius * 0.58),
                 material: MaterialRole::CastArmor,
                 smoothing: SG_CUPOLA,
             },
@@ -138,7 +140,7 @@ pub(crate) fn add_soviet_slit_cupola(
                 ProfilePoint::new(radius * 0.60, base_y + drum_h + 0.035),
             ],
             axis: Axis::Y,
-            segments: 12,
+            segments: round_segments(radius),
             material: MaterialRole::CastArmor,
             smoothing: SG_CUPOLA,
         },
@@ -201,7 +203,7 @@ pub(crate) fn add_flush_ring_hatch(
                     ProfilePoint::new(radius * 0.55, y + 0.055),
                 ],
                 axis: Axis::Y,
-                segments: 12,
+                segments: round_segments(radius),
                 material: MaterialRole::CastArmor,
                 smoothing: SG_CUPOLA,
             },
@@ -288,7 +290,7 @@ pub(crate) fn add_british_cupola(
                 ProfilePoint::new(radius * 0.96, base_y + drum_h),
             ],
             axis: Axis::Y,
-            segments: 12,
+            segments: round_segments(radius),
             material: MaterialRole::CastArmor,
             smoothing: SG_CUPOLA,
         },
@@ -316,7 +318,7 @@ pub(crate) fn add_british_cupola(
                     ProfilePoint::new(radius * 0.52, lid_y + 0.030),
                 ],
                 axis: Axis::Y,
-                segments: 12,
+                segments: round_segments(radius * 0.84),
                 material: MaterialRole::CastArmor,
                 smoothing: SG_CUPOLA,
             },

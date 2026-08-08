@@ -16,6 +16,8 @@
 use game_core::VehicleBlueprint;
 use glam::{Vec2, Vec3};
 
+use game_core::roundness::round_segments;
+
 use super::{SG_HARD, vision_prism};
 use vehicle_geometry::{
     ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
@@ -78,7 +80,7 @@ fn round_hatch(builder: MeshBuilder, c: Vec3, radius: f32, hinge_sign_x: f32) ->
             RevolveSpec {
                 profile: vec![ProfilePoint::new(radius, 0.0), ProfilePoint::new(radius, 0.045)],
                 axis: vehicle_geometry::Axis::Y,
-                segments: 14,
+                segments: round_segments(radius),
                 material: MaterialRole::RolledArmor,
                 smoothing: SG_HARD,
             },
@@ -121,7 +123,7 @@ fn headlight(builder: MeshBuilder, c: Vec3, radius: f32, guarded: bool) -> MeshB
                 ProfilePoint::new(radius * 0.78, radius * 0.62),
             ],
             axis: vehicle_geometry::Axis::Z,
-            segments: 12,
+            segments: round_segments(radius),
             material: MaterialRole::RolledArmor,
             smoothing: SG_HARD,
         },
@@ -136,7 +138,7 @@ fn headlight(builder: MeshBuilder, c: Vec3, radius: f32, guarded: bool) -> MeshB
                 ProfilePoint::new(radius * 0.76, radius * 0.80),
             ],
             axis: vehicle_geometry::Axis::Z,
-            segments: 12,
+            segments: round_segments(radius * 0.76),
             material: MaterialRole::Glass,
             smoothing: SG_HARD,
         },
@@ -290,7 +292,7 @@ fn german_exhaust_stacks(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> Mes
                         ProfilePoint::new(0.09, hull.deck_y + 0.12),
                     ],
                     axis: vehicle_geometry::Axis::Y,
-                    segments: 10,
+                    segments: round_segments(0.09),
                     material: MaterialRole::RolledArmor,
                     smoothing: SG_HARD,
                 },
@@ -304,7 +306,7 @@ fn german_exhaust_stacks(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> Mes
                         ProfilePoint::new(0.055, hull.deck_y + 0.125),
                     ],
                     axis: vehicle_geometry::Axis::Y,
-                    segments: 10,
+                    segments: round_segments(0.055),
                     material: MaterialRole::TrackMetal,
                     smoothing: SG_HARD,
                 },
@@ -329,7 +331,7 @@ fn soviet_exhaust_ports(mut builder: MeshBuilder, bp: &VehicleBlueprint, y: f32)
                 RevolveSpec {
                     profile: vec![ProfilePoint::new(0.085, -0.05), ProfilePoint::new(0.085, 0.06)],
                     axis: vehicle_geometry::Axis::Z,
-                    segments: 10,
+                    segments: round_segments(0.085),
                     material: MaterialRole::RolledArmor,
                     smoothing: SG_HARD,
                 },
@@ -342,7 +344,7 @@ fn soviet_exhaust_ports(mut builder: MeshBuilder, bp: &VehicleBlueprint, y: f32)
                         ProfilePoint::new(0.055, -0.051),
                     ],
                     axis: vehicle_geometry::Axis::Z,
-                    segments: 10,
+                    segments: round_segments(0.055),
                     material: MaterialRole::TrackMetal,
                     smoothing: SG_HARD,
                 },
@@ -409,7 +411,7 @@ fn engine_deck_german(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> Geomet
                     ProfilePoint::new(hull.lower_half_width * 0.30, 0.035),
                 ],
                 axis: vehicle_geometry::Axis::Y,
-                segments: 16,
+                segments: round_segments(hull.lower_half_width * 0.30),
                 material: MaterialRole::RolledArmor,
                 smoothing: SG_HARD,
             },
@@ -423,7 +425,7 @@ fn engine_deck_german(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> Geomet
                     ProfilePoint::new(hull.lower_half_width * 0.22, 0.012),
                 ],
                 axis: vehicle_geometry::Axis::Y,
-                segments: 16,
+                segments: round_segments(hull.lower_half_width * 0.22),
                 material: MaterialRole::TrackMetal,
                 smoothing: SG_HARD,
             },
@@ -561,7 +563,7 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
                 ProfilePoint::new(0.09, ball.z + 0.08),
             ],
             axis: vehicle_geometry::Axis::Z,
-            segments: 10,
+            segments: round_segments(0.13),
             material: MaterialRole::CastArmor,
             smoothing: SG_HARD,
         },
@@ -647,7 +649,7 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
                 ProfilePoint::new(0.09, plate_z + 0.08),
             ],
             axis: vehicle_geometry::Axis::Z,
-            segments: 10,
+            segments: round_segments(0.13),
             material: MaterialRole::CastArmor,
             smoothing: SG_HARD,
         },
@@ -709,7 +711,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         RevolveSpec {
             profile: vec![ProfilePoint::new(0.12, -0.03), ProfilePoint::new(0.09, 0.11)],
             axis: vehicle_geometry::Axis::Z,
-            segments: 12,
+            segments: round_segments(0.12),
             material: MaterialRole::CastArmor,
             smoothing: SG_HARD,
         },
