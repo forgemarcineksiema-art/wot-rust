@@ -5,6 +5,8 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`VisualDetail`]; none invents a tank dimension.
 
+use game_core::DetailVisual;
+use game_core::roundness::round_segments;
 use game_core::{BoxVisual, CompleteVisual, FittingsVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
@@ -417,6 +419,88 @@ fn periscope_parts(
     }
     parts
 }
+
+/// The left-fender exhaust: an armoured cowl with LOUVRES on its outboard face and a dark OUTLET
+/// at its stern.
+///
+/// It was `chamfered_box(exhaust_center, exhaust_half, 0.03)` and nothing else — the same
+/// primitive as a stowage bin, differing from one only in the chamfer (0.03 against 0.035). On the
+/// deck it read as another toolbox, which is what an exhaust with no opening is.
+///
+/// And this vehicle was BEHIND the eight it is supposed to be the bar for: `soviet_exhaust_ports`
+/// gives the recipe fleet short pipes with dark open mouths, the Germans get stacks, the Centurion
+/// gets cowls. A good decision applied to eight vehicles and skipped on the ninth.
+fn exhaust_cowl(d: &DetailVisual) -> Vec<VehiclePart> {
+    let (c, h) = (d.exhaust_center, d.exhaust_half);
+    // Outboard is away from the centreline; the cowl sits on the LEFT shelf, so its vented face
+    // looks out over the track rather than in at the hull.
+    let out = if c.x < 0.0 { -1.0 } else { 1.0 };
+    let mut parts = vec![detail_plate(
+        PartKey::new("exhaust_cover"),
+        SubmeshKind::Hull,
+        MaterialRole::TrackMetal,
+        solid::t54_exhaust_housing(d),
+    )];
+
+    // Louvres across the outboard face: hot air leaves through something.
+    parts.push(VehiclePart {
+        key: PartKey::indexed("exhaust_cover", 1),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::TrackMetal,
+        smoothing: vehicle_geometry::SmoothingGroup(0),
+        shape: PartShape::Mesh(detail::louvre_slats(
+            Vec3::new(c.x + out * h.x, c.y, c.z),
+            Vec3::new(out, 0.0, 0.0),
+            h.z * 1.5,
+            h.y * 1.3,
+            0.016,
+            5,
+            0.5,
+        )),
+        lod: PartLod::Detail,
+        // `detail` has no `GeneratorKind` variant of its own, which is a small proof of the
+        // audit's point that this field is an author-typed label rather than a derived fact.
+        // `Solid` is the closest honest answer: louvre slats are plate boxes.
+        generator: GeneratorKind::Solid,
+    });
+
+    // The outlet itself, at the stern face: a rim, and inside it the dark mouth the fleet's own
+    // exhaust ports already use — a recessed disc in track steel, which reads as a hole.
+    let mouth = Vec3::new(c.x, c.y - h.y * 0.15, c.z - h.z - 0.005);
+    let radius = (h.y * 0.62).min(h.x * 0.42);
+    parts.push(VehiclePart {
+        key: PartKey::indexed("exhaust_cover", 2),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: vehicle_geometry::SmoothingGroup(3),
+        shape: PartShape::Mesh(revolve::merge(&[
+            detail::coaming(
+                mouth,
+                Vec3::Z,
+                radius,
+                0.05,
+                0.018,
+                MaterialRole::BarrelSteel,
+                round_segments(radius),
+            ),
+            // The mouth: recessed a finger inside the rim so it sits in its own shadow.
+            revolve::translate(
+                &revolve::revolve(
+                    Vec3::Z,
+                    &[(0.0, 0.0), (0.0, radius - 0.020), (0.030, radius - 0.020)],
+                    round_segments(radius),
+                    MaterialRole::TrackMetal,
+                    vehicle_geometry::SmoothingGroup(3),
+                ),
+                mouth + Vec3::new(0.0, 0.0, 0.006),
+            ),
+        ])),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    });
+    parts
+}
+
 /// Every factory detail part for the T-54, all at `PartLod::Detail`.
 pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
     let d = &v.detail;
@@ -434,12 +518,7 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
             solid,
         ));
     }
-    parts.push(detail_plate(
-        PartKey::new("exhaust_cover"),
-        SubmeshKind::Hull,
-        MaterialRole::TrackMetal,
-        solid::t54_exhaust_housing(d),
-    ));
+    parts.extend(exhaust_cowl(d));
 
     // The gusset brackets hanging below each fender. The lip is no longer a part: it is the fold of
     // the fender pressing itself (`t54_fender`), which is what a lip actually is.

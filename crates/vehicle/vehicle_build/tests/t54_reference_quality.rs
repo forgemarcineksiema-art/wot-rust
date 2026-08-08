@@ -6,7 +6,11 @@ use vehicle_geometry::{MaterialRole, SubmeshKind};
 fn t54_closeup_budget_reserves_detail_for_the_cast_turret() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
 
-    assert_eq!(MEDIUM_LOD0_TRI_BUDGET, 22_000);
+    // Pinned on purpose: raising the class budget has to be a deliberate act, not a drift. Moved
+    // 22,000 -> 26,000 for Wave 1's construction pass (periscopes as devices, bins with lid seams,
+    // hinges and latches, an exhaust with louvres and an outlet), measured at 24,069 with the
+    // frame cost written down beside the constant itself.
+    assert_eq!(MEDIUM_LOD0_TRI_BUDGET, 26_000);
     assert_eq!(blueprint.complete_visual().expect("hybrid visual").turret.budget, 12_000);
 }
 

@@ -525,11 +525,16 @@ fn t54_fenders_carry_the_reference_stowage_line() {
 #[test]
 fn t54_fenders_are_asymmetric_the_way_the_references_are() {
     let description = t54_description();
+    // Count STOWAGE, not parts. A bin is now several parts sharing one key — the box, its lid
+    // seam, its hinge and its latch — because the construction floor reads a key's parts as the
+    // device they make up. The box is the one carrying the volume, so it is the one counted:
+    // `PartShape::Plates` is the box, everything else riding the name is furniture on it.
     let count = |name: &str, side: f32| {
         description
             .parts
             .iter()
             .filter(|part| part.key.name == name)
+            .filter(|part| matches!(part.shape, vehicle_build::PartShape::Plates(_)))
             .filter(|part| {
                 part.mesh().bounds().is_some_and(|b| (b.min.x + b.max.x) * 0.5 * side > 0.0)
             })

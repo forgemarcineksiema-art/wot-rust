@@ -68,8 +68,76 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
         if key == "fuel_tank" {
             parts.push(tank_lid_ribs(i as u16, center, half));
         }
+        parts.push(lid_furniture(key, i as u16, side, center, half));
     }
     parts
+}
+
+/// What makes a box a BIN: the seam its lid closes on, the hinge it swings about, and the latch
+/// that holds it shut on a moving tank.
+///
+/// Every stowage bin and fuel tank on this vehicle was a single `chamfered_box` and nothing else —
+/// 44 triangles, fourteen planes, indistinguishable from a block of soap at deck distance. The
+/// fuel tanks proved the technique in the same file: their pressed X of two `weld_bead` diagonals
+/// reads clearly from the deck camera. The bins simply never got the same treatment.
+///
+/// Hinges go INBOARD (a lid opens away from the track, or the crewman opening it is standing on
+/// the running gear) and the latch outboard, where a hand reaches it from the ground.
+fn lid_furniture(
+    key: &'static str,
+    instance: u16,
+    side: f32,
+    center: Vec3,
+    half: Vec3,
+) -> VehiclePart {
+    let top = center.y + half.y;
+    let inboard = center.x - side * half.x;
+    let outboard = center.x + side * half.x;
+    // The lid line: a bead run around the top face, inset so it reads as the cover's edge rather
+    // than as the box's own corner.
+    let (ix, iz) = (half.x - 0.022, half.z - 0.022);
+    // A LOOP, and it has to be built as one: `weld_bead` hard-codes `closed: false` and caps both
+    // ends, so handing it a ring path lands two end caps on top of each other — eight non-manifold
+    // edges, which is exactly what the kernel contract test caught when this was a `weld_bead`.
+    // `casting_seam_loop` exists for precisely this, and a lid line IS a closed seam.
+    let corners = [
+        Vec3::new(center.x - ix, top + 0.004, center.z - iz),
+        Vec3::new(center.x + ix, top + 0.004, center.z - iz),
+        Vec3::new(center.x + ix, top + 0.004, center.z + iz),
+        Vec3::new(center.x - ix, top + 0.004, center.z + iz),
+    ];
+    let mut pieces = vec![detail::casting_seam_loop(&corners)];
+
+    // The hinge along the inboard lid edge, and a latch on the outboard one.
+    pieces.push(detail::hinge(
+        Vec3::new(inboard + side * 0.014, top + 0.006, center.z),
+        Vec3::Z,
+        (half.z * 1.4).min(0.34),
+        0.011,
+        0.030,
+        3,
+    ));
+    pieces.push(detail::grab_handle(
+        Vec3::new(outboard - side * 0.030, top + 0.002, center.z - 0.055),
+        Vec3::new(outboard - side * 0.030, top + 0.002, center.z + 0.055),
+        Vec3::Y,
+        0.026,
+    ));
+
+    VehiclePart {
+        // Offset well clear of the box instances (0..8) so the furniture keeps the bin's NAME —
+        // the construction floor reads a key's parts as their union — without colliding with the
+        // box's own identity, which anchors and the manifest key off.
+        key: PartKey::indexed(key, instance + 64),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: vehicle_geometry::SmoothingGroup(7),
+        shape: PartShape::Mesh(revolve::merge(&pieces).weld_and_smooth()),
+        lod: PartLod::Detail,
+        // `detail` has no GeneratorKind of its own; Revolve is the closest honest answer for
+        // beads, knuckles and a rail.
+        generator: GeneratorKind::Revolve,
+    }
 }
 
 /// The pressed X on one fuel-tank lid: two thin raised ribs along the top-face diagonals.

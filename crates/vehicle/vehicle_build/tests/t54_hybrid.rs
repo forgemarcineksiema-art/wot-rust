@@ -284,7 +284,13 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // its rake, and two armoured cheeks that are the reason a crew still has a prism after the
     // first burst. Four parts where there was one, twice on the turret roof and twice on the hull.
     // Previous: 0xea41_7d9a_dd9d_3b4b (PR-26, the roundness law applied).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x77c8_bbaf_eb61_92e6;
+    // Re-recorded 2026-08-08 (Wave 1's construction pass): the exhaust stops being a toolbox and
+    // gets louvres across its outboard face plus a dark outlet at its stern — the same read the
+    // eight recipe vehicles already had and the benchmark did not; every stowage bin and fuel tank
+    // gains the lid seam, hinge and latch that make a box a bin; and the unditching beam becomes a
+    // hewn timber instead of a twelve-sided lathe turning, which is a pipe.
+    // Previous: 0x77c8_bbaf_eb61_92e6 (PR-27, the periscopes as devices).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xb8d6_7fbe_9b1d_8a07;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
