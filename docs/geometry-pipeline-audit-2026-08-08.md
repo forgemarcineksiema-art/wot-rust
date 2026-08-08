@@ -202,6 +202,16 @@ other eight get `rect_hatch` / `round_hatch` — proud plate + hinge bar + grab 
   X-stiffened lid ribs (40 tris). Better — it carries an authored reference detail — but still a
   box with two ribs.
 
+### Withdrawn from this table (2026-08-08, same day)
+
+`deck_grille` was listed here as "eleven bare boxes" on the strength of an island inventory —
+eleven islands, 12 triangles and 6 planes each — without reading what the islands were.
+`solid::t54_deck_grille` builds a 0.12 m shadowed well, four frame rails and louvres raked
+0.62 rad, and carries a comment recording that axis-aligned slats were the OLD defect, already
+fixed. A rail is a box and that is correct; the assembly is a grille. **Measuring a proxy instead
+of reading the construction is the same error this audit made three times** — the others being the
+dead `TrackShape.segments` field and the filtered test pipe.
+
 ### What is genuinely under-built on the T-54
 
 Visually exposed parts whose construction does not match their nature:
@@ -209,7 +219,6 @@ Visually exposed parts whose construction does not match their nature:
 | part | x | built as | should be |
 |---|---:|---|---|
 | `stowage_bin` | 6 | chamfered box, 44 tris | lid, hinges, latches, ribs, straps |
-| `deck_grille` | 11 | bare boxes, 12 tris each | louvres with depth, mesh, frame |
 | `driver_periscope_housing` | 1 | bare box, 12 tris | housing, guard, glass |
 | `driver_periscope` / `turret_periscope` | 3 | 16 tris, 7 normals | ditto |
 | `exhaust_cover` | 1 | chamfered box, 44 tris | louvred armoured cowl |

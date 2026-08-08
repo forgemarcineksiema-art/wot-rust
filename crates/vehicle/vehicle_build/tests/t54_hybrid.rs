@@ -279,7 +279,12 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xea41_7d9a_dd9d_3b4b;
+    // Re-recorded 2026-08-08 (the construction floor's first burn): both periscopes stop being a
+    // box with one corner cut. Each is now the device — the raked housing, a GLASS prism lying in
+    // its rake, and two armoured cheeks that are the reason a crew still has a prism after the
+    // first burst. Four parts where there was one, twice on the turret roof and twice on the hull.
+    // Previous: 0xea41_7d9a_dd9d_3b4b (PR-26, the roundness law applied).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x77c8_bbaf_eb61_92e6;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

@@ -17,5 +17,6 @@ pub use t54::{
 };
 pub use t54_fittings::{
     chamfered_box, t54_exhaust_housing, t54_fender_brackets, t54_fender_slope, t54_periscope,
+    t54_periscope_guards, t54_periscope_prism,
 };
 pub use t54_plates::{t54_hull_plate_seams, t54_transmission_covers};

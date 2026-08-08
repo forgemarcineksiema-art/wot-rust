@@ -54,28 +54,32 @@ const PLATES_AND_BARS: &[(&str, &str)] = &[
 /// Each entry says what the part has to become. Remove an entry when the part is built; never add
 /// one to make this test pass.
 const DEBT: &[(&str, &str)] = &[
-    (
-        "deck_grille",
-        "eleven flat boxes where the engine deck needs louvres with real depth, a frame and a \
-         mesh — measured 12 triangles and 6 planes each",
-    ),
-    (
-        "driver_periscope",
-        "a vision device is a housing, a guard and a prism face; this is a box with one corner cut",
-    ),
-    (
-        "turret_periscope",
-        "the same block on the turret roof, twice",
-    ),
+    // EMPTY, and it got here honestly rather than by never being filled.
+    //
+    // It opened with three entries. Two were real and are burned: `driver_periscope` and
+    // `turret_periscope` are now a housing, a GLASS prism and two armoured cheeks instead of a box
+    // with one corner cut.
+    //
+    // The third, `deck_grille`, was WITHDRAWN — my error, and worth recording because of how it
+    // was made. I read it off an island inventory (eleven islands, 12 triangles and 6 planes each)
+    // and called it eleven flat boxes without reading what the islands were. `solid::t54_deck_grille`
+    // builds a 0.12 m shadowed well, four frame rails and louvres raked 0.62 rad — and carries a
+    // comment recording that axis-aligned slats were the OLD defect, already fixed. A rail is a box
+    // and that is correct; the assembly is a grille. Measuring a proxy instead of reading the
+    // construction is the same mistake three times in one audit.
 ];
-
 struct PartFacts {
-    planes: usize,
+    planes: Vec<Vec3>,
     interior: bool,
 }
 
-/// Distinct face planes a part presents, and whether it is interior. Instances of one part key
-/// collapse to their WORST case, because a floor is about the weakest thing wearing the name.
+/// Distinct face planes a part presents, and whether it is interior.
+///
+/// Parts sharing a key are ONE THING and are counted as their union, not as their weakest piece.
+/// A periscope is a housing, a prism and two guards; judging it by the prism — a flat pane, which
+/// really is six planes and correctly so — would call a finished device debt. Identical repeated
+/// boxes are unaffected, because eleven axis-aligned boxes still present the same six normals
+/// between them, which is exactly why the grille still fails.
 fn part_facts() -> BTreeMap<String, PartFacts> {
     let description = vehicle_build::t54_description();
     let mut facts: BTreeMap<String, PartFacts> = BTreeMap::new();
@@ -96,11 +100,14 @@ fn part_facts() -> BTreeMap<String, PartFacts> {
                 distinct.push(normal);
             }
         }
-        let entry = facts.entry(part.key.name.to_string()).or_insert(PartFacts {
-            planes: distinct.len(),
-            interior: is_interior(part.material),
-        });
-        entry.planes = entry.planes.min(distinct.len());
+        let entry = facts
+            .entry(part.key.name.to_string())
+            .or_insert(PartFacts { planes: Vec::new(), interior: is_interior(part.material) });
+        for normal in distinct {
+            if !entry.planes.iter().any(|seen: &Vec3| seen.dot(normal) > 0.995) {
+                entry.planes.push(normal);
+            }
+        }
         entry.interior &= is_interior(part.material);
     }
     facts
@@ -121,11 +128,11 @@ fn every_exterior_part_that_presents_a_box_is_classified() {
             continue;
         }
         checked += 1;
-        if facts.planes >= BOX_PLANES {
+        if facts.planes.len() >= BOX_PLANES {
             continue;
         }
         if !listed_in(PLATES_AND_BARS, &name) && !listed_in(DEBT, &name) {
-            unclassified.push(format!("`{name}` presents {} planes", facts.planes));
+            unclassified.push(format!("`{name}` presents {} planes", facts.planes.len()));
         }
     }
     // The floor the ratchet asks for: a walk that classified nothing would otherwise pass.
@@ -150,14 +157,11 @@ fn no_debt_entry_outlives_the_defect_it_names() {
             stale.push(name);
             continue;
         };
-        if part.planes >= BOX_PLANES {
+        if part.planes.len() >= BOX_PLANES {
             stale.push(name);
         }
     }
-    assert!(
-        stale.is_empty(),
-        "these parts are no longer boxes — take them out of DEBT: {stale:?}"
-    );
+    assert!(stale.is_empty(), "these parts are no longer boxes — take them out of DEBT: {stale:?}");
 }
 
 /// A part cannot be declared BOTH a legitimate plate and outstanding debt.
