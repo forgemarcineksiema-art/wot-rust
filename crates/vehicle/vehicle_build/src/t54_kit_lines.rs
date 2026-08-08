@@ -95,27 +95,30 @@ fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
 /// rendering wood as track steel was the last recorded material compromise on this vehicle. Its
 /// ends stop WELL inside the hull side planes (±1.03) and the log floats a hand off the raked
 /// rear plate — any coplanar contact with the hull z-fights as the camera moves.
+/// The unditching beam: a HEWN timber, not a turned pole.
+///
+/// It was a twelve-sided lathe revolve of radius 0.10 — which is a pipe. A beam a crew straps to
+/// the stern and drives a track onto is squared from a log with an axe: flat faces, knocked-off
+/// arrises, sawn ends. `chamfered_box` says exactly that, and says it in eight planes instead of
+/// twelve sides of nothing.
+///
+/// (The comment that used to sit beside this said the log "stays `TrackMetal` for now" pending a
+/// wood role. The role landed; the beam has been `Timber` since, and the note outlived its fact.)
 fn unditching_beam(v: CompleteVisual<'_>) -> VehiclePart {
-    let profile = [(-0.95_f32, 0.0_f32), (-0.95, 0.10), (0.95, 0.10), (0.95, 0.0)];
+    // Stowed against the rear plate, a hand's width off it — so it follows the stern rather than
+    // sitting at a Z somebody typed once.
+    let center = Vec3::new(0.0, 1.02, -v.hull.half_len - 0.04);
+    let half = Vec3::new(0.95, 0.098, 0.098);
     VehiclePart {
         key: PartKey::new("unditching_beam"),
         submesh: SubmeshKind::Hull,
         material: MaterialRole::Timber,
-        smoothing: vehicle_geometry::SmoothingGroup(5),
-        shape: PartShape::Mesh(revolve::translate(
-            &revolve::revolve(
-                Vec3::X,
-                &profile,
-                12,
-                MaterialRole::Timber,
-                vehicle_geometry::SmoothingGroup(5),
-            ),
-            // Stowed against the rear plate, a hand's width off it — so it follows the
-            // stern rather than sitting at a Z somebody typed once.
-            Vec3::new(0.0, 1.02, -v.hull.half_len - 0.04),
-        )),
+        smoothing: vehicle_geometry::SmoothingGroup(0),
+        // A generous arris: an axed beam is nearer octagonal than square, and the chamfer is where
+        // the light catches the edge of the wood.
+        shape: PartShape::Plates(solid::chamfered_box(center, half, 0.034)),
         lod: PartLod::Detail,
-        generator: GeneratorKind::Revolve,
+        generator: GeneratorKind::Solid,
     }
 }
 

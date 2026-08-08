@@ -13,10 +13,20 @@ use crate::description::VehicleDescription;
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
-/// the spike's tight micro-cap. The fully-detailed hybrid T-54 (multi-slope hull, running gear with
-/// hubs, tracks, cast turret, barrel, fenders, deck) lands ~11.6k; the headroom leaves room for
-/// loadout variants and detail without drifting toward HD-era counts. Tier per LOD/class later.
-pub const MEDIUM_LOD0_TRI_BUDGET: usize = 22_000;
+/// the spike's tight micro-cap.
+///
+/// Raised 22,000 -> 26,000 (measured 2026-08-08, the Wave 1 construction pass). The hybrid moves
+/// from 21,508 to 24,069: the periscopes became devices, every stowage bin and fuel tank got the
+/// lid seam, hinge and latch that make a box a bin, and the exhaust stopped being a toolbox and
+/// got louvres and a dark outlet. 26,000 gives the measured shape 8% headroom.
+///
+/// Affordable, and the frame says so rather than taste. Every part added here is
+/// `PartLod::Detail`, so it exists at LOD0 and is DROPPED at LOD1 and below — the cost lands only
+/// on vehicles close enough to read it. At `scene_pass`'s measured ~20 ns/triangle
+/// (`docs/battle-first/measurements.md`, MX330 at the shipped 1x MSAA) the worst case is a 7v7
+/// where every tank is near: +2,561 triangles each, ~0.72 ms against 2.99 ms of p95 headroom.
+/// A realistic battle has one or two vehicles at that range, not fourteen.
+pub const MEDIUM_LOD0_TRI_BUDGET: usize = 26_000;
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
 pub fn t54_description() -> VehicleDescription {
