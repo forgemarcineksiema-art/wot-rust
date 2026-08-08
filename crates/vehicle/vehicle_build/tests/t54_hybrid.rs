@@ -297,7 +297,11 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // the cupola, the DShK's ring, post, pin and sight, the beam bands, the MG port, the smoke
     // canisters and the tow-cable hardware — now come from their own radius.
     // Previous: 0xb8d6_7fbe_9b1d_8a07 (PR-28, the construction pass).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xc308_5dcf_814b_3e57;
+    // Re-recorded 2026-08-08 (the bevel law): the engine deck's four frame rails stop being
+    // perfectly sharp and take the arris a torch leaves. `solid::chamfer` now states the widths a
+    // process gives an edge; `chamfered_box` applies them, and always could.
+    // Previous: 0xc308_5dcf_814b_3e57 (PR-29, the roundness law in vehicle_build).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0950_1aaa_02c5_23fa;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

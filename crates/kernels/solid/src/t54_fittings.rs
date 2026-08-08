@@ -11,6 +11,15 @@ use crate::{ConvexSolid, Plane};
 /// pressed-steel read of fender stowage (fuel tanks, bins) instead of a raw primitive box.
 /// `chamfer` is clamped so the cuts can never cross for any sane bin.
 ///
+/// **This is the bevel law's operator**, and it was already here. A general "chamfer any convex
+/// solid" pass was written against [`crate::chamfer`] and withdrawn after four narrowings: a
+/// `ConvexSolid` carries no edge topology, so "which pairs of planes actually share an edge" is
+/// not a question the representation can answer. Restricting the pass to unbroken six-plane boxes
+/// made it build and it still produced a 4.19e-8 m2 sliver in the T-54's hull, because the corner
+/// where three chamfer planes meet needs exactly the epsilon handling written below. For boxes
+/// this function is the answer; for anything else the answer needs mesh-level edge adjacency,
+/// which is a different piece of work and should start from that fact rather than rediscover it.
+///
 /// A chamfer of zero (or one finer than the corner-merge epsilon) asks for a PLAIN box, and
 /// that is what it gets: each chamfer plane would otherwise pass exactly through a box edge,
 /// leaving a two-corner face ring that `to_mesh` rejects as degenerate. "No chamfer" is a sane

@@ -11,6 +11,27 @@ mod t54_fittings;
 mod t54_plates;
 mod validate;
 
+/// THE BEVEL LAW: chamfer widths by how the edge was made.
+///
+/// No manufactured edge is perfectly sharp, and the arris is where light lives — it is the only
+/// surface on a hard edge facing the sky, so it is the bright line a viewer reads as "this steel
+/// has thickness". These are not taste; they are what the process leaves.
+///
+/// The OPERATOR that applies them is [`crate::chamfered_box`], which this crate has had all
+/// along. A general "chamfer any convex solid" pass was built against this table and withdrawn:
+/// see the note on that function.
+pub mod chamfer {
+    /// A machined face edge — broken by a tool pass, barely there.
+    pub const MACHINED: f32 = 0.001;
+    /// Rolled plate, sheared or saw-cut.
+    pub const ROLLED_PLATE: f32 = 0.003;
+    /// Flame-cut plate: the torch leaves a wider, rougher arris.
+    pub const FLAME_CUT: f32 = 0.006;
+    /// A casting's edge — the mould's own draft, an order above the others, which is why a cast
+    /// turret has no sharp edge on it anywhere.
+    pub const CAST: f32 = 0.020;
+}
+
 pub use convex::{ConvexSolid, ConvexSolidError, Plane};
 pub use t54::{
     t54_deck_grille, t54_engine_deck_panels, t54_hull_solid, t54_lower_tub, t54_upper_hull,
