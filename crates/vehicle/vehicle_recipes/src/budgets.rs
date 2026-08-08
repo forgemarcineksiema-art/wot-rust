@@ -18,7 +18,16 @@ pub struct VehicleBudgets {
 /// to each moving link rather than the static hull, so a thrown track leaves no frozen ghost belt.
 pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     hull_tri: (120, 2750),
-    turret_tri: (24, 900),
+    // Raised 900 -> 1150 (measured 2026-08-08, the roundness law): a cupola is the same radius as
+    // an idler and was getting 12 segments where the idler's floor gives it 20, purely because one
+    // went through `segments_for` and the other was typed at its call site. With segments derived
+    // from radius the fleet's worst turret is the Centurion at 1052 (its Mk 3 cupola is the widest
+    // drum on any turret here); 1150 gives that measured shape 9% headroom.
+    //
+    // Affordable, and the frame says so rather than taste: the whole fleet gains roughly 250-400
+    // triangles per vehicle, ~4k across a 7v7 against the 616k the scene submits, inside the
+    // 2.99 ms of p95 headroom recorded in docs/battle-first/measurements.md.
+    turret_tri: (24, 1150),
     // Raised 500 -> 650 (measured 2026-08-03, W4 F5.ii): the authored gun group - the
     // bore-honest barrel (28 segments x 11 profile stations, the muzzle reads as a HOLE)
     // plus the mantlet body - measures 612 on the T-54. The old cap was sized to the legacy
@@ -119,6 +128,11 @@ pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
 /// 7_506_679_536_634_783_988; IS-3 764_441_410_926_956_128; Centurion
 /// 15_818_076_589_286_630_709; T-34-85 10_310_688_321_347_204_439 (the T-54's own chain is
 /// kept at its row).
+/// The 2026-08-08 roundness re-record moves EIGHT rows (PrototypeMedium routes through none of the
+/// affected fittings and stays put, which is again the check that this went in through shared
+/// construction). Segment counts on hand-written revolves — cupolas, the IS-3 fuel drums, deck
+/// fittings, headlights — now come from `game_core::roundness::round_segments` instead of a number
+/// typed at the call site. Positions are unchanged; only ring resolution moves.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
@@ -146,7 +160,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // since the Model Idealny pass, which is why this row moves and the hybrid's own golden in
     // `vehicle_build/tests/t54_hybrid.rs` does not.
     // Previous: 7_427_199_630_274_926_331 (W4 F5.ii, the authored gun group).
-    (VehicleKind::T54_1951, 8_542_046_868_445_520_267_u64),
+    (VehicleKind::T54_1951, 15_649_090_968_640_575_833_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
@@ -157,20 +171,20 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // double-baffle brake as chambers with a waist, and the Walzenblende body spanning exactly
     // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
     // Previous: 11_582_503_112_659_279_264 (the model-logic review).
-    (VehicleKind::TigerI, 2_984_524_824_510_671_745_u64),
-    (VehicleKind::TigerII, 11_398_927_513_557_119_832_u64),
+    (VehicleKind::TigerI, 16_183_656_741_282_067_528_u64),
+    (VehicleKind::TigerII, 6_095_313_843_902_085_214_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
     // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
-    (VehicleKind::Jagdtiger, 3_598_140_900_466_594_842_u64),
+    (VehicleKind::Jagdtiger, 9_354_888_225_361_852_958_u64),
     // Re-recorded 2026-07-29 (PR-06): the Panther II turret face and rear carried two angles
     // each (11 vs 20, 25 vs 20). The dossier states 20 deg for both, three times over, so the
     // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
     // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
-    (VehicleKind::PantherII, 17_885_335_997_969_312_434_u64),
-    (VehicleKind::IS3, 18_065_472_775_842_885_288_u64),
-    (VehicleKind::Centurion, 8_811_073_067_794_389_069_u64),
-    (VehicleKind::T34_85, 13_432_093_406_429_825_707_u64),
+    (VehicleKind::PantherII, 1_355_280_321_240_589_747_u64),
+    (VehicleKind::IS3, 7_213_915_726_535_595_403_u64),
+    (VehicleKind::Centurion, 4_873_872_249_549_936_266_u64),
+    (VehicleKind::T34_85, 12_022_500_052_051_988_711_u64),
 ];
 
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {

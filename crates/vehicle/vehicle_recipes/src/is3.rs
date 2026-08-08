@@ -4,6 +4,7 @@
 //! penetration model are one geometry. The dome, running gear, and the braked 122 mm ride the
 //! shared blueprint family machinery.
 
+use game_core::roundness::round_segments;
 use game_core::{HitboxProfile, HullShape, MountFrames, TrackShape, VehicleKind};
 use glam::{Vec2, Vec3};
 
@@ -65,7 +66,7 @@ fn is3_fuel_drums(hull: &HullShape, track: &TrackShape) -> GeometryMesh {
                     ProfilePoint::new(radius, front_z),
                 ],
                 axis: Axis::Z,
-                segments: 10,
+                segments: round_segments(radius),
                 material: MaterialRole::RolledArmor,
                 smoothing: super::SG_CAST,
             },
