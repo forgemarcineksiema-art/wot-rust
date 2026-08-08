@@ -103,6 +103,50 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             cavity_amp: 8,
             normal_jitter: 2,
         },
+        // The three below are authored at CALIBRATED amplitudes from the start — roughly what the
+        // x4 pass gives the five above — because they have no legacy look to preserve. If the two
+        // land in either order the fleet ends up consistent; before that, canvas/glass/timber are
+        // simply the only surfaces on the vehicle carrying their real character.
+        //
+        // Proofed duck: a woven weave is high-frequency and near-isotropic, the cloth drapes
+        // rather than undulating, and it has no specular lobe worth speaking of.
+        MaterialFamily::Canvas => Profile {
+            albedo: [236, 235, 232],
+            fine_grain: 18,
+            undulation: 8,
+            roughness: 248,
+            metalness: 0,
+            cavity_base: 232,
+            cavity_amp: 26,
+            normal_jitter: 18,
+        },
+        // Glass is the ONE surface on a tank that is supposed to be smooth: almost no grain, a
+        // whisper of undulation for the pressed lens, and the tightest finish in the table. Given
+        // texture at all only so a lens catches a moving highlight instead of reading as a decal.
+        MaterialFamily::Glass => Profile {
+            albedo: [246, 248, 250],
+            fine_grain: 2,
+            undulation: 4,
+            roughness: 28,
+            metalness: 24,
+            cavity_base: 250,
+            cavity_amp: 6,
+            normal_jitter: 4,
+        },
+        // Sawn timber: a fibrous surface, matte, its grain carried by the NORMAL rather than by a
+        // brown albedo. The warmth belongs to `material_params`, which is what this table means by
+        // "a near-neutral detail multiplier, not a second absolute base colour" — a lesson learned
+        // by writing [230, 224, 214] here and watching `must not crush diffuse` catch it.
+        MaterialFamily::Timber => Profile {
+            albedo: [238, 236, 232],
+            fine_grain: 12,
+            undulation: 12,
+            roughness: 236,
+            metalness: 0,
+            cavity_base: 226,
+            cavity_amp: 30,
+            normal_jitter: 22,
+        },
     }
 }
 

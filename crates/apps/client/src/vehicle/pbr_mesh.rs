@@ -62,6 +62,40 @@ pub fn material_role_id(material: MaterialRole) -> u32 {
     }
 }
 
+/// Which TEXTURE LAYER a role samples. Twelve roles, eight layers — so this table exists, and it
+/// is a table rather than arithmetic on purpose.
+///
+/// The shader used to pick the layer with `min(material_id, 4u)`. That is not a mapping, it is a
+/// clamp, and it sent every role from 5 up to the RUBBER layer: the interior three, torn steel,
+/// and the three whose own declarations argue they must be distinct. A headlight lens wore a tyre.
+///
+/// Canvas, glass and timber have their own layers now. The rest map onto the nearest real family
+/// with the reason stated, because inventing a texture for "interior primer" would be four more
+/// layers of memory to say something a painted-steel layer already says.
+///
+/// `client/tests/vehicle_material_ids.rs` holds this table and `vehicle.wgsl` to each other, the
+/// same way it already does for `material_params`.
+pub fn material_layer_id(material: MaterialRole) -> u32 {
+    match material {
+        MaterialRole::RolledArmor => 0,
+        MaterialRole::CastArmor => 1,
+        MaterialRole::BarrelSteel => 2,
+        MaterialRole::TrackMetal => 3,
+        MaterialRole::Rubber => 4,
+        MaterialRole::Canvas => 5,
+        MaterialRole::Glass => 6,
+        MaterialRole::Timber => 7,
+        // Primer over sheet steel: the rolled-plate surface, differently painted — and paint is
+        // `material_params`' job, not the texture's.
+        MaterialRole::InteriorPrimer => 0,
+        // Machined and cast housings, and a shell case: barrel steel is the machined-steel layer.
+        MaterialRole::InteriorMachinery | MaterialRole::Ammunition => 2,
+        // Torn armour is rolled plate with its section opened; the tearing is geometry, and its
+        // heat-stained colour is already `material_params` id 8.
+        MaterialRole::ExposedSteel => 0,
+    }
+}
+
 /// Armour (rolled/cast) takes the team tint; barrels, tracks, and rubber stay their absolute colour
 /// — the same split [`crate::color`] applies to the `SceneVertex` path.
 fn material_tint_mask(material: MaterialRole) -> f32 {

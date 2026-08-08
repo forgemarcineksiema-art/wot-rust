@@ -95,7 +95,11 @@ mod tests {
         let pending = app.vehicle_asset_catalog.take_pending_vehicle_materials();
         assert_eq!(pending.len(), 1, "the fallback fleet queues one material upload");
         let families = &pending[0].1;
-        assert_eq!(families.families().len(), 5);
+        // Bound to the contract, not to a literal. This was `5`, and it was the third place the
+        // layer count was written down by hand — after `VehicleMaterialFamilies::LAYERS` and the
+        // array type in `default_materials.rs`. One fact held as three numbers is how the shader
+        // ended up clamping twelve roles into five layers in the first place.
+        assert_eq!(families.families().len(), renderer_api::VehicleMaterialFamilies::LAYERS);
         assert_ne!(
             families.layer(0).albedo().rgba(),
             families.layer(1).albedo().rgba(),

@@ -76,10 +76,15 @@ impl DefaultMaterialFamily {
     }
 }
 
-static DEFAULT_MATERIAL_FAMILIES: OnceLock<[DefaultMaterialFamily; 5]> = OnceLock::new();
+/// Derived from [`MaterialFamily::ALL`] rather than written down, because it was written down as
+/// `5` and the family list grew to 8 without it: the same fact held as two numbers, which is the
+/// failure `vehicle_material_ids.rs` exists to prevent one layer up.
+pub const FAMILY_COUNT: usize = MaterialFamily::ALL.len();
 
-/// The five material families in renderer `material_id` order, generated only once per process.
-pub fn default_material_families() -> &'static [DefaultMaterialFamily; 5] {
+static DEFAULT_MATERIAL_FAMILIES: OnceLock<[DefaultMaterialFamily; FAMILY_COUNT]> = OnceLock::new();
+
+/// Every material family in renderer layer order, generated only once per process.
+pub fn default_material_families() -> &'static [DefaultMaterialFamily; FAMILY_COUNT] {
     DEFAULT_MATERIAL_FAMILIES.get_or_init(|| MaterialFamily::ALL.map(bake_family))
 }
 
@@ -183,15 +188,24 @@ mod tests {
                 "{:?} albedo has an implausible RGB dominant",
                 family.family()
             );
+            // These two bounds are about VALIDITY, not about how much surface character a
+            // material may have. They used to be `(122..=134)` on the normal's X/Y — a +-6/255
+            // window, about 2.7 degrees — and `cavity >= 210`, which let a crevice darken by at
+            // most 18%. Neither is physical; both are look decisions wearing a test's clothes,
+            // and TWO independent changes hit them from different directions: the amplitude
+            // calibration, and canvas/glass/timber arriving with surfaces of their own. Replaced
+            // with the invariants they should always have been.
             assert!(
                 family.normal().rgba().chunks_exact(4).all(|p| {
-                    (122..=134).contains(&p[0]) && (122..=134).contains(&p[1]) && p[2] == 255
+                    (80..=176).contains(&p[0])
+                        && (80..=176).contains(&p[1])
+                        && p[2] >= p[0].max(p[1])
                 }),
-                "{:?} normal must remain a gentle +Z tangent-space perturbation",
+                "{:?} normal must remain a valid +Z-dominant tangent-space perturbation",
                 family.family()
             );
             assert!(
-                family.cavity().rgba().chunks_exact(4).all(|p| p[0] >= 210),
+                family.cavity().rgba().chunks_exact(4).all(|p| p[0] >= 140),
                 "{:?} cavity must retain readable indirect light",
                 family.family()
             );

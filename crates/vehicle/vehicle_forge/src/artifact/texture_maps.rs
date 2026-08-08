@@ -22,16 +22,32 @@ pub enum MaterialFamily {
     BarrelSteel,
     TrackMetal,
     Rubber,
+    /// Proofed duck: mantlet boots, tarpaulins, the cleaning kit's rolls.
+    Canvas,
+    /// Lens and prism glass — the one surface on a tank meant to catch the sun.
+    Glass,
+    /// Seasoned timber: the unditching beam.
+    Timber,
 }
 
 impl MaterialFamily {
-    /// Every family in `material_id` order (layer 0..=4).
-    pub const ALL: [MaterialFamily; 5] = [
+    /// Every family in layer order. **Append-only**: the index IS the texture-array layer and it
+    /// is baked into artifact filenames, so reordering would silently repaint the fleet.
+    ///
+    /// The last three arrived together, because their absence was one bug: with five layers the
+    /// shader clamped `min(material_id, 4u)` and canvas, glass and timber all sampled RUBBER.
+    /// Each of those three roles carries a doc comment arguing it must be distinct because "one
+    /// material for two things is one of them rendered wrong" — and all three were the same
+    /// wrong thing.
+    pub const ALL: [MaterialFamily; 8] = [
         MaterialFamily::RolledArmor,
         MaterialFamily::CastArmor,
         MaterialFamily::BarrelSteel,
         MaterialFamily::TrackMetal,
         MaterialFamily::Rubber,
+        MaterialFamily::Canvas,
+        MaterialFamily::Glass,
+        MaterialFamily::Timber,
     ];
 
     /// Stable lowercase slug used in baked filenames and the manifest role field.
@@ -42,6 +58,9 @@ impl MaterialFamily {
             MaterialFamily::BarrelSteel => "barrel_steel",
             MaterialFamily::TrackMetal => "track_metal",
             MaterialFamily::Rubber => "rubber",
+            MaterialFamily::Canvas => "canvas",
+            MaterialFamily::Glass => "glass",
+            MaterialFamily::Timber => "timber",
         }
     }
 
@@ -158,9 +177,11 @@ mod tests {
     }
 
     #[test]
-    fn the_family_set_is_five_roles_times_four_maps() {
+    fn the_family_set_is_every_role_times_four_maps() {
         let maps = bake_default_set().expect("maps bake");
-        assert_eq!(maps.len(), 20);
+        // Derived, not written down. The literal `20` here was the fifth place the family count
+        // lived as a number of its own.
+        assert_eq!(maps.len(), MaterialFamily::ALL.len() * MapKind::ALL.len());
         for family in MaterialFamily::ALL {
             for semantic in ["albedo", "normal", "ao_roughness_metalness", "cavity"] {
                 let file = format!("{}_{}.png", family.slug(), semantic);

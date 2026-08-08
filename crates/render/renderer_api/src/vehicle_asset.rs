@@ -158,13 +158,29 @@ pub struct VehicleMaterialFamilies {
 }
 
 impl VehicleMaterialFamilies {
-    /// The fixed number of material-role layers (matches `material_id` range `0..=4`).
-    pub const LAYERS: usize = 5;
+    /// The fixed number of material-texture layers.
+    ///
+    /// NOT the same thing as the number of material ROLES, and the difference is the bug this
+    /// number grew to fix. There are twelve roles and there were five layers, so the shader
+    /// clamped with `min(material_id, 4u)` and every role from 5 up — the interior three, torn
+    /// steel, and the three whose own declarations argue at length that they must be distinct
+    /// (`Canvas`, `Glass`, `Timber`) — sampled the RUBBER layer. A headlight lens wore a tyre.
+    ///
+    /// Canvas, glass and timber now have layers of their own; the interior roles and torn steel
+    /// map onto the nearest real family by an explicit table (`client::material_layer_id`), not
+    /// by a clamp. See `client/tests/vehicle_material_ids.rs`, which holds that table and the
+    /// shader to each other.
+    pub const LAYERS: usize = 8;
 
     /// Build from exactly [`LAYERS`](Self::LAYERS) families in layer order. Panics otherwise, since a
-    /// mismatched layer count would desynchronise the shader's `material_id` indexing.
+    /// mismatched layer count would desynchronise the shader's layer indexing.
     pub fn new(families: Vec<VehicleMaterialMaps>) -> Self {
-        assert_eq!(families.len(), Self::LAYERS, "a vehicle carries exactly five material layers");
+        assert_eq!(
+            families.len(),
+            Self::LAYERS,
+            "a vehicle carries exactly {} material layers",
+            Self::LAYERS
+        );
         Self { families }
     }
 

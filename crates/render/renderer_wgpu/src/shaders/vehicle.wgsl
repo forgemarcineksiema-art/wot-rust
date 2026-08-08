@@ -260,15 +260,35 @@ fn stable_tangent(n: vec3<f32>) -> vec3<f32> {
     return normalize(seed - n * dot(seed, n));
 }
 
+// Which texture-array layer a material role samples. Twelve roles, eight layers.
+//
+// This was `min(material_id, 4u)`, which is a clamp and not a mapping: it sent the interior three,
+// torn steel, canvas, glass and timber all to the RUBBER layer. `client::material_layer_id` is the
+// same table in Rust and `client/tests/vehicle_material_ids.rs` holds the two to each other, so a
+// role added on one side without the other is a failing test rather than a part wearing a tyre.
+fn material_layer(id: u32) -> i32 {
+    if (id == 0u) { return 0; }          // RolledArmor
+    else if (id == 1u) { return 1; }     // CastArmor
+    else if (id == 2u) { return 2; }     // BarrelSteel
+    else if (id == 3u) { return 3; }     // TrackMetal
+    else if (id == 4u) { return 4; }     // Rubber
+    else if (id == 5u) { return 0; }     // InteriorPrimer -> painted sheet
+    else if (id == 6u) { return 2; }     // InteriorMachinery -> machined steel
+    else if (id == 7u) { return 2; }     // Ammunition -> machined steel
+    else if (id == 8u) { return 0; }     // ExposedSteel -> torn rolled plate
+    else if (id == 9u) { return 5; }     // Canvas
+    else if (id == 10u) { return 6; }    // Glass
+    else if (id == 11u) { return 7; }    // Timber
+    return 0;
+}
+
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
         discard;
     }
     let n = normalize(input.world_normal);
-    // Interior roles reuse a neutral existing detail texture layer. Their identity comes from
-    // material_params, keeping old five-layer Forge artifacts valid.
-    let layer = i32(min(input.material_id, 4u));
+    let layer = material_layer(input.material_id);
     var world_n: vec3<f32>;
     var baked_albedo: vec3<f32>;
     var ao_rough: vec3<f32>;
