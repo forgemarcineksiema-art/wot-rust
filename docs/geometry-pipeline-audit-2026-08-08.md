@@ -158,6 +158,70 @@ The register above already names this. This audit adds four rows:
 | build parts through `VehiclePart` | T-54 | 8 of 9 vehicles |
 | author visual data as `.visual.ron` | Tiger I, one part | everything else, in Rust |
 
+## 6b. Module inventory — every vehicle, A to Z
+
+Method: decompose each shipped bake into connected components (islands sharing welded vertex
+positions), then count each island's triangles and its **distinct face normals**. Normal count is
+the construction signal — a box presents 6, a chamfered box ~14–26, a lofted casting 271–289.
+
+**Read the normal count with the part's semantics, not as a blanket threshold.** `upper_hull` is
+12 triangles and 6 normals and that is CORRECT: a rolled-plate hull is six planes carrying their
+armour angles, and the `solid` kernel building it exactly is the point. The same 6 normals on a
+stowage bin or an engine grille is a different verdict entirely.
+
+| vehicle | hull islands | turret | gun | **modules** | static tris |
+|---|---:|---:|---:|---:|---:|
+| **T-54** | 249 | 91 | 4 | **344** | 21 508 |
+| Jagdtiger | 36 | 24 | 4 | 64 | 2 460 |
+| Tiger I | 44 | 14 | 3 | 61 | 3 296 |
+| Tiger II | 32 | 13 | 6 | 51 | 2 532 |
+| Panther II | 32 | 13 | 5 | 50 | 2 616 |
+| T-34-85 | 18 | 15 | 4 | 37 | 1 722 |
+| IS-3 | 18 | 11 | 6 | 35 | 1 950 |
+| Centurion | 16 | 12 | 4 | 32 | 1 708 |
+
+**T-54 344 modules, Centurion 32 — 10.75x.** Counting modules rather than triangles is the sharper
+measure: it says the difference is not mesh density, it is how many things exist.
+
+### The two parts named in review
+
+**Hatches.** The T-54's `driver_hatch` is four modules — lid (160 tris, ⌀0.37 revolve), collar
+(64), hinge (108), handle (84, `sweep`) — 416 triangles. The construction floor is MET: there is a
+coaming, a hinge and a handle, exactly as `hatch_hardware` argues. What is missing is on the lid
+itself: it is a **flat disc**. No dome, no rim step, no lock handle, no periscope cut. The fleet's
+other eight get `rect_hatch` / `round_hatch` — proud plate + hinge bar + grab handle, three boxes,
+~130 triangles.
+
+**Fuel tanks.** Both families carry them and both are under-built, differently:
+
+- **IS-3 cylindrical drums** (`is3.rs::is3_fuel_drums`): a plain capped tube, **10 segments**,
+  r = 0.145, ~40 triangles each. No domed end, no filler neck, no retaining straps, no cradle. At
+  10 segments the silhouette error is **7.1 mm** — visibly faceted inside ~15 m. The roundness rule
+  wants 18.
+- **T-54 flat tanks** (`t54_kit.rs`): a chamfered box (44 tris) plus the references' pressed
+  X-stiffened lid ribs (40 tris). Better — it carries an authored reference detail — but still a
+  box with two ribs.
+
+### What is genuinely under-built on the T-54
+
+Visually exposed parts whose construction does not match their nature:
+
+| part | x | built as | should be |
+|---|---:|---|---|
+| `stowage_bin` | 6 | chamfered box, 44 tris | lid, hinges, latches, ribs, straps |
+| `deck_grille` | 11 | bare boxes, 12 tris each | louvres with depth, mesh, frame |
+| `driver_periscope_housing` | 1 | bare box, 12 tris | housing, guard, glass |
+| `driver_periscope` / `turret_periscope` | 3 | 16 tris, 7 normals | ditto |
+| `exhaust_cover` | 1 | chamfered box, 44 tris | louvred armoured cowl |
+| `unditching_beam` | 1 | smooth 48-tri revolve | squared timber, sawn ends |
+
+### What is genuinely well built
+
+`turret_shell` (1280 tris / 289 normals, `cast_loft`), `turret_inner_skin` (1280 / 271),
+`turret_casting_seam` (480 / 67, `sweep`), `tow_hook_throat` (156 / 62), `engine_deck_bolts`
+(1296), the eleven-part `dshk_*` machine gun, and the four-module hatch hardware. The T-54's big
+shapes and its hardware are not the problem. **Everything bolted on as a box is.**
+
 ## 7. How to evolve the core
 
 The core does not need new capability. Everything reached for in this audit already existed:
