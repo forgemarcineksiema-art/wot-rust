@@ -11,6 +11,7 @@ pub mod math;
 pub mod mobility;
 mod modules;
 mod mount;
+pub mod roundness;
 pub mod stability;
 mod steering;
 mod tank;
