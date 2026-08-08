@@ -63,7 +63,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             overlap_inner_dx: 0.20,
             wheel_half_width: 0.09,
             link_half_width: 0.31,
-            link_count: None,
+            link_count: Some(92), // the Tiger II track it shares
             top_sag_m: 0.035,
             wheel_spokes: 6,
             drive_front: true,

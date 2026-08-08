@@ -65,7 +65,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             overlap_inner_dx: 0.20,
             wheel_half_width: 0.09,
             link_half_width: 0.26,
-            link_count: None,
+            link_count: Some(86), // Kgs 64/660/150
             top_sag_m: 0.035,
             wheel_spokes: 6,
             drive_front: true,

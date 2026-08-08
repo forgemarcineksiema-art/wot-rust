@@ -79,13 +79,33 @@ pub struct GearBudgets {
 /// triangular gaps rectangular shoe faces expose around an idler wrap. **There is no free
 /// reserve there.** Anything that raises the link count has to be paid for out of the frame.
 ///
+/// Re-measured 2026-08-08 (the shoe-pitch fix). Five vehicles had no authored shoe count and were
+/// rendering shoes 1.65-2.05x too long; authoring the documented counts roughly doubles their
+/// links, which is the whole point and it has to be paid for:
+///
+/// | vehicle | near before -> after | far before -> after |
+/// |---|---|---|
+/// | Tiger II | 28,712 -> 39,336 | 14,012 -> 17,276 |
+/// | Jagdtiger | 28,936 -> 39,336 | 14,076 -> 17,276 |
+/// | Centurion | 24,816 -> 38,032 | 11,464 -> 15,560 |
+/// | Panther II | 24,120 -> 34,808 | 11,492 -> 14,820 |
+/// | T-34-85 | 23,088 -> 28,912 | 10,368 -> 12,480 |
+///
+/// The NEAR ceiling holds untouched at 40,000 — the worst vehicle lands at 39,336, which is 1.7%
+/// of headroom and deliberately tight. `far_tri_max` moves 17,000 -> 18,500 for the 276 triangles
+/// Tiger II and Jagdtiger now cross it by, with 7% of room over the measured worst.
+///
+/// Affordable, and specifically so: forcing every tank in a 7v7 to FAR gear measures 12.17 ms p50
+/// against 12.19 for a normal battle (`docs/battle-first/measurements.md`). The distant tier is
+/// not where the frame goes, which is exactly why it is the tier that could absorb this.
+///
 /// What the frame can afford is now measured rather than assumed
 /// (`docs/battle-first/measurements.md`, 2026-08-08, MX330 at the shipped 1x MSAA): a 7v7 costs
 /// 12.19 ms p50 / 13.68 ms p95 of GPU work against a 16.67 ms line, and forcing every tank to
 /// NEAR gear costs +1.55 ms p50 and leaves **1.46 ms of p95 headroom**. That is the budget the
 /// five vehicles with 1.65–2.05x oversized shoes have to fit their fix into.
 pub const GEAR_BUDGETS: GearBudgets =
-    GearBudgets { near_tri_max: 40_000, far_tri_max: 17_000, instances_max: 260 };
+    GearBudgets { near_tri_max: 40_000, far_tri_max: 18_500, instances_max: 260 };
 
 /// The distance tier must remove at least this share of the gear's triangles, or it is not
 /// earning the second mesh set it costs to keep.
