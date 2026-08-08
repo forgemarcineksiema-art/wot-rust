@@ -49,20 +49,32 @@ pub struct GearBudgets {
     pub instances_max: usize,
 }
 
-/// Recorded 2026-07-29 (PR-21), with the fleet's worst vehicle at each line and a hand of
-/// headroom for the construction work W4 is about to do:
+/// Re-measured 2026-08-08 (`cargo test -p vehicle_forge --test fleet_draw_cost -- --nocapture`).
+/// Every row had grown since it was written and nothing said so, because the ceiling still held:
 ///
-/// | vehicle | near | far | saved |
-/// |---|---:|---:|---:|
-/// | T-54 | 38,568 | 15,092 | 61% |
-/// | IS-3 | 38,448 | 15,448 | 60% |
-/// | Jagdtiger | 26,392 | 13,788 | 48% |
-/// | T-34-85 | 19,800 | 9,420 | 52% |
+/// | vehicle | near | far | saved | was (2026-07-29) |
+/// |---|---:|---:|---:|---|
+/// | T-54 | 39,632 | 15,776 | 60% | 38,568 / 15,092 |
+/// | IS-3 | 39,632 | 16,528 | 58% | 38,448 / 15,448 |
+/// | Tiger I | 38,736 | 16,592 | 57% | — |
+/// | Jagdtiger | 28,936 | 14,076 | 51% | 26,392 / 13,788 |
+/// | Tiger II | 28,712 | 14,012 | 51% | — |
+/// | Centurion | 24,816 | 11,464 | 54% | — |
+/// | Panther II | 24,120 | 11,492 | 52% | — |
+/// | T-34-85 | 23,088 | 10,368 | 55% | 19,800 / 9,420 |
 ///
-/// The near ceiling is deliberately close to today's worst. W4 adds real construction to these
-/// parts (OMSh hinge eyes, twin tyres, sprocket engagement) and it must PAY for it — PR-22 alone
-/// removes 11,520 triangles per tank that are currently buried inside the link's backing slab and
-/// render nothing.
+/// **A withdrawn claim.** This block used to say PR-22 would remove "11,520 triangles per tank
+/// currently buried inside the link's backing slab and rendering nothing". Checked
+/// (`running_gear_geom.rs::track_link_unit_mesh`): the slab is one 12-triangle `box_prism` per
+/// link — about 2,160 triangles per tank, not 11,520 — and it has a documented job, closing the
+/// triangular gaps rectangular shoe faces expose around an idler wrap. **There is no free
+/// reserve there.** Anything that raises the link count has to be paid for out of the frame.
+///
+/// What the frame can afford is now measured rather than assumed
+/// (`docs/battle-first/measurements.md`, 2026-08-08, MX330 at the shipped 1x MSAA): a 7v7 costs
+/// 12.19 ms p50 / 13.68 ms p95 of GPU work against a 16.67 ms line, and forcing every tank to
+/// NEAR gear costs +1.55 ms p50 and leaves **1.46 ms of p95 headroom**. That is the budget the
+/// five vehicles with 1.65–2.05x oversized shoes have to fit their fix into.
 pub const GEAR_BUDGETS: GearBudgets =
     GearBudgets { near_tri_max: 40_000, far_tri_max: 17_000, instances_max: 260 };
 

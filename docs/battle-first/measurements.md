@@ -244,3 +244,51 @@ on/off delta is ~0.5 ms inside the machine's own run-to-run noise (~±1.5 ms). C
 procedural implementation's measured +4.837 ms on the same map (`docs/art-direction-program.md`,
 the refusal table) — the baked tile delivers the same shade for an order of magnitude less, and
 that measurement is what let D21 close with the feature IN the shipped canonical look.
+
+## Frame time on the MX330, at the MSAA the game ships (2026-08-08)
+
+`cargo run -p client --release --example probe -- perf_capture`, on the min-spec box itself.
+The probe names its own conditions now, which is why this entry can be trusted where earlier ones
+could not: **1920x1080 offscreen, 1x MSAA (the shipped count), adapter NVIDIA GeForce MX330
+(Vulkan, DiscreteGpu)**. 180 samples over 4 interleaved cycles per configuration.
+
+**Read the second column.** The probe reports wall-clock, which includes a readback fence the game
+never pays — measured at **5.87 ms**. The per-pass GPU timestamps are the real frame cost.
+
+| configuration | wall-clock p50 / p95 | **GPU work p50 / p95** |
+|---|---:|---:|
+| full scene, no tanks | 17.07 / 18.79 | 9.90 / 11.02 |
+| **full + 7v7** | 20.36 / 22.44 | **12.19 / 13.68** |
+| 7v7, gear forced NEAR (worst case) | 21.92 / 24.26 | **13.74 / 15.21** |
+| 7v7, gear forced FAR | 20.06 / 22.40 | 12.17 / 13.55 |
+| no shadows | 15.98 / 18.20 | 8.90 / 9.83 |
+| no SSAO | 16.27 / 18.39 | 9.45 / 10.21 |
+
+Submitted in the full scene: **1 661 draws, 616 982 triangles, 5 399 instances**; `scene_pass`
+carries 489 010 of those triangles and **73–75 % of the frame** in every configuration.
+
+### What this corrects
+
+The recorded battle budget said a 7v7 ran at **59 FPS p50, 49 p95 — "on the line"**. That was
+measured at 4x MSAA while the window ships 1x, and it was pessimistic. Measured as shipped:
+
+| | p50 | p95 |
+|---|---:|---:|
+| 7v7 GPU work | 12.19 ms (**82 FPS**) | 13.68 ms (**73 FPS**) |
+| headroom to the 16.67 ms line | **4.48 ms (27 %)** | **2.99 ms (18 %)** |
+| worst case, all gear NEAR | 13.74 ms | 15.21 ms — **1.46 ms left** |
+
+**There is headroom, and it is finite.** Two program items were waiting on this number:
+
+- **The bevel law.** A chamfered box is ~44 triangles against 12. At `scene_pass`'s measured
+  ~20 ns/triangle, adding a quarter of a million triangles across a 7v7 costs ~5 ms — the whole
+  p50 headroom and then some. **Bevels are affordable only at LOD0 on near vehicles**, never as a
+  fleet-wide, all-tier operator. The measurement says this; taste does not have to.
+- **The track shoe pitch.** Forcing every tank to NEAR gear already costs +1.55 ms p50 over a
+  normal 7v7. Doubling the link count on the five vehicles whose shoes are 1.65–2.05x too long
+  roughly doubles the link contribution, which puts the worst case at ~16.7 ms p95 — exactly on
+  the line. Affordable, because NEAR applies only to close vehicles, but it consumes most of what
+  is left and must land with its own A/B.
+
+Shadows cost 1.00 ms p50 and SSAO 0.55 ms of GPU work. Neither is where the frame goes;
+`scene_pass` is.
