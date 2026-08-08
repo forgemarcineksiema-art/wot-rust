@@ -183,15 +183,32 @@ mod tests {
                 "{:?} albedo has an implausible RGB dominant",
                 family.family()
             );
+            // The invariant is that this stays a VALID tangent-space normal: +Z dominant, tilt
+            // inside a plausible angle for a surface treatment. It is not a licence to decide how
+            // much surface character a material may have.
+            //
+            // It used to be `(122..=134)` on X and Y — a +-6/255 window, about 2.7 degrees of
+            // tilt. That is not a physical bound, it is a look decision wearing a test's clothes,
+            // and it was the thing holding the fleet flat: raising the synthesis amplitudes to
+            // where a casting reads as a casting fails it immediately. Widened to +-48 (~20.6
+            // degrees), which is still unmistakably a gentle detail normal and no longer decides
+            // the art direction. `tests/material_floor.rs` holds the other end.
             assert!(
                 family.normal().rgba().chunks_exact(4).all(|p| {
-                    (122..=134).contains(&p[0]) && (122..=134).contains(&p[1]) && p[2] == 255
+                    (80..=176).contains(&p[0])
+                        && (80..=176).contains(&p[1])
+                        && p[2] >= p[0].max(p[1])
                 }),
-                "{:?} normal must remain a gentle +Z tangent-space perturbation",
+                "{:?} normal must remain a valid +Z-dominant tangent-space perturbation",
                 family.family()
             );
+            // Same correction as the normal bound above: what this must protect is that a crevice
+            // never crushes to black, so indirect light still reaches it. `>= 210` allowed a
+            // crevice to darken by at most 18% — not a physical statement, a look decision, and
+            // the one that kept worn track steel looking freshly cast. 140/255 keeps the honest
+            // half of it: no cavity map may take a surface below ~55% brightness.
             assert!(
-                family.cavity().rgba().chunks_exact(4).all(|p| p[0] >= 210),
+                family.cavity().rgba().chunks_exact(4).all(|p| p[0] >= 140),
                 "{:?} cavity must retain readable indirect light",
                 family.family()
             );
