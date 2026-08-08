@@ -61,6 +61,11 @@ pub(super) struct Profile {
     fine_grain: u8,
     undulation: u8,
     roughness: u8,
+    /// How far the finish wanders across the surface, +-this many levels. Zero is a uniform
+    /// gloss, which is what every family shipped with until 2026-08-08: measured span 0 in all
+    /// of them, so a pitted casting and a polished track face answered the sun identically no
+    /// matter how much normal or cavity detail they carried.
+    roughness_amp: u8,
     metalness: u8,
     cavity_base: u8,
     cavity_amp: u8,
@@ -74,6 +79,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 12,
             undulation: 8,
             roughness: 145,
+            roughness_amp: 14,
             metalness: 10,
             cavity_base: 246,
             cavity_amp: 24,
@@ -84,6 +90,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 8,
             undulation: 28,
             roughness: 170,
+            roughness_amp: 22,
             metalness: 8,
             cavity_base: 248,
             cavity_amp: 12,
@@ -94,6 +101,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 8,
             undulation: 4,
             roughness: 175,
+            roughness_amp: 12,
             metalness: 12,
             cavity_base: 248,
             cavity_amp: 12,
@@ -104,6 +112,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 20,
             undulation: 12,
             roughness: 200,
+            roughness_amp: 44,
             metalness: 128,
             cavity_base: 230,
             cavity_amp: 64,
@@ -114,6 +123,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 12,
             undulation: 4,
             roughness: 225,
+            roughness_amp: 10,
             metalness: 0,
             cavity_base: 238,
             cavity_amp: 32,
@@ -131,6 +141,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 18,
             undulation: 8,
             roughness: 248,
+            roughness_amp: 12,
             metalness: 0,
             cavity_base: 232,
             cavity_amp: 26,
@@ -147,6 +158,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 2,
             undulation: 4,
             roughness: 28,
+            roughness_amp: 6,
             metalness: 24,
             cavity_base: 250,
             cavity_amp: 12,
@@ -161,6 +173,7 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             fine_grain: 12,
             undulation: 12,
             roughness: 236,
+            roughness_amp: 26,
             metalness: 0,
             cavity_base: 226,
             cavity_amp: 30,
@@ -182,7 +195,12 @@ pub(super) fn pixel(p: &Profile, kind: MapKind, x: u32, y: u32) -> [u8; 4] {
         }
         MapKind::AoRoughnessMetalness => {
             let ao = shift(238, -(grain(x, y, 4) as i32));
-            [ao, p.roughness, p.metalness, 255]
+            // Broad patches of differently-worn finish, not fine noise: a track's contact faces
+            // polish while its webs stay rough, and paint weathers in areas rather than pixels.
+            // Offset from the albedo lattice so the two do not wander in lockstep, which reads as
+            // one printed pattern rather than two independent properties of the surface.
+            let rough = shift(p.roughness, undulation(x + 97, y + 61, p.roughness_amp));
+            [ao, rough, p.metalness, 255]
         }
         MapKind::Cavity => {
             let c = shift(p.cavity_base, -(grain(x, y, p.cavity_amp) as i32));

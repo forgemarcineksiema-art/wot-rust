@@ -26,11 +26,10 @@
 //! | TrackMetal | 1.71 -> 6.23 | 1.77 -> 6.35 | 16 -> 64 |
 //! | Rubber | 0.67 -> 2.22 | 1.06 -> 3.44 | 8 -> 32 |
 //!
-//! One thing this file deliberately does NOT assert, because it is a separate defect and asserting
-//! it here would only paint it green by lowering the bar: the **roughness channel is constant**.
-//! Its span is 0 across all five families, before and after. Every role therefore answers the sun
-//! with one uniform gloss, and no amount of normal or cavity detail changes that. Worth its own
-//! change; recorded here so it is not rediscovered a third time.
+//! The roughness assertion below was deliberately absent when this file was written — the channel
+//! had span 0 in every family, and asserting it then would have painted the defect green by
+//! lowering the bar to what already shipped. It is here now because the defect is fixed, which is
+//! the order these two things have to happen in.
 
 use vehicle_forge::{DefaultMaterialFamily, default_material_families};
 
@@ -105,6 +104,30 @@ fn every_material_role_carries_a_cavity_signal() {
         assert!(
             max - min >= 8,
             "{:?}: cavity spans only {} levels — the lane is uploaded and says nothing.",
+            family.family(),
+            max - min
+        );
+    }
+}
+
+/// A surface's FINISH has to vary, or every part answers the sun identically.
+///
+/// This channel shipped constant: span 0 in every family. `vehicle.wgsl` reads it
+/// (`rough_base = role_roughness * (0.55 + ao_rough.g)`), so it was multiplying by the same number
+/// everywhere — a pitted casting and a polished track contact face reflecting alike no matter how
+/// much normal or cavity detail either carried.
+const MIN_ROUGHNESS_SPAN: u8 = 8;
+
+#[test]
+fn every_material_role_varies_its_finish_across_the_surface() {
+    for family in default_material_families() {
+        let rgba = family.ao_roughness_metalness().rgba();
+        // Green is the roughness channel of the packed ao/roughness/metalness map.
+        let (min, max) =
+            rgba.chunks_exact(4).fold((255_u8, 0_u8), |(lo, hi), p| (lo.min(p[1]), hi.max(p[1])));
+        assert!(
+            max - min >= MIN_ROUGHNESS_SPAN,
+            "{:?}: roughness spans {} levels — under the floor of {MIN_ROUGHNESS_SPAN}. A constant              finish is one gloss for the whole vehicle, which is what this channel did for months.",
             family.family(),
             max - min
         );
