@@ -140,7 +140,13 @@ mod tests {
             assert!((t.length() - 1.0).abs() < 1.0e-3, "tangent must be unit length");
             let n = glam::Vec3::from_array(vertex.normal);
             assert!(t.dot(n).abs() < 1.0e-2, "tangent must stay orthogonal to the normal");
-            assert!(vertex.material_id <= 8);
+            // The id must name a role the shader answers for — NOT "one of the eight roles this
+            // hull happened to carry when the test was written". That older bound was an
+            // accidental snapshot: it fired the moment the material law gave the T-54 recipe's
+            // headlight its Glass lens (id 10), a change that is correct and that the shader has
+            // a branch for. Which ids are real is settled once, in
+            // `client/tests/vehicle_material_ids.rs`, against `vehicle.wgsl` itself.
+            assert!((vertex.material_id as usize) < MaterialRole::ALL.len());
             assert!((vertex.tangent[3].abs() - 1.0).abs() < 1.0e-5, "handedness is ±1");
         }
     }

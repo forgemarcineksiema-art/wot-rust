@@ -188,13 +188,21 @@ mod tests {
                 "{:?} albedo has an implausible RGB dominant",
                 family.family()
             );
-            // These two bounds are about VALIDITY, not about how much surface character a
-            // material may have. They used to be `(122..=134)` on the normal's X/Y — a +-6/255
-            // window, about 2.7 degrees — and `cavity >= 210`, which let a crevice darken by at
-            // most 18%. Neither is physical; both are look decisions wearing a test's clothes,
-            // and TWO independent changes hit them from different directions: the amplitude
-            // calibration, and canvas/glass/timber arriving with surfaces of their own. Replaced
-            // with the invariants they should always have been.
+            // The invariant is that this stays a VALID tangent-space normal — +Z dominant, tilt
+            // inside a plausible angle — and that a crevice never crushes to black. Neither bound
+            // is a licence to decide how much surface character a material may have.
+            //
+            // They used to be `(122..=134)` on the normal's X/Y (a +-6/255 window, about 2.7
+            // degrees) and `cavity >= 210` (a crevice may darken by at most 18%). Neither is
+            // physical; both are look decisions wearing a test's clothes. **Two independent
+            // changes hit them from different directions within a day** — the amplitude
+            // calibration, which needed a casting to read as a casting, and canvas/glass/timber
+            // arriving with surfaces of their own. Two different reasons striking the same wall
+            // is what makes it evidence rather than coincidence.
+            //
+            // Widened to +-48 (~20.6 degrees), still unmistakably a gentle detail normal, and to
+            // 140/255 of cavity, which keeps the honest half of "readable indirect light".
+            // `tests/material_floor.rs` holds the other end.
             assert!(
                 family.normal().rgba().chunks_exact(4).all(|p| {
                     (80..=176).contains(&p[0])
@@ -204,6 +212,11 @@ mod tests {
                 "{:?} normal must remain a valid +Z-dominant tangent-space perturbation",
                 family.family()
             );
+            // Same correction as the normal bound above: what this must protect is that a crevice
+            // never crushes to black, so indirect light still reaches it. `>= 210` allowed a
+            // crevice to darken by at most 18% — not a physical statement, a look decision, and
+            // the one that kept worn track steel looking freshly cast. 140/255 keeps the honest
+            // half of it: no cavity map may take a surface below ~55% brightness.
             assert!(
                 family.cavity().rgba().chunks_exact(4).all(|p| p[0] >= 140),
                 "{:?} cavity must retain readable indirect light",

@@ -4,7 +4,7 @@ mod socket;
 
 use glam::{Vec2, Vec3};
 
-use super::{SG_CAST, SG_CUPOLA, SG_MANTLET, SG_RING};
+use super::{SG_CAST, SG_CUPOLA, SG_HARD, SG_MANTLET, SG_RING};
 use socket::oval_socket_mesh;
 use vehicle_geometry::{
     Axis, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
@@ -223,22 +223,49 @@ pub(crate) fn add_flush_ring_hatch(
 }
 
 /// A commander's periscope head (IS-3 TPK style): a small pedestal with an overhanging visor.
+/// The GLASS a vision device looks through: a prism face let into the forward wall of a
+/// periscope hood or vision block.
+///
+/// Its own material, for the reason [`MaterialRole::Glass`] gives at its declaration — a prism
+/// rendered as the steel hood around it is not a prism, it is a bump on a box, and a viewer
+/// reads it as one. Every driver's and commander's periscope in this fleet was that bump.
+///
+/// `hood_center` / `hood_half` describe the hood the prism is let into and `facing` its outward
+/// face along Z (+1 forward). The glass is inset so the hood's own steel frames it.
+///
+/// NOT yet covered: hoods that face an arbitrary azimuth rather than straight ahead — the German
+/// cast cupola's crown of seven (`add_german_cast_cupola`) is the fleet's only such set. A
+/// radial face needs a rotated plate, which `plate_box` cannot express; that wants a kernel
+/// primitive, and it comes with the part that needs it rather than ahead of it.
+pub(crate) fn vision_prism(
+    builder: MeshBuilder,
+    hood_center: Vec3,
+    hood_half: Vec3,
+    facing: f32,
+) -> MeshBuilder {
+    let glass_half = Vec3::new(hood_half.x * 0.70, hood_half.y * 0.55, hood_half.z * 0.14);
+    builder.plate_box(
+        hood_center + Vec3::new(0.0, 0.0, facing * hood_half.z),
+        glass_half,
+        glass_half.z * 0.35,
+        MaterialRole::Glass,
+        SG_HARD,
+    )
+}
+
 pub(crate) fn add_commander_periscope(builder: MeshBuilder, x: f32, z: f32, y: f32) -> MeshBuilder {
-    builder
-        .plate_box(
-            Vec3::new(x, y + 0.045, z),
-            Vec3::new(0.055, 0.045, 0.055),
-            0.015,
-            MaterialRole::CastArmor,
-            SG_CUPOLA,
-        )
+    let hood_center = Vec3::new(x, y + 0.045, z);
+    let hood_half = Vec3::new(0.055, 0.045, 0.055);
+    let b = builder
+        .plate_box(hood_center, hood_half, 0.015, MaterialRole::CastArmor, SG_CUPOLA)
         .plate_box(
             Vec3::new(x, y + 0.10, z + 0.02),
             Vec3::new(0.07, 0.022, 0.075),
             0.010,
             MaterialRole::BarrelSteel,
             SG_CUPOLA,
-        )
+        );
+    vision_prism(b, hood_center, hood_half, 1.0)
 }
 
 /// The British commander's cupola (Centurion Mk 3): a wide drum (real outer ⌀ ~0.75 m) with a
@@ -266,15 +293,17 @@ pub(crate) fn add_british_cupola(
             smoothing: SG_CUPOLA,
         },
     );
-    // Two forward sight hoods flanking the bore line of the commander's view.
+    // Two forward sight hoods flanking the bore line of the commander's view — each looking
+    // through its own glass. The Centurion carries no headlight by a deliberate decision
+    // (`deck_details::centurion_deck`: absent beats cloned-wrong until the fender boxes exist),
+    // so these hoods are where the material law meets this vehicle: the commander still looks
+    // through something, and rendering it as the casting around it makes it a bump on a drum.
     for sign in [-1.0_f32, 1.0] {
-        b = b.plate_box(
-            Vec3::new(x + sign * radius * 0.45, base_y + drum_h + 0.015, z + radius * 0.62),
-            Vec3::new(0.06, 0.028, 0.06),
-            0.012,
-            MaterialRole::CastArmor,
-            SG_CUPOLA,
-        );
+        let hood_c =
+            Vec3::new(x + sign * radius * 0.45, base_y + drum_h + 0.015, z + radius * 0.62);
+        let hood_half = Vec3::new(0.06, 0.028, 0.06);
+        b = b.plate_box(hood_c, hood_half, 0.012, MaterialRole::CastArmor, SG_CUPOLA);
+        b = vision_prism(b, hood_c, hood_half, 1.0);
     }
     // Fore/aft split lid: shallow cap with a transverse seam bar and rear hinge lugs.
     let lid_y = base_y + drum_h;

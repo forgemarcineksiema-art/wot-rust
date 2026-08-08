@@ -37,9 +37,25 @@ impl MapKind {
 }
 
 /// Per-role synthesis parameters. Albedo is a near-neutral detail multiplier, not a second absolute
-/// base colour: the shader already owns each role's physical base albedo. Keeping these values near
-/// white prevents accidental albedo-squared black surfaces while grain, normals, roughness and
-/// cavity still distinguish cast armour, plate, painted barrel steel, tracks and rubber.
+/// base colour: the shader already owns each role's physical base albedo. Keeping ALBEDO near white
+/// prevents accidental albedo-squared black surfaces — that reasoning is sound and unchanged.
+///
+/// What was wrong was applying it to the SURFACE-CHARACTER amplitudes as well. Until 2026-08-08
+/// `normal_jitter` ran at 3/255 on rolled armour and 5/255 on cast: a **1.2% normal perturbation**,
+/// with the two armour families separated by 2/255. The comment here claimed grain, normals,
+/// roughness and cavity "still distinguish cast armour, plate, painted barrel steel, tracks and
+/// rubber". At those amplitudes they did not distinguish anything, and that — not any missing
+/// capability — is why the whole fleet read as one flat plastic tone. Normal mapping was wired
+/// end to end the entire time; it was turned down to nothing.
+///
+/// Grain, undulation, normal jitter and cavity are now x4 their old values, chosen off a rendered
+/// ladder (x1 / x3 / x6 / x10 on `t54_studio`) rather than from taste: x1 is invisible, x10 turns
+/// the cast turret into pumice, and the useful band is x3–x6. Measured at x4 the turret casting
+/// reads as a casting and the plate reads as painted steel.
+///
+/// `vehicle_forge/tests/material_floor.rs` is the lock. It exists because this failure mode is
+/// silent: a material tuned to invisibility renders, passes every test, and looks for all the
+/// world like a modelling problem rather than a knob turned down.
 pub(super) struct Profile {
     albedo: [u8; 3],
     fine_grain: u8,
@@ -55,53 +71,53 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
     match family {
         MaterialFamily::RolledArmor => Profile {
             albedo: [244, 245, 246],
-            fine_grain: 3,
-            undulation: 2,
+            fine_grain: 12,
+            undulation: 8,
             roughness: 145,
             metalness: 10,
             cavity_base: 246,
-            cavity_amp: 6,
-            normal_jitter: 3,
+            cavity_amp: 24,
+            normal_jitter: 12,
         },
         MaterialFamily::CastArmor => Profile {
             albedo: [240, 242, 243],
-            fine_grain: 2,
-            undulation: 7,
+            fine_grain: 8,
+            undulation: 28,
             roughness: 170,
             metalness: 8,
             cavity_base: 248,
-            cavity_amp: 3,
-            normal_jitter: 5,
+            cavity_amp: 12,
+            normal_jitter: 20,
         },
         MaterialFamily::BarrelSteel => Profile {
             albedo: [232, 234, 236],
-            fine_grain: 2,
-            undulation: 1,
+            fine_grain: 8,
+            undulation: 4,
             roughness: 175,
             metalness: 12,
             cavity_base: 248,
-            cavity_amp: 3,
-            normal_jitter: 2,
+            cavity_amp: 12,
+            normal_jitter: 8,
         },
         MaterialFamily::TrackMetal => Profile {
             albedo: [224, 222, 218],
-            fine_grain: 5,
-            undulation: 3,
+            fine_grain: 20,
+            undulation: 12,
             roughness: 200,
             metalness: 128,
             cavity_base: 230,
-            cavity_amp: 16,
-            normal_jitter: 6,
+            cavity_amp: 64,
+            normal_jitter: 24,
         },
         MaterialFamily::Rubber => Profile {
             albedo: [228, 228, 230],
-            fine_grain: 3,
-            undulation: 1,
+            fine_grain: 12,
+            undulation: 4,
             roughness: 225,
             metalness: 0,
             cavity_base: 238,
-            cavity_amp: 8,
-            normal_jitter: 2,
+            cavity_amp: 32,
+            normal_jitter: 8,
         },
         // The three below are authored at CALIBRATED amplitudes from the start — roughly what the
         // x4 pass gives the five above — because they have no legacy look to preserve. If the two

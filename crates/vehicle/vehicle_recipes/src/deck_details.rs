@@ -16,7 +16,7 @@
 use game_core::VehicleBlueprint;
 use glam::{Vec2, Vec3};
 
-use super::SG_HARD;
+use super::{SG_HARD, vision_prism};
 use vehicle_geometry::{
     ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
 };
@@ -99,18 +99,45 @@ fn round_hatch(builder: MeshBuilder, c: Vec3, radius: f32, hinge_sign_x: f32) ->
         )
 }
 
-/// A headlight drum, optionally with the Soviet brush-guard hoop over it.
+/// A headlight: a painted housing whose bezel turns in over a recessed GLASS lens, optionally
+/// under the Soviet brush-guard hoop.
+///
+/// The lens carries its own material for the reason [`MaterialRole::Glass`] gives at its own
+/// declaration — a lamp whose glass is rendered as the steel drum behind it is a disc, and a
+/// viewer reads it as one. The T-54 has had this since `t54_details.rs`; the rest of the fleet
+/// reached all five of this function's call sites with a solid `BarrelSteel` cylinder and no
+/// lens at all, which is why seven of eight vehicles never tagged `Glass` anywhere.
 fn headlight(builder: MeshBuilder, c: Vec3, radius: f32, guarded: bool) -> MeshBuilder {
+    // The housing profile runs back to front and then TURNS IN: body, bezel rim, then the recess
+    // wall running back to the reflector. The revolve's far cap IS that reflector, so what the
+    // eye meets through the bezel is the lens seated in front of it, never a capped steel face.
     let mut b = builder.capped_revolve_at(
         c,
         RevolveSpec {
             profile: vec![
-                ProfilePoint::new(radius, -radius * 0.9),
-                ProfilePoint::new(radius, radius * 0.9),
+                ProfilePoint::new(radius, -radius * 0.90),
+                ProfilePoint::new(radius, radius * 0.80),
+                ProfilePoint::new(radius * 0.78, radius * 0.90),
+                ProfilePoint::new(radius * 0.78, radius * 0.62),
             ],
             axis: vehicle_geometry::Axis::Z,
             segments: 12,
-            material: MaterialRole::BarrelSteel,
+            material: MaterialRole::RolledArmor,
+            smoothing: SG_HARD,
+        },
+    );
+    // The lens, sitting behind the bezel's front edge so the rim shades it instead of the glass
+    // standing proud of the lamp.
+    b = b.capped_revolve_at(
+        c,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(radius * 0.76, radius * 0.66),
+                ProfilePoint::new(radius * 0.76, radius * 0.80),
+            ],
+            axis: vehicle_geometry::Axis::Z,
+            segments: 12,
+            material: MaterialRole::Glass,
             smoothing: SG_HARD,
         },
     );
@@ -516,15 +543,13 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
             );
         }
     }
-    // Driver's twin periscope hoods at the roof front edge, left side.
+    // Driver's twin periscope hoods at the roof front edge, left side — each looking through
+    // its own glass, not through a steel bump.
     for x in [-0.72_f32, -0.46] {
-        b = b.plate_box(
-            Vec3::new(x, hull.deck_y + 0.035, edge - 0.10),
-            Vec3::new(0.055, 0.035, 0.055),
-            0.015,
-            MaterialRole::RolledArmor,
-            SG_HARD,
-        );
+        let hood_c = Vec3::new(x, hull.deck_y + 0.035, edge - 0.10);
+        let hood_half = Vec3::new(0.055, 0.035, 0.055);
+        b = b.plate_box(hood_c, hood_half, 0.015, MaterialRole::RolledArmor, SG_HARD);
+        b = vision_prism(b, hood_c, hood_half, 1.0);
     }
     // The MG Kugelblende in the glacis right — a cast ball seated in the 55-degree plate.
     let ball = on_glacis(0.60, 1.42, 0.0);
@@ -673,13 +698,10 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         SG_HARD,
     );
     for dx in [-0.14_f32, 0.14] {
-        b = b.plate_box(
-            hatch_c + Vec3::new(dx, 0.26, 0.05),
-            Vec3::new(0.055, 0.05, 0.05),
-            0.015,
-            MaterialRole::RolledArmor,
-            SG_HARD,
-        );
+        let hood_c = hatch_c + Vec3::new(dx, 0.26, 0.05);
+        let hood_half = Vec3::new(0.055, 0.05, 0.05);
+        b = b.plate_box(hood_c, hood_half, 0.015, MaterialRole::RolledArmor, SG_HARD);
+        b = vision_prism(b, hood_c, hood_half, 1.0);
     }
     // Hull MG ball right of the hatch.
     b = b.capped_revolve_at(
