@@ -11,6 +11,7 @@
 //! and its own calibre, 12.7 mm, not the tank gun's (that inheritance bug is locked out by
 //! `the_dshk_has_its_own_calibre`).
 
+use game_core::roundness::round_segments;
 use game_core::{CompleteVisual, GunVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
@@ -44,7 +45,7 @@ pub(crate) fn t54_dshk_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
             0.05,
             0.035,
             MaterialRole::TrackMetal,
-            20,
+            round_segments(ring_radius),
         )),
         lod: PartLod::Detail,
         generator: GeneratorKind::Revolve,
@@ -75,7 +76,7 @@ pub(crate) fn t54_dshk_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
                     (POST_H, 0.030),
                     (POST_H, 0.0),
                 ],
-                12,
+                round_segments(0.046),
                 MaterialRole::TrackMetal,
                 SmoothingGroup(3),
             ),
@@ -108,7 +109,7 @@ pub(crate) fn t54_dshk_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
             &revolve::revolve(
                 Vec3::X,
                 &[(-0.075, 0.0), (-0.075, 0.013), (0.075, 0.013), (0.075, 0.0)],
-                10,
+                round_segments(0.013),
                 MaterialRole::BarrelSteel,
                 SmoothingGroup(3),
             ),
@@ -188,7 +189,7 @@ pub(crate) fn t54_dshk_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
                     &revolve::revolve(
                         Vec3::Y,
                         &[(0.0, 0.0), (0.0, 0.006), (0.05, 0.006), (0.05, 0.0)],
-                        8,
+                        round_segments(0.006),
                         MaterialRole::BarrelSteel,
                         SmoothingGroup(3),
                     ),
@@ -201,7 +202,7 @@ pub(crate) fn t54_dshk_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
                     0.008,
                     0.006,
                     MaterialRole::BarrelSteel,
-                    10,
+                    round_segments(0.022),
                 ),
             ])
             .weld_and_smooth(),

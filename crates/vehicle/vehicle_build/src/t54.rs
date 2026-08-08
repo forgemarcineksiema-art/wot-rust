@@ -5,6 +5,7 @@
 //! the same armour facet the penetration model reads, so "what you see is what you shoot" by
 //! construction.
 
+use game_core::roundness::round_segments;
 use game_core::{VehicleBlueprint, VehicleKind, VehicleModules};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
@@ -110,7 +111,7 @@ pub fn t54_from_modules_with_blueprint(
             v.turret_loft.cupola_center,
             v.turret_loft.cupola_radius,
             v.turret_loft.cupola_half_height,
-            20,
+            round_segments(v.turret_loft.cupola_radius),
             MaterialRole::CastArmor,
             SmoothingGroup(2),
         )),

@@ -26,13 +26,34 @@ fn drum_fitting(
         submesh,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::drum(
+        // A lid, not a disc. `revolve::drum` gives a flat-topped puck, and that is what every
+        // hatch on this vehicle wore: the collar, hinge and handle around it did all the work of
+        // saying "hatch" while the cover itself said "coin". A real armoured lid is PRESSED — it
+        // domes toward its centre so a round strikes it off-normal, and it steps at the rim where
+        // it seats on its coaming.
+        //
+        // Four stations rather than two: the rim step, the seating shoulder, the dome's shoulder
+        // and its crown.
+        shape: PartShape::Mesh(revolve::translate(
+            &revolve::revolve(
+                Vec3::Y,
+                // The crown sits at exactly the height the flat puck's top did. Doming a lid
+                // must not raise the vehicle: the honesty doctrine says the collision box IS the
+                // visual footprint, and `hitbox_fit` proved it by failing at 2.58 against 2.53
+                // when the dome was allowed to grow. The press lives INSIDE the height it had.
+                &[
+                    (-half_height, 0.0),
+                    (-half_height, radius),
+                    (half_height * 0.30, radius),
+                    (half_height * 0.52, radius * 0.95),
+                    (half_height * 0.85, radius * 0.70),
+                    (half_height, 0.0),
+                ],
+                round_segments(radius),
+                MaterialRole::RolledArmor,
+                SmoothingGroup(2),
+            ),
             center,
-            radius,
-            half_height,
-            16,
-            MaterialRole::RolledArmor,
-            SmoothingGroup(2),
         )),
         lod: PartLod::Detail,
         generator: GeneratorKind::Revolve,
@@ -137,7 +158,7 @@ fn hatch_hardware(
                 half_height * 0.85,
                 radius * 0.14,
                 MaterialRole::RolledArmor,
-                20,
+                round_segments(radius),
             )),
             lod: PartLod::Detail,
             generator: GeneratorKind::Revolve,
