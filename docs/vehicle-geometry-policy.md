@@ -171,3 +171,33 @@ tests first, but no implementation phase is complete until the full gate passes.
    vehicles.
 6. Add recipes for the remaining vehicles using shared family components.
 7. Consider optional UV/textures or glTF import only after the procedural path is playable.
+
+### The construction floor
+
+**A part must be built like the thing it is named after.** The material law says a part is rendered
+as what it is made of; this says it is *shaped* like what it is. Locked by
+`vehicle_build/tests/construction_floor.rs`.
+
+The verdict is per SEMANTICS, never by threshold, and that distinction is the whole rule. A rolled
+hull presents six planes and that is **correct** — a hull IS six plates carrying their armour
+angles, and `solid` building it exactly is the point of the kernel-selection rule. The same six
+planes on an engine grille is a different verdict. So the gate holds no blanket number: every
+exterior part that presents a box (under ten distinct planes) must appear in one of two lists with
+its reason.
+
+- `PLATES_AND_BARS` — a box is the right answer here: hull plates, deck panels, fender brackets,
+  weld beads. Eight entries, each with why.
+- `DEBT` — a box is the wrong answer and the part is not built yet. Each entry states what it must
+  become. **Entries may be removed as parts get built; never added to make the gate pass.**
+
+Interior roles (`InteriorPrimer`, `InteriorMachinery`, `Ammunition`) are out of scope — the floor
+is about what the vehicle presents to the world — and that is derived from the material rather
+than from a name list, so a new interior part classifies itself.
+
+Two tests keep the list honest in both directions: one fails when a part is unclassified, the
+other fails when a debt entry no longer fails. It can neither rot nor outlive its cause.
+
+Standing debt at introduction (2026-08-08), from the geometry audit's measurements: `deck_grille`
+(eleven flat boxes where the deck needs louvres with depth, a frame and a mesh), `driver_periscope`
+and `turret_periscope` (a vision device is a housing, a guard and a prism face; today a box with
+one corner cut).
