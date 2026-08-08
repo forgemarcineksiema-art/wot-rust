@@ -136,9 +136,12 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             cavity_amp: 26,
             normal_jitter: 18,
         },
-        // Glass is the ONE surface on a tank that is supposed to be smooth: almost no grain, a
-        // whisper of undulation for the pressed lens, and the tightest finish in the table. Given
-        // texture at all only so a lens catches a moving highlight instead of reading as a decal.
+        // Glass is the ONE surface on a tank that is supposed to be smooth, and it still has to
+        // clear the material floor — which is the right answer rather than the first exemption in
+        // a rule whose whole point is that it has none. A headlight lens is PRESSED, not polished
+        // flat: moulded glass ripples, and that ripple is what walks a highlight across the lens
+        // instead of parking it. `roughness: 28` is what makes this read as glass; the jitter only
+        // has to be enough to be seen (measured mean tilt 2.5/255 against a floor of 1.8).
         MaterialFamily::Glass => Profile {
             albedo: [246, 248, 250],
             fine_grain: 2,
@@ -146,8 +149,8 @@ pub(super) fn profile(family: MaterialFamily) -> Profile {
             roughness: 28,
             metalness: 24,
             cavity_base: 250,
-            cavity_amp: 6,
-            normal_jitter: 4,
+            cavity_amp: 12,
+            normal_jitter: 10,
         },
         // Sawn timber: a fibrous surface, matte, its grain carried by the NORMAL rather than by a
         // brown albedo. The warmth belongs to `material_params`, which is what this table means by
