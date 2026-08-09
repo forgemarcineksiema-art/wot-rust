@@ -4,10 +4,22 @@
 //! blueprint declares is locked here; a look this file skips is a look the player meets
 //! unreviewed.
 //!
+//! History this file exists to not repeat — the same lesson `studio_goldens.rs` learned first,
+//! which this harness never got: the compare loop was one `assert_eq!` per frame, so the FIRST
+//! recording that moved ended the run. A drift report named one frame out of twenty-four and
+//! left the rest unmeasured while reading as green, and it carried no picture of what moved, so
+//! the only way to review a re-record was to bless it and look afterwards. Now every mismatch is
+//! collected and measured (share of pixels, largest and mean level step), the biggest mover is
+//! reported first, and each one leaves `recorded` / `fresh` / `delta` pictures in
+//! `target/look-diff/` to be looked at BEFORE deciding the change was intended.
+//!
 //! Two layers:
 //! - `look_goldens_match_their_recordings` — OPT-IN via `WOT_LOOK_GOLDENS=1` (needs a GPU;
 //!   byte-exact per machine, like the studio goldens). Re-record with `WOT_UPDATE_GOLDENS=1`
-//!   after a deliberate look change.
+//!   after a deliberate look change, in its own commit that says why.
+//! - the drift-scan locks (`the_drift_scan_names_every_frame_that_moved_not_just_the_first` and
+//!   its three neighbours) — always-on and CPU-only, so the promise above survives on a machine
+//!   with no GPU at all.
 //! - the rest — always-on and CPU-only: they decode the committed golden PNGs, so they catch a
 //!   policy violation in any committed look on a machine with no GPU at all.
 //!   `recorded_goldens_hold_the_value_structure` is rule 1 (three value planes) and rule 3 (the
@@ -17,15 +29,26 @@
 //!   table that `docs/art-direction-program.md` carries, because a number nobody wrote down is
 //!   a number nobody can be held to.
 
+use std::cmp::Reverse;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use client::{REVIEWED_MAPS, ReviewView, review_views_for};
 use terrain::MapId;
 
 const WIDTH: u32 = 960;
 const HEIGHT: u32 = 540;
+
+/// Every look a shipped blueprint declares, plus the four garage views: the number of frames the
+/// harness must actually reach. A floor, not a ceiling — adding a view is fine, quietly losing
+/// one is the failure this catches, because a harness that compares nothing also reports green.
+const LOCKED_FRAME_COUNT: usize = 24;
+
+/// The delta picture is AMPLIFIED by this factor. At 1:1 a tone-curve move of two levels is an
+/// all-black image, and an invisible diff is the same as no diff for the person who has to
+/// approve the re-record. Sixteen makes a 1/255 step visible without saturating a real change.
+const DELTA_AMPLIFY: u16 = 16;
 
 fn goldens_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("goldens").join("look")
@@ -35,6 +58,18 @@ fn golden_path(name: &str) -> PathBuf {
     goldens_dir().join(format!("{name}.png"))
 }
 
+/// Where a failing run leaves its pictures. Outside the source tree on purpose: these are
+/// evidence for one review, not artefacts anyone commits.
+///
+/// Walked up rather than joined with `../../..`, because this path ends up in a failure message
+/// somebody has to paste into a file browser, and `crates/apps/client/../../../target` is not an
+/// address — it is a puzzle.
+fn diff_dir() -> PathBuf {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = manifest.ancestors().nth(3).unwrap_or(manifest.as_path());
+    root.join("target").join("look-diff")
+}
+
 /// The harness renders through `client::render_review_views` — the SAME entry the `*_views`
 /// examples draw with. They used to hand-roll this setup separately, which is exactly how both
 /// of them lost the foliage-atlas bind and started locking white trees.
@@ -42,31 +77,201 @@ fn render_views(map: MapId, views: &[ReviewView]) -> Vec<Vec<u8>> {
     client::render_review_views(map, views, WIDTH, HEIGHT).expect("review render")
 }
 
-fn write_png(path: &PathBuf, pixels: &[u8]) {
-    std::fs::create_dir_all(path.parent().expect("goldens dir")).expect("create goldens dir");
-    let file = File::create(path).expect("create golden");
+/// Best-effort write, for the diff pictures. A full disk must not turn a drift report into a
+/// panic about the evidence: the list of what moved is worth more than the pictures of it.
+fn try_write_png(path: &Path, pixels: &[u8]) -> bool {
+    let Some(parent) = path.parent() else { return false };
+    if std::fs::create_dir_all(parent).is_err() {
+        return false;
+    }
+    let Ok(file) = File::create(path) else { return false };
     let mut encoder = png::Encoder::new(BufWriter::new(file), WIDTH, HEIGHT);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
-    encoder.write_header().expect("png header").write_image_data(pixels).expect("png data");
+    let Ok(mut writer) = encoder.write_header() else { return false };
+    writer.write_image_data(pixels).is_ok()
 }
 
-fn read_png(path: &PathBuf) -> Vec<u8> {
-    let file = File::open(path).unwrap_or_else(|_| {
-        panic!("missing golden {} — record with WOT_UPDATE_GOLDENS=1", path.display())
-    });
+/// Recording a golden, where failing to write IS the failure.
+fn write_png(path: &Path, pixels: &[u8]) {
+    assert!(try_write_png(path, pixels), "could not write {}", path.display());
+}
+
+/// Decode a golden for COMPARISON: a missing file, a corrupt one or a stale size is a finding to
+/// collect and report beside the others, never a panic. A panic in the compare loop is exactly
+/// what let one drifted frame hide the twenty-three behind it.
+fn try_read_png(path: &Path) -> Result<Vec<u8>, String> {
+    let file =
+        File::open(path).map_err(|_| "missing — record with WOT_UPDATE_GOLDENS=1".to_string())?;
     let decoder = png::Decoder::new(BufReader::new(file));
-    let mut reader = decoder.read_info().expect("png info");
-    let mut buf = vec![0u8; reader.output_buffer_size().expect("png size")];
-    let info = reader.next_frame(&mut buf).expect("png frame");
-    assert_eq!(
-        (info.width, info.height),
-        (WIDTH, HEIGHT),
-        "golden {} has stale dimensions — re-record",
-        path.display()
-    );
+    let mut reader = decoder.read_info().map_err(|err| format!("unreadable png ({err})"))?;
+    let size = reader.output_buffer_size().ok_or_else(|| "png size overflows".to_string())?;
+    let mut buf = vec![0u8; size];
+    let info = reader.next_frame(&mut buf).map_err(|err| format!("undecodable png ({err})"))?;
+    if (info.width, info.height) != (WIDTH, HEIGHT) {
+        return Err(format!(
+            "stale dimensions {}×{}, the harness renders {WIDTH}×{HEIGHT} — re-record",
+            info.width, info.height
+        ));
+    }
     buf.truncate(info.buffer_size());
-    buf
+    Ok(buf)
+}
+
+/// Reading a golden the CPU-only gates measure, where a missing recording is a hard stop.
+fn read_png(path: &Path) -> Vec<u8> {
+    try_read_png(path).unwrap_or_else(|reason| panic!("golden {}: {reason}", path.display()))
+}
+
+/// One frame's disagreement with its recording, MEASURED rather than hashed.
+///
+/// A digest answers "did it move", which is all the studio tiles need — they are line art on a
+/// flat field, and any move there is a shape change. A graded photograph is different: nearly
+/// every pixel changes when an exposure knob turns, and almost none do when a hatch moves. The
+/// review question is *how much, and everywhere or in one corner*, and only numbers answer it.
+struct Drift {
+    view: String,
+    /// Pixels differing in any channel.
+    differing: usize,
+    total: usize,
+    /// Largest single-channel step, 0–255. Separates a re-tuned curve (small, everywhere) from
+    /// moved geometry (large, local).
+    max_delta: u8,
+    /// Mean channel step across the channels that moved. Averaging over the whole frame instead
+    /// would report "nothing happened" for a change confined to the tank.
+    mean_delta: f32,
+}
+
+impl Drift {
+    fn share(&self) -> f32 {
+        if self.total == 0 { 0.0 } else { self.differing as f32 / self.total as f32 }
+    }
+
+    fn line(&self) -> String {
+        format!(
+            "{}: {:.1}% of pixels moved ({} of {}), max step {}/255, mean step {:.1}",
+            self.view,
+            self.share() * 100.0,
+            self.differing,
+            self.total,
+            self.max_delta,
+            self.mean_delta,
+        )
+    }
+}
+
+/// `None` when the frame is byte-identical to its recording — the same verdict the old
+/// `assert_eq!` reached, without ending the run for the frames behind it.
+fn frame_drift(view: &str, golden: &[u8], fresh: &[u8]) -> Option<Drift> {
+    assert_eq!(
+        golden.len(),
+        fresh.len(),
+        "{view}: comparing frames of different sizes — try_read_png should have caught this"
+    );
+    if golden == fresh {
+        return None;
+    }
+
+    let mut differing = 0usize;
+    let mut max_delta = 0u8;
+    let mut delta_sum = 0u64;
+    let mut moved_channels = 0u64;
+    for (recorded, current) in golden.chunks_exact(4).zip(fresh.chunks_exact(4)) {
+        if recorded == current {
+            continue;
+        }
+        differing += 1;
+        for (a, b) in recorded.iter().zip(current) {
+            let step = a.abs_diff(*b);
+            if step > 0 {
+                max_delta = max_delta.max(step);
+                delta_sum += u64::from(step);
+                moved_channels += 1;
+            }
+        }
+    }
+
+    Some(Drift {
+        view: view.to_string(),
+        differing,
+        total: golden.len() / 4,
+        max_delta,
+        mean_delta: if moved_channels == 0 {
+            0.0
+        } else {
+            delta_sum as f32 / moved_channels as f32
+        },
+    })
+}
+
+/// The three pictures a bless needs: what was recorded, what renders today, and where they
+/// disagree. Side-by-side alone is not enough — two frames that differ by a few levels look
+/// identical to the eye, which is how a real regression gets waved through as "looks the same".
+fn write_diff(view: &str, golden: &[u8], fresh: &[u8]) {
+    let dir = diff_dir();
+    try_write_png(&dir.join(format!("{view}.recorded.png")), golden);
+    try_write_png(&dir.join(format!("{view}.fresh.png")), fresh);
+
+    let delta: Vec<u8> = golden
+        .chunks_exact(4)
+        .zip(fresh.chunks_exact(4))
+        .flat_map(|(recorded, current)| {
+            let step = recorded.iter().zip(current).map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0);
+            let lit = u8::try_from(u16::from(step) * DELTA_AMPLIFY).unwrap_or(u8::MAX);
+            [lit, lit, lit, 255]
+        })
+        .collect();
+    try_write_png(&dir.join(format!("{view}.delta.png")), &delta);
+}
+
+/// What one pass over every view accumulates. A struct rather than four locals because the two
+/// loops below — the maps and the garage — must feed the SAME totals; the previous shape had the
+/// comparison written out twice, which is how the two halves drift apart in the first place.
+#[derive(Default)]
+struct Scan {
+    drifted: Vec<Drift>,
+    /// Goldens that could not be compared at all, with why. Counted separately from drift: a
+    /// missing recording is a hole in the gate, not a change in the picture.
+    unusable: Vec<String>,
+    recorded: usize,
+    compared: usize,
+    write_pictures: bool,
+}
+
+impl Scan {
+    /// The gate's scan: leaves the three review pictures for every frame that moved.
+    fn reviewing() -> Self {
+        Self { write_pictures: true, ..Self::default() }
+    }
+
+    /// The scan the CPU locks below use: identical collection, no pictures. A passing test must
+    /// not leave evidence of a drift that never happened — the next person to open
+    /// `target/look-diff/` has to be able to trust that everything in it is real.
+    fn measuring_only() -> Self {
+        Self::default()
+    }
+
+    fn visit(&mut self, update: bool, name: &str, pixels: &[u8]) {
+        let path = golden_path(name);
+        if update {
+            write_png(&path, pixels);
+            eprintln!("recorded {}", path.display());
+            self.recorded += 1;
+            return;
+        }
+        match try_read_png(&path) {
+            Err(reason) => self.unusable.push(format!("{name}: {reason}")),
+            Ok(golden) => {
+                self.compared += 1;
+                if let Some(drift) = frame_drift(name, &golden, pixels) {
+                    if self.write_pictures {
+                        write_diff(name, &golden, pixels);
+                    }
+                    self.drifted.push(drift);
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -78,6 +283,7 @@ fn look_goldens_match_their_recordings() {
         return;
     }
     let update = std::env::var("WOT_UPDATE_GOLDENS").as_deref() == Ok("1");
+    let mut scan = Scan::reviewing();
 
     for map in REVIEWED_MAPS {
         let battlefield = map_forge::battlefield(map);
@@ -85,19 +291,7 @@ fn look_goldens_match_their_recordings() {
         let frames = render_views(map, &views);
 
         for (view, pixels) in views.iter().zip(&frames) {
-            let path = golden_path(&view.name);
-            if update {
-                write_png(&path, pixels);
-                eprintln!("recorded {}", path.display());
-                continue;
-            }
-            let golden = read_png(&path);
-            assert_eq!(
-                &golden, pixels,
-                "{} drifted from its golden — if the look change is deliberate, re-record with \
-                 WOT_UPDATE_GOLDENS=1 and say why in the PR",
-                view.name
-            );
+            scan.visit(update, &view.name, pixels);
         }
     }
 
@@ -107,29 +301,141 @@ fn look_goldens_match_their_recordings() {
     let hangar_frames = client::render_hangar_review_views(&hangar_views, WIDTH, HEIGHT)
         .expect("hangar review render");
     for (view, pixels) in hangar_views.iter().zip(&hangar_frames) {
-        let path = golden_path(&view.name);
-        if update {
-            write_png(&path, pixels);
-            eprintln!("recorded {}", path.display());
-            continue;
-        }
-        let golden = read_png(&path);
-        assert_eq!(
-            &golden, pixels,
-            "{} drifted from its golden — if the look change is deliberate, re-record with \
-             WOT_UPDATE_GOLDENS=1 and say why in the PR",
-            view.name
-        );
+        scan.visit(update, &view.name, pixels);
+    }
+
+    if update {
+        // A bless is a deliberate act: say exactly what was rewritten so the commit can too.
+        println!("re-recorded {} look frames", scan.recorded);
+        assert!(scan.recorded > 0, "update mode must record something");
+        return;
     }
 
     // The byte-exact contract this harness rests on: the same view renders identically twice
     // on one machine (the render is a pure function of scene + profile + the fixed clock).
+    // Measured BEFORE the verdict rather than after it, because it is the one fact that decides
+    // how to read a drift list — and asserting it last meant it never ran on the runs that
+    // produced one.
     let map = REVIEWED_MAPS[0];
     let battlefield = map_forge::battlefield(map);
     let views = review_views_for(map, &battlefield);
     let once = render_views(map, &views[..1]);
     let again = render_views(map, &views[..1]);
-    assert_eq!(once[0], again[0], "the render must be deterministic on one machine");
+    let deterministic = once[0] == again[0];
+
+    assert!(
+        scan.unusable.is_empty(),
+        "{} look golden(s) could not be compared — the gate measured nothing for them:\n  {}",
+        scan.unusable.len(),
+        scan.unusable.join("\n  ")
+    );
+
+    scan.drifted.sort_by_key(|drift| Reverse(drift.differing));
+    assert!(
+        scan.drifted.is_empty(),
+        "{} of {} look frames drifted from their recordings (biggest mover first). Look at the \
+         pictures in {} FIRST — <view>.recorded.png, <view>.fresh.png and <view>.delta.png (the \
+         absolute difference, amplified ×{DELTA_AMPLIFY} so a two-level move is visible). \
+         Re-record with WOT_UPDATE_GOLDENS=1 only once the change is understood and intended, in \
+         its own commit that says why. Renderer determinism on this machine: {}.\n  {}",
+        scan.drifted.len(),
+        scan.compared,
+        diff_dir().display(),
+        if deterministic {
+            "holds, so every line below is a real change"
+        } else {
+            "BROKEN — fix that first, the list below cannot be trusted"
+        },
+        scan.drifted.iter().map(Drift::line).collect::<Vec<_>>().join("\n  ")
+    );
+
+    assert!(deterministic, "the render must be deterministic on one machine");
+    assert!(
+        scan.compared >= LOCKED_FRAME_COUNT,
+        "the look gate must actually compare every declared frame (got {}, expected at least \
+         {LOCKED_FRAME_COUNT})",
+        scan.compared
+    );
+}
+
+/// THE REGRESSION THIS HARNESS WAS REBUILT FOR, owned on the CPU so it holds on a machine with
+/// no GPU to render with.
+///
+/// The compare loop used to be a bare `assert_eq!` per frame. The first recording that moved
+/// ended the run, so a drift report named exactly one frame out of twenty-four and said nothing
+/// about the other twenty-three — they were not green, they were unmeasured. Two days of render
+/// work could land, `prokhorovka_clear_afternoon` would fail, and nobody could tell whether one
+/// frame had changed or all of them.
+///
+/// Two real recordings, each handed a frame one level brighter. A harness that stops early can
+/// only ever name the first.
+#[test]
+fn the_drift_scan_names_every_frame_that_moved_not_just_the_first() {
+    let moved = ["prokhorovka_overcast", "bystra_rain"];
+    let mut scan = Scan::measuring_only();
+    for name in moved {
+        let mut brighter = read_png(&golden_path(name));
+        for byte in brighter.iter_mut() {
+            *byte = byte.saturating_add(1);
+        }
+        scan.visit(false, name, &brighter);
+    }
+
+    assert_eq!(scan.compared, 2, "both recordings must be reached");
+    let named: Vec<&str> = scan.drifted.iter().map(|drift| drift.view.as_str()).collect();
+    assert_eq!(
+        named,
+        moved,
+        "the scan named {} of 2 moved frames — a harness that stops at the first one turns the \
+         rest into unmeasured frames that read as green",
+        named.len()
+    );
+}
+
+/// The other half of the same promise: collecting must not invent drift. A recording compared
+/// against itself is silence, not a line in the report.
+#[test]
+fn a_frame_that_matches_its_recording_reports_no_drift() {
+    let name = "prokhorovka_overcast";
+    let recorded = read_png(&golden_path(name));
+    let mut scan = Scan::measuring_only();
+    scan.visit(false, name, &recorded);
+
+    assert_eq!(scan.compared, 1);
+    assert!(scan.drifted.is_empty(), "an identical frame must not be reported as drift");
+    assert!(scan.unusable.is_empty(), "a present, decodable golden is not unusable");
+    assert!(frame_drift(name, &recorded, &recorded).is_none());
+}
+
+/// What the report says, not just that it says something. A digest can only answer "it moved";
+/// these four numbers are what tells a reviewer whether an exposure knob turned or a hatch moved,
+/// which is the difference between blessing a re-record and refusing it.
+#[test]
+fn drift_is_measured_in_pixels_and_levels_not_in_bytes() {
+    // Four pixels, one channel of one pixel five levels off.
+    let recorded = vec![10, 20, 30, 255, 0, 0, 0, 255, 40, 40, 40, 255, 90, 90, 90, 255];
+    let mut current = recorded.clone();
+    current[1] = 25;
+
+    let drift = frame_drift("synthetic", &recorded, &current).expect("a moved frame drifts");
+    assert_eq!(drift.differing, 1, "one pixel moved");
+    assert_eq!(drift.total, 4, "out of four");
+    assert_eq!(drift.max_delta, 5, "by five levels");
+    assert!((drift.mean_delta - 5.0).abs() < 1.0e-6, "mean is over moved channels only");
+    assert!((drift.share() - 0.25).abs() < 1.0e-6);
+    assert!(drift.line().contains("25.0% of pixels moved"), "line was: {}", drift.line());
+}
+
+/// A golden that cannot be read is a hole in the gate, and a hole is not a pass. It also must not
+/// end the run: the frames behind it still have to be measured.
+#[test]
+fn an_unreadable_golden_is_collected_rather_than_thrown() {
+    let mut scan = Scan::measuring_only();
+    scan.visit(false, "no_such_view_was_ever_recorded", &[0u8; 4]);
+
+    assert_eq!(scan.compared, 0, "nothing was compared");
+    assert_eq!(scan.unusable.len(), 1, "and the hole is named");
+    assert!(scan.unusable[0].contains("missing"), "reason was: {}", scan.unusable[0]);
 }
 
 /// sRGB byte -> display-linear channel.
