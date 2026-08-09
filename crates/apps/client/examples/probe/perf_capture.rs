@@ -147,6 +147,7 @@ pub(crate) fn run() {
     println!("grass conjure: {per_frame_us:.0} us/frame ({count} instances)");
 
     frame_time_capture();
+    garage_frame_time_capture();
 
     // A landmark bake (any style growth shows up here).
     let t = Instant::now();
@@ -710,4 +711,256 @@ per-pass GPU time (ms, timestamp queries; every config equally armed):"
         "   against 16.67 ms for 60 FPS — meaningful only when this box IS the min spec; \
          elsewhere read deltas.)"
     );
+}
+
+/// The GARAGE frame (Hala 3.0 F1): the hangar measured with the battle instrument's own
+/// discipline — offscreen at the shipped sample count, configs rotated inside one process so
+/// every configuration visits every thermal state, percentiles rather than means.
+///
+/// The camera walks a FULL ORBIT each block (the boom clamped by `max_orbit_boom`, exactly as
+/// the live camera clamps it), so every wall angle, the gate's daylight block and the shed
+/// glazing all pass through the frame — a parked hero shot from one angle would measure the
+/// garage's cheapest view and call it the garage.
+///
+/// The rotation prices the deferred purchase decisions by A/B:
+/// - "no interior grain" is C1's per-scene detail-normal flag turned off — its delta IS the
+///   flag's price, the number the C1 purchase was made on credit against;
+/// - "no shadows"/"no ssao" split the room's per-pixel lighting cost the way the battle
+///   rows do.
+fn garage_frame_time_capture() {
+    use game_core::{TankId, TeamId, VehicleKind};
+
+    const WARMUP: usize = 12;
+    const FRAMES: usize = 120;
+    const CYCLES: usize = 4;
+    const BLOCK_WARMUP: usize = 6;
+    let (width, height) = (1920u32, 1080u32);
+
+    let (hangar_v, hangar_i) = client::hangar_scene_mesh();
+
+    let Ok(ctx) =
+        renderer_wgpu::GpuContext::headless_with_options(renderer_wgpu::GpuContextOptions {
+            pass_timing: true,
+        })
+    else {
+        println!("garage frame time: no headless GPU adapter — skipped");
+        return;
+    };
+    let Ok(target) = renderer_wgpu::OffscreenTarget::new(&ctx, width, height) else {
+        println!("garage frame time: offscreen target unavailable — skipped");
+        return;
+    };
+    let Ok(mut renderer) =
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &hangar_v, &hangar_i)
+    else {
+        println!("garage frame time: scene renderer unavailable — skipped");
+        return;
+    };
+    let adapter = ctx.adapter.get_info();
+    println!(
+        "garage frame time: {}x{} offscreen, {}x MSAA, adapter: {} ({:?})",
+        width,
+        height,
+        renderer.sample_count(),
+        adapter.name,
+        adapter.backend,
+    );
+    let profiler = renderer_wgpu::FrameProfiler::new(&ctx.device, &ctx.queue, true);
+    let timed = profiler.active().is_some();
+    renderer.set_pass_profiler(profiler);
+
+    // The SHIPPED garage configuration, exactly as `ensure_scene(SceneKind::Garage)` and the
+    // golden harness set it — the instrument measures the scene the player sits in.
+    renderer.scene_lighting = renderer_api::SceneLighting::garage_hero();
+    let (bg_r, bg_g, bg_b) = scene_build::hangar::INTERIOR_BACKGROUND;
+    renderer.set_interior_background(bg_r, bg_g, bg_b);
+    renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
+    renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
+    renderer.shadow_cascades = Some(1);
+    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+
+    // The parked hero, in the live rest pose.
+    let vehicle = VehicleKind::T54_1951;
+    let spec = vehicle.spec();
+    let snapshot = net::TankSnapshot {
+        tank_id: TankId(0),
+        team: TeamId(1),
+        vehicle,
+        position: [0.0, client::TURNTABLE_TOP_M, 0.0],
+        yaw_rad: scene_build::hangar::HERO_PARK_YAW,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: spec.hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: 0.0,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+        track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
+        spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
+        fuel_fire: false,
+        rack_fire_remaining_s: None,
+    };
+    let mut catalog = client::VehicleAssetCatalog::default();
+    if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
+        eprintln!("note: no Forge artifacts loaded ({error}); hero uses the neutral material");
+    }
+    let objects = client::tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
+    let hero_frame = client::render_frame_from_objects(objects);
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+    }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(&ctx, handle, &maps);
+    }
+    renderer.set_vehicle_render_frame(&ctx, &hero_frame);
+
+    struct GarageConfig {
+        name: &'static str,
+        grain: bool,
+        shadows: bool,
+        ssao: bool,
+    }
+    let configs = [
+        GarageConfig { name: "garage full", grain: true, shadows: true, ssao: true },
+        GarageConfig { name: "no interior grain (C1)", grain: false, shadows: true, ssao: true },
+        GarageConfig { name: "no shadows", grain: true, shadows: false, ssao: true },
+        GarageConfig { name: "no ssao", grain: true, shadows: true, ssao: false },
+    ];
+    const CONFIGS: usize = 4;
+    assert_eq!(configs.len(), CONFIGS, "the garage config table and its arrays disagree");
+
+    let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
+    let pivot = scene_build::hangar::hangar_camera_pivot();
+    let camera_at = |t: f32| {
+        // One full revolution per block, at the hero pitch, boom clamped by the same
+        // arithmetic the live camera clamps with — every wall angle gets measured.
+        let yaw = scene_build::hangar::HERO_ORBIT_YAW + t * std::f32::consts::TAU;
+        let pitch = scene_build::hangar::HERO_ORBIT_PITCH;
+        let boom = scene_build::hangar::HERO_ORBIT_DISTANCE
+            .min(scene_build::hangar::max_orbit_boom(yaw, pitch));
+        let eye = pivot + scene_build::hangar::orbit_direction(yaw, pitch) * boom;
+        renderer_api::Camera {
+            eye: eye.to_array(),
+            target: pivot.to_array(),
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    };
+
+    let block_frames = FRAMES / CYCLES;
+    let mut samples: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
+    let mut counts: [renderer_wgpu::FrameCounts; CONFIGS] = Default::default();
+    let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
+
+    for frame in 0..WARMUP {
+        let camera = camera_at(frame as f32 / WARMUP as f32);
+        let view_proj = renderer_api::view_projection_matrix(
+            &camera,
+            width as f32 / height as f32,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
+        if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
+            println!("garage frame time: a render failed — skipped");
+            return;
+        }
+    }
+    let _ = target.read_rgba8(&ctx);
+
+    for cycle in 0..CYCLES {
+        for (config, cfg) in configs.iter().enumerate() {
+            renderer.set_interior_detail_normal(cfg.grain);
+            renderer.set_shadows_enabled(cfg.shadows);
+            renderer.set_ssao_enabled(cfg.ssao);
+            for block_frame in 0..(BLOCK_WARMUP + block_frames) {
+                let t_orbit = block_frame.saturating_sub(BLOCK_WARMUP) as f32 / block_frames as f32;
+                let camera = camera_at(t_orbit);
+                let view_proj = renderer_api::view_projection_matrix(
+                    &camera,
+                    width as f32 / height as f32,
+                    projection.near_plane_m(),
+                    projection.far_plane_m(),
+                );
+                let t = Instant::now();
+                if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
+                    println!("garage frame time: a render failed — skipped");
+                    return;
+                }
+                if target.read_rgba8(&ctx).is_err() {
+                    println!("garage frame time: readback failed — skipped");
+                    return;
+                }
+                if block_frame >= BLOCK_WARMUP {
+                    samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
+                    counts[config] = renderer.last_frame_counts();
+                    if let Some(timings) = renderer.read_pass_timings(&ctx) {
+                        let per_pass: Vec<Option<f32>> = renderer_wgpu::PassId::ALL
+                            .iter()
+                            .map(|id| timings.pass_ms(*id))
+                            .collect();
+                        stats.record(config, cycle, timings.frame_ms(), &per_pass);
+                    }
+                }
+            }
+        }
+    }
+
+    // The fence's own price, measured the way the battle instrument measures it.
+    let mut fence_ms: Vec<f64> = Vec::with_capacity(30);
+    for _ in 0..30 {
+        let t = Instant::now();
+        if target.read_rgba8(&ctx).is_err() {
+            break;
+        }
+        fence_ms.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    fence_ms.sort_by(f64::total_cmp);
+    let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
+
+    let mut full_p50 = 0.0;
+    for (config, cfg) in configs.iter().enumerate() {
+        let series = &mut samples[config];
+        series.sort_by(f64::total_cmp);
+        let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
+        if config == 0 {
+            full_p50 = at(0.50);
+        }
+        let submitted = counts[config].total();
+        println!(
+            "garage frame @{width}x{height} [{}] ({} samples, {CYCLES} cycles): p50 {:.2} ms  p95 {:.2} ms  max {:.2} ms  (delta vs full {:+.2} ms p50)",
+            cfg.name,
+            series.len(),
+            at(0.50),
+            at(0.95),
+            series[series.len() - 1],
+            at(0.50) - full_p50,
+        );
+        println!(
+            "    submitted: {} draws, {} triangles, {} instances",
+            submitted.draws, submitted.triangles, submitted.instances,
+        );
+    }
+    println!(
+        "  garage budget: p50 {full_p50:.2} ms minus fence {fence_p50:.2} ms = {:.2} ms against \
+         16.67 ms (one-look: meaningful only when this box IS the MX330; elsewhere read deltas)",
+        full_p50 - fence_p50,
+    );
+    if timed && stats.imbalance().is_none() {
+        println!("  garage per-pass GPU time (ms):");
+        let frame = stats.frame(0);
+        println!("    [garage full] frame p50 {:.3}  p95 {:.3}", frame.p50, frame.p95);
+        for (index, id) in renderer_wgpu::PassId::ALL.iter().enumerate() {
+            let Some(pass) = stats.pass(0, index) else { continue };
+            println!("      {:<18} p50 {:>7.3}  p95 {:>7.3}", id.label(), pass.p50, pass.p95);
+        }
+    }
 }
