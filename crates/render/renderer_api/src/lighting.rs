@@ -583,7 +583,8 @@ impl SceneLighting {
             ground_ambient_rgb: [0.15, 0.14, 0.13],
             // The sun through the middle shed's glazing (Hala 3.0 A1). Derivation, so the next
             // relight can redo it instead of dialling: the glazing plane of the sun shed spans
-            // z 1.0..5.5 falling from 11.3 m to 9.0 m; a ray from the turntable deck (y 0.72)
+            // z 1.0..5.5 falling from 11.3 m to 9.0 m; a ray from the turntable deck (y 0.62
+            // — the flush A2 plate plus the lock's 0.6 m step)
             // along (-0.6, 2.3, 1.0) crosses it at z ≈ 4.0, y ≈ 9.8, x ≈ −2.4 — inside the
             // opening, and the lock's whole 5×5 deck fan crosses between the mullion phases.
             // Steep enough to read as roof daylight, with real horizontal reach so

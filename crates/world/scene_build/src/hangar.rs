@@ -32,8 +32,11 @@ pub(super) const SLAB: f32 = 0.15;
 /// Height where the gunmetal lower wall meets the shadowed upper wall. The two bands **abut** at
 /// this seam — they must never overlap, or their coplanar inner faces z-fight (a moiré band).
 pub(super) const WALL_SEAM: f32 = 5.6;
-/// Top surface of the turntable the tank rests on, metres above the floor.
-pub const TURNTABLE_TOP_M: f32 = 0.12;
+/// Top surface of the turntable the tank rests on, metres above the floor. Hala 3.0 A2: the
+/// station is a plate SUNK INTO the slab — 2 cm proud, a machined seam in the floor rather
+/// than a 12 cm podium. A vehicle on a pedestal is a showroom; a vehicle on a flush ring is a
+/// workshop that happens to be pointing a turntable at it.
+pub const TURNTABLE_TOP_M: f32 = 0.02;
 const TURNTABLE_RADIUS_M: f32 = 5.2;
 
 // Workshop palette: warm cast concrete and painted gunmetal panels. The upper band and roof fall
@@ -484,6 +487,17 @@ pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         for x in [-1.35_f32, 1.35] {
             slab(&mut v, &mut i, [x, 0.0025, lane_center], [0.55, 0.0015, lane_half], TRACK_WEAR);
         }
+        // ...and the wear runs THROUGH the station (A2): the lane continues past the
+        // turntable down the axis toward the working end. This hall serviced vehicles before
+        // this one — the floor says so, and the through-line is what makes the ring read as a
+        // station ON a route rather than a pedestal at a dead end.
+        let through_end = 12.0;
+        let through_c = (TURNTABLE_RADIUS_M + through_end) / 2.0;
+        let through_half = (through_end - TURNTABLE_RADIUS_M) / 2.0;
+        slab(&mut v, &mut i, [0.0, 0.0015, through_c], [2.6, 0.0015, through_half], DRIVE_LANE);
+        for x in [-1.35_f32, 1.35] {
+            slab(&mut v, &mut i, [x, 0.0025, through_c], [0.55, 0.0015, through_half], TRACK_WEAR);
+        }
     }
     // Scored, worn and polished, but still the same slab — one material, and the story is the
     // albedo the builders above already carry.
@@ -496,16 +510,18 @@ pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     }
     finish(&mut v[markings..], Finish::PAINT_MARK);
 
-    // Turntable: a rim ring recessed under the deck, the deck itself, radial plate seams and a
-    // centre hub — machinery, not a sticker. (No faked shadow disc — the hero vehicle casts a
-    // real contact shadow here.)
+    // Turntable: a plate assembly SUNK INTO the slab (A2) — the rim is a recessed annulus
+    // ring around the deck (the visible groove between plate and poured floor), the deck a
+    // 2 cm machined plate, radial seams and a centre hub on top of it. Machinery in the
+    // floor, not a podium under the vehicle. (No faked shadow disc — the hero vehicle casts
+    // a real contact shadow here.)
     let rim_start = v.len();
     push_cylinder(
         &mut v,
         &mut i,
         Vec3::ZERO,
         TURNTABLE_RADIUS_M + 0.35,
-        TURNTABLE_TOP_M - 0.02,
+        TURNTABLE_TOP_M - 0.012,
         48,
         TURNTABLE_RIM,
     );
@@ -1274,6 +1290,69 @@ mod tests {
         );
     }
 
+    /// A2: THE STATION IS A FLUSH RING, NOT A PODIUM. Every vertex of the turntable assembly
+    /// (rim annulus, deck plate, seams, hub) stays within a hand's breadth of the slab — the
+    /// 12 cm pedestal is gone, and the vehicle stands on the workshop floor, on machinery
+    /// sunk into it. Locking the constant is the point (the camera lock does the same), so
+    /// the constant-assertion lint is deliberately silenced.
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn the_station_is_a_flush_ring_not_a_podium() {
+        let (vertices, _) = hangar_scene_mesh();
+        let assembly: Vec<&SceneVertex> = vertices
+            .iter()
+            .filter(|v| {
+                is_shade_of(v.color, TURNTABLE)
+                    || is_shade_of(v.color, TURNTABLE_RIM)
+                    || is_shade_of(v.color, TURNTABLE_SEAM)
+                    || is_shade_of(v.color, TURNTABLE_HUB)
+            })
+            .collect();
+        assert!(!assembly.is_empty(), "the turntable assembly exists");
+        let crest = assembly.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
+        assert!(crest <= 0.05, "the station must sit flush with the slab, crest {crest}");
+        // ...and the deck still leads the assembly: plate above groove, hub above plate.
+        assert!(TURNTABLE_TOP_M <= 0.03, "the deck is a plate in the floor, not a stage");
+    }
+
+    /// A2: THE STATION WEARS HUMAN SCALE. In the working band around the plate (past the
+    /// orbit's air column, inside ~8.5 m) stand the mechanic's cabinet, the jack stands, the
+    /// hose coil and the bucket — hand-height geometry that gives the hero its sense of size.
+    /// An empty ring in an empty radius reads as a render stage, not a workshop.
+    #[test]
+    fn the_station_wears_human_scale() {
+        let (vertices, _) = hangar_scene_mesh();
+        let band = vertices
+            .iter()
+            .filter(|v| {
+                let [x, y, z] = v.position;
+                let r = (x * x + z * z).sqrt();
+                (5.7..8.6).contains(&r) && y > 0.05 && y < 1.3
+            })
+            .count();
+        // Floor blessed from measurement: the four A2 pieces put 356 vertices in the band
+        // (their floor-contact vertices sit under the y > 0.05 cut); 300 catches losing any
+        // one piece without flaking on a reshaped drawer.
+        assert!(band >= 300, "the station's working band is dressed, got {band} vertices");
+    }
+
+    /// A2: the drive lane's wear runs THROUGH the station — `DRIVE_LANE`-toned floor dressing
+    /// exists on BOTH sides of the turntable along the axis, so the ring reads as a station
+    /// on a route, not a pedestal at a dead end.
+    #[test]
+    fn the_wear_runs_through_the_station() {
+        let (vertices, _) = hangar_scene_mesh();
+        let lane_side = |sign: f32| {
+            vertices.iter().any(|v| {
+                is_shade_of(v.color, DRIVE_LANE)
+                    && v.position[2] * sign > TURNTABLE_RADIUS_M
+                    && v.position[1] < 0.01
+            })
+        };
+        assert!(lane_side(-1.0), "the lane arrives from the gate");
+        assert!(lane_side(1.0), "the wear continues past the station");
+    }
+
     /// The turntable is machinery: a rim ring wider than the deck and radial plate seams on
     /// top of it — not a flat sticker disc.
     #[test]
@@ -1519,6 +1598,13 @@ mod tests {
                     && y > 0.4
                     && y < 4.4),
                 "geometry blocks the drive lane at {:?}",
+                vertex.position
+            );
+            // A2: the through-lane past the station stays drivable too — the wear the floor
+            // shows is a route the room could actually use.
+            assert!(
+                !(x.abs() < 2.7 && (TURNTABLE_RADIUS_M..12.0).contains(&z) && y > 0.4 && y < 4.4),
+                "geometry blocks the through-lane at {:?}",
                 vertex.position
             );
         }

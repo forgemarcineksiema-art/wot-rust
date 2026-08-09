@@ -6,7 +6,7 @@
 use glam::Vec3;
 use renderer_api::SceneVertex;
 
-use super::hangar::{Finish, HALF_X, HALF_Z, finish, push_cylinder, slab};
+use super::hangar::{Finish, HALF_X, HALF_Z, SLAB, finish, push_cylinder, slab};
 use super::hangar_gallery::CRANE_GIRDER_Y;
 
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
@@ -45,6 +45,51 @@ pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     second_bay(v, i, -5.5, 14.5);
     stores_zone(v, i, -(HALF_X - 2.5), 17.0);
     extinguishers(v, i);
+    station_dressing(v, i);
+}
+
+/// The human scale around the hero station (A2): the mechanic's tool cabinet rolled up to the
+/// work spot, a pair of jack stands staged at the plate's edge, the air hose coiled where its
+/// wall line drops, and a bucket under it. Every piece has its reason — this is the station's
+/// working perimeter, not prop-bin filler (locked by `the_station_wears_human_scale`).
+fn station_dressing(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    // Tool cabinet on casters, drawers facing the vehicle: rolled here for THIS job.
+    let cabinet = v.len();
+    let (cx, cz) = (7.0_f32, 2.2_f32);
+    for (dx, dz) in [(-0.22_f32, -0.18_f32), (0.22, -0.18), (-0.22, 0.18), (0.22, 0.18)] {
+        slab(v, i, [cx + dx, 0.03, cz + dz], [0.03, 0.03, 0.03], DARK_STEEL);
+    }
+    slab(v, i, [cx, 0.58, cz], [0.30, 0.52, 0.26], STEEL);
+    for drawer_y in [0.35_f32, 0.62, 0.89] {
+        slab(v, i, [cx - 0.32, drawer_y, cz], [0.02, 0.10, 0.22], DARK_STEEL);
+    }
+    // An enamelled cabinet answers the worklamps like the extinguisher bottle does, one step
+    // duller — painted pressing, not mill plate.
+    finish(&mut v[cabinet..], Finish { gloss: 0.28, ..Finish::PAINTED_STEEL });
+
+    // Jack stands staged at the plate's west edge, ready for the next lift.
+    let stands = v.len();
+    for stand_z in [-2.0_f32, -0.9] {
+        for (collar_y, half_w) in [(0.12_f32, 0.26_f32), (0.36, 0.18), (0.58, 0.10)] {
+            slab(v, i, [-6.5, collar_y, stand_z], [half_w, 0.12, half_w], STEEL);
+        }
+    }
+    finish(&mut v[stands..], Finish::MACHINED_STEEL);
+
+    // The air hose: coiled flat where its wall line comes down by the bench, the run back to
+    // the wall still attached — it is plumbing, not decor.
+    let hose = v.len();
+    push_cylinder(v, i, Vec3::new(7.8, 0.0, 3.2), 0.36, 0.05, 20, RUBBER);
+    push_cylinder(v, i, Vec3::new(7.8, 0.05, 3.2), 0.27, 0.04, 20, RUBBER);
+    let run_half = (HALF_X - SLAB - 7.8) / 2.0;
+    slab(v, i, [7.8 + run_half, 0.028, 3.2], [run_half, 0.028, 0.035], RUBBER);
+    finish(&mut v[hose..], Finish::RUBBER);
+
+    // The bucket by the stands, on its own wear ring: it has stood there through many jobs.
+    push_contact_ring(v, i, -6.3, 3.0, 0.24);
+    let bucket = v.len();
+    push_cylinder(v, i, Vec3::new(-6.3, 0.0, 3.0), 0.16, 0.32, 14, STEEL);
+    finish(&mut v[bucket..], Finish { gloss: 0.30, ..Finish::MACHINED_STEEL });
 }
 
 /// A gantry crane spanning the nave just under the truss chords, riding the wall rails
