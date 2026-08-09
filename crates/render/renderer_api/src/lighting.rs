@@ -633,7 +633,13 @@ impl SceneLighting {
             // geometry by `the_rooms_reflection_is_the_room` — move a glazing band and the
             // number must follow it.
             sky_zenith_rgb: [0.32, 0.34, 0.37],
-            sky_horizon_rgb: [0.16, 0.162, 0.168],
+            // C2 raised this with the whitewash: what a vertical surface sees across the bay
+            // is lime-washed wall below the seam and dark sheet above, so the horizon term
+            // follows the blend upward — still a wall being seen, not a light (held under the
+            // whitewash albedo AND under zenith/1.5 by `the_rooms_reflection_is_the_room`).
+            // Trimmed with the wash itself when the first, fresher tone lost the hero to the
+            // room (HERO_OVER_ROOM 1.68x vs the 2.0x floor).
+            sky_horizon_rgb: [0.19, 0.192, 0.198],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black

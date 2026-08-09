@@ -39,10 +39,19 @@ pub(super) const WALL_SEAM: f32 = 5.6;
 pub const TURNTABLE_TOP_M: f32 = 0.02;
 const TURNTABLE_RADIUS_M: f32 = 5.2;
 
-// Workshop palette: warm cast concrete and painted gunmetal panels. The upper band and roof fall
-// into SHADOW, not void — a step darker than the lower walls, never near-black.
+// Workshop palette: warm cast concrete, lime-washed lower walls, painted gunmetal above. The
+// upper band and roof fall into SHADOW, not void — a step darker, never near-black.
 const CONCRETE: [f32; 3] = [0.30, 0.29, 0.28];
-const METAL: [f32; 3] = [0.24, 0.245, 0.255];
+/// C2: the lower wall bands are WHITEWASHED — lime over the sheet, the working hall's oldest
+/// coat, and it reads as OLD lime: years of shop dust in it, not a fresh remont. The first
+/// candidate ([0.54, 0.535, 0.51]) measured the hero at 1.68x over the room against the 2.0x
+/// floor — the fresh white competed with the subject, and the lock held; this tone puts the
+/// room median back under the hero's shoulder. The reflection lock reads this as "what a
+/// vertical surface sees across the bay".
+const WHITEWASH_WALL: [f32; 3] = [0.38, 0.375, 0.355];
+/// C2 palette: rust on worn machined steel — drain grates, handled link plates. A warm dead
+/// tone, deliberately short of the extinguishers' saturated red (their lock stands).
+const RUST: [f32; 3] = [0.295, 0.195, 0.14];
 const UPPER_WALL: [f32; 3] = [0.155, 0.16, 0.175];
 const RIB: [f32; 3] = [0.28, 0.29, 0.31];
 const ROOF: [f32; 3] = [0.125, 0.13, 0.14];
@@ -445,16 +454,24 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
     finish(&mut v[floor_start..], Finish::CONCRETE);
     let shell_steel = v.len();
     push_shed_roof(&mut v, &mut i);
-    // The stores end wall, one piece; the GATE end wall is built in pieces around a real
-    // opening (`push_gate_wall`) — the ajar gate's daylight wedge needs an actual hole.
-    slab(&mut v, &mut i, [0.0, lower_c, HALF_Z], [HALF_X, lower_h, SLAB], METAL);
+    // Upper bands and roof: sprayed sheet, falling into shadow. The gate wall's upper band
+    // joins them here — its LOWER pieces live in `push_gate_wall` with the whitewash.
     slab(&mut v, &mut i, [0.0, end_upper_c, HALF_Z], [HALF_X, end_upper_h, SLAB], UPPER_WALL);
-    push_gate_wall(&mut v, &mut i);
+    slab(&mut v, &mut i, [0.0, end_upper_c, -HALF_Z], [HALF_X, end_upper_h, SLAB], UPPER_WALL);
     for cx in [-HALF_X, HALF_X] {
-        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF_Z], METAL);
         slab(&mut v, &mut i, [cx, side_upper_c, 0.0], [SLAB, side_upper_h, HALF_Z], UPPER_WALL);
     }
     finish(&mut v[shell_steel..], Finish::PAINTED_STEEL);
+    // Lower bands: WHITEWASHED (C2) — lime over the sheet up to the seam, the coat that
+    // bounces the worklight back into the room. The stores end wall in one piece; the GATE
+    // end wall in pieces around its real opening (`push_gate_wall`).
+    let whitewash_start = v.len();
+    slab(&mut v, &mut i, [0.0, lower_c, HALF_Z], [HALF_X, lower_h, SLAB], WHITEWASH_WALL);
+    push_gate_wall(&mut v, &mut i);
+    for cx in [-HALF_X, HALF_X] {
+        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF_Z], WHITEWASH_WALL);
+    }
+    finish(&mut v[whitewash_start..], Finish::WHITEWASH);
     // Everything past the bare shell is "furniture" and takes the corner-shade bake at the end.
     let furniture_start = v.len();
 
@@ -497,6 +514,29 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
     ] {
         slab(&mut v, &mut i, [cx, WALL_SEAM, cz], [hx, 0.07, hz], GIRT);
     }
+
+    // C2: the yellow safety band at hip height along the whitewashed walls — the working
+    // hall's one warning colour on the walls (the extinguishers keep their red monopoly).
+    // Proud of the panel joints so the painted band rides OVER them, the way a real one is
+    // rolled straight across every joint in its path; the gate wall carries it only on the
+    // flanks, clear of the opening.
+    let stripe = v.len();
+    for sign in [-1.0_f32, 1.0] {
+        let wall = sign * (HALF_X - SLAB - 0.075);
+        slab(&mut v, &mut i, [wall, 1.0, 0.0], [0.02, 0.09, HALF_Z - 0.4], MARKING);
+    }
+    slab(&mut v, &mut i, [0.0, 1.0, HALF_Z - SLAB - 0.075], [HALF_X - 0.4, 0.09, 0.02], MARKING);
+    let flank_half = (HALF_X - GATE_HALF_W) / 2.0 - 0.3;
+    for sign in [-1.0_f32, 1.0] {
+        slab(
+            &mut v,
+            &mut i,
+            [sign * (GATE_HALF_W + flank_half + 0.3), 1.0, -(HALF_Z - SLAB - 0.075)],
+            [flank_half, 0.09, 0.02],
+            MARKING,
+        );
+    }
+    finish(&mut v[stripe..], Finish::PAINT_MARK);
 
     // Vertical wall ribs (pilasters) proud of the side and end walls, spaced as fractions of
     // each wall's own length so they stay evenly distributed.
@@ -607,12 +647,15 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
     // take one finish — they used to take three hand-typed gloss values and no material at all.
     finish(&mut v[deck_start..], Finish { gloss: 0.35, ..Finish::MACHINED_STEEL });
 
-    // The floor drain beside the drive lane: a recessed near-black strip under a steel grating.
+    // The floor drain beside the drive lane: a recessed near-black strip under a steel
+    // grating. Every third grate bar wears RUST (C2) — standing water finds worn machined
+    // steel first, and the drain is where the water stands.
     let drain = v.len();
     slab(&mut v, &mut i, [3.4, 0.001, -11.0], [0.10, 0.002, 2.2], [0.10, 0.10, 0.11]);
     for step in 0..9 {
         let z = -13.0 + step as f32 * 0.5;
-        slab(&mut v, &mut i, [3.4, 0.004, z], [0.11, 0.003, 0.03], [0.16, 0.17, 0.18]);
+        let bar = if step % 3 == 2 { RUST } else { [0.16, 0.17, 0.18] };
+        slab(&mut v, &mut i, [3.4, 0.004, z], [0.11, 0.003, 0.03], bar);
     }
     finish(&mut v[drain..], Finish::MACHINED_STEEL);
 
@@ -688,22 +731,21 @@ pub fn drive_in_start_z() -> f32 {
     -(HALF_Z - SLAB) + 4.0
 }
 
-/// The gate end wall, built in pieces around the REAL gate opening: flanking panels floor to
-/// seam, the lintel band between the gate top and the seam, and the near-black upper band to
-/// the eaves. (The stores end wall is two whole slabs; this one has a hole in it.)
+/// The gate end wall's LOWER pieces, built around the REAL gate opening: flanking panels
+/// floor to seam and the lintel band between the gate top and the seam — whitewashed with
+/// the other lower bands (C2); the caller stamps the finish. The wall's upper band is built
+/// beside the other upper bands in the shell block. (The stores end wall is a whole slab;
+/// this one has a hole in it.)
 fn push_gate_wall(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let cz = -HALF_Z;
     let side_w = (HALF_X - GATE_HALF_W) / 2.0;
     for sign in [-1.0_f32, 1.0] {
         let cx = sign * (GATE_HALF_W + side_w);
-        slab(v, i, [cx, WALL_SEAM / 2.0, cz], [side_w, WALL_SEAM / 2.0, SLAB], METAL);
+        slab(v, i, [cx, WALL_SEAM / 2.0, cz], [side_w, WALL_SEAM / 2.0, SLAB], WHITEWASH_WALL);
     }
     let lintel_c = (GATE_TOP + WALL_SEAM) / 2.0;
     let lintel_h = (WALL_SEAM - GATE_TOP) / 2.0;
-    slab(v, i, [0.0, lintel_c, cz], [GATE_HALF_W, lintel_h, SLAB], METAL);
-    let upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
-    let upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
-    slab(v, i, [0.0, upper_c, cz], [HALF_X, upper_h, SLAB], UPPER_WALL);
+    slab(v, i, [0.0, lintel_c, cz], [GATE_HALF_W, lintel_h, SLAB], WHITEWASH_WALL);
 }
 
 /// One deep truss frame across the nave at `z`: parallel chords `depth` apart, verticals, and
@@ -829,9 +871,14 @@ impl Finish {
     pub(super) const TIMBER: Self =
         Self { surface: renderer_api::surface_role::PLANK, gloss: 0.05 };
     /// Tyre rubber and its kin. Deliberately near-featureless and near-matte — a road wheel's
-    /// tread is the one thing in this room that genuinely has no grain to catch.
+    /// tread is the one thing in this room that genuinely has no grain to catch. Its own role
+    /// since C2, instead of wearing painted steel's spray tooth at zero gloss.
     pub(super) const RUBBER: Self =
-        Self { surface: renderer_api::surface_role::PAINTED_STEEL, gloss: 0.02 };
+        Self { surface: renderer_api::surface_role::RUBBER, gloss: 0.02 };
+    /// Lime whitewash over sheet (C2): the lower wall bands. Chalky matte — lime has no sheen
+    /// to give a worklamp, which is half of why it reads as a WORKING hall's coat.
+    pub(super) const WHITEWASH: Self =
+        Self { surface: renderer_api::surface_role::WHITEWASH, gloss: 0.04 };
     /// Floor paint and stencil: bay markings, hazard chevrons, signage. Concrete's treatment,
     /// because that is what the paint is lying on and what shows through it.
     pub(super) const PAINT_MARK: Self =
@@ -1090,7 +1137,9 @@ mod tests {
         let mut roles: Vec<u32> = vertices.iter().map(|v| v.surface as u32).collect();
         roles.sort_unstable();
         roles.dedup();
-        assert!(roles.len() >= 4, "the hall wears {} distinct materials, want 4+", roles.len());
+        // Raised 4 → 6 with C2: concrete, painted steel, whitewash, plank, plaster-as-canvas
+        // and rubber — a workshop's real material set, not one treatment stamped everywhere.
+        assert!(roles.len() >= 6, "the hall wears {} distinct materials, want 6+", roles.len());
     }
 
     /// AND ANSWERS LIGHT WITH A FINISH. 70.1% of the hall's vertices carried gloss 0, which
@@ -1169,8 +1218,11 @@ mod tests {
             rig.sky_zenith_rgb,
             rig.sky_horizon_rgb
         );
-        // The wall's reflection stays in the wall's own range: it is lit gunmetal, not a light.
-        let wall = luma(METAL);
+        // The wall's reflection stays in the wall's own range: since C2 the lower bands are
+        // whitewashed, so "the wall" a vertical surface sees across the bay is lime white
+        // below the seam and dark sheet above — the horizon term must stay under the BRIGHT
+        // band's albedo (it is a wall being seen, not a light).
+        let wall = luma(WHITEWASH_WALL);
         assert!(
             luma(rig.sky_horizon_rgb) < wall,
             "the sideways reflection may not out-lume the wall's own albedo ({wall:.3})"
@@ -1502,9 +1554,9 @@ mod tests {
                 .filter(move |v| (v.position[0] - (HALF_X - SLAB)).abs() < 1.0e-4 && v.color == c)
                 .map(|v| v.position[1])
         };
-        let metal_top = on_plane(METAL).fold(f32::MIN, f32::max);
+        let metal_top = on_plane(WHITEWASH_WALL).fold(f32::MIN, f32::max);
         let upper_bottom = on_plane(UPPER_WALL).fold(f32::MAX, f32::min);
-        assert!(metal_top > 0.0, "the gunmetal band should reach the inner wall plane");
+        assert!(metal_top > 0.0, "the whitewashed band should reach the inner wall plane");
         assert!(
             (metal_top - upper_bottom).abs() < 1.0e-4,
             "wall bands must abut at the seam, not overlap: metal top {metal_top}, upper bottom {upper_bottom}"

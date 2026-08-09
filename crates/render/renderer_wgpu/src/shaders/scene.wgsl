@@ -260,18 +260,38 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
         let aggregate = mix(value_noise(face_frame * 6.5), value_noise(top_frame * 6.5), up);
         return 0.90 + pour * 0.13 + aggregate * 0.09;
     }
-    // Painted sheet steel (garage): primed and sprayed rolled panel. The macro is where the
-    // spray passes overlapped, the micro is the paint's tooth — drawn three times finer along
-    // the panel than across it, so the grain runs with the roll and the surface reads as sheet
-    // instead of as stone. Panel-to-panel breaks are GEOMETRY in this room (the hall carries
-    // real recessed joints), so this treatment deliberately has no joint term of its own.
-    let spray = mix(value_noise(face_frame * 0.4), value_noise(top_frame * 0.4), up);
-    let tooth = mix(
-        value_noise(vec2<f32>(face_frame.x * 7.0, face_frame.y * 2.4)),
-        value_noise(vec2<f32>(top_frame.x * 7.0, top_frame.y * 2.4)),
-        up,
-    );
-    return 0.93 + spray * 0.10 + tooth * 0.06;
+    if (role < 11.5) {
+        // Painted sheet steel (garage): primed and sprayed rolled panel. The macro is where the
+        // spray passes overlapped, the micro is the paint's tooth — drawn three times finer along
+        // the panel than across it, so the grain runs with the roll and the surface reads as sheet
+        // instead of as stone. Panel-to-panel breaks are GEOMETRY in this room (the hall carries
+        // real recessed joints), so this treatment deliberately has no joint term of its own.
+        let spray = mix(value_noise(face_frame * 0.4), value_noise(top_frame * 0.4), up);
+        let tooth = mix(
+            value_noise(vec2<f32>(face_frame.x * 7.0, face_frame.y * 2.4)),
+            value_noise(vec2<f32>(top_frame.x * 7.0, top_frame.y * 2.4)),
+            up,
+        );
+        return 0.93 + spray * 0.10 + tooth * 0.06;
+    }
+    if (role < 12.5) {
+        // Lime whitewash (garage, C2): a brush wash over the sheet. The macro is the wash
+        // itself — broad chalky patches where the lime went on thicker or thinner — and the
+        // micro is a faint VERTICAL brush drag (drawn taller than wide, the opposite of the
+        // steel's roll tooth), because a wall is painted with downstrokes. No roll grain: the
+        // lime buries the steel's tooth under its own surface.
+        let wash = mix(value_noise(face_frame / 1.4), value_noise(top_frame / 1.4), up);
+        let drag = mix(
+            value_noise(vec2<f32>(face_frame.x * 6.0, face_frame.y * 1.6)),
+            value_noise(vec2<f32>(top_frame.x * 6.0, top_frame.y * 1.6)),
+            up,
+        );
+        return 0.92 + wash * 0.11 + drag * 0.05;
+    }
+    // Tyre rubber (garage, C2): near-featureless by intent — a whisper of sidewall mottle so
+    // the discs are not mathematically flat, and nothing else to catch.
+    let mottle = mix(value_noise(face_frame * 3.0), value_noise(top_frame * 3.0), up);
+    return 0.97 + mottle * 0.04;
 }
 
 // Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one
