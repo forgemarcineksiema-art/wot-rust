@@ -68,6 +68,10 @@ struct Camera {
     // shader blends the three faces its normal leans into; all-zero on battle frames, which
     // adds exactly nothing.
     hero_probe: array<vec4<f32>, 6>,
+    // Per-scene render flags (Hala 3.0 C1): x = interior detail-normal enable (the hangar
+    // asks for its material grain to catch light; other interiors keep the authored normal),
+    // y/z/w reserved (0).
+    scene_params: vec4<f32>,
 };
 
 // Irradiance from the hero probe for a world-space normal: the standard ambient-cube blend —

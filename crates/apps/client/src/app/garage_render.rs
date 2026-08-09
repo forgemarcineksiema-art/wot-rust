@@ -222,6 +222,8 @@ impl ClientApp {
                     // The hero probe (Hala 3.0 B2): the hall's baked irradiance cube, so the
                     // parked vehicle receives the room's bounce the way the room itself does.
                     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+                    // ...and the hall's material grain catches the worklight (C1).
+                    renderer.set_interior_detail_normal(true);
                 }
                 SceneKind::Battle => {
                     renderer.set_shadow_focus(None);
@@ -232,6 +234,7 @@ impl ClientApp {
                     renderer.set_bloom_mips(tier);
                     // No hall, no probe: zero lanes, a bit-exact no-op in the vehicle shader.
                     renderer.set_hero_probe(None);
+                    renderer.set_interior_detail_normal(false);
                 }
             }
             self.current_scene = want;

@@ -68,4 +68,12 @@ impl SceneRenderer {
             None => [[0.0; 4]; 6],
         };
     }
+
+    /// Enable or disable the interior detail normal (Hala 3.0 C1): on, the hangar's material
+    /// grain bends the surface normal so paint tooth and float marks CATCH the worklight;
+    /// off (every other scene), interiors keep their authored normals exactly as before —
+    /// the per-scene flag that replaced the old fog-density heuristic in `scene.wgsl`.
+    pub fn set_interior_detail_normal(&mut self, enabled: bool) {
+        self.interior_detail_normal = enabled;
+    }
 }
