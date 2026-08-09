@@ -104,6 +104,10 @@ pub struct SceneRenderer {
     /// The garage hero probe (Hala 3.0 B2): the hall's irradiance cube at the station, set by
     /// the garage scene swap and zeroed everywhere else (`set_hero_probe`).
     hero_probe: [[f32; 4]; 6],
+    /// Interior detail-normal enable (Hala 3.0 C1): the hangar asks for its material grain to
+    /// catch light; every other scene keeps the authored interior normal
+    /// (`set_interior_detail_normal`).
+    interior_detail_normal: bool,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -517,6 +521,7 @@ impl SceneRenderer {
             vehicle_draws: Vec::new(),
             grass_crushers: Vec::new(),
             hero_probe: [[0.0; 4]; 6],
+            interior_detail_normal: false,
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,

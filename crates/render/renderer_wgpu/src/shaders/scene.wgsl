@@ -282,10 +282,28 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
 // The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
 // instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
 fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
-    // Interiors: machined and painted surfaces stay true to their authored normal. The
-    // reduced tier (time_params.w, F2) also keeps the authored normal — the gradient
-    // is the priciest part of the material grain for the least visible return.
-    if (camera.fog_params.x <= 0.0 || !detail_bit(4u)) {
+    // Interiors (Hala 3.0 C1): gated by the per-scene FLAG ALONE. The scene swap is the
+    // purchase decision — the garage has the frame headroom a 7v7 battle does not, and its
+    // cost is priced by the garage perf gate (F1) — so the tier bit below stays what it has
+    // always been: a battle-look knob sitting in the buy-back pool. (The C1 audit found that
+    // bit has NEVER been in the canonical mask, which means this whole function was dead on
+    // the shipped look, indoors and out — the interior branch is the first part of it a
+    // player actually sees.) The noise plane slides with height (the same mapping the
+    // interior material_detail arm uses) so a vertical panel varies up its face instead of
+    // sampling one constant row, and the amplitude sits a step under the outdoor bend:
+    // sprayed sheet and floated concrete carry TOOTH, not terrain.
+    if (camera.fog_params.x <= 0.0) {
+        if (camera.scene_params.x <= 0.0) {
+            return n;
+        }
+        let p = world.xz * 1.3 + vec2<f32>(world.y * 0.7, world.y * 0.4);
+        let grain = ground_grain(p);
+        let bend = vec3<f32>(-grain.y, 0.0, -grain.z) * 0.07 * clamp(1.0 - gloss, 0.35, 1.0);
+        return normalize(n + bend);
+    }
+    // The reduced tier (time_params.w, F2) keeps the authored normal — the gradient is the
+    // priciest part of the material grain for the least visible return.
+    if (!detail_bit(4u)) {
         return n;
     }
     let grain = ground_grain(world.xz);

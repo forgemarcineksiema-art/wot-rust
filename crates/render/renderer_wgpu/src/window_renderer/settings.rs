@@ -73,6 +73,13 @@ impl WindowRenderer {
         self.scene.set_hero_probe(probe);
     }
 
+    /// Enable the interior detail normal (see [`SceneRenderer::set_interior_detail_normal`]).
+    ///
+    /// [`SceneRenderer::set_interior_detail_normal`]: crate::SceneRenderer::set_interior_detail_normal
+    pub fn set_interior_detail_normal(&mut self, enabled: bool) {
+        self.scene.set_interior_detail_normal(enabled);
+    }
+
     /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
     /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
     /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery

@@ -187,6 +187,9 @@ pub struct CameraUniform {
     /// equivalent of the scene mesh's baked `bounce` lane. All-zero on every battle frame,
     /// which is a bit-exact no-op in the shader. Appended, like every lane before it.
     pub hero_probe: [GpuVec4; 6],
+    /// Per-scene render flags (Hala 3.0 C1): x = interior detail-normal enable, y/z/w
+    /// reserved. Appended, like every lane before it.
+    pub scene_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -226,6 +229,8 @@ pub struct FramePassParams {
     pub crushers: [[f32; 4]; renderer_api::MAX_GRASS_CRUSHERS],
     /// The garage hero probe (`CameraUniform::hero_probe`); all-zero outside the garage.
     pub hero_probe: [[f32; 4]; 6],
+    /// Per-scene render flags (`CameraUniform::scene_params`); all-zero outside the garage.
+    pub scene_params: [f32; 4],
 }
 
 impl Default for FramePassParams {
@@ -247,6 +252,7 @@ impl Default for FramePassParams {
             shader_detail: renderer_api::ShaderDetailMask::FULL,
             crushers: [[0.0; 4]; renderer_api::MAX_GRASS_CRUSHERS],
             hero_probe: [[0.0; 4]; 6],
+            scene_params: [0.0; 4],
         }
     }
 }
@@ -338,6 +344,7 @@ impl CameraUniform {
             weather_params: GpuVec4(passes.weather_params),
             crusher_pos_radius: passes.crushers.map(GpuVec4),
             hero_probe: passes.hero_probe.map(GpuVec4),
+            scene_params: GpuVec4(passes.scene_params),
         }
     }
 
