@@ -467,6 +467,12 @@ fn recorded_goldens_hold_the_value_structure() {
     // shade mass is what the next wave has to argue with.
     const GARAGE_DARK_CEILING_FLOOR: f32 = 0.81;
     const GARAGE_DARK_CEILING_TARGET: f32 = 0.75;
+    // B1's second lock: the moody grade may deepen the room, but the bottom of the histogram
+    // stays readable on a cheap TN panel — the 5th percentile of the ROOM frame holds a real
+    // floor. The first B1 candidate (exposure 1.02, black point 0.028) crushed this to 0.009
+    // and read as a black hole on anything but a calibrated display; the shipped grade
+    // measures 0.020 against this floor.
+    const GARAGE_P05_FLOOR: f32 = 0.015;
     // The screen frame is the room frame plus the overlay and nothing else, so the share of
     // pixels the two disagree on IS the UI's footprint. It is the one measurement that catches a
     // HUD which failed to build, failed to upload, or rendered with no font atlas bound — all
@@ -552,6 +558,13 @@ fn recorded_goldens_hold_the_value_structure() {
             view.name,
             stats.dark,
             GARAGE_DARK_CEILING_FLOOR
+        );
+        assert!(
+            stats.p05 >= GARAGE_P05_FLOOR,
+            "{}: the histogram's bottom fell through the TN-readability floor ({:.3} vs {:.3})",
+            view.name,
+            stats.p05,
+            GARAGE_P05_FLOOR
         );
         if stats.dark > GARAGE_DARK_CEILING_TARGET {
             println!(
@@ -853,7 +866,11 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
     // actually makes. It reads 0.161 against 0.089, so the hero is 1.8x the room at the median;
     // the bound bites at 1.4x rather than at the measurement, because this is a floor under a
     // relationship and not a re-recording of one frame's tuning.
-    const HERO_OVER_ROOM: f32 = 1.4;
+    // Raised 1.4 → 2.0 with B1 (the plan's "hero out-lumes the floor" lock, on the moody
+    // grade): the room darkened faster than the subject, and the ratio measured 2.6× at the
+    // shipped grade — a hero merely 1.4× over the room would mean the relight lost its
+    // subject. Still a floor under a relationship, not a re-recording of one frame's tuning.
+    const HERO_OVER_ROOM: f32 = 2.0;
     let hero = measured.get("garage_hero").expect("the garage frames its hero");
     let room = frame_stats(&read_png(&golden_path("garage_hero")));
     assert!(
