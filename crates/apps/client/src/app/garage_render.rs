@@ -208,6 +208,13 @@ impl ClientApp {
                     renderer.set_shadow_focus_radius_m(Some(
                         scene_build::hangar::hangar_shadow_radius_m(),
                     ));
+                    // ...and then DROP the far cascade, because the box above already holds the
+                    // whole hall — that is what `the_near_shadow_box_contains_the_whole_hall`
+                    // asserts, corner by corner, under every garage rig. The far cascade the
+                    // garage was still encoding spanned 270 m at 264 mm per texel around a 36 m
+                    // room: the hall's 13 374 triangles redrawn into a second depth map every
+                    // frame, for a map no fragment in this room can sample.
+                    renderer.set_shadow_cascades(Some(1));
                     // The garage renders "a bit richer" (Hala 2.0, user decision 2026-08-04):
                     // a modest bloom chain so the frosted panes and lamp faces genuinely glow.
                     // The battlefield keeps its tier default — no fairness surface is touched.
@@ -216,6 +223,8 @@ impl ClientApp {
                 SceneKind::Battle => {
                     renderer.set_shadow_focus(None);
                     renderer.set_shadow_focus_radius_m(None);
+                    // The battlefield is 1000 m and the near box is 64: it needs both cascades.
+                    renderer.set_shadow_cascades(None);
                     let tier = renderer.default_bloom_mips();
                     renderer.set_bloom_mips(tier);
                 }

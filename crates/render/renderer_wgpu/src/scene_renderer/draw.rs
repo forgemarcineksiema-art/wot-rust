@@ -110,6 +110,7 @@ impl super::SceneRenderer {
         // lands on the field the chase camera looks at, not the empty ground behind it. Then build
         // the texel-snapped light matrix and pack it into the shared uniform.
         let (near_cascade, far_cascade) = self.shadow.cascades(self.shadow_focus_radius_m);
+        let cascades = self.shadow.frame_cascade_count(self.shadow_cascades);
         let focus = self.shadow_focus.unwrap_or_else(|| {
             renderer_api::forward_shadow_focus(camera_pos, view_proj, SHADOW_FORWARD_OFFSET_M)
         });
@@ -142,7 +143,7 @@ impl super::SceneRenderer {
                 light_view_proj,
                 light_view_proj_far,
                 shadow_params: self.shadow.shader_params(near_cascade),
-                cascade_params: self.shadow.cascade_shader_params(far_cascade),
+                cascade_params: self.shadow.cascade_shader_params(far_cascade, cascades),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
                 inv_render_size: [
                     1.0 / target.width.max(1) as f32,
@@ -178,7 +179,7 @@ impl super::SceneRenderer {
         // this code emitted before it existed.
         let mut recorder = crate::pass_recorder::PassRecorder::new(&self.profiler);
         self.encode_shadow_pass(&mut recorder, &mut encoder, &light_frustum);
-        self.encode_far_shadow_pass(&mut recorder, &mut encoder, &light_frustum_far);
+        self.encode_far_shadow_pass(&mut recorder, &mut encoder, &light_frustum_far, cascades);
         if switches.encodes(crate::frame_graph::PassId::SsaoPrepass) {
             self.encode_ssao_prepass(&mut recorder, &mut encoder, &camera_frustum);
             self.ssao.encode_ao_passes(&mut recorder, &mut encoder, &self.camera_bind_group);

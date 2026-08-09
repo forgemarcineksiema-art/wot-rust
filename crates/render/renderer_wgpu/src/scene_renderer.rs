@@ -166,6 +166,16 @@ pub struct SceneRenderer {
     /// (`SunShadowParams::default().focus_radius_m`). An interior sets its own — see
     /// `ShadowResources::cascades`.
     pub shadow_focus_radius_m: Option<f32>,
+    /// A scene that fits ENTIRELY inside its own near box declares so here, and the far cascade
+    /// is not encoded at all. `None` takes the tier's count.
+    ///
+    /// This is not a quality knob; it is a statement about the scene's extent, and only a scene
+    /// that can prove it may make it. The garage can: the hangar is 36 m across, its near box is
+    /// 30 m of half-size aimed at the turntable, and every corner of the hall is asserted inside
+    /// that box with the cascade's containment margin to spare. The far cascade it was still
+    /// paying for spanned 270 m at 264 mm per texel around a room 36 m wide — a whole depth pass
+    /// per frame, drawing the hall a second time, to produce a map no fragment in it ever samples.
+    pub shadow_cascades: Option<u32>,
     /// The presentation clock shaders animate with (`Camera.time_params.x`). Tick-domain by
     /// doctrine: the caller feeds interpolated-tick seconds, never an accumulation of
     /// render-frame deltas (see `CameraUniform::time_params`).
@@ -545,6 +555,7 @@ impl SceneRenderer {
             shader_detail: lighting_quality.shader_detail,
             shadow_focus: None,
             shadow_focus_radius_m: None,
+            shadow_cascades: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
             profiler: crate::frame_profiler::FrameProfiler::Disabled,

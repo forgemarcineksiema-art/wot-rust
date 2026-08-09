@@ -161,6 +161,9 @@ pub fn render_hangar_review_views(
     // richer bloom chain (Hala 2.0 T1): the panes' glow is part of the locked picture.
     renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
     renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
+    // And the single cascade the live garage runs: the near box holds the whole hall, so the
+    // far one draws a map nothing samples. A review artifact shows what the game shows.
+    renderer.shadow_cascades = Some(1);
     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
 
     let mut catalog = crate::VehicleAssetCatalog::default();

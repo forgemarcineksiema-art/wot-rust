@@ -877,13 +877,28 @@ mod tests {
     /// So: every corner of the hall must project INSIDE the near box (with the cascade's
     /// containment margin to spare), under every garage light rig — and the box must still be
     /// small enough to beat the battlefield default by a real factor.
+    ///
+    /// MEASURED THROUGH THE SHIPPED RESOLUTION. This test used to build its params from
+    /// `SunShadowParams::default()`, whose resolution is 4096, and assert a texel under 3 cm —
+    /// while the game ships `LightingQuality::canonical().shadow_resolution` = 2048. So it
+    /// carried 2x of headroom the player never had: 14.6 mm of tested texel against 29.3 mm of
+    /// played texel, and a drop to 1024 would have left it green at 4096 while the garage got
+    /// 58 mm. The containment half of the contract is resolution-independent and was always
+    /// right; the SHARPNESS half was measuring a picture nobody renders.
     #[test]
     fn the_near_shadow_box_contains_the_whole_hall() {
         use glam::Mat4;
-        use renderer_api::{SceneLighting, SunShadowParams, sun_light_view_projection};
+        use renderer_api::{
+            LightingQuality, SceneLighting, SunShadowParams, sun_light_view_projection,
+        };
 
         let radius = hangar_shadow_radius_m();
-        let params = SunShadowParams { focus_radius_m: radius, ..SunShadowParams::default() };
+        let shipped = LightingQuality::canonical().shadow_resolution;
+        let params = SunShadowParams {
+            focus_radius_m: radius,
+            resolution: shipped,
+            ..SunShadowParams::default()
+        };
         let focus = hangar_shadow_focus();
         // The near cascade hands a fragment to the far cascade once its UV leaves this margin
         // (CASCADE_MARGIN_UV in renderer_wgpu's shadow.rs); in NDC that is 4% of the half-box.
@@ -916,9 +931,9 @@ mod tests {
             }
         }
 
-        // And it is genuinely tighter than the battlefield box it replaces: same 2048² map,
-        // smaller footprint, finer texels. The numbers this whole change exists for.
-        let battlefield = SunShadowParams::default();
+        // And it is genuinely tighter than the battlefield box it replaces: same map, smaller
+        // footprint, finer texels. Both sides measured at the SHIPPED resolution.
+        let battlefield = SunShadowParams { resolution: shipped, ..SunShadowParams::default() };
         assert!(
             radius < battlefield.focus_radius_m,
             "a garage box no smaller than the battlefield's buys nothing"
@@ -928,10 +943,50 @@ mod tests {
             gain >= 2.0,
             "the garage box must be worth the wiring: only {gain:.1}x finer texels"
         );
+        println!(
+            "GARAGE SHADOW: {:.1} mm per texel at the shipped {shipped}² map ({gain:.1}x the \
+             battlefield box), one cascade",
+            params.texel_world_size() * 1000.0
+        );
         assert!(
-            params.texel_world_size() < 0.03,
-            "hangar texel {:.4} m regressed past 3 cm",
-            params.texel_world_size()
+            params.texel_world_size() < 0.030,
+            "hangar texel {:.1} mm regressed past 30 mm",
+            params.texel_world_size() * 1000.0
+        );
+    }
+
+    /// THE FAR CASCADE IS REDUNDANT IN THIS ROOM, and that is a claim the geometry can carry
+    /// rather than a setting somebody chose.
+    ///
+    /// `the_near_shadow_box_contains_the_whole_hall` proves, corner by corner and rig by rig,
+    /// that nothing in the hall ever leaves the near box. A second cascade can therefore only
+    /// answer questions no fragment in this room asks — and the one the garage was encoding
+    /// spanned 30 x 4.5 = 135 m of half-size at half the resolution, so 264 mm per texel over a
+    /// room 36 m wide, redrawing the hall and the hero's 204 draws every frame to fill it.
+    ///
+    /// This holds the two together: the client may drop the cascade only while the box that
+    /// makes it redundant still contains the room with margin.
+    #[test]
+    fn one_cascade_is_enough_for_a_room_that_fits_in_its_near_box() {
+        use renderer_api::SunShadowParams;
+        let near = SunShadowParams {
+            focus_radius_m: hangar_shadow_radius_m(),
+            ..SunShadowParams::default()
+        };
+        // The hall's furthest corner from the turntable, in metres.
+        let corner = (HALF * HALF * 2.0 + WALL_HEIGHT * WALL_HEIGHT).sqrt();
+        assert!(
+            corner < near.focus_radius_m,
+            "the hall's far corner is {corner:.1} m out and the near box only reaches {:.1} m — \
+             it needs the far cascade after all, and the client must stop dropping it",
+            near.focus_radius_m
+        );
+        // ...and the cascade being dropped really was covering nothing but air.
+        let far = near.far_cascade();
+        assert!(
+            far.focus_radius_m > corner * 2.0,
+            "a far cascade this tight might have carried something: {:.0} m against a {corner:.0} m room",
+            far.focus_radius_m
         );
     }
 
