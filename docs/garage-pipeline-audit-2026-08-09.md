@@ -284,6 +284,59 @@ another lamp without resizing the uniform array.
 - **`vehicle.wgsl:386`** reconciling four estimates of one occlusion by `min` instead of
   multiplying them is measured, argued work and reads correctly on the hero.
 
+## 4b. Withdrawn from this audit (2026-08-09, same day)
+
+Two claims above did not survive being acted on. Recorded rather than edited away, because the
+2026-08-08 audit's own withdrawal section is the reason this one has a template for it.
+
+**G8's "swap the cascades, it is free" is WRONG.** The near box's lateral extent decides which
+CASTERS are rendered into the map as well as which receivers sample it — the two are the same
+extent in light space. An 8 m box hugging the turntable would therefore drop the roof mullions,
+the trusses and the crane girder out of the map that shades the deck, and those are exactly what
+stripes it. The 30 m box is correct and the comment that chose it was right. **What survives is
+the far cascade**, which is genuinely redundant: the near box provably contains the whole hall, so
+the second cascade fills a map no fragment in the room can sample. Dropping it is pixel-identical
+(verified: the byte harness reports twenty drifted frames afterwards and all twenty are
+battlefield). The test reading `SunShadowParams::default()` at 4096 instead of the shipped 2048
+was real and is fixed.
+
+**Local contrast is not a measure of material detail, so §2's "the least detailed picture in the
+game" is withdrawn.** It is the mean step between horizontally adjacent pixels — edge density.
+Measured directly by acting on G2: giving the whole hall two-octave treatments moved 81% of the
+frame's pixels at a max delta of 26/255, and moved local contrast from 0.0049 to 0.0050.
+Restricting the measure to lit pixels only (luma ≥ 0.25, in case shade was hiding it) moves it
+0.01133 → 0.01136. A smooth octave whose features are ten pixels wide has a small per-pixel
+gradient however much tonal variation it carries. What 0.0047 correctly said is that a room of
+large flat planes has the fewest EDGES in the locked set. That is true and it is a different
+sentence.
+
+Measuring a proxy instead of the thing is the error this register keeps recording. It is now at
+five instances, two of them in this document.
+
+## 4c. What has been done since (2026-08-09)
+
+| finding | state |
+|---|---|
+| G1 | **CLOSED.** Cold bake 1 902 → 531 ms (release: parallel gather, no per-ray allocation) and `hangar::prewarm` moves it off the render thread at startup. `the_bake_is_deterministic` was comparing a value with itself and now builds twice for real. |
+| G2, G3 | **CLOSED.** `CONCRETE` and `PAINTED_STEEL` roles appended; every non-emissive vertex names a material and the fully-matte share falls from 70.1% to under 10%. Locked by `every_surface_in_the_hall_names_its_material` and `the_hall_answers_light_with_a_finish`. |
+| G4 | **CLOSED.** The overhead reflection is the skylights' area share of the daylight behind them, held to the roof geometry by `the_rooms_reflection_is_the_room`. |
+| G8 | **PARTLY** — see the withdrawal above. Far cascade dropped, test reads the shipped resolution. |
+| G10 | **CLOSED.** Floors raised to measurement (bright 0.0025 → 0.020, dark 0.905 → 0.810); D20 and the register's garage table rewritten from measured frames. |
+| G11 | **PARTLY.** The garage has a subject crop and it reads hero median 0.161 against room median 0.089 — 1.81x, floored at 1.4x. The byte harness reports all drift at once instead of dying on the first frame. **`perf_capture` still has no garage entry**: its frame time remains unmeasured. |
+| G5, G6, G7, G9, G12 | **OPEN**, as ranked. |
+
+The frame, before and after, from the always-on harness:
+
+| | dark | mid | bright | p05 | p50 | p95 | spread |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| before | 80.5% | 18.5% | 1.0% | 0.019 | 0.086 | 0.586 | 0.567 |
+| after | 80.4% | 17.3% | **2.3%** | 0.021 | 0.089 | 0.593 | 0.572 |
+
+The bright plane clears its 2% target for the first time. **The dark plane did not move**, and
+that is the honest headline: a corrected reflection and a material treatment are both multiplied
+BY the light already reaching a surface, so neither can lift shade. 80.4% against a 75% bound is
+what the garage still owes, and it is a lighting question.
+
 ## 5. The order
 
 1. **G1** — prebake the hall off the render thread; the mechanism is already in the same function.
