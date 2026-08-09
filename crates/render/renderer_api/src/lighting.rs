@@ -597,8 +597,29 @@ impl SceneLighting {
             // pools carry the separation now.
             rim_direction: [0.10, 0.45, -0.98],
             rim_rgb: [0.0, 0.0, 0.0],
-            sky_zenith_rgb: [0.12, 0.125, 0.14],
-            sky_horizon_rgb: [0.17, 0.175, 0.20],
+            // INDOORS THESE TWO ARE NOT A SKY — they are the room, and they are the only thing
+            // any polished surface in it has to reflect. `env_sky` mixes horizon -> zenith by
+            // the reflected ray's up fraction, so in the hangar `zenith` is what a horizontal
+            // surface sees overhead and `horizon` is what a vertical one sees across the bay.
+            //
+            // They used to be a dim outdoor gradient (0.12 -> 0.17) carried over from the
+            // studio preset under a comment saying they only existed to keep the uniform
+            // well-formed. They are not decoration: the turntable deck, the rails and every
+            // painted panel on the hero mirror them. The hall's roof openings show
+            // `hangar::INTERIOR_BACKGROUND` — 1.30/1.38/1.55 — so the old numbers had the tank
+            // reflecting a sky SEVEN TO TEN TIMES darker than the daylight visible above it,
+            // and had the gradient upside down: dimmer overhead than sideways, which is true
+            // outdoors and false under a glazed roof.
+            //
+            // Both are derived from the room rather than dialled. Overhead: the skylight bands
+            // open 25.7% of the roof plane (`hangar::skylight_open_fraction`, computed from the
+            // band geometry), so 0.257 x the daylight behind them, less the mullions, trusses
+            // and crane girder that hang under it. Across the bay: the gunmetal wall's own
+            // albedo under the rig, near-neutral because the wall is. Locked to the geometry by
+            // `the_rooms_reflection_is_the_room` — move a skylight band and the number must
+            // follow it.
+            sky_zenith_rgb: [0.32, 0.34, 0.37],
+            sky_horizon_rgb: [0.16, 0.162, 0.168],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black
