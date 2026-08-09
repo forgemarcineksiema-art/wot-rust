@@ -195,6 +195,78 @@ impl FxSystem {
         });
     }
 
+    /// The hangar's sun-shaft blades as FX quads (Hala 3.0 E1): soft additive beams built
+    /// from the hangar's own blade geometry. NEGATIVE sharpness is the shaft tag — the FX
+    /// shader runs its drifting-density modulation only on tagged quads, so every battle
+    /// particle (always positive) renders bit-identically.
+    pub fn hangar_shaft_vertices(blades: &[[[f32; 3]; 4]]) -> Vec<renderer_api::FxVertex> {
+        const SHAFT_SHARPNESS: f32 = -0.85;
+        // Additive warm glow, alpha 0 (pure light, no coverage). The first candidate (0.045)
+        // vanished against the whitewashed walls — additive haze must clear the bright
+        // background by a visible step, and the drift modulation still takes it down by a
+        // third on average.
+        const GLOW: [f32; 4] = [0.20, 0.182, 0.138, 0.0];
+        let mut vertices = Vec::with_capacity(blades.len() * 6);
+        for quad in blades {
+            let corner = |index: usize, uv: [f32; 2]| renderer_api::FxVertex {
+                position: quad[index],
+                uv,
+                sharpness: SHAFT_SHARPNESS,
+                color: GLOW,
+            };
+            let (a, b, c, d) = (
+                corner(0, [-1.0, -1.0]),
+                corner(1, [1.0, -1.0]),
+                corner(2, [1.0, 1.0]),
+                corner(3, [-1.0, 1.0]),
+            );
+            vertices.extend_from_slice(&[a, b, c, a, c, d]);
+        }
+        vertices
+    }
+
+    /// Dust motes drifting in the hangar's sun shafts (Hala 3.0 E1): a slow trickle of tiny,
+    /// long-lived, faintly warm additive specks spawned INSIDE the blade volumes — dust is
+    /// only visible where the light is, which is the whole honesty of the effect. The caller
+    /// hands the blade quads (from `scene_build::hangar::sun_shaft_quads`) and the frame dt;
+    /// the accumulator keeps the trickle rate framerate-independent.
+    pub fn hangar_motes(&mut self, blades: &[[[f32; 3]; 4]], dt: f32) {
+        const MOTES_PER_SECOND: f32 = 2.5;
+        self.mote_budget += MOTES_PER_SECOND * dt;
+        while self.mote_budget >= 1.0 {
+            self.mote_budget -= 1.0;
+            let quad = &blades[(self.rand_unit() * blades.len() as f32) as usize % blades.len()];
+            // A point inside the blade: lerp across the top edge, then down the beam.
+            let across = self.rand_unit();
+            let down = 0.15 + self.rand_unit() * 0.8;
+            let top = Vec3::from_array(quad[0]).lerp(Vec3::from_array(quad[1]), across);
+            let bottom = Vec3::from_array(quad[3]).lerp(Vec3::from_array(quad[2]), across);
+            let position = top.lerp(bottom, down);
+            let glow = 0.05 + self.rand_unit() * 0.05;
+            let drift = Vec3::new(
+                self.rand_signed() * 0.04,
+                -0.02 - self.rand_unit() * 0.03,
+                self.rand_signed() * 0.04,
+            );
+            let ttl = 6.0 + self.rand_unit() * 6.0;
+            let size = 0.03 + self.rand_unit() * 0.05;
+            self.spawn(Particle {
+                position,
+                velocity_mps: drift,
+                gravity_factor: 0.0,
+                drag_per_s: 0.0,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: size,
+                size_end_m: 0.02,
+                // Pure additive glow (alpha 0) — a mote IS light caught, not a body.
+                color_begin: [glow, glow * 0.92, glow * 0.75, 0.0],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
+        }
+    }
+
     pub fn track_dust(&mut self, ground: Vec3) {
         for _ in 0..4 {
             let spread = Vec3::new(self.rand_signed() * 1.4, 0.0, self.rand_signed() * 0.8);

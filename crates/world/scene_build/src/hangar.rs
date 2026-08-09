@@ -178,6 +178,55 @@ pub fn slot_eye(framing: SlotFraming) -> (Vec3, Vec3) {
     (eye, pivot)
 }
 
+/// The sun shafts' blade quads (Hala 3.0 E1): translucent beams hanging under the glazing
+/// bands, each a world-space quad from a segment of the glazing plane down along the light's
+/// travel (−key) to just over the floor. Geometry lives HERE because only the hangar knows
+/// where its glazing is and which way its sun leans — the client turns these into soft
+/// additive FX quads, and the E1 lock holds each blade's top edge inside a real opening
+/// (`the_shafts_hang_from_real_openings`): a beam from a solid roof would be the pane-glow
+/// lie all over again.
+pub fn sun_shaft_quads() -> Vec<[[f32; 3]; 4]> {
+    let key = Vec3::new(-0.233, 0.892, 0.388);
+    // (shed start, blade centre x, blade z inside the glazing band, half-width).
+    // Blade z rows sit in the CLEAR lanes between the glazing's mullion bars (the same lanes
+    // the sun lock's ray fan crosses through) — a blade hanging on a bar would fail the
+    // openings lock, and rightly: light does not beam through steel.
+    // Five blades, not a curtain: the hero-over-room lock prices every room pixel a beam
+    // crosses, so the set is the fewest blades that still read as the hall's light having a
+    // body — three over the station, two over the second bay.
+    let blades: [(f32, f32, f32, f32); 5] = [
+        // The sun shed (glazing z 1.0..5.5): the hero's own light.
+        (-5.5, -4.8, 2.7, 0.6),
+        (-5.5, -1.6, 3.9, 0.75),
+        (-5.5, 2.2, 2.7, 0.6),
+        // The far shed (glazing z 12.0..16.5): fainter depth cues over the second bay.
+        (5.5, -2.6, 13.7, 0.6),
+        (5.5, 1.8, 14.8, 0.65),
+    ];
+    let rise = SHED_RIDGE - WALL_HEIGHT;
+    blades
+        .iter()
+        .map(|&(start, x, z, half_w)| {
+            // Top edge ON the glazing plane at this z (the plane falls from the ridge at
+            // start+deck to the eaves at start+deck+glaze).
+            let fall = (z - (start + SHED_DECK_RUN)) / SHED_GLAZE_RUN;
+            let top_y = SHED_RIDGE - rise * fall.clamp(0.0, 1.0);
+            // The blades die out a metre over the floor — the classic read of a shaft
+            // thinning into the air, and it keeps the beams off the bright floor pixels the
+            // hero-over-room lock weighs most heavily.
+            let travel = -key * ((top_y - 1.0) / key.y);
+            let top_a = Vec3::new(x - half_w, top_y, z);
+            let top_b = Vec3::new(x + half_w, top_y, z);
+            [
+                top_a.to_array(),
+                top_b.to_array(),
+                (top_b + travel).to_array(),
+                (top_a + travel).to_array(),
+            ]
+        })
+        .collect()
+}
+
 /// Direction from the pivot to the eye for an orbit yaw/pitch. Shared so the live camera and
 /// every offscreen review of it cannot disagree about where the camera is.
 pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
@@ -1574,6 +1623,39 @@ mod tests {
             probe[3],
             probe[2]
         );
+    }
+
+    /// E1: THE SHAFTS HANG FROM REAL OPENINGS. Every blade's top edge must let the sky
+    /// through — a ray cast UP from just under the top edge escapes the mesh (it starts in a
+    /// glazing opening), and the blade reaches the floor. A beam hanging from solid roof
+    /// would be the pane-glow lie in a new costume; this holds each blade to the physics the
+    /// sun lock holds the key to.
+    #[test]
+    fn the_shafts_hang_from_real_openings() {
+        let (vertices, indices) = hangar_scene_mesh();
+        let quads = sun_shaft_quads();
+        assert!(quads.len() >= 5, "the hall hangs a real set of blades, got {}", quads.len());
+        for quad in &quads {
+            let top_mid = [
+                (quad[0][0] + quad[1][0]) / 2.0,
+                (quad[0][1] + quad[1][1]) / 2.0 - 0.25,
+                (quad[0][2] + quad[1][2]) / 2.0,
+            ];
+            assert!(
+                !ray_hits_mesh(top_mid, [0.0, 1.0, 0.0], &vertices, &indices),
+                "a blade top at {top_mid:?} hangs under solid roof — its opening is a lie"
+            );
+            assert!(
+                quad[2][1] < 1.5,
+                "a blade must fall to head height before it dies, bottom at {}",
+                quad[2][1]
+            );
+            assert!(
+                quad[0][1] > WALL_HEIGHT - 0.2,
+                "a blade hangs from the glazing plane, top at {}",
+                quad[0][1]
+            );
+        }
     }
 
     /// The turntable is machinery: a rim ring wider than the deck and radial plate seams on

@@ -43,8 +43,24 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // at the inscribed ellipse edge. `sharpness` steepens the edge (1.0 = the soft gaussian-ish
     // particle look; 6.0 reads as a stamped hard disc). Squared for the tight core; colors are
     // premultiplied so one multiply fades RGB and A together without shifting hue.
-    let radial = clamp((1.0 - dot(input.uv, input.uv)) * input.sharpness, 0.0, 1.0);
-    let fade = radial * radial;
+    // NEGATIVE sharpness is the sun-shaft tag (Hala 3.0 E1): same falloff at |sharpness|,
+    // plus a slow drifting-density modulation down the blade — dust moving through a beam,
+    // on the tick-domain clock. Battle particles are always positive and take the exact
+    // arithmetic they always took.
+    let radial = clamp((1.0 - dot(input.uv, input.uv)) * abs(input.sharpness), 0.0, 1.0);
+    var fade = radial * radial;
+    if (input.sharpness < 0.0) {
+        // A shaft is a BEAM, not a puff: soft across its width, nearly full-strength down
+        // its length (gentle caps at the glazing and the floor), with the drifting-density
+        // modulation breathing along it on the tick-domain clock.
+        let across = clamp((1.0 - input.uv.x * input.uv.x) * abs(input.sharpness), 0.0, 1.0);
+        let along = 0.55 + 0.45 * (1.0 - input.uv.y * input.uv.y);
+        let t = camera.time_params.x;
+        let drift = 0.66
+            + 0.22 * sin(input.uv.y * 9.0 - t * 0.35 + input.uv.x * 3.0)
+            + 0.12 * sin(input.uv.y * 23.0 + t * 0.21 + input.uv.x * 7.0);
+        fade = across * across * along * clamp(drift, 0.0, 1.0);
+    }
     if (fade <= 0.001) {
         discard;
     }

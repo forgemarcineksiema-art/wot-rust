@@ -80,9 +80,15 @@ impl ClientApp {
         if self.garage.poll_drive_dust() {
             self.fx.track_dust(Vec3::new(0.0, 0.0, pose.z - 3.0));
         }
+        // The air of the hall (E1): a slow trickle of dust motes inside the sun shafts, and
+        // the shaft blades themselves appended as static soft-additive quads. Both read from
+        // the hangar's own blade geometry, so the light, its dust and its beams agree.
+        let blades = scene_build::hangar::sun_shaft_quads();
+        self.fx.hangar_motes(&blades, dt);
         self.fx.tick(dt);
-        let fx_vertices =
+        let mut fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
+        fx_vertices.extend(crate::fx::FxSystem::hangar_shaft_vertices(&blades));
 
         let scene_time_s = self.presented_time_s();
         let Some(renderer) = self.renderer.as_mut() else {
