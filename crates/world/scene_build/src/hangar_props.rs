@@ -11,6 +11,11 @@ use super::hangar_gallery::CRANE_GIRDER_Y;
 
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
 const DARK_STEEL: [f32; 3] = [0.16, 0.17, 0.18];
+/// C2 palette: the equipment olive — issued kit (the tool cabinet) wears the drab its crates
+/// already wear, not shop-steel grey.
+const OLIVE: [f32; 3] = [0.275, 0.30, 0.225];
+/// C2 palette: rust on handled machined steel — the link plates hands have turned over.
+const RUST: [f32; 3] = [0.295, 0.195, 0.14];
 const RUBBER: [f32; 3] = [0.11, 0.11, 0.12];
 /// The wear-and-grime ring where a standing prop meets the concrete (`push_contact_ring`).
 const CONTACT: [f32; 3] = [0.185, 0.182, 0.176];
@@ -68,7 +73,8 @@ fn station_dressing(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     for (dx, dz) in [(-0.22_f32, -0.18_f32), (0.22, -0.18), (-0.22, 0.18), (0.22, 0.18)] {
         slab(v, i, [cx + dx, 0.03, cz + dz], [0.03, 0.03, 0.03], DARK_STEEL);
     }
-    slab(v, i, [cx, 0.58, cz], [0.30, 0.52, 0.26], STEEL);
+    // Issued kit wears the equipment olive (C2), not shop-steel grey.
+    slab(v, i, [cx, 0.58, cz], [0.30, 0.52, 0.26], OLIVE);
     for drawer_y in [0.35_f32, 0.62, 0.89] {
         slab(v, i, [cx - 0.32, drawer_y, cz], [0.02, 0.10, 0.22], DARK_STEEL);
     }
@@ -165,12 +171,15 @@ fn track_link_pile(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     for row in 0..4 {
         for col in 0..4 {
             let jitter = ((row * 4 + col) as f32 * 0.37).sin() * 0.05;
+            // Every fifth plate wears rust (C2): links come off vehicles weathered, and a
+            // pile of them is never one uniform steel.
+            let plate = if (row * 4 + col) % 5 == 3 { RUST } else { DARK_STEEL };
             slab(
                 v,
                 i,
                 [x + col as f32 * 0.16 - 0.24, 0.045 + row as f32 * 0.09, z + jitter],
                 [0.07, 0.045, 0.29],
-                DARK_STEEL,
+                plate,
             );
         }
     }

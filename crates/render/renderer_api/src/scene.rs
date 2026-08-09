@@ -122,6 +122,15 @@ pub mod surface_role {
     /// it reads as sheet rather than as masonry. Walls, roof, ribs, trusses, the bay gate,
     /// and the shop furniture built out of the same stock.
     pub const PAINTED_STEEL: f32 = 11.0;
+    /// Lime whitewash (garage, C2): the working hall's bielone dolne ściany — a brushed wash
+    /// over the sheet, so the treatment is broad chalky patches with faint vertical brush
+    /// drag, and no roll tooth (the lime hides the steel's grain under its own).
+    pub const WHITEWASH: f32 = 12.0;
+    /// Tyre rubber (garage, C2): its own material at last instead of borrowing painted
+    /// steel's. Near-featureless by intent — a road wheel's tread is the one surface in the
+    /// hall with genuinely nothing to catch — so the treatment is a whisper of sidewall
+    /// mottle and nothing else.
+    pub const RUBBER: f32 = 13.0;
 }
 
 impl SceneVertex {
