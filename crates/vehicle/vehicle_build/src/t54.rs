@@ -23,16 +23,38 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 ///
 /// Affordable, and the frame says so rather than taste. Every part added here is
 /// `PartLod::Detail`, so it exists at LOD0 and is DROPPED at LOD1 and below — the cost lands only
-/// on vehicles close enough to read it. At `scene_pass`'s measured ~20 ns/triangle
-/// (measured 2026-08-08 on the MX330 min spec, at the shipped 1x MSAA) the worst case is a 7v7
-/// where every tank is near: +2,561 triangles each, ~0.72 ms against 2.99 ms of p95 headroom.
-/// A realistic battle has one or two vehicles at that range, not fourteen.
+/// on vehicles close enough to read it.
 ///
-/// Re-measured 2026-08-09: 24,577, up 508 from the 24,069 recorded at the raise and nothing said
-/// so, because the ceiling still held — the same drift the gear budgets caught on their own rows.
-/// 5.5% of headroom left. `cargo test -p vehicle_forge --test shipped_cost -- --nocapture` prints
-/// this number for the whole fleet.
-pub const MEDIUM_LOD0_TRI_BUDGET: usize = 26_000;
+/// Re-measured 2026-08-09: the mesh sits at 24,577, up 508 from the 24,069 recorded at the last
+/// raise, and nothing had said so because the ceiling still held — the same drift the gear budgets
+/// caught on their own rows.
+///
+/// RAISED 26,000 -> 29,000 (measured 2026-08-09, `perf_capture` on the MX330 min spec, Vulkan, at
+/// the shipped 1x MSAA, 180 samples over 4 interleaved thermal cycles). This buys the ~3,000
+/// triangles Wave 2's remaining close-range work needs, and the frame was asked first:
+///
+///   full scene            17.64 ms wall - 5.69 ms readback fence = 11.95 ms of work
+///   full + 7v7            21.07 ms wall - 5.69 ms fence          = 15.38 ms, 1.29 ms under 16.67
+///   7v7 gear NEAR forced  23.57 ms wall - 5.69 ms fence          = 17.88 ms, 1.21 ms OVER
+///
+/// A TRIANGLE'S PRICE, measured rather than quoted. Putting the fleet on screen costs 3.43 ms p50
+/// and adds exactly 351,430 triangles to each of `shadow_pass`, `ssao_prepass` and `scene_pass` —
+/// every vehicle triangle is submitted precisely three times — which prices one at 9.76 ns. The
+/// worst case this repo prices against is a 7v7 where all fourteen tanks sit at the ceiling:
+/// +3,000 each is 0.41 ms, a third of the 1.29 ms the frame measured. A realistic battle has one
+/// or two vehicles at that range, not fourteen.
+///
+/// A WITHDRAWN NUMBER. This block used to say `scene_pass` measures "~20 ns/triangle". It does
+/// not, and it is not a small error: at 9.76 ns the old figure over-charged every raise priced
+/// with it by 2x. It was most likely taken at 4x MSAA, back when the instrument sampled four
+/// times what the game ships — the same divergence that invalidated the frame numbers once
+/// already. Re-derive this price from the fleet delta, never quote it from memory.
+///
+/// The headroom quoted above is NOT the per-pass GPU table's. That table reads 4.05 ms because it
+/// cannot see the CPU half of the frame (1.24 ms p50 across `set_render_frame`, `set_vehicle_frame`
+/// and `encode+submit`, plus sync). Budget against the wall clock minus the readback fence, which
+/// is what the probe's own header prescribes.
+pub const MEDIUM_LOD0_TRI_BUDGET: usize = 29_000;
 
 /// LOD0 VERTEX budget for the same class, and the reason it exists at all.
 ///
@@ -49,10 +71,17 @@ pub const MEDIUM_LOD0_TRI_BUDGET: usize = 26_000;
 /// runs the "wrong" way here (16,705 verts to 24,577 tris) and why the two need separate ceilings:
 /// the vertex buffer can be the thing that overflows while the triangle budget still reads green.
 ///
-/// 18,000 gives the measured shape 7.8% headroom, matching the tolerance the triangle budget above
-/// carries. Raising it is the same deliberate act, and wants the same thing written down: what was
-/// measured, when, and what it bought.
-pub const MEDIUM_LOD0_VERT_BUDGET: usize = 18_000;
+/// RAISED 18,000 -> 20,000 alongside the triangle ceiling (2026-08-09), and NOT as a courtesy:
+/// this mesh measures 0.68 vertices per triangle, so a shape grown to the new 29,000-triangle
+/// ceiling arrives at roughly 19,700 vertices. Left at 18,000 the vertex gate would have silently
+/// forbidden the growth the triangle ceiling had just granted, and the first author to spend the
+/// new budget would have hit a wall with no explanation in it. Two ceilings over one mesh only
+/// work if they are moved as one act.
+///
+/// 20,000 holds that measured ratio at the new ceiling. It is not separate permission to split
+/// vertices: the ratio is the thing being preserved, and a mesh that starts duplicating vertices
+/// faster than it adds triangles is doing something worth looking at rather than budgeting for.
+pub const MEDIUM_LOD0_VERT_BUDGET: usize = 20_000;
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
 pub fn t54_description() -> VehicleDescription {

@@ -1,5 +1,5 @@
 use game_core::{VehicleBlueprint, VehicleKind};
-use vehicle_build::MEDIUM_LOD0_TRI_BUDGET;
+use vehicle_build::{MEDIUM_LOD0_TRI_BUDGET, MEDIUM_LOD0_VERT_BUDGET};
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
 #[test]
@@ -8,10 +8,22 @@ fn t54_closeup_budget_reserves_detail_for_the_cast_turret() {
 
     // Pinned on purpose: raising the class budget has to be a deliberate act, not a drift. Moved
     // 22,000 -> 26,000 for Wave 1's construction pass (periscopes as devices, bins with lid seams,
-    // hinges and latches, an exhaust with louvres and an outlet), measured at 24,069 with the
-    // frame cost written down beside the constant itself.
-    assert_eq!(MEDIUM_LOD0_TRI_BUDGET, 26_000);
+    // hinges and latches, an exhaust with louvres and an outlet), then 26,000 -> 29,000 on
+    // 2026-08-09 against a fresh `perf_capture` on the min spec — 1.29 ms of measured frame
+    // headroom, of which the raise spends 0.41 ms at the fourteen-tank worst case.
+    assert_eq!(MEDIUM_LOD0_TRI_BUDGET, 29_000);
     assert_eq!(blueprint.complete_visual().expect("hybrid visual").turret.budget, 12_000);
+
+    // Both ceilings move together or neither does. At the mesh's measured 0.68 vertices per
+    // triangle a shape grown to 29,000 triangles lands near 19,700 vertices, so a vertex ceiling
+    // left behind would forbid the growth the triangle ceiling grants. This pins the pairing, not
+    // just the number.
+    assert_eq!(MEDIUM_LOD0_VERT_BUDGET, 20_000);
+    assert!(
+        MEDIUM_LOD0_VERT_BUDGET as f64 >= MEDIUM_LOD0_TRI_BUDGET as f64 * 0.68,
+        "the vertex ceiling must clear the triangle ceiling at this mesh's measured 0.68 \
+         verts/triangle, or the vertex gate silently caps the triangle budget below its own value"
+    );
 }
 
 #[test]
