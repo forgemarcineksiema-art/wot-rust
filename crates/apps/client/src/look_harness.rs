@@ -24,6 +24,13 @@ pub type LookHarnessError = Box<dyn std::error::Error>;
 /// grass sway both crawl on it: a wall-clock here would make the goldens unlockable.
 const REVIEW_SCENE_TIME_S: f32 = 12.0;
 
+/// The hangar's sun-shaft blades as FX vertices — the ONE public wrapper the review probes
+/// and this harness share, so a probe frame and a golden frame hang the same beams
+/// (`fx::FxSystem::hangar_shaft_vertices` is crate-private).
+pub fn hangar_shaft_fx_vertices() -> Vec<renderer_api::FxVertex> {
+    crate::fx::FxSystem::hangar_shaft_vertices(&scene_build::hangar::sun_shaft_quads())
+}
+
 /// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the
 /// look goldens predate the Świat 2.0 battle lens (48°) and stay a stable instrument — the
 /// battle FOV verdict renders through the `fov_probe` before/after pair instead.
@@ -165,11 +172,15 @@ pub fn render_hangar_review_views(
     // far one draws a map nothing samples. A review artifact shows what the game shows.
     renderer.shadow_cascades = Some(1);
     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
-    // The hero probe (Hala 3.0 B2), the interior detail normal (C1) and the reflection cube
-    // (D1), exactly as the live garage sets them: the locked picture is the played picture.
+    // The hero probe (Hala 3.0 B2), the interior detail normal (C1), the reflection cube
+    // (D1) and the sun shafts (E1), exactly as the live garage sets them: the locked picture
+    // is the played picture. The shafts are static geometry whose drift runs on the frozen
+    // review clock, so they lock; the dust MOTES are a live random trickle and stay live-only
+    // (the same standing exemption the drive-in dust has always had).
     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
+    renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

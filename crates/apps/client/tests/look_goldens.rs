@@ -866,11 +866,14 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
     // actually makes. It reads 0.161 against 0.089, so the hero is 1.8x the room at the median;
     // the bound bites at 1.4x rather than at the measurement, because this is a floor under a
     // relationship and not a re-recording of one frame's tuning.
-    // Raised 1.4 → 2.0 with B1 (the plan's "hero out-lumes the floor" lock, on the moody
-    // grade): the room darkened faster than the subject, and the ratio measured 2.6× at the
-    // shipped grade — a hero merely 1.4× over the room would mean the relight lost its
-    // subject. Still a floor under a relationship, not a re-recording of one frame's tuning.
-    const HERO_OVER_ROOM: f32 = 2.0;
+    // The floor's own history, because each move was a decision: 1.4 at birth (measured 1.8);
+    // raised to 2.0 with B1's moody grade (measured 2.55 — the room darkened faster than the
+    // subject); re-derived to 1.7 with E1's sun shafts (measured 1.88 with the MINIMIZED
+    // blade set — five narrow beams dying a metre over the floor at the faintest glow that
+    // still reads). E1 adds AUTHORED light to the room's air, so the beam-less 2.0 and the
+    // plan's beams could not both stand; the floor moved in the open, with the beams named,
+    // and it still guards the relationship: a hero under 1.7× has stopped leading its frame.
+    const HERO_OVER_ROOM: f32 = 1.7;
     let hero = measured.get("garage_hero").expect("the garage frames its hero");
     let room = frame_stats(&read_png(&golden_path("garage_hero")));
     assert!(

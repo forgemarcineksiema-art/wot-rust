@@ -40,6 +40,9 @@ pub fn shell_tracer_vertices(shells: &[net::ShellSnapshot], eye: [f32; 3]) -> Ve
 pub(crate) struct FxSystem {
     particles: Vec<Particle>,
     rng_state: u64,
+    /// Fractional spawn budget of the hangar's dust-mote trickle (E1), so the rate stays
+    /// framerate-independent.
+    mote_budget: f32,
 }
 
 impl FxSystem {
@@ -137,6 +140,27 @@ mod tests {
             color_begin: [1.0; 4],
             color_end: [0.0; 4],
             stretch_s: 0.0,
+        }
+    }
+
+    /// E1: the mote trickle is rate-budgeted and spawns INSIDE the blade volumes — dust is
+    /// visible only where the light is, and the emitter cannot silently flood the pool.
+    #[test]
+    fn motes_trickle_inside_the_blades() {
+        let blades = scene_build::hangar::sun_shaft_quads();
+        let mut fx = FxSystem::default();
+        fx.hangar_motes(&blades, 2.0);
+        let spawned = fx.live_particles();
+        assert!((3..=8).contains(&spawned), "2 s of trickle is a handful of motes, got {spawned}");
+        for particle in &fx.particles {
+            let p = particle.position;
+            assert!(p.y > 0.0 && p.y < 11.5, "a mote floats in the hall's air: {p:?}");
+            assert!(p.x.abs() < 11.0 && p.z.abs() < 22.0, "a mote stays indoors: {p:?}");
+            assert!(
+                particle.velocity_mps.length() < 0.1,
+                "a mote drifts, it does not fly: {:?}",
+                particle.velocity_mps
+            );
         }
     }
 
