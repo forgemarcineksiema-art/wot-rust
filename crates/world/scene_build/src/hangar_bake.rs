@@ -542,6 +542,144 @@ fn gather_irradiance_at(
 /// Height above the deck the hero probe samples at: mid-hull, where the vehicle's flanks live.
 const HERO_PROBE_HEIGHT_M: f32 = 1.5;
 
+/// Edge of the reflection cubemap's sharpest mip (D1). 64 px per face puts ~1.4° per texel —
+/// enough for a machined deck to mirror the shed bands as BANDS, cheap enough that the whole
+/// six-face gather is ~25k rays against the bake's existing BVH.
+const REFLECTION_FACE_PX: usize = 64;
+/// Mip count of the prefiltered chain: 64 → 1. The shader picks the mip from gloss, so a
+/// rough panel reads the room as a blur and the deck reads it as a picture.
+pub const REFLECTION_MIPS: usize = 7;
+
+/// The reflection cubemap (D1): the room as seen from the hero station, prefiltered.
+///
+/// `mips[0]` holds 6 faces of `REFLECTION_FACE_PX`² texels (RGBA, linear HDR, alpha unused);
+/// each further mip halves the edge, box-filtered — the cheap stand-in for a GGX prefilter
+/// that a 64 px source cannot out-resolve anyway. Face order and orientation follow the
+/// WebGPU cube convention (+x, −x, +y, −y, +z, −z), so the GPU samples it with the raw
+/// reflection direction and the CPU test samples it with [`ReflectionCube::sample`] — the
+/// SAME data both ways, which is what lets `the_rooms_reflection_is_the_room` stop testing a
+/// derivation and start testing the reflection itself.
+#[derive(Clone, PartialEq)]
+pub struct ReflectionCube {
+    pub mips: Vec<[Vec<[f32; 4]>; 6]>,
+}
+
+impl ReflectionCube {
+    /// Edge length of `mip` in texels.
+    pub fn mip_edge(mip: usize) -> usize {
+        (REFLECTION_FACE_PX >> mip).max(1)
+    }
+
+    /// The WebGPU cube-face direction for face `f` at texel-centre coordinates `(u, v)` in
+    /// [−1, 1] — the inverse of the lookup the GPU performs.
+    fn face_direction(face: usize, u: f32, v: f32) -> Vec3 {
+        match face {
+            0 => Vec3::new(1.0, -v, -u),
+            1 => Vec3::new(-1.0, -v, u),
+            2 => Vec3::new(u, 1.0, v),
+            3 => Vec3::new(u, -1.0, -v),
+            4 => Vec3::new(u, -v, 1.0),
+            _ => Vec3::new(-u, -v, -1.0),
+        }
+        .normalize()
+    }
+
+    /// Nearest-texel sample of `mip` along `dir` — the CPU mirror of the GPU lookup, used by
+    /// the reflection lock to ask the cubemap itself what the room reflects.
+    pub fn sample(&self, dir: Vec3, mip: usize) -> [f32; 4] {
+        let ax = dir.x.abs();
+        let ay = dir.y.abs();
+        let az = dir.z.abs();
+        // Major axis picks the face; the remaining two coordinates become (u, v) with the
+        // same signs `face_direction` encodes.
+        let (face, u, v) = if ax >= ay && ax >= az {
+            if dir.x > 0.0 { (0, -dir.z / ax, -dir.y / ax) } else { (1, dir.z / ax, -dir.y / ax) }
+        } else if ay >= az {
+            if dir.y > 0.0 { (2, dir.x / ay, dir.z / ay) } else { (3, dir.x / ay, -dir.z / ay) }
+        } else if dir.z > 0.0 {
+            (4, dir.x / az, -dir.y / az)
+        } else {
+            (5, -dir.x / az, -dir.y / az)
+        };
+        let mip = mip.min(self.mips.len() - 1);
+        let edge = Self::mip_edge(mip);
+        let to_texel = |c: f32| (((c + 1.0) * 0.5 * edge as f32) as usize).min(edge - 1);
+        self.mips[mip][face][to_texel(v) * edge + to_texel(u)]
+    }
+}
+
+/// Gather the reflection cubemap from the hero station (D1): one nearest-hit ray per texel.
+/// A hit returns the surface as the frame roughly shows it — (ambient + cached direct) times
+/// albedo, emitters at their boosted radiance — and a MISS returns the day through the
+/// opening ([`crate::hangar::INTERIOR_BACKGROUND`]), which is precisely what makes the
+/// reflection lock literal: the roof texels of this cubemap ARE the skylights.
+fn gather_reflection_cube(
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    bvh: &Bvh,
+    direct_cache: &[TriDirect],
+    lighting: &SceneLighting,
+) -> ReflectionCube {
+    let point = Vec3::new(0.0, HERO_PROBE_HEIGHT_M, 0.0);
+    let day = crate::hangar::INTERIOR_BACKGROUND;
+    let day = Vec3::new(day.0 as f32, day.1 as f32, day.2 as f32);
+    let ambient = Vec3::from_array(lighting.ambient_rgb);
+    let mut stack: Vec<u32> = Vec::with_capacity(64);
+    let edge = REFLECTION_FACE_PX;
+    let mut base: [Vec<[f32; 4]>; 6] = std::array::from_fn(|_| vec![[0.0; 4]; edge * edge]);
+    for (face, texels) in base.iter_mut().enumerate() {
+        for y in 0..edge {
+            for x in 0..edge {
+                let u = (x as f32 + 0.5) / edge as f32 * 2.0 - 1.0;
+                let v = (y as f32 + 0.5) / edge as f32 * 2.0 - 1.0;
+                let dir = ReflectionCube::face_direction(face, u, v);
+                let radiance = match bvh.nearest_hit(point, dir, &mut stack) {
+                    None => day,
+                    Some((_, tri)) => {
+                        let hit_vertex = &vertices[indices[(tri as usize) * 3] as usize];
+                        let albedo = Vec3::from_array(hit_vertex.color);
+                        if is_emitter(hit_vertex.color) {
+                            albedo * EMISSION_BOOST
+                        } else {
+                            let g = tri_normal(&bvh.tris[tri as usize]).normalize_or(Vec3::Y);
+                            let cached = &direct_cache[tri as usize];
+                            let direct = if g.dot(dir) > 0.0 { cached.back } else { cached.front };
+                            (direct + ambient) * albedo.clamp(Vec3::ZERO, Vec3::ONE)
+                        }
+                    }
+                };
+                texels[y * edge + x] = [radiance.x, radiance.y, radiance.z, 1.0];
+            }
+        }
+    }
+    let mut mips = vec![base];
+    for mip in 1..REFLECTION_MIPS {
+        let src_edge = ReflectionCube::mip_edge(mip - 1);
+        let dst_edge = ReflectionCube::mip_edge(mip);
+        let prev = &mips[mip - 1];
+        let next: [Vec<[f32; 4]>; 6] = std::array::from_fn(|face| {
+            let src = &prev[face];
+            let mut dst = vec![[0.0; 4]; dst_edge * dst_edge];
+            for y in 0..dst_edge {
+                for x in 0..dst_edge {
+                    let mut sum = [0.0f32; 4];
+                    for (sy, sx) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+                        let texel = src[(y * 2 + sy).min(src_edge - 1) * src_edge
+                            + (x * 2 + sx).min(src_edge - 1)];
+                        for (accum, value) in sum.iter_mut().zip(texel) {
+                            *accum += value;
+                        }
+                    }
+                    dst[y * dst_edge + x] = sum.map(|c| c * 0.25);
+                }
+            }
+            dst
+        });
+        mips.push(next);
+    }
+    ReflectionCube { mips }
+}
+
 /// The hero probe: the hall's bounced light at the station, as a six-axis irradiance cube
 /// (±x, ±y, ±z — E(n) blends the three faces the normal leans into by its squared
 /// components). The vehicle shader adds it the way `scene.wgsl` adds the per-vertex bounce
@@ -573,23 +711,24 @@ fn gather_hero_probe(
 pub(super) fn bake_bounce_lane(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
-) -> [[f32; 3]; 6] {
+) -> ([[f32; 3]; 6], ReflectionCube) {
     subdivide_for_bake(vertices, indices);
     let lighting = SceneLighting::garage_hero();
-    let (bounces, probe) = {
+    let (bounces, probe, cube) = {
         let verts: &[SceneVertex] = vertices;
         let idx: &[u32] = indices;
         let bvh = Bvh::build(verts, idx);
         let direct_cache = cache_tri_direct(&bvh, &lighting);
         let bounces = gather_bounce_lanes(verts, idx, &bvh, &direct_cache);
         let probe = gather_hero_probe(verts, idx, &bvh, &direct_cache);
-        (bounces, probe)
+        let cube = gather_reflection_cube(verts, idx, &bvh, &direct_cache, &lighting);
+        (bounces, probe, cube)
     };
 
     for (vertex, bounce) in vertices.iter_mut().zip(bounces) {
         vertex.bounce = bounce;
     }
-    probe
+    (probe, cube)
 }
 
 /// The whole bounce lane, gathered across worker lanes and glued back in vertex order.
@@ -640,10 +779,11 @@ mod tests {
     /// and would have passed against a bake seeded from the clock.
     #[test]
     fn the_bake_is_deterministic() {
-        let (a, _, probe_a) = crate::hangar::build_hangar_scene_mesh();
-        let (b, _, probe_b) = crate::hangar::build_hangar_scene_mesh();
+        let (a, _, probe_a, cube_a) = crate::hangar::build_hangar_scene_mesh();
+        let (b, _, probe_b, cube_b) = crate::hangar::build_hangar_scene_mesh();
         assert_eq!(a.len(), b.len());
         assert_eq!(probe_a, probe_b, "the hero probe must be bit-identical across builds");
+        assert!(cube_a == cube_b, "the reflection cube must be bit-identical across builds");
         for (x, y) in a.iter().zip(&b) {
             assert_eq!(x.bounce, y.bounce, "bounce must be bit-identical across builds");
         }

@@ -163,7 +163,12 @@ impl super::SceneRenderer {
                     self.rain_phase_s,
                 ],
                 hero_probe: self.hero_probe,
-                scene_params: [if self.interior_detail_normal { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
+                scene_params: [
+                    if self.interior_detail_normal { 1.0 } else { 0.0 },
+                    if self.environment_cube_set { 1.0 } else { 0.0 },
+                    0.0,
+                    0.0,
+                ],
             },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);

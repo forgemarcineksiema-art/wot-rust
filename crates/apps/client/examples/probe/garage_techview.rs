@@ -81,6 +81,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_interior_background(bg_r, bg_g, bg_b);
     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
     renderer.set_interior_detail_normal(true);
+    renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
 
     // The tech tree HUD overlay.
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();

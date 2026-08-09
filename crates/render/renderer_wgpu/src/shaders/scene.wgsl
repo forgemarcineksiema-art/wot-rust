@@ -422,8 +422,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         let lobe = pow(max(dot(n, halfway), 0.0), shininess);
         let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(n, view), 0.0), 5.0);
         let reflected = reflect(-view, n);
+        // D1: indoors the reflection is the ROOM (the baked cubemap, mip by gloss); outdoors
+        // it stays the analytic sky. One helper decides (`env_reflection`, shadow_common).
         lit += camera.key_rgb * lobe * gloss * shadow
-            + env_sky(reflected) * gloss * gloss * fresnel * ao;
+            + env_reflection(reflected, gloss) * gloss * gloss * fresnel * ao;
     }
     // Linear HDR out: the display transform lives in the central post pass (rule 7).
     return vec4<f32>(apply_fog(lit, input.world_pos), 1.0);

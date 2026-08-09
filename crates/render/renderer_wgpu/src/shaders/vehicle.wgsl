@@ -453,7 +453,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
     let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
     let fracture_env = select(1.0, 0.32, fractured_steel);
-    let env = env_sky(reflect(-view_dir, world_n))
+    // D1: in the garage the hull mirrors the ROOM (the baked cubemap, mip by smoothness);
+    // on the battlefield it keeps the analytic sky. Same helper the scene gloss path uses,
+    // so the deck and the hull reflect the same hall.
+    let env = env_reflection(reflect(-view_dir, world_n), smoothness)
         * smoothness * smoothness * fresnel * indirect_occlusion
         * (1.0 - burnt * 0.85) * interior_env * fracture_env;
 

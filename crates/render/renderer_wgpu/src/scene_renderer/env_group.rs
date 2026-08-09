@@ -51,6 +51,18 @@ pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupL
             depth_texture(4),
             float_texture(5),
             filtering_sampler(6),
+            // The interior reflection cubemap (Hala 3.0 D1); a 1x1 black cube outside the
+            // garage. Shares the filtering sampler at binding 3.
+            wgpu::BindGroupLayoutEntry {
+                binding: 7,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
+                },
+                count: None,
+            },
         ],
     })
 }
@@ -67,6 +79,7 @@ pub(crate) fn build_environment_bind_group(
     ao_sampler: &wgpu::Sampler,
     cloud_view: &wgpu::TextureView,
     cloud_sampler: &wgpu::Sampler,
+    env_cube_view: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("shadow_bg"),
@@ -99,6 +112,10 @@ pub(crate) fn build_environment_bind_group(
             wgpu::BindGroupEntry {
                 binding: 6,
                 resource: wgpu::BindingResource::Sampler(cloud_sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: wgpu::BindingResource::TextureView(env_cube_view),
             },
         ],
     })

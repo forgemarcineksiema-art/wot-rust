@@ -80,6 +80,86 @@ pub(crate) struct ShadowResources {
     /// The baked cloud-coverage tile + repeat sampler (group-2 bindings 5–6, `cloud_map.rs`).
     cloud_view: wgpu::TextureView,
     cloud_sampler: wgpu::Sampler,
+    /// The interior reflection cubemap (group-2 binding 7, Hala 3.0 D1): the garage's baked
+    /// room cube while in the garage, a 1x1 black cube everywhere else.
+    env_cube_view: wgpu::TextureView,
+    /// The last AO view the group was bound with, so a cubemap swap can rebuild the group.
+    last_ao_view: Option<wgpu::TextureView>,
+}
+
+/// Create a cube texture + view from baked mips (RGBA f32 → f16), or the 1x1 black default.
+fn create_env_cube(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    mips: Option<&[[Vec<[f32; 4]>; 6]]>,
+) -> wgpu::TextureView {
+    let (edge, mip_count) = match mips {
+        Some(mips) => ((mips[0][0].len() as f32).sqrt() as u32, mips.len() as u32),
+        None => (1, 1),
+    };
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("env_cube"),
+        size: wgpu::Extent3d { width: edge, height: edge, depth_or_array_layers: 6 },
+        mip_level_count: mip_count,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba16Float,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for mip in 0..mip_count {
+        let mip_edge = (edge >> mip).max(1);
+        for face in 0..6u32 {
+            let texels: Vec<u16> = match mips {
+                Some(mips) => mips[mip as usize][face as usize]
+                    .iter()
+                    .flat_map(|texel| texel.map(f32_to_f16_bits))
+                    .collect(),
+                None => vec![0u16; 4],
+            };
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: mip,
+                    origin: wgpu::Origin3d { x: 0, y: 0, z: face },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytemuck::cast_slice(&texels),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(mip_edge * 8),
+                    rows_per_image: Some(mip_edge),
+                },
+                wgpu::Extent3d { width: mip_edge, height: mip_edge, depth_or_array_layers: 1 },
+            );
+        }
+    }
+    texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::Cube),
+        ..Default::default()
+    })
+}
+
+/// f32 → IEEE half bits, round-to-nearest-even — enough for positive HDR radiance (the only
+/// thing the cube carries); NaN/inf never leave the bake (its HDR-envelope lock says so).
+fn f32_to_f16_bits(value: f32) -> u16 {
+    let bits = value.to_bits();
+    let sign = ((bits >> 16) & 0x8000) as u16;
+    let exponent = ((bits >> 23) & 0xff) as i32;
+    let mantissa = bits & 0x007f_ffff;
+    if exponent <= 112 {
+        // Too small for a normal half: flush to zero (denormals carry no visible radiance).
+        return sign;
+    }
+    if exponent >= 143 {
+        // Overflow: saturate to the largest finite half.
+        return sign | 0x7bff;
+    }
+    let half_exponent = ((exponent - 112) as u16) << 10;
+    let half_mantissa = (mantissa >> 13) as u16;
+    // Round to nearest (ties away — a 2^-11 bias nobody can see).
+    let round = ((mantissa >> 12) & 1) as u16;
+    sign | half_exponent | half_mantissa | round
 }
 
 impl ShadowResources {
@@ -152,6 +232,9 @@ impl ShadowResources {
             ..Default::default()
         });
         let (cloud_view, cloud_sampler) = super::cloud_map::create_cloud_resources(device, queue);
+        // The interior reflection cubemap's DEFAULT: a 1x1 black cube — outside the garage the
+        // shader never samples it (scene_params.y gates the tap), but the binding must exist.
+        let env_cube_view = create_env_cube(device, queue, None);
         let bind_group = super::env_group::build_environment_bind_group(
             device,
             shadow_bgl,
@@ -162,6 +245,7 @@ impl ShadowResources {
             &ao_sampler,
             &cloud_view,
             &cloud_sampler,
+            &env_cube_view,
         );
         // Scene casters go through the CUTOUT entries (position + uv, atlas at group 1) so a
         // leaf's shadow is its mask; the fleet keeps the plain depth path — vehicle vertices
@@ -216,16 +300,37 @@ impl ShadowResources {
             ao_sampler,
             cloud_view,
             cloud_sampler,
+            env_cube_view,
+            last_ao_view: None,
         }
     }
 
-    /// Re-point the group-2 environment bind group at a (re)created SSAO target.
+    /// Swap the interior reflection cubemap (Hala 3.0 D1): `Some(mips)` uploads the baked,
+    /// prefiltered cube (each mip is 6 faces of RGBA f32 texels, converted to f16 here);
+    /// `None` restores the black default. Rebuilds the group-2 bind group in place.
+    pub fn set_env_cube(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        shadow_bgl: &wgpu::BindGroupLayout,
+        mips: Option<&[[Vec<[f32; 4]>; 6]]>,
+    ) {
+        self.env_cube_view = create_env_cube(device, queue, mips);
+        if let Some(ao_view) = self.last_ao_view.clone() {
+            self.rebind_ao(device, shadow_bgl, &ao_view);
+        }
+    }
+
+    /// Re-point the group-2 environment bind group at a (re)created SSAO target. Remembers the
+    /// view so a later cubemap swap (`set_env_cube`) can rebuild the group without being handed
+    /// the AO view again.
     pub fn rebind_ao(
         &mut self,
         device: &wgpu::Device,
         shadow_bgl: &wgpu::BindGroupLayout,
         ao_view: &wgpu::TextureView,
     ) {
+        self.last_ao_view = Some(ao_view.clone());
         self.bind_group = super::env_group::build_environment_bind_group(
             device,
             shadow_bgl,
@@ -236,6 +341,7 @@ impl ShadowResources {
             &self.ao_sampler,
             &self.cloud_view,
             &self.cloud_sampler,
+            &self.env_cube_view,
         );
     }
 

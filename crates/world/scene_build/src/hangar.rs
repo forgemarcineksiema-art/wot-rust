@@ -376,7 +376,7 @@ fn push_shed_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// whole build runs once per process and callers take a copy of the cached result.
 /// Everything one hall build produces: the render mesh (vertices, indices) and the hero
 /// probe's six-face irradiance cube, baked in the same pass over the same BVH.
-type BakedHall = (Vec<SceneVertex>, Vec<u32>, [[f32; 3]; 6]);
+type BakedHall = (Vec<SceneVertex>, Vec<u32>, [[f32; 3]; 6], super::hangar_bake::ReflectionCube);
 static MESH: std::sync::OnceLock<BakedHall> = std::sync::OnceLock::new();
 /// Guards [`prewarm`] so the worker is spawned once however many times it is asked for.
 static PREWARM: std::sync::Once = std::sync::Once::new();
@@ -388,7 +388,7 @@ static PREWARM: std::sync::Once = std::sync::Once::new();
 /// build is seconds of work, and the first caller used to be `ensure_scene`, inside the frame
 /// that opens the garage.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
-    let (vertices, indices, _) = MESH.get_or_init(build_hangar_scene_mesh);
+    let (vertices, indices, _, _) = MESH.get_or_init(build_hangar_scene_mesh);
     (vertices.clone(), indices.clone())
 }
 
@@ -397,6 +397,13 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
 /// finally receives the room's GI (G5). Blocks with the mesh; `prewarm` covers both.
 pub fn hangar_hero_probe() -> [[f32; 3]; 6] {
     MESH.get_or_init(build_hangar_scene_mesh).2
+}
+
+/// The reflection cubemap baked beside the mesh (D1): the room as seen from the hero station,
+/// prefiltered per mip. The garage swap uploads it as the interior environment cube; the
+/// reflection lock samples it directly — the room's reflection IS this data, both ways.
+pub fn hangar_reflection_cube() -> super::hangar_bake::ReflectionCube {
+    MESH.get_or_init(build_hangar_scene_mesh).3.clone()
 }
 
 /// Start the hall's build on a worker and return immediately. Idempotent, and safe to call
@@ -666,11 +673,11 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
 
     // Hala 2.0 T1: subdivide for bake resolution and gather one bounce of light into the
     // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
-    // albedos; cached by `hangar_scene_mesh` because the gather is real work. B2: the same
-    // pass gathers the hero probe — the station's irradiance cube — from the same machinery.
-    let probe = super::hangar_bake::bake_bounce_lane(&mut v, &mut i);
+    // albedos; cached by `hangar_scene_mesh` because the gather is real work. B2 gathers the
+    // hero probe in the same pass; D1 gathers the reflection cubemap — one BVH, one bake.
+    let (probe, cube) = super::hangar_bake::bake_bounce_lane(&mut v, &mut i);
 
-    (v, i, probe)
+    (v, i, probe, cube)
 }
 
 /// Analytic, view-independent corner shade baked into the vertex colours of the hall's
@@ -1227,6 +1234,47 @@ mod tests {
             luma(rig.sky_horizon_rgb) < wall,
             "the sideways reflection may not out-lume the wall's own albedo ({wall:.3})"
         );
+
+        // D1 MADE THE LOCK LITERAL: interiors reflect the CUBEMAP now (the profile's two sky
+        // colours keep only the outdoor fallback duty), so the rest of this test asks the
+        // cube itself — and holds its PHYSICS, not the retired approximation. First
+        // measurement recorded the difference honestly: the blurred upward texel reads 0.97
+        // where the old zenith claim said 0.34, because the cube weights the cone actually
+        // overhead (the sun shed's glazing) while the derivation averaged the whole roof.
+        let cube = hangar_reflection_cube();
+        let cube_luma =
+            |sample: [f32; 4]| 0.2126 * sample[0] + 0.7152 * sample[1] + 0.0722 * sample[2];
+        let up_luma = cube_luma(cube.sample(Vec3::Y, 4));
+        let day_luma = luma([
+            INTERIOR_BACKGROUND.0 as f32,
+            INTERIOR_BACKGROUND.1 as f32,
+            INTERIOR_BACKGROUND.2 as f32,
+        ]);
+        assert!(
+            up_luma < day_luma,
+            "a roof with decks in it cannot out-lume the bare day: {up_luma:.3} vs {day_luma:.3}"
+        );
+        // A mirror looking through the sun shed's glazing sees the DAY, not a wall: the sharp
+        // mip along the known-open lane carries daylight-class radiance.
+        let glazing_luma = cube_luma(cube.sample(Vec3::new(-2.4, 8.3, 4.0).normalize(), 0));
+        assert!(
+            glazing_luma > 0.8,
+            "the glazing texels of the room's reflection must carry the day: {glazing_luma:.3}"
+        );
+        // ...straight down is the lit deck — a surface, present and lit, not a void...
+        let down_luma = cube_luma(cube.sample(Vec3::NEG_Y, 0));
+        assert!(
+            down_luma > 0.02,
+            "the deck under the probe must reflect as a lit surface: {down_luma:.3}"
+        );
+        // ...and the roofward blur out-lumes the floorward blur: the room is lit through its
+        // roof, and its reflection says so.
+        let down_blur = cube_luma(cube.sample(Vec3::NEG_Y, 4));
+        assert!(
+            up_luma > down_blur,
+            "the day through the roof must out-lume the deck's return: up {up_luma:.3} vs \
+             down {down_blur:.3}"
+        );
     }
 
     /// The garage's shadow boxes pin to the turntable, and the pin is inside the hall.
@@ -1737,7 +1785,7 @@ mod tests {
     #[test]
     fn the_cold_bake_is_measured() {
         let started = std::time::Instant::now();
-        let (vertices, indices, _) = build_hangar_scene_mesh();
+        let (vertices, indices, _, _) = build_hangar_scene_mesh();
         let cost = started.elapsed();
         println!(
             "HANGAR COLD BAKE: {:?} for {} vertices / {} triangles",
