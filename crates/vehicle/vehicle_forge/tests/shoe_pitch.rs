@@ -23,7 +23,7 @@
 //! cover it. Nothing failed: the belt still closed, the budget still held, and it simply looked
 //! coarse.
 
-use game_core::{VehicleKind, VehicleBlueprint};
+use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_geometry::RunningGearKinematics;
 
 /// Rendered shoe pitch in metres: the loop the links actually ride, over the links riding it.

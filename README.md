@@ -64,6 +64,5 @@ zooms, **Shift** holds the sniper scope. `--example probe -- screenshot` renders
 
 - `CLAUDE.md` — the working contract for any contributor or AI tool.
 - `docs/engineering-rules.md`, `docs/testing-and-regression.md` — hard project rules.
-- `docs/battle-first/program.md` — the live program status; `docs/maps/*.md` — per-map dossiers.
-- `docs/map-forge-policy.md`, `docs/honest-steel-policy.md`, `docs/shadow-policy.md` — the
-  standing doctrines.
+- `docs/ROADMAP.md` — the live program status; `docs/maps/*.md` — per-map dossiers.
+- `docs/map-forge-policy.md`, `docs/shadow-policy.md` — the standing doctrines.
