@@ -69,58 +69,117 @@ fn read_png(path: &PathBuf) -> Vec<u8> {
     buf
 }
 
+/// Which half of the review set a re-record covers.
+///
+/// `WOT_UPDATE_GOLDENS=1` still re-records everything. The scoped forms exist because the two
+/// halves rot INDEPENDENTLY and at wildly different rates, and re-recording one should not
+/// silently bless the other. Measured 2026-08-09 against the committed set: the twenty
+/// battlefield frames were 45-78% different with mean deltas of 5-73/255 (the world was rebuilt
+/// under them and nobody re-recorded), while the four garage frames were 8-11% different at a
+/// mean delta of ~3. Without a scope, a garage PR that re-records its own four frames folds
+/// twenty unreviewed world frames into its diff — which is the opposite of what the byte lock
+/// is for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UpdateScope {
+    /// Compare only — the gate's normal mode.
+    None,
+    Battlefield,
+    Garage,
+    All,
+}
+
+impl UpdateScope {
+    fn from_env() -> Self {
+        match std::env::var("WOT_UPDATE_GOLDENS").as_deref() {
+            Ok("1" | "all") => Self::All,
+            Ok("battlefield") => Self::Battlefield,
+            Ok("garage") => Self::Garage,
+            _ => Self::None,
+        }
+    }
+
+    fn records_battlefield(self) -> bool {
+        matches!(self, Self::All | Self::Battlefield)
+    }
+
+    fn records_garage(self) -> bool {
+        matches!(self, Self::All | Self::Garage)
+    }
+
+    fn is_recording(self) -> bool {
+        self != Self::None
+    }
+}
+
+/// Compare one rendered view against its golden, or record it. A drifted view is APPENDED to
+/// `drift` rather than asserted on the spot: an `assert_eq!` inside the loop stops the run at
+/// the first bad frame, and because the garage renders last, one stale Prokhorovka frame meant
+/// the garage's byte lock never executed at all. Every view is checked; the whole list is
+/// reported once.
+fn check_or_record(name: &str, pixels: &[u8], record: bool, drift: &mut Vec<String>) {
+    let path = golden_path(name);
+    if record {
+        write_png(&path, pixels);
+        eprintln!("recorded {}", path.display());
+        return;
+    }
+    let golden = read_png(&path);
+    if golden == pixels {
+        return;
+    }
+    let (mut differing, mut max_delta) = (0u32, 0u32);
+    for (a, b) in golden.chunks_exact(4).zip(pixels.chunks_exact(4)) {
+        let delta = (0..3).map(|c| a[c].abs_diff(b[c]) as u32).max().unwrap_or(0);
+        differing += u32::from(delta > 0);
+        max_delta = max_delta.max(delta);
+    }
+    drift.push(format!(
+        "{name}: {:.2}% of pixels differ, max delta {max_delta}",
+        differing as f32 / (WIDTH * HEIGHT) as f32 * 100.0
+    ));
+}
+
 #[test]
 fn look_goldens_match_their_recordings() {
-    if std::env::var("WOT_LOOK_GOLDENS").as_deref() != Ok("1")
-        && std::env::var("WOT_UPDATE_GOLDENS").as_deref() != Ok("1")
-    {
+    let scope = UpdateScope::from_env();
+    if std::env::var("WOT_LOOK_GOLDENS").as_deref() != Ok("1") && !scope.is_recording() {
         eprintln!("skipping look goldens (set WOT_LOOK_GOLDENS=1 to enable)");
         return;
     }
-    let update = std::env::var("WOT_UPDATE_GOLDENS").as_deref() == Ok("1");
+    let mut drift: Vec<String> = Vec::new();
 
-    for map in REVIEWED_MAPS {
-        let battlefield = map_forge::battlefield(map);
-        let views = review_views_for(map, &battlefield);
-        let frames = render_views(map, &views);
-
-        for (view, pixels) in views.iter().zip(&frames) {
-            let path = golden_path(&view.name);
-            if update {
-                write_png(&path, pixels);
-                eprintln!("recorded {}", path.display());
-                continue;
+    // A scoped re-record skips the half it is not recording rather than comparing it: the whole
+    // point of the scope is to touch one half while the other is knowingly out of date.
+    if !scope.is_recording() || scope.records_battlefield() {
+        for map in REVIEWED_MAPS {
+            let battlefield = map_forge::battlefield(map);
+            let views = review_views_for(map, &battlefield);
+            let frames = render_views(map, &views);
+            for (view, pixels) in views.iter().zip(&frames) {
+                check_or_record(&view.name, pixels, scope.records_battlefield(), &mut drift);
             }
-            let golden = read_png(&path);
-            assert_eq!(
-                &golden, pixels,
-                "{} drifted from its golden — if the look change is deliberate, re-record with \
-                 WOT_UPDATE_GOLDENS=1 and say why in the PR",
-                view.name
-            );
         }
     }
 
     // The garage: an interior studio with its own light rig and its own lens, but the same
     // display transform and the same locks. It had no golden at all before this.
-    let hangar_views = client::hangar_review_views();
-    let hangar_frames = client::render_hangar_review_views(&hangar_views, WIDTH, HEIGHT)
-        .expect("hangar review render");
-    for (view, pixels) in hangar_views.iter().zip(&hangar_frames) {
-        let path = golden_path(&view.name);
-        if update {
-            write_png(&path, pixels);
-            eprintln!("recorded {}", path.display());
-            continue;
+    if !scope.is_recording() || scope.records_garage() {
+        let hangar_views = client::hangar_review_views();
+        let hangar_frames = client::render_hangar_review_views(&hangar_views, WIDTH, HEIGHT)
+            .expect("hangar review render");
+        for (view, pixels) in hangar_views.iter().zip(&hangar_frames) {
+            check_or_record(&view.name, pixels, scope.records_garage(), &mut drift);
         }
-        let golden = read_png(&path);
-        assert_eq!(
-            &golden, pixels,
-            "{} drifted from its golden — if the look change is deliberate, re-record with \
-             WOT_UPDATE_GOLDENS=1 and say why in the PR",
-            view.name
-        );
     }
+
+    assert!(
+        drift.is_empty(),
+        "{} locked frame(s) drifted from their goldens — if the look change is deliberate, \
+         re-record with WOT_UPDATE_GOLDENS=1 (or =garage / =battlefield for one half) and say \
+         what changed about the PICTURE in the PR:\n  {}",
+        drift.len(),
+        drift.join("\n  ")
+    );
 
     // The byte-exact contract this harness rests on: the same view renders identically twice
     // on one machine (the render is a pure function of scene + profile + the fixed clock).
