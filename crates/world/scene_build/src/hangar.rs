@@ -159,6 +159,20 @@ const SKYLIGHT_BANDS: [(f32, f32); 3] = [(-6.85, 3.2), (1.8, 1.6), (10.8, 1.6)];
 /// The bands' half-length along z; the roof stays solid in a border along both end walls.
 const SKYLIGHT_HALF_Z: f32 = 13.0;
 
+/// How much of the roof plane is open sky, as a fraction of its area.
+///
+/// The room's own answer to "what is overhead", and the reason it is a function rather than a
+/// number: `SceneLighting::garage_hero`'s `sky_zenith_rgb` is what every polished surface in
+/// the hall reflects upward, and it has to be this fraction of the daylight behind the
+/// openings ([`INTERIOR_BACKGROUND`]) or the reflection disagrees with the roof it is a
+/// reflection of. `the_rooms_reflection_is_the_room` holds the two together across the crate
+/// boundary that stops the profile computing it directly.
+pub fn skylight_open_fraction() -> f32 {
+    let open: f32 = SKYLIGHT_BANDS.iter().map(|(_, half_x)| 2.0 * half_x).sum::<f32>()
+        * (2.0 * SKYLIGHT_HALF_Z);
+    open / ((2.0 * HALF) * (2.0 * HALF))
+}
+
 /// The roof: solid strips between the skylight bands, end caps closing each band short of the
 /// walls, and thin glazing mullions across the openings (they cast the honest striped shadows
 /// a glazed roof throws). Through the openings the renderer's interior background shows — set
@@ -676,6 +690,63 @@ mod tests {
         assert!(
             ray_hits_mesh([0.0, deck, 0.0], [0.0, 1.0, 0.0], &vertices, &indices),
             "straight overhead stays roofed"
+        );
+    }
+
+    /// THE ROOM IS WHAT THE ROOM REFLECTS. `env_sky` is the only environment term the scene and
+    /// vehicle shaders have, and indoors it is fed by the profile's two sky colours — so those
+    /// two numbers ARE the hall, as far as the turntable deck, the rails and every painted
+    /// panel on the hero are concerned.
+    ///
+    /// They were a leftover outdoor gradient: 0.12 overhead against 0.17 sideways, while the
+    /// roof openings show 1.30/1.38/1.55. That is a reflection seven to ten times darker than
+    /// the daylight standing above it, and ordered the wrong way round — outdoors the horizon
+    /// out-lumes the zenith, under a glazed roof it cannot.
+    ///
+    /// This holds the profile to the ROOF: the overhead colour must be the skylights' area
+    /// share of the daylight behind them, within the margin the mullions, trusses and crane
+    /// girder hanging under the openings account for. Move a band, widen one, or repaint the
+    /// day outside, and this fails until the reflection follows.
+    #[test]
+    fn the_rooms_reflection_is_the_room() {
+        let rig = renderer_api::SceneLighting::garage_hero();
+        let open = skylight_open_fraction();
+        assert!(
+            (0.15..0.45).contains(&open),
+            "a roof that is nearly all glass or nearly all slab is a different room: {open}"
+        );
+
+        // Overhead: the openings' share of the day behind them, minus what hangs under them.
+        // The floor is 60% of the geometric estimate — below it the reflection is darker than
+        // the roof can possibly be; above it, brighter than a roof with bars across it.
+        let daylight = [
+            INTERIOR_BACKGROUND.0 as f32,
+            INTERIOR_BACKGROUND.1 as f32,
+            INTERIOR_BACKGROUND.2 as f32,
+        ];
+        for (channel, day) in rig.sky_zenith_rgb.iter().zip(daylight) {
+            let geometric = day * open;
+            assert!(
+                *channel >= geometric * 0.6 && *channel <= geometric * 1.15,
+                "the overhead reflection must be the skylights' share of the day: {channel} \
+                 against {open:.3} x {day} = {geometric:.3}"
+            );
+        }
+
+        // ...and it out-lumes the walls, which is the inverse of the outdoor rule and the whole
+        // difference between a roof with holes in it and a sky.
+        let luma = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        assert!(
+            luma(rig.sky_zenith_rgb) > luma(rig.sky_horizon_rgb) * 1.5,
+            "a glazed roof must out-lume the gunmetal wall: overhead {:?}, across {:?}",
+            rig.sky_zenith_rgb,
+            rig.sky_horizon_rgb
+        );
+        // The wall's reflection stays in the wall's own range: it is lit gunmetal, not a light.
+        let wall = luma(METAL);
+        assert!(
+            luma(rig.sky_horizon_rgb) < wall,
+            "the sideways reflection may not out-lume the wall's own albedo ({wall:.3})"
         );
     }
 
