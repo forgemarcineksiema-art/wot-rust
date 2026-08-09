@@ -7,7 +7,6 @@
 use renderer_api::{TerrainGroundMaps, TerrainMaterialSet};
 use terrain::{BattlefieldMap, MapId};
 
-use super::battlefield::bake_lane_count;
 use terrain::GroundClassifier;
 
 /// Texture edge: 1024 texels over a 1000 m map is ~1 m ground truth per texel — the macro
@@ -257,14 +256,11 @@ struct GroundBakeRows {
     puddle_propensity: Vec<f32>,
 }
 
-/// Row ranges to bake concurrently — one per worker lane (see [`bake_lane_count`]), never more
-/// ranges than rows.
+/// Row ranges to bake concurrently — one per worker lane, never more ranges than rows. The
+/// split itself lives in [`crate::battlefield::bake_lane_ranges`]; the hangar's bounce gather
+/// partitions its vertices with the same plan.
 fn ground_bake_row_chunks(size: usize) -> Vec<(usize, usize)> {
-    let rows_per_chunk = size.div_ceil(bake_lane_count(size));
-    (0..size)
-        .step_by(rows_per_chunk)
-        .map(|start| (start, (start + rows_per_chunk).min(size)))
-        .collect()
+    crate::battlefield::bake_lane_ranges(size)
 }
 
 /// Bake the splat + macro-normal maps for a battlefield. UV spans the heightmap's ground

@@ -192,16 +192,54 @@ fn push_skylight_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     }
 }
 
+/// The hall is static and its GI bake is honest work (a hemisphere of rays per vertex), so the
+/// whole build runs once per process and callers take a copy of the cached result.
+static MESH: std::sync::OnceLock<(Vec<SceneVertex>, Vec<u32>)> = std::sync::OnceLock::new();
+/// Guards [`prewarm`] so the worker is spawned once however many times it is asked for.
+static PREWARM: std::sync::Once = std::sync::Once::new();
+
 /// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
 /// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
+///
+/// **This blocks until the hall exists**, which is why [`prewarm`] is called at startup: the
+/// build is seconds of work, and the first caller used to be `ensure_scene`, inside the frame
+/// that opens the garage.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
-    // The hall is static and its GI bake is honest work (a hemisphere of rays per vertex), so
-    // the whole build runs once per process and callers take a copy of the cached result.
-    static MESH: std::sync::OnceLock<(Vec<SceneVertex>, Vec<u32>)> = std::sync::OnceLock::new();
     MESH.get_or_init(build_hangar_scene_mesh).clone()
 }
 
-fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
+/// Start the hall's build on a worker and return immediately. Idempotent, and safe to call
+/// before anything wants the mesh: a caller that arrives while the worker is still going simply
+/// waits for it in `get_or_init` instead of building a second copy.
+///
+/// It exists because the build is not cheap and the comment that said it was cost the player a
+/// frozen frame. Measured with the gather serial and allocating per ray: **1 902 / 1 919 /
+/// 1 940 ms in release**, run synchronously inside `ensure_scene` on the first garage entry —
+/// an order of magnitude past the battlefield stall that earned the scene cache its own
+/// app-lifetime bake. The gather runs on worker lanes now and the ray scratch is hoisted out
+/// of the traversal, which takes it to **531 ms** in release; this takes the rest out of the
+/// frame entirely, the way `poll_map_prebake` already takes the map bake out of the Battle
+/// press.
+pub fn prewarm() {
+    PREWARM.call_once(|| {
+        // A failed spawn is not an error worth propagating: the lazy path in
+        // `hangar_scene_mesh` still builds the hall, exactly as it did before this existed.
+        let _ = std::thread::Builder::new()
+            .name("hangar-bake".to_string())
+            .spawn(|| MESH.get_or_init(build_hangar_scene_mesh));
+    });
+}
+
+/// Whether the hall is already in the cache — the prewarm's observable, so a caller can tell
+/// "the worker finished" from "the worker is still going" without blocking on the answer.
+pub fn is_baked() -> bool {
+    MESH.get().is_some()
+}
+
+/// The uncached build. `pub(crate)` so the bake's own tests can run it twice: through
+/// [`hangar_scene_mesh`] they cannot, because the `OnceLock` hands both calls the same value —
+/// which is exactly how `the_bake_is_deterministic` came to compare a clone with itself.
+pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
     let h = WALL_HEIGHT / 2.0;
@@ -939,12 +977,62 @@ mod tests {
         );
     }
 
-    /// The hall re-bakes on every garage entry: the whole dressed interior must stay cheap.
+    /// The hall's SIZE budget. It used to be the whole of what this file measured, under a
+    /// comment claiming "the hall re-bakes on every garage entry" — which was false (the
+    /// `OnceLock` bakes once) and, worse, pointed the budget at a proxy: vertex count is not
+    /// what the player waits for. The cost is measured next door, in
+    /// `the_hall_is_built_off_the_thread_that_asks_for_it` and `the_cold_bake_is_measured`.
     #[test]
-    fn the_hangar_bakes_cheap() {
+    fn the_hangar_stays_inside_its_size_budget() {
         let (vertices, indices) = hangar_scene_mesh();
         assert!(vertices.len() < 30_000, "hangar vertex budget: {}", vertices.len());
         assert!(indices.len() < 120_000, "hangar index budget: {}", indices.len());
+    }
+
+    /// THE LOCK BEHIND `prewarm`: asking for the hall must not build it on the asking thread.
+    ///
+    /// The bound is three orders of magnitude under the build it replaces, so it cannot flake
+    /// on a slow machine and cannot pass if someone makes `prewarm` synchronous again — which
+    /// is the whole failure this exists to prevent. The hall itself is proven to arrive by
+    /// every other test in this file; here the only question is who builds it.
+    #[test]
+    fn the_hall_is_built_off_the_thread_that_asks_for_it() {
+        let asked = std::time::Instant::now();
+        prewarm();
+        let cost_to_the_caller = asked.elapsed();
+        assert!(
+            cost_to_the_caller < std::time::Duration::from_millis(50),
+            "prewarm built the hall on the caller's thread: it cost {cost_to_the_caller:?}"
+        );
+        // And the worker really is building the same hall — after the blocking call the cache
+        // is warm however the race went.
+        let (vertices, _) = hangar_scene_mesh();
+        assert!(!vertices.is_empty());
+        assert!(is_baked(), "the cache is warm once the mesh has been handed out");
+    }
+
+    /// The cold build, measured through the private builder so the `OnceLock` cannot hide it,
+    /// and PRINTED — a number nobody writes down is a number nobody can be held to.
+    ///
+    /// The ceiling catches an order-of-magnitude regression (a ray count, an edge limit or a
+    /// lost worker lane), not a tuning wobble: tests run at `opt-level = 1`, where the same
+    /// work costs several times its release price, and CI machines vary. What the number is
+    /// FOR is the release measurement in `prewarm`'s docs.
+    #[test]
+    fn the_cold_bake_is_measured() {
+        let started = std::time::Instant::now();
+        let (vertices, indices) = build_hangar_scene_mesh();
+        let cost = started.elapsed();
+        println!(
+            "HANGAR COLD BAKE: {:?} for {} vertices / {} triangles",
+            cost,
+            vertices.len(),
+            indices.len() / 3
+        );
+        assert!(
+            cost < std::time::Duration::from_secs(20),
+            "the hangar bake regressed by an order of magnitude: {cost:?}"
+        );
     }
 
     /// Nothing may invade the hero's stage: the turntable's air column stays clear for the

@@ -113,6 +113,18 @@ pub(crate) fn bake_lane_count(items: usize) -> usize {
         .min(items.max(1))
 }
 
+/// `items` split into one contiguous `[start, end)` range per worker lane, in order.
+///
+/// The plan tiles `0..items` exactly once — no gap leaves work undone, no overlap makes the
+/// concatenation longer than the thing being baked — so a caller may run the ranges on threads
+/// and glue the results back together in range order without the split showing in the output.
+/// Shared by the ground-map bake (rows) and the hangar's bounce gather (vertices): two bakes
+/// that split different things the same way, and one of them would otherwise be a copy.
+pub(crate) fn bake_lane_ranges(items: usize) -> Vec<(usize, usize)> {
+    let per_lane = items.div_ceil(bake_lane_count(items)).max(1);
+    (0..items).step_by(per_lane).map(|start| (start, (start + per_lane).min(items))).collect()
+}
+
 /// The statics bake is partitioned into an XZ grid of BUCKETS plus one backdrop bucket, so a
 /// cover-phase change re-bakes one map cell instead of the whole statics mesh (urban-map
 /// program PR-04: an urban core carries 110-140 boxes, and the full bake is the ~25 ms the

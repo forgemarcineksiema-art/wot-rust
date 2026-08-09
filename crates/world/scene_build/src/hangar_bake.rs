@@ -226,9 +226,15 @@ impl Bvh {
     }
 
     /// Nearest hit along `dir` from `origin`, as (distance, triangle index).
-    fn nearest_hit(&self, origin: Vec3, dir: Vec3) -> Option<(f32, u32)> {
+    ///
+    /// `stack` is the caller's traversal scratch, cleared on entry. It is a parameter rather
+    /// than a local because this runs ~284 000 times per bake and a `vec![0u32]` per call is
+    /// that many heap allocations — a third of the gather's wall time went into the allocator
+    /// before the buffer was hoisted to the worker.
+    fn nearest_hit(&self, origin: Vec3, dir: Vec3, stack: &mut Vec<u32>) -> Option<(f32, u32)> {
         let inv = dir.recip();
-        let mut stack = vec![0u32];
+        stack.clear();
+        stack.push(0u32);
         let mut best: Option<(f32, u32)> = None;
         while let Some(node_index) = stack.pop() {
             let node = &self.nodes[node_index as usize];
@@ -257,10 +263,12 @@ impl Bvh {
     }
 
     /// Whether anything blocks the ray from `origin` along `dir` — any-hit with an early out,
-    /// which is what makes the sun-shadow half of the gather cheap.
-    fn occluded(&self, origin: Vec3, dir: Vec3) -> bool {
+    /// which is what makes the sun-shadow half of the gather cheap. Takes the caller's
+    /// traversal scratch for the reason [`Self::nearest_hit`] states.
+    fn occluded(&self, origin: Vec3, dir: Vec3, stack: &mut Vec<u32>) -> bool {
         let inv = dir.recip();
-        let mut stack = vec![0u32];
+        stack.clear();
+        stack.push(0u32);
         while let Some(node_index) = stack.pop() {
             let node = &self.nodes[node_index as usize];
             let t0 = (node.min - origin) * inv;
@@ -328,11 +336,17 @@ fn hemisphere_dirs() -> [Vec3; RAY_COUNT] {
 /// real geometry — the skylight openings admit it, the roof blocks it) and the worklamp pools.
 /// The hemispheric ambient stays out: the runtime already lights every surface with it, and a
 /// bounce of a bounce is beyond this bake's one-bounce honesty.
-fn direct_light(bvh: &Bvh, lighting: &SceneLighting, point: Vec3, normal: Vec3) -> Vec3 {
+fn direct_light(
+    bvh: &Bvh,
+    lighting: &SceneLighting,
+    point: Vec3,
+    normal: Vec3,
+    stack: &mut Vec<u32>,
+) -> Vec3 {
     let mut total = Vec3::ZERO;
     let key = Vec3::from_array(lighting.key_direction).normalize_or_zero();
     let facing = normal.dot(key);
-    if facing > 0.0 && !bvh.occluded(point + normal * 0.02, key) {
+    if facing > 0.0 && !bvh.occluded(point + normal * 0.02, key, stack) {
         total += Vec3::from_array(lighting.key_rgb) * facing;
     }
     for light in &lighting.local_lights {
@@ -353,15 +367,24 @@ fn direct_light(bvh: &Bvh, lighting: &SceneLighting, point: Vec3, normal: Vec3) 
     total
 }
 
-/// Subdivide the hall for bake resolution, then gather one bounce per vertex into the bounce
-/// lane. Runs once at mesh build; everything is pure math over the arrays.
-pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>) {
-    subdivide_for_bake(vertices, indices);
-    let lighting = SceneLighting::garage_hero();
-    let bvh = Bvh::build(vertices, indices);
+/// One worker's slice of the gather: the bounce lane for `vertices[start..end]`, in order.
+///
+/// Every vertex is independent — it reads the finished mesh and the BVH and writes nothing —
+/// which is what lets the slices run concurrently and be concatenated in range order without
+/// the split showing in the result (`chunking_the_gather_does_not_move_a_single_lane`).
+fn gather_bounce_range(
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    bvh: &Bvh,
+    lighting: &SceneLighting,
+    start: usize,
+    end: usize,
+) -> Vec<[f32; 3]> {
     let dirs = hemisphere_dirs();
+    // One traversal scratch per worker, reused by every ray it casts (see `Bvh::nearest_hit`).
+    let mut stack: Vec<u32> = Vec::with_capacity(64);
 
-    let bounces: Vec<[f32; 3]> = vertices
+    vertices[start..end]
         .iter()
         .map(|vertex| {
             let n = Vec3::from_array(vertex.normal).normalize_or(Vec3::Y);
@@ -374,7 +397,7 @@ pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Ve
             let mut gathered = Vec3::ZERO;
             for dir in dirs {
                 let world = tangent * dir.x + n * dir.y + bitangent * dir.z;
-                let Some((distance, tri)) = bvh.nearest_hit(origin, world) else {
+                let Some((distance, tri)) = bvh.nearest_hit(origin, world, &mut stack) else {
                     // Escaped through a skylight opening: the runtime's ambient already
                     // carries the sky, so an escape contributes nothing extra.
                     continue;
@@ -395,7 +418,7 @@ pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Ve
                     let g = (self::tri_normal(&bvh.tris[tri as usize])).normalize_or(Vec3::Y);
                     if g.dot(world) > 0.0 { -g } else { g }
                 };
-                let direct = direct_light(&bvh, &lighting, hit, hit_normal);
+                let direct = direct_light(bvh, lighting, hit, hit_normal, &mut stack);
                 gathered += direct * hit_albedo.clamp(Vec3::ZERO, Vec3::ONE);
             }
             // Cosine weighting lives in the sample distribution, so the mean IS the
@@ -409,11 +432,58 @@ pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Ve
             }
             lane.to_array()
         })
-        .collect();
+        .collect()
+}
+
+/// Subdivide the hall for bake resolution, then gather one bounce per vertex into the bounce
+/// lane. Runs once at mesh build; everything is pure math over the arrays.
+///
+/// The gather is the expensive half — ~284 000 hemisphere rays plus a shadow ray per hit, and
+/// the whole of the second the hall used to cost — so it runs one worker lane per range of
+/// vertices and concatenates the results in range order. Two things make that safe rather than
+/// merely fast: a vertex's bounce reads only the finished mesh and the BVH, and float addition
+/// never crosses a range boundary, so the concatenated lane is bit-identical to the serial one.
+/// `the_bake_is_deterministic` still holds the whole thing to the bit.
+pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>) {
+    subdivide_for_bake(vertices, indices);
+    let lighting = SceneLighting::garage_hero();
+    let bounces = {
+        let verts: &[SceneVertex] = vertices;
+        let idx: &[u32] = indices;
+        let bvh = Bvh::build(verts, idx);
+        gather_bounce_lanes(verts, idx, &bvh, &lighting)
+    };
 
     for (vertex, bounce) in vertices.iter_mut().zip(bounces) {
         vertex.bounce = bounce;
     }
+}
+
+/// The whole bounce lane, gathered across worker lanes and glued back in vertex order.
+fn gather_bounce_lanes(
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    bvh: &Bvh,
+    lighting: &SceneLighting,
+) -> Vec<[f32; 3]> {
+    let ranges = crate::battlefield::bake_lane_ranges(vertices.len());
+    if ranges.len() < 2 {
+        return gather_bounce_range(vertices, indices, bvh, lighting, 0, vertices.len());
+    }
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = ranges
+            .iter()
+            .map(|&(start, end)| {
+                scope.spawn(move || {
+                    gather_bounce_range(vertices, indices, bvh, lighting, start, end)
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("hangar bounce gather"))
+            .collect()
+    })
 }
 
 fn tri_normal(tri: &[Vec3; 3]) -> Vec3 {
@@ -429,15 +499,70 @@ mod tests {
     }
 
     /// The bake is a pure function: two builds agree to the bit. This is what licenses the
-    /// golden harness to lock frames rendered from it.
+    /// golden harness to lock frames rendered from it — and with the gather now spread over
+    /// worker lanes it is also what proves the split did not move a value.
+    ///
+    /// It builds through the UNCACHED path on purpose. It used to call `hangar_scene_mesh()`
+    /// twice, which returns two clones of one `OnceLock`, so it compared a value with itself
+    /// and would have passed against a bake seeded from the clock.
     #[test]
     fn the_bake_is_deterministic() {
-        let (a, _) = baked_hall();
-        let (b, _) = baked_hall();
+        let (a, _) = crate::hangar::build_hangar_scene_mesh();
+        let (b, _) = crate::hangar::build_hangar_scene_mesh();
         assert_eq!(a.len(), b.len());
         for (x, y) in a.iter().zip(&b) {
             assert_eq!(x.bounce, y.bounce, "bounce must be bit-identical across builds");
         }
+    }
+
+    /// A small lit room — floor, four walls, a hot ceiling panel — with faces wide enough to
+    /// earn bake resolution. Enough to exercise every arm of the gather (a ray that escapes,
+    /// a ray that hits an emitter, a ray that hits a shadowed wall) at a thousandth of the
+    /// hall's cost.
+    fn test_room() -> (Vec<SceneVertex>, Vec<u32>) {
+        use crate::hangar::slab;
+        let (mut v, mut i) = (Vec::new(), Vec::new());
+        slab(&mut v, &mut i, [0.0, -0.1, 0.0], [6.0, 0.1, 6.0], [0.30, 0.29, 0.28]);
+        for cz in [-6.0_f32, 6.0] {
+            slab(&mut v, &mut i, [0.0, 2.5, cz], [6.0, 2.5, 0.1], [0.24, 0.245, 0.255]);
+        }
+        for cx in [-6.0_f32, 6.0] {
+            slab(&mut v, &mut i, [cx, 2.5, 0.0], [0.1, 2.5, 6.0], [0.24, 0.245, 0.255]);
+        }
+        slab(&mut v, &mut i, [0.0, 5.1, 0.0], [6.0, 0.1, 6.0], [0.125, 0.13, 0.14]);
+        slab(&mut v, &mut i, [0.0, 4.9, 0.0], [1.2, 0.05, 1.2], [1.55, 1.40, 1.10]);
+        (v, i)
+    }
+
+    /// The lane split is invisible in the output: gathering a range at a time and gluing the
+    /// results in order gives bit-identical values to gathering the whole array serially. The
+    /// mirror of `chunking_the_ground_bake_does_not_move_a_single_texel`, for the bake that
+    /// went parallel second.
+    #[test]
+    fn chunking_the_gather_does_not_move_a_single_lane() {
+        let (mut vertices, mut indices) = test_room();
+        subdivide_for_bake(&mut vertices, &mut indices);
+        let lighting = SceneLighting::garage_hero();
+        let bvh = Bvh::build(&vertices, &indices);
+
+        let whole = gather_bounce_range(&vertices, &indices, &bvh, &lighting, 0, vertices.len());
+        assert!(whole.iter().any(|lane| lane.iter().any(|c| *c > 0.0)), "the room gathers light");
+
+        let seam = vertices.len() / 3;
+        let mut glued = gather_bounce_range(&vertices, &indices, &bvh, &lighting, 0, seam);
+        glued.extend(gather_bounce_range(
+            &vertices,
+            &indices,
+            &bvh,
+            &lighting,
+            seam,
+            vertices.len(),
+        ));
+        assert_eq!(whole, glued, "a hand-cut seam moved a bounce value");
+
+        // ...and the shipped plan, whatever number of lanes this machine gives it, agrees too.
+        let lanes = gather_bounce_lanes(&vertices, &indices, &bvh, &lighting);
+        assert_eq!(whole, lanes, "the worker-lane split moved a bounce value");
     }
 
     /// Every lane value is finite and inside a sane HDR envelope — a NaN or a runaway value
