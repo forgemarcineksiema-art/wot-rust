@@ -1,23 +1,33 @@
 //! The garage hangar: a single static interior scene the owned tank is parked in, replacing the
-//! battlefield while the garage is open. Modelled as a working repair shop — a cool concrete floor,
-//! ribbed metal walls with near-black upper reaches, roof trusses under REAL skylight openings, a
-//! cold-daylight doorway in back, a turntable spot, and workshop props (`hangar_props`: crane,
-//! wheel/track stacks, workbench, barrels, oil stains). The room is built from *solid slabs*
-//! surrounding the play volume: each slab's inner surface is an ordinary outward-facing face, so
-//! back-face culling keeps exactly the walls seen from inside. The hero vehicle throws a real
-//! contact shadow on the turntable from the workshop sun key — no faked shadow disc.
+//! battlefield while the garage is open. Hala 3.0 stage A1: a RECTANGULAR industrial nave — a
+//! poured concrete floor, painted sheet walls, deep roof trusses under a SAWTOOTH (shed) roof whose
+//! glazing bands are REAL openings, a bay gate at the end of the long axis standing ajar over a
+//! wedge of daylight, a turntable spot, and workshop props (`hangar_props`: crane, wheel/track
+//! stacks, workbench, barrels, oil stains). The room is built from *solid slabs* surrounding the
+//! play volume: each slab's inner surface is an ordinary outward-facing face, so back-face culling
+//! keeps exactly the walls seen from inside. The hero vehicle throws a real contact shadow on the
+//! turntable from the workshop sun key — no faked shadow disc.
 
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
 
 use crate::tank_mesh::push_oriented_box;
 
-/// Interior half-extent (x/z) of the hall. Sized so the full camera boom range fits inside at every
-/// angle without clipping the walls — see `garage/camera.rs`. `pub(super)` so the props hug the walls.
-/// A working MAINTENANCE HALL sized for the roomy 17 m pull-back; the volume is earned by the
-/// gallery band, crane rails, lamp rig and occupied bays (`hangar_gallery`, `hangar_props`).
-pub(super) const HALF: f32 = 18.0;
-pub(super) const WALL_HEIGHT: f32 = 12.6;
+/// Interior half-extents of the nave (Hala 3.0 A1): 22 m across, 44 m down the long axis. The
+/// square 36×36 hall read as a box with a tank in it; a nave has a DIRECTION — the gate at one end,
+/// the hero station on the axis, depth receding behind the hull in every hero frame. The camera
+/// boom no longer fits at every angle by construction; [`max_orbit_boom`] clamps it against the
+/// walls per angle instead (decision 2026-08-09: full 360° orbit, boom rides the geometry).
+/// `pub(super)` so the props hug the walls.
+pub(super) const HALF_X: f32 = 11.0;
+pub(super) const HALF_Z: f32 = 22.0;
+/// Height of the truss bottom chords — the working ceiling of the room. The shed roof rises
+/// above it to [`SHED_RIDGE`]; everything human-scale (walls' seam, gate, catwalk, lamps) is
+/// proportioned against THIS, not the ridge.
+pub(super) const WALL_HEIGHT: f32 = 9.0;
+/// Top of each sawtooth: the shed decks climb from the eaves to here, then drop back through
+/// the glazing opening. Side walls run to the ridge so the sheds meet steel, not sky slivers.
+pub(super) const SHED_RIDGE: f32 = 11.3;
 pub(super) const SLAB: f32 = 0.15;
 /// Height where the gunmetal lower wall meets the shadowed upper wall. The two bands **abut** at
 /// this seam — they must never overlap, or their coplanar inner faces z-fight (a moiré band).
@@ -64,16 +74,23 @@ pub fn hangar_camera_pivot() -> Vec3 {
 /// The garage's rest framing — the numbers the hangar opens with, and the ONE place they live.
 /// The live orbit camera, the review golden and the human-review example all read these, so a
 /// reframing moves the played picture and the locked picture together.
-pub const HERO_ORBIT_YAW: f32 = 0.60;
+///
+/// A1 reframe: the yaw drops from 0.60 toward the long axis (yaw 0 looks straight down the
+/// nave), so the hero stands against 35 m of receding hall — trusses, shed light and the ajar
+/// gate — instead of a wall 18 m behind it. Still enough of an angle that the shot is a
+/// three-quarter, not an axial mugshot.
+pub const HERO_ORBIT_YAW: f32 = 0.42;
 /// Lowered from 0.28. At 0.28 rad the camera tilted 16 deg down through a 32 deg lens, which put
 /// the TOP of the frame exactly on the horizon through the pivot: everything above the eye — the
 /// roof, the trusses, the skylight strips, the frosted panes over the bay gate, both high-bay
 /// lamps — fell outside the shot. That is the arithmetic behind D20's "0.00% of the hero frame
 /// sits above the bright threshold": the room's light sources are all real and all emissive, and
 /// the lens was pointed under every one of them. At 0.13 the frame reaches roughly 9 deg above
-/// the eye and the daylight over the gate comes into shot.
+/// the eye and the shed daylight over the nave comes into shot.
 pub const HERO_ORBIT_PITCH: f32 = 0.13;
-pub const HERO_ORBIT_DISTANCE: f32 = 14.0;
+/// One metre longer than the old square hall's 14 m: the long axis has the room for it, and the
+/// extra metre buys the frame the first roof truss over the hull.
+pub const HERO_ORBIT_DISTANCE: f32 = 15.0;
 /// The heading the hero is PARKED at, which only means anything against [`HERO_ORBIT_YAW`]: the
 /// camera orbits to a bearing, the tank sits at a heading, and the angle between them is the shot.
 ///
@@ -124,10 +141,11 @@ pub fn hangar_shadow_focus() -> [f32; 3] {
 /// 14 m hero boom one 6.25 cm texel covered 8.4 screen pixels, which is what a staircased
 /// skylight shaft on the floor actually is.
 ///
-/// 30 m is the smallest box that still contains the whole hall under every garage rig (the
-/// steepest, `garage_workshop`, needs 28.3 m — see `the_near_shadow_box_contains_the_whole_hall`)
-/// plus the cascade's containment margin. Tighter would sharpen the turntable further but push
-/// the far corners of the room out to the coarse far cascade, trading a staircase for a seam.
+/// 30 m still contains the A1 nave under every garage rig: the room's farthest point from the
+/// turntable is the ridge-height gate corner at √(11² + 22² + 11.3²) ≈ 27.1 m (the containment
+/// test projects the RIDGE corners, not just the chord height — a corner list that stopped at
+/// the eaves would under-measure the roof silently). It may not GROW: at the shipped 2048² map
+/// the texel is 29.3 mm against the test's 30 mm ceiling — 0.7 mm of headroom, total.
 pub fn hangar_shadow_radius_m() -> f32 {
     30.0
 }
@@ -140,26 +158,79 @@ pub fn hangar_bloom_mips() -> u32 {
     3
 }
 
-/// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the CLIENT camera
-/// invariant test to prove the whole orbit range stays inside the room — cross-crate now, so
-/// it cannot hide behind cfg(test).
-pub fn hangar_interior() -> (f32, f32) {
-    (HALF, WALL_HEIGHT)
+/// Interior of the hangar shell as `(half_x, half_z, height)`. Used by the CLIENT camera
+/// invariant test to prove the clamped orbit stays inside the room — cross-crate now, so
+/// it cannot hide behind cfg(test). Height is the truss chord, not the ridge: the camera's
+/// headroom question is "when do I hit steel", and the chords come first.
+pub fn hangar_interior() -> (f32, f32, f32) {
+    (HALF_X, HALF_Z, WALL_HEIGHT)
 }
 
-/// The roof's skylight bands as `(x centre, x half-width)` — REAL openings cut through the
-/// roof slab, not bright plates under it. The first is the SUN band, placed by physics: the
-/// `garage_hero` key direction leaves the turntable centre through the roof plane at
-/// x ≈ −7.2, z ≈ +6.7, so the band straddles that exit lane and the key genuinely falls on
-/// the hero — a real beam, a real contact shadow on the deck (the whole point of D20's fix;
-/// locked by `the_workshop_sun_reaches_the_turntable_through_a_real_opening`). The other two
-/// bands rhythm the roof toward the second bay, so the openings read as architecture, not as
-/// one hole drilled for a light rig.
-const SKYLIGHT_BANDS: [(f32, f32); 3] = [(-6.85, 3.2), (1.8, 1.6), (10.8, 1.6)];
-/// The bands' half-length along z; the roof stays solid in a border along both end walls.
-const SKYLIGHT_HALF_Z: f32 = 13.0;
+/// How much wall the eye keeps between itself and every shell plane, at any boom.
+const ORBIT_WALL_MARGIN_M: f32 = 0.4;
+/// The eye's ceiling: a metre under the truss chords, so the crane girder (riding just below
+/// them) never crosses the lens at full pitch.
+const ORBIT_CEILING_M: f32 = WALL_HEIGHT - 1.0;
 
-/// How much of the roof plane is open sky, as a fraction of its area.
+/// The longest boom the orbit camera may extend at this yaw/pitch before the eye leaves the
+/// hall — the A1 nave is 22 m across and the long-axis pull-back is 21 m+, so a single "fits
+/// at every angle" range would surrender the depth the rectangle was built for. The invariant
+/// moves instead: the EYE never enters a wall, and this is the one place that arithmetic lives
+/// (decision 2026-08-09; the client clamps its boom with it, and the client's camera test
+/// sweeps it against [`hangar_interior`]).
+pub fn max_orbit_boom(yaw: f32, pitch: f32) -> f32 {
+    let pivot = hangar_camera_pivot();
+    let dir = orbit_direction(yaw, pitch);
+    // Distance to each shell plane along the ray, for the planes the ray actually approaches.
+    let mut boom = f32::INFINITY;
+    let mut clip = |room: f32, component: f32| {
+        if component > 1.0e-5 {
+            boom = boom.min(room / component);
+        }
+    };
+    clip(HALF_X - ORBIT_WALL_MARGIN_M - pivot.x * dir.x.signum(), dir.x.abs());
+    clip(HALF_Z - ORBIT_WALL_MARGIN_M - pivot.z * dir.z.signum(), dir.z.abs());
+    clip(ORBIT_CEILING_M - pivot.y, dir.y);
+    clip(pivot.y - ORBIT_WALL_MARGIN_M, -dir.y);
+    boom
+}
+
+/// The sawtooth roof, in plan. Each shed is one tooth along the long axis: a solid deck
+/// climbing from the eaves ([`WALL_HEIGHT`]) to the ridge ([`SHED_RIDGE`]) over
+/// [`SHED_DECK_RUN`] metres of z, then a GLAZING band — a REAL opening in the envelope, framed
+/// by mullions — falling back to the eaves over [`SHED_GLAZE_RUN`] metres. Three full teeth;
+/// flat aprons at both ends close the roof to the end walls (which is what lets the end walls
+/// stop at the eaves with no gable geometry).
+///
+/// The middle shed is the SUN shed, placed by physics: the `garage_hero` key direction leaves
+/// the turntable centre through its glazing plane at z ≈ 4.6, x ≈ −2.8 (see the derivation on
+/// the key in `lighting.rs`), so the beam genuinely falls on the hero — a real beam, a real
+/// contact shadow on the deck (locked by
+/// `the_workshop_sun_reaches_the_turntable_through_a_real_opening`).
+const SHED_STARTS: [f32; 3] = [-16.5, -5.5, 5.5];
+/// Solid climbing deck of each tooth, in plan metres along z.
+const SHED_DECK_RUN: f32 = 6.5;
+/// Open glazed fall of each tooth, in plan metres along z.
+const SHED_GLAZE_RUN: f32 = 4.5;
+
+/// Height of the roof envelope over a given z: the deck's climb, the glazing's fall, or the
+/// eaves on the end aprons. The containment/geometry tests read the envelope through this, so
+/// the roof profile has one author.
+pub(super) fn roof_envelope_y(z: f32) -> f32 {
+    for start in SHED_STARTS {
+        let local = z - start;
+        if (0.0..SHED_DECK_RUN).contains(&local) {
+            return WALL_HEIGHT + (SHED_RIDGE - WALL_HEIGHT) * (local / SHED_DECK_RUN);
+        }
+        if (SHED_DECK_RUN..SHED_DECK_RUN + SHED_GLAZE_RUN).contains(&local) {
+            let fall = (local - SHED_DECK_RUN) / SHED_GLAZE_RUN;
+            return SHED_RIDGE - (SHED_RIDGE - WALL_HEIGHT) * fall;
+        }
+    }
+    WALL_HEIGHT
+}
+
+/// How much of the roof plane is open sky, as a fraction of its plan area.
 ///
 /// The room's own answer to "what is overhead", and the reason it is a function rather than a
 /// number: `SceneLighting::garage_hero`'s `sky_zenith_rgb` is what every polished surface in
@@ -168,40 +239,72 @@ const SKYLIGHT_HALF_Z: f32 = 13.0;
 /// reflection of. `the_rooms_reflection_is_the_room` holds the two together across the crate
 /// boundary that stops the profile computing it directly.
 pub fn skylight_open_fraction() -> f32 {
-    let open: f32 = SKYLIGHT_BANDS.iter().map(|(_, half_x)| 2.0 * half_x).sum::<f32>()
-        * (2.0 * SKYLIGHT_HALF_Z);
-    open / ((2.0 * HALF) * (2.0 * HALF))
+    let open = SHED_STARTS.len() as f32 * SHED_GLAZE_RUN * (2.0 * HALF_X);
+    open / ((2.0 * HALF_X) * (2.0 * HALF_Z))
 }
 
-/// The roof: solid strips between the skylight bands, end caps closing each band short of the
-/// walls, and thin glazing mullions across the openings (they cast the honest striped shadows
-/// a glazed roof throws). Through the openings the renderer's interior background shows — set
-/// to daylight sky by the client, so an opening reads as sky, not void.
-fn push_skylight_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
-    let roof_y = WALL_HEIGHT + SLAB;
-    // Solid strips spanning the full hall depth, between and outside the bands.
-    let mut edges = vec![-HALF];
-    for (cx, hx) in SKYLIGHT_BANDS {
-        edges.push(cx - hx);
-        edges.push(cx + hx);
+/// The roof: sloped solid decks (one per tooth), flat aprons to both end walls, and mullions
+/// across each glazing opening (they cast the honest striped shadows a glazed roof throws).
+/// Through the openings the renderer's interior background shows — set to daylight sky by the
+/// client, so an opening reads as sky, not void.
+fn push_shed_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let rise = SHED_RIDGE - WALL_HEIGHT;
+    // Sloped decks: an oriented box per tooth, rotated about x so its local z CLIMBS the run
+    // (R_x(θ) maps local +z to (0, −sin θ, cos θ), so climbing toward +z takes −θ).
+    let deck_angle = -rise.atan2(SHED_DECK_RUN);
+    let deck_len = (SHED_DECK_RUN * SHED_DECK_RUN + rise * rise).sqrt();
+    for start in SHED_STARTS {
+        push_oriented_box(
+            v,
+            i,
+            Vec3::new(0.0, (WALL_HEIGHT + SHED_RIDGE) / 2.0 + SLAB, start + SHED_DECK_RUN / 2.0),
+            Vec3::new(HALF_X, SLAB, deck_len / 2.0),
+            Mat3::from_rotation_x(deck_angle),
+            ROOF,
+        );
     }
-    edges.push(HALF);
-    for pair in edges.chunks(2) {
-        let (lo, hi) = (pair[0], pair[1]);
-        slab(v, i, [(lo + hi) / 2.0, roof_y, 0.0], [(hi - lo) / 2.0, SLAB, HALF], ROOF);
-    }
-    // End caps and mullions per band.
-    let cap_c = (SKYLIGHT_HALF_Z + HALF) / 2.0;
-    let cap_h = (HALF - SKYLIGHT_HALF_Z) / 2.0;
-    for (cx, hx) in SKYLIGHT_BANDS {
-        for sign in [-1.0_f32, 1.0] {
-            slab(v, i, [cx, roof_y, sign * cap_c], [hx, SLAB, cap_h], ROOF);
+    // Flat aprons from the outermost teeth to the end walls.
+    let apron_low = (SHED_STARTS[0] - (-HALF_Z)) / 2.0;
+    slab(v, i, [0.0, WALL_HEIGHT + SLAB, -HALF_Z + apron_low], [HALF_X, SLAB, apron_low], ROOF);
+    let last_glaze_end = SHED_STARTS[2] + SHED_DECK_RUN + SHED_GLAZE_RUN;
+    let apron_high = (HALF_Z - last_glaze_end) / 2.0;
+    slab(v, i, [0.0, WALL_HEIGHT + SLAB, HALF_Z - apron_high], [HALF_X, SLAB, apron_high], ROOF);
+    // Mullions across each glazing plane: bars spanning the width every ~1 m of fall, and
+    // vertical divisions every 3.4 m of width — thin steel in the opening, phased so the sun
+    // lock's guaranteed-clear centre ray (crossing at z ≈ start + 7.6 mid-shed) misses them.
+    let glaze_angle = rise.atan2(SHED_GLAZE_RUN);
+    let glaze_rot = Mat3::from_rotation_x(glaze_angle);
+    let glaze_len = (SHED_GLAZE_RUN * SHED_GLAZE_RUN + rise * rise).sqrt();
+    for start in SHED_STARTS {
+        let glaze_mid_z = start + SHED_DECK_RUN + SHED_GLAZE_RUN / 2.0;
+        let glaze_mid_y = (WALL_HEIGHT + SHED_RIDGE) / 2.0;
+        for k in [-0.256_f32, 0.018, 0.291] {
+            // Bars across the width, riding the glazing plane at fractions of its fall. The
+            // phases sit at the MIDPOINTS between the sun lock's ray-row crossings (the rows
+            // cross this plane near z − start ≈ 8.0, 9.2, 10.5, 11.7), so every bar keeps
+            // ≥ 0.6 m clear of every row.
+            let along = k * glaze_len;
+            let offset = glaze_rot * Vec3::new(0.0, 0.0, along);
+            push_oriented_box(
+                v,
+                i,
+                Vec3::new(0.0, glaze_mid_y + offset.y, glaze_mid_z + offset.z),
+                Vec3::new(HALF_X - 0.2, 0.05, 0.09),
+                glaze_rot,
+                TRUSS,
+            );
         }
-        // Mullion phase is offset by half a pitch: the hero-centre sun ray crosses the roof
-        // plane near z ≈ 6.4, and a bar there would put the one guaranteed-clear ray of the
-        // sun lock behind glazing framing forever.
-        for k in -4i32..=3 {
-            slab(v, i, [cx, WALL_HEIGHT + 0.05, k as f32 * 3.25 + 1.625], [hx, 0.08, 0.11], TRUSS);
+        // Vertical divisions along the slope. The sun lock's ray fan sweeps the lane
+        // x ∈ (−5.7, 1.7) as it crosses the glazing, so every division stands outside it.
+        for x in [-8.8_f32, -6.3, 3.2, 6.2, 9.2] {
+            push_oriented_box(
+                v,
+                i,
+                Vec3::new(x, glaze_mid_y, glaze_mid_z),
+                Vec3::new(0.06, 0.05, glaze_len / 2.0),
+                glaze_rot,
+                TRUSS,
+            );
         }
     }
 }
@@ -256,31 +359,35 @@ pub fn is_baked() -> bool {
 pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
-    let h = WALL_HEIGHT / 2.0;
 
-    // Shell: floor, ceiling, four walls. The lower walls are gunmetal; a near-black upper band
+    // Shell: floor, shed roof, four walls. The lower walls are gunmetal; a near-black upper band
     // above the doorway line lets the roof fall into shadow so the lit bay reads as the subject.
-    // The lower/upper bands abut exactly at `WALL_SEAM` and the upper band runs to the ceiling, so
-    // no two wall faces are ever coplanar (which would z-fight) and there is no gap to the roof.
+    // The lower/upper bands abut exactly at `WALL_SEAM` and the upper band runs to the roof, so
+    // no two wall faces are ever coplanar (which would z-fight) and there is no gap upward. The
+    // SIDE walls climb to the ridge — they are the sheds' flanks — while the END walls stop at
+    // the eaves, where the flat roof aprons meet them.
     let lower_c = WALL_SEAM / 2.0;
     let lower_h = WALL_SEAM / 2.0;
-    let upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
-    let upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
+    let side_upper_c = (WALL_SEAM + SHED_RIDGE) / 2.0;
+    let side_upper_h = (SHED_RIDGE - WALL_SEAM) / 2.0;
+    let end_upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
+    let end_upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
     // The floor is a poured slab and everything above it is sprayed sheet: two materials, and
     // the treatments that go with them (see `Finish`). Sealed concrete carries a faint sheen
     // that catches the worklight pools; the painted panels a satin step over it.
     let floor_start = v.len();
-    slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE);
+    slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF_X, SLAB, HALF_Z], CONCRETE);
     finish(&mut v[floor_start..], Finish::CONCRETE);
     let shell_steel = v.len();
-    push_skylight_roof(&mut v, &mut i);
-    for cz in [-HALF, HALF] {
-        slab(&mut v, &mut i, [0.0, lower_c, cz], [HALF, lower_h, SLAB], METAL);
-        slab(&mut v, &mut i, [0.0, upper_c, cz], [HALF, upper_h, SLAB], UPPER_WALL);
-    }
-    for cx in [-HALF, HALF] {
-        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF], METAL);
-        slab(&mut v, &mut i, [cx, upper_c, 0.0], [SLAB, upper_h, HALF], UPPER_WALL);
+    push_shed_roof(&mut v, &mut i);
+    // The stores end wall, one piece; the GATE end wall is built in pieces around a real
+    // opening (`push_gate_wall`) — the ajar gate's daylight wedge needs an actual hole.
+    slab(&mut v, &mut i, [0.0, lower_c, HALF_Z], [HALF_X, lower_h, SLAB], METAL);
+    slab(&mut v, &mut i, [0.0, end_upper_c, HALF_Z], [HALF_X, end_upper_h, SLAB], UPPER_WALL);
+    push_gate_wall(&mut v, &mut i);
+    for cx in [-HALF_X, HALF_X] {
+        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF_Z], METAL);
+        slab(&mut v, &mut i, [cx, side_upper_c, 0.0], [SLAB, side_upper_h, HALF_Z], UPPER_WALL);
     }
     finish(&mut v[shell_steel..], Finish::PAINTED_STEEL);
     // Everything past the bare shell is "furniture" and takes the corner-shade bake at the end.
@@ -289,43 +396,71 @@ pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // Panel joints: recessed vertical lines rhythm the lower band into sheet-steel panels, and a
     // girt rail rides the band seam — a wall of PANELS, not one smeared plate.
     let joint_h = WALL_SEAM / 2.0 - 0.05;
-    for step in -6i32..=6 {
+    for step in -7i32..=7 {
         let along = step as f32 * 2.8;
         for sign in [-1.0_f32, 1.0] {
-            let wall = sign * (HALF - SLAB - 0.03);
+            let wall = sign * (HALF_X - SLAB - 0.03);
             slab(&mut v, &mut i, [wall, joint_h, along], [0.035, joint_h, 0.05], PANEL_JOINT);
-            slab(&mut v, &mut i, [along, joint_h, wall], [0.05, joint_h, 0.035], PANEL_JOINT);
+        }
+    }
+    for step in -3i32..=3 {
+        let along = step as f32 * 2.8;
+        // The stores end wall takes its joints across the width; on the gate wall only the
+        // panels flanking the opening carry one — a joint floating in the gateway is no joint.
+        slab(
+            &mut v,
+            &mut i,
+            [along, joint_h, HALF_Z - SLAB - 0.03],
+            [0.05, joint_h, 0.035],
+            PANEL_JOINT,
+        );
+        if along.abs() > GATE_HALF_W + 0.5 {
+            slab(
+                &mut v,
+                &mut i,
+                [along, joint_h, -(HALF_Z - SLAB - 0.03)],
+                [0.05, joint_h, 0.035],
+                PANEL_JOINT,
+            );
         }
     }
     for (cx, cz, hx, hz) in [
-        (0.0, -(HALF - SLAB - 0.05), HALF - 0.3, 0.05_f32),
-        (0.0, HALF - SLAB - 0.05, HALF - 0.3, 0.05),
-        (-(HALF - SLAB - 0.05), 0.0, 0.05, HALF - 0.3),
-        (HALF - SLAB - 0.05, 0.0, 0.05, HALF - 0.3),
+        (0.0, -(HALF_Z - SLAB - 0.05), HALF_X - 0.3, 0.05_f32),
+        (0.0, HALF_Z - SLAB - 0.05, HALF_X - 0.3, 0.05),
+        (-(HALF_X - SLAB - 0.05), 0.0, 0.05, HALF_Z - 0.3),
+        (HALF_X - SLAB - 0.05, 0.0, 0.05, HALF_Z - 0.3),
     ] {
         slab(&mut v, &mut i, [cx, WALL_SEAM, cz], [hx, 0.07, hz], GIRT);
     }
 
-    // Vertical wall ribs (pilasters) proud of the side and back walls, spaced across the bay as a
-    // fraction of the hall so they stay evenly distributed at any hall size.
+    // Vertical wall ribs (pilasters) proud of the side and end walls, spaced as fractions of
+    // each wall's own length so they stay evenly distributed.
+    let rib_c = WALL_HEIGHT / 2.0;
+    let rib_h = WALL_HEIGHT / 2.0 - 0.4;
     for k in [-0.8_f32, -0.4, 0.0, 0.4, 0.8] {
-        let z = k * HALF;
-        slab(&mut v, &mut i, [-(HALF - 0.2), h, z], [0.12, h - 0.4, 0.35], RIB);
-        slab(&mut v, &mut i, [HALF - 0.2, h, z], [0.12, h - 0.4, 0.35], RIB);
+        let z = k * HALF_Z;
+        slab(&mut v, &mut i, [-(HALF_X - 0.2), rib_c, z], [0.12, rib_h, 0.35], RIB);
+        slab(&mut v, &mut i, [HALF_X - 0.2, rib_c, z], [0.12, rib_h, 0.35], RIB);
     }
     for k in [-0.8_f32, 0.8] {
-        slab(&mut v, &mut i, [k * HALF, h, -(HALF - 0.2)], [0.35, h - 0.4, 0.12], RIB);
+        slab(&mut v, &mut i, [k * HALF_X, rib_c, -(HALF_Z - 0.2)], [0.35, rib_h, 0.12], RIB);
     }
 
-    // Roof trusses spanning the bay, backlit by the REAL skylight bands cut through the roof
-    // above them, so the trusses read as dark bars against daylight.
-    for k in [-0.8_f32, -0.4, 0.0, 0.4, 0.8] {
-        slab(&mut v, &mut i, [0.0, WALL_HEIGHT - 0.3, k * HALF], [HALF - 0.5, 0.12, 0.18], TRUSS);
+    // DEEP roof trusses: real frames under the shed decks — parallel chords a metre apart,
+    // verticals and falling diagonals between them — not the 0.24 m laths the old flat roof
+    // hung. Two frames per tooth, on the deck run where the envelope leaves them headroom;
+    // they read as dark structure against the glazing daylight behind them.
+    for start in SHED_STARTS {
+        for local in [3.25_f32, 6.0] {
+            let z = start + local;
+            let depth = (roof_envelope_y(z) - 0.25 - (WALL_HEIGHT + 0.14)).clamp(0.7, 1.1);
+            push_truss_frame(&mut v, &mut i, z, depth);
+        }
     }
 
-    // The bay gate the tank rolled in through: a framed, closed, segmented steel door on the back
-    // wall — jambs, lintel, alternating slats. The old glowing doorway plate read as a broken
-    // texture; a real gate explains the drive-in and grounds the back of the frame.
+    // The bay gate the tank rolled in through: a framed, segmented steel door at the end of
+    // the long axis, standing AJAR — its slat stack raised, real daylight standing in the gap
+    // under it. The gate explains the drive-in; the opening explains the light on the lane.
     push_bay_gate(&mut v, &mut i);
     // Joints, girt, ribs, trusses and gate are all the same stock the walls are: rolled sheet
     // and section, primed and sprayed with them.
@@ -334,14 +469,17 @@ pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // Floor: expansion joints score the slab into cast bays; the drive lane in from the gate is
     // worn a step darker with two track-polished strips — the floor tells the room's story.
     let floor_dressing = v.len();
-    for step in -5i32..=5 {
+    for step in -6i32..=6 {
         let along = step as f32 * 3.4;
-        slab(&mut v, &mut i, [along, 0.003, 0.0], [0.03, 0.003, HALF - 0.4], FLOOR_JOINT);
-        slab(&mut v, &mut i, [0.0, 0.003, along], [HALF - 0.4, 0.003, 0.03], FLOOR_JOINT);
+        slab(&mut v, &mut i, [0.0, 0.003, along], [HALF_X - 0.4, 0.003, 0.03], FLOOR_JOINT);
+    }
+    for step in -3i32..=3 {
+        let along = step as f32 * 2.8;
+        slab(&mut v, &mut i, [along, 0.003, 0.0], [0.03, 0.003, HALF_Z - 0.4], FLOOR_JOINT);
     }
     {
-        let lane_center = -(HALF + TURNTABLE_RADIUS_M) / 2.0;
-        let lane_half = (HALF - TURNTABLE_RADIUS_M) / 2.0;
+        let lane_center = -(HALF_Z + TURNTABLE_RADIUS_M) / 2.0;
+        let lane_half = (HALF_Z - TURNTABLE_RADIUS_M) / 2.0;
         slab(&mut v, &mut i, [0.0, 0.0015, lane_center], [2.6, 0.0015, lane_half], DRIVE_LANE);
         for x in [-1.35_f32, 1.35] {
             slab(&mut v, &mut i, [x, 0.0025, lane_center], [0.55, 0.0015, lane_half], TRACK_WEAR);
@@ -354,7 +492,7 @@ pub(crate) fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // Parking-bay markings flanking the turntable, flush with the floor.
     let markings = v.len();
     for x in [-6.8_f32, 6.8] {
-        slab(&mut v, &mut i, [x, 0.004, 0.0], [0.14, 0.005, HALF - 2.0], MARKING);
+        slab(&mut v, &mut i, [x, 0.004, 0.0], [0.14, 0.005, 8.0], MARKING);
     }
     finish(&mut v[markings..], Finish::PAINT_MARK);
 
@@ -430,8 +568,8 @@ fn bake_corner_shade(vertices: &mut [SceneVertex]) {
         }
         let [x, y, z] = vertex.position;
         let [nx, ny, nz] = vertex.normal;
-        let d_wall_x = ease(HALF - x.abs(), 1.4);
-        let d_wall_z = ease(HALF - z.abs(), 1.4);
+        let d_wall_x = ease(HALF_X - x.abs(), 1.4);
+        let d_wall_z = ease(HALF_Z - z.abs(), 1.4);
         let d_floor = ease(y, 1.2);
         let d_ceiling = ease(WALL_HEIGHT - y, 1.6);
         let open = if ny.abs() > 0.7 {
@@ -454,33 +592,98 @@ fn bake_corner_shade(vertices: &mut [SceneVertex]) {
     }
 }
 
-/// The closed segmented bay gate on the back wall: jambs and a lintel framing six alternating
-/// sheet-steel slats, everything proud of the wall plane so nothing z-fights.
+/// Half-width of the bay gate opening in the −z end wall.
+pub(super) const GATE_HALF_W: f32 = 4.6;
+/// Top of the gate opening.
+const GATE_TOP: f32 = 5.0;
+/// How far the gate stands OPEN: the slat stack is raised this high, and under it the opening
+/// is a real hole in the shell — the day outside stands in it, and its light lies on the drive
+/// lane as a wedge. E3 animates the slats; A1 parks them here.
+pub const GATE_AJAR_M: f32 = 1.5;
+
+/// Where the drive-in roll starts, derived from the gate rather than dialled: hull centre one
+/// hull-length inside the opening, so the tank enters FROM the gate however long the hall is.
+/// (`drive_in.rs` used to hard-code −13.0 against a 36 m hall — the tank materialised five
+/// metres into the room.)
+pub fn drive_in_start_z() -> f32 {
+    -(HALF_Z - SLAB) + 4.0
+}
+
+/// The gate end wall, built in pieces around the REAL gate opening: flanking panels floor to
+/// seam, the lintel band between the gate top and the seam, and the near-black upper band to
+/// the eaves. (The stores end wall is two whole slabs; this one has a hole in it.)
+fn push_gate_wall(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let cz = -HALF_Z;
+    let side_w = (HALF_X - GATE_HALF_W) / 2.0;
+    for sign in [-1.0_f32, 1.0] {
+        let cx = sign * (GATE_HALF_W + side_w);
+        slab(v, i, [cx, WALL_SEAM / 2.0, cz], [side_w, WALL_SEAM / 2.0, SLAB], METAL);
+    }
+    let lintel_c = (GATE_TOP + WALL_SEAM) / 2.0;
+    let lintel_h = (WALL_SEAM - GATE_TOP) / 2.0;
+    slab(v, i, [0.0, lintel_c, cz], [GATE_HALF_W, lintel_h, SLAB], METAL);
+    let upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
+    let upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
+    slab(v, i, [0.0, upper_c, cz], [HALF_X, upper_h, SLAB], UPPER_WALL);
+}
+
+/// One deep truss frame across the nave at `z`: parallel chords `depth` apart, verticals, and
+/// falling diagonals — section steel with real depth, the structure the shed decks ride.
+fn push_truss_frame(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, z: f32, depth: f32) {
+    let chord_half = HALF_X - 0.3;
+    let bottom_y = WALL_HEIGHT + 0.07;
+    let top_y = bottom_y + depth;
+    slab(v, i, [0.0, bottom_y, z], [chord_half, 0.07, 0.09], TRUSS);
+    slab(v, i, [0.0, top_y, z], [chord_half, 0.07, 0.09], TRUSS);
+    for x in [-8.0_f32, -4.0, 0.0, 4.0, 8.0] {
+        slab(v, i, [x, (bottom_y + top_y) / 2.0, z], [0.05, depth / 2.0 - 0.06, 0.05], TRUSS);
+    }
+    // Falling diagonals between the verticals, alternating direction toward the centre.
+    let diag_len = (depth * depth + 16.0).sqrt();
+    for (x0, lean) in [(-6.0_f32, 1.0_f32), (-2.0, 1.0), (2.0, -1.0), (6.0, -1.0)] {
+        let angle = lean * depth.atan2(4.0);
+        push_oriented_box(
+            v,
+            i,
+            Vec3::new(x0, (bottom_y + top_y) / 2.0, z),
+            Vec3::new(diag_len / 2.0 - 0.1, 0.045, 0.045),
+            Mat3::from_rotation_z(angle),
+            TRUSS,
+        );
+    }
+}
+
+/// The ajar segmented bay gate standing in the gate wall's opening: jambs and a lintel framing
+/// the RAISED slat stack — five alternating sheet-steel slats from [`GATE_AJAR_M`] up to the
+/// gate top, everything proud of the wall plane so nothing z-fights. Below the stack: the
+/// opening itself, and the day outside in it.
 fn push_bay_gate(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
-    let wall_z = -(HALF - SLAB);
-    let gate_half_w = 4.6;
-    let gate_top = 5.0;
+    let wall_z = -(HALF_Z - SLAB);
     // Jambs + lintel.
-    for x in [-(gate_half_w + 0.25), gate_half_w + 0.25] {
+    for x in [-(GATE_HALF_W + 0.25), GATE_HALF_W + 0.25] {
         slab(
             v,
             i,
-            [x, gate_top / 2.0 + 0.2, wall_z + 0.10],
-            [0.22, gate_top / 2.0 + 0.2, 0.10],
+            [x, GATE_TOP / 2.0 + 0.2, wall_z + 0.10],
+            [0.22, GATE_TOP / 2.0 + 0.2, 0.10],
             GATE_FRAME,
         );
     }
-    slab(v, i, [0.0, gate_top + 0.28, wall_z + 0.10], [gate_half_w + 0.47, 0.16, 0.10], GATE_FRAME);
-    // Six horizontal slats, alternating tone so the segments read from across the bay; sheet
-    // steel takes a low satin finish.
-    let slat_h = gate_top / 6.0;
-    for slat in 0..6 {
+    slab(v, i, [0.0, GATE_TOP + 0.28, wall_z + 0.10], [GATE_HALF_W + 0.47, 0.16, 0.10], GATE_FRAME);
+    // Five horizontal slats, alternating tone, stacked ABOVE the ajar opening; sheet steel
+    // takes a low satin finish. The slats ABUT — behind them is the open day now, not a wall,
+    // and a 3 cm gap in front of 1.4 HDR daylight blooms into a glowing stripe (seen on the
+    // first A1 render). The segment read comes from the alternating tones and a per-slat depth
+    // step, not from gaps.
+    let slat_h = (GATE_TOP - GATE_AJAR_M) / 5.0;
+    for slat in 0..5 {
         let color = if slat % 2 == 0 { GATE_SLAT } else { GATE_SLAT_ALT };
+        let depth = if slat % 2 == 0 { 0.06 } else { 0.045 };
         slab(
             v,
             i,
-            [0.0, slat_h * (slat as f32 + 0.5), wall_z + 0.06],
-            [gate_half_w, slat_h / 2.0 - 0.015, 0.05],
+            [0.0, GATE_AJAR_M + slat_h * (slat as f32 + 0.5), wall_z + depth],
+            [GATE_HALF_W, slat_h / 2.0, 0.05],
             color,
         );
     }
@@ -673,10 +876,10 @@ mod tests {
         let (vertices, _) = hangar_scene_mesh();
         let pivot = hangar_camera_pivot();
         let any = |pred: fn(&[f32; 3]) -> bool| vertices.iter().any(|v| pred(&v.position));
-        assert!(any(|p| p[0] < -HALF + 1.0), "left wall");
-        assert!(any(|p| p[0] > HALF - 1.0), "right wall");
-        assert!(any(|p| p[2] < -HALF + 1.0), "back wall");
-        assert!(any(|p| p[2] > HALF - 1.0), "front wall");
+        assert!(any(|p| p[0] < -HALF_X + 1.0), "left wall");
+        assert!(any(|p| p[0] > HALF_X - 1.0), "right wall");
+        assert!(any(|p| p[2] < -HALF_Z + 1.0), "gate wall");
+        assert!(any(|p| p[2] > HALF_Z - 1.0), "stores wall");
         assert!(any(|p| p[1] <= 0.0), "floor at or below the tank");
         assert!(any(|p| p[1] >= WALL_HEIGHT - 0.5), "ceiling above the tank");
         assert!(pivot.y > 0.0 && pivot.y < WALL_HEIGHT, "camera pivot sits inside the room");
@@ -901,7 +1104,7 @@ mod tests {
         let [x, y, z] = hangar_shadow_focus();
         assert_eq!([x, z], [0.0, 0.0], "the focus is the turntable centre");
         assert!((y - TURNTABLE_TOP_M).abs() < 1.0e-6);
-        assert!(x.abs() < HALF && z.abs() < HALF && y < WALL_HEIGHT);
+        assert!(x.abs() < HALF_X && z.abs() < HALF_Z && y < WALL_HEIGHT);
     }
 
     /// THE GARAGE'S SHADOW BOX IS SIZED TO THE ROOM. Two halves of one contract, because
@@ -942,6 +1145,19 @@ mod tests {
         // (CASCADE_MARGIN_UV in renderer_wgpu's shadow.rs); in NDC that is 4% of the half-box.
         const MARGIN_NDC: f32 = 1.0 - 2.0 * 0.02;
 
+        // The extreme points of the shell: every wall corner at floor and eaves height, plus
+        // the RIDGE line ends of each shed tooth — the roof rises past the eaves, and a corner
+        // list that stopped at the wall height would under-measure the roof silently.
+        let mut extremes: Vec<[f32; 3]> = Vec::new();
+        for x in [-HALF_X, HALF_X] {
+            for z in [-HALF_Z, HALF_Z] {
+                extremes.push([x, 0.0, z]);
+                extremes.push([x, WALL_HEIGHT, z]);
+            }
+            for start in SHED_STARTS {
+                extremes.push([x, SHED_RIDGE, start + SHED_DECK_RUN]);
+            }
+        }
         for rig in [
             SceneLighting::garage_hero(),
             SceneLighting::garage_workshop(),
@@ -952,20 +1168,16 @@ mod tests {
                 focus,
                 params,
             ));
-            for x in [-HALF, HALF] {
-                for z in [-HALF, HALF] {
-                    for y in [0.0, WALL_HEIGHT] {
-                        let clip = m * glam::Vec4::new(x, y, z, 1.0);
-                        let ndc = clip.truncate() / clip.w;
-                        assert!(
-                            ndc.x.abs() <= MARGIN_NDC && ndc.y.abs() <= MARGIN_NDC,
-                            "hall corner ({x}, {y}, {z}) falls out of the near shadow box \
-                             (ndc {ndc:?}) under key {:?} — the walls would take the far \
-                             cascade and read a seam",
-                            rig.key_direction
-                        );
-                    }
-                }
+            for [x, y, z] in &extremes {
+                let clip = m * glam::Vec4::new(*x, *y, *z, 1.0);
+                let ndc = clip.truncate() / clip.w;
+                assert!(
+                    ndc.x.abs() <= MARGIN_NDC && ndc.y.abs() <= MARGIN_NDC,
+                    "hall extreme ({x}, {y}, {z}) falls out of the near shadow box \
+                     (ndc {ndc:?}) under key {:?} — the walls would take the far \
+                     cascade and read a seam",
+                    rig.key_direction
+                );
             }
         }
 
@@ -1011,8 +1223,8 @@ mod tests {
             focus_radius_m: hangar_shadow_radius_m(),
             ..SunShadowParams::default()
         };
-        // The hall's furthest corner from the turntable, in metres.
-        let corner = (HALF * HALF * 2.0 + WALL_HEIGHT * WALL_HEIGHT).sqrt();
+        // The hall's furthest point from the turntable: the ridge-height gate-end corner.
+        let corner = (HALF_X * HALF_X + HALF_Z * HALF_Z + SHED_RIDGE * SHED_RIDGE).sqrt();
         assert!(
             corner < near.focus_radius_m,
             "the hall's far corner is {corner:.1} m out and the near box only reaches {:.1} m — \
@@ -1028,25 +1240,38 @@ mod tests {
         );
     }
 
-    /// The back of the frame is a CLOSED bay gate, not a glowing plate: nothing on the back
-    /// wall below the seam may run brighter than the walls' own palette (the only hot
-    /// emitters in the hall are the worklamp faces).
+    /// The end of the drive lane is a real AJAR gate, not a glowing plate and not a mural:
+    /// nothing on the gate wall below the seam runs brighter than the walls' own palette (the
+    /// only hot emitters in the hall are the worklamp faces), the raised slat stack is present,
+    /// and under it the opening is a genuine hole in the shell — a ray out of the hall through
+    /// the gap escapes, a ray at slat height does not. The daylight wedge on the lane is the
+    /// renderer's background standing in a real opening, exactly like the shed glazing.
     #[test]
-    fn the_bay_gate_is_steel_not_a_lightbox() {
-        let (vertices, _) = hangar_scene_mesh();
-        let back_wall_glow = vertices.iter().any(|v| {
-            v.position[2] < -(HALF - 1.0)
+    fn the_bay_gate_stands_ajar_over_a_real_opening() {
+        let (vertices, indices) = hangar_scene_mesh();
+        let gate_wall_glow = vertices.iter().any(|v| {
+            v.position[2] < -(HALF_Z - 1.0)
                 && v.position[1] < WALL_SEAM
                 && v.color.iter().any(|&c| c > 0.8)
         });
-        assert!(!back_wall_glow, "the gate must read as steel, not a glowing doorway");
-        // The gate itself is present: framed slats proud of the back wall plane (hue-matched —
-        // the corner-shade bake scales the authored colours).
+        assert!(!gate_wall_glow, "the gate must read as steel, not a glowing doorway");
+        // The raised stack: framed slats proud of the gate wall plane (hue-matched — the
+        // corner-shade bake scales the authored colours).
         let slats = vertices
             .iter()
             .filter(|v| is_shade_of(v.color, GATE_SLAT) || is_shade_of(v.color, GATE_SLAT_ALT))
             .count();
-        assert!(slats >= 6 * 24, "six framed gate slats, got {slats} vertices");
+        assert!(slats >= 5 * 24, "five framed gate slats, got {slats} vertices");
+        // The opening is real: out of the hall under the stack, steel at slat height.
+        let out = [0.0, 0.0, -1.0];
+        assert!(
+            !ray_hits_mesh([0.0, GATE_AJAR_M * 0.6, -10.0], out, &vertices, &indices),
+            "under the ajar stack the gateway is open to the day"
+        );
+        assert!(
+            ray_hits_mesh([0.0, (GATE_AJAR_M + GATE_TOP) / 2.0, -10.0], out, &vertices, &indices),
+            "above the ajar line the gate is closed steel"
+        );
     }
 
     /// The turntable is machinery: a rim ring wider than the deck and radial plate seams on
@@ -1068,11 +1293,11 @@ mod tests {
         // Regression for the z-fighting moiré band: the gunmetal and near-black wall slabs must
         // meet edge-to-edge at `WALL_SEAM`, never share coplanar inner faces over an overlap.
         let (vertices, _) = hangar_scene_mesh();
-        // Vertices on the right side-wall inner plane (x == HALF - SLAB).
+        // Vertices on the right side-wall inner plane (x == HALF_X - SLAB).
         let on_plane = |c: [f32; 3]| {
             vertices
                 .iter()
-                .filter(move |v| (v.position[0] - (HALF - SLAB)).abs() < 1.0e-4 && v.color == c)
+                .filter(move |v| (v.position[0] - (HALF_X - SLAB)).abs() < 1.0e-4 && v.color == c)
                 .map(|v| v.position[1])
         };
         let metal_top = on_plane(METAL).fold(f32::MIN, f32::max);
@@ -1082,9 +1307,10 @@ mod tests {
             (metal_top - upper_bottom).abs() < 1.0e-4,
             "wall bands must abut at the seam, not overlap: metal top {metal_top}, upper bottom {upper_bottom}"
         );
-        // The upper band runs all the way to the ceiling — no gap to the roof.
+        // The side wall's upper band runs all the way to the shed ridge — it is the sheds'
+        // flank, and a band stopping at the eaves would open a sky sliver over every tooth.
         let upper_top = on_plane(UPPER_WALL).fold(f32::MIN, f32::max);
-        assert!((upper_top - WALL_HEIGHT).abs() < 1.0e-4, "upper wall must reach the roof");
+        assert!((upper_top - SHED_RIDGE).abs() < 1.0e-4, "upper wall must reach the ridge");
     }
 
     #[test]
@@ -1099,8 +1325,10 @@ mod tests {
         );
     }
 
-    /// The 36 m volume is EARNED: the band between the wall seam and the roof carries the
-    /// catwalk, crane rails, lamp rig and signage — not empty black air.
+    /// The nave's volume is EARNED: the band between the wall seam and the truss chords
+    /// carries the crane girder and rails, the lamp rig, the catwalk railing and signage — not
+    /// empty black air. The 9 m hall's band is thinner than the old 12.6 m cathedral's, so the
+    /// floor is re-blessed to the measured furnishing of THIS shell, not inherited.
     #[test]
     fn the_upper_band_is_inhabited() {
         let (vertices, _) = hangar_scene_mesh();
@@ -1109,12 +1337,12 @@ mod tests {
             .filter(|v| {
                 let [x, y, z] = v.position;
                 y > WALL_SEAM
-                    && y < WALL_HEIGHT - 0.6
-                    && x.abs() < HALF - SLAB - 0.01
-                    && z.abs() < HALF - SLAB - 0.01
+                    && y < WALL_HEIGHT - 0.1
+                    && x.abs() < HALF_X - SLAB - 0.01
+                    && z.abs() < HALF_Z - SLAB - 0.01
             })
             .count();
-        assert!(inhabited >= 800, "the upper band is dressed, got {inhabited} vertices");
+        assert!(inhabited >= 600, "the upper band is dressed, got {inhabited} vertices");
     }
 
     /// Every hot lamp face hangs where the `garage_hero` light rig says a light is: the pools
@@ -1133,8 +1361,8 @@ mod tests {
         assert!(hot.len() >= 6 * 4, "the lamp rig has hot faces, got {}", hot.len());
         for vertex in &hot {
             assert!(
-                vertex.position[2] > -(HALF - 1.0),
-                "an emitter on the back wall is a lightbox, not a window: {:?}",
+                vertex.position[2] > -(HALF_Z - 1.0),
+                "an emitter on the gate wall is a lightbox, not a window: {:?}",
                 vertex.position
             );
             let near_light = rig.iter().any(|light| {
@@ -1162,14 +1390,15 @@ mod tests {
         assert!(!red.is_empty(), "the extinguishers exist");
         for vertex in &red {
             let [x, _, z] = vertex.position;
-            let by_gate = (x - -5.6).abs() < 0.6 && (z + (HALF - 0.45)).abs() < 0.6;
-            let by_bench = (x - (HALF - 0.45)).abs() < 0.6 && (z - 3.8).abs() < 0.6;
+            let by_gate = (x - -5.6).abs() < 0.6 && (z + (HALF_Z - 0.45)).abs() < 0.6;
+            let by_bench = (x - (HALF_X - 0.45)).abs() < 0.6 && (z - 3.8).abs() < 0.6;
             assert!(by_gate || by_bench, "stray saturated red at {:?}", vertex.position);
         }
     }
 
-    /// The far side of the hall reads OCCUPIED: the second bay and its furniture put real
-    /// geometry in the +x/+z quadrant, off the hero's turntable.
+    /// The deep end of the nave reads OCCUPIED: the second bay and its furniture put real
+    /// geometry down the long axis past the turntable — across the nave from the hero
+    /// framing's eye, so the depth of the shot has work standing in it, not beside the lens.
     #[test]
     fn the_second_bay_reads_occupied() {
         let (vertices, _) = hangar_scene_mesh();
@@ -1177,7 +1406,7 @@ mod tests {
             .iter()
             .filter(|v| {
                 let [x, y, z] = v.position;
-                x > 7.0 && z > 5.5 && y > 0.05 && y < 4.0
+                (-7.5..-3.0).contains(&x) && z > 11.0 && y > 0.05 && y < 4.0
             })
             .count();
         assert!(occupied >= 400, "the second bay is furnished, got {occupied} vertices");
@@ -1276,14 +1505,17 @@ mod tests {
         for vertex in &vertices {
             let [x, y, z] = vertex.position;
             let r = (x * x + z * z).sqrt();
+            // Ceiling of the protected column: under the 9 m chord the high-bay pendants hang
+            // at 7.6 m (their faces at 7.585), and the orbit's own eye never climbs past ~5.8
+            // inside this radius (the clamp's ceiling binds long before r < 5.7 m).
             assert!(
-                !(r < TURNTABLE_RADIUS_M + 0.5 && y > 0.5 && y < 8.4),
+                !(r < TURNTABLE_RADIUS_M + 0.5 && y > 0.5 && y < 7.4),
                 "geometry invades the turntable air column at {:?}",
                 vertex.position
             );
             assert!(
                 !(x.abs() < 2.7
-                    && (-(HALF - 0.5)..-TURNTABLE_RADIUS_M).contains(&z)
+                    && (-(HALF_Z - 0.5)..-TURNTABLE_RADIUS_M).contains(&z)
                     && y > 0.4
                     && y < 4.4),
                 "geometry blocks the drive lane at {:?}",

@@ -6,7 +6,8 @@
 use glam::Vec3;
 use renderer_api::SceneVertex;
 
-use super::hangar::{Finish, HALF, WALL_HEIGHT, finish, push_cylinder, slab};
+use super::hangar::{Finish, HALF_X, HALF_Z, finish, push_cylinder, slab};
+use super::hangar_gallery::CRANE_GIRDER_Y;
 
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
 const DARK_STEEL: [f32; 3] = [0.16, 0.17, 0.18];
@@ -22,32 +23,37 @@ const BARREL: [f32; 3] = [0.30, 0.34, 0.30];
 const OIL: [f32; 3] = [0.20, 0.19, 0.165];
 
 /// Append every workshop prop to the hangar mesh. Wall-side props sit near the shell so the bay
-/// floor around the turntable stays clear for the hero vehicle.
+/// floor around the turntable stays clear for the hero vehicle; the working zones stretch down
+/// the nave's long axis (gate → hero station → second bay → stores), the A3 workflow line.
 pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // Wall-side props are anchored a fixed offset in from the shell, so they follow the wall at any
     // hall size instead of floating mid-floor.
-    let wall = HALF - 1.7;
-    let corner = HALF - 3.0;
+    let wall = HALF_X - 1.7;
+    let gate_corner_x = HALF_X - 3.0;
+    let gate_corner_z = HALF_Z - 3.0;
     overhead_crane(v, i);
-    wheel_stack(v, i, -corner, -corner);
-    wheel_stack(v, i, -corner - 0.7, -corner);
-    track_link_pile(v, i, corner, -corner);
+    wheel_stack(v, i, -gate_corner_x, -gate_corner_z);
+    wheel_stack(v, i, -gate_corner_x - 0.7, -gate_corner_z);
+    track_link_pile(v, i, gate_corner_x, -gate_corner_z);
     workbench(v, i, wall, 6.0);
     tool_board(v, i, 6.0);
-    crate_pallet(v, i, corner, corner);
+    crate_pallet(v, i, gate_corner_x, gate_corner_z);
     barrels(v, i, -wall);
     oil_stains(v, i, wall);
-    second_bay(v, i, 10.5, 9.5);
-    stores_zone(v, i, -(HALF - 2.5), 10.5);
+    // Across the nave from the hero camera's rest position — the first A1 render had it at
+    // (+5.5, 14.5), which put its gantry legs INSIDE the hero framing's eye.
+    second_bay(v, i, -5.5, 14.5);
+    stores_zone(v, i, -(HALF_X - 2.5), 17.0);
     extinguishers(v, i);
 }
 
-/// A gantry crane spanning the bay just under the trusses, with a hoist block hanging over the
-/// turntable — the workshop's signature overhead silhouette.
+/// A gantry crane spanning the nave just under the truss chords, riding the wall rails
+/// (`hangar_gallery::push_crane_rails`), with a hoist block parked out past the turntable —
+/// the workshop's signature overhead silhouette.
 fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let start = v.len();
-    let beam_y = WALL_HEIGHT - 2.5;
-    let span = HALF - 1.5;
+    let beam_y = CRANE_GIRDER_Y;
+    let span = HALF_X - 1.5;
     // Main box girder across the bay (x-spanning), plus a lighter cross rail it rides on.
     slab(v, i, [0.0, beam_y, -1.6], [span, 0.28, 0.32], STEEL);
     slab(v, i, [0.0, beam_y + 0.34, -1.6], [span, 0.06, 0.5], DARK_STEEL);
@@ -174,7 +180,7 @@ fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
 /// A pegboard tool wall behind the workbench: a timber board with a few hung-steel silhouettes.
 /// One glance says "workshop"; scattered floor discs never did.
 fn tool_board(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, z: f32) {
-    let x = HALF - 0.30;
+    let x = HALF_X - 0.30;
     let board = v.len();
     slab(v, i, [x, 1.7, z], [0.05, 0.65, 1.5], WOOD);
     finish(&mut v[board..], Finish::TIMBER);
@@ -326,7 +332,7 @@ fn stores_zone(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
 /// workbench (locked by `the_extinguishers_are_the_only_saturated_red`).
 fn extinguishers(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     const EXTINGUISHER: [f32; 3] = [0.55, 0.08, 0.06];
-    for (x, z, along_x) in [(-5.6, -(HALF - 0.45), false), (HALF - 0.45, 3.8, true)] {
+    for (x, z, along_x) in [(-5.6, -(HALF_Z - 0.45), false), (HALF_X - 0.45, 3.8, true)] {
         let plate_offset = 0.14;
         let (px, pz) = if along_x { (x + plate_offset, z) } else { (x, z - plate_offset) };
         let plate_half = if along_x { [0.02, 0.24, 0.14] } else { [0.14, 0.24, 0.02] };
@@ -352,11 +358,11 @@ mod tests {
         (0.79..=1.001).contains(&k) && (0..3).all(|i| (color[i] - base[i] * k).abs() < 1.0e-4)
     }
 
-    /// The five drums the hall stands (three by the gate wall, two in stores), by the centres
-    /// the builders use. A duplicated list, on purpose: moving a drum without moving its lock
-    /// is exactly the drift this test exists to catch.
+    /// The five drums the hall stands (three along the left wall, two in stores), by the
+    /// centres the builders use. A duplicated list, on purpose: moving a drum without moving
+    /// its lock is exactly the drift this test exists to catch.
     const DRUMS: [(f32, f32); 5] =
-        [(-16.3, -3.4), (-16.25, -2.6), (-16.2, -1.8), (-16.4, 7.3), (-16.25, 6.6)];
+        [(-9.3, -3.4), (-9.25, -2.6), (-9.2, -1.8), (-9.4, 13.8), (-9.25, 13.1)];
 
     #[test]
     fn spare_wheels_are_fleet_wheels() {
@@ -366,8 +372,7 @@ mod tests {
         let (vertices, _) = hangar_scene_mesh();
         // Two stacks stand side by side; a vertex belongs to the NEARER axis, so the max of
         // that min-distance is exactly one wheel's radius.
-        let corner = HALF - 3.0;
-        let stacks = [(-corner, -corner), (-corner - 0.7, -corner)];
+        let stacks = [(-(HALF_X - 3.0), -(HALF_Z - 3.0)), (-(HALF_X - 3.0) - 0.7, -(HALF_Z - 3.0))];
         let radius = vertices
             .iter()
             .filter(|v| is_shade_of(v.color, RUBBER))
@@ -428,9 +433,8 @@ mod tests {
         for (cx, cz) in DRUMS {
             assert!(ring_under(cx, cz, 0.29), "the drum at ({cx}, {cz}) stands on a wear ring");
         }
-        let corner = HALF - 3.0;
         assert!(
-            ring_under(-corner, -corner, SPARE_WHEEL_RADIUS_M),
+            ring_under(-(HALF_X - 3.0), -(HALF_Z - 3.0), SPARE_WHEEL_RADIUS_M),
             "the wheel stack stands on a wear ring"
         );
     }
@@ -442,7 +446,7 @@ mod tests {
     fn rack_crates_sit_on_their_shelves() {
         let (vertices, _) = hangar_scene_mesh();
         const CRATE: [f32; 3] = [0.295, 0.315, 0.235];
-        let (rack_x, rack_z) = (-(HALF - 2.5), 10.5);
+        let (rack_x, rack_z) = (-(HALF_X - 2.5), 17.0);
         for (shelf, dz, dx, hw, hh) in RACK_CRATES {
             let seat = RACK_SHELF_YS[shelf] + RACK_SHELF_HALF_H;
             let (cx, cz) = (rack_x + dx, rack_z + dz);
@@ -469,7 +473,7 @@ mod tests {
         // A T-54 link is 0.58 m wide, ~0.14 m at the pitch and under a decimetre thick: the
         // pile reads as low, WIDE plates.
         let (vertices, _) = hangar_scene_mesh();
-        let (cx, cz) = (HALF - 3.0, -(HALF - 3.0));
+        let (cx, cz) = (HALF_X - 3.0, -(HALF_Z - 3.0));
         let pile: Vec<_> = vertices
             .iter()
             .filter(|v| {

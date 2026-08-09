@@ -165,11 +165,14 @@ fn garage_hero_pools_the_light_where_the_work_is() {
             "every pool is warm lamp light — a cool pool is daylight from nowhere: {:?}",
             light.rgb
         );
+        // Hand-synced with the A1 nave (hangar.rs: HALF_X 11, HALF_Z 22, truss chord 9) —
+        // renderer_api sits under scene_build and cannot read the constants. If the hall
+        // changes size, these change with it or this test proves nothing.
         assert!(
-            light.position[0].abs() < 18.0
-                && light.position[2].abs() < 18.0
+            light.position[0].abs() < 11.0
+                && light.position[2].abs() < 22.0
                 && light.position[1] > 0.0
-                && light.position[1] < 12.6,
+                && light.position[1] < 9.0,
             "light at {:?} must hang inside the hall",
             light.position
         );

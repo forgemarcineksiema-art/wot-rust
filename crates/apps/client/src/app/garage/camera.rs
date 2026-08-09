@@ -12,13 +12,15 @@ use super::{GarageState, HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
 use scene_build::hangar::hangar_camera_pivot;
 
 const MIN_PITCH: f32 = -0.05;
-/// Capped so a full zoom-out never tips the eye up through the roof — with the boom range below and
-/// the hall size (`hangar_interior`), the whole orbit stays inside the shell without any clamping.
 const MAX_PITCH: f32 = 0.65;
-/// Closest boom (running-gear inspection) and the widest pull-back. Both are chosen to sit inside
-/// the hangar at every angle, so zooming is a plain range — no wall-dependent clamp, no snapping.
+/// Closest boom (running-gear inspection) and the widest pull-back. The A1 nave is 22 m across
+/// and 44 m long, so "fits at every angle" would surrender the long-axis depth the rectangle
+/// was built for: instead the STORED distance is a plain range and the APPLIED boom is clamped
+/// per angle against the hall's own geometry (`hangar::max_orbit_boom`) — full 360° orbit, the
+/// camera rides closer along the narrow axis, the eye never enters a wall (decision
+/// 2026-08-09; locked by `the_clamped_orbit_never_leaves_the_hall`).
 const MIN_DISTANCE: f32 = 5.0;
-const MAX_DISTANCE: f32 = 17.0;
+const MAX_DISTANCE: f32 = 19.0;
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_STEP_M: f32 = 1.2;
 /// Exponential ease rate of the focus/return spring (per second).
@@ -52,35 +54,38 @@ impl CameraTarget {
 
     /// The framing that best shows a given fitting slot: the suspension wants a low side pass over
     /// the wheels, the gun a near-level look down the barrel, the engine deck a rear-high angle,
-    /// and so on. Distances stay within the boom clamp.
+    /// and so on. Distances stay within the boom clamp. The yaws are bearings relative to the
+    /// PARKED hull, so they moved with the A1 reframe (`HERO_PARK_YAW` fell 0.18 rad with the
+    /// hero yaw) — each slot keeps its angle on the tank, not its compass heading. A3 gives
+    /// these framings composed backgrounds.
     fn for_slot(slot: FitSlot) -> Self {
         match slot {
             FitSlot::Turret => Self {
-                yaw: 0.7,
+                yaw: 0.52,
                 pitch: 0.55,
                 distance: 5.5,
                 pivot_offset: Vec3::new(0.0, 0.7, 0.0),
             },
             FitSlot::Gun => Self {
-                yaw: 0.18,
+                yaw: 0.0,
                 pitch: 0.12,
                 distance: 6.5,
                 pivot_offset: Vec3::new(0.0, 0.25, 1.6),
             },
             FitSlot::Hull => Self {
-                yaw: 0.55,
+                yaw: 0.37,
                 pitch: 0.14,
                 distance: 6.0,
                 pivot_offset: Vec3::new(0.0, -0.1, 0.4),
             },
             FitSlot::Engine => Self {
-                yaw: 3.35,
+                yaw: 3.17,
                 pitch: 0.42,
                 distance: 6.0,
                 pivot_offset: Vec3::new(0.0, 0.2, -1.6),
             },
             FitSlot::Suspension => Self {
-                yaw: 1.55,
+                yaw: 1.37,
                 pitch: -0.03,
                 distance: 4.5,
                 pivot_offset: Vec3::new(0.0, -0.55, 0.0),
@@ -104,11 +109,20 @@ fn angle_delta(from: f32, to: f32) -> f32 {
 }
 
 impl GarageState {
+    /// The boom actually applied this frame: the player's stored zoom, held back by the wall
+    /// the orbit is currently pointing the eye at. Clamping the APPLIED boom (not the stored
+    /// one) means dragging across the narrow axis squeezes the camera in and releases it again
+    /// on the far side, with the stored zoom unharmed.
+    fn applied_boom(&self) -> f32 {
+        self.orbit_distance
+            .min(scene_build::hangar::max_orbit_boom(self.orbit_yaw, self.orbit_pitch))
+    }
+
     pub(in crate::app) fn orbit_camera(&self) -> Camera {
         let pivot = hangar_camera_pivot() + self.pivot_offset;
         let eye = pivot
             + scene_build::hangar::orbit_direction(self.orbit_yaw, self.orbit_pitch)
-                * self.orbit_distance;
+                * self.applied_boom();
         Camera {
             eye: eye.to_array(),
             target: pivot.to_array(),
@@ -214,20 +228,23 @@ mod tests {
         assert!(garage.camera_target.is_none(), "the spring releases once arrived");
     }
 
+    /// THE A1 ORBIT INVARIANT: the eye never enters a wall, at any yaw, pitch and stored zoom
+    /// — not because the boom fits everywhere (in a 22 m nave it cannot), but because the
+    /// applied boom is clamped against the hall's own geometry per angle. Sweeps the whole
+    /// orbit space through the same `max_orbit_boom` the live camera uses.
     #[test]
-    fn the_full_zoom_range_fits_inside_the_hangar_at_every_angle() {
-        // The boom is a plain range (no wall clamp), so correctness is a geometry invariant: at the
-        // widest pull-back and the steepest allowed tilt, from any yaw, the eye must still clear the
-        // shell. If a constant drifts (hall shrinks, boom grows, pitch cap rises) this catches it.
-        let (half, height) = scene_build::hangar::hangar_interior();
+    fn the_clamped_orbit_never_leaves_the_hall() {
+        let (half_x, half_z, height) = scene_build::hangar::hangar_interior();
         let pivot = scene_build::hangar::hangar_camera_pivot();
-        let margin = 0.4;
-        for yaw_step in 0..24 {
-            let yaw = yaw_step as f32 / 24.0 * std::f32::consts::TAU;
+        let margin = 0.35; // just under the clamp's own 0.4 m wall margin
+        for yaw_step in 0..48 {
+            let yaw = yaw_step as f32 / 48.0 * std::f32::consts::TAU;
             for &pitch in &[MIN_PITCH, 0.3, MAX_PITCH] {
-                let eye = pivot + scene_build::hangar::orbit_direction(yaw, pitch) * MAX_DISTANCE;
-                assert!(eye.x.abs() < half - margin, "eye clips x at yaw {yaw}, pitch {pitch}");
-                assert!(eye.z.abs() < half - margin, "eye clips z at yaw {yaw}, pitch {pitch}");
+                let boom = MAX_DISTANCE.min(scene_build::hangar::max_orbit_boom(yaw, pitch));
+                assert!(boom >= MIN_DISTANCE, "the clamp may never crush the close boom");
+                let eye = pivot + scene_build::hangar::orbit_direction(yaw, pitch) * boom;
+                assert!(eye.x.abs() < half_x - margin, "eye clips x at yaw {yaw}, pitch {pitch}");
+                assert!(eye.z.abs() < half_z - margin, "eye clips z at yaw {yaw}, pitch {pitch}");
                 assert!(eye.y > margin, "eye clips the floor at yaw {yaw}, pitch {pitch}");
                 assert!(eye.y < height - margin, "eye clips the roof at yaw {yaw}, pitch {pitch}");
             }
@@ -235,14 +252,26 @@ mod tests {
     }
 
     /// The user rejected the tight 9.5 m repair-bay framing: the hero shot is the ROOMY hall
-    /// look. Any future "let's pull the camera in" regresses here first. Locking constants is
-    /// the point, so the constant-assertion lint is deliberately silenced.
+    /// look. Any future "let's pull the camera in" regresses here first. In the A1 nave the
+    /// roominess lives on the LONG axis: the hero framing and the full pull-back must both be
+    /// genuinely reachable there — a MAX_DISTANCE the clamp never grants would be a lie.
+    /// Locking constants is the point, so the constant-assertion lint is deliberately silenced.
     #[test]
     #[allow(clippy::assertions_on_constants)]
     fn the_hero_framing_is_the_roomy_cathedral_shot() {
         assert!(HERO_ORBIT_DISTANCE >= 14.0 - 1.0e-4, "hero boom stays roomy");
         assert!(MAX_DISTANCE >= 17.0 - 1.0e-4, "full pull-back stays available");
         assert!(MIN_DISTANCE <= 5.0, "close inspection stays available");
+        // ...and the hall grants both: unclamped at the hero framing, full reach down the axis.
+        assert!(
+            scene_build::hangar::max_orbit_boom(HERO_ORBIT_YAW, HERO_ORBIT_PITCH)
+                > HERO_ORBIT_DISTANCE,
+            "the hero framing must not be a clamped compromise"
+        );
+        assert!(
+            scene_build::hangar::max_orbit_boom(0.0, HERO_ORBIT_PITCH) >= MAX_DISTANCE,
+            "the long axis carries the full pull-back"
+        );
     }
 
     #[test]
