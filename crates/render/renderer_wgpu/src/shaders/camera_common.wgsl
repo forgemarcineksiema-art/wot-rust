@@ -63,7 +63,23 @@ struct Camera {
     // Vehicles pressing the meadow down (Jedna Trawa P9): xyz = world position, w = crush
     // radius. Radius 0 disables the slot, so an all-zero array costs one compare per slot.
     crusher_pos_radius: array<vec4<f32>, 6>,
+    // The garage hero probe (Hala 3.0 B2): the hall's bounced light at the station as a
+    // six-axis irradiance cube (+x, -x, +y, -y, +z, -z; xyz = linear rgb). The vehicle
+    // shader blends the three faces its normal leans into; all-zero on battle frames, which
+    // adds exactly nothing.
+    hero_probe: array<vec4<f32>, 6>,
 };
+
+// Irradiance from the hero probe for a world-space normal: the standard ambient-cube blend —
+// each axis contributes its facing side weighted by the squared normal component (the three
+// weights sum to 1 for a unit normal).
+fn hero_probe_irradiance(n: vec3<f32>) -> vec3<f32> {
+    let n2 = n * n;
+    let px = select(camera.hero_probe[1].rgb, camera.hero_probe[0].rgb, n.x >= 0.0);
+    let py = select(camera.hero_probe[3].rgb, camera.hero_probe[2].rgb, n.y >= 0.0);
+    let pz = select(camera.hero_probe[5].rgb, camera.hero_probe[4].rgb, n.z >= 0.0);
+    return n2.x * px + n2.y * py + n2.z * pz;
+}
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;

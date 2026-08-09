@@ -57,4 +57,15 @@ impl SceneRenderer {
     pub fn default_bloom_mips(&self) -> u32 {
         self.default_bloom_mips
     }
+
+    /// Set or clear the garage hero probe (Hala 3.0 B2): the hall's irradiance cube at the
+    /// station, added to every vehicle fragment by the ambient-cube blend. `None` zeroes the
+    /// lanes, which the shader turns into a bit-exact no-op — the battlefield's state.
+    /// Scene-swap cadence, like the interior background.
+    pub fn set_hero_probe(&mut self, probe: Option<[[f32; 3]; 6]>) {
+        self.hero_probe = match probe {
+            Some(faces) => faces.map(|f| [f[0], f[1], f[2], 0.0]),
+            None => [[0.0; 4]; 6],
+        };
+    }
 }

@@ -111,6 +111,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = SceneLighting::garage_hero();
     let (bg_r, bg_g, bg_b) = scene_build::hangar::INTERIOR_BACKGROUND;
     renderer.set_interior_background(bg_r, bg_g, bg_b);
+    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

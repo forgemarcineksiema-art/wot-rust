@@ -401,6 +401,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             shadow * surface_occlusion,
             indirect_occlusion,
         );
+    // The hero probe (Hala 3.0 B2): the garage hall's bounced light, blended by the ambient
+    // cube — the vehicle-side twin of the scene mesh's baked bounce lane, closing G5 (the
+    // room has had GI since Hala 2.0; the hero standing in it received none). All-zero on
+    // battle frames, where this line adds exactly nothing. Occluded like the ambient: cavity
+    // AO applies, the sun shadow does not (bounce arrives from everywhere).
+    lit += albedo * hero_probe_irradiance(world_n) * indirect_occlusion;
     // INTERIOR roles only (5 primer, 6 machinery, 7 ammunition). Canvas, glass and timber are
     // exterior fittings that happen to sit above them in the id order, and an unbounded `>= 5`
     // lit a tarpaulin as though it were inside the fighting compartment.

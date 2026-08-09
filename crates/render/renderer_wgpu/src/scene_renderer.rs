@@ -101,6 +101,9 @@ pub struct SceneRenderer {
     /// Where each tank stands this frame (Jedna Trawa P9), read off the vehicle frame — the
     /// meadow is pressed down by the nearest of these.
     grass_crushers: Vec<(renderer_api::VehicleId, [f32; 3])>,
+    /// The garage hero probe (Hala 3.0 B2): the hall's irradiance cube at the station, set by
+    /// the garage scene swap and zeroed everywhere else (`set_hero_probe`).
+    hero_probe: [[f32; 4]; 6],
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -513,6 +516,7 @@ impl SceneRenderer {
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),
             grass_crushers: Vec::new(),
+            hero_probe: [[0.0; 4]; 6],
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,

@@ -66,6 +66,13 @@ impl WindowRenderer {
         self.scene.default_bloom_mips()
     }
 
+    /// Set or clear the garage hero probe (see [`SceneRenderer::set_hero_probe`]).
+    ///
+    /// [`SceneRenderer::set_hero_probe`]: crate::SceneRenderer::set_hero_probe
+    pub fn set_hero_probe(&mut self, probe: Option<[[f32; 3]; 6]>) {
+        self.scene.set_hero_probe(probe);
+    }
+
     /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
     /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
     /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery
