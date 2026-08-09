@@ -85,6 +85,9 @@ impl ClientApp {
         // the hangar's own blade geometry, so the light, its dust and its beams agree.
         let blades = scene_build::hangar::sun_shaft_quads();
         self.fx.hangar_motes(&blades, dt);
+        // ...and the hall breathes (E2): steam off the heating duct by the stores, drifting
+        // toward the gate with the draft the exhaust fan maintains.
+        self.fx.vent_steam(Vec3::from_array(scene_build::hangar::STEAM_DUCT_OUTLET), dt);
         self.fx.tick(dt);
         let mut fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
@@ -102,10 +105,17 @@ impl ClientApp {
         }
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&render_frame);
-        renderer.set_dynamic_mesh(&[], &[]);
+        // The exhaust fan turns (E2): its blades are the dynamic mesh the garage used to
+        // clear — rebuilt per frame at the tick-domain angle, ~180 vertices of motion.
+        let (fan_v, fan_i) = crate::look_harness::hangar_fan_mesh_at(scene_time_s);
+        renderer.set_dynamic_mesh(&fan_v, &fan_i);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
+        // The bench tube flickers (E2): the rig re-evaluated per presented frame on the same
+        // clock everything else animates on. Deterministic — at the golden harness's frozen
+        // second the factor is 1.0 and this line changes nothing.
+        renderer.set_scene_lighting(SceneLighting::garage_hero_at(scene_time_s));
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");
         }

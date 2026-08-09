@@ -31,6 +31,17 @@ pub fn hangar_shaft_fx_vertices() -> Vec<renderer_api::FxVertex> {
     crate::fx::FxSystem::hangar_shaft_vertices(&scene_build::hangar::sun_shaft_quads())
 }
 
+/// How fast the exhaust fan turns (E2), radians per presented second — an unhurried
+/// extraction fan, not a propeller.
+const FAN_SPEED_RAD_S: f32 = 2.4;
+
+/// The exhaust fan's blade mesh at a moment on the presentation clock — the one builder the
+/// live garage, this harness and the probes share, so the locked frame holds the exact blade
+/// angle the game would show at the frozen review second.
+pub fn hangar_fan_mesh_at(seconds: f32) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
+    scene_build::hangar::wall_fan_blades(seconds * FAN_SPEED_RAD_S)
+}
+
 /// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the
 /// look goldens predate the Świat 2.0 battle lens (48°) and stay a stable instrument — the
 /// battle FOV verdict renders through the `fov_probe` before/after pair instead.
@@ -181,6 +192,11 @@ pub fn render_hangar_review_views(
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());
+    // The fan holds one exact blade angle at the frozen review clock (E2) and the flicker
+    // factor is exactly 1.0 there — `garage_hero_at(REVIEW_SCENE_TIME_S)` is `garage_hero()`
+    // to the bit, so the views' own lighting stays the single source it always was.
+    let (fan_v, fan_i) = hangar_fan_mesh_at(REVIEW_SCENE_TIME_S);
+    renderer.set_dynamic_mesh(&ctx, &fan_v, &fan_i);
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

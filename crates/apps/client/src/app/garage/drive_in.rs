@@ -106,8 +106,10 @@ impl DriveIn {
 }
 
 impl GarageState {
-    /// Begin the roll-in for the freshly selected vehicle.
+    /// Begin the roll-in for the freshly selected vehicle. The turntable comes back to the
+    /// park heading — a new vehicle earns a fresh presentation.
     pub(super) fn start_drive_in(&mut self) {
+        self.idle_turntable_yaw = 0.0;
         self.drive_in = DriveIn {
             elapsed: Some(0.0),
             track_left_m: 0.0,
@@ -145,11 +147,12 @@ impl GarageState {
         }
     }
 
-    /// The parked-vehicle pose along the entry lane; settled = the hero park pose, tracks still.
+    /// The parked-vehicle pose along the entry lane; settled = the hero park pose plus the
+    /// turntable's slow idle rotation (E2), tracks still.
     pub(in crate::app) fn drive_in_pose(&self) -> DriveInPose {
         let (z, yaw_rad) = match self.drive_in.elapsed {
             Some(e) => DriveIn::sample(e),
-            None => (0.0, scene_build::hangar::HERO_PARK_YAW),
+            None => (0.0, scene_build::hangar::HERO_PARK_YAW + self.idle_turntable_yaw),
         };
         DriveInPose {
             z,

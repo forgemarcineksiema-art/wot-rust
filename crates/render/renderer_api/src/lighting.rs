@@ -735,6 +735,27 @@ impl SceneLighting {
     }
 }
 
+impl SceneLighting {
+    /// The hero rig at a moment in time (Hala 3.0 E2): `garage_hero` with the workbench's
+    /// tube light FLICKERING — an old fluorescent that mostly holds and briefly buzzes when
+    /// its oscillators conspire. Deterministic and tick-domain, so the live garage evaluates
+    /// it per presented frame while the golden harness freezes it: at the review clock the
+    /// factor is exactly 1.0 and this function IS `garage_hero()`, to the bit.
+    pub fn garage_hero_at(seconds: f32) -> Self {
+        let mut rig = Self::garage_hero();
+        rig.local_lights[2].intensity *= fluorescent_flicker(seconds);
+        rig
+    }
+}
+
+/// Deterministic tube-flicker factor in `[0.35, 1.0]`: healthy most of the time, with brief
+/// rapid-buzz dips when three slow oscillators peak together. No RNG — the same input second
+/// always flickers the same way, which is what lets a review frame freeze it.
+pub fn fluorescent_flicker(seconds: f32) -> f32 {
+    let gate = (seconds * 0.83).sin() + (seconds * 1.97 + 1.3).sin() + (seconds * 0.31 + 4.0).sin();
+    if gate > 2.35 { 0.35 + 0.25 * (seconds * 41.0).sin().abs() } else { 1.0 }
+}
+
 impl Default for SceneLighting {
     fn default() -> Self {
         Self::battlefield_default()

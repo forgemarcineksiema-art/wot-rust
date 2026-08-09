@@ -76,7 +76,33 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // `slot <name>` reviews a module framing instead of the hero shot — the SAME framing the
     // live camera flies (A3 composed backgrounds), read from the single source.
     let slot_name = (crate::sub_arg(2).as_deref() == Some("slot")).then(|| crate::sub_arg(3));
-    let camera = if let Some(name) = slot_name.flatten() {
+    // `yaw <rad>` reviews the room from any bearing of the live orbit (boom clamped by the same
+    // wall math the camera flies) — the hero framing only ever faces the gate, and E2 hung
+    // moving pieces on the OTHER walls.
+    let orbit_yaw = (crate::sub_arg(2).as_deref() == Some("yaw"))
+        .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()))
+        .flatten();
+    let camera = if let Some(yaw) = orbit_yaw {
+        use scene_build::hangar::{HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH};
+        let pitch =
+            crate::sub_arg(4).and_then(|s| s.parse::<f32>().ok()).unwrap_or(HERO_ORBIT_PITCH);
+        let boom = scene_build::hangar::max_orbit_boom(yaw, pitch).min(HERO_ORBIT_DISTANCE);
+        let eye = pivot + scene_build::hangar::orbit_direction(yaw, pitch) * boom;
+        // Optional `<tx> <ty> <tz>`: aim the lens at a wall fixture instead of the pivot.
+        let target = match (
+            crate::sub_arg(5).and_then(|s| s.parse::<f32>().ok()),
+            crate::sub_arg(6).and_then(|s| s.parse::<f32>().ok()),
+            crate::sub_arg(7).and_then(|s| s.parse::<f32>().ok()),
+        ) {
+            (Some(tx), Some(ty), Some(tz)) => [tx, ty, tz],
+            _ => pivot.to_array(),
+        };
+        Camera {
+            eye: eye.to_array(),
+            target,
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    } else if let Some(name) = slot_name.flatten() {
         let (_, framing) = scene_build::hangar::slot_framings()
             .into_iter()
             .find(|(n, _)| *n == name)
@@ -115,6 +141,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     renderer.set_fx(&ctx, &client::hangar_shaft_fx_vertices());
+    let (fan_v, fan_i) = client::hangar_fan_mesh_at(0.0);
+    renderer.set_dynamic_mesh(&ctx, &fan_v, &fan_i);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

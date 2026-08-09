@@ -39,7 +39,9 @@ pub use debug_tools::{
 pub use feature_plan::{
     FallbackReason, FeatureFallback, RenderFeature, RenderFeaturePlan, select_render_feature_plan,
 };
-pub use lighting::{LocalLight, MAX_LOCAL_LIGHTS, NO_LOCAL_LIGHTS, SceneLighting};
+pub use lighting::{
+    LocalLight, MAX_LOCAL_LIGHTS, NO_LOCAL_LIGHTS, SceneLighting, fluorescent_flicker,
+};
 pub use lighting_quality::{LightingQuality, ShaderDetailMask};
 pub use limits::RenderLimitProfile;
 pub use pipeline::{

@@ -31,6 +31,10 @@ const ARRIVE_DIST: f32 = 0.05;
 /// Idle seconds before the auto-orbit drift begins, and its yaw speed.
 const AUTO_ORBIT_IDLE_S: f32 = 10.0;
 const AUTO_ORBIT_SPEED: f32 = 0.08;
+/// E2: the turntable joins the idle showcase — the RING turns the vehicle, slowly, the way a
+/// real display turntable does, while the camera drifts the other axis. Slower than the
+/// camera so the combined motion stays a lazy presentation, not a carousel.
+const TURNTABLE_IDLE_SPEED: f32 = 0.045;
 
 /// A framing the camera eases toward: orbit angles, boom length, and a look-point offset off the
 /// turntable centre (to lift the pivot onto the turret or drop it to the running gear).
@@ -181,6 +185,10 @@ impl GarageState {
             }
         } else if !self.dragging && self.idle_seconds > AUTO_ORBIT_IDLE_S {
             self.orbit_yaw += AUTO_ORBIT_SPEED * dt;
+            // The turntable turns WITH the idle drift (E2): machinery presenting the
+            // vehicle, not a frozen diorama. Interaction pauses both through the shared
+            // idle clock; a fresh drive-in resets the ring to the park heading.
+            self.idle_turntable_yaw += TURNTABLE_IDLE_SPEED * dt;
         }
     }
 }
@@ -278,6 +286,33 @@ mod tests {
         let garage = spun(garage, 2.0);
         assert!((garage.orbit_yaw - HERO_ORBIT_YAW).abs() < 0.02, "eased back to hero yaw");
         assert!(garage.pivot_offset.length() < 0.02, "the look point returns to centre");
+    }
+
+    /// E2: the turntable presents the vehicle once the garage idles — the parked yaw drifts
+    /// past the park heading — and a fresh drive-in brings the ring back to the mark.
+    #[test]
+    fn the_turntable_shows_the_hero_after_idling() {
+        let mut garage = GarageState::default();
+        assert_eq!(
+            garage.drive_in_pose().yaw_rad,
+            scene_build::hangar::HERO_PARK_YAW,
+            "at rest the hero sits at the park heading"
+        );
+        garage = spun(garage, AUTO_ORBIT_IDLE_S + 20.0);
+        let idled = garage.drive_in_pose().yaw_rad;
+        assert!(
+            idled > scene_build::hangar::HERO_PARK_YAW + 0.3,
+            "the ring turns the vehicle while the garage idles, got {idled}"
+        );
+        garage.start_drive_in();
+        garage = spun(garage, 0.1);
+        let _ = garage;
+        let mut fresh = GarageState::default();
+        fresh.start_drive_in();
+        assert_eq!(
+            fresh.idle_turntable_yaw, 0.0,
+            "a new vehicle earns a fresh presentation from the park heading"
+        );
     }
 
     #[test]

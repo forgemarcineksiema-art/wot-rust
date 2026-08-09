@@ -48,6 +48,45 @@ pub(super) fn push_gallery(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     push_worklamps(v, i);
     push_signage(v, i);
     push_cable_trays(v, i);
+    push_fan_housing(v, i);
+    push_steam_duct(v, i);
+}
+
+/// The exhaust fan's STATIC half (E2): shroud plate, dark throat and a two-bar guard on the
+/// stores wall. The blades themselves are the client's dynamic mesh
+/// (`hangar::wall_fan_blades`) — they turn; this does not.
+fn push_fan_housing(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
+    let [fx, fy, _] = super::hangar::FAN_CENTER;
+    let wall_z = HALF_Z - SLAB;
+    slab(v, i, [fx, fy, wall_z - 0.02], [0.72, 0.72, 0.04], LAMP_SHADE);
+    // The throat the blades spin in: a near-black square mouth behind them.
+    slab(v, i, [fx, fy, wall_z - 0.07], [0.58, 0.58, 0.012], CHEVRON_DARK);
+    // Guard bars in front of the blades — nobody guards a fan that never turns.
+    for dy in [-0.2_f32, 0.2] {
+        slab(v, i, [fx, fy + dy, wall_z - 0.30], [0.6, 0.02, 0.012], LAMP_STEM);
+    }
+    finish(&mut v[start..], Finish::PAINTED_STEEL);
+}
+
+/// The heating line's duct outlet by the stores (E2): a riser pipe and a grille box low on
+/// the left wall — the honest source of the steam wisps the FX system breathes out of it.
+fn push_steam_duct(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
+    let x = -(HALF_X - 0.30);
+    let z = 18.6;
+    slab(v, i, [x, 1.6, z], [0.09, 1.6, 0.09], LAMP_STEM);
+    slab(v, i, [x + 0.06, 2.45, z], [0.16, 0.14, 0.14], LAMP_SHADE);
+    for grille in 0..3 {
+        slab(
+            v,
+            i,
+            [x + 0.23, 2.45, z - 0.08 + grille as f32 * 0.08],
+            [0.012, 0.11, 0.02],
+            CHEVRON_DARK,
+        );
+    }
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
 /// The catwalk gallery: a deck along the STORES end wall (the gate end keeps its opening
@@ -182,6 +221,9 @@ fn push_signage(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     }
     // The banner: a dark board with a lighter border and concentric stencil squares, hung on
     // two straps off the truss frame at z = 8.75 (shed 3's first frame), facing the hero.
+    // It hangs free, so it sways with the hall's draft (E2) — the biggest, lightest hanging
+    // thing in the room gets the biggest amplitude.
+    let banner_start = v.len();
     let banner_z = 8.95;
     for x in [-1.2_f32, 1.2] {
         slab(v, i, [x, WALL_HEIGHT - 0.55, banner_z], [0.03, 0.55, 0.02], LAMP_STEM);
@@ -195,6 +237,7 @@ fn push_signage(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     }
     slab(v, i, [0.0, WALL_HEIGHT - 2.0, banner_z - 0.045], [0.55, 0.55, 0.012], BANNER_PATCH);
     slab(v, i, [0.0, WALL_HEIGHT - 2.0, banner_z - 0.055], [0.33, 0.33, 0.008], BANNER);
+    super::hangar::set_sway(&mut v[banner_start..], 0.05);
     // Marker plates over the two working zones: the same concentric-stencil motif, small.
     for (x, z) in [(-(HALF_X - SLAB - 0.06), 14.0), (HALF_X - SLAB - 0.06, 9.5)] {
         let sign = if x < 0.0 { 1.0 } else { -1.0 };
