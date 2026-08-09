@@ -160,10 +160,16 @@ fn garage_hero_pools_the_light_where_the_work_is() {
     assert!(warm_by_turntable >= 2, "warm pools hang over the turntable: {warm_by_turntable}");
 
     for light in &enabled {
+        // Every pool is warm lamp light, with ONE earned exception (B1): the gate beam. Cool
+        // is only honest where daylight has an address — the ajar gate opening at the −z end
+        // (hand-synced with hangar.rs: gate wall at z = −22, opening under the slat stack).
+        // A cool pool anywhere else is still daylight from nowhere.
+        let at_the_gate = light.position[2] < -19.0 && light.position[0].abs() < 5.0;
         assert!(
-            light.rgb[0] > light.rgb[2],
-            "every pool is warm lamp light — a cool pool is daylight from nowhere: {:?}",
-            light.rgb
+            light.rgb[0] > light.rgb[2] || at_the_gate,
+            "a cool pool away from the gate is daylight from nowhere: {:?} at {:?}",
+            light.rgb,
+            light.position
         );
         // Hand-synced with the A1 nave (hangar.rs: HALF_X 11, HALF_Z 22, truss chord 9) —
         // renderer_api sits under scene_build and cannot read the constants. If the hall
@@ -497,18 +503,28 @@ fn garage_hero_lifts_the_subject_off_the_workshop_silhouette() {
         "the sourceless rear rim must stay dead — readable light has no light from nowhere"
     );
 
-    // 4. The display grade must SERVE the relight, not undo it (regression from the lighting 2.0
-    //    merge: a workshop-moody black point re-sank the flanks and the hero read as a silhouette
-    //    again). Showroom formation: bright exposure, near-neutral blacks, gentler contrast than
-    //    the moody workshop.
-    assert!(hero.exposure >= 1.1, "hero exposure is showroom-bright, got {}", hero.exposure);
+    // 4. The grade is the MOODY-WORKSHOP formation now (Hala 3.0 B1, replacing the showroom
+    //    grade this clause used to lock): neutral-or-below exposure, a real black point — but
+    //    BOUNDED, because the 2026 lighting-2.0 regression is still the failure to prevent: a
+    //    grade that re-sinks the flanks. The anti-silhouette duty this clause carried lives in
+    //    the pixel-side locks now (subject p50/p05 floors and hero-over-room in look_goldens),
+    //    which measure the frame instead of trusting the profile.
     assert!(
-        hero.black_point < workshop.black_point,
-        "hero blacks stay open vs the moody workshop: {} vs {}",
+        (0.95..=1.10).contains(&hero.exposure),
+        "hero exposure stays moody-neutral, got {}",
+        hero.exposure
+    );
+    assert!(
+        hero.black_point <= workshop.black_point,
+        "hero blacks may not out-crush the moody workshop: {} vs {}",
         hero.black_point,
         workshop.black_point
     );
-    assert!(hero.black_point <= 0.02, "hero black point stays near-neutral");
+    assert!(
+        (0.02..=0.032).contains(&hero.black_point),
+        "hero black point is a real, bounded shadow floor, got {}",
+        hero.black_point
+    );
     assert!(
         hero.contrast <= workshop.contrast,
         "the hero grade must not out-crush the workshop's contrast"

@@ -579,8 +579,14 @@ impl SceneLighting {
             // walls navy; the workshop is lit by daylight and worklights, not moonlight.
             // Trimmed a step below the facelift value: the local pools carry the warmth now,
             // and pools only read as POOLS against a quieter base.
-            ambient_rgb: [0.26, 0.255, 0.25],
-            ground_ambient_rgb: [0.15, 0.14, 0.13],
+            // B1 moody-workshop grade: the ambient drops a real step — the hall's base tone
+            // is HALF-LIGHT now, and what reads bright must be a source (shed key, the gate's
+            // day, a lamp pool). The hero stays lit because the key and the pools stand on
+            // it, not because the room glows.
+            // Held a hair over garage_workshop's ambient — the anti-silhouette lock's floor:
+            // moody is the ROOM's tone, not the subject's flanks going near-black again.
+            ambient_rgb: [0.21, 0.205, 0.198],
+            ground_ambient_rgb: [0.115, 0.11, 0.105],
             // The sun through the middle shed's glazing (Hala 3.0 A1). Derivation, so the next
             // relight can redo it instead of dialling: the glazing plane of the sun shed spans
             // z 1.0..5.5 falling from 11.3 m to 9.0 m; a ray from the turntable deck (y 0.62
@@ -634,10 +640,21 @@ impl SceneLighting {
             // point re-sank the flanks that the front fill exists to lift (the hero read as the
             // darkest thing in the frame again). So: a bright showroom exposure, near-neutral
             // blacks, gentle contrast; the moody-workshop grade stays on garage_workshop.
-            exposure: 1.18,
-            black_point: 0.012,
+            // B1: the showroom grade retires. Exposure back to neutral, a real black point so
+            // the shadowed nave READS as shadow — the moody-workshop identity the plan names.
+            // The readability that exposure used to buy is bought honestly now: the hero's
+            // key, the gate beam and the lamp pools carry the subject, and the p05 floor in
+            // the golden harness guards the cheap-panel readability the old exposure hid.
+            // Tuned against the frame gate, two steps back from the first candidate:
+            // 1.02/0.028 measured dark 0.830 (ceiling 0.81) and crushed the frame p05 to
+            // 0.009; 1.06/0.021 still read 0.815. The ceiling is not this branch's to move —
+            // this is as moody as the room may run on ambient alone. The mood DEEPENS in B2,
+            // when the denser GI bake fills the shadow side with bounced light instead of
+            // this grade fighting the readability floor for it.
+            exposure: 1.10,
+            black_point: 0.020,
             saturation: 1.12,
-            contrast: 1.05,
+            contrast: 1.06,
             cloud_coverage_bias: 0.0,
             cloud_scale: 1.0,
             cloud_opacity: 0.0,
@@ -683,10 +700,18 @@ impl SceneLighting {
                     rgb: [1.0, 0.95, 0.85],
                     intensity: 1.2,
                 },
-                // The slot that held the "frosted pane glow" is dark: its emitter was a flat
-                // HDR slab on the back wall, not a window, and a pool with no honest source
-                // is exactly the unreadability the correction removes.
-                LocalLight::OFF,
+                // B1: the second beam the plan names — the DAY standing in the ajar gate.
+                // The one cool pool in the hall, and the one allowed to be: its source is
+                // visible (the open gap under the gate slats, INTERIOR_BACKGROUND behind it),
+                // so this is not the "pane glow" that died in 2026-08-05 — it is daylight
+                // with an address. Radius reaches the drive lane's first metres, so the
+                // wedge on the floor and the light that made it agree.
+                LocalLight {
+                    position: [0.0, 1.0, -21.0],
+                    radius_m: 13.0,
+                    rgb: [0.72, 0.80, 0.95],
+                    intensity: 1.15,
+                },
                 LocalLight {
                     position: [-8.5, 6.2, 17.0],
                     radius_m: 7.0,
