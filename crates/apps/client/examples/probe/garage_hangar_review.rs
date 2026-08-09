@@ -73,10 +73,26 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // foliage atlas; the fix is to have no second copy to forget.
     let pivot = hangar_camera_pivot();
     let eye = scene_build::hangar::hero_orbit_eye();
-    let camera = Camera {
-        eye: eye.to_array(),
-        target: pivot.to_array(),
-        vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+    // `slot <name>` reviews a module framing instead of the hero shot — the SAME framing the
+    // live camera flies (A3 composed backgrounds), read from the single source.
+    let slot_name = (crate::sub_arg(2).as_deref() == Some("slot")).then(|| crate::sub_arg(3));
+    let camera = if let Some(name) = slot_name.flatten() {
+        let (_, framing) = scene_build::hangar::slot_framings()
+            .into_iter()
+            .find(|(n, _)| *n == name)
+            .unwrap_or_else(|| panic!("unknown slot framing {name}"));
+        let (slot_eye, slot_target) = scene_build::hangar::slot_eye(framing);
+        Camera {
+            eye: slot_eye.to_array(),
+            target: slot_target.to_array(),
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    } else {
+        Camera {
+            eye: eye.to_array(),
+            target: pivot.to_array(),
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
     };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(

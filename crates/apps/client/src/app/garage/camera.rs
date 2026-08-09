@@ -54,42 +54,24 @@ impl CameraTarget {
 
     /// The framing that best shows a given fitting slot: the suspension wants a low side pass over
     /// the wheels, the gun a near-level look down the barrel, the engine deck a rear-high angle,
-    /// and so on. Distances stay within the boom clamp. The yaws are bearings relative to the
-    /// PARKED hull, so they moved with the A1 reframe (`HERO_PARK_YAW` fell 0.18 rad with the
-    /// hero yaw) — each slot keeps its angle on the tank, not its compass heading. A3 gives
-    /// these framings composed backgrounds.
+    /// and so on. Distances stay within the boom clamp. A3: the numbers moved to
+    /// `scene_build::hangar` (FRAMING_*) — the review probe renders these exact shots and the
+    /// composition lock holds a composed background in each, so a second copy here would be the
+    /// drift the single-source pattern exists to kill.
     fn for_slot(slot: FitSlot) -> Self {
+        use scene_build::hangar as h;
+        let from = |f: h::SlotFraming| Self {
+            yaw: f.yaw,
+            pitch: f.pitch,
+            distance: f.distance,
+            pivot_offset: Vec3::from_array(f.pivot_offset),
+        };
         match slot {
-            FitSlot::Turret => Self {
-                yaw: 0.52,
-                pitch: 0.55,
-                distance: 5.5,
-                pivot_offset: Vec3::new(0.0, 0.7, 0.0),
-            },
-            FitSlot::Gun => Self {
-                yaw: 0.0,
-                pitch: 0.12,
-                distance: 6.5,
-                pivot_offset: Vec3::new(0.0, 0.25, 1.6),
-            },
-            FitSlot::Hull => Self {
-                yaw: 0.37,
-                pitch: 0.14,
-                distance: 6.0,
-                pivot_offset: Vec3::new(0.0, -0.1, 0.4),
-            },
-            FitSlot::Engine => Self {
-                yaw: 3.17,
-                pitch: 0.42,
-                distance: 6.0,
-                pivot_offset: Vec3::new(0.0, 0.2, -1.6),
-            },
-            FitSlot::Suspension => Self {
-                yaw: 1.37,
-                pitch: -0.03,
-                distance: 4.5,
-                pivot_offset: Vec3::new(0.0, -0.55, 0.0),
-            },
+            FitSlot::Turret => from(h::FRAMING_TURRET),
+            FitSlot::Gun => from(h::FRAMING_GUN),
+            FitSlot::Hull => from(h::FRAMING_HULL),
+            FitSlot::Engine => from(h::FRAMING_ENGINE),
+            FitSlot::Suspension => from(h::FRAMING_SUSPENSION),
             FitSlot::Radio => Self::hero(),
         }
     }

@@ -35,6 +35,15 @@ pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     wheel_stack(v, i, -gate_corner_x, -gate_corner_z);
     wheel_stack(v, i, -gate_corner_x - 0.7, -gate_corner_z);
     track_link_pile(v, i, gate_corner_x, -gate_corner_z);
+    // A3 slot-frame compositions. The gun framing looks down the lane at the ajar gate:
+    // ammunition racks flank the lane where the shells come IN (gate) before they go to the
+    // rack by the stores. The suspension framing's low pass ends on the flow wall: running
+    // gear stock — the same fleet wheels and links the gate corner holds — staged where the
+    // gear WORK happens, beside the station.
+    ammo_rack(v, i, -4.2, -(HALF_Z - 4.5));
+    ammo_rack(v, i, 4.2, -(HALF_Z - 4.0));
+    wheel_stack(v, i, -(HALF_X - 1.5), 0.9);
+    track_link_pile(v, i, -(HALF_X - 1.6), -0.7);
     workbench(v, i, wall, 6.0);
     tool_board(v, i, 6.0);
     crate_pallet(v, i, gate_corner_x, gate_corner_z);
@@ -102,11 +111,12 @@ fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // Main box girder across the bay (x-spanning), plus a lighter cross rail it rides on.
     slab(v, i, [0.0, beam_y, -1.6], [span, 0.28, 0.32], STEEL);
     slab(v, i, [0.0, beam_y + 0.34, -1.6], [span, 0.06, 0.5], DARK_STEEL);
-    // Trolley + hoist block, parked out past the turntable so the orbit stays clear (the hook
-    // hangs below the camera's headroom — locked by `nothing_invades_the_orbit_or_the_drive_lane`).
-    slab(v, i, [6.4, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
-    slab(v, i, [6.4, beam_y - 1.1, -1.6], [0.14, 0.7, 0.14], DARK_STEEL); // cable run
-    slab(v, i, [6.4, beam_y - 1.9, -1.6], [0.28, 0.22, 0.28], STEEL); // hook block
+    // Trolley + hoist block over the vehicle (A3: "the hook over the turret" — the crane is
+    // mid-job, not parked in a corner). Everything hangs ABOVE the orbit column's 7.4 m
+    // ceiling, so the shot stays clear while the silhouette reads in every high framing.
+    slab(v, i, [1.5, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
+    slab(v, i, [1.5, beam_y - 0.48, -1.6], [0.03, 0.08, 0.03], DARK_STEEL); // cable run
+    slab(v, i, [1.5, beam_y - 0.68, -1.6], [0.15, 0.15, 0.15], STEEL); // hook block
     finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
@@ -166,6 +176,28 @@ fn track_link_pile(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     }
     // Worn link steel: polished by the ground it ran on, not painted.
     finish(&mut v[start..], Finish::MACHINED_STEEL);
+}
+
+/// An ammunition rack flanking the drive lane by the gate (A3, the gun framing's background):
+/// a steel A-stand with two sloped shelf rails and drab shell crates seated on them — the
+/// stage where rounds come off the truck before they reach the stores rack.
+fn ammo_rack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    let rack = v.len();
+    for dz in [-0.9_f32, 0.9] {
+        for dx in [-0.45_f32, 0.45] {
+            slab(v, i, [x + dx, 0.65, z + dz], [0.05, 0.65, 0.05], STEEL);
+        }
+    }
+    for shelf_y in [0.42_f32, 0.98] {
+        slab(v, i, [x, shelf_y, z], [0.55, 0.035, 1.05], STEEL);
+    }
+    finish(&mut v[rack..], Finish::MACHINED_STEEL);
+    let stock = v.len();
+    const CRATE: [f32; 3] = [0.295, 0.315, 0.235];
+    for (dy, dz, hh) in [(0.42_f32, -0.5_f32, 0.16_f32), (0.42, 0.45, 0.16), (0.98, -0.1, 0.14)] {
+        slab(v, i, [x, dy + 0.035 + hh, z + dz], [0.5, hh, 0.42], CRATE);
+    }
+    finish(&mut v[stock..], Finish::TIMBER);
 }
 
 /// A workbench against the wall: a wooden top on steel legs.
