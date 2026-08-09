@@ -21,15 +21,13 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided
-- `docs/battle-first/program.md` — **the live plan (waves + STATUS), start here**; defects:
-  `docs/battle-first/audit-register.md`.
+- `docs/ROADMAP.md` — **the whole picture: systems inventory and the honest gap list, start here**.
 - `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
   the target look, its 7 rules and their locks.
 - `docs/vehicles/t-54.md` — the benchmark vehicle dossier (the fleet's bar; siblings alongside).
 - `docs/map-forge-policy.md` — map + flora doctrine (procedural-only); `docs/maps/*.md` —
-  per-map dossiers; `docs/world-2.0-program.md` — the live world program.
-  editor: `cargo run -p editor`.
-- `docs/honest-steel-policy.md`, `docs/shadow-policy.md`.
+  per-map dossiers. editor: `cargo run -p editor`.
+- `docs/shadow-policy.md`, `docs/engineering-rules.md`.
 - `crates/tooling/quality` — **the ratchet**: 18 gate tests enforce the layer DAG, append-only
   identity enums and the W0 rules. Burn allowlist entries down; never widen one to get green.
 - Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.

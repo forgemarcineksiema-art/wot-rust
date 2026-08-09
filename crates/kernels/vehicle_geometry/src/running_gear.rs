@@ -8,7 +8,6 @@
 //! given per-side phase. The belt's overlap skin belongs to each link, so every visible running
 //! gear part moves, tensions, and disappears with the track it represents.
 
-
 use game_core::{VehicleBlueprint, VehicleKind};
 use glam::Mat4;
 
