@@ -162,6 +162,7 @@ impl super::SceneRenderer {
                     self.puddle_fill,
                     self.rain_phase_s,
                 ],
+                hero_probe: self.hero_probe,
             },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);

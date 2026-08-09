@@ -165,6 +165,9 @@ pub fn render_hangar_review_views(
     // far one draws a map nothing samples. A review artifact shows what the game shows.
     renderer.shadow_cascades = Some(1);
     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+    // The hero probe (Hala 3.0 B2), exactly as the live garage sets it: the locked hero
+    // carries the hall's bounce or the locked picture stops being the played picture.
+    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

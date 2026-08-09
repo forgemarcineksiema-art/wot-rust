@@ -27,9 +27,21 @@
 use glam::Vec3;
 use renderer_api::{SceneLighting, SceneVertex};
 
-/// Faces with any edge longer than this are subdivided before the bake. 2.2 m holds a pool
-/// of light on a wall; finer buys little and multiplies vertices.
-const MAX_EDGE_M: f32 = 2.2;
+/// Faces with any edge longer than this are subdivided before the bake. B2 densification,
+/// priced by measurement against the ≤1 s release prewarm budget (same thermal state,
+/// back-to-back runs; the machine drifts ±15% hot-to-cold):
+///
+///   2.2 m / 16 rays:  0.99 s, 20 244 verts   (the pre-B2 state — already AT the budget;
+///                                             the A1 nave doubled the old hall's 531 ms)
+///   1.6 m / 16 rays:  0.98 s, 21 378 verts   <- SHIPPED: spatial density is nearly free
+///   1.4 m / 16 rays:  1.18 s, 21 888 verts   (over)
+///   1.4 m / 32 rays:  2.06 s                 (the plan's headline target: costs a doubling
+///                                             the gather has not earned — deferred, G-debt)
+///
+/// The surprise the measurement bought: edge density is cheap (the subdividable panels are
+/// few), RAY count is the whole bill. The per-triangle direct-light cache (see `TriDirect`)
+/// paid for this densification: it took the gather from 923 ms to ~810 ms at the old density.
+const MAX_EDGE_M: f32 = 1.6;
 /// Which triangles earn bake resolution: PANELS the room can see. Two filters, both learned
 /// from a 140k-triangle explosion and a broken vertex-proxy test:
 ///
@@ -58,8 +70,9 @@ fn earns_bake_resolution(vertices: &[SceneVertex], tri: &[u32]) -> bool {
         && probe.y > -0.05
         && probe.y < crate::hangar::SHED_RIDGE + 0.05
 }
-/// Hemisphere rays per vertex. 16 cosine-weighted directions keep the bake under ~100 ms in
-/// release for the whole hall; banding hides in the vertex interpolation.
+/// Hemisphere rays per vertex. 16 cosine-weighted directions; banding hides in the vertex
+/// interpolation. The plan's 32 was measured at 2.06 s against the ≤1 s prewarm budget (see
+/// the table on [`MAX_EDGE_M`]) and stays deferred until the gather earns a genuine 2×.
 const RAY_COUNT: usize = 16;
 /// One-bounce gain: how much of the gathered radiance survives into the lane. Slightly under
 /// 1.0 stands in for the energy the single bounce cannot conserve exactly.
@@ -236,6 +249,16 @@ impl Bvh {
     /// than a local because this runs ~284 000 times per bake and a `vec![0u32]` per call is
     /// that many heap allocations — a third of the gather's wall time went into the allocator
     /// before the buffer was hoisted to the worker.
+    /// A node's slab-test entry distance, or +âž if the ray misses its box entirely.
+    fn entry_lo(&self, node_index: u32, origin: Vec3, inv: Vec3) -> f32 {
+        let node = &self.nodes[node_index as usize];
+        let t0 = (node.min - origin) * inv;
+        let t1 = (node.max - origin) * inv;
+        let lo = t0.min(t1).max_element().max(0.0);
+        let hi = t0.max(t1).min_element();
+        if lo > hi { f32::INFINITY } else { lo }
+    }
+
     fn nearest_hit(&self, origin: Vec3, dir: Vec3, stack: &mut Vec<u32>) -> Option<(f32, u32)> {
         let inv = dir.recip();
         stack.clear();
@@ -260,8 +283,18 @@ impl Bvh {
                     }
                 }
             } else {
-                stack.push(node.start);
-                stack.push(node.right);
+                // NEAR CHILD FIRST: push the farther child under the nearer one, so the
+                // nearer pops first and `best` tightens before the far subtree is examined —
+                // which is what lets the `d < lo` prune above actually fire. Unordered
+                // children left the prune mostly idle and the gather paid full traversals.
+                let (a, b) = (node.start, node.right);
+                if self.entry_lo(a, origin, inv) <= self.entry_lo(b, origin, inv) {
+                    stack.push(b);
+                    stack.push(a);
+                } else {
+                    stack.push(a);
+                    stack.push(b);
+                }
             }
         }
         best
@@ -381,7 +414,7 @@ fn gather_bounce_range(
     vertices: &[SceneVertex],
     indices: &[u32],
     bvh: &Bvh,
-    lighting: &SceneLighting,
+    direct_cache: &[TriDirect],
     start: usize,
     end: usize,
 ) -> Vec<[f32; 3]> {
@@ -407,7 +440,7 @@ fn gather_bounce_range(
                     // carries the sky, so an escape contributes nothing extra.
                     continue;
                 };
-                let hit = origin + world * distance;
+                let _ = distance;
                 let t = indices[(tri as usize) * 3] as usize;
                 let hit_vertex = &vertices[t];
                 let hit_albedo = Vec3::from_array(hit_vertex.color);
@@ -417,13 +450,11 @@ fn gather_bounce_range(
                     gathered += hit_albedo * EMISSION_BOOST;
                     continue;
                 }
-                let hit_normal = {
-                    // Geometric normal, oriented toward the incoming ray so a thin slab's
-                    // back face reflects like its front.
-                    let g = (self::tri_normal(&bvh.tris[tri as usize])).normalize_or(Vec3::Y);
-                    if g.dot(world) > 0.0 { -g } else { g }
-                };
-                let direct = direct_light(bvh, lighting, hit, hit_normal, &mut stack);
+                // Direct light from the per-triangle cache, side picked the way the old
+                // per-hit evaluation flipped its normal: toward the incoming ray.
+                let g = (self::tri_normal(&bvh.tris[tri as usize])).normalize_or(Vec3::Y);
+                let cached = &direct_cache[tri as usize];
+                let direct = if g.dot(world) > 0.0 { cached.back } else { cached.front };
                 gathered += direct * hit_albedo.clamp(Vec3::ZERO, Vec3::ONE);
             }
             // Cosine weighting lives in the sample distribution, so the mean IS the
@@ -440,6 +471,96 @@ fn gather_bounce_range(
         .collect()
 }
 
+/// Direct light landing on one triangle, both orientations, sampled once at its centroid.
+///
+/// This cache is where most of the old gather's second went: every one of the ~320 000 bounce
+/// rays used to evaluate `direct_light` at its own hit point — a sun shadow ray plus six
+/// local-light falloffs per HIT — when at bake resolution (every edge â‰¤ [`MAX_EDGE_M`]) a
+/// centroid sample is the same resolution class as the vertex-interpolated output the gather
+/// feeds anyway. Two evaluations per triangle replace hundreds.
+struct TriDirect {
+    front: Vec3,
+    back: Vec3,
+}
+
+/// Build the per-triangle direct-light cache — serial, before the parallel gather, so the
+/// gather's determinism argument (pure reads of finished inputs) is untouched.
+fn cache_tri_direct(bvh: &Bvh, lighting: &SceneLighting) -> Vec<TriDirect> {
+    let mut stack: Vec<u32> = Vec::with_capacity(64);
+    bvh.tris
+        .iter()
+        .map(|tri| {
+            let centroid = (tri[0] + tri[1] + tri[2]) / 3.0;
+            let g = tri_normal(tri).normalize_or(Vec3::Y);
+            TriDirect {
+                front: direct_light(bvh, lighting, centroid, g, &mut stack),
+                back: direct_light(bvh, lighting, centroid, -g, &mut stack),
+            }
+        })
+        .collect()
+}
+
+/// Irradiance arriving at `point` from the hall, for a surface facing `normal` — the same
+/// integrand the per-vertex gather runs (one bounce off lit surfaces, emitters at their
+/// boosted radiance, escapes contribute nothing), evaluated at a free point instead of a
+/// mesh vertex. This is what the hero probe is made of.
+fn gather_irradiance_at(
+    point: Vec3,
+    normal: Vec3,
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    bvh: &Bvh,
+    direct_cache: &[TriDirect],
+    stack: &mut Vec<u32>,
+) -> Vec3 {
+    let dirs = hemisphere_dirs();
+    let n = normal.normalize_or(Vec3::Y);
+    let origin = point + n * 0.02;
+    let seed = if n.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let tangent = (seed - n * seed.dot(n)).normalize_or(Vec3::Z);
+    let bitangent = n.cross(tangent);
+    let mut gathered = Vec3::ZERO;
+    for dir in dirs {
+        let world = tangent * dir.x + n * dir.y + bitangent * dir.z;
+        let Some((_, tri)) = bvh.nearest_hit(origin, world, stack) else {
+            continue;
+        };
+        let hit_vertex = &vertices[indices[(tri as usize) * 3] as usize];
+        let hit_albedo = Vec3::from_array(hit_vertex.color);
+        if is_emitter(hit_vertex.color) {
+            gathered += hit_albedo * EMISSION_BOOST;
+            continue;
+        }
+        let g = tri_normal(&bvh.tris[tri as usize]).normalize_or(Vec3::Y);
+        let cached = &direct_cache[tri as usize];
+        let direct = if g.dot(world) > 0.0 { cached.back } else { cached.front };
+        gathered += direct * hit_albedo.clamp(Vec3::ZERO, Vec3::ONE);
+    }
+    gathered / RAY_COUNT as f32 * BOUNCE_GAIN
+}
+
+/// Height above the deck the hero probe samples at: mid-hull, where the vehicle's flanks live.
+const HERO_PROBE_HEIGHT_M: f32 = 1.5;
+
+/// The hero probe: the hall's bounced light at the station, as a six-axis irradiance cube
+/// (±x, ±y, ±z — E(n) blends the three faces the normal leans into by its squared
+/// components). The vehicle shader adds it the way `scene.wgsl` adds the per-vertex bounce
+/// lane, which closes G5: the room has had GI since Hala 2.0 and the hero standing in the
+/// middle of it received none. A cube rather than L1 SH on purpose: same job, no ringing,
+/// and every face is a plain hemisphere gather the bake already knows how to run.
+fn gather_hero_probe(
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    bvh: &Bvh,
+    direct_cache: &[TriDirect],
+) -> [[f32; 3]; 6] {
+    let mut stack: Vec<u32> = Vec::with_capacity(64);
+    let point = Vec3::new(0.0, HERO_PROBE_HEIGHT_M, 0.0);
+    [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z, Vec3::NEG_Z].map(|n| {
+        gather_irradiance_at(point, n, vertices, indices, bvh, direct_cache, &mut stack).to_array()
+    })
+}
+
 /// Subdivide the hall for bake resolution, then gather one bounce per vertex into the bounce
 /// lane. Runs once at mesh build; everything is pure math over the arrays.
 ///
@@ -449,19 +570,26 @@ fn gather_bounce_range(
 /// merely fast: a vertex's bounce reads only the finished mesh and the BVH, and float addition
 /// never crosses a range boundary, so the concatenated lane is bit-identical to the serial one.
 /// `the_bake_is_deterministic` still holds the whole thing to the bit.
-pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>) {
+pub(super) fn bake_bounce_lane(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+) -> [[f32; 3]; 6] {
     subdivide_for_bake(vertices, indices);
     let lighting = SceneLighting::garage_hero();
-    let bounces = {
+    let (bounces, probe) = {
         let verts: &[SceneVertex] = vertices;
         let idx: &[u32] = indices;
         let bvh = Bvh::build(verts, idx);
-        gather_bounce_lanes(verts, idx, &bvh, &lighting)
+        let direct_cache = cache_tri_direct(&bvh, &lighting);
+        let bounces = gather_bounce_lanes(verts, idx, &bvh, &direct_cache);
+        let probe = gather_hero_probe(verts, idx, &bvh, &direct_cache);
+        (bounces, probe)
     };
 
     for (vertex, bounce) in vertices.iter_mut().zip(bounces) {
         vertex.bounce = bounce;
     }
+    probe
 }
 
 /// The whole bounce lane, gathered across worker lanes and glued back in vertex order.
@@ -469,18 +597,18 @@ fn gather_bounce_lanes(
     vertices: &[SceneVertex],
     indices: &[u32],
     bvh: &Bvh,
-    lighting: &SceneLighting,
+    direct_cache: &[TriDirect],
 ) -> Vec<[f32; 3]> {
     let ranges = crate::battlefield::bake_lane_ranges(vertices.len());
     if ranges.len() < 2 {
-        return gather_bounce_range(vertices, indices, bvh, lighting, 0, vertices.len());
+        return gather_bounce_range(vertices, indices, bvh, direct_cache, 0, vertices.len());
     }
     std::thread::scope(|scope| {
         let handles: Vec<_> = ranges
             .iter()
             .map(|&(start, end)| {
                 scope.spawn(move || {
-                    gather_bounce_range(vertices, indices, bvh, lighting, start, end)
+                    gather_bounce_range(vertices, indices, bvh, direct_cache, start, end)
                 })
             })
             .collect();
@@ -512,9 +640,10 @@ mod tests {
     /// and would have passed against a bake seeded from the clock.
     #[test]
     fn the_bake_is_deterministic() {
-        let (a, _) = crate::hangar::build_hangar_scene_mesh();
-        let (b, _) = crate::hangar::build_hangar_scene_mesh();
+        let (a, _, probe_a) = crate::hangar::build_hangar_scene_mesh();
+        let (b, _, probe_b) = crate::hangar::build_hangar_scene_mesh();
         assert_eq!(a.len(), b.len());
+        assert_eq!(probe_a, probe_b, "the hero probe must be bit-identical across builds");
         for (x, y) in a.iter().zip(&b) {
             assert_eq!(x.bounce, y.bounce, "bounce must be bit-identical across builds");
         }
@@ -549,24 +678,18 @@ mod tests {
         subdivide_for_bake(&mut vertices, &mut indices);
         let lighting = SceneLighting::garage_hero();
         let bvh = Bvh::build(&vertices, &indices);
+        let cache = cache_tri_direct(&bvh, &lighting);
 
-        let whole = gather_bounce_range(&vertices, &indices, &bvh, &lighting, 0, vertices.len());
+        let whole = gather_bounce_range(&vertices, &indices, &bvh, &cache, 0, vertices.len());
         assert!(whole.iter().any(|lane| lane.iter().any(|c| *c > 0.0)), "the room gathers light");
 
         let seam = vertices.len() / 3;
-        let mut glued = gather_bounce_range(&vertices, &indices, &bvh, &lighting, 0, seam);
-        glued.extend(gather_bounce_range(
-            &vertices,
-            &indices,
-            &bvh,
-            &lighting,
-            seam,
-            vertices.len(),
-        ));
+        let mut glued = gather_bounce_range(&vertices, &indices, &bvh, &cache, 0, seam);
+        glued.extend(gather_bounce_range(&vertices, &indices, &bvh, &cache, seam, vertices.len()));
         assert_eq!(whole, glued, "a hand-cut seam moved a bounce value");
 
         // ...and the shipped plan, whatever number of lanes this machine gives it, agrees too.
-        let lanes = gather_bounce_lanes(&vertices, &indices, &bvh, &lighting);
+        let lanes = gather_bounce_lanes(&vertices, &indices, &bvh, &cache);
         assert_eq!(whole, lanes, "the worker-lane split moved a bounce value");
     }
 

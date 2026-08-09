@@ -181,6 +181,12 @@ pub struct CameraUniform {
     /// radius (0 disables the slot, which is the whole array on every grass-free scene).
     /// Appended, like every lane before it.
     pub crusher_pos_radius: [GpuVec4; renderer_api::MAX_GRASS_CRUSHERS],
+    /// The hero probe (Hala 3.0 B2): the garage hall's bounced light at the station as a
+    /// six-axis irradiance cube (+x, −x, +y, −y, +z, −z; xyz = linear rgb, w unused). The
+    /// vehicle shader blends the three faces its normal leans into — the vehicle-side
+    /// equivalent of the scene mesh's baked `bounce` lane. All-zero on every battle frame,
+    /// which is a bit-exact no-op in the shader. Appended, like every lane before it.
+    pub hero_probe: [GpuVec4; 6],
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -218,6 +224,8 @@ pub struct FramePassParams {
     /// w crush radius. An all-zero array is a bit-exact no-op — every grass-free scene, and
     /// every battle frame with no tank standing in view of the grass, pays nothing.
     pub crushers: [[f32; 4]; renderer_api::MAX_GRASS_CRUSHERS],
+    /// The garage hero probe (`CameraUniform::hero_probe`); all-zero outside the garage.
+    pub hero_probe: [[f32; 4]; 6],
 }
 
 impl Default for FramePassParams {
@@ -238,6 +246,7 @@ impl Default for FramePassParams {
             weather_params: [0.0; 4],
             shader_detail: renderer_api::ShaderDetailMask::FULL,
             crushers: [[0.0; 4]; renderer_api::MAX_GRASS_CRUSHERS],
+            hero_probe: [[0.0; 4]; 6],
         }
     }
 }
@@ -328,6 +337,7 @@ impl CameraUniform {
             ]),
             weather_params: GpuVec4(passes.weather_params),
             crusher_pos_radius: passes.crushers.map(GpuVec4),
+            hero_probe: passes.hero_probe.map(GpuVec4),
         }
     }
 

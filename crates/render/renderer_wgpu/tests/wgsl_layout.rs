@@ -27,7 +27,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // 560 + 192 = 752. The two-layer air + second cloud layer append haze_params +
     // cloud2_params (2 vec4, 32): 752 + 32 = 784. Dynamic weather appends one vec4: 800.
     // The meadow's crushers (Jedna Trawa P9) append array<vec4, 6> = 96: 800 + 96 = 896.
-    assert_eq!(bytes.len(), 896);
+    // The garage hero probe (Hala 3.0 B2) appends its irradiance cube, array<vec4, 6> = 96:
+    // 896 + 96 = 992.
+    assert_eq!(bytes.len(), 992);
     assert_eq!(bytes.len() % 16, 0);
 }
 

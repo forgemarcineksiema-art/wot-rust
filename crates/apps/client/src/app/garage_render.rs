@@ -219,6 +219,9 @@ impl ClientApp {
                     // a modest bloom chain so the frosted panes and lamp faces genuinely glow.
                     // The battlefield keeps its tier default — no fairness surface is touched.
                     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+                    // The hero probe (Hala 3.0 B2): the hall's baked irradiance cube, so the
+                    // parked vehicle receives the room's bounce the way the room itself does.
+                    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
                 }
                 SceneKind::Battle => {
                     renderer.set_shadow_focus(None);
@@ -227,6 +230,8 @@ impl ClientApp {
                     renderer.set_shadow_cascades(None);
                     let tier = renderer.default_bloom_mips();
                     renderer.set_bloom_mips(tier);
+                    // No hall, no probe: zero lanes, a bit-exact no-op in the vehicle shader.
+                    renderer.set_hero_probe(None);
                 }
             }
             self.current_scene = want;
