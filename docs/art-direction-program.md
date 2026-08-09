@@ -93,7 +93,7 @@ it closes.
 | D25 | **The VEHICLE column did not carry the game's own promise.** Six rows — HP, kW, km/h, °/s, penetration, reload — with no dispersion, no aim time and no armour: the "no ±25% roll, the gun groups where it is pointed" pitch was absent from the screen where the player picks a gun and presses Battle. **CLOSED**: nine rows, plate derived from `STAT_ROWS` | `panels/stats.rs` | W4 |
 | D17 | The fleet showcase renders vehicles in pastels (powder blue, lavender, pink, cream) — the canonical "no clones" render does not show paint | `target/vehicle_lineup.png` | W3 |
 | D18 | **Orliny Pereval has no light of its own.** Its blueprint's `ClearAfternoon` preset resolves to `bystra_clear_afternoon` — the mountain pass wears the river valley's afternoon. The borrowed look is now locked, so the day it gets its own is visible in the diff | `blueprints/orliny-pereval.map.ron:114-119`, `weather.rs::preset_lighting` | W5 |
-| ~~D20~~ | ~~The garage has almost no bright plane~~ — **CLOSED (W4/Hala 2.0)**: closed "with light in the room", as this row demanded, in two waves. The hall-light PRs (#450–#461) took the hero frame from 0.3% to 6.4% bright; Hala 2.0 T1a (the GI bake writing the appended `bounce` lane, truly emissive panes, the garage's 3-mip bloom chain) takes it to **8.4% bright, dark 68.7%, spread 0.599, p05 0.035** — the 2% bright target passed four times over, and the value band this row said no camera could widen is 0.275 → 0.599. Locked by the garage goldens + `light_spills_where_the_room_emits` | `hangar_bake.rs`, `goldens/look/garage_hero.png` | W4 |
+| ~~D20~~ | ~~The garage has almost no bright plane~~ — **CLOSED (W4/Hala 2.0 + the garage pipeline audit)**, and the closing numbers below are the third set this row has carried, which is the row's own lesson. The hall-light PRs (#450–#461) took the hero frame from 0.3% to 6.4% bright; Hala 2.0 T1a took it to 8.4%. Then `d8cfaaf` ("readable light") deleted the frosted panes and cut `bloom_weight` 0.07 → 0.04 for a doctrine this register agrees with, re-recorded the goldens, and **left this row claiming 8.4% / 68.7% while the frame it pointed at measured 1.0% / 80.5%**. The decision was right and the bookkeeping did not follow it — recorded here because that is the failure, not the tuning. Closed for real at **2.3% bright against the 2% target, spread 0.572, p05 0.021**, carried there by the room's own reflection (`sky_zenith_rgb` derived from the skylights' area share of the daylight behind them) and by the hall finally being made of concrete and painted steel instead of one untreated fill. `GARAGE_BRIGHT_FLOOR` is raised to the target, so it can no longer drift back | `hangar.rs`, `lighting.rs`, `scene.wgsl`, `look_goldens.rs` | W4 |
 | D20a | **The garage has almost no bright plane** (original record, kept for the numbers) — 0.3% of the hero frame sits above the bright threshold, against a 2% target. Was 0.00%; the reframing (D16) brought the frosted panes into shot and they are the entire gain, being the only emissive surface the hero lens contains. **The reframing did not close this, and the percentiles say why**: p50 0.119, p95 0.276 — the whole picture is a narrow band pressed against the 0.25 dark/mid boundary, and the floor a player reads as light grey measures 0.238, a hair on the dark side. Where the lens points decides what is IN the picture; the light rig and the grade decide how far apart its values are. **This closes with light in the room, not with a camera** | `goldens/look/garage_hero.png`, `look_goldens.rs` `GARAGE_BRIGHT_TARGET` | W4 |
 | D21 | **Cloud shadows never run in the shipped game.** `LightingQuality::canonical()` set `cloud_shadows: false`; only the dev-only `rich()` enabled them. The procedural evaluation was measured and refused at +4.8 ms (see below) — then made cheap instead of argued: the coverage field is now baked once into a seamlessly tiling R8 texture at renderer init (`cloud_map.rs`, bindings 5–6 of the environment group), so the per-fragment cost fell from ~6 lattice evaluations to one repeat-sampled tap. **CLOSED**: `canonical()` ships `cloud_shadows: true`; the `WOT_CLOUD_SHADOWS` knob stays so the cost keeps being measurable as one variable. Locked by the one-look profile test and the tile's seam/determinism/span tests | `lighting_quality.rs`, `cloud_map.rs`, `shadow_common.wgsl::cloud_shadow` | W1 |
 | D19 | **Two thirds CLOSED (teren A2)**, facades stay open. ~~Grass scatters onto the city street~~ — the card meadow now re-samples vegetation per CARD (the 8 m cell-centre gate let cards straddle streets its centre missed) and BOTH grass systems exclude authored cover footprints, locked by `the_city_grows_no_cards_on_streets_or_through_floors` + `a_cover_footprint_grows_no_grass`. ~~`RoadSurface::Cobble` reads as a dirt path~~ — `weights_from` routes Ballast/Cobble to the ROCK lane (in the splat and under the tracks: a paved road stops being the slowest ground), Ostrogorsk's stone layer repainted granite `(0.36, 0.37, 0.40)`; locked by `a_paved_road_is_never_the_slowest_ground` + the splat goldens. ~~Tenement facades are flat boxes with painted window rectangles over a hard black plinth~~ — **CLOSED (Świat 2.0 PR 3)**: true pierced openings with recessed glass, stone frames/sills/lintel bands, lesenes and cornice; plinth takes a palette stone (`stone_palette`) with the new `DRESSED_STONE` role and its own ashlar shader pole; FactoryHall got pilaster bays, the wagon portal and the clerestory. ~~Rural styles keep painted windows~~ — **CLOSED (Świat 2.0 PR 4)**: cottage/townhouse/church get pierced leaves with recessed panes and doorways cut through the leaf; the barn takes shuttered slits and true wagon portals in both gables; the church bell stage is four corner piers with real openings. **D19 CLOSED in full** | `goldens/look/ostrogorsk_canyon.png`, `building.rs::bake_tenement` | W2 |
@@ -173,8 +173,10 @@ outdoor frame, and meaningless indoors.
 | `ostrogorsk_overcast` | 7.7% | 48.8% | 43.5% | 0.190 | 0.430 | 0.713 | 0.523 | 0.159 | 0.0065 | +0.306 |
 | `ostrogorsk_rain` | 7.5% | 57.7% | 34.8% | 0.181 | 0.397 | 0.676 | 0.495 | 0.173 | 0.0061 | +0.302 |
 | `ostrogorsk_canyon` | 4.8% | 62.8% | 32.4% | 0.256 | 0.526 | 0.880 | 0.624 | 0.259 | 0.0079 | +0.228 |
-| `garage_hero` | 90.0% | 9.7% | 0.3% | 0.001 | 0.119 | 0.276 | 0.275 | 0.251 | 0.0036 | −0.141 |
-| `garage_screen` | 89.1% | 10.5% | 0.4% | 0.020 | 0.106 | 0.281 | 0.261 | 0.180 | 0.0071 | −0.089 |
+| `garage_hero` | 80.4% | 17.3% | 2.3% | 0.021 | 0.089 | 0.593 | 0.572 | 0.160 | 0.0050 | −0.151 |
+| `garage_screen` | 84.8% | 13.3% | 2.0% | 0.041 | 0.094 | 0.580 | 0.539 | 0.147 | 0.0083 | −0.065 |
+| `garage_tech_tree` | 82.2% | 15.7% | 2.1% | 0.041 | 0.097 | 0.593 | 0.552 | 0.150 | 0.0050 | −0.098 |
+| `garage_option_list` | 86.3% | 12.3% | 1.4% | 0.041 | 0.094 | 0.512 | 0.472 | 0.149 | 0.0085 | −0.065 |
 
 ### What the baseline says
 
@@ -192,10 +194,20 @@ picture in the set at spread 0.348. That is the milk, quantified: not a colour p
 `ostrogorsk_golden_evening` (19.4%) read bimodal — lit or black, with little in between. Watch
 this when W1 retunes exposure; deepening the shade further would make it worse.
 
-**The garage is the outlier on every axis.** 90.0% dark, **0.3% bright**, the narrowest spread in
-the set (0.275) and the lowest local contrast (0.0036). Its dark share sits **at the 90% "one
-plane swallowed the picture" bound** — a second debt beside D20, and the reason W4 is about light
-in the room rather than paint on the hero.
+**The garage is the outlier on the axis that is left.** Rewritten 2026-08-09 against measured
+frames, because the row above it had been wrong for months in two different directions at once
+(see D20). The bright plane and the spread are no longer the problem: 2.3% bright against a 2%
+target and a spread of 0.572 put it inside the set. **80.4% dark against a 75% bound is what
+remains**, and it is the garage's one open value debt.
+
+Its lowest-local-contrast standing is WITHDRAWN as a finding, because local contrast cannot
+measure what it was being read as measuring. It is the mean step between horizontally adjacent
+pixels — edge density — and a room of large flat planes legitimately has fewer edges than a
+hedgerow. Measured directly: giving the whole hall two-octave material treatments moved 81% of
+the frame's pixels and moved local contrast from 0.0049 to 0.0050, and restricting the measure to
+lit pixels only moved it 0.01133 to 0.01136. A smooth octave whose features are ten pixels wide
+has a small per-pixel gradient however much tonal variation it carries. Judge material by
+looking; judge edges by this number.
 
 The reframing that closed D16 is the proof of that sentence rather than a counter-example to it.
 It changed what the picture CONTAINS — a real three-quarter hero, the gallery band, the bay gate,
@@ -226,8 +238,7 @@ ostrogorsk_clear_afternoon:  dark plane 0.044, target 0.080 (short by 0.036, W1)
 ostrogorsk_overcast:         dark plane 0.077, target 0.080 (short by 0.003, W1)
 ostrogorsk_rain:             dark plane 0.075, target 0.080 (short by 0.005, W1)
 ostrogorsk_canyon:           dark plane 0.048, target 0.080 (short by 0.032, W1)
-garage_hero:                 bright     0.003, target 0.020 (short by 0.017, D20, W4)
-garage_hero:                 dark plane 0.900, target ≤ 0.750 (over by 0.150, D20, W4)
+garage_hero:                 dark plane 0.804, target ≤ 0.750 (over by 0.054, D20, W4)
 ```
 
 **Which frames are absent is the point.** Every golden-evening frame, the tank-at-contact frame,
@@ -357,12 +368,17 @@ the dirt lane wired into battle (D9), the team-colour key fixed (D10), the showc
 (D17).
 
 **W4 — Garage.** The room's own content brought into frame (D16 — done, by lowering the hero
-pitch), the light pools made visible, the hero separated from its background. What is LEFT is the
-part a camera cannot do: **D20 is a range problem.** The garage frame is a narrow band pressed
-against the dark/mid boundary — p95 0.276, spread 0.275, the narrowest in the set — so the room
-needs light, not a different angle. The frosted panes are the only emissive surface the hero lens
-reaches; the six worklamps, the second-bay strip and the skylights are all still outside it or
-above it. Also outstanding: the `SIGNAL` red of the Battle button falling outside the palette.
+pitch), the light pools made visible, the hero separated from its background. D20 was a range
+problem and the range is fixed: spread 0.275 → 0.572, p95 0.276 → 0.593, bright 0.3% → 2.3%. The
+hero's separation from its background is no longer an opinion either — the garage has a subject
+crop now, and it measures **median 0.161 against the room's 0.089, 1.81x**, floored at 1.4x by
+`the_vehicle_stays_readable_on_the_side_the_sun_never_touches`.
+
+What is LEFT for this wave is the **dark plane: 80.4% against a 75% bound**, and it is the one
+number none of the above could move — a specular term and an albedo treatment cannot lift shade,
+only light can. The full picture of what the garage still owes, measured end to end, is
+[garage-pipeline-audit-2026-08-09.md](garage-pipeline-audit-2026-08-09.md). Also outstanding: the
+`SIGNAL` red of the Battle button falling outside the palette.
 
 **The claim that the garage UI "is the strongest work in the game and is not to be touched" was
 made without a measurement and did not survive one.** It rested on a review render from

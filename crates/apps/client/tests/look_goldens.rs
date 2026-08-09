@@ -447,12 +447,25 @@ fn recorded_goldens_hold_the_value_structure() {
     // hair's breadth on the dark side. That is a RANGE problem, and a camera cannot fix range:
     // where the lens points decides what is in the picture, the light rig and the grade decide
     // how far apart its values are. D20 closes with light in the room, not with a framing.
-    const GARAGE_BRIGHT_FLOOR: f32 = 0.0025;
+    // RAISED TO WHAT THE FRAME MEASURES, which is what a FLOOR is for and what this one had
+    // never once had done to it. It sat at 0.0025 while the frame measured 0.010 — four times
+    // of slack, so the garage could get four times darker with the gate still green. The policy
+    // is explicit: "A wave is finished when its FLOOR has been raised to meet its TARGET."
+    //
+    // The frame now measures 2.3% bright, so the floor rises TO the 2% target: the garage's
+    // bright plane is no longer a debt, and it cannot fall back into being one. The reflection
+    // correction and the hall's materials are what carried it there — 1.0% -> 1.5% -> 2.3%.
+    const GARAGE_BRIGHT_FLOOR: f32 = 0.02;
     const GARAGE_BRIGHT_TARGET: f32 = 0.02;
     // The dark share barely moved (89.9% -> 90.0%), for the same reason. It does not clear the
     // 75% the outdoor frames answer to, so its ceiling is recorded as a debt rather than asserted
     // away. W4 is about putting light in the room, and this is the number that says by how much.
-    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.905;
+    // Raised the same way: 0.905 against a frame measuring 0.804 was ten points of slack nobody
+    // was using. This one is still a DEBT — 0.804 against a 0.75 target — and it is the garage's
+    // last open value bound. Nothing in the reflection or the material work could move it: a
+    // specular term and an albedo treatment cannot lift shade, only light can, and the room's
+    // shade mass is what the next wave has to argue with.
+    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.81;
     const GARAGE_DARK_CEILING_TARGET: f32 = 0.75;
     // The screen frame is the room frame plus the overlay and nothing else, so the share of
     // pixels the two disagree on IS the UI's footprint. It is the one measurement that catches a
@@ -712,6 +725,16 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         dark_ceiling: 0.92,
         form_floor: 0.0135,
     },
+    // The showroom subject, and the one the policy makes the strongest claim about. It measures
+    // p50 0.161 / dark 64.3% / form 0.0133 — a brighter median than either battlefield subject
+    // and the reference frame's structure almost exactly, which is what a studio ought to
+    // produce and what nothing checked until now.
+    SubjectBounds {
+        view: "garage_hero",
+        median_floor: 0.145,
+        dark_ceiling: 0.68,
+        form_floor: 0.0125,
+    },
 ];
 
 /// The reference frame every other subject is judged against: the one `docs/art-direction-program.md`
@@ -762,6 +785,23 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
             measured.insert(view.name.clone(), stats);
         }
     }
+    // The garage under the same crop. It is the room whose whole job is to sell the vehicle, and
+    // it was the one review view with no subject measurement of any kind.
+    for view in client::hangar_review_views() {
+        let Some(box_n) = view.subject_box else { continue };
+        let (cropped, w, h) = crop(&read_png(&golden_path(&view.name)), box_n);
+        let stats = frame_stats_of(&cropped, w, h);
+        println!(
+            "SUBJECT {} ({w}x{h}px): p05 {:.3} p50 {:.3} p95 {:.3} dark {:.1}% form {:.4}",
+            view.name,
+            stats.p05,
+            stats.p50,
+            stats.p95,
+            stats.dark * 100.0,
+            stats.local_contrast
+        );
+        measured.insert(view.name.clone(), stats);
+    }
     assert!(
         !measured.is_empty(),
         "no review view frames a subject — the vehicle is unwatched again"
@@ -802,6 +842,34 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
             bounds.dark_ceiling * 100.0
         );
     }
+
+    // THE STUDIO'S OWN PROMISE, AS A NUMBER. `docs/art-direction-policy.md` says of the garage:
+    // "The hero is the brightest, most contrasted, most detailed thing in frame. If the room
+    // out-reads the vehicle, the shot has failed no matter how well lit the room is." That
+    // sentence had no test — the battlefield had subject crops and the room whose entire job is
+    // to sell the vehicle did not.
+    //
+    // Stated against the frame the subject sits in, which is the only comparison the claim
+    // actually makes. It reads 0.161 against 0.089, so the hero is 1.8x the room at the median;
+    // the bound bites at 1.4x rather than at the measurement, because this is a floor under a
+    // relationship and not a re-recording of one frame's tuning.
+    const HERO_OVER_ROOM: f32 = 1.4;
+    let hero = measured.get("garage_hero").expect("the garage frames its hero");
+    let room = frame_stats(&read_png(&golden_path("garage_hero")));
+    assert!(
+        hero.p50 >= room.p50 * HERO_OVER_ROOM,
+        "the garage hero no longer out-reads its own room: subject median {:.3} against frame \
+         median {:.3} ({:.2}x, floor {HERO_OVER_ROOM}x)",
+        hero.p50,
+        room.p50,
+        hero.p50 / room.p50.max(1.0e-6)
+    );
+    println!(
+        "GARAGE SUBJECT: hero median {:.3} vs room median {:.3} = {:.2}x",
+        hero.p50,
+        room.p50,
+        hero.p50 / room.p50.max(1.0e-6)
+    );
 }
 
 /// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's
