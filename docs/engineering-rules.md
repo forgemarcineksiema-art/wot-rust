@@ -54,8 +54,7 @@ time; run it before cutting a release or tag.
 
 ## Documentation Policy
 
-- Architecture decisions live in `docs/architecture.md`.
-- Domain narrowing lives in `docs/armored-battle-domain.md`.
+- Architecture decisions live in `docs/architecture.md`, which also carries the domain narrowing.
 - Terrain and coordinate policy lives in `docs/terrain-large-world-policy.md`.
 - Debug tooling policy lives in `docs/debug-tools-policy.md`.
 - Quality rules live here.

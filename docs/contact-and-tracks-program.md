@@ -112,7 +112,8 @@ table is what it has to answer to.
 ### Wave 0 — Instruments (3 PR)
 
 Everything after this changes numbers, and this repo has been burned by trusting an unverified
-instrument (see `docs/battle-first/audit-register.md` and the playtest retraction).
+instrument (the playtest retraction: three theses withdrawn after the instrument, not the game,
+turned out to be wrong).
 
 - **P0.1 Mobility harness — LANDED.** `crates/runtime/physics/tests/mobility_baseline.rs`. Eight
   vehicles × three surfaces × six measurements, taken through the shipped drive step, held as a

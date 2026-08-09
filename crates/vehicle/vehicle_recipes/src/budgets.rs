@@ -26,7 +26,7 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     //
     // Affordable, and the frame says so rather than taste: the whole fleet gains roughly 250-400
     // triangles per vehicle, ~4k across a 7v7 against the 616k the scene submits, inside the
-    // 2.99 ms of p95 headroom recorded in docs/battle-first/measurements.md.
+    // 2.99 ms of p95 headroom measured on the MX330 min spec.
     turret_tri: (24, 1150),
     // Raised 500 -> 650 (measured 2026-08-03, W4 F5.ii): the authored gun group - the
     // bore-honest barrel (28 segments x 11 profile stations, the muzzle reads as a HOLE)
@@ -96,11 +96,11 @@ pub struct GearBudgets {
 /// Tiger II and Jagdtiger now cross it by, with 7% of room over the measured worst.
 ///
 /// Affordable, and specifically so: forcing every tank in a 7v7 to FAR gear measures 12.17 ms p50
-/// against 12.19 for a normal battle (`docs/battle-first/measurements.md`). The distant tier is
-/// not where the frame goes, which is exactly why it is the tier that could absorb this.
+/// against 12.19 for a normal battle. The distant tier is not where the frame goes, which is
+/// exactly why it is the tier that could absorb this.
 ///
 /// What the frame can afford is now measured rather than assumed
-/// (`docs/battle-first/measurements.md`, 2026-08-08, MX330 at the shipped 1x MSAA): a 7v7 costs
+/// (measured 2026-08-08 on the MX330 min spec, at the shipped 1x MSAA): a 7v7 costs
 /// 12.19 ms p50 / 13.68 ms p95 of GPU work against a 16.67 ms line, and forcing every tank to
 /// NEAR gear costs +1.55 ms p50 and leaves **1.46 ms of p95 headroom**. That is the budget the
 /// five vehicles with 1.65–2.05x oversized shoes have to fit their fix into.

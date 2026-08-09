@@ -4,7 +4,7 @@ The whole picture — not the current sprint. Program docs (urban map, destructi
 are execution details; THIS is what the game is and what it still owes the player.
 Release shape: buy-to-play (~20-25 EUR), 7v7, three eras, skill matchmaking from day one.
 The road to that release — builds, dates, decision gates and the numbers that end each one —
-is `docs/product-program.md`.
+was `docs/product-program.md`, retired 2026-08-09; what survives of it is the gap list below.
 
 ## The creed (why this game exists)
 
@@ -49,16 +49,16 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   ordered retransmit/ACK lane with exactly-once presentation instead of depending on snapshot loss.
 
 **PARTIAL** (works, known debt):
-- World close-range quality and authoring power (`docs/world-2.0-program.md`): Cover 2.0,
-  camera/horizon, District/Scatter 2.0 — flora is already procedural-only (F0 landed).
+- World close-range quality and authoring power: Cover 2.0, camera/horizon,
+  District/Scatter 2.0 — flora is already procedural-only (F0 landed).
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
 - Map rotation & per-map bot battle tests (only Orliny has one).
 - Human playtesting: the maps have never met a second human.
 
-**MISSING toward release** (the honest gap list; dates and thresholds now live in
-`docs/product-program.md`):
+**MISSING toward release** (the honest gap list; dates and thresholds are no longer written
+down anywhere — the document that held them was retired):
 1. **Production networking hardening**: the dedicated UDP path, lossy lifecycle, epoch-safe
    reconnect and client prediction work today. Still missing are public-session
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture
@@ -68,7 +68,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
    record that a battle happened at all (today the game keeps none). Progression is **proof,
    never power**: no XP, no credits, no research, and no module unlocks — modules carry real
    stat deltas, so gating them behind time would be power behind time, which the creed
-   forbids. The design is `docs/product-program.md` §6.
+   forbids.
 3. **Content breadth**: more vehicles per era/nation (Era I is an empty bracket and Britain
    has one tank), 2-3 more maps, game modes beyond the single 7v7 skirmish.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
@@ -79,14 +79,15 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 ## How work is organized
 
 Programs of small PRs (1 branch = 1 PR), local `scripts/verify.ps1` as the only merge gate,
-every feature landing with a locking test. Current battle work lives in
-`docs/battle-first/program.md`; completed program docs stay as doctrine.
+every feature landing with a locking test. Surviving program docs stay as doctrine.
 
-**`docs/product-program.md` is the plan above all of them** (approved 2026-08-04): it holds
-the release ladder — a closed playtest, a demo at Next Fest, then Early Access — the three
-named builds, the go-to-market track, the honest-retention design that replaces grind, and
-the first numeric release criteria this project has written down. The other programs keep
-their own documents; that one sequences them against dates. The open picture work is
-`docs/art-direction-program.md`, `docs/world-scale-program.md` (the world reads too small —
-a standing user verdict) and `docs/hala-2-program.md`, and it is now on the marketing
-critical path, because a store page is made of frames.
+**The release ladder approved 2026-08-04** — a closed playtest, a demo at Next Fest, then
+Early Access — is no longer written down. `docs/product-program.md` held it, together with
+the three named builds, the go-to-market track, the honest-retention design that replaces
+grind and the first numeric release criteria this project had written down; it was retired
+2026-08-09 with the other program registers. Recovering it means git history
+(`git show 83b261d:docs/product-program.md`), not a file in the tree.
+
+The open picture work is `docs/art-direction-program.md`, and it is on the marketing
+critical path, because a store page is made of frames. Two standing verdicts outlived their
+documents: the world reads too small, and the garage owes its rebuild.

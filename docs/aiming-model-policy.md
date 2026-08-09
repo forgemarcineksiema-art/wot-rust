@@ -154,7 +154,7 @@ debug server-reticle overlay is added later, it must be clearly optional.
 you in metres where the shot dies.**
 
 The reticle can always be right and still be useless, and that is exactly what
-happened (`docs/sight-honesty-program.md`): a refusal is correct, honest, and
+happened: a refusal is correct, honest, and
 unactionable when nothing in the picture or the readouts says what refused it.
 The promise is therefore about the SEAM, not the verdict — between what the eye
 reaches and what the gun can reach there must be no silent gap.
