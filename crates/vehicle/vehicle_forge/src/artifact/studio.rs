@@ -270,11 +270,22 @@ fn build_report(
         verts(SubmeshKind::Hull) + verts(SubmeshKind::Turret) + verts(SubmeshKind::Gun);
     let _ = writeln!(md, "## Budgets\n");
     if source == MeshSourceKind::Hybrid {
-        let max = vehicle_build::MEDIUM_LOD0_TRI_BUDGET;
+        // Both axes, from the one place that answers which envelope governs this vehicle. The
+        // report used to print triangles alone, which is exactly where the hybrid's uncapped
+        // vertex count stayed invisible.
+        let ceiling = crate::cost::shipped_cost_ceiling(kind);
+        let status = |value: usize, max: usize| if value <= max { "OK" } else { "OUT OF BUDGET" };
         let _ = writeln!(
             md,
-            "- hybrid production mesh: {total_tris} / {max} LOD0 triangles ({})",
-            if total_tris <= max { "OK" } else { "OUT OF BUDGET" }
+            "- hybrid production mesh: {total_tris} / {} LOD0 triangles ({})",
+            ceiling.tri_max,
+            status(total_tris, ceiling.tri_max)
+        );
+        let _ = writeln!(
+            md,
+            "- hybrid production mesh: {total_verts} / {} LOD0 vertices ({})",
+            ceiling.vert_max,
+            status(total_verts, ceiling.vert_max)
         );
         let _ = writeln!(md, "- procedural fleet envelope does not apply to this hybrid source.");
     } else {

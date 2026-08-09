@@ -27,7 +27,32 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 /// (measured 2026-08-08 on the MX330 min spec, at the shipped 1x MSAA) the worst case is a 7v7
 /// where every tank is near: +2,561 triangles each, ~0.72 ms against 2.99 ms of p95 headroom.
 /// A realistic battle has one or two vehicles at that range, not fourteen.
+///
+/// Re-measured 2026-08-09: 24,577, up 508 from the 24,069 recorded at the raise and nothing said
+/// so, because the ceiling still held — the same drift the gear budgets caught on their own rows.
+/// 5.5% of headroom left. `cargo test -p vehicle_forge --test shipped_cost -- --nocapture` prints
+/// this number for the whole fleet.
 pub const MEDIUM_LOD0_TRI_BUDGET: usize = 26_000;
+
+/// LOD0 VERTEX budget for the same class, and the reason it exists at all.
+///
+/// The procedural fleet has been vertex-capped since its budget table was written
+/// (`vehicle_recipes::VEHICLE_BUDGETS::vehicle_vert_max`, 11,000). The hybrid had no such ceiling:
+/// only triangles were bounded here, so the one vehicle that does NOT bake through those recipes —
+/// the benchmark the whole fleet is judged against — could grow vertices without limit. Measured
+/// 2026-08-09, it sits at 16,705, half again over the fleet cap it is exempt from, and nothing in
+/// the workspace would have said so.
+///
+/// Vertices are not a restatement of triangles: a split for a smoothing group, a material change
+/// or a UV seam duplicates a vertex while adding no triangle at all, and this mesh is built out of
+/// exactly those splits — four material roles and per-part smoothing groups. That is why the ratio
+/// runs the "wrong" way here (16,705 verts to 24,577 tris) and why the two need separate ceilings:
+/// the vertex buffer can be the thing that overflows while the triangle budget still reads green.
+///
+/// 18,000 gives the measured shape 7.8% headroom, matching the tolerance the triangle budget above
+/// carries. Raising it is the same deliberate act, and wants the same thing written down: what was
+/// measured, when, and what it bought.
+pub const MEDIUM_LOD0_VERT_BUDGET: usize = 18_000;
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
 pub fn t54_description() -> VehicleDescription {

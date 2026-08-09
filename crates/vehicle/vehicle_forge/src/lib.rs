@@ -6,6 +6,7 @@
 
 mod artifact;
 mod compiler;
+mod cost;
 mod mesh_source;
 mod packs;
 mod packs_british;
@@ -31,6 +32,7 @@ pub use artifact::{
 pub use compiler::{
     CompiledTank, TankCompileError, TankCompileRequest, TankValidationError, compile_tank,
 };
+pub use cost::{CostEnvelope, ShippedCostCeiling, shipped_cost_ceiling};
 pub use mesh_source::authoritative_baked_vehicle;
 pub use packs::t54_reference_pack;
 pub use packs_british::centurion_reference_pack;

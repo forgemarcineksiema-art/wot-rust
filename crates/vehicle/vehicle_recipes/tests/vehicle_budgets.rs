@@ -1,5 +1,9 @@
-//! Lineup-wide cost and rigging gates: deterministic + unique bake hashes, sane mount frames,
-//! and triangle/vertex budgets. Shape/fit gates live in `all_vehicles.rs`.
+//! Cost and rigging gates for the PROCEDURAL bake: deterministic + unique bake hashes, sane mount
+//! frames, and triangle/vertex budgets. Shape/fit gates live in `all_vehicles.rs`.
+//!
+//! Not lineup-wide, despite baking `VehicleKind::ALL`: this measures what `bake_vehicle` produces,
+//! and for the T-54 that is the legacy recipe, not the hybrid mesh the game actually draws. The
+//! shipped meshes are gated by `vehicle_forge/tests/shipped_cost.rs`.
 
 use game_core::{HitboxProfile, VehicleKind};
 use vehicle_geometry::{BakedVehicle, MeshBounds, SubmeshKind};
