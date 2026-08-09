@@ -50,8 +50,13 @@ fn earns_bake_resolution(vertices: &[SceneVertex], tri: &[u32]) -> bool {
     let centre = (p[0] + p[1] + p[2]) / 3.0;
     let normal = (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero();
     let probe = centre + normal * 0.08;
-    // The hall interior, with a slab's thickness of forgiveness.
-    probe.x.abs() < 18.1 && probe.z.abs() < 18.1 && probe.y > -0.05 && probe.y < 12.65
+    // The hall interior, DERIVED from the hangar's own constants with a slab's thickness of
+    // forgiveness — this used to hard-code the old square hall (18.1/12.65), and a hall that
+    // outgrew the literals would have silently stopped subdividing its far walls.
+    probe.x.abs() < crate::hangar::HALF_X + 0.1
+        && probe.z.abs() < crate::hangar::HALF_Z + 0.1
+        && probe.y > -0.05
+        && probe.y < crate::hangar::SHED_RIDGE + 0.05
 }
 /// Hemisphere rays per vertex. 16 cosine-weighted directions keep the bake under ~100 ms in
 /// release for the whole hall; banding hides in the vertex interpolation.
@@ -593,11 +598,16 @@ mod tests {
             assert!(luma(e.bounce) > 0.3, "an emitter must carry its own glow, got {:?}", e.bounce);
         }
 
-        // The surfaces around each high-bay lamp (rig lights over the turntable, y 9.8) read
-        // its spill.
+        // The surfaces around each high-bay lamp read its spill. "High bay" means the pendants
+        // OVER THE TURNTABLE — selected by where they hang, not by a height literal (the old
+        // `y > 9.0` filter silently emptied when the roof came down to a 9 m chord).
         let rig = SceneLighting::garage_hero().local_lights;
-        let high_bays: Vec<_> =
-            rig.iter().filter(|l| l.radius_m > 0.0 && l.position[1] > 9.0).collect();
+        let high_bays: Vec<_> = rig
+            .iter()
+            .filter(|l| {
+                l.radius_m > 0.0 && (l.position[0].powi(2) + l.position[2].powi(2)).sqrt() < 6.0
+            })
+            .collect();
         assert!(!high_bays.is_empty(), "the rig hangs high-bay lamps");
         let mut spill_peak = 0.0f32;
         for lamp in &high_bays {

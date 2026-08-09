@@ -11,12 +11,17 @@
 
 use super::GarageState;
 
-/// The straight roll from the doorway to the turntable centre. Smoothstep: the tank pulls away
-/// from 0 m/s, peaks at `1.5 * 13 m / 1.8 s ≈ 10.8 m/s` (≈ 39 km/h — a real tank hurrying, not
-/// a shell), and brakes to a stop on the mark.
-const ROLL_DURATION_S: f32 = 1.8;
-/// Where the tank starts, back toward the bay gate (it drives forward, facing +Z, to `z = 0`).
-const DRIVE_IN_START_Z: f32 = -13.0;
+/// The straight roll from the gateway to the turntable centre. Smoothstep: the tank pulls away
+/// from 0 m/s, peaks at `1.5 * lane / duration ≈ 10.3 m/s` (≈ 37 km/h — a real tank hurrying,
+/// not a shell), and brakes to a stop on the mark. Retuned with the A1 nave: the lane grew from
+/// 13 m to ~18 m, and the duration follows it to keep the peak under the hurrying-tank ceiling
+/// (`the_first_frame_moves_like_a_tank_not_a_shell`).
+const ROLL_DURATION_S: f32 = 2.6;
+// Where the tank starts is derived from the GATE, not dialled — `hangar::drive_in_start_z()`
+// puts the hull one hull-length inside the ajar gate opening, however long the hall is. The
+// old literal here (−13.0) was tuned to a 36 m hall; in the 44 m nave it would have
+// materialised the tank five metres into the room with the gate nowhere behind it.
+use scene_build::hangar::drive_in_start_z;
 /// Average pivot rate for the park turn (smoothstep peaks at 1.5×: ~77°/s — brisk, but a pivot
 /// that took the mechanically pure ~2.5 s would make every carousel click drag).
 const PIVOT_RATE_RAD_S: f32 = 0.9;
@@ -87,7 +92,7 @@ impl DriveIn {
         let (pivot_delta, pivot_duration) = pivot_arc();
         if elapsed < ROLL_DURATION_S {
             // Rolling down the lane, facing the way it travels.
-            (DRIVE_IN_START_Z * (1.0 - smoothstep(elapsed / ROLL_DURATION_S)), 0.0)
+            (drive_in_start_z() * (1.0 - smoothstep(elapsed / ROLL_DURATION_S)), 0.0)
         } else {
             // Parked on the mark, pivoting to the hero pose.
             let t = (elapsed - ROLL_DURATION_S) / pivot_duration.max(1.0e-3);
@@ -107,7 +112,7 @@ impl GarageState {
             elapsed: Some(0.0),
             track_left_m: 0.0,
             track_right_m: 0.0,
-            last_z: DRIVE_IN_START_Z,
+            last_z: drive_in_start_z(),
             last_yaw: 0.0,
             dust_since_m: 0.0,
             track_speed_mps: 0.0,
@@ -295,8 +300,16 @@ mod tests {
                 puffs += 1;
             }
         }
-        // ~13 m of lane plus ~1 m of pivot sweep at one puff per 0.6 m: a trail, not a storm.
-        assert!((12..=30).contains(&puffs), "expected a paced dust trail, got {puffs}");
+        // One puff per interval of travelled track, DERIVED from the lane the gate actually
+        // sets (the old 12..=30 literal was tuned to a 13 m lane and broke the moment the
+        // lane followed the hall): the whole roll plus the pivot sweep, ±20% for banking.
+        let travel = drive_in_start_z().abs() + pivot_arc().0.abs() * PIVOT_TRACK_RADIUS_M;
+        let expected = travel / DUST_INTERVAL_M;
+        let (lo, hi) = ((expected * 0.8) as i32, (expected * 1.2) as i32 + 1);
+        assert!(
+            (lo..=hi).contains(&puffs),
+            "expected a paced dust trail of ~{expected:.0} puffs, got {puffs}"
+        );
         assert!(!garage.poll_drive_dust(), "no dust once parked");
     }
 

@@ -581,9 +581,16 @@ impl SceneLighting {
             // and pools only read as POOLS against a quieter base.
             ambient_rgb: [0.26, 0.255, 0.25],
             ground_ambient_rgb: [0.15, 0.14, 0.13],
-            // Steep enough to still read as skylight-through-the-roof, but with real horizontal reach
-            // so `dot(n, key)` is meaningful on the vertical flanks, not only the decks.
-            key_direction: [-0.45, 0.78, 0.42],
+            // The sun through the middle shed's glazing (Hala 3.0 A1). Derivation, so the next
+            // relight can redo it instead of dialling: the glazing plane of the sun shed spans
+            // z 1.0..5.5 falling from 11.3 m to 9.0 m; a ray from the turntable deck (y 0.72)
+            // along (-0.6, 2.3, 1.0) crosses it at z ≈ 4.0, y ≈ 9.8, x ≈ −2.4 — inside the
+            // opening, and the lock's whole 5×5 deck fan crosses between the mullion phases.
+            // Steep enough to read as roof daylight, with real horizontal reach so
+            // `dot(n, key)` is meaningful on the vertical flanks; the z-lean means the beam
+            // rakes DOWN the nave, with the hero framing. Locked by
+            // `the_workshop_sun_reaches_the_turntable_through_a_real_opening`.
+            key_direction: [-0.233, 0.892, 0.388],
             key_rgb: [1.10, 1.00, 0.82],
             // Readable-light doctrine (Hala 2.0 T1 correction, user verdict 2026-08-05): every
             // light in the hall must have a visible source. The fill is the one survivor of the
@@ -611,13 +618,13 @@ impl SceneLighting {
             // and had the gradient upside down: dimmer overhead than sideways, which is true
             // outdoors and false under a glazed roof.
             //
-            // Both are derived from the room rather than dialled. Overhead: the skylight bands
-            // open 25.7% of the roof plane (`hangar::skylight_open_fraction`, computed from the
-            // band geometry), so 0.257 x the daylight behind them, less the mullions, trusses
-            // and crane girder that hang under it. Across the bay: the gunmetal wall's own
-            // albedo under the rig, near-neutral because the wall is. Locked to the geometry by
-            // `the_rooms_reflection_is_the_room` — move a skylight band and the number must
-            // follow it.
+            // Both are derived from the room rather than dialled. Overhead: the shed glazing
+            // bands open 30.7% of the roof plane (`hangar::skylight_open_fraction`, computed
+            // from the tooth geometry), so 0.307 x the daylight behind them, less the mullions,
+            // trusses and crane girder that hang under it. Across the bay: the gunmetal wall's
+            // own albedo under the rig, near-neutral because the wall is. Locked to the
+            // geometry by `the_rooms_reflection_is_the_room` — move a glazing band and the
+            // number must follow it.
             sky_zenith_rgb: [0.32, 0.34, 0.37],
             sky_horizon_rgb: [0.16, 0.162, 0.168],
             fog_density: 0.0,
@@ -658,19 +665,19 @@ impl SceneLighting {
             vignette: 0.05,
             local_lights: [
                 LocalLight {
-                    position: [-3.6, 9.8, 1.8],
+                    position: [-3.6, 7.6, 1.8],
                     radius_m: 11.0,
                     rgb: [1.0, 0.88, 0.70],
                     intensity: 1.5,
                 },
                 LocalLight {
-                    position: [3.6, 9.8, -1.8],
+                    position: [3.6, 7.6, -1.8],
                     radius_m: 11.0,
                     rgb: [1.0, 0.88, 0.70],
                     intensity: 1.3,
                 },
                 LocalLight {
-                    position: [16.0, 3.4, 6.0],
+                    position: [9.2, 3.4, 6.0],
                     radius_m: 6.0,
                     rgb: [1.0, 0.95, 0.85],
                     intensity: 1.2,
@@ -680,13 +687,13 @@ impl SceneLighting {
                 // is exactly the unreadability the correction removes.
                 LocalLight::OFF,
                 LocalLight {
-                    position: [-14.5, 6.2, 10.0],
+                    position: [-8.5, 6.2, 17.0],
                     radius_m: 7.0,
                     rgb: [1.0, 0.90, 0.75],
                     intensity: 1.0,
                 },
                 LocalLight {
-                    position: [10.5, 8.6, 9.5],
+                    position: [-5.5, 7.4, 14.5],
                     radius_m: 8.0,
                     rgb: [1.0, 0.90, 0.75],
                     intensity: 1.0,

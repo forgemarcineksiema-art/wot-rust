@@ -135,6 +135,24 @@ impl GarageScreen {
     }
 }
 
+/// The hero-frame crop the subject statistics measure, DERIVED from the framing constants
+/// rather than hand-computed (the old literal was the same arithmetic done in a comment, and
+/// it silently measured the wrong pixels the moment the boom moved): the pivot projects to
+/// frame centre, the lens puts `540 / (2·D·tan(fov/2))` pixels on a metre at the hero boom,
+/// and the parked T-54 subtends ~6.5 m across and ~2.4 m up at its three-quarter. Bottom cut
+/// at ~0.5 m above the deck so the box measures the VEHICLE and not the contact shadow under
+/// it — the same reason the Prokhorovka boxes stay off the ground.
+fn hero_subject_box() -> [f32; 4] {
+    let fov = crate::hangar::HERO_FOV_DEGREES.to_radians();
+    let px_per_m = 540.0 / (2.0 * crate::hangar::HERO_ORBIT_DISTANCE * (fov / 2.0).tan());
+    let pivot_y = crate::hangar::hangar_camera_pivot().y;
+    let deck = crate::hangar::TURNTABLE_TOP_M;
+    let half_w = 0.5 * 6.5 * px_per_m / 960.0;
+    let top = 0.5 - (deck + 2.4 - pivot_y) * px_per_m / 540.0;
+    let bottom = 0.5 + (pivot_y - (deck + 0.5)) * px_per_m / 540.0;
+    [0.5 - half_w, top, 0.5 + half_w, bottom]
+}
+
 /// The garage review set: the hero shot the garage actually opens with. The framing comes from
 /// `hangar::HERO_ORBIT_*` — the same constants the live orbit camera rests at — so a reframing
 /// moves the played picture and the locked picture together.
@@ -159,13 +177,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             hull_color: [0.72, 0.76, 0.62],
         },
         // The hull and turret mass, on the ROOM view only — the overlay views are half
-        // instrument panel and answer to their own locks. Derived from the framing rather than
-        // eyeballed: the pivot projects to frame centre, the 32 deg lens over 540 rows puts
-        // ~67 px on a metre at the 14 m hero boom, and the parked T-54 subtends ~6.5 m across
-        // and ~2.4 m up at its 0.65 rad three-quarter. Bottom cut at ~0.5 m above the deck so
-        // the box measures the VEHICLE and not the contact shadow under it — the same reason
-        // the Prokhorovka boxes stay off the ground.
-        subject_box: (screen == GarageScreen::Room).then_some([0.30, 0.37, 0.70, 0.61]),
+        // instrument panel and answer to their own locks.
+        subject_box: (screen == GarageScreen::Room).then_some(hero_subject_box()),
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views
