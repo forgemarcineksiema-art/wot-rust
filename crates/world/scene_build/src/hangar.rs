@@ -228,18 +228,23 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let lower_h = WALL_SEAM / 2.0;
     let upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
     let upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
-    // Sealed concrete carries a faint sheen that catches the worklight pools; the painted
-    // lower panels a satin step less; the shadowed upper band and roof stay matte.
-    slab_finished(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE, 0.08);
+    // The floor is a poured slab and everything above it is sprayed sheet: two materials, and
+    // the treatments that go with them (see `Finish`). Sealed concrete carries a faint sheen
+    // that catches the worklight pools; the painted panels a satin step over it.
+    let floor_start = v.len();
+    slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE);
+    finish(&mut v[floor_start..], Finish::CONCRETE);
+    let shell_steel = v.len();
     push_skylight_roof(&mut v, &mut i);
     for cz in [-HALF, HALF] {
-        slab_finished(&mut v, &mut i, [0.0, lower_c, cz], [HALF, lower_h, SLAB], METAL, 0.12);
+        slab(&mut v, &mut i, [0.0, lower_c, cz], [HALF, lower_h, SLAB], METAL);
         slab(&mut v, &mut i, [0.0, upper_c, cz], [HALF, upper_h, SLAB], UPPER_WALL);
     }
     for cx in [-HALF, HALF] {
-        slab_finished(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF], METAL, 0.12);
+        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF], METAL);
         slab(&mut v, &mut i, [cx, upper_c, 0.0], [SLAB, upper_h, HALF], UPPER_WALL);
     }
+    finish(&mut v[shell_steel..], Finish::PAINTED_STEEL);
     // Everything past the bare shell is "furniture" and takes the corner-shade bake at the end.
     let furniture_start = v.len();
 
@@ -260,7 +265,7 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         (-(HALF - SLAB - 0.05), 0.0, 0.05, HALF - 0.3),
         (HALF - SLAB - 0.05, 0.0, 0.05, HALF - 0.3),
     ] {
-        slab_finished(&mut v, &mut i, [cx, WALL_SEAM, cz], [hx, 0.07, hz], GIRT, 0.3);
+        slab(&mut v, &mut i, [cx, WALL_SEAM, cz], [hx, 0.07, hz], GIRT);
     }
 
     // Vertical wall ribs (pilasters) proud of the side and back walls, spaced across the bay as a
@@ -284,9 +289,13 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // wall — jambs, lintel, alternating slats. The old glowing doorway plate read as a broken
     // texture; a real gate explains the drive-in and grounds the back of the frame.
     push_bay_gate(&mut v, &mut i);
+    // Joints, girt, ribs, trusses and gate are all the same stock the walls are: rolled sheet
+    // and section, primed and sprayed with them.
+    finish(&mut v[furniture_start..], Finish::PAINTED_STEEL);
 
     // Floor: expansion joints score the slab into cast bays; the drive lane in from the gate is
     // worn a step darker with two track-polished strips — the floor tells the room's story.
+    let floor_dressing = v.len();
     for step in -5i32..=5 {
         let along = step as f32 * 3.4;
         slab(&mut v, &mut i, [along, 0.003, 0.0], [0.03, 0.003, HALF - 0.4], FLOOR_JOINT);
@@ -295,30 +304,21 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     {
         let lane_center = -(HALF + TURNTABLE_RADIUS_M) / 2.0;
         let lane_half = (HALF - TURNTABLE_RADIUS_M) / 2.0;
-        slab_finished(
-            &mut v,
-            &mut i,
-            [0.0, 0.0015, lane_center],
-            [2.6, 0.0015, lane_half],
-            DRIVE_LANE,
-            0.05,
-        );
+        slab(&mut v, &mut i, [0.0, 0.0015, lane_center], [2.6, 0.0015, lane_half], DRIVE_LANE);
         for x in [-1.35_f32, 1.35] {
-            slab_finished(
-                &mut v,
-                &mut i,
-                [x, 0.0025, lane_center],
-                [0.55, 0.0015, lane_half],
-                TRACK_WEAR,
-                0.05,
-            );
+            slab(&mut v, &mut i, [x, 0.0025, lane_center], [0.55, 0.0015, lane_half], TRACK_WEAR);
         }
     }
+    // Scored, worn and polished, but still the same slab — one material, and the story is the
+    // albedo the builders above already carry.
+    finish(&mut v[floor_dressing..], Finish::CONCRETE);
 
     // Parking-bay markings flanking the turntable, flush with the floor.
+    let markings = v.len();
     for x in [-6.8_f32, 6.8] {
         slab(&mut v, &mut i, [x, 0.004, 0.0], [0.14, 0.005, HALF - 2.0], MARKING);
     }
+    finish(&mut v[markings..], Finish::PAINT_MARK);
 
     // Turntable: a rim ring recessed under the deck, the deck itself, radial plate seams and a
     // centre hub — machinery, not a sticker. (No faked shadow disc — the hero vehicle casts a
@@ -333,16 +333,9 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         48,
         TURNTABLE_RIM,
     );
-    for vertex in &mut v[rim_start..] {
-        vertex.gloss = 0.2;
-    }
+    finish(&mut v[rim_start..], Finish { gloss: 0.2, ..Finish::MACHINED_STEEL });
     let deck_start = v.len();
     push_cylinder(&mut v, &mut i, Vec3::ZERO, TURNTABLE_RADIUS_M, TURNTABLE_TOP_M, 48, TURNTABLE);
-    // Machined deck steel: the glossiest ground plane in the hall, so the worklight pools and
-    // the hero's contact shadow both read on it.
-    for vertex in &mut v[deck_start..] {
-        vertex.gloss = 0.35;
-    }
     for seam in 0..4 {
         let angle = seam as f32 * std::f32::consts::FRAC_PI_4;
         rotated_slab(
@@ -354,25 +347,20 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
             TURNTABLE_SEAM,
         );
     }
-    let hub_start = v.len();
     push_cylinder(&mut v, &mut i, Vec3::ZERO, 0.9, TURNTABLE_TOP_M + 0.004, 24, TURNTABLE_HUB);
-    for vertex in &mut v[hub_start..] {
-        vertex.gloss = 0.3;
-    }
+    // Machined deck steel: the glossiest ground plane in the hall, so the worklight pools and
+    // the hero's contact shadow both read on it. Deck, seams and hub are one plate assembly and
+    // take one finish — they used to take three hand-typed gloss values and no material at all.
+    finish(&mut v[deck_start..], Finish { gloss: 0.35, ..Finish::MACHINED_STEEL });
 
     // The floor drain beside the drive lane: a recessed near-black strip under a steel grating.
+    let drain = v.len();
     slab(&mut v, &mut i, [3.4, 0.001, -11.0], [0.10, 0.002, 2.2], [0.10, 0.10, 0.11]);
     for step in 0..9 {
         let z = -13.0 + step as f32 * 0.5;
-        slab_finished(
-            &mut v,
-            &mut i,
-            [3.4, 0.004, z],
-            [0.11, 0.003, 0.03],
-            [0.16, 0.17, 0.18],
-            0.3,
-        );
+        slab(&mut v, &mut i, [3.4, 0.004, z], [0.11, 0.003, 0.03], [0.16, 0.17, 0.18]);
     }
+    finish(&mut v[drain..], Finish::MACHINED_STEEL);
 
     super::hangar_gallery::push_gallery(&mut v, &mut i);
     super::hangar_props::push_props(&mut v, &mut i);
@@ -450,13 +438,12 @@ fn push_bay_gate(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let slat_h = gate_top / 6.0;
     for slat in 0..6 {
         let color = if slat % 2 == 0 { GATE_SLAT } else { GATE_SLAT_ALT };
-        slab_finished(
+        slab(
             v,
             i,
             [0.0, slat_h * (slat as f32 + 0.5), wall_z + 0.06],
             [gate_half_w, slat_h / 2.0 - 0.015, 0.05],
             color,
-            0.2,
         );
     }
 }
@@ -480,20 +467,76 @@ fn rotated_slab(
     );
 }
 
-/// [`slab`] plus a material finish stamped onto the vertices it appended — the hangar's route
-/// into the `SceneVertex.gloss` lane (satin rails, sealed concrete, glazed lamp shades).
-pub(super) fn slab_finished(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    center: [f32; 3],
-    half: [f32; 3],
-    color: [f32; 3],
-    gloss: f32,
-) {
-    let start = vertices.len();
-    slab(vertices, indices, center, half, color);
-    for vertex in &mut vertices[start..] {
-        vertex.gloss = gloss;
+// `slab_finished` used to live here: a `slab` that also stamped a bare gloss number. It is gone
+// on purpose. Setting a sheen without naming the material is what left every vertex in this hall
+// carrying `surface_role::LEGACY` while a handful of them carried a finish — a wall that
+// reflected like steel and was shaded like nothing. `Finish` + `finish` replace it, and the two
+// lanes travel together.
+
+/// What a hall surface is MADE OF, as the two lanes that decide how it answers light: which
+/// procedural treatment dresses its albedo (`surface`) and how sharp its specular is (`gloss`).
+///
+/// The pair is one value because setting them apart is how the hall ended up with neither. Every
+/// vertex in this room carried `surface_role::LEGACY` — measured, all 17 771 of them — so
+/// `surface_treatment` never ran indoors and the whole hall wore the interior arm of
+/// `material_detail`: ONE octave of ±3.5% noise, no normal perturbation, concrete and painted
+/// steel and workbench timber and rubber resolving to the same flat fill. And 70.1% of those
+/// vertices carried gloss 0, which skips the shader's specular block and its environment
+/// reflection outright. Art-direction rule 5 asks every surface for two octaves; the garage was
+/// the one environment in the game answering with none.
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct Finish {
+    pub(super) surface: f32,
+    /// Public so a one-off piece can vary the sheen of a named material without inventing a
+    /// material for it: `Finish { gloss: 0.45, ..Finish::PAINTED_STEEL }` is an enamelled
+    /// bottle, and it is still painted steel.
+    pub(super) gloss: f32,
+}
+
+impl Finish {
+    /// The poured floor slab, sealed: the largest single surface the garage camera sees.
+    pub(super) const CONCRETE: Self =
+        Self { surface: renderer_api::surface_role::CONCRETE, gloss: 0.08 };
+    /// Sprayed sheet steel — walls, roof, ribs, trusses, the bay gate, the shop's own furniture.
+    pub(super) const PAINTED_STEEL: Self =
+        Self { surface: renderer_api::surface_role::PAINTED_STEEL, gloss: 0.12 };
+    /// Bare or galvanised steel a machine touched: rails, the crane girder, shelving, jack
+    /// stands, the turntable deck. Brighter than paint because it was never painted.
+    pub(super) const MACHINED_STEEL: Self =
+        Self { surface: renderer_api::surface_role::PAINTED_STEEL, gloss: 0.30 };
+    /// Sawn timber — the workbench top, pallets, crates, the tool board. Takes the world's
+    /// existing plank treatment rather than a garage-only copy of it: a board is a board.
+    pub(super) const TIMBER: Self =
+        Self { surface: renderer_api::surface_role::PLANK, gloss: 0.05 };
+    /// Tyre rubber and its kin. Deliberately near-featureless and near-matte — a road wheel's
+    /// tread is the one thing in this room that genuinely has no grain to catch.
+    pub(super) const RUBBER: Self =
+        Self { surface: renderer_api::surface_role::PAINTED_STEEL, gloss: 0.02 };
+    /// Floor paint and stencil: bay markings, hazard chevrons, signage. Concrete's treatment,
+    /// because that is what the paint is lying on and what shows through it.
+    pub(super) const PAINT_MARK: Self =
+        Self { surface: renderer_api::surface_role::CONCRETE, gloss: 0.06 };
+    /// Proofed duck cloth — the tarped mound in stores. Takes the world's PLASTER treatment:
+    /// fine grain over half-metre blotches is exactly what folded canvas reads as, and adding a
+    /// role to say the same thing would be a role for one prop.
+    pub(super) const CANVAS: Self =
+        Self { surface: renderer_api::surface_role::PLASTER, gloss: 0.10 };
+}
+
+/// Stamp a finish onto the vertices a builder has just appended.
+///
+/// The hall's established idiom — the turntable's gloss has been set by walking `v[start..]`
+/// since it was built — extended to carry the material with the finish so the two cannot be set
+/// apart. EMISSIVE faces are skipped, the same convention `bake_corner_shade` and the bounce
+/// bake honour: a lamp face is a light, and multiplying a light by a paint treatment is a
+/// category error.
+pub(super) fn finish(vertices: &mut [SceneVertex], finish: Finish) {
+    for vertex in vertices {
+        if vertex.color.iter().any(|&c| c > 1.0) {
+            continue;
+        }
+        vertex.surface = finish.surface;
+        vertex.gloss = finish.gloss;
     }
 }
 
@@ -691,6 +734,70 @@ mod tests {
             ray_hits_mesh([0.0, deck, 0.0], [0.0, 1.0, 0.0], &vertices, &indices),
             "straight overhead stays roofed"
         );
+    }
+
+    /// EVERY SURFACE IN THIS ROOM NAMES WHAT IT IS MADE OF.
+    ///
+    /// The measurement that put this here: all 17 771 of the hall's vertices carried
+    /// `surface_role::LEGACY`, so `surface_treatment` never ran in the garage at all and the
+    /// whole room wore the interior arm of `material_detail` — ONE octave of ±3.5% noise, with
+    /// `detail_normal` early-returning indoors so not even that caught light. Concrete, sprayed
+    /// sheet, workbench timber, tyre rubber and canvas resolved to the same flat fill. It is the
+    /// only environment in the game that shipped with no material treatment whatsoever, and
+    /// art-direction rule 5 asks every surface for two octaves.
+    ///
+    /// Emissive faces are the one exemption, and they are exempt by construction: `finish` skips
+    /// them, because a lamp face is a light and multiplying a light by a paint treatment is a
+    /// category error.
+    #[test]
+    fn every_surface_in_the_hall_names_its_material() {
+        let (vertices, _) = hangar_scene_mesh();
+        let untreated: Vec<&SceneVertex> = vertices
+            .iter()
+            .filter(|v| v.surface == renderer_api::surface_role::LEGACY)
+            .filter(|v| v.color.iter().all(|&c| c <= 1.0))
+            .collect();
+        assert!(
+            untreated.is_empty(),
+            "{} non-emissive vertices carry no surface role — they render as flat fill. First \
+             at {:?}",
+            untreated.len(),
+            untreated[0].position
+        );
+        // ...and the roles it does name are a real set, not one role stamped everywhere: a
+        // workshop is concrete AND sheet AND timber, and if it collapses to one the treatment
+        // is decoration rather than material.
+        let mut roles: Vec<u32> = vertices.iter().map(|v| v.surface as u32).collect();
+        roles.sort_unstable();
+        roles.dedup();
+        assert!(roles.len() >= 4, "the hall wears {} distinct materials, want 4+", roles.len());
+    }
+
+    /// AND ANSWERS LIGHT WITH A FINISH. 70.1% of the hall's vertices carried gloss 0, which
+    /// makes `scene.wgsl` skip its specular block AND its environment reflection outright —
+    /// measured, and the other half of why a room lit by lamps read as dead.
+    ///
+    /// The bound is on the share, not on every vertex: rubber genuinely has no sheen and the
+    /// role exists to say so. What may not come back is a hall where most of the steel answers
+    /// a worklamp with nothing.
+    #[test]
+    fn the_hall_answers_light_with_a_finish() {
+        let (vertices, _) = hangar_scene_mesh();
+        let matte = vertices.iter().filter(|v| v.gloss <= 0.001).count();
+        let share = matte as f32 / vertices.len() as f32;
+        assert!(
+            share < 0.10,
+            "{:.1}% of the hall is fully matte (was 70.1%) — that much of the room skips the \
+             specular block entirely",
+            share * 100.0
+        );
+        // The finishes are graded, not one number applied everywhere: paint, mill steel and
+        // machined deck plate answer a lamp differently or the grading buys nothing.
+        let mut levels: Vec<u32> =
+            vertices.iter().map(|v| (v.gloss * 100.0).round() as u32).collect();
+        levels.sort_unstable();
+        levels.dedup();
+        assert!(levels.len() >= 5, "the hall wears {} distinct finishes, want 5+", levels.len());
     }
 
     /// THE ROOM IS WHAT THE ROOM REFLECTS. `env_sky` is the only environment term the scene and

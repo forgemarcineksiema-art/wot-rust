@@ -6,7 +6,7 @@
 use glam::Vec3;
 use renderer_api::SceneVertex;
 
-use super::hangar::{HALF, WALL_HEIGHT, push_cylinder, slab, slab_finished};
+use super::hangar::{Finish, HALF, WALL_HEIGHT, finish, push_cylinder, slab};
 
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
 const DARK_STEEL: [f32; 3] = [0.16, 0.17, 0.18];
@@ -45,6 +45,7 @@ pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// A gantry crane spanning the bay just under the trusses, with a hoist block hanging over the
 /// turntable — the workshop's signature overhead silhouette.
 fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     let beam_y = WALL_HEIGHT - 2.5;
     let span = HALF - 1.5;
     // Main box girder across the bay (x-spanning), plus a lighter cross rail it rides on.
@@ -55,6 +56,7 @@ fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     slab(v, i, [6.4, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
     slab(v, i, [6.4, beam_y - 1.1, -1.6], [0.14, 0.7, 0.14], DARK_STEEL); // cable run
     slab(v, i, [6.4, beam_y - 1.9, -1.6], [0.28, 0.22, 0.28], STEEL); // hook block
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
 /// Spare road wheels are FLEET parts, not prop-bin filler: the T-54's road wheel is 0.81 m
@@ -69,6 +71,7 @@ fn wheel_stack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     push_contact_ring(v, i, x, z, SPARE_WHEEL_RADIUS_M + 0.08);
     for layer in 0..4 {
         let y = 0.02 + layer as f32 * (SPARE_WHEEL_THICKNESS_M + 0.01);
+        let tyre = v.len();
         push_cylinder(
             v,
             i,
@@ -78,6 +81,8 @@ fn wheel_stack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
             20,
             RUBBER,
         );
+        finish(&mut v[tyre..], Finish::RUBBER);
+        let hub = v.len();
         push_cylinder(
             v,
             i,
@@ -87,6 +92,7 @@ fn wheel_stack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
             14,
             WHEEL_HUB,
         );
+        finish(&mut v[hub..], Finish::MACHINED_STEEL);
     }
 }
 
@@ -94,6 +100,7 @@ fn wheel_stack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
 /// a T-54 link is 0.58 m wide at a ~0.14 m pitch and less than a decimetre thick, so a pile
 /// of them is a low, WIDE stack of plates, not a crate of bricks.
 fn track_link_pile(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    let start = v.len();
     for row in 0..4 {
         for col in 0..4 {
             let jitter = ((row * 4 + col) as f32 * 0.37).sin() * 0.05;
@@ -106,16 +113,25 @@ fn track_link_pile(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
             );
         }
     }
+    // Worn link steel: polished by the ground it ran on, not painted.
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
 /// A workbench against the wall: a wooden top on steel legs.
 fn workbench(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    let top = v.len();
     slab(v, i, [x, 0.92, z], [0.5, 0.06, 1.8], WOOD);
+    // The bench top is sawn board and takes the world's plank treatment — the same one a barn
+    // wall wears. A workshop bench being rendered as untreated fill was the plainest instance
+    // of the hall having no materials at all.
+    finish(&mut v[top..], Finish::TIMBER);
+    let legs = v.len();
     for dz in [-1.6_f32, 1.6] {
         for dx in [-0.42_f32, 0.42] {
             slab(v, i, [x + dx, 0.45, z + dz], [0.05, 0.45, 0.05], STEEL);
         }
     }
+    finish(&mut v[legs..], Finish::MACHINED_STEEL);
 }
 
 /// A standard 200-litre steel drum: ⌀0.57 m × 0.88 m tall, its two rolling hoops sitting
@@ -127,10 +143,13 @@ fn push_drum(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     const DRUM_RADIUS_M: f32 = 0.29;
     const DRUM_HEIGHT_M: f32 = 0.88;
     push_contact_ring(v, i, x, z, DRUM_RADIUS_M + 0.08);
+    let can = v.len();
     push_cylinder(v, i, Vec3::new(x, 0.0, z), DRUM_RADIUS_M, DRUM_HEIGHT_M, 18, BARREL);
     for hoop_y in [0.28_f32, 0.56] {
         push_cylinder(v, i, Vec3::new(x, hoop_y, z), DRUM_RADIUS_M + 0.006, 0.06, 18, DARK_STEEL);
     }
+    // A drum is a painted pressing, hoops and all.
+    finish(&mut v[can..], Finish::PAINTED_STEEL);
 }
 
 /// The dark ring of wear and grime where a prop meets the concrete. Honest grounding — this
@@ -138,7 +157,10 @@ fn push_drum(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
 /// shadow (the sun draws the real shadows now); it keeps a prop's foot from reading as a
 /// mathematically clean seam.
 fn push_contact_ring(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32, radius: f32) {
+    let start = v.len();
     push_cylinder(v, i, Vec3::new(x, 0.005, z), radius, 0.004, 18, CONTACT);
+    // Grime lying ON the slab: it is the floor's material, darker.
+    finish(&mut v[start..], Finish::CONCRETE);
 }
 
 /// A short row of fuel barrels standing against the left wall (`wall_x`).
@@ -153,16 +175,21 @@ fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
 /// One glance says "workshop"; scattered floor discs never did.
 fn tool_board(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, z: f32) {
     let x = HALF - 0.30;
+    let board = v.len();
     slab(v, i, [x, 1.7, z], [0.05, 0.65, 1.5], WOOD);
+    finish(&mut v[board..], Finish::TIMBER);
+    let tools = v.len();
     // Hung tools: two wrench bars, a hammer head, a coiled line block.
     slab(v, i, [x - 0.07, 1.9, z - 0.9], [0.02, 0.30, 0.05], STEEL);
     slab(v, i, [x - 0.07, 1.8, z - 0.45], [0.02, 0.38, 0.05], DARK_STEEL);
     slab(v, i, [x - 0.07, 1.95, z + 0.2], [0.02, 0.10, 0.22], STEEL);
     slab(v, i, [x - 0.07, 1.65, z + 0.85], [0.02, 0.18, 0.18], DARK_STEEL);
+    finish(&mut v[tools..], Finish::MACHINED_STEEL);
 }
 
 /// A pallet of ammunition crates in the corner: drab boxes on skid timbers, stacked two-high.
 fn crate_pallet(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    let start = v.len();
     const CRATE: [f32; 3] = [0.295, 0.315, 0.235];
     const CRATE_LID: [f32; 3] = [0.26, 0.28, 0.21];
     for dz in [-0.4_f32, 0.5] {
@@ -172,14 +199,19 @@ fn crate_pallet(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
         slab(v, i, [x + dx, dy, z + dz], [0.42, 0.24, 0.55], CRATE);
         slab(v, i, [x + dx, dy + 0.26, z + dz], [0.44, 0.02, 0.57], CRATE_LID);
     }
+    // Skids, boxes and lids: nailed board, drab-painted. Board all the way down.
+    finish(&mut v[start..], Finish::TIMBER);
 }
 
 /// Two oil stains on the concrete by the workbench — where the work happens, not scattered
 /// across the bay like manhole covers — plus one under the second bay's engine stand.
 fn oil_stains(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
+    let start = v.len();
     for (x, z, r) in [(wall_x - 1.6, 4.9_f32, 0.55_f32), (wall_x - 2.4, 6.6, 0.4)] {
         push_cylinder(v, i, Vec3::new(x, 0.006, z), r, 0.004, 22, OIL);
     }
+    // Oil soaked INTO the slab: still the slab.
+    finish(&mut v[start..], Finish::CONCRETE);
 }
 
 /// The second, occupied-looking maintenance bay: parking strips, an A-frame engine gantry with
@@ -187,9 +219,12 @@ fn oil_stains(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
 /// the hall services a COMPANY, not one museum piece.
 fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     const MARKING: [f32; 3] = [0.62, 0.55, 0.20];
+    let marks = v.len();
     for dx in [-1.6_f32, 1.6] {
         slab(v, i, [x + dx, 0.004, z], [0.12, 0.005, 3.0], MARKING);
     }
+    finish(&mut v[marks..], Finish::PAINT_MARK);
+    let rig = v.len();
     // A-frame gantry: two leg pairs and the top beam.
     for dz in [-1.3_f32, 1.3] {
         for dx in [-0.8_f32, 0.8] {
@@ -197,7 +232,7 @@ fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
         }
         slab(v, i, [x, 3.05, z + dz], [0.9, 0.07, 0.07], STEEL);
     }
-    slab_finished(v, i, [x, 3.16, z], [0.09, 0.09, 1.45], STEEL, 0.25);
+    slab(v, i, [x, 3.16, z], [0.09, 0.09, 1.45], STEEL);
     // The chain and the engine block it holds over the stand.
     slab(v, i, [x, 2.35, z], [0.02, 0.72, 0.02], DARK_STEEL);
     for dx in [-0.35_f32, 0.35] {
@@ -214,12 +249,19 @@ fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
         }
     }
     // Tool trolley on stub wheels, with a push bar.
-    slab_finished(v, i, [x + 2.1, 0.55, z + 1.7], [0.45, 0.33, 0.3], STEEL, 0.2);
+    slab(v, i, [x + 2.1, 0.55, z + 1.7], [0.45, 0.33, 0.3], STEEL);
+    finish(&mut v[rig..], Finish::MACHINED_STEEL);
+    let tyres = v.len();
     for (dx, dz) in [(-0.35_f32, -0.22_f32), (0.35, -0.22), (-0.35, 0.22), (0.35, 0.22)] {
         slab(v, i, [x + 2.1 + dx, 0.11, z + 1.7 + dz], [0.05, 0.11, 0.05], RUBBER);
     }
+    finish(&mut v[tyres..], Finish::RUBBER);
+    let bar = v.len();
     slab(v, i, [x + 2.6, 1.0, z + 1.7], [0.03, 0.14, 0.28], DARK_STEEL);
+    finish(&mut v[bar..], Finish::MACHINED_STEEL);
+    let stain = v.len();
     push_cylinder(v, i, Vec3::new(x - 0.4, 0.006, z + 0.9), 0.45, 0.004, 20, OIL);
+    finish(&mut v[stain..], Finish::CONCRETE);
 }
 
 /// The rack's shelf CENTRE heights and half-thickness — the one place they live. The crates
@@ -246,6 +288,7 @@ fn stores_zone(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     const TARP: [f32; 3] = [0.24, 0.26, 0.23];
     // Rack: four uprights ending just proud of the top shelf (a post sticking a metre into the
     // air above the last shelf read as scaffolding), three shelves.
+    let rack = v.len();
     let post_top = RACK_SHELF_YS[2] + RACK_SHELF_HALF_H + 0.08;
     for dz in [-2.0_f32, 2.0] {
         for dx in [-0.7_f32, 0.7] {
@@ -255,16 +298,23 @@ fn stores_zone(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     for shelf_y in RACK_SHELF_YS {
         slab(v, i, [x, shelf_y, z], [0.75, RACK_SHELF_HALF_H, 2.1], STEEL);
     }
+    finish(&mut v[rack..], Finish::MACHINED_STEEL);
+    let stock = v.len();
     // Crates on the shelves, varied so the rack reads stocked, not stamped; every crate SEATS
     // on its shelf's top face.
     for (shelf, dz, dx, hw, hh) in RACK_CRATES {
         let seat = RACK_SHELF_YS[shelf] + RACK_SHELF_HALF_H;
         slab(v, i, [x + dx, seat + hh, z + dz], [0.55, hh, hw], CRATE);
     }
-    // The tarped mound beside the rack.
+    finish(&mut v[stock..], Finish::TIMBER);
+    // The tarped mound beside the rack. Proofed duck cloth: it takes the PLASTER treatment —
+    // fine grain over half-metre blotches is what a folded tarpaulin reads as, and inventing a
+    // twelfth role to say the same thing would be a role for one prop.
+    let tarp = v.len();
     for (layer_y, hx, hz) in [(0.35_f32, 1.05_f32, 0.8_f32), (0.85, 0.85, 0.62), (1.2, 0.6, 0.45)] {
-        slab_finished(v, i, [x + 0.3, layer_y, z + 3.6], [hx, 0.36, hz], TARP, 0.1);
+        slab(v, i, [x + 0.3, layer_y, z + 3.6], [hx, 0.36, hz], TARP);
     }
+    finish(&mut v[tarp..], Finish::CANVAS);
     // Reserve barrels — the same honest drum as by the gate wall.
     for (n, dz) in [-3.2_f32, -3.9].into_iter().enumerate() {
         let bx = x - 0.9 + n as f32 * 0.15;
@@ -280,13 +330,13 @@ fn extinguishers(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
         let plate_offset = 0.14;
         let (px, pz) = if along_x { (x + plate_offset, z) } else { (x, z - plate_offset) };
         let plate_half = if along_x { [0.02, 0.24, 0.14] } else { [0.14, 0.24, 0.02] };
-        slab(v, i, [px, 1.15, pz], plate_half, DARK_STEEL);
         let start = v.len();
+        slab(v, i, [px, 1.15, pz], plate_half, DARK_STEEL);
         push_cylinder(v, i, Vec3::new(x, 0.72, z), 0.11, 0.55, 14, EXTINGUISHER);
-        for vertex in &mut v[start..] {
-            vertex.gloss = 0.45;
-        }
         slab(v, i, [x, 1.34, z], [0.045, 0.07, 0.045], DARK_STEEL);
+        // Enamelled pressure bottle on its bracket: the glossiest paint in the hall, which is
+        // half of why the eye finds the one red accent in a grey room.
+        finish(&mut v[start..], Finish { gloss: 0.45, ..Finish::PAINTED_STEEL });
     }
 }
 

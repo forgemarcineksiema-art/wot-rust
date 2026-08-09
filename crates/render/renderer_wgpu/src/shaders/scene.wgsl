@@ -219,26 +219,59 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
         let sjoint = smoothstep(0.0, 0.018, srow_edge) * (0.86 + 0.14 * smoothstep(0.0, 0.022, scol_edge));
         return (0.90 + stone_tone) * (0.76 + 0.24 * sjoint);
     }
-    // Natural rock (Skaly 1.0, D6): unworked stone, so no courses at ALL — the exact opposite
-    // of role 8, which is stone a mason cut. Two octaves on the shared frames, crossfaded
-    // between the top frame and the face frame so neither streaks on a boulder's curve, and
-    // then the term that actually tells daylight it is looking at stone: the sky bleaches and
-    // lichens whatever it can reach, undercuts stay dark. That split is the read; the grain
-    // only keeps the facets off flat (art-direction rule 5 — nothing clean, nothing noisy).
+    // The frames every remaining role shares. `h` alone degenerates on a HORIZONTAL face — its
+    // tangent collapses and h becomes world.y, one constant across a flat slab — so a role that
+    // can face upward crossfades the wall-plane frame into the ground-plane one by the normal's
+    // up fraction. Rock needed that for a boulder's curve; the garage needs it because its two
+    // biggest surfaces, the floor and the roof, are flat.
     let top_frame = world.xz;
     let face_frame = vec2<f32>(h, world.y);
     let up = clamp(n.y, 0.0, 1.0);
-    let coarse = mix(
-        value_noise(octave_frame_broad(face_frame) * 1.6),
-        value_noise(octave_frame_broad(top_frame) * 1.6),
+    if (role < 9.5) {
+        // Natural rock (Skaly 1.0, D6): unworked stone, so no courses at ALL — the exact
+        // opposite of role 8, which is stone a mason cut. Two octaves on the shared frames, and
+        // then the term that actually tells daylight it is looking at stone: the sky bleaches
+        // and lichens whatever it can reach, undercuts stay dark. That split is the read; the
+        // grain only keeps the facets off flat (rule 5 — nothing clean, nothing noisy).
+        let coarse = mix(
+            value_noise(octave_frame_broad(face_frame) * 1.6),
+            value_noise(octave_frame_broad(top_frame) * 1.6),
+            up,
+        );
+        let crumb = mix(
+            value_noise(octave_frame_fine(face_frame) * 5.5),
+            value_noise(octave_frame_fine(top_frame) * 5.5),
+            up,
+        );
+        return (0.90 + (coarse * 0.6 + crumb * 0.4) * 0.16) * (0.90 + 0.16 * up);
+    }
+    if (role < 10.5) {
+        // Cast concrete (garage): a poured slab. The macro octave is the pour — a bay is filled
+        // in one go and cures its own tone, which is why a workshop floor reads as patches
+        // metres across rather than as one grey. The micro is the aggregate the float brought
+        // to the surface. No courses (nobody cut it) and no strata (it was poured flat), which
+        // is the whole difference between this and the two stone roles above.
+        // The two octaves are scaled to the GARAGE's viewing distance, not the battlefield's.
+        // Rule 5's 0.3-0.6 m micro band is calibrated for ground a player drives past at 25-100 m;
+        // the hero boom is 14 m and the close boom is 5 m, where 0.34 m covers twenty-odd pixels
+        // and stops being a grain at all. 0.15 m lands at ~10 px from the hero framing: texture
+        // the eye reads, still four times the sampling rate, so nothing shimmers at 1x MSAA.
+        let pour = mix(value_noise(face_frame / 3.1), value_noise(top_frame / 3.1), up);
+        let aggregate = mix(value_noise(face_frame * 6.5), value_noise(top_frame * 6.5), up);
+        return 0.90 + pour * 0.13 + aggregate * 0.09;
+    }
+    // Painted sheet steel (garage): primed and sprayed rolled panel. The macro is where the
+    // spray passes overlapped, the micro is the paint's tooth — drawn three times finer along
+    // the panel than across it, so the grain runs with the roll and the surface reads as sheet
+    // instead of as stone. Panel-to-panel breaks are GEOMETRY in this room (the hall carries
+    // real recessed joints), so this treatment deliberately has no joint term of its own.
+    let spray = mix(value_noise(face_frame * 0.4), value_noise(top_frame * 0.4), up);
+    let tooth = mix(
+        value_noise(vec2<f32>(face_frame.x * 7.0, face_frame.y * 2.4)),
+        value_noise(vec2<f32>(top_frame.x * 7.0, top_frame.y * 2.4)),
         up,
     );
-    let crumb = mix(
-        value_noise(octave_frame_fine(face_frame) * 5.5),
-        value_noise(octave_frame_fine(top_frame) * 5.5),
-        up,
-    );
-    return (0.90 + (coarse * 0.6 + crumb * 0.4) * 0.16) * (0.90 + 0.16 * up);
+    return 0.93 + spray * 0.10 + tooth * 0.06;
 }
 
 // Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one

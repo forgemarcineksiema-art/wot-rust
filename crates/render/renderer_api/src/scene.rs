@@ -111,6 +111,17 @@ pub mod surface_role {
     /// upward face while the undercuts stay dark. That top-versus-undercut split is what tells
     /// daylight it is looking at stone.
     pub const ROCK_FACE: f32 = 9.0;
+    /// Cast concrete (garage): a poured slab. Two octaves and nothing else — no courses,
+    /// because nobody cut it, and no strata, because it was poured flat: the macro is the
+    /// pour itself (a bay fills in one go and cures its own tone), the micro is the aggregate
+    /// the float brought up. The workshop floor is 36 m square and the single largest surface
+    /// the garage camera looks at.
+    pub const CONCRETE: f32 = 10.0;
+    /// Painted sheet steel (garage): a rolled panel, primed and sprayed. A broad unevenness
+    /// where the spray passes overlapped, and a fine tooth drawn along the roll direction so
+    /// it reads as sheet rather than as masonry. Walls, roof, ribs, trusses, the bay gate,
+    /// and the shop furniture built out of the same stock.
+    pub const PAINTED_STEEL: f32 = 11.0;
 }
 
 impl SceneVertex {
