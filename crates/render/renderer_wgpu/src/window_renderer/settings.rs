@@ -42,6 +42,14 @@ impl WindowRenderer {
     /// battlefield default. The shadow map's resolution never changes — this only stops a small
     /// room from being covered by a box built for a 1000 m field, which is the whole difference
     /// between 6.25 cm and 2.9 cm texels in the hangar.
+    /// Declare that this scene fits entirely inside its own near shadow box, so the far cascade
+    /// carries nothing and its draws are skipped. See [`SceneRenderer::shadow_cascades`].
+    ///
+    /// [`SceneRenderer::shadow_cascades`]: crate::SceneRenderer::shadow_cascades
+    pub fn set_shadow_cascades(&mut self, cascades: Option<u32>) {
+        self.scene.shadow_cascades = cascades;
+    }
+
     pub fn set_shadow_focus_radius_m(&mut self, radius_m: Option<f32>) {
         self.scene.shadow_focus_radius_m = radius_m;
     }

@@ -101,6 +101,7 @@ impl super::SceneRenderer {
         recorder: &mut PassRecorder<'_>,
         encoder: &mut wgpu::CommandEncoder,
         light_frustum: &Frustum,
+        cascades: u32,
     ) {
         let mut pass = recorder.begin(
             encoder,
@@ -115,7 +116,7 @@ impl super::SceneRenderer {
                 stencil_ops: None,
             }),
         );
-        if self.shadow.strength <= 0.0 || self.shadow.cascade_count < 2 {
+        if self.shadow.strength <= 0.0 || cascades < 2 {
             return;
         }
         pass.set_pipeline(&self.shadow.pipeline_scene_far);

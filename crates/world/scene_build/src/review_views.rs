@@ -75,6 +75,16 @@ pub struct HangarReviewView {
     pub background: (f64, f64, f64),
     /// The hero on the turntable. A garage review with no vehicle reviews an empty room.
     pub vehicle: ReviewVehicle,
+    /// Normalized `[x0, y0, x1, y1]` crop framing the parked hero, on the ROOM view only.
+    ///
+    /// The battlefield has had subject crops since the backlit-flank work; the garage did not,
+    /// which is the sharper omission of the two. `docs/art-direction-policy.md` says of this
+    /// room that "the hero is the brightest, most contrasted, most detailed thing in frame" and
+    /// that "if the room out-reads the vehicle, the shot has failed no matter how well lit the
+    /// room is" — and nothing measured it. The frame-wide statistics cannot: the hero is about a
+    /// sixth of the picture, so the hall could swallow it whole and the value planes would not
+    /// notice.
+    pub subject_box: Option<[f32; 4]>,
     /// Which garage screen this view locks (see [`GarageScreen`]).
     pub screen: GarageScreen,
 }
@@ -148,6 +158,14 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             // The garage's own showroom tint, not the battle green.
             hull_color: [0.72, 0.76, 0.62],
         },
+        // The hull and turret mass, on the ROOM view only — the overlay views are half
+        // instrument panel and answer to their own locks. Derived from the framing rather than
+        // eyeballed: the pivot projects to frame centre, the 32 deg lens over 540 rows puts
+        // ~67 px on a metre at the 14 m hero boom, and the parked T-54 subtends ~6.5 m across
+        // and ~2.4 m up at its 0.65 rad three-quarter. Bottom cut at ~0.5 m above the deck so
+        // the box measures the VEHICLE and not the contact shadow under it — the same reason
+        // the Prokhorovka boxes stay off the ground.
+        subject_box: (screen == GarageScreen::Room).then_some([0.30, 0.37, 0.70, 0.61]),
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views

@@ -270,13 +270,22 @@ impl ShadowResources {
     /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,
     /// cascade count, containment margin. A single-cascade setup packs margin 0, so the near
     /// box's valid region is exactly the pre-cascade `[0, 1]` UV — byte-for-byte the old lookup.
-    pub fn cascade_shader_params(&self, far: SunShadowParams) -> [f32; 4] {
+    pub fn cascade_shader_params(&self, far: SunShadowParams, cascades: u32) -> [f32; 4] {
         [
             far.texel_uv_size(),
             far.texel_world_size() * 1.5,
-            self.cascade_count as f32,
-            if self.cascade_count >= 2 { CASCADE_MARGIN_UV } else { 0.0 },
+            cascades as f32,
+            if cascades >= 2 { CASCADE_MARGIN_UV } else { 0.0 },
         ]
+    }
+
+    /// How many cascades a frame runs, given what the scene asked for.
+    ///
+    /// A scene may only ever REDUCE the count: `min` with the tier's, so an interior that fits
+    /// inside its own near box can drop the far one, and nothing can buy a cascade the adapter
+    /// tier did not pay for.
+    pub fn frame_cascade_count(&self, requested: Option<u32>) -> u32 {
+        requested.unwrap_or(self.cascade_count).clamp(1, self.cascade_count)
     }
 }
 

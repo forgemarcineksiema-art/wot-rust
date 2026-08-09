@@ -6,9 +6,11 @@
 
 use renderer_api::SceneVertex;
 
-use super::hangar::{HALF, SLAB, WALL_HEIGHT, slab, slab_finished};
+use super::hangar::{Finish, HALF, SLAB, WALL_HEIGHT, finish, slab};
 
-// Gallery palette (colors linear; gloss stamped via `slab_finished`).
+// Gallery palette (colors linear; the material each piece is MADE of is stamped per section
+// with `finish` — see `hangar::Finish`, and the audit finding that this whole hall shipped
+// with no surface role and no specular on seven vertices in ten).
 const CATWALK_DECK: [f32; 3] = [0.21, 0.215, 0.225];
 const KICK_PLATE: [f32; 3] = [0.145, 0.15, 0.16];
 const RAIL: [f32; 3] = [0.30, 0.31, 0.33];
@@ -47,20 +49,14 @@ pub(super) fn push_gallery(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// railing, support columns, and a stair flight down toward the stores zone. The decks ABUT at
 /// the corner (never overlap — coplanar top faces would z-fight).
 fn push_catwalk(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     let deck_c = DECK_Y - 0.06;
     let inner = HALF - 0.25 - 2.2; // inner edge plane of the 2.2 m-deep deck
     // Back-wall run spans the full width; the left-wall leg starts where the back run ends.
-    slab_finished(
-        v,
-        i,
-        [0.0, deck_c, -(HALF - 1.35)],
-        [HALF - 0.25, 0.06, 1.1],
-        CATWALK_DECK,
-        0.15,
-    );
+    slab(v, i, [0.0, deck_c, -(HALF - 1.35)], [HALF - 0.25, 0.06, 1.1], CATWALK_DECK);
     let leg_z = (-inner + 6.0) / 2.0;
     let leg_half = (6.0 + inner) / 2.0;
-    slab_finished(v, i, [-(HALF - 1.35), deck_c, leg_z], [1.1, 0.06, leg_half], CATWALK_DECK, 0.15);
+    slab(v, i, [-(HALF - 1.35), deck_c, leg_z], [1.1, 0.06, leg_half], CATWALK_DECK);
 
     // Kick plates + two-rail railing along both inner edges.
     let rail_runs: [([f32; 3], [f32; 3]); 2] = [
@@ -70,19 +66,18 @@ fn push_catwalk(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     for (center, half) in rail_runs {
         slab(v, i, [center[0], DECK_Y + 0.06, center[2]], [half[0], 0.12, half[2]], KICK_PLATE);
         for rail_y in [DECK_Y + 0.55, DECK_Y + 0.95] {
-            slab_finished(
+            slab(
                 v,
                 i,
                 [center[0], rail_y, center[2]],
                 [half[0].max(0.03), 0.03, half[2].max(0.03)],
                 RAIL,
-                0.3,
             );
         }
     }
     // Railing posts every ~2.2 m plus support columns every ~4.4 m under the deck.
     let mut post = |x: f32, z: f32| {
-        slab_finished(v, i, [x, DECK_Y + 0.5, z], [0.03, 0.5, 0.03], RAIL, 0.3);
+        slab(v, i, [x, DECK_Y + 0.5, z], [0.03, 0.5, 0.03], RAIL);
     };
     let posts = ((HALF - 0.25) * 2.0 / 2.2) as i32;
     for k in 0..=posts {
@@ -108,40 +103,45 @@ fn push_catwalk(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // The stair: ten steps descending from the left deck's south end toward the stores zone.
     for step in 0..10 {
         let k = step as f32;
-        slab_finished(
+        slab(
             v,
             i,
             [-(HALF - 1.35), DECK_Y - 0.46 * (k + 1.0) + 0.045, 6.0 + 0.30 * (k + 1.0)],
             [0.55, 0.045, 0.14],
             CATWALK_DECK,
-            0.15,
         );
     }
+    // Grating deck, kick plates, rail, columns and stair: bare section steel, never painted.
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
 /// Continuous crane rails along both side walls at girder height, on corbel brackets — the
 /// overhead girder finally rides something.
 fn push_crane_rails(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     let rail_y = WALL_HEIGHT - 2.5 + 0.34 + 0.16; // just under the girder's cross rail
     for sign in [-1.0_f32, 1.0] {
         let x = sign * (HALF - 1.1);
-        slab_finished(v, i, [x, rail_y, 0.0], [0.14, 0.16, HALF - 0.6], RAIL, 0.35);
+        slab(v, i, [x, rail_y, 0.0], [0.14, 0.16, HALF - 0.6], RAIL);
         for k in [-0.8_f32, -0.4, 0.0, 0.4, 0.8] {
             let bracket_x = sign * (HALF - 0.62);
             slab(v, i, [bracket_x, rail_y - 0.05, k * HALF], [0.48, 0.10, 0.28], COLUMN);
         }
     }
+    // A crane rail is polished by the wheels that ride it — the brightest steel in the hall.
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
 /// The worklamp housings: geometry twins of the `garage_hero` light rig. Every hot face hangs
 /// within arm's reach of its rig position, so light pools exactly where a lamp is seen.
 fn push_worklamps(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     // High-bay pendants over the turntable + the two zone pendants, all dropped from the roof.
     for [x, y, z] in HIGH_BAY_LAMPS.iter().copied().chain([STORES_LAMP, SECOND_BAY_LAMP]) {
         let stem_top = WALL_HEIGHT - 0.15;
         let stem_half = (stem_top - (y + 0.2)) / 2.0;
         slab(v, i, [x, y + 0.2 + stem_half, z], [0.04, stem_half, 0.04], LAMP_STEM);
-        slab_finished(v, i, [x, y + 0.1, z], [0.42, 0.10, 0.42], LAMP_SHADE, 0.3);
+        slab(v, i, [x, y + 0.1, z], [0.42, 0.10, 0.42], LAMP_SHADE);
         slab(v, i, [x, y - 0.015, z], [0.34, 0.015, 0.34], LAMP_FACE);
     }
     // The workbench strip light: a wall-bracketed tube shade with a hot underside.
@@ -153,13 +153,18 @@ fn push_worklamps(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
         [(HALF - SLAB - x) / 2.0, 0.04, 0.04],
         LAMP_STEM,
     );
-    slab_finished(v, i, [x, y + 0.15, z], [0.15, 0.05, 1.1], LAMP_SHADE, 0.3);
+    slab(v, i, [x, y + 0.15, z], [0.15, 0.05, 1.1], LAMP_SHADE);
     slab(v, i, [x, y + 0.08, z], [0.10, 0.015, 1.05], STRIP_FACE);
+    // Stems and shades are enamelled pressings. The hot FACES take no finish at all: `finish`
+    // skips emissive vertices, because a lamp face is a light and multiplying a light by a
+    // paint treatment is a category error.
+    finish(&mut v[start..], Finish::PAINTED_STEEL);
 }
 
 /// Stencil signage, no lettering: hazard chevrons on the gate lintel, a bordered banner with a
 /// concentric stencil patch hung off the front trusses, and small marker plates over the bays.
 fn push_signage(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     // Hazard chevrons across the gate lintel (alternating yellow/near-black), proud of it.
     let lintel_z = -(HALF - SLAB) + 0.22;
     for step in 0..8 {
@@ -188,11 +193,15 @@ fn push_signage(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
         slab(v, i, [x, 4.6, z], [0.02, 0.34, 0.34], BANNER);
         slab(v, i, [x + sign * 0.015, 4.6, z], [0.012, 0.2, 0.2], BANNER_PATCH);
     }
+    // Chevrons, banner and marker plates are stencil over plate — the same paint the bay
+    // markings on the floor are, at the same low sheen.
+    finish(&mut v[start..], Finish::PAINT_MARK);
 }
 
 /// Cable trays: a U-profile run along the right wall feeding the workbench wall, vertical
 /// conduit drops, and a ceiling tray out to the turntable lamps — the shop's wiring story.
 fn push_cable_trays(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let start = v.len();
     let wall_x = HALF - SLAB - 0.10;
     slab(v, i, [wall_x, 3.4, 0.0], [0.12, 0.02, 10.0], LAMP_STEM);
     for lip in [-0.10_f32, 0.10] {
@@ -205,4 +214,6 @@ fn push_cable_trays(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // Ceiling tray from the wall out to the high-bay pendants' drop line.
     let tray_half = (wall_x - 3.6) / 2.0;
     slab(v, i, [3.6 + tray_half, WALL_HEIGHT - 0.3, -1.8], [tray_half, 0.03, 0.06], LAMP_STEM);
+    // Galvanised tray and conduit: mill finish, never sprayed with the wall behind it.
+    finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
