@@ -118,6 +118,57 @@ pub const HERO_FOV_DEGREES: f32 = 32.0;
 /// a review artifact may never do.
 pub const INTERIOR_BACKGROUND: (f64, f64, f64) = (1.30, 1.38, 1.55);
 
+/// A module-inspection framing: the shot the camera flies to when a fitting slot is clicked.
+/// Single-sourced here (A3) for the same reason the hero constants are: the live camera, the
+/// review probe and the composition locks must read the SAME shot, or the background composed
+/// for a framing quietly stops being the background the framing sees.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlotFraming {
+    pub yaw: f32,
+    pub pitch: f32,
+    pub distance: f32,
+    /// Look-point offset off the turntable centre (lift to the turret, drop to the gear).
+    pub pivot_offset: [f32; 3],
+}
+
+/// The four composed module framings (A3) plus the hull's. Yaws are bearings relative to the
+/// parked hull (they moved with `HERO_PARK_YAW` in A1); each background is COMPOSED — what
+/// stands behind the module is subject matter, not whatever wall happened to be there:
+/// the gun looks down the lane at the ajar gate between the ammunition racks, the suspension's
+/// low pass ends on the spare wheels and track links at the flow wall, the engine deck fronts
+/// the second bay's gantry and block, the turret shot carries the hoist hook hanging over it.
+pub const FRAMING_TURRET: SlotFraming =
+    SlotFraming { yaw: 0.52, pitch: 0.55, distance: 5.5, pivot_offset: [0.0, 0.7, 0.0] };
+pub const FRAMING_GUN: SlotFraming =
+    SlotFraming { yaw: 0.0, pitch: 0.12, distance: 6.5, pivot_offset: [0.0, 0.25, 1.6] };
+pub const FRAMING_HULL: SlotFraming =
+    SlotFraming { yaw: 0.37, pitch: 0.14, distance: 6.0, pivot_offset: [0.0, -0.1, 0.4] };
+pub const FRAMING_ENGINE: SlotFraming =
+    SlotFraming { yaw: 3.17, pitch: 0.42, distance: 6.0, pivot_offset: [0.0, 0.2, -1.6] };
+/// The A3 probe caught the old 1.37 yaw standing 0.30 rad off the hull's NOSE — a point-blank
+/// glacis stare that had shipped unreviewed because no probe rendered this shot before. 1.67
+/// puts the camera a real 0.60 rad off the hull: the wheel line reads, and the flow wall's
+/// gear stock stands in the background.
+pub const FRAMING_SUSPENSION: SlotFraming =
+    SlotFraming { yaw: 1.67, pitch: -0.03, distance: 4.5, pivot_offset: [0.0, -0.55, 0.0] };
+
+/// The composed framings by name, for the review probe and the composition lock.
+pub fn slot_framings() -> [(&'static str, SlotFraming); 4] {
+    [
+        ("turret", FRAMING_TURRET),
+        ("gun", FRAMING_GUN),
+        ("engine", FRAMING_ENGINE),
+        ("suspension", FRAMING_SUSPENSION),
+    ]
+}
+
+/// Eye and look-target of a slot framing, from the same arithmetic the live camera runs.
+pub fn slot_eye(framing: SlotFraming) -> (Vec3, Vec3) {
+    let pivot = hangar_camera_pivot() + Vec3::from_array(framing.pivot_offset);
+    let eye = pivot + orbit_direction(framing.yaw, framing.pitch) * framing.distance;
+    (eye, pivot)
+}
+
 /// Direction from the pivot to the eye for an orbit yaw/pitch. Shared so the live camera and
 /// every offscreen review of it cannot disagree about where the camera is.
 pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
@@ -1351,6 +1402,42 @@ mod tests {
         };
         assert!(lane_side(-1.0), "the lane arrives from the gate");
         assert!(lane_side(1.0), "the wear continues past the station");
+    }
+
+    /// A3: EVERY SLOT FRAMING FRAMES A COMPOSED BACKGROUND. For each module shot the camera
+    /// flies to, real geometry stands in the frustum BEYOND the subject and BELOW the roof
+    /// line — subject matter behind the module (racks, gear stock, the second bay, the gate),
+    /// not bare wall and floor. Measured through the same framing constants the live camera
+    /// flies (`slot_framings`), so recomposing a shot without restaging its background fails
+    /// here by name.
+    #[test]
+    fn every_slot_framing_frames_a_composed_background() {
+        let (vertices, _) = hangar_scene_mesh();
+        let half_v = (HERO_FOV_DEGREES.to_radians() / 2.0).tan();
+        let half_h = half_v * 16.0 / 9.0;
+        for (name, framing) in slot_framings() {
+            let (eye, target) = slot_eye(framing);
+            let forward = (target - eye).normalize();
+            let right = forward.cross(Vec3::Y).normalize();
+            let up = right.cross(forward);
+            let staged = vertices
+                .iter()
+                .filter(|vertex| {
+                    let p = Vec3::from_array(vertex.position) - eye;
+                    let depth = p.dot(forward);
+                    // Beyond the subject, in frame, and below the eaves line: composed
+                    // BACKGROUND, not the roof and not the vehicle itself.
+                    depth > framing.distance + 3.0
+                        && vertex.position[1] < WALL_SEAM
+                        && p.dot(right).abs() < half_h * depth
+                        && p.dot(up).abs() < half_v * depth
+                })
+                .count();
+            assert!(
+                staged >= 150,
+                "the {name} framing looks at an unstaged background: {staged} vertices in frame"
+            );
+        }
     }
 
     /// The turntable is machinery: a rim ring wider than the deck and radial plate seams on
