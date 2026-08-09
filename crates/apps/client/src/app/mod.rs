@@ -803,6 +803,10 @@ impl ClientApp {
 pub fn run() -> anyhow::Result<()> {
     let event_loop = EventLoop::new().context("failed to create winit event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
+    // The garage hall, started on a worker before the battle it is born into has drawn a
+    // frame. Nothing here waits for it: the first garage entry either finds the mesh in hand
+    // or joins a bake that has had the whole battle to run (see `scene_build::hangar::prewarm`).
+    scene_build::hangar::prewarm();
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
     app.prebake_playable_vehicle_assets();
