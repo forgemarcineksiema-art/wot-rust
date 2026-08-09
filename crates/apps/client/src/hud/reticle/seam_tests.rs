@@ -221,8 +221,8 @@ fn per_ten_thousand(part: usize, whole: usize) -> usize {
 /// The bounds below are MEASURED, not chosen: today's numbers with roughly half again as headroom,
 /// so they answer "did this change reopen the gap?" rather than "is this number pretty?". They are
 /// tight enough that undoing either wave turns them red on its own — reverting the optic height
-/// alone puts Bystra at 38 against a ceiling of 10. Raising one is a decision that belongs in
-/// `docs/sight-honesty-program.md`, never a way to get a run green.
+/// alone puts Bystra at 38 against a ceiling of 10. Raising one is a deliberate decision that
+/// comes with a fresh measurement, never a way to get a run green.
 #[test]
 fn what_the_sniper_eye_reaches_the_gun_can_reach() {
     for (map, refused_ceiling, uncut_ceiling) in
@@ -237,8 +237,8 @@ fn what_the_sniper_eye_reaches_the_gun_can_reach() {
         let refused = per_ten_thousand(seam.refused, seam.believable);
         let uncut = per_ten_thousand(seam.refused_while_uncut, seam.believable);
         // Printed, not just asserted: re-measuring after a terrain or ballistics change is the
-        // point of this instrument, and `cargo test -- --nocapture` is how the numbers in
-        // `docs/sight-honesty-program.md` were taken.
+        // point of this instrument, and `cargo test -- --nocapture` is how the ceilings above
+        // were taken.
         eprintln!("{map:?}: {seam:?}  refused={refused}/10000  uncut={uncut}/10000");
         assert!(
             refused <= refused_ceiling,

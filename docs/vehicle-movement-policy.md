@@ -166,8 +166,8 @@ collision entirely and enters the support envelope as `terrain::RubbleMound` —
 with flanks at the angle of repose of broken masonry. Both the resting line and the drive's slope
 probe read `max(terrain, debris)`, so the hull rides the pile AND pays it: the crossing tilts the
 hull and bleeds speed through the same force model every slope uses. Intact cover is unchanged —
-it blocks in plan at any height, so nothing ends up on a roof. See `docs/honest-steel-policy.md`,
-"Rubble is terrain".
+it blocks in plan at any height, so nothing ends up on a roof. This is the Honest Steel rule
+"rubble is terrain".
 
 A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
 hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every

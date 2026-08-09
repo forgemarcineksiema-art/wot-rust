@@ -3,8 +3,8 @@
 //!
 //! Every capped FX pool is filled to its cap and rendered through the REAL append paths, and the
 //! summed worst-case vertex counts are locked. A Honest Steel phase that adds stamps or raises a
-//! cap updates the locked number in the same diff (`docs/honest-steel-policy.md`) — the budget
-//! moves consciously, never by drift.
+//! cap updates the locked number in the same diff, with the measurement that justifies it — the
+//! budget moves consciously, never by drift.
 //!
 //! What this file used to do, and what was wrong with it. It locked ONE number, 35,070, and
 //! never asked whether 35,070 vertices fit the GPU buffer they are uploaded into. They did not:
@@ -185,8 +185,8 @@ fn the_fx_frame_worst_case_is_locked() {
     assert_eq!(
         essential, FX_ESSENTIAL_VERTEX_BUDGET,
         "the ESSENTIAL FX worst case moved (particles {particles} + fleet decals {decals}); if \
-         the change is intentional, update FX_ESSENTIAL_VERTEX_BUDGET in the same diff and note \
-         it in docs/honest-steel-policy.md",
+         the change is intentional, update FX_ESSENTIAL_VERTEX_BUDGET in the same diff, with the \
+         measurement that justifies the new number",
     );
 
     let mut scar_batch = Vec::new();

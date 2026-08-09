@@ -24,7 +24,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 /// Affordable, and the frame says so rather than taste. Every part added here is
 /// `PartLod::Detail`, so it exists at LOD0 and is DROPPED at LOD1 and below — the cost lands only
 /// on vehicles close enough to read it. At `scene_pass`'s measured ~20 ns/triangle
-/// (`docs/battle-first/measurements.md`, MX330 at the shipped 1x MSAA) the worst case is a 7v7
+/// (measured 2026-08-08 on the MX330 min spec, at the shipped 1x MSAA) the worst case is a 7v7
 /// where every tank is near: +2,561 triangles each, ~0.72 ms against 2.99 ms of p95 headroom.
 /// A realistic battle has one or two vehicles at that range, not fourteen.
 pub const MEDIUM_LOD0_TRI_BUDGET: usize = 26_000;

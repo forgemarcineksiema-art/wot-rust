@@ -1,7 +1,7 @@
 //! Side armour decides flank fights — through TRUE geometry, not through a facet's flat number.
 //!
-//! `docs/battle-first/fleet-numbers-audit.md` first claimed the opposite ("side armour is
-//! decorative: every gun penetrates every side"). That was measured with
+//! A fleet-numbers audit first claimed the opposite ("side armour is decorative: every gun
+//! penetrates every side"). That was measured with
 //! `effective_thickness_mm(HullSide, 0.0)`, which is nominal x weakspot with no geometry in it at
 //! all — the plate's slope lives in `plate_normal`, and the impact angle is taken against that 3D
 //! normal. Measuring the flat number and concluding the flank does not matter is the same class of

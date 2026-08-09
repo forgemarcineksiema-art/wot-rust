@@ -82,7 +82,7 @@ it closes.
 | D9 | `VehicleVariation` carries `dirt` / `snow` / `camo` lanes that are **never populated in battle** | `variation.rs:105-116` | W3 |
 | ~~D10~~ | ~~Team colour keys on `tank.id == player_tank` instead of `TeamId`~~ — **CLOSED (PR #317)**: both paths now read `PresentationTank::team` through one shared rule; identity still decides the gun. In a 7v7 this had six of the thirteen other tanks wearing enemy paint | `render_frame.rs` | W3 |
 | ~~D11~~ | ~~The garage has **no golden and no review view**~~ — **CLOSED (W0/W4)**: `goldens/look/garage_hero.png` and `garage_screen.png` are both locked (D24 records the screen golden landing) and `hangar_review_views()` puts the hangar in the review set. `garage_workshop` itself stays a test-only profile (`lighting.rs:517`) — the locked frames light through the hero preset | `review_views.rs:95`, `goldens/look/` | W0/W4 |
-| ~~D12~~ | ~~Two vegetation languages share a frame~~ — **CLOSED (Świat 2.0 F0, 2026-08-06)**: flora is procedural-only; imported CC0 meshes/`assets/flora`/`import-flora` are gone; maps author procedural `Oak` (instanced LOD + trunk cover); `FloraTree`/`FloraPine`/`FloraBush` are retired wire-only variants | `docs/map-forge-policy.md` #10, `docs/world-2.0-program.md` | W2 |
+| ~~D12~~ | ~~Two vegetation languages share a frame~~ — **CLOSED (Świat 2.0 F0, 2026-08-06)**: flora is procedural-only; imported CC0 meshes/`assets/flora`/`import-flora` are gone; maps author procedural `Oak` (instanced LOD + trunk cover); `FloraTree`/`FloraPine`/`FloraBush` are retired wire-only variants | `docs/map-forge-policy.md` #10 | W2 |
 | ~~D13~~ | ~~**The locked goldens render imported flora as WHITE.**~~ — **CLOSED (W0)**; then **OBSOLETE (Świat 2.0 F0)**: there is no foliage atlas to bind — trees are vertex-coloured procedural meshes | — | W0 |
 | ~~D14~~ | ~~The imported `stylized-tree` orange-red trunk~~ — **CLOSED (Świat 2.0 F0)**: the asset is gone with the import pipeline | — | W2 |
 | D15 | Outside the T-54 the fleet offers nothing to look at up close: unbroken plates, no weld seams, grab handles, tow cable, spare track or vision blocks; hull and turret read as two different paints (cast vs rolled split too far); running gear is a black void with no contact | `target/closeup_probe/centurion_flank.png` | W3 |
@@ -265,8 +265,8 @@ into a seamlessly tiling R8 texture (`cloud_map.rs` — the lattice wrapped modu
 period so the tile is seamless by construction, not by blending) and sampled through one
 repeat-addressed tap at group-2 bindings 5–6. The per-fragment ALU fell to the sample, the
 offset arithmetic and the threshold, and `canonical()` ships the shade in the one look (D21,
-closed). The min-spec `perf_capture` number for THIS build lands in `docs/battle-first/
-measurements.md` beside the refusal table.
+closed). The min-spec `perf_capture` number for THIS build is taken by re-running the capture:
+`cargo run -p client --release --example probe -- perf_capture`.
 
 ## Why the vehicle's shaded half is dark: four levers, measured, all insufficient
 
