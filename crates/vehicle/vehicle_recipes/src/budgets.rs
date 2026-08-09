@@ -13,9 +13,20 @@ pub struct VehicleBudgets {
     pub vehicle_vert_max: usize,
 }
 
-/// The lineup-wide procedural bake envelope. Runtime running gear is excluded: wheels,
-/// suspension, end wheels, and links are animated instances. The continuous backing skin belongs
-/// to each moving link rather than the static hull, so a thrown track leaves no frozen ghost belt.
+/// The PROCEDURAL bake envelope — every vehicle whose mesh comes from the recipes in this crate,
+/// which is the whole fleet except the hybrid benchmark.
+///
+/// Not lineup-wide, and the distinction is load-bearing: the T-54 the game ships bakes through
+/// `vehicle_build` and is held to that crate's per-class LOD0 budgets instead (26,000 triangles,
+/// 18,000 vertices — several times these numbers, because it is a several-times denser mesh).
+/// Which envelope governs a given vehicle is answered in one place,
+/// `vehicle_forge::shipped_cost_ceiling`, and gated on the shipped mesh by
+/// `vehicle_forge/tests/shipped_cost.rs`. Reading this table as the fleet's only ceiling is how
+/// the hybrid's vertex count went unmeasured until 2026-08-09.
+///
+/// Runtime running gear is excluded: wheels, suspension, end wheels, and links are animated
+/// instances. The continuous backing skin belongs to each moving link rather than the static hull,
+/// so a thrown track leaves no frozen ghost belt.
 pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     hull_tri: (120, 2750),
     // Raised 900 -> 1150 (measured 2026-08-08, the roundness law): a cupola is the same radius as

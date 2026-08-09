@@ -32,7 +32,7 @@ pub use manifest::{
 pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTolerance};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{
-    MEDIUM_LOD0_TRI_BUDGET, t54_description, t54_description_from_blueprint, t54_from_modules,
-    t54_from_modules_with_blueprint,
+    MEDIUM_LOD0_TRI_BUDGET, MEDIUM_LOD0_VERT_BUDGET, t54_description,
+    t54_description_from_blueprint, t54_from_modules, t54_from_modules_with_blueprint,
 };
 pub use t54_turret_loft::t54_turret_loft;
