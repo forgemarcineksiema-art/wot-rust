@@ -80,6 +80,14 @@ impl WindowRenderer {
         self.scene.set_interior_detail_normal(enabled);
     }
 
+    /// Set or clear the interior reflection cubemap (see
+    /// [`SceneRenderer::set_environment_cube`]).
+    ///
+    /// [`SceneRenderer::set_environment_cube`]: crate::SceneRenderer::set_environment_cube
+    pub fn set_environment_cube(&mut self, mips: Option<&[[Vec<[f32; 4]>; 6]]>) {
+        self.scene.set_environment_cube(&self.ctx, mips);
+    }
+
     /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
     /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
     /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery

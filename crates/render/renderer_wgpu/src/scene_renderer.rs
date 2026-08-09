@@ -108,6 +108,9 @@ pub struct SceneRenderer {
     /// catch light; every other scene keeps the authored interior normal
     /// (`set_interior_detail_normal`).
     interior_detail_normal: bool,
+    /// Whether an interior reflection cubemap is bound (Hala 3.0 D1) — `scene_params.y`, the
+    /// flag that routes glossy interior reflections at the cube instead of `env_sky`.
+    environment_cube_set: bool,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -522,6 +525,7 @@ impl SceneRenderer {
             grass_crushers: Vec::new(),
             hero_probe: [[0.0; 4]; 6],
             interior_detail_normal: false,
+            environment_cube_set: false,
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,

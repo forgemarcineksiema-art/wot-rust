@@ -17,6 +17,22 @@ var shadow_map_far: texture_depth_2d;
 var cloud_coverage_map: texture_2d<f32>;
 @group(2) @binding(6)
 var cloud_sampler: sampler;
+// The interior reflection cubemap (Hala 3.0 D1): the garage hall as seen from the hero
+// station, prefiltered per mip so gloss picks sharpness. A 1x1 black cube outside the garage;
+// scene_params.y says whether THIS scene's environment lives here instead of in `env_sky`.
+@group(2) @binding(7)
+var env_cube: texture_cube<f32>;
+
+// Environment for a reflection ray: the interior cubemap when the scene carries one, the
+// analytic gradient sky otherwise. Shared by the scene and vehicle gloss paths, so the room
+// the deck mirrors and the room the hull mirrors are the same room.
+fn env_reflection(dir: vec3<f32>, gloss: f32) -> vec3<f32> {
+    if (camera.scene_params.y > 0.5) {
+        let mip = (1.0 - clamp(gloss, 0.0, 1.0)) * 6.0;
+        return textureSampleLevel(env_cube, ssao_sampler, dir, mip).rgb;
+    }
+    return env_sky(dir);
+}
 
 // How many cloud-UV units one repeat of the baked coverage tile spans. Kept in lockstep with
 // `cloud_map::CLOUD_TILE_SPAN_UV` (the bake's periodic lattice) — locked by

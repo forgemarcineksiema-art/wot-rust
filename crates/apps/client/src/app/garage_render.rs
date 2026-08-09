@@ -224,6 +224,11 @@ impl ClientApp {
                     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
                     // ...and the hall's material grain catches the worklight (C1).
                     renderer.set_interior_detail_normal(true);
+                    // ...and every polished surface mirrors the ROOM (D1): the baked,
+                    // prefiltered reflection cube from the hero station.
+                    renderer.set_environment_cube(Some(
+                        &scene_build::hangar::hangar_reflection_cube().mips,
+                    ));
                 }
                 SceneKind::Battle => {
                     renderer.set_shadow_focus(None);
@@ -235,6 +240,7 @@ impl ClientApp {
                     // No hall, no probe: zero lanes, a bit-exact no-op in the vehicle shader.
                     renderer.set_hero_probe(None);
                     renderer.set_interior_detail_normal(false);
+                    renderer.set_environment_cube(None);
                 }
             }
             self.current_scene = want;

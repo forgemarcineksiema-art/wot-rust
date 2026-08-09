@@ -113,6 +113,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_interior_background(bg_r, bg_g, bg_b);
     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
     renderer.set_interior_detail_normal(true);
+    renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

@@ -76,4 +76,17 @@ impl SceneRenderer {
     pub fn set_interior_detail_normal(&mut self, enabled: bool) {
         self.interior_detail_normal = enabled;
     }
+
+    /// Set or clear the interior reflection cubemap (Hala 3.0 D1): `Some(mips)` uploads the
+    /// baked, prefiltered room cube (each mip: 6 faces of RGBA f32 texels, WebGPU face order)
+    /// and points every glossy interior reflection at it; `None` restores the black default
+    /// and the analytic `env_sky` path. Scene-swap cadence.
+    pub fn set_environment_cube(
+        &mut self,
+        ctx: &crate::GpuContext,
+        mips: Option<&[[Vec<[f32; 4]>; 6]]>,
+    ) {
+        self.environment_cube_set = mips.is_some();
+        self.shadow.set_env_cube(&ctx.device, &ctx.queue, &self.shadow_bgl, mips);
+    }
 }
