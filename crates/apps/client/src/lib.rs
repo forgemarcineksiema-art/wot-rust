@@ -31,7 +31,7 @@ pub use hud::{HudVitals, build_hud};
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
 // empty, so the ten forwarding names here had no caller left in the workspace.
 pub use look_harness::{
-    hangar_shaft_fx_vertices, render_hangar_review_views, render_review_views,
+    hangar_fan_mesh_at, hangar_shaft_fx_vertices, render_hangar_review_views, render_review_views,
     render_review_views_with_fov,
 };
 pub use loop_policy::{

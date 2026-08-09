@@ -267,6 +267,35 @@ impl FxSystem {
         }
     }
 
+    /// A wisp of steam off the hall's heating duct (Hala 3.0 E2): sparse, soft, premultiplied
+    /// puffs that rise, drift with the hall's draft toward the gate, and thin out. Rate-
+    /// budgeted like the motes; the caller passes the duct outlet.
+    pub fn vent_steam(&mut self, outlet: Vec3, dt: f32) {
+        const PUFFS_PER_SECOND: f32 = 1.1;
+        self.steam_budget += PUFFS_PER_SECOND * dt;
+        while self.steam_budget >= 1.0 {
+            self.steam_budget -= 1.0;
+            let jitter = Vec3::new(self.rand_signed() * 0.1, 0.0, self.rand_signed() * 0.1);
+            let ttl = 1.8 + self.rand_unit() * 1.4;
+            let rise = 0.5 + self.rand_unit() * 0.3;
+            let drift = -0.25 - self.rand_unit() * 0.2;
+            let alpha = 0.10 + self.rand_unit() * 0.04;
+            self.spawn(Particle {
+                position: outlet + jitter,
+                velocity_mps: Vec3::new(0.05, rise, drift),
+                gravity_factor: -0.03,
+                drag_per_s: 1.1,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.22,
+                size_end_m: 0.95,
+                color_begin: [0.72 * alpha, 0.73 * alpha, 0.75 * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
+        }
+    }
+
     pub fn track_dust(&mut self, ground: Vec3) {
         for _ in 0..4 {
             let spread = Vec3::new(self.rand_signed() * 1.4, 0.0, self.rand_signed() * 0.8);

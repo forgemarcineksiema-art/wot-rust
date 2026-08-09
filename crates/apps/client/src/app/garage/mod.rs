@@ -53,6 +53,9 @@ pub(super) struct GarageState {
     pivot_offset: Vec3,
     camera_target: Option<CameraTarget>,
     idle_seconds: f32,
+    /// The turntable's slow showcase rotation (E2): accumulates while the garage idles, so a
+    /// walked-away-from hall keeps presenting its vehicle; reset when a new vehicle rolls in.
+    idle_turntable_yaw: f32,
     drive_in: drive_in::DriveIn,
     cursor_clip: [f32; 2],
     dragging: bool,
@@ -88,6 +91,7 @@ impl Default for GarageState {
             pivot_offset: Vec3::ZERO,
             camera_target: None,
             idle_seconds: 0.0,
+            idle_turntable_yaw: 0.0,
             drive_in: drive_in::DriveIn::default(),
             cursor_clip: [2.0, 2.0],
             dragging: false,

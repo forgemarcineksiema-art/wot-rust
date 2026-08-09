@@ -43,6 +43,8 @@ pub(crate) struct FxSystem {
     /// Fractional spawn budget of the hangar's dust-mote trickle (E1), so the rate stays
     /// framerate-independent.
     mote_budget: f32,
+    /// Fractional spawn budget of the heating duct's steam wisps (E2).
+    steam_budget: f32,
 }
 
 impl FxSystem {

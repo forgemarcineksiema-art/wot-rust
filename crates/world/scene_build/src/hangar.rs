@@ -178,6 +178,56 @@ pub fn slot_eye(framing: SlotFraming) -> (Vec3, Vec3) {
     (eye, pivot)
 }
 
+/// Where the heating duct breathes (E2): just proud of the grille the gallery hangs at the
+/// stores corner — the client's steam emitter and the geometry agree on the source.
+pub const STEAM_DUCT_OUTLET: [f32; 3] = [-(HALF_X - 0.55), 2.45, 18.6];
+
+/// Where the exhaust fan hangs on the stores wall (E2): shared by the static housing
+/// (`hangar_gallery`), the dynamic blades below, and the steam duct that gives the fan its
+/// reason — the hall breathes out through this corner. It hangs INSIDE the stores lamp's
+/// pool (4.5 m from the emitter at [-8.5, 6.2, 17.0]): the first placement at x=6.5 sat in
+/// the unlit band over the catwalk and the review lens could barely find it — a moving
+/// piece nobody can see buys nothing, so the fan lives where its motion catches light.
+pub const FAN_CENTER: [f32; 3] = [-8.5, 7.2, HALF_Z - SLAB - 0.16];
+
+/// The exhaust fan's BLADES at `angle` radians (E2): the one piece of the hall that moves
+/// every frame, so it rides the dynamic-mesh slot the garage previously cleared. Four
+/// pitched blades and a hub, rebuilt per frame (~180 vertices — cheaper than a mote). The
+/// housing is static gallery geometry; this is only what turns.
+pub fn wall_fan_blades(angle: f32) -> (Vec<SceneVertex>, Vec<u32>) {
+    const BLADE_COUNT: u32 = 4;
+    let hub = Vec3::from_array(FAN_CENTER);
+    let mut v = Vec::new();
+    let mut i = Vec::new();
+    for blade in 0..BLADE_COUNT {
+        let a = angle + blade as f32 * std::f32::consts::TAU / BLADE_COUNT as f32;
+        let spin = Mat3::from_rotation_z(a);
+        // Radial arm in the wall plane, pitched about its own axis so it reads as a fan
+        // blade, not a paddle.
+        push_oriented_box(
+            &mut v,
+            &mut i,
+            hub + spin * Vec3::new(0.32, 0.0, 0.0),
+            Vec3::new(0.26, 0.09, 0.012),
+            spin * Mat3::from_rotation_x(0.55),
+            [0.16, 0.165, 0.175],
+        );
+    }
+    push_oriented_box(
+        &mut v,
+        &mut i,
+        hub,
+        Vec3::new(0.08, 0.08, 0.04),
+        Mat3::IDENTITY,
+        [0.13, 0.135, 0.14],
+    );
+    for vertex in &mut v {
+        vertex.surface = renderer_api::surface_role::PAINTED_STEEL;
+        vertex.gloss = 0.22;
+    }
+    (v, i)
+}
+
 /// The sun shafts' blade quads (Hala 3.0 E1): translucent beams hanging under the glazing
 /// bands, each a world-space quad from a segment of the glazing plane down along the light's
 /// travel (−key) to just over the floor. Geometry lives HERE because only the hangar knows
@@ -946,6 +996,15 @@ impl Finish {
         Self { surface: renderer_api::surface_role::PLASTER, gloss: 0.10 };
 }
 
+/// Give the vertices a builder just appended a sway amplitude (E2): hanging pieces — the
+/// hoist hook, the banner, the second bay's chain — ride the same wind lane the meadow's
+/// blade tips do, at centimetre amplitudes. The hall's draft has a source: the gate is ajar.
+pub(super) fn set_sway(vertices: &mut [SceneVertex], sway: f32) {
+    for vertex in vertices {
+        vertex.sway = sway;
+    }
+}
+
 /// Stamp a finish onto the vertices a builder has just appended.
 ///
 /// The hall's established idiom — the turntable's gloss has been set by walking `v[start..]`
@@ -1623,6 +1682,48 @@ mod tests {
             probe[3],
             probe[2]
         );
+    }
+
+    /// E2: ONLY THE HANGING THINGS SWAY. The hook, the chain and the banner carry a sway
+    /// amplitude (they hang free, and the gate is ajar); the shell — walls, floor, roof —
+    /// carries exactly zero, because a swaying wall is an earthquake, not a draft.
+    #[test]
+    fn only_the_hanging_things_sway() {
+        let (vertices, _) = hangar_scene_mesh();
+        let swaying = vertices.iter().filter(|v| v.sway > 0.0).count();
+        assert!(
+            (24..=400).contains(&swaying),
+            "a handful of hanging pieces sway, got {swaying} vertices"
+        );
+        for vertex in &vertices {
+            if vertex.sway > 0.0 {
+                assert!(
+                    vertex.position[1] > 1.5,
+                    "everything that sways HANGS — sway at floor level {:?}",
+                    vertex.position
+                );
+                assert!(vertex.sway <= 0.06, "a draft, not a storm: {}", vertex.sway);
+            }
+        }
+    }
+
+    /// E2: the fan's blades are deterministic in their angle, live at the fan's own hub, and
+    /// spin — two angles give two meshes with identical topology and moved vertices.
+    #[test]
+    fn the_fan_turns_about_its_own_hub() {
+        let (v0, i0) = wall_fan_blades(0.0);
+        let (v1, i1) = wall_fan_blades(1.0);
+        assert_eq!(v0.len(), v1.len());
+        assert_eq!(i0, i1, "rotation moves vertices, never topology");
+        assert!(v0 != v1, "two angles are two pictures");
+        let hub = Vec3::from_array(FAN_CENTER);
+        for vertex in &v0 {
+            let d = Vec3::from_array(vertex.position) - hub;
+            assert!(d.length() < 0.75, "a blade stays inside its guard: {:?}", vertex.position);
+        }
+        // Determinism: the same angle is the same mesh, bit for bit.
+        let (v0b, _) = wall_fan_blades(0.0);
+        assert!(v0 == v0b, "the fan mesh is a pure function of its angle");
     }
 
     /// E1: THE SHAFTS HANG FROM REAL OPENINGS. Every blade's top edge must let the sky

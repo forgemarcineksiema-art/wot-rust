@@ -121,8 +121,12 @@ fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // mid-job, not parked in a corner). Everything hangs ABOVE the orbit column's 7.4 m
     // ceiling, so the shot stays clear while the silhouette reads in every high framing.
     slab(v, i, [1.5, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
+    // The cable and hook SWAY (E2) — they hang free, and the hall has a draft (the gate is
+    // ajar); the trolley above them is bolted to its rail and does not.
+    let hanging = v.len();
     slab(v, i, [1.5, beam_y - 0.48, -1.6], [0.03, 0.08, 0.03], DARK_STEEL); // cable run
     slab(v, i, [1.5, beam_y - 0.68, -1.6], [0.15, 0.15, 0.15], STEEL); // hook block
+    super::hangar::set_sway(&mut v[hanging..], 0.03);
     finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
@@ -325,8 +329,11 @@ fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
         slab(v, i, [x, 3.05, z + dz], [0.9, 0.07, 0.07], STEEL);
     }
     slab(v, i, [x, 3.16, z], [0.09, 0.09, 1.45], STEEL);
-    // The chain and the engine block it holds over the stand.
+    // The chain hangs SLACK — the block already rests on its stand — so the chain sways
+    // with the hall's draft (E2) while the block it lowered stays put.
+    let chain = v.len();
     slab(v, i, [x, 2.35, z], [0.02, 0.72, 0.02], DARK_STEEL);
+    super::hangar::set_sway(&mut v[chain..], 0.02);
     for dx in [-0.35_f32, 0.35] {
         slab(v, i, [x + dx, 0.35, z], [0.05, 0.35, 0.05], DARK_STEEL);
     }

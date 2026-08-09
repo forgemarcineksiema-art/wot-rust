@@ -185,6 +185,38 @@ fn garage_hero_pools_the_light_where_the_work_is() {
     }
 }
 
+/// E2: the bench tube's flicker is a CHARACTER, not a strobe — bounded, mostly lit, with
+/// real dips, deterministic, and exactly healthy at the golden harness's frozen second so
+/// the locked frame needs no special case.
+#[test]
+fn the_tube_flickers_like_a_tube_and_holds_at_the_review_second() {
+    let mut dips = 0usize;
+    let mut sum = 0.0f32;
+    let mut samples = 0usize;
+    let mut t = 0.0f32;
+    while t < 240.0 {
+        let factor = renderer_api::fluorescent_flicker(t);
+        assert!((0.3..=1.0).contains(&factor), "flicker out of band at {t}: {factor}");
+        if factor < 1.0 {
+            dips += 1;
+        }
+        sum += factor;
+        samples += 1;
+        t += 0.05;
+    }
+    let mean = sum / samples as f32;
+    assert!(mean > 0.9, "a tube is mostly LIT: mean {mean}");
+    assert!(dips > 0, "a tube that never dips is a lamp, not a character");
+    // The harness freezes the garage at 12.0 s: the tube must be healthy there, which makes
+    // `garage_hero_at(12.0)` bit-identical to `garage_hero()` and keeps the goldens exact.
+    assert_eq!(renderer_api::fluorescent_flicker(12.0), 1.0);
+    assert_eq!(
+        SceneLighting::garage_hero_at(12.0),
+        SceneLighting::garage_hero(),
+        "the locked frame's rig is the resting rig, to the bit"
+    );
+}
+
 #[test]
 fn every_profile_grades_within_the_sane_display_envelope() {
     // The grade is data now, so a fat-fingered preset (exposure 11.0, black point 0.8) would
