@@ -25,15 +25,13 @@
 use std::collections::BTreeMap;
 
 use vehicle_build::t54_description;
-use vehicle_geometry::{MaterialRole, SubmeshKind};
+use vehicle_geometry::SubmeshKind;
 
-/// Interior roles — the paint, the machinery and the ammunition that live inside the armour.
-fn is_interior(role: MaterialRole) -> bool {
-    matches!(
-        role,
-        MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition
-    )
-}
+mod common;
+/// The paint, the machinery and the ammunition that live inside the armour — the same predicate
+/// the construction floor uses to excuse them from ITS check, which is why it is shared: a role
+/// that leaves one list must leave the other, or the part wearing it answers to neither test.
+use common::is_interior;
 
 /// How far a vertex may read proud of the casting before we call it out. The measure overstates
 /// on a curved roof (see METHOD), so this is slack for that bias, not a licence to poke out.
