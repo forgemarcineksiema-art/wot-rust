@@ -139,8 +139,10 @@ impl GarageState {
     /// park heading — a new vehicle earns a fresh presentation.
     pub(super) fn start_drive_in(&mut self) {
         self.idle_turntable_yaw = 0.0;
-        // The freshly selected vehicle was not the one that fought: it arrives clean (J2).
+        // The freshly selected vehicle was not the one that fought: it arrives clean (J2),
+        // and it carries none of the fight's wear either (L1).
         self.dust = 0.0;
+        self.clear_wear_for_new_vehicle();
         self.drive_in = DriveIn {
             elapsed: Some(0.0),
             track_left_m: 0.0,

@@ -39,6 +39,21 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         aspect,
         TEXT_DIM,
     );
+
+    // L2: the hero wears battle damage — the plate says so and offers the fix. During the
+    // beat the line switches to the work in progress. Earned state only: a clean machine
+    // never shows the tag.
+    let tag = if state.repair_active() {
+        Some(("REPAIRING...", [0.75, 0.72, 0.55, 0.95]))
+    } else if state.hero_is_marked() {
+        Some(("DAMAGED - [R] REPAIR", [0.86, 0.56, 0.34, 0.95]))
+    } else {
+        None
+    };
+    if let Some((line, color)) = tag {
+        let w = text_width(line, 0.022, aspect);
+        push_text(v, line, NAMEPLATE_CENTER[0] - w / 2.0, 0.625, 0.022, aspect, color);
+    }
 }
 
 #[cfg(test)]
@@ -61,6 +76,27 @@ mod tests {
             v.iter().all(|vert| vert.position[1] > 0.60 && vert.position[1] < 0.80),
             "the plate sits in its band"
         );
+    }
+
+    /// L2: the repair offer is EARNED — a clean hero's plate stays quiet, a marked one
+    /// grows the damage tag, and the beat swaps it for the work line.
+    #[test]
+    fn the_plate_offers_repair_only_when_the_hero_is_marked() {
+        let mut state = GarageState::default();
+        let mut clean = Vec::new();
+        draw(&mut clean, &state, 16.0 / 9.0);
+
+        let mut worn = crate::app::garage_render::garage_preview_snapshot(VehicleKind::PLAYABLE[0]);
+        worn.destroyed_modules_mask = 0b0000_0100;
+        state.wear_from_the_field(crate::app::garage::wear::FieldWear::from_battle(&worn, None));
+        let mut marked = Vec::new();
+        draw(&mut marked, &state, 16.0 / 9.0);
+        assert!(marked.len() > clean.len(), "the damage tag prints only when earned");
+
+        assert!(state.start_repair());
+        let mut repairing = Vec::new();
+        draw(&mut repairing, &state, 16.0 / 9.0);
+        assert_ne!(repairing.len(), marked.len(), "the beat swaps the tag for the work line");
     }
 
     #[test]

@@ -31,6 +31,11 @@ impl ClientApp {
         self.garage.tick_drive_in(dt);
         // The field's dust settles while the hall stands (J2).
         self.garage.tick_dust(dt);
+        // The repair beat plays out (L2); the frame it completes, damaged crosses to clean
+        // on screen and the shop answers with the breech-weight clunk.
+        if self.garage.tick_repair(dt) {
+            self.queue_audio(audio::AudioEvent::GunReady);
+        }
         // The hangar has ears too: UI clicks flush here, the engine bed idles down, the wind
         // drops to a sheltered breath. No listener update — the orbit camera is not a battle ear.
         self.flush_audio(None, None);
@@ -63,7 +68,22 @@ impl ClientApp {
         let mut snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
         snapshot.position[2] = pose.z;
         snapshot.yaw_rad = pose.yaw_rad;
-        let variation = VehicleVariation::from_snapshot(&snapshot);
+        // The hero still wears the fight it came back from (L1): masks, thrown belt and the
+        // decal history merge into the parked snapshot — earned state only, a clean machine
+        // parks exactly as before. The repair jack (L2) lifts the hull off its springs for
+        // the beat and sets it back down.
+        if let Some(wear) = self.garage.field_wear() {
+            wear.apply(&mut snapshot);
+        }
+        snapshot.position[1] += self.garage.repair_lift_m();
+        let mut variation = VehicleVariation::from_snapshot(&snapshot);
+        if let Some(wear) =
+            self.garage.field_wear().filter(|wear| wear.vehicle() == snapshot.vehicle)
+        {
+            for decal in wear.decals() {
+                variation.record_hit(decal.clone());
+            }
+        }
         // At the static settle its mass earns (J1): the hero SITS on its springs in the
         // hangar instead of standing on the authoring pose.
         let mut objects = tank_vehicle_render_objects_at_rest(
@@ -117,6 +137,13 @@ impl ClientApp {
                 Vec3::new(0.0, crate::TURNTABLE_TOP_M, pose.z),
                 pose.yaw_rad,
             ));
+        }
+        // The battle's hit decals ride the parked hull/turret exactly as they rode it in the
+        // fight (L1) — same quad builder, driven by the merged snapshot's pose.
+        if let Some(wear) =
+            self.garage.field_wear().filter(|wear| wear.vehicle() == snapshot.vehicle)
+        {
+            crate::fx::append_decal_quads(&mut fx_vertices, wear.decals(), &snapshot);
         }
 
         let scene_time_s = self.presented_time_s();
@@ -344,8 +371,9 @@ impl ClientApp {
 }
 
 /// A pose-only snapshot of the selected vehicle parked on the garage turntable, angled three-
-/// quarters to the camera. Only the fields the mesh kernels read are meaningful.
-fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
+/// quarters to the camera. Only the fields the mesh kernels read are meaningful. Shared with
+/// the wear tests (L1) — it is the one honest constructor of a parked hero.
+pub(in crate::app) fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
     let spec = kind.spec_ref();
     TankSnapshot {
         tank_id: TankId(0),
