@@ -3,6 +3,7 @@
 //! top-level `vehicle_*` modules so the crate root stays scannable.
 
 pub(crate) mod aperture_rim;
+pub(crate) mod armor_overlay;
 pub(crate) mod asset_catalog;
 pub(crate) mod asset_catalog_loader;
 pub(crate) mod asset_render;
