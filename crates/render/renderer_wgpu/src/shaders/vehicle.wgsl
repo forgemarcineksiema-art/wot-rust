@@ -354,6 +354,18 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let fracture_tone = mix(vec3<f32>(0.34, 0.29, 0.23), vec3<f32>(0.19, 0.12, 0.075), heat_band);
     albedo = select(albedo, fracture_tone * albedo_var, fractured_steel);
     albedo = mix(albedo, dust_tone * albedo_var, dust * 0.30 * (1.0 - wet * 0.5));
+    // Field dust (Hala 3.0 J2): the film a battle leaves on every up-facing surface — decks,
+    // roofs, fender tops — driven by the garage's fresh-from-battle state
+    // (camera.scene_params.z; 0 everywhere outside the garage, where every term below is a
+    // bit-exact no-op — the battle goldens' byte stability rides on that). The tone is the
+    // gear dust's own earth; the mask is the normal's up-share, broken by the broad noise so
+    // it reads as settled dust, not paint. Rain rinses it, char sheds it.
+    let field_dust = camera.scene_params.z
+        * pow(clamp(world_n.y, 0.0, 1.0), 1.4)
+        * (0.55 + 0.45 * v_noise(input.local_pos * 2.3 + vec3<f32>(7.9, 23.1, 3.7)))
+        * (1.0 - burnt)
+        * (1.0 - wet * 0.6);
+    albedo = mix(albedo, dust_tone * albedo_var, field_dust * 0.55);
     let ao = ao_rough.r;
 
     // The sun a hull sees is the sun the GROUND under it sees: the shadow map and the wandering
@@ -445,7 +457,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Analytic-sky environment reflection: the smoother the finish, the more the hull mirrors
     // the sky along the reflected view ray — strongest at grazing angles (Fresnel), dampened in
     // baked cavities so recesses don't glow. Rain cuts roughness, so a soaked tank reflects.
-    let smoothness = 1.0 - roughness;
+    // Dust kills sheen before it changes colour (J2): a filmed deck stops mirroring the
+    // skylights. At field_dust 0 this multiplies by exactly 1.0 — bit-stable for battle.
+    let smoothness = (1.0 - roughness) * (1.0 - field_dust * 0.55);
     // Painted vehicle surfaces are dielectric at normal incidence. Starting Fresnel at 0.25 made
     // a dark barrel mostly mirror the blue sky; the physical ~0.04 F0 keeps the reflection as a
     // readable grazing highlight instead of replacing the material colour.

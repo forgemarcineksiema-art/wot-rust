@@ -77,6 +77,13 @@ impl SceneRenderer {
         self.interior_detail_normal = enabled;
     }
 
+    /// Field dust on the hero vehicle (Hala 3.0 J2): 0 clean .. 1 fresh off the battlefield.
+    /// Up-facing surfaces take an earthy film and lose their sheen in `vehicle.wgsl`; at 0
+    /// the math is a bit-exact no-op, which is what keeps every battle golden byte-stable.
+    pub fn set_vehicle_dust(&mut self, amount: f32) {
+        self.vehicle_dust = amount.clamp(0.0, 1.0);
+    }
+
     /// Set or clear the interior reflection cubemap (Hala 3.0 D1): `Some(mips)` uploads the
     /// baked, prefiltered room cube (each mip: 6 faces of RGBA f32 texels, WebGPU face order)
     /// and points every glossy interior reflection at it; `None` restores the black default

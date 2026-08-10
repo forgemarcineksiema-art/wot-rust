@@ -29,6 +29,8 @@ impl ClientApp {
         self.apply_mouse_look();
         self.garage.tick_camera(dt);
         self.garage.tick_drive_in(dt);
+        // The field's dust settles while the hall stands (J2).
+        self.garage.tick_dust(dt);
         // The hangar has ears too: UI clicks flush here, the engine bed idles down, the wind
         // drops to a sheltered breath. No listener update — the orbit camera is not a battle ear.
         self.flush_audio(None, None);
@@ -132,6 +134,8 @@ impl ClientApp {
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
+        // Fresh from the field the hull wears its dust; it settles as the hall stands (J2).
+        renderer.set_vehicle_dust(self.garage.hangar_dust());
         // The bench tube flickers (E2) in whichever daylight the hall wears (H1): the rig
         // re-evaluated per presented frame on the same clock everything else animates on.
         // Deterministic — at the golden harness's frozen second the factor is 1.0.
@@ -288,6 +292,9 @@ impl ClientApp {
                     renderer.set_hero_probe(None);
                     renderer.set_interior_detail_normal(false);
                     renderer.set_environment_cube(None);
+                    // No garage dust either (J2): at zero the shader's dust math is a
+                    // bit-exact no-op, which is the battle goldens' byte stability.
+                    renderer.set_vehicle_dust(0.0);
                 }
             }
             self.current_scene = want;

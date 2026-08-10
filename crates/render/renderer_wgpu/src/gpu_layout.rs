@@ -187,8 +187,9 @@ pub struct CameraUniform {
     /// equivalent of the scene mesh's baked `bounce` lane. All-zero on every battle frame,
     /// which is a bit-exact no-op in the shader. Appended, like every lane before it.
     pub hero_probe: [GpuVec4; 6],
-    /// Per-scene render flags (Hala 3.0 C1): x = interior detail-normal enable, y/z/w
-    /// reserved. Appended, like every lane before it.
+    /// Per-scene render flags: x = interior detail-normal enable (C1), y = interior
+    /// reflection cube bound (D1), z = hero vehicle dust 0..1 (J2), w reserved. Appended,
+    /// like every lane before it.
     pub scene_params: GpuVec4,
 }
 

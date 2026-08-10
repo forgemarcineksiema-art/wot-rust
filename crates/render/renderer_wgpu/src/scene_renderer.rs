@@ -111,6 +111,10 @@ pub struct SceneRenderer {
     /// Whether an interior reflection cubemap is bound (Hala 3.0 D1) — `scene_params.y`, the
     /// flag that routes glossy interior reflections at the cube instead of `env_sky`.
     environment_cube_set: bool,
+    /// Field dust on the hero vehicle (Hala 3.0 J2) — `scene_params.z`, 0..1. The garage
+    /// feeds it from the "fresh from battle" state; the battle path leaves it at 0, where
+    /// the shader's dust math is a bit-exact no-op.
+    vehicle_dust: f32,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -526,6 +530,7 @@ impl SceneRenderer {
             hero_probe: [[0.0; 4]; 6],
             interior_detail_normal: false,
             environment_cube_set: false,
+            vehicle_dust: 0.0,
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,
