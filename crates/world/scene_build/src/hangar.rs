@@ -9,7 +9,7 @@
 //! turntable from the workshop sun key — no faked shadow disc.
 
 use glam::{Mat3, Vec3};
-use renderer_api::SceneVertex;
+use renderer_api::{SceneLighting, SceneVertex};
 
 use crate::tank_mesh::push_oriented_box;
 
@@ -127,6 +127,72 @@ pub const HERO_FOV_DEGREES: f32 = 32.0;
 /// a review artifact may never do.
 pub const INTERIOR_BACKGROUND: (f64, f64, f64) = (1.30, 1.38, 1.55);
 
+/// [`INTERIOR_BACKGROUND`] per daylight (H1): the day outside is what the variant IS, so the
+/// backdrop in the roof openings is its first witness. Day is the canonical constant above.
+pub fn interior_background_for(light: HangarLight) -> (f64, f64, f64) {
+    match light {
+        HangarLight::Morning => (1.08, 1.20, 1.50),
+        HangarLight::Day => INTERIOR_BACKGROUND,
+        HangarLight::Evening => (1.42, 1.08, 0.72),
+    }
+}
+
+/// The key's direction per daylight (H1), single-sourced for the rig, the shafts and the
+/// sun-reach lock. Morning keeps the DAY bearing: the sheds' glazing faces one way (the
+/// standing artistic license), so a morning sun on their blind side enters as sky glow along
+/// the same fans, not as a mirrored beam through solid decking. Evening keeps the azimuth —
+/// the mullion-clear lanes the E1 lock guards are z-rows, and swinging the bearing would put
+/// blades on the bars — and drops the elevation: a low sun, longer travel.
+pub fn hangar_key_direction(light: HangarLight) -> Vec3 {
+    match light {
+        HangarLight::Morning | HangarLight::Day => Vec3::new(-0.233, 0.892, 0.388),
+        // Normalized from (-0.6, 1.75, 1.0) — the day derivation's (-0.6, 2.3, 1.0) with the
+        // sun lower. Chosen by the same sweep that placed the day key (E1): candidates from
+        // 1.25 to 1.90 were ray-tested against the real glazing, and 1.75 is the lowest sun
+        // that still clears the turntable centre AND keeps 15/25 of the deck fan clear — the
+        // exact 60% the day's sun-reach lock demands. Lower suns hit the mullion bars.
+        HangarLight::Evening => Vec3::new(-0.285_310_2, 0.832_154_75, 0.475_517),
+    }
+}
+
+/// The hall's rig per daylight (H1). [`HangarLight::Day`] IS `garage_hero()` — bit-identical,
+/// locked by `the_canonical_daylight_is_the_golden_rig` — and the others are re-grades of it:
+/// morning halves a cooled key and lets the lamps carry, evening warms and lowers the sun and
+/// deepens the grade a step. All three stay inside the moody band.
+pub fn hangar_lighting(light: HangarLight) -> SceneLighting {
+    let mut rig = SceneLighting::garage_hero();
+    match light {
+        HangarLight::Day => {}
+        HangarLight::Morning => {
+            rig.key_rgb = [rig.key_rgb[0] * 0.48, rig.key_rgb[1] * 0.52, rig.key_rgb[2] * 0.60];
+            rig.ambient_rgb =
+                [rig.ambient_rgb[0] * 0.96, rig.ambient_rgb[1] * 1.02, rig.ambient_rgb[2] * 1.12];
+            rig.sky_horizon_rgb = [0.17, 0.18, 0.21];
+            rig.exposure = 1.06;
+            rig.black_point = 0.022;
+        }
+        HangarLight::Evening => {
+            rig.key_direction = hangar_key_direction(HangarLight::Evening).to_array();
+            rig.key_rgb = [rig.key_rgb[0] * 1.12, rig.key_rgb[1] * 0.88, rig.key_rgb[2] * 0.58];
+            rig.ambient_rgb =
+                [rig.ambient_rgb[0] * 1.04, rig.ambient_rgb[1] * 0.94, rig.ambient_rgb[2] * 0.82];
+            rig.sky_horizon_rgb = [0.225, 0.185, 0.155];
+            rig.exposure = 1.08;
+            rig.black_point = 0.024;
+        }
+    }
+    rig
+}
+
+/// [`hangar_lighting`] on the presentation clock: the bench fluorescent's flicker (E2) rides
+/// every daylight the same way — and at the frozen review second the factor is exactly 1.0,
+/// so the goldens' canonical rig stays `garage_hero()` to the bit.
+pub fn hangar_lighting_at(light: HangarLight, seconds: f32) -> SceneLighting {
+    let mut rig = hangar_lighting(light);
+    rig.local_lights[2].intensity *= renderer_api::fluorescent_flicker(seconds);
+    rig
+}
+
 /// A module-inspection framing: the shot the camera flies to when a fitting slot is clicked.
 /// Single-sourced here (A3) for the same reason the hero constants are: the live camera, the
 /// review probe and the composition locks must read the SAME shot, or the background composed
@@ -241,7 +307,18 @@ pub fn wall_fan_blades(angle: f32) -> (Vec<SceneVertex>, Vec<u32>) {
 /// (`the_shafts_hang_from_real_openings`): a beam from a solid roof would be the pane-glow
 /// lie all over again.
 pub fn sun_shaft_quads() -> Vec<[[f32; 3]; 4]> {
-    let key = Vec3::new(-0.233, 0.892, 0.388);
+    sun_shaft_quads_for(HangarLight::Day)
+}
+
+/// [`sun_shaft_quads`] per daylight (H1). Morning has NO blades — the sun stands on the
+/// sheds' blind side and a beam with no opening behind it is the pane-glow lie the E1 lock
+/// exists to kill. Evening runs the same mullion-clear blade rows under its lower key:
+/// longer travel, the same honest openings.
+pub fn sun_shaft_quads_for(light: HangarLight) -> Vec<[[f32; 3]; 4]> {
+    if light == HangarLight::Morning {
+        return Vec::new();
+    }
+    let key = hangar_key_direction(light);
     // (shed start, blade centre x, blade z inside the glazing band, half-width).
     // Blade z rows sit in the CLEAR lanes between the glazing's mullion bars (the same lanes
     // the sun lock's ray fan crosses through) — a blade hanging on a bar would fail the
@@ -512,33 +589,87 @@ fn push_shed_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// Everything one hall build produces: the render mesh (vertices, indices) and the hero
 /// probe's six-face irradiance cube, baked in the same pass over the same BVH.
 type BakedHall = (Vec<SceneVertex>, Vec<u32>, [[f32; 3]; 6], super::hangar_bake::ReflectionCube);
-static MESH: std::sync::OnceLock<BakedHall> = std::sync::OnceLock::new();
+/// One baked hall per daylight variant (H1) — same geometry, its own key, grade and GI.
+static MESHES: [std::sync::OnceLock<BakedHall>; 3] =
+    [std::sync::OnceLock::new(), std::sync::OnceLock::new(), std::sync::OnceLock::new()];
 /// Guards [`prewarm`] so the worker is spawned once however many times it is asked for.
 static PREWARM: std::sync::Once = std::sync::Once::new();
 
-/// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
-/// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
+/// The hall's daylight (H1): what the day outside is doing, and therefore what the key, the
+/// backdrop, the shafts and the whole GI bake are doing. Selection is the PLAYER'S OWN CLOCK
+/// (plus a manual override) on the client; every review artifact pins [`HangarLight::Day`],
+/// the canonical variant the goldens lock — the others answer to value-structure tests, not
+/// to a tripled golden set.
+///
+/// Append-only: the bake cache and the saved override index by position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HangarLight {
+    /// Early light: the sun is on the WRONG side of the sheds (their glazing faces one way —
+    /// the standing artistic license), so no direct blade enters; the hall wakes on sky glow
+    /// and its own lamps.
+    Morning,
+    /// The canonical workshop day every golden locks. This variant IS `garage_hero()`.
+    Day,
+    /// A low warm sun through the same glazing fans: longer shafts, warmer backdrop, dusk.
+    Evening,
+}
+
+impl HangarLight {
+    pub const ALL: [HangarLight; 3] =
+        [HangarLight::Morning, HangarLight::Day, HangarLight::Evening];
+
+    fn index(self) -> usize {
+        match self {
+            HangarLight::Morning => 0,
+            HangarLight::Day => 1,
+            HangarLight::Evening => 2,
+        }
+    }
+}
+
+/// Build the static hangar mesh (the canonical [`HangarLight::Day`]). The tank is parked at
+/// the origin on top of the turntable (`TURNTABLE_TOP_M`), so place the parked vehicle's
+/// `position.y` at that height.
 ///
 /// **This blocks until the hall exists**, which is why [`prewarm`] is called at startup: the
 /// build is seconds of work, and the first caller used to be `ensure_scene`, inside the frame
 /// that opens the garage.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
-    let (vertices, indices, _, _) = MESH.get_or_init(build_hangar_scene_mesh);
+    hangar_scene_mesh_for(HangarLight::Day)
+}
+
+/// [`hangar_scene_mesh`] under a chosen daylight (H1).
+pub fn hangar_scene_mesh_for(light: HangarLight) -> (Vec<SceneVertex>, Vec<u32>) {
+    let (vertices, indices, _, _) = baked_hall(light);
     (vertices.clone(), indices.clone())
+}
+
+fn baked_hall(light: HangarLight) -> &'static BakedHall {
+    MESHES[light.index()].get_or_init(|| build_hangar_scene_mesh_for(light))
 }
 
 /// The hero probe baked beside the mesh (B2): the hall's bounced light at the station as a
 /// six-axis irradiance cube (±x, ±y, ±z), the term the vehicle shader adds so the hero
 /// finally receives the room's GI (G5). Blocks with the mesh; `prewarm` covers both.
 pub fn hangar_hero_probe() -> [[f32; 3]; 6] {
-    MESH.get_or_init(build_hangar_scene_mesh).2
+    hangar_hero_probe_for(HangarLight::Day)
+}
+
+/// [`hangar_hero_probe`] under a chosen daylight (H1).
+pub fn hangar_hero_probe_for(light: HangarLight) -> [[f32; 3]; 6] {
+    baked_hall(light).2
 }
 
 /// The reflection cubemap baked beside the mesh (D1): the room as seen from the hero station,
 /// prefiltered per mip. The garage swap uploads it as the interior environment cube; the
 /// reflection lock samples it directly — the room's reflection IS this data, both ways.
 pub fn hangar_reflection_cube() -> super::hangar_bake::ReflectionCube {
-    MESH.get_or_init(build_hangar_scene_mesh).3.clone()
+    hangar_reflection_cube_for(HangarLight::Day)
+}
+
+/// [`hangar_reflection_cube`] under a chosen daylight (H1).
+pub fn hangar_reflection_cube_for(light: HangarLight) -> super::hangar_bake::ReflectionCube {
+    baked_hall(light).3.clone()
 }
 
 /// Start the hall's build on a worker and return immediately. Idempotent, and safe to call
@@ -557,22 +688,28 @@ pub fn prewarm() {
     PREWARM.call_once(|| {
         // A failed spawn is not an error worth propagating: the lazy path in
         // `hangar_scene_mesh` still builds the hall, exactly as it did before this existed.
-        let _ = std::thread::Builder::new()
-            .name("hangar-bake".to_string())
-            .spawn(|| MESH.get_or_init(build_hangar_scene_mesh));
+        // H1: the worker bakes the CANONICAL day first (the variant the first garage entry
+        // almost always wants), then the other two — a variant the clock lands on before its
+        // bake finishes just waits in `get_or_init`, the same contract as before.
+        let _ = std::thread::Builder::new().name("hangar-bake".to_string()).spawn(|| {
+            for light in [HangarLight::Day, HangarLight::Morning, HangarLight::Evening] {
+                baked_hall(light);
+            }
+        });
     });
 }
 
-/// Whether the hall is already in the cache — the prewarm's observable, so a caller can tell
-/// "the worker finished" from "the worker is still going" without blocking on the answer.
+/// Whether the canonical hall is already in the cache — the prewarm's observable, so a caller
+/// can tell "the worker finished" from "the worker is still going" without blocking.
 pub fn is_baked() -> bool {
-    MESH.get().is_some()
+    MESHES[HangarLight::Day.index()].get().is_some()
 }
 
-/// The uncached build. `pub(crate)` so the bake's own tests can run it twice: through
+/// The uncached build, per daylight (H1): identical geometry, the variant's own rig through
+/// the bake. `pub(crate)` so the bake's own tests can run it twice: through
 /// [`hangar_scene_mesh`] they cannot, because the `OnceLock` hands both calls the same value —
 /// which is exactly how `the_bake_is_deterministic` came to compare a clone with itself.
-pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
+pub(crate) fn build_hangar_scene_mesh_for(light: HangarLight) -> BakedHall {
     let mut v = Vec::new();
     let mut i = Vec::new();
 
@@ -818,7 +955,8 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
     // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
     // albedos; cached by `hangar_scene_mesh` because the gather is real work. B2 gathers the
     // hero probe in the same pass; D1 gathers the reflection cubemap — one BVH, one bake.
-    let (probe, cube) = super::hangar_bake::bake_bounce_lane(&mut v, &mut i);
+    let (probe, cube) =
+        super::hangar_bake::bake_bounce_lane(&mut v, &mut i, &hangar_lighting(light));
 
     (v, i, probe, cube)
 }
@@ -1008,7 +1146,12 @@ fn in_gate_curtain_slice(position: [f32; 3]) -> bool {
 /// the complete parked hall — the honesty locks, the bake and the containment tests keep
 /// measuring the mesh with its gate in.
 pub fn hangar_scene_mesh_without_gate() -> (Vec<SceneVertex>, Vec<u32>) {
-    let (vertices, indices) = hangar_scene_mesh();
+    hangar_scene_mesh_without_gate_for(HangarLight::Day)
+}
+
+/// [`hangar_scene_mesh_without_gate`] under a chosen daylight (H1).
+pub fn hangar_scene_mesh_without_gate_for(light: HangarLight) -> (Vec<SceneVertex>, Vec<u32>) {
+    let (vertices, indices) = hangar_scene_mesh_for(light);
     let mut keep = vec![u32::MAX; vertices.len()];
     let mut out_v = Vec::with_capacity(vertices.len());
     let mut out_i = Vec::with_capacity(indices.len());
@@ -1795,6 +1938,123 @@ mod tests {
         );
     }
 
+    /// H1: THE CANONICAL DAYLIGHT IS THE GOLDEN RIG. Every review artifact and every golden
+    /// pins `HangarLight::Day`, and Day must be `garage_hero()` to the bit — a variant system
+    /// that nudged the canonical picture would re-record 27 goldens as a side effect.
+    #[test]
+    fn the_canonical_daylight_is_the_golden_rig() {
+        assert!(
+            hangar_lighting(HangarLight::Day) == SceneLighting::garage_hero(),
+            "Day must be the golden rig, bit for bit"
+        );
+        assert_eq!(interior_background_for(HangarLight::Day), INTERIOR_BACKGROUND);
+        assert_eq!(
+            hangar_key_direction(HangarLight::Day).to_array(),
+            SceneLighting::garage_hero().key_direction,
+            "the shafts' key and the rig's key are one fact"
+        );
+        // And the flicker holds its review-second identity in every daylight (E2's contract).
+        for light in HangarLight::ALL {
+            assert!(
+                hangar_lighting_at(light, 12.0) == hangar_lighting(light),
+                "{light:?}: the frozen review second must carry no flicker dip"
+            );
+        }
+    }
+
+    /// H1: THE VARIANTS ARE DIFFERENT DAYS, NOT DIFFERENT ROOMS. Morning cools and dims the
+    /// key with the day's bearing; evening warms it and drops the sun on the SAME azimuth
+    /// (the mullion-clear lanes are z-rows — swinging the bearing would put blades on bars);
+    /// the three backdrops are three different skies; every grade stays in the moody band.
+    #[test]
+    fn the_daylights_differ_like_days_do() {
+        let day = hangar_lighting(HangarLight::Day);
+        let morning = hangar_lighting(HangarLight::Morning);
+        let evening = hangar_lighting(HangarLight::Evening);
+        // Warmth axis: evening's key is redder than blue, morning's the other way.
+        assert!(evening.key_rgb[0] > evening.key_rgb[2], "an evening key is warm");
+        assert!(morning.key_rgb[2] > morning.key_rgb[0] * 0.9, "a morning key is not");
+        assert!(morning.key_rgb[0] < day.key_rgb[0] * 0.6, "morning light is soft");
+        // The evening sun is LOWER on the SAME azimuth.
+        let day_key = hangar_key_direction(HangarLight::Day);
+        let evening_key = hangar_key_direction(HangarLight::Evening);
+        assert!(evening_key.y < day_key.y - 0.05, "the evening sun stands lower");
+        let azimuth = |k: Vec3| (k.x / k.z, k.x.signum(), k.z.signum());
+        let (day_ratio, dx, dz) = azimuth(day_key);
+        let (evening_ratio, ex, ez) = azimuth(evening_key);
+        assert!(
+            (day_ratio - evening_ratio).abs() < 0.01 && dx == ex && dz == ez,
+            "the bearing never swings: {day_ratio} vs {evening_ratio}"
+        );
+        // Three different skies in the roof openings.
+        let backgrounds: Vec<_> = HangarLight::ALL.map(interior_background_for).to_vec();
+        assert!(backgrounds[0] != backgrounds[1] && backgrounds[1] != backgrounds[2]);
+        // Every variant grades inside the moody band the B1 gate priced.
+        for light in HangarLight::ALL {
+            let rig = hangar_lighting(light);
+            assert!((0.95..=1.10).contains(&rig.exposure), "{light:?} exposure {}", rig.exposure);
+            assert!(
+                (0.015..=0.032).contains(&rig.black_point),
+                "{light:?} black point {}",
+                rig.black_point
+            );
+        }
+    }
+
+    /// H1: THE SUN REACHES THE STATION IN EVERY DAYLIGHT THAT HAS ONE, and the shafts stay
+    /// honest per variant: morning hangs NO blades (the sun is on the sheds' blind side),
+    /// day and evening hang theirs from the same real openings.
+    #[test]
+    fn every_daylight_reaches_the_station_and_hangs_honest_shafts() {
+        let (vertices, indices) = hangar_scene_mesh();
+        for light in HangarLight::ALL {
+            let key = hangar_key_direction(light).to_array();
+            assert!(
+                !ray_hits_mesh([0.0, TURNTABLE_TOP_M + 0.6, 0.0], key, &vertices, &indices),
+                "{light:?}: the key must reach the turntable centre unobstructed"
+            );
+            // The same 60% deck fan the day's own sun lock demands — a variant whose sun
+            // cannot light the station is a variant that never should have shipped.
+            let (mut clear, mut total) = (0, 0);
+            for gx in -2i32..=2 {
+                for gz in -2i32..=2 {
+                    total += 1;
+                    let origin = [gx as f32 * 1.5, TURNTABLE_TOP_M + 0.6, gz as f32 * 1.5];
+                    if !ray_hits_mesh(origin, key, &vertices, &indices) {
+                        clear += 1;
+                    }
+                }
+            }
+            assert!(
+                clear * 10 >= total * 6,
+                "{light:?}: most of the deck stands in the sun: {clear}/{total}"
+            );
+        }
+        assert!(sun_shaft_quads_for(HangarLight::Morning).is_empty(), "morning hangs no beam");
+        for light in [HangarLight::Day, HangarLight::Evening] {
+            let quads = sun_shaft_quads_for(light);
+            assert_eq!(quads.len(), 5, "{light:?}: the five-blade set");
+            for quad in &quads {
+                let top_y = quad[0][1].max(quad[1][1]);
+                let bottom_y = quad[2][1].min(quad[3][1]);
+                assert!(top_y > WALL_HEIGHT, "{light:?}: blades hang from the roof band");
+                assert!(bottom_y < 1.5, "{light:?}: blades die out near the floor");
+            }
+        }
+        // Evening's lower sun travels farther across the room than the day's.
+        let reach = |quads: &Vec<[[f32; 3]; 4]>| {
+            quads
+                .iter()
+                .map(|q| (q[2][0] - q[0][0]).abs() + (q[2][2] - q[0][2]).abs())
+                .fold(0.0f32, f32::max)
+        };
+        assert!(
+            reach(&sun_shaft_quads_for(HangarLight::Evening))
+                > reach(&sun_shaft_quads_for(HangarLight::Day)),
+            "a lower sun throws a longer shaft"
+        );
+    }
+
     /// E3: THE CURTAIN RIDES ITS TRACK IN SEGMENTS. Opening raises the bottom edge
     /// monotonically; every slat stays inside [ajar, gate top]; the top slat is parked from
     /// the start and the bottom one moves last into the stack — and at full open the curtain
@@ -2141,7 +2401,7 @@ mod tests {
     #[test]
     fn the_cold_bake_is_measured() {
         let started = std::time::Instant::now();
-        let (vertices, indices, _, _) = build_hangar_scene_mesh();
+        let (vertices, indices, _, _) = build_hangar_scene_mesh_for(HangarLight::Day);
         let cost = started.elapsed();
         println!(
             "HANGAR COLD BAKE: {:?} for {} vertices / {} triangles",

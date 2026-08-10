@@ -708,20 +708,22 @@ fn gather_hero_probe(
 /// merely fast: a vertex's bounce reads only the finished mesh and the BVH, and float addition
 /// never crosses a range boundary, so the concatenated lane is bit-identical to the serial one.
 /// `the_bake_is_deterministic` still holds the whole thing to the bit.
+/// H1: the rig comes from the caller — the hall bakes once PER DAYLIGHT VARIANT, each over
+/// the same geometry under its own key and grade (`hangar::hangar_lighting`).
 pub(super) fn bake_bounce_lane(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
+    lighting: &SceneLighting,
 ) -> ([[f32; 3]; 6], ReflectionCube) {
     subdivide_for_bake(vertices, indices);
-    let lighting = SceneLighting::garage_hero();
     let (bounces, probe, cube) = {
         let verts: &[SceneVertex] = vertices;
         let idx: &[u32] = indices;
         let bvh = Bvh::build(verts, idx);
-        let direct_cache = cache_tri_direct(&bvh, &lighting);
+        let direct_cache = cache_tri_direct(&bvh, lighting);
         let bounces = gather_bounce_lanes(verts, idx, &bvh, &direct_cache);
         let probe = gather_hero_probe(verts, idx, &bvh, &direct_cache);
-        let cube = gather_reflection_cube(verts, idx, &bvh, &direct_cache, &lighting);
+        let cube = gather_reflection_cube(verts, idx, &bvh, &direct_cache, lighting);
         (bounces, probe, cube)
     };
 
@@ -779,8 +781,10 @@ mod tests {
     /// and would have passed against a bake seeded from the clock.
     #[test]
     fn the_bake_is_deterministic() {
-        let (a, _, probe_a, cube_a) = crate::hangar::build_hangar_scene_mesh();
-        let (b, _, probe_b, cube_b) = crate::hangar::build_hangar_scene_mesh();
+        let (a, _, probe_a, cube_a) =
+            crate::hangar::build_hangar_scene_mesh_for(crate::hangar::HangarLight::Day);
+        let (b, _, probe_b, cube_b) =
+            crate::hangar::build_hangar_scene_mesh_for(crate::hangar::HangarLight::Day);
         assert_eq!(a.len(), b.len());
         assert_eq!(probe_a, probe_b, "the hero probe must be bit-identical across builds");
         assert!(cube_a == cube_b, "the reflection cube must be bit-identical across builds");

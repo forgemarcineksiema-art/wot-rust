@@ -16,6 +16,7 @@ anyhow = "1.0"
 bevy_ecs = "0.18.0"
 cpal = "0.16"
 bincode = "1.3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 bytemuck = { version = "1.25", features = ["derive"] }
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.8.2"

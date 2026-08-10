@@ -72,6 +72,13 @@ pub(super) struct GarageState {
     /// playtest relies on (`WOT_MAP` set to a `.map.ron` path). `Some` overrides the
     /// battle's map with a shipped catalog entry.
     selected_map: Option<terrain::MapId>,
+    /// What the player's own clock says the hall's daylight is (H1). Set by the app from the
+    /// LOCAL time at startup and on each garage open; defaults to the canonical Day, so tests
+    /// and offscreen renders never depend on when they run.
+    auto_daylight: scene_build::hangar::HangarLight,
+    /// The player's manual daylight choice (`L` cycles Auto → Morning → Day → Evening),
+    /// persisted with the garage save. `None` = follow the clock.
+    daylight_override: Option<scene_build::hangar::HangarLight>,
 }
 
 impl Default for GarageState {
@@ -100,8 +107,56 @@ impl Default for GarageState {
             option_list: None,
             view: GarageView::Hangar,
             selected_map: None,
+            auto_daylight: scene_build::hangar::HangarLight::Day,
+            daylight_override: None,
         }
     }
+}
+
+impl GarageState {
+    /// The hall's daylight this frame (H1): the manual override when one is set, the
+    /// player's clock otherwise.
+    pub(in crate::app) fn hangar_light(&self) -> scene_build::hangar::HangarLight {
+        self.daylight_override.unwrap_or(self.auto_daylight)
+    }
+
+    /// The clock's verdict, fed in by the app (the state itself never reads the wall clock —
+    /// tests and offscreen renders stay deterministic).
+    pub(in crate::app) fn set_auto_daylight(&mut self, light: scene_build::hangar::HangarLight) {
+        self.auto_daylight = light;
+    }
+
+    /// `L` in the hangar: cycle Auto → Morning → Day → Evening → Auto, persisted.
+    pub(in crate::app) fn cycle_daylight(&mut self) {
+        use scene_build::hangar::HangarLight;
+        self.daylight_override = match self.daylight_override {
+            None => Some(HangarLight::Morning),
+            Some(HangarLight::Morning) => Some(HangarLight::Day),
+            Some(HangarLight::Day) => Some(HangarLight::Evening),
+            Some(HangarLight::Evening) => None,
+        };
+        self.persist();
+    }
+}
+
+/// The hall's daylight for an hour on the player's own clock (H1). Pure and locked, so the
+/// mapping is a fact and not a vibe: early hours wake the hall, the working day is the
+/// canonical light, and everything from late afternoon through the night is the dusk hall —
+/// a true night variant is future work, and lamps-forward evening reads closest until then.
+pub(in crate::app) fn daylight_for_hour(hour: u32) -> scene_build::hangar::HangarLight {
+    use scene_build::hangar::HangarLight;
+    match hour {
+        5..=10 => HangarLight::Morning,
+        11..=16 => HangarLight::Day,
+        _ => HangarLight::Evening,
+    }
+}
+
+/// [`daylight_for_hour`] on the actual local clock — the one seam where the wall clock
+/// enters the game.
+pub(in crate::app) fn daylight_for_local_clock() -> scene_build::hangar::HangarLight {
+    use chrono::Timelike;
+    daylight_for_hour(chrono::Local::now().hour())
 }
 
 /// Build the garage HUD overlay for an offscreen review render (`tech_tree` picks the view).

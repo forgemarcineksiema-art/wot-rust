@@ -577,6 +577,10 @@ pub(crate) struct ClientApp {
     /// Set when the world behind `current_scene` was replaced (a garage map pick), so the next
     /// `ensure_scene` re-uploads even though the scene KIND did not change.
     scene_upload_dirty: bool,
+    /// The daylight the garage scene was last UPLOADED under (H1): a clock tick or an `L`
+    /// press that changes the resolved variant marks the upload stale, and `ensure_scene`
+    /// swaps in that variant's bake.
+    garage_daylight: scene_build::hangar::HangarLight,
     /// The speculative bake of the map the garage is pointing at, started once the pick settles
     /// so the Battle press finds it done. Dropped whenever the pick moves elsewhere.
     map_prebake: Option<MapPrebake>,
@@ -788,6 +792,7 @@ impl ClientApp {
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             scene_upload_dirty: false,
+            garage_daylight: scene_build::hangar::HangarLight::Day,
             map_prebake: None,
             map_pick_settling: None,
             battle_scene_meshes: None,

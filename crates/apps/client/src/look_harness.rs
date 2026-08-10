@@ -28,7 +28,14 @@ const REVIEW_SCENE_TIME_S: f32 = 12.0;
 /// and this harness share, so a probe frame and a golden frame hang the same beams
 /// (`fx::FxSystem::hangar_shaft_vertices` is crate-private).
 pub fn hangar_shaft_fx_vertices() -> Vec<renderer_api::FxVertex> {
-    crate::fx::FxSystem::hangar_shaft_vertices(&scene_build::hangar::sun_shaft_quads())
+    hangar_shaft_fx_vertices_for(scene_build::hangar::HangarLight::Day)
+}
+
+/// [`hangar_shaft_fx_vertices`] under a chosen daylight (H1) — morning renders none.
+pub fn hangar_shaft_fx_vertices_for(
+    light: scene_build::hangar::HangarLight,
+) -> Vec<renderer_api::FxVertex> {
+    crate::fx::FxSystem::hangar_shaft_vertices(&scene_build::hangar::sun_shaft_quads_for(light))
 }
 
 /// How fast the exhaust fan turns (E2), radians per presented second — an unhurried

@@ -7,7 +7,7 @@ use client::{
 };
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
-use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
+use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
 /// Render the REAL garage hangar frame for review: workshop lighting, parked T-54 on the
@@ -19,9 +19,20 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let height = 900u32;
     let aspect = width as f32 / height as f32;
 
+    // `light <morning|day|evening>` reviews the H1 daylight variants; every other invocation
+    // renders the canonical Day the goldens lock.
+    let daylight = match crate::sub_arg(2).as_deref() {
+        Some("light") => match crate::sub_arg(3).as_deref() {
+            Some("morning") => scene_build::hangar::HangarLight::Morning,
+            Some("evening") => scene_build::hangar::HangarLight::Evening,
+            _ => scene_build::hangar::HangarLight::Day,
+        },
+        _ => scene_build::hangar::HangarLight::Day,
+    };
     // The shell without the gate curtain (E3) — the slats ride the dynamic slot below, parked
     // at ajar, exactly as the live garage renders them.
-    let (terrain_vertices, terrain_indices) = scene_build::hangar::hangar_scene_mesh_without_gate();
+    let (terrain_vertices, terrain_indices) =
+        scene_build::hangar::hangar_scene_mesh_without_gate_for(daylight);
 
     // Optional review args: `list <vehicle_index> <slot_index>` renders that vehicle parked with its
     // module option list open (slot 0=Turret,1=Gun,3=Engine,4=Suspension). Default: T-54, no list.
@@ -152,13 +163,16 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Match `ensure_scene(SceneKind::Garage)`: hero lighting + interior backdrop, both READ
     // from where the client reads them (a copied literal here locked a night sky through the
     // roof openings the game fills with daylight).
-    renderer.scene_lighting = SceneLighting::garage_hero();
-    let (bg_r, bg_g, bg_b) = scene_build::hangar::INTERIOR_BACKGROUND;
+    renderer.scene_lighting = scene_build::hangar::hangar_lighting(daylight);
+    let (bg_r, bg_g, bg_b) = scene_build::hangar::interior_background_for(daylight);
     renderer.set_interior_background(bg_r, bg_g, bg_b);
-    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe_for(daylight)));
     renderer.set_interior_detail_normal(true);
-    renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
-    renderer.set_fx(&ctx, &client::hangar_shaft_fx_vertices());
+    renderer.set_environment_cube(
+        &ctx,
+        Some(&scene_build::hangar::hangar_reflection_cube_for(daylight).mips),
+    );
+    renderer.set_fx(&ctx, &client::hangar_shaft_fx_vertices_for(daylight));
     let (dyn_v, dyn_i) =
         client::hangar_dynamic_mesh_at(0.0, gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M));
     renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);

@@ -43,6 +43,27 @@ pub(super) struct GarageSave {
     /// Per-vehicle edited loadouts keyed by slug; a vehicle absent here has never been edited
     /// (stock), and a slug this build no longer knows is skipped on load.
     pub loadouts: HashMap<String, SavedLoadout>,
+    /// The manual daylight override (H1): "morning" / "day" / "evening", absent = follow the
+    /// player's clock. `serde(default)` keeps every pre-H1 save loading unchanged, and an
+    /// unknown value degrades to the clock instead of failing the parse.
+    #[serde(default)]
+    pub daylight_override: Option<String>,
+}
+
+/// The override's on-disk names — a slug per variant, like the vehicles, so a save from a
+/// build with more daylights degrades one field instead of poisoning the file.
+fn daylight_slug(light: scene_build::hangar::HangarLight) -> &'static str {
+    use scene_build::hangar::HangarLight;
+    match light {
+        HangarLight::Morning => "morning",
+        HangarLight::Day => "day",
+        HangarLight::Evening => "evening",
+    }
+}
+
+fn daylight_from_slug(slug: &str) -> Option<scene_build::hangar::HangarLight> {
+    use scene_build::hangar::HangarLight;
+    HangarLight::ALL.into_iter().find(|light| daylight_slug(*light) == slug)
 }
 
 impl GarageSave {
@@ -54,6 +75,7 @@ impl GarageSave {
             version: SAVE_VERSION,
             selected_vehicle: selected_vehicle.slug().to_string(),
             loadouts: loadouts.iter().map(|(kind, l)| (kind.slug().to_string(), *l)).collect(),
+            daylight_override: None,
         }
     }
 
@@ -156,6 +178,8 @@ impl GarageState {
         match load(&path) {
             Some(save) => {
                 self.saved = save.resolved_loadouts();
+                self.daylight_override =
+                    save.daylight_override.as_deref().and_then(daylight_from_slug);
                 self.foreign_loadouts = save
                     .loadouts
                     .iter()
@@ -191,6 +215,7 @@ impl GarageState {
         let mut loadouts = self.saved.clone();
         loadouts.insert(self.selected_vehicle(), self.draft.to_saved());
         let mut save = GarageSave::new(self.selected_vehicle(), &loadouts);
+        save.daylight_override = self.daylight_override.map(|l| daylight_slug(l).to_string());
         // Entries this build could not resolve ride along verbatim — a resolvable slug can
         // never collide with them, so `or_insert` is only belt-and-braces.
         for (slug, loadout) in &self.foreign_loadouts {
@@ -417,6 +442,28 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(veteran.parent().unwrap());
         let _ = std::fs::remove_dir_all(broken.parent().unwrap());
+    }
+
+    #[test]
+    fn the_daylight_override_survives_a_restart_and_garbage_degrades_to_the_clock() {
+        use scene_build::hangar::HangarLight;
+        let path = temp_path("daylight");
+        let mut garage = GarageState::default();
+        garage.enable_persistence(path.clone());
+        garage.daylight_override = Some(HangarLight::Evening);
+        garage.persist();
+
+        let mut fresh = GarageState::default();
+        fresh.enable_persistence(path.clone());
+        assert_eq!(fresh.hangar_light(), HangarLight::Evening, "the evening choice survives");
+
+        // A slug from a future build (or a hand-edit) degrades to the clock, never a panic.
+        let raw = std::fs::read_to_string(&path).unwrap().replace("evening", "midnight");
+        std::fs::write(&path, raw).unwrap();
+        let mut degraded = GarageState::default();
+        degraded.enable_persistence(path.clone());
+        assert_eq!(degraded.daylight_override, None, "an unknown daylight follows the clock");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]
