@@ -51,11 +51,54 @@ pub fn hangar_dynamic_mesh_at(
     gate_open_m: f32,
 ) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
     let (mut v, mut i) = scene_build::hangar::wall_fan_blades(seconds * FAN_SPEED_RAD_S);
-    let (slat_v, slat_i) = scene_build::hangar::bay_gate_slats(gate_open_m);
-    let base = v.len() as u32;
-    v.extend(slat_v);
-    i.extend(slat_i.iter().map(|idx| idx + base));
+    for (part_v, part_i) in [
+        scene_build::hangar::bay_gate_slats(gate_open_m),
+        // The crane trolley rides its girder (K1) — somebody works this hall.
+        scene_build::hangar::crane_trolley_at(seconds),
+    ] {
+        let base = v.len() as u32;
+        v.extend(part_v);
+        i.extend(part_i.iter().map(|idx| idx + base));
+    }
     (v, i)
+}
+
+/// The welding arc's glow behind the second bay's screen (K1): a couple of cool additive
+/// quads flickering on the arc's own deterministic duty cycle — EMPTY in the quiet half,
+/// which includes the goldens' frozen review second. The spark fountain itself is a live
+/// random emitter (`FxSystem::welding_sparks`), same exemption as the motes.
+pub fn welding_glow_vertices(seconds: f32) -> Vec<renderer_api::FxVertex> {
+    if !scene_build::hangar::welding_burn_at(seconds) {
+        return Vec::new();
+    }
+    let [wx, _, wz] = scene_build::hangar::WELDING_CORNER;
+    // Arc flicker: fast, jagged, deterministic on the clock. Peak amplitude sits at the
+    // sun-shaft GLOW scale (~0.13) — a working light in the room's key, never a floodlight.
+    let flicker =
+        0.55 + 0.30 * (seconds * 57.0).sin().abs() + 0.15 * (seconds * 173.0 + 1.7).sin().abs();
+    let glow = |c: f32| c * flicker;
+    let color = [glow(0.085), glow(0.10), glow(0.145), 0.0];
+    let mut vertices = Vec::with_capacity(12);
+    let mut quad = |a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3]| {
+        for corner in [a, b, c, a, c, d] {
+            vertices.push(renderer_api::FxVertex::sharp(corner, [0.0, 0.0], 1.0, color));
+        }
+    };
+    // A modest spill over the screen's top edge and a faint pool at the arc's feet — the
+    // screen (at wx+0.9) keeps the arc itself hidden from the turntable side.
+    quad(
+        [wx + 0.7, 1.75, wz - 1.2],
+        [wx + 0.7, 1.75, wz + 0.6],
+        [wx + 0.3, 2.45, wz + 0.6],
+        [wx + 0.3, 2.45, wz - 1.2],
+    );
+    quad(
+        [wx - 0.9, 0.05, wz - 1.0],
+        [wx + 0.5, 0.05, wz - 1.0],
+        [wx + 0.5, 0.05, wz + 0.6],
+        [wx - 0.9, 0.05, wz + 0.6],
+    );
+    vertices
 }
 
 /// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the

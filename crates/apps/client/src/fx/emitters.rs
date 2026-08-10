@@ -299,6 +299,40 @@ impl FxSystem {
         }
     }
 
+    /// The welding arc behind the second bay's screen (Hala 3.0 K1): while the arc BURNS
+    /// (`hangar::welding_burn_at` — deterministic duty cycle, quiet at the goldens' frozen
+    /// second), a fountain of white-hot sparks rises over the screen edge and dies falling —
+    /// readable light, the sparks ARE the source. Live-only randomness, the same standing
+    /// exemption the motes and the steam carry.
+    pub fn welding_sparks(&mut self, corner: Vec3, burning: bool, dt: f32) {
+        if !burning {
+            return;
+        }
+        const SPARKS_PER_SECOND: f32 = 42.0;
+        self.spark_budget += SPARKS_PER_SECOND * dt;
+        while self.spark_budget >= 1.0 {
+            self.spark_budget -= 1.0;
+            let spread = Vec3::new(self.rand_signed() * 0.9, 0.0, self.rand_signed() * 0.9);
+            let up = 2.2 + self.rand_unit() * 1.8;
+            let ttl = 0.35 + self.rand_unit() * 0.45;
+            let jitter = Vec3::new(self.rand_signed() * 0.2, 0.0, self.rand_signed() * 0.2);
+            // White-hot dying to ember orange; pure additive.
+            self.spawn(Particle {
+                position: corner + jitter,
+                velocity_mps: spread + Vec3::Y * up,
+                gravity_factor: 0.9,
+                drag_per_s: 1.6,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.035,
+                size_end_m: 0.015,
+                color_begin: [1.0, 0.92, 0.72, 0.0],
+                color_end: [0.55, 0.16, 0.02, 0.0],
+                stretch_s: 0.05,
+            });
+        }
+    }
+
     pub fn track_dust(&mut self, ground: Vec3) {
         for _ in 0..4 {
             let spread = Vec3::new(self.rand_signed() * 1.4, 0.0, self.rand_signed() * 0.8);

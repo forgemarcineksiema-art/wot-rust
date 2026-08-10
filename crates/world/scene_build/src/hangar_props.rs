@@ -148,18 +148,10 @@ fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let beam_y = CRANE_GIRDER_Y;
     let span = HALF_X - 1.5;
     // Main box girder across the bay (x-spanning), plus a lighter cross rail it rides on.
+    // The TROLLEY that rides this girder moved to the dynamic mesh (K1,
+    // `hangar::crane_trolley_at`): it travels, and travel cannot be baked.
     slab(v, i, [0.0, beam_y, -1.6], [span, 0.28, 0.32], STEEL);
     slab(v, i, [0.0, beam_y + 0.34, -1.6], [span, 0.06, 0.5], DARK_STEEL);
-    // Trolley + hoist block over the vehicle (A3: "the hook over the turret" — the crane is
-    // mid-job, not parked in a corner). Everything hangs ABOVE the orbit column's 7.4 m
-    // ceiling, so the shot stays clear while the silhouette reads in every high framing.
-    slab(v, i, [1.5, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
-    // The cable and hook SWAY (E2) — they hang free, and the hall has a draft (the gate is
-    // ajar); the trolley above them is bolted to its rail and does not.
-    let hanging = v.len();
-    slab(v, i, [1.5, beam_y - 0.48, -1.6], [0.03, 0.08, 0.03], DARK_STEEL); // cable run
-    slab(v, i, [1.5, beam_y - 0.68, -1.6], [0.15, 0.15, 0.15], STEEL); // hook block
-    super::hangar::set_sway(&mut v[hanging..], 0.03);
     finish(&mut v[start..], Finish::MACHINED_STEEL);
 }
 
@@ -353,6 +345,16 @@ fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
         slab(v, i, [x + dx, 0.004, z], [0.12, 0.005, 3.0], MARKING);
     }
     finish(&mut v[marks..], Finish::PAINT_MARK);
+    // The welding screen (K1): a dark portable panel between the arc and the hall — the
+    // WORK stays implied, the glow and the spark fountain rise from behind it
+    // (`hangar::WELDING_CORNER` — the FX and this panel agree on the spot).
+    let screen = v.len();
+    let [wx, _, wz] = super::hangar::WELDING_CORNER;
+    slab(v, i, [wx + 0.9, 0.95, wz - 0.3], [0.06, 0.95, 1.1], [0.12, 0.125, 0.135]);
+    for dz in [-1.2_f32, 0.6] {
+        slab(v, i, [wx + 0.9, 0.12, wz - 0.3 + dz], [0.22, 0.12, 0.06], DARK_STEEL);
+    }
+    finish(&mut v[screen..], Finish::PAINTED_STEEL);
     let rig = v.len();
     // A-frame gantry: two leg pairs and the top beam.
     for dz in [-1.3_f32, 1.3] {

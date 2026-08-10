@@ -33,6 +33,7 @@ pub use hud::{HudVitals, build_hud};
 pub use look_harness::{
     hangar_dynamic_mesh_at, hangar_shaft_fx_vertices, hangar_shaft_fx_vertices_for,
     render_hangar_review_views, render_review_views, render_review_views_with_fov,
+    welding_glow_vertices,
 };
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,

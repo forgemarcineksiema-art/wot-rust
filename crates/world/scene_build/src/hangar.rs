@@ -1189,6 +1189,58 @@ fn push_bay_gate(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// the same position by construction.
 pub const GATE_DRIVE_OPEN_M: f32 = 3.6;
 
+/// The crane trolley's travel along its girder (K1): a slow ping-pong between the bay ends
+/// with the hoist riding under it — somebody is WORKING this hall even when nothing else
+/// moves. 0.32 m/s: a powered trolley creeping under load, not a carnival ride. Pure
+/// function of the presentation clock, like the fan and the gate.
+pub fn crane_trolley_x_at(seconds: f32) -> f32 {
+    const SPEED_M_S: f32 = 0.32;
+    const REACH: f32 = 6.0;
+    let phase = (seconds * SPEED_M_S).rem_euclid(4.0 * REACH);
+    // Triangle wave: 0 -> +R -> 0 -> -R -> 0.
+    if phase < REACH {
+        phase
+    } else if phase < 3.0 * REACH {
+        2.0 * REACH - phase
+    } else {
+        phase - 4.0 * REACH
+    }
+}
+
+/// The crane trolley, cable run and hook block at a moment on the presentation clock (K1).
+/// Moved here from the static props (E2 gave the cable its sway; K1 gives the trolley its
+/// travel): the trolley is bolted to its rail and rides it, the cable and hook hang free
+/// and keep the E2 sway lane.
+pub fn crane_trolley_at(seconds: f32) -> (Vec<SceneVertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut i = Vec::new();
+    let beam_y = super::hangar_gallery::CRANE_GIRDER_Y;
+    let x = crane_trolley_x_at(seconds);
+    let z = -1.6;
+    slab(&mut v, &mut i, [x, beam_y - 0.2, z], [0.5, 0.2, 0.5], [0.16, 0.17, 0.18]);
+    let hanging = v.len();
+    slab(&mut v, &mut i, [x, beam_y - 0.48, z], [0.03, 0.08, 0.03], [0.16, 0.17, 0.18]);
+    slab(&mut v, &mut i, [x, beam_y - 0.68, z], [0.15, 0.15, 0.15], [0.24, 0.25, 0.27]);
+    set_sway(&mut v[hanging..], 0.03);
+    finish(&mut v, Finish::MACHINED_STEEL);
+    (v, i)
+}
+
+/// The welding bay's screen corner (K1): where the spark fountain rises from and where the
+/// glow quads stand — behind the screen at the second bay, so the WORK is implied and the
+/// light is readable (the sparks are the source). Shared by the props (screen geometry),
+/// the FX emitter and the glow builder.
+pub const WELDING_CORNER: [f32; 3] = [-7.2, 1.1, 14.5];
+
+/// The welding arc's duty cycle (K1): burns `BURN_S` out of every `PERIOD_S`, phased so the
+/// goldens' frozen review second (12.0) falls in the QUIET half — the locked picture stays
+/// the resting hall, and the arc is a live moment. Deterministic on the presentation clock.
+pub fn welding_burn_at(seconds: f32) -> bool {
+    const PERIOD_S: f32 = 9.0;
+    const BURN_S: f32 = 2.2;
+    seconds.rem_euclid(PERIOD_S) < BURN_S
+}
+
 /// The gate's slat curtain at `open_m` metres of clear opening (E3): five constant-height
 /// sheet-steel slats riding a head track. Each slat rises with the opening until it reaches
 /// its stacking position under the gate top, so the curtain compresses into an overlapped
@@ -2279,6 +2331,31 @@ mod tests {
                 > reach(&sun_shaft_quads_for(HangarLight::Day)),
             "a lower sun throws a longer shaft"
         );
+    }
+
+    /// K1: SOMEBODY WORKS THIS HALL. The crane trolley rides its girder — deterministic on
+    /// the clock, never off the rail, never parked forever — and the welding arc keeps its
+    /// contract with the goldens: the frozen review second falls in the QUIET half, so the
+    /// locked picture is the resting hall and the burn is a live moment.
+    #[test]
+    fn the_trolley_rides_and_the_arc_keeps_the_review_second_quiet() {
+        let span = HALF_X - 1.5;
+        let mut positions = Vec::new();
+        for step in 0..120 {
+            let x = crane_trolley_x_at(step as f32 * 1.0);
+            assert!(x.abs() <= span - 0.6, "the trolley leaves its girder: {x}");
+            positions.push(x);
+        }
+        let (min, max) =
+            positions.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+        assert!(max - min > 8.0, "the trolley actually travels: {min}..{max}");
+        // Determinism, and the same mesh for the same second.
+        let (a, ai) = crane_trolley_at(37.5);
+        let (b, bi) = crane_trolley_at(37.5);
+        assert!(a == b && ai == bi, "the trolley is a pure function of the clock");
+        // The goldens' second stays quiet; the arc genuinely burns at other times.
+        assert!(!welding_burn_at(12.0), "the frozen review second must be arc-quiet");
+        assert!(welding_burn_at(0.5), "the arc does burn on its cycle");
     }
 
     /// E3: THE CURTAIN RIDES ITS TRACK IN SEGMENTS. Opening raises the bottom edge
