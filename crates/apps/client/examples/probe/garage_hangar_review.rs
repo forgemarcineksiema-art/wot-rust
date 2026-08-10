@@ -47,9 +47,13 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let slot_index = crate::sub_arg(4).and_then(|s| s.parse().ok()).unwrap_or(1usize);
     let vehicle = VehicleKind::PLAYABLE[vehicle_index.min(VehicleKind::PLAYABLE.len() - 1)];
 
+    // `wear` reviews the L1 battle-worn hero: a thrown left belt, a dead suspension and
+    // engine, and a spread of hit decals — the state the live garage merges after a return
+    // from the field. Default (no arg) is the clean parked hero the goldens lock.
+    let show_wear = crate::sub_arg(2).as_deref() == Some("wear");
     // Parked hero: same pose as `garage_preview_snapshot`.
     let spec = vehicle.spec();
-    let snapshot = TankSnapshot {
+    let mut snapshot = TankSnapshot {
         tank_id: TankId(0),
         team: TeamId(1),
         vehicle,
@@ -77,6 +81,14 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         rack_fire_remaining_s: None,
     };
 
+    if show_wear {
+        snapshot.hit_points = (spec.hit_points / 3).max(1);
+        snapshot.destroyed_modules_mask = game_core::ModuleSlot::Suspension.destroyed_mask_bit()
+            | game_core::ModuleSlot::Engine.destroyed_mask_bit();
+        snapshot.track_damage_mask = 0b01;
+        snapshot.track_break_t = [Some(0.35), None];
+    }
+
     let mut catalog = VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
         eprintln!("note: no Forge artifacts loaded ({error}); using neutral material");
@@ -101,7 +113,11 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let pivot = hangar_camera_pivot();
     // Per-vehicle boom (F3): the same function the live camera rests at and the goldens
     // render through — a Jagdtiger backs the lens off, a T-54 gets the designed 15 m.
-    let eye = scene_build::hangar::hero_orbit_eye_for(vehicle);
+    let mut eye = scene_build::hangar::hero_orbit_eye_for(vehicle);
+    // `wear close` halves the boom — a decal is a 20 cm mark, the review needs to lean in.
+    if show_wear && crate::sub_arg(3).as_deref() == Some("close") {
+        eye = pivot + (eye - pivot) * 0.5;
+    }
     // `slot <name>` reviews a module framing instead of the hero shot — the SAME framing the
     // live camera flies (A3 composed backgrounds), read from the single source.
     let slot_name = (crate::sub_arg(2).as_deref() == Some("slot")).then(|| crate::sub_arg(3));
@@ -237,6 +253,40 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(seconds) = work_seconds {
         fx.extend(client::welding_glow_vertices(seconds));
+    }
+    if show_wear {
+        // The battle's marks, through the same quad builder the fight uses: a penetration
+        // hole on the upper glacis, a turret-cheek gouge, a hull-flank scuff.
+        let decals = [
+            client::HitDecal {
+                local_position: [-1.18, 0.95, 1.3],
+                local_normal: [-1.0, 0.0, 0.0],
+                radius: 0.18,
+                age_s: 0.0,
+                kind: client::DecalKind::Penetration,
+                frame: client::DecalFrame::Hull,
+                patch: None,
+            },
+            client::HitDecal {
+                local_position: [-1.16, 0.42, 0.3],
+                local_normal: [-0.95, 0.1, 0.3],
+                radius: 0.22,
+                age_s: 4.0,
+                kind: client::DecalKind::Gouge,
+                frame: client::DecalFrame::Turret,
+                patch: None,
+            },
+            client::HitDecal {
+                local_position: [-1.18, 0.8, -1.2],
+                local_normal: [-1.0, 0.05, 0.0],
+                radius: 0.3,
+                age_s: 8.0,
+                kind: client::DecalKind::Scuff,
+                frame: client::DecalFrame::Hull,
+                patch: None,
+            },
+        ];
+        client::append_decal_quads(&mut fx, &decals, &snapshot);
     }
     renderer.set_fx(&ctx, &fx);
     let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(

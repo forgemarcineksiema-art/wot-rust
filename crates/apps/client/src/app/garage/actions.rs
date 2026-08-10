@@ -33,9 +33,20 @@ impl GarageState {
 impl ClientApp {
     pub(in crate::app) fn open_garage(&mut self) {
         // Every open with a battle running behind it is a RETURN from the field (the G key
-        // and the pause menu both gate on `has_started`): the hero comes back dusty (J2).
+        // and the pause menu both gate on `has_started`): the hero comes back dusty (J2)
+        // and WEARING the fight (L1) — damage masks, thrown belt and hit decals, read from
+        // the RAW latest snapshot (the interpolated one clobbers track state) plus the
+        // client-side scar history. A clean machine captures clean and renders clean.
         if self.garage.has_started() {
             self.garage.dust_from_the_field();
+            if let Some(tank) = self
+                .render_state
+                .latest_snapshot()
+                .and_then(|s| s.tanks.iter().find(|t| t.tank_id == self.player_tank))
+            {
+                let scars = self.tank_scars.get(&self.player_tank);
+                self.garage.wear_from_the_field(super::wear::FieldWear::from_battle(tank, scars));
+            }
         }
         self.garage.open();
         // H1: the hall's daylight follows the PLAYER'S OWN CLOCK (standing user decision) —
@@ -213,6 +224,14 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyI) => {
                 self.garage.toggle_inspector();
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+            }
+            // L2: repair — only a marked hero has anything to fix; the beat opens with the
+            // heavier hand on the switch and closes with the shop's finishing clunk (the
+            // completion sound queues from `tick_repair` in the render loop).
+            PhysicalKey::Code(KeyCode::KeyR) => {
+                if self.garage.start_repair() {
+                    self.queue_audio(audio::AudioEvent::UiClick { accent: true });
+                }
             }
             PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),

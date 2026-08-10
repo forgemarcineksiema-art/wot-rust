@@ -10,6 +10,7 @@ mod selection;
 #[cfg(test)]
 mod state_tests;
 mod types;
+mod wear;
 
 use std::collections::HashMap;
 
@@ -86,6 +87,11 @@ pub(super) struct GarageState {
     /// return from a running battle, settles slowly while the hall stands, and a freshly
     /// selected vehicle rolls in clean — it was not the one that fought.
     dust: f32,
+    /// The battle state the parked hero still wears (L1): damage masks, thrown belt, hit
+    /// decals — captured at the same return seam as the dust. `None` = clean machine.
+    wear: Option<wear::FieldWear>,
+    /// The repair beat's elapsed seconds while one plays (L2); `None` = shop idle.
+    repair: Option<f32>,
 }
 
 impl Default for GarageState {
@@ -118,6 +124,8 @@ impl Default for GarageState {
             daylight_override: None,
             inspector: false,
             dust: 0.0,
+            wear: None,
+            repair: None,
         }
     }
 }
