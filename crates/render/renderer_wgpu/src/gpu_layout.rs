@@ -188,8 +188,9 @@ pub struct CameraUniform {
     /// which is a bit-exact no-op in the shader. Appended, like every lane before it.
     pub hero_probe: [GpuVec4; 6],
     /// Per-scene render flags: x = interior detail-normal enable (C1), y = interior
-    /// reflection cube bound (D1), z = hero vehicle dust 0..1 (J2), w reserved. Appended,
-    /// like every lane before it.
+    /// reflection cube bound (D1), z = hero vehicle dust 0..1 (J2), w = sun-shadow penumbra
+    /// radius in texels (0 = the battle's shipped kernel). Appended, like every lane before
+    /// it.
     pub scene_params: GpuVec4,
 }
 

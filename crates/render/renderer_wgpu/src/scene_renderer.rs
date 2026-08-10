@@ -115,6 +115,17 @@ pub struct SceneRenderer {
     /// feeds it from the "fresh from battle" state; the battle path leaves it at 0, where
     /// the shader's dust math is a bit-exact no-op.
     vehicle_dust: f32,
+    /// Sun-shadow penumbra radius in shadow texels (Światło służy czołgowi) —
+    /// `scene_params.w`. The garage widens its razor-edged tight-box shadows into real
+    /// penumbra; the battle leaves 0, where the shader keeps its shipped kernel untouched.
+    shadow_softness: f32,
+    /// Optional reduced index set the SUN-SHADOW passes draw the statics slot with (Światło
+    /// służy czołgowi): the garage exempts its roof clutter — thin bars and emissive panes —
+    /// from casting, so the floor carries a few large soft shapes instead of a printed
+    /// lattice. `None` (the battle, and the default) draws the full statics indices. The
+    /// SSAO prepass and every camera pass always draw the full mesh — this trims LIGHT, not
+    /// geometry.
+    terrain_shadow_indices: Option<(wgpu::Buffer, u32)>,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -531,6 +542,8 @@ impl SceneRenderer {
             interior_detail_normal: false,
             environment_cube_set: false,
             vehicle_dust: 0.0,
+            shadow_softness: 0.0,
+            terrain_shadow_indices: None,
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,

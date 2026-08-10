@@ -268,6 +268,14 @@ impl ClientApp {
                     // a modest bloom chain so the frosted panes and lamp faces genuinely glow.
                     // The battlefield keeps its tier default — no fairness surface is touched.
                     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+                    // Światło służy czołgowi: real penumbra on the hall's tight shadow box
+                    // (the stock 1-texel kernel printed razor bars), and the roof clutter —
+                    // thin bars, emissive panes — stops casting: the floor carries a few
+                    // large soft shapes instead of a printed lattice.
+                    renderer.set_shadow_softness(scene_build::hangar::HANGAR_SHADOW_SOFTNESS);
+                    renderer.set_terrain_shadow_indices(Some(
+                        &scene_build::hangar::hangar_shadow_indices_for(self.garage_daylight),
+                    ));
                     // The hero probe (Hala 3.0 B2): the hall's baked irradiance cube, so the
                     // parked vehicle receives the room's bounce the way the room itself does.
                     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe_for(
@@ -295,6 +303,10 @@ impl ClientApp {
                     // No garage dust either (J2): at zero the shader's dust math is a
                     // bit-exact no-op, which is the battle goldens' byte stability.
                     renderer.set_vehicle_dust(0.0);
+                    // And the battle's shadow pipeline exactly as shipped: hard kernel,
+                    // full caster set.
+                    renderer.set_shadow_softness(0.0);
+                    renderer.set_terrain_shadow_indices(None);
                 }
             }
             self.current_scene = want;

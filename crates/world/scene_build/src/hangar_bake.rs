@@ -718,7 +718,20 @@ pub(super) fn bake_bounce_lane(
     subdivide_for_bake(vertices, indices);
     let (bounces, probe, cube) = {
         let verts: &[SceneVertex] = vertices;
-        let idx: &[u32] = indices;
+        // GLASS passes light in the bake's transport too (Światło służy czołgowi): a pane in
+        // the BVH read as a sun occluder and the floor lost its daylight in the bounce lane
+        // — the probe lock caught it ("the lit floor must out-bounce the dark roof"). The
+        // panes stay in the RENDER mesh; the light simply crosses them, the same rule the
+        // shadow caster cut and the sun-reach locks carry.
+        let solid: Vec<u32> = indices
+            .chunks_exact(3)
+            .filter(|tri| {
+                !tri.iter().any(|&i| verts[i as usize].surface == renderer_api::surface_role::GLASS)
+            })
+            .flatten()
+            .copied()
+            .collect();
+        let idx: &[u32] = &solid;
         let bvh = Bvh::build(verts, idx);
         let direct_cache = cache_tri_direct(&bvh, lighting);
         let bounces = gather_bounce_lanes(verts, idx, &bvh, &direct_cache);

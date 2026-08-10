@@ -585,8 +585,14 @@ impl SceneLighting {
             // it, not because the room glows.
             // Held a hair over garage_workshop's ambient — the anti-silhouette lock's floor:
             // moody is the ROOM's tone, not the subject's flanks going near-black again.
-            ambient_rgb: [0.21, 0.205, 0.198],
-            ground_ambient_rgb: [0.115, 0.11, 0.105],
+            // Światło służy czołgowi (user verdict 2026-08-10: "światła napierdalają w ten
+            // czołg, a na ziemi kratownica z cieni" — the lights played the lead). The floor
+            // measured a 4.8x brightness swing between sun stripe and bar shadow; the fix is
+            // the RATIO, from both ends: ambient up ~1.24x (here) and the key down ~0.71x
+            // (below), which prices the stripes toward ~2x — shade you stand in, not a
+            // projector pattern. The moody floor still holds: what reads bright is a source.
+            ambient_rgb: [0.26, 0.255, 0.248],
+            ground_ambient_rgb: [0.14, 0.132, 0.126],
             // The sun through the middle shed's glazing (Hala 3.0 A1). Derivation, so the next
             // relight can redo it instead of dialling: the glazing plane of the sun shed spans
             // z 1.0..5.5 falling from 11.3 m to 9.0 m; a ray from the turntable deck (y 0.62
@@ -598,7 +604,9 @@ impl SceneLighting {
             // rakes DOWN the nave, with the hero framing. Locked by
             // `the_workshop_sun_reaches_the_turntable_through_a_real_opening`.
             key_direction: [-0.233, 0.892, 0.388],
-            key_rgb: [1.10, 1.00, 0.82],
+            // Trimmed with the ambient raise above (Światło służy czołgowi): the sun keeps
+            // its warmth and its direction — only its SHOUT goes.
+            key_rgb: [0.78, 0.71, 0.58],
             // Readable-light doctrine (Hala 2.0 T1 correction, user verdict 2026-08-05): every
             // light in the hall must have a visible source. The fill is the one survivor of the
             // old studio rig, demoted to what it can honestly claim to be — concrete bounce off

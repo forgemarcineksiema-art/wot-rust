@@ -145,6 +145,23 @@ mod tests {
         }
     }
 
+    /// Światło służy czołgowi: the shaft glow stays QUIET. The beams were re-priced after
+    /// the user's lattice verdict (0.20 -> 0.13) — a beam brighter than this is a second
+    /// light show over the floor, and the E1 pricing already proved louder blades eat the
+    /// hero-over-room margin.
+    #[test]
+    fn the_shaft_glow_stays_quiet() {
+        let vertices = crate::look_harness::hangar_shaft_fx_vertices();
+        assert!(!vertices.is_empty(), "the day hall hangs its blades");
+        for vertex in &vertices {
+            assert!(
+                vertex.color[0] <= 0.14 && vertex.color[1] <= 0.14 && vertex.color[2] <= 0.14,
+                "a blade shouts: {:?}",
+                vertex.color
+            );
+        }
+    }
+
     /// E1: the mote trickle is rate-budgeted and spawns INSIDE the blade volumes — dust is
     /// visible only where the light is, and the emitter cannot silently flood the pool.
     #[test]

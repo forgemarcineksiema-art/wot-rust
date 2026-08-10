@@ -288,10 +288,18 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
         );
         return 0.92 + wash * 0.11 + drag * 0.05;
     }
-    // Tyre rubber (garage, C2): near-featureless by intent — a whisper of sidewall mottle so
-    // the discs are not mathematically flat, and nothing else to catch.
-    let mottle = mix(value_noise(face_frame * 3.0), value_noise(top_frame * 3.0), up);
-    return 0.97 + mottle * 0.04;
+    if (role < 13.5) {
+        // Tyre rubber (garage, C2): near-featureless by intent — a whisper of sidewall
+        // mottle so the discs are not mathematically flat, and nothing else to catch.
+        // (Bounded now that GLASS follows: role 13 keeps this arm's exact math.)
+        let mottle = mix(value_noise(face_frame * 3.0), value_noise(top_frame * 3.0), up);
+        return 0.97 + mottle * 0.04;
+    }
+    // Dirty glazing (garage, Światło służy czołgowi): glass has no grain to model — its whole
+    // read is the sheen the gloss lane and the environment reflection already carry — so the
+    // treatment is a faint grime mottle and nothing else.
+    let grime = mix(value_noise(face_frame * 0.8), value_noise(top_frame * 0.8), up);
+    return 0.94 + grime * 0.06;
 }
 
 // Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one
