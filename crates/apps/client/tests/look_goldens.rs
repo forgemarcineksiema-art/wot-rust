@@ -520,6 +520,16 @@ fn recorded_goldens_hold_the_value_structure() {
             );
             continue;
         }
+        // A close-up is a subject photograph (F3): a frame filled by road wheels has no
+        // skylight and no lamp in it, so the lit-room plane bounds describe nothing about
+        // it — its lock is its SUBJECT_BOUNDS entry, measured inside its own crop.
+        if view.close_up {
+            println!(
+                "GARAGE CLOSE-UP {}: dark {:.3} p50 {:.3} (room planes waived — subject-locked)",
+                view.name, stats.dark, stats.p50
+            );
+            continue;
+        }
 
         assert!(
             stats.dark >= 0.03,
@@ -747,6 +757,31 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         median_floor: 0.145,
         dark_ceiling: 0.68,
         form_floor: 0.0125,
+    },
+    // F3, the heavy fleet at its own spec-derived boom. Recorded at first bless:
+    // tiger2 p50 0.253 / dark 49.6% / form 0.0110; jagdtiger p50 0.283 / dark 43.5% /
+    // form 0.0127 — floors and ceilings carry the same ~6-10% slack the hero's do.
+    SubjectBounds {
+        view: "garage_hero_tiger2",
+        median_floor: 0.230,
+        dark_ceiling: 0.55,
+        form_floor: 0.0100,
+    },
+    SubjectBounds {
+        view: "garage_hero_jagdtiger",
+        median_floor: 0.255,
+        dark_ceiling: 0.49,
+        form_floor: 0.0115,
+    },
+    // F3's close orbit: the running gear fills the crop, and earth-toned tracks sit almost
+    // entirely under the 0.25 luma bar — dark here measures the PAINT (see the note above on
+    // why there is no shared void target), so its ceiling is a per-view regression stop, not
+    // a readability bar. Recorded: p50 0.086 / dark 92.9% / form 0.0047.
+    SubjectBounds {
+        view: "garage_susp_close",
+        median_floor: 0.078,
+        dark_ceiling: 0.95,
+        form_floor: 0.0042,
     },
 ];
 

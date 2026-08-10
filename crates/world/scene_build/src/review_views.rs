@@ -85,6 +85,12 @@ pub struct HangarReviewView {
     /// sixth of the picture, so the hall could swallow it whole and the value planes would not
     /// notice.
     pub subject_box: Option<[f32; 4]>,
+    /// A CLOSE-UP is a subject photograph, not a room photograph (F3): a 4.5 m frame of road
+    /// wheels contains no skylight and no lamp, so the room's value-plane bounds — three
+    /// planes, a bright source — describe nothing about it (the first recording measured
+    /// bright 0.1% against the room's 2% floor with a picture that was perfectly readable).
+    /// A close-up answers to its SUBJECT bounds instead; the plane locks skip it.
+    pub close_up: bool,
     /// Which garage screen this view locks (see [`GarageScreen`]).
     pub screen: GarageScreen,
 }
@@ -143,14 +149,33 @@ impl GarageScreen {
 /// at ~0.5 m above the deck so the box measures the VEHICLE and not the contact shadow under
 /// it — the same reason the Prokhorovka boxes stay off the ground.
 fn hero_subject_box() -> [f32; 4] {
+    subject_box_at(6.5, 2.4, crate::hangar::HERO_ORBIT_DISTANCE)
+}
+
+/// The same crop arithmetic for any silhouette span, height and boom — [`hero_subject_box`]
+/// keeps the T-54's empirical 6.5 x 2.4 m; the heavy-fleet views (F3) derive theirs from the
+/// spec through [`heavy_subject_box`].
+fn subject_box_at(span_m: f32, height_m: f32, boom_m: f32) -> [f32; 4] {
     let fov = crate::hangar::HERO_FOV_DEGREES.to_radians();
-    let px_per_m = 540.0 / (2.0 * crate::hangar::HERO_ORBIT_DISTANCE * (fov / 2.0).tan());
+    let px_per_m = 540.0 / (2.0 * boom_m * (fov / 2.0).tan());
     let pivot_y = crate::hangar::hangar_camera_pivot().y;
     let deck = crate::hangar::TURNTABLE_TOP_M;
-    let half_w = 0.5 * 6.5 * px_per_m / 960.0;
-    let top = 0.5 - (deck + 2.4 - pivot_y) * px_per_m / 540.0;
+    let half_w = 0.5 * span_m * px_per_m / 960.0;
+    let top = 0.5 - (deck + height_m - pivot_y) * px_per_m / 540.0;
     let bottom = 0.5 + (pivot_y - (deck + 0.5)) * px_per_m / 540.0;
     [0.5 - half_w, top, 0.5 + half_w, bottom]
+}
+
+/// A heavy vehicle's subject crop, derived from its SPEC at its own hero boom (F3): the
+/// silhouette at the parked three-quarter (0.65 rad off the bearing) projects hull length by
+/// its cosine and hull width by its sine, plus a quarter of the stock barrel for the muzzle
+/// spilling past the bow; height is the hitbox plus 0.3 m of cupola/MG furniture.
+fn heavy_subject_box(kind: VehicleKind) -> [f32; 4] {
+    let hitbox = kind.spec().hitbox;
+    let offset = crate::hangar::HERO_PARK_YAW - crate::hangar::HERO_ORBIT_YAW;
+    let span = (2.0 * hitbox.half_length_m + 0.25 * kind.stock_barrel_length_m()) * offset.cos()
+        + 2.0 * hitbox.half_width_m * offset.sin();
+    subject_box_at(span, 2.0 * hitbox.half_height_m + 0.3, crate::hangar::hero_orbit_boom_for(kind))
 }
 
 /// The garage review set: the hero shot the garage actually opens with. The framing comes from
@@ -179,11 +204,62 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         // The hull and turret mass, on the ROOM view only — the overlay views are half
         // instrument panel and answer to their own locks.
         subject_box: (screen == GarageScreen::Room).then_some(hero_subject_box()),
+        close_up: false,
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views
     // differ by exactly the overlay, so a diff between any two of them is the UI and nothing else.
-    GarageScreen::ALL.into_iter().map(hero).collect()
+    let mut views: Vec<HangarReviewView> = GarageScreen::ALL.into_iter().map(hero).collect();
+
+    // F3: the close orbit and the heavy fleet. The hero framing was designed on a T-54 and
+    // reviewed on nothing else; these lock the shots that broke first — the suspension pass
+    // the live camera flies for the running-gear slot, and the two longest vehicles in the
+    // roster at their own spec-derived boom (at 15 m the Jagdtiger ran its barrel off the
+    // frame's right edge).
+    let (susp_eye, susp_target) = crate::hangar::slot_eye(crate::hangar::FRAMING_SUSPENSION);
+    views.push(HangarReviewView {
+        name: "garage_susp_close".to_string(),
+        eye: susp_eye.to_array(),
+        target: susp_target.to_array(),
+        lighting: SceneLighting::garage_hero(),
+        background: crate::hangar::INTERIOR_BACKGROUND,
+        vehicle: ReviewVehicle {
+            kind: VehicleKind::T54_1951,
+            position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
+            yaw_rad: crate::hangar::HERO_PARK_YAW,
+            turret_yaw_rad: 0.0,
+            hull_color: [0.72, 0.76, 0.62],
+        },
+        // The close pass IS the subject: the crop trims only the frame's edges (the wall
+        // sliver top-right, the floor at the bottom corners) and the subject bounds do the
+        // locking — the room planes skip a close-up entirely.
+        subject_box: Some([0.06, 0.06, 0.94, 0.94]),
+        close_up: true,
+        screen: GarageScreen::Room,
+    });
+    for (name, kind) in [
+        ("garage_hero_tiger2", VehicleKind::TigerII),
+        ("garage_hero_jagdtiger", VehicleKind::Jagdtiger),
+    ] {
+        views.push(HangarReviewView {
+            name: name.to_string(),
+            eye: crate::hangar::hero_orbit_eye_for(kind).to_array(),
+            target: crate::hangar::hangar_camera_pivot().to_array(),
+            lighting: SceneLighting::garage_hero(),
+            background: crate::hangar::INTERIOR_BACKGROUND,
+            vehicle: ReviewVehicle {
+                kind,
+                position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
+                yaw_rad: crate::hangar::HERO_PARK_YAW,
+                turret_yaw_rad: 0.0,
+                hull_color: [0.72, 0.76, 0.62],
+            },
+            subject_box: Some(heavy_subject_box(kind)),
+            close_up: false,
+            screen: GarageScreen::Room,
+        });
+    }
+    views
 }
 
 /// The maps whose looks are locked. A map missing from here ships unreviewed, so the coverage
@@ -492,10 +568,41 @@ mod tests {
                 "{screen:?} has no review view — it would ship with no picture lock"
             );
         }
-        assert_eq!(views.len(), GarageScreen::ALL.len(), "one view per screen, no strays");
-        // The room view is the one the value-structure locks read; it must carry no overlay.
+        // Every OVERLAY screen keeps exactly one view (a second copy of a UI lock is drift
+        // waiting to happen); the ROOM legitimately carries more than one since F3 — the hero
+        // shot plus the close orbit and the heavy fleet, each a different photograph of the
+        // same room.
+        for screen in GarageScreen::ALL {
+            let count = views.iter().filter(|view| view.screen == screen).count();
+            if screen == GarageScreen::Room {
+                assert!(count >= 1, "the room keeps at least its hero view");
+            } else {
+                assert_eq!(count, 1, "{screen:?}: one view per overlay screen, no strays");
+            }
+        }
+        // The room view the value-structure locks and the UI-footprint diffs read FIRST must
+        // stay the hero shot, and every review view keeps a unique golden name.
         let room = views.iter().find(|view| view.screen == GarageScreen::Room).expect("room view");
         assert_eq!(room.name, "garage_hero");
+        let mut names: Vec<&str> = views.iter().map(|view| view.name.as_str()).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), views.len(), "duplicate golden names in the review set");
+    }
+
+    /// The world layer names no vehicle (`vehicle_dispatch` ratchet), so the span the hero
+    /// framing was designed on lives in `hangar.rs` as a LITERAL — and this lock, in the one
+    /// file allowlisted to name the fleet, pins that literal to the benchmark's own
+    /// spec-derived span. If the T-54's hull or stock gun ever changes, this fails and the
+    /// framing constant follows the data — never the other way round.
+    #[test]
+    fn the_hero_framed_span_is_the_benchmarks_own() {
+        let benchmark = crate::hangar::hero_span_m(VehicleKind::T54_1951);
+        assert!(
+            (crate::hangar::HERO_FRAMED_SPAN_M - benchmark).abs() < 0.05,
+            "HERO_FRAMED_SPAN_M {} has drifted from the benchmark's spec span {benchmark}",
+            crate::hangar::HERO_FRAMED_SPAN_M
+        );
     }
 
     /// The garage's sky is single-sourced: what shows through the roof openings in a review

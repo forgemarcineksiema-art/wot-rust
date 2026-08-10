@@ -74,7 +74,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // numbers, while the golden moved. That is the same drift that cost the review set its
     // foliage atlas; the fix is to have no second copy to forget.
     let pivot = hangar_camera_pivot();
-    let eye = scene_build::hangar::hero_orbit_eye();
+    // Per-vehicle boom (F3): the same function the live camera rests at and the goldens
+    // render through — a Jagdtiger backs the lens off, a T-54 gets the designed 15 m.
+    let eye = scene_build::hangar::hero_orbit_eye_for(vehicle);
     // `slot <name>` reviews a module framing instead of the hero shot — the SAME framing the
     // live camera flies (A3 composed backgrounds), read from the single source.
     let slot_name = (crate::sub_arg(2).as_deref() == Some("slot")).then(|| crate::sub_arg(3));

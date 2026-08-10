@@ -182,6 +182,11 @@ pub fn slot_eye(framing: SlotFraming) -> (Vec3, Vec3) {
 /// stores corner — the client's steam emitter and the geometry agree on the source.
 pub const STEAM_DUCT_OUTLET: [f32; 3] = [-(HALF_X - 0.55), 2.45, 18.6];
 
+/// The workbench anchor on the bench wall: `hangar_props` builds the bench here, and the
+/// audio bed's radio (G1) murmurs FROM here — the sound and the furniture are the same fact.
+/// y is the bench top, where a radio would actually stand.
+pub const WORKBENCH_ANCHOR: [f32; 3] = [HALF_X - 1.7, 1.05, 6.0];
+
 /// Where the exhaust fan hangs on the stores wall (E2): shared by the static housing
 /// (`hangar_gallery`), the dynamic blades below, and the steam duct that gives the fan its
 /// reason — the hall breathes out through this corner. It hangs INSIDE the stores lamp's
@@ -286,6 +291,37 @@ pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
 /// The eye the garage rests at: the hero framing applied to the turntable pivot.
 pub fn hero_orbit_eye() -> Vec3 {
     hangar_camera_pivot() + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * HERO_ORBIT_DISTANCE
+}
+
+/// The hero boom for `kind` (F3): [`HERO_ORBIT_DISTANCE`] was framed on the T-54's silhouette,
+/// and a Jagdtiger at the same 15 m runs its barrel off the right edge of the frame (seen on
+/// the first heavy-fleet renders). The span the lens must hold is derived from the SPEC — hull
+/// length plus the stock barrel, the same numbers the hitbox and the module catalog already
+/// carry — normalized to the T-54 the framing was designed on. Never closer than the designed
+/// boom, and never past the wall clamp the live orbit flies.
+pub fn hero_orbit_boom_for(kind: game_core::VehicleKind) -> f32 {
+    let boom = HERO_ORBIT_DISTANCE * hero_span_m(kind) / HERO_FRAMED_SPAN_M;
+    boom.clamp(HERO_ORBIT_DISTANCE, max_orbit_boom(HERO_ORBIT_YAW, HERO_ORBIT_PITCH))
+}
+
+/// The span the hero lens must hold for `kind`: hull length plus the stock barrel, from the
+/// SPEC — the same numbers the hitbox and the module catalog already carry.
+pub fn hero_span_m(kind: game_core::VehicleKind) -> f32 {
+    2.0 * kind.spec().hitbox.half_length_m + kind.stock_barrel_length_m()
+}
+
+/// The silhouette span [`HERO_ORBIT_DISTANCE`]'s framing was DESIGNED to hold: the benchmark
+/// vehicle's hull length plus its stock barrel. A literal, because vehicles are data and the
+/// world layer names none (the `vehicle_dispatch` ratchet); the review set's
+/// `the_hero_framed_span_is_the_benchmarks_own` lock pins this to the benchmark's own
+/// spec-derived span, so the number cannot drift from the data it summarizes.
+pub const HERO_FRAMED_SPAN_M: f32 = 11.885;
+
+/// [`hero_orbit_eye`] at the per-vehicle boom: the same bearing, backed off far enough that
+/// THIS vehicle's whole silhouette — gun included — stays in the hero frame.
+pub fn hero_orbit_eye_for(kind: game_core::VehicleKind) -> Vec3 {
+    hangar_camera_pivot()
+        + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * hero_orbit_boom_for(kind)
 }
 
 /// The world point the garage pins the sun-shadow boxes to: the turntable the hero stands on.
