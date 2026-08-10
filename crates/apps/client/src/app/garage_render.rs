@@ -99,10 +99,16 @@ impl ClientApp {
         // ...and the hall breathes (E2): steam off the heating duct by the stores, drifting
         // toward the gate with the draft the exhaust fan maintains.
         self.fx.vent_steam(Vec3::from_array(scene_build::hangar::STEAM_DUCT_OUTLET), dt);
+        // ...and somebody WORKS here (K1): the arc behind the second bay's screen burns on
+        // its own clock, and while it burns the spark fountain rises over the screen edge.
+        let welding = scene_build::hangar::welding_burn_at(self.presented_time_s());
+        self.fx.welding_sparks(Vec3::from_array(scene_build::hangar::WELDING_CORNER), welding, dt);
         self.fx.tick(dt);
         let mut fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
         fx_vertices.extend(crate::fx::FxSystem::hangar_shaft_vertices(&blades));
+        // The welding glow (K1), on the same deterministic clock the sparks burn to.
+        fx_vertices.extend(crate::look_harness::welding_glow_vertices(self.presented_time_s()));
         // The armor inspector (I1): the hero's gameplay armor volumes as translucent
         // zone-colored faces, riding the parked pose (and the drive-in pose, honestly).
         if self.garage.inspector_on() {

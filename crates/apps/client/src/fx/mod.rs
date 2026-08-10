@@ -45,6 +45,8 @@ pub(crate) struct FxSystem {
     mote_budget: f32,
     /// Fractional spawn budget of the heating duct's steam wisps (E2).
     steam_budget: f32,
+    /// Fractional spawn budget of the welding arc's spark fountain (K1).
+    spark_budget: f32,
 }
 
 impl FxSystem {
@@ -160,6 +162,26 @@ mod tests {
                 vertex.color
             );
         }
+    }
+
+    /// K1: sparks fly only while the arc burns, and the fountain is rate-budgeted like
+    /// every hall emitter — a quiet arc adds not one particle.
+    #[test]
+    fn sparks_fly_only_while_the_arc_burns() {
+        let corner = Vec3::from_array(scene_build::hangar::WELDING_CORNER);
+        let mut fx = FxSystem::default();
+        for _ in 0..60 {
+            fx.welding_sparks(corner, false, 1.0 / 60.0);
+        }
+        assert_eq!(fx.live_particles(), 0, "a quiet arc must not spark");
+        for _ in 0..60 {
+            fx.welding_sparks(corner, true, 1.0 / 60.0);
+        }
+        let burst = fx.live_particles();
+        assert!(
+            (25..=60).contains(&burst),
+            "a second of arc is a real fountain, budgeted: {burst}"
+        );
     }
 
     /// E1: the mote trickle is rate-budgeted and spawns INSIDE the blade volumes — dust is

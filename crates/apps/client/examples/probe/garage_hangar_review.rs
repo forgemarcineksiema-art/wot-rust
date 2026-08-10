@@ -110,7 +110,19 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let gate_open = (crate::sub_arg(2).as_deref() == Some("gate"))
         .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()))
         .flatten();
-    let camera = if gate_open.is_some() {
+    // `work <seconds>` reviews the K1 presence pass at a moment on the clock: the crane
+    // trolley at its travelled position and the welding arc mid-burn (deterministic glow;
+    // the spark fountain is a live random emitter and stays out of stills by design).
+    let work_seconds = (crate::sub_arg(2).as_deref() == Some("work"))
+        .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.2));
+    let camera = if let Some(_seconds) = work_seconds {
+        let [wx, _, wz] = scene_build::hangar::WELDING_CORNER;
+        Camera {
+            eye: [2.5, 2.4, 4.0],
+            target: [wx, 1.4, wz],
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    } else if gate_open.is_some() {
         let eye = pivot
             + scene_build::hangar::orbit_direction(0.15, 0.02)
                 * scene_build::hangar::HERO_ORBIT_DISTANCE;
@@ -199,9 +211,14 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             scene_build::hangar::HERO_PARK_YAW,
         ));
     }
+    if let Some(seconds) = work_seconds {
+        fx.extend(client::welding_glow_vertices(seconds));
+    }
     renderer.set_fx(&ctx, &fx);
-    let (dyn_v, dyn_i) =
-        client::hangar_dynamic_mesh_at(0.0, gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M));
+    let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(
+        work_seconds.unwrap_or(0.0),
+        gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M),
+    );
     renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
