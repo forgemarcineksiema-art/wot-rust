@@ -13,7 +13,7 @@ use tracing::error;
 
 use super::{ClientApp, SceneKind};
 use crate::render_frame_from_objects;
-use crate::vehicle::asset_render::tank_vehicle_render_objects_with_tracks;
+use crate::vehicle::asset_render::tank_vehicle_render_objects_at_rest;
 use crate::vehicle::variation::VehicleVariation;
 
 impl ClientApp {
@@ -62,7 +62,9 @@ impl ClientApp {
         snapshot.position[2] = pose.z;
         snapshot.yaw_rad = pose.yaw_rad;
         let variation = VehicleVariation::from_snapshot(&snapshot);
-        let mut objects = tank_vehicle_render_objects_with_tracks(
+        // At the static settle its mass earns (J1): the hero SITS on its springs in the
+        // hangar instead of standing on the authoring pose.
+        let mut objects = tank_vehicle_render_objects_at_rest(
             &mut self.vehicle_asset_catalog,
             &snapshot,
             [0.72, 0.76, 0.62],

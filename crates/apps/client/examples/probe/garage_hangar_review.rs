@@ -3,7 +3,7 @@ use std::io::BufWriter;
 
 use client::{
     VehicleAssetCatalog, garage_overlay, garage_overlay_option_list, hangar_camera_pivot,
-    render_frame_from_objects, tank_vehicle_render_objects,
+    render_frame_from_objects,
 };
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
@@ -75,7 +75,15 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
         eprintln!("note: no Forge artifacts loaded ({error}); using neutral material");
     }
-    let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
+    // The parked settle (J1) — the same pose the live garage and the goldens render.
+    let objects = client::tank_vehicle_render_objects_at_rest(
+        &mut catalog,
+        &snapshot,
+        [0.72, 0.76, 0.62],
+        &client::VehicleVariation::from_snapshot(&snapshot),
+        0.0,
+        0.0,
+    );
     let render_frame = render_frame_from_objects(objects);
 
     // Hero orbit framing, READ from `scene_build::hangar` rather than copied out of it. This file
