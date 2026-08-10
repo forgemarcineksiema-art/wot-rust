@@ -54,6 +54,7 @@ pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     crate_pallet(v, i, gate_corner_x, gate_corner_z);
     barrels(v, i, -wall);
     oil_stains(v, i, wall);
+    chain_hoist(v, i);
     // Across the nave from the hero camera's rest position — the first A1 render had it at
     // (+5.5, 14.5), which put its gantry legs INSIDE the hero framing's eye.
     second_bay(v, i, -5.5, 14.5);
@@ -105,6 +106,37 @@ fn station_dressing(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let bucket = v.len();
     push_cylinder(v, i, Vec3::new(-6.3, 0.0, 3.0), 0.16, 0.32, 14, STEEL);
     finish(&mut v[bucket..], Finish { gloss: 0.30, ..Finish::MACHINED_STEEL });
+}
+
+/// A chain block parked on the z=11.5 truss chord, close in front of the hero lens (E3): the
+/// hero frame's FOREGROUND. The eye rests ~15 m out on the 0.42 rad bearing; this hangs
+/// ~2.6 m ahead of it and projects to the frame's LEFT THIRD (normalized x ≈ 0.23): to the
+/// right of the crew panel's edge — the first placement at x 3.82 projected to 0.08 and the
+/// PLAYED frame hid it behind the HUD, a foreground nobody sees — and left of the subject
+/// box at 0.29, so the shot finally has a near plane: a foreground, a subject and a room,
+/// not just a subject and a room. The block sits at the frame's top edge, its lifting eye
+/// cropped; x = 4.34 keeps 1.6 m clear of the through-lane's x < 2.7 prop cut. The chain
+/// and block hang free and take the E2 sway lane; the beam clamp is bolted and does not.
+fn chain_hoist(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let (x, z) = (4.34, 11.5);
+    // Beam clamp riding the chord's bottom flange — rigid.
+    let clamp = v.len();
+    slab(v, i, [x, 9.0, z], [0.14, 0.07, 0.10], DARK_STEEL);
+    finish(&mut v[clamp..], Finish::MACHINED_STEEL);
+    // Everything below hangs: the load chain's fall (thick enough to READ against the bright
+    // glazing behind it — a 2 cm line vanished at the review distance), the hand chain beside
+    // it, the compact block and its hand-worn hook. Near-black chain: oiled links, and the
+    // one value that separates from both the whitewash and the daylight.
+    // At ~2.5 m from the lens every centimetre is tens of pixels: the first hook was a
+    // 0.18 m rust slab and rendered as a floating orange crate under the warm key. Worn
+    // steel, compact, with only a rust collar where hands grab it.
+    let hanging = v.len();
+    slab(v, i, [x, 6.37, z], [0.03, 2.7, 0.03], [0.10, 0.105, 0.115]);
+    slab(v, i, [x + 0.12, 6.6, z], [0.014, 2.3, 0.014], DARK_STEEL);
+    slab(v, i, [x, 3.55, z], [0.07, 0.12, 0.06], STEEL);
+    slab(v, i, [x, 3.33, z], [0.022, 0.1, 0.022], DARK_STEEL);
+    finish(&mut v[hanging..], Finish { gloss: 0.3, ..Finish::MACHINED_STEEL });
+    super::hangar::set_sway(&mut v[hanging..], 0.03);
 }
 
 /// A gantry crane spanning the nave just under the truss chords, riding the wall rails

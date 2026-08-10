@@ -17,6 +17,15 @@ use super::GarageState;
 /// 13 m to ~18 m, and the duration follows it to keep the peak under the hurrying-tank ceiling
 /// (`the_first_frame_moves_like_a_tank_not_a_shell`).
 const ROLL_DURATION_S: f32 = 2.6;
+/// E3: the gate rises from ajar to its drive clearance BEFORE the hull moves — the tank does
+/// not pull away under a half-open door.
+const GATE_OPEN_S: f32 = 0.9;
+/// When (into the roll) the curtain starts back down: the hull is well past the gate band by
+/// mid-lane, and the door a workshop just used gets closed behind the machine.
+const GATE_CLOSE_START_S: f32 = 1.0;
+/// How long the curtain takes to settle back to ajar — slower than the opening; nothing
+/// slams behind a parked hero.
+const GATE_CLOSE_S: f32 = 1.4;
 // Where the tank starts is derived from the GATE, not dialled — `hangar::drive_in_start_z()`
 // puts the hull one hull-length inside the ajar gate opening, however long the hall is. The
 // old literal here (−13.0) was tuned to a 36 m hall; in the 44 m nave it would have
@@ -87,21 +96,41 @@ fn smoothstep(t: f32) -> f32 {
 }
 
 impl DriveIn {
-    /// The (z, yaw) sample of the animation timeline at `elapsed` seconds.
+    /// The (z, yaw) sample of the animation timeline at `elapsed` seconds: the gate's opening
+    /// phase first (hull waiting at the doorway), then the roll, then the park pivot.
     fn sample(elapsed: f32) -> (f32, f32) {
         let (pivot_delta, pivot_duration) = pivot_arc();
-        if elapsed < ROLL_DURATION_S {
+        let rolling = elapsed - GATE_OPEN_S;
+        if rolling < 0.0 {
+            // The curtain is still rising; the hull holds at the doorway.
+            (drive_in_start_z(), 0.0)
+        } else if rolling < ROLL_DURATION_S {
             // Rolling down the lane, facing the way it travels.
-            (drive_in_start_z() * (1.0 - smoothstep(elapsed / ROLL_DURATION_S)), 0.0)
+            (drive_in_start_z() * (1.0 - smoothstep(rolling / ROLL_DURATION_S)), 0.0)
         } else {
             // Parked on the mark, pivoting to the hero pose.
-            let t = (elapsed - ROLL_DURATION_S) / pivot_duration.max(1.0e-3);
+            let t = (rolling - ROLL_DURATION_S) / pivot_duration.max(1.0e-3);
             (0.0, pivot_delta * smoothstep(t))
         }
     }
 
+    /// The gate's clear opening at `elapsed` seconds (E3): rises to the drive clearance while
+    /// the hull waits, holds through the early roll, and settles back to ajar behind the
+    /// vehicle. Every value the render reads comes through here — the curtain mesh is
+    /// `bay_gate_slats(gate_open_m)`.
+    fn gate_open_m(elapsed: f32) -> f32 {
+        use scene_build::hangar::{GATE_AJAR_M, GATE_DRIVE_OPEN_M};
+        let span = GATE_DRIVE_OPEN_M - GATE_AJAR_M;
+        let rolling = elapsed - GATE_OPEN_S;
+        if rolling < GATE_CLOSE_START_S {
+            GATE_AJAR_M + span * smoothstep(elapsed / GATE_OPEN_S)
+        } else {
+            GATE_DRIVE_OPEN_M - span * smoothstep((rolling - GATE_CLOSE_START_S) / GATE_CLOSE_S)
+        }
+    }
+
     fn total_duration() -> f32 {
-        ROLL_DURATION_S + pivot_arc().1
+        GATE_OPEN_S + ROLL_DURATION_S + pivot_arc().1
     }
 }
 
@@ -166,6 +195,15 @@ impl GarageState {
     /// so the roll-in and the park pivot are audible and the parked hall stays quiet.
     pub(in crate::app) fn drive_in_track_speed_mps(&self) -> f32 {
         self.drive_in.track_speed_mps
+    }
+
+    /// The bay gate's clear opening this frame (E3): animated through the drive-in, parked at
+    /// ajar the rest of the time. The render feeds this straight to `bay_gate_slats`.
+    pub(in crate::app) fn gate_open_m(&self) -> f32 {
+        match self.drive_in.elapsed {
+            Some(e) => DriveIn::gate_open_m(e),
+            None => scene_build::hangar::GATE_AJAR_M,
+        }
     }
 
     #[cfg(test)]
@@ -272,7 +310,8 @@ mod tests {
     fn the_park_pivot_scrolls_the_tracks_in_opposite_directions() {
         let mut garage = GarageState::default();
         garage.start_drive_in();
-        advance(&mut garage, ROLL_DURATION_S + 0.05);
+        // Past the gate phase and the whole roll: the pivot is what's left.
+        advance(&mut garage, GATE_OPEN_S + ROLL_DURATION_S + 0.05);
         let before = garage.drive_in_pose();
 
         advance(&mut garage, 0.5);
@@ -314,6 +353,43 @@ mod tests {
             "expected a paced dust trail of ~{expected:.0} puffs, got {puffs}"
         );
         assert!(!garage.poll_drive_dust(), "no dust once parked");
+    }
+
+    #[test]
+    fn the_gate_clears_the_hull_before_it_moves_and_closes_behind_it() {
+        use scene_build::hangar::{GATE_AJAR_M, GATE_DRIVE_OPEN_M};
+        let mut garage = GarageState::default();
+        assert_eq!(garage.gate_open_m(), GATE_AJAR_M, "a parked hall keeps its ajar gate");
+
+        garage.start_drive_in();
+        let mut last_z = garage.drive_in_pose().z;
+        let mut open_when_first_moved = None;
+        let mut widest = 0.0f32;
+        for _ in 0..((DriveIn::total_duration() + 0.2) * 60.0) as u32 {
+            garage.tick_drive_in(1.0 / 60.0);
+            let open = garage.gate_open_m();
+            widest = widest.max(open);
+            assert!(
+                (GATE_AJAR_M - 1.0e-4..=GATE_DRIVE_OPEN_M + 1.0e-4).contains(&open),
+                "the curtain stays on its track: {open}"
+            );
+            let z = garage.drive_in_pose().z;
+            if open_when_first_moved.is_none() && (z - last_z).abs() > 1.0e-4 {
+                open_when_first_moved = Some(open);
+            }
+            last_z = z;
+        }
+        let at_first_move = open_when_first_moved.expect("the hull does eventually roll");
+        assert!(
+            (at_first_move - GATE_DRIVE_OPEN_M).abs() < 1.0e-3,
+            "the hull only moves under a FULLY open gate, got {at_first_move}"
+        );
+        assert!((widest - GATE_DRIVE_OPEN_M).abs() < 1.0e-4, "the gate actually reaches open");
+        assert_eq!(
+            garage.gate_open_m(),
+            GATE_AJAR_M,
+            "the door is closed back to ajar behind the parked hero"
+        );
     }
 
     #[test]

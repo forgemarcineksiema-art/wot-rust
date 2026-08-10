@@ -736,7 +736,9 @@ fn garage_frame_time_capture() {
     const BLOCK_WARMUP: usize = 6;
     let (width, height) = (1920u32, 1080u32);
 
-    let (hangar_v, hangar_i) = client::hangar_scene_mesh();
+    // What the game uploads post-E3: the shell without the gate curtain in the statics slot,
+    // fan blades + parked slats in the dynamic slot.
+    let (hangar_v, hangar_i) = scene_build::hangar::hangar_scene_mesh_without_gate();
 
     let Ok(ctx) =
         renderer_wgpu::GpuContext::headless_with_options(renderer_wgpu::GpuContextOptions {
@@ -756,6 +758,8 @@ fn garage_frame_time_capture() {
         println!("garage frame time: scene renderer unavailable — skipped");
         return;
     };
+    let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(0.0, scene_build::hangar::GATE_AJAR_M);
+    renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
     let adapter = ctx.adapter.get_info();
     println!(
         "garage frame time: {}x{} offscreen, {}x MSAA, adapter: {} ({:?})",

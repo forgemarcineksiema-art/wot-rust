@@ -145,6 +145,14 @@ impl GarageState {
     /// this once at startup. Loading happens before the path is stored, so it does not rewrite the
     /// file it just read.
     pub(super) fn enable_persistence(&mut self, path: PathBuf) {
+        // FIRST RUN of the game on this machine (E3): no save file has ever been written, so
+        // the hangar plays its full entrance — the gate opens, the hero drives in, the door
+        // closes behind it. Deliberately `!exists()`, NOT `load() == None`: a corrupt or
+        // newer-version save is a veteran's install with a broken file, and replaying the
+        // first-run ceremony over it would misread damage as novelty.
+        if !path.exists() {
+            self.start_drive_in();
+        }
         match load(&path) {
             Some(save) => {
                 self.saved = save.resolved_loadouts();
@@ -381,6 +389,34 @@ mod tests {
         assert_eq!(loaded.selected_kind(), Some(VehicleKind::TigerII));
 
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn the_first_run_earns_the_entrance_and_a_veteran_install_skips_it() {
+        // A machine with no save has never seen the hangar: the drive-in plays (E3). Any
+        // EXISTING file — even one this build cannot read — marks a veteran install, and the
+        // ceremony stays skipped: damage must not be misread as novelty.
+        let fresh = temp_path("first-run");
+        let mut garage = GarageState::default();
+        garage.enable_persistence(fresh.clone());
+        assert!(garage.is_driving_in(), "a fresh install drives the hero in");
+        let _ = std::fs::remove_dir_all(fresh.parent().unwrap());
+
+        let veteran = temp_path("veteran-run");
+        store(&veteran, &sample());
+        let mut garage = GarageState::default();
+        garage.enable_persistence(veteran.clone());
+        assert!(!garage.is_driving_in(), "a save on disk = no entrance replay");
+
+        let broken = temp_path("broken-run");
+        store(&broken, &sample());
+        std::fs::write(&broken, b"{ not json").unwrap();
+        let mut garage = GarageState::default();
+        garage.enable_persistence(broken.clone());
+        assert!(!garage.is_driving_in(), "a corrupt save is a veteran install, not a first run");
+
+        let _ = std::fs::remove_dir_all(veteran.parent().unwrap());
+        let _ = std::fs::remove_dir_all(broken.parent().unwrap());
     }
 
     #[test]
