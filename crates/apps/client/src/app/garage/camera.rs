@@ -8,7 +8,7 @@ use glam::Vec3;
 use renderer_api::Camera;
 
 use super::draft::FitSlot;
-use super::{GarageState, HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
+use super::{GarageState, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
 use scene_build::hangar::hangar_camera_pivot;
 
 const MIN_PITCH: f32 = -0.05;
@@ -47,11 +47,14 @@ pub(super) struct CameraTarget {
 }
 
 impl CameraTarget {
-    fn hero() -> Self {
+    /// The hero framing for `kind` (F3): the bearing never changes, the boom is per vehicle —
+    /// `hero_orbit_boom_for` backs the lens off far enough that a Jagdtiger's barrel stays in
+    /// frame, and the goldens render through the same function.
+    fn hero_for(kind: game_core::VehicleKind) -> Self {
         Self {
             yaw: HERO_ORBIT_YAW,
             pitch: HERO_ORBIT_PITCH,
-            distance: HERO_ORBIT_DISTANCE,
+            distance: scene_build::hangar::hero_orbit_boom_for(kind),
             pivot_offset: Vec3::ZERO,
         }
     }
@@ -62,7 +65,7 @@ impl CameraTarget {
     /// `scene_build::hangar` (FRAMING_*) — the review probe renders these exact shots and the
     /// composition lock holds a composed background in each, so a second copy here would be the
     /// drift the single-source pattern exists to kill.
-    fn for_slot(slot: FitSlot) -> Self {
+    fn for_slot(slot: FitSlot, kind: game_core::VehicleKind) -> Self {
         use scene_build::hangar as h;
         let from = |f: h::SlotFraming| Self {
             yaw: f.yaw,
@@ -76,7 +79,7 @@ impl CameraTarget {
             FitSlot::Hull => from(h::FRAMING_HULL),
             FitSlot::Engine => from(h::FRAMING_ENGINE),
             FitSlot::Suspension => from(h::FRAMING_SUSPENSION),
-            FitSlot::Radio => Self::hero(),
+            FitSlot::Radio => Self::hero_for(kind),
         }
     }
 }
@@ -136,22 +139,23 @@ impl GarageState {
 
     /// Fly the camera to frame a fitting slot's module.
     pub(in crate::app) fn focus_module(&mut self, slot: FitSlot) {
-        self.camera_target = Some(CameraTarget::for_slot(slot));
+        self.camera_target = Some(CameraTarget::for_slot(slot, self.selected_vehicle()));
         self.idle_seconds = 0.0;
     }
 
     /// Ease the camera back to the default hero framing (Escape / clicking empty scene).
     pub(in crate::app) fn return_to_hero_view(&mut self) {
-        self.camera_target = Some(CameraTarget::hero());
+        self.camera_target = Some(CameraTarget::hero_for(self.selected_vehicle()));
         self.idle_seconds = 0.0;
     }
 
     /// Snap (no spring) to the hero framing — used when switching vehicles, which already resets a
-    /// lot of state; the instant cut reads as "new tank, fresh look".
+    /// lot of state; the instant cut reads as "new tank, fresh look". The boom is the SELECTED
+    /// vehicle's own (F3).
     pub(super) fn snap_to_hero_view(&mut self) {
         self.orbit_yaw = HERO_ORBIT_YAW;
         self.orbit_pitch = HERO_ORBIT_PITCH;
-        self.orbit_distance = HERO_ORBIT_DISTANCE;
+        self.orbit_distance = scene_build::hangar::hero_orbit_boom_for(self.selected_vehicle());
         self.pivot_offset = Vec3::ZERO;
         self.camera_target = None;
         self.idle_seconds = 0.0;
@@ -160,10 +164,11 @@ impl GarageState {
     /// Whether the camera is away from the resting hero framing — an active focus/return spring,
     /// a lifted look point, or a manually orbited view. Escape uses this to back out before close.
     pub(in crate::app) fn is_camera_off_hero(&self) -> bool {
+        let rest_boom = scene_build::hangar::hero_orbit_boom_for(self.selected_vehicle());
         self.camera_target.is_some()
             || self.pivot_offset.length() > 0.02
             || angle_delta(self.orbit_yaw, HERO_ORBIT_YAW).abs() > 0.05
-            || (self.orbit_distance - HERO_ORBIT_DISTANCE).abs() > 0.2
+            || (self.orbit_distance - rest_boom).abs() > 0.2
             || (self.orbit_pitch - HERO_ORBIT_PITCH).abs() > 0.05
     }
 
@@ -196,6 +201,7 @@ impl GarageState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use scene_build::hangar::HERO_ORBIT_DISTANCE;
 
     fn spun(mut garage: GarageState, seconds: f32) -> GarageState {
         // 60 Hz worth of ticks to let a spring settle or the drift accumulate.
@@ -211,7 +217,7 @@ mod tests {
         garage.focus_module(FitSlot::Suspension);
         let garage = spun(garage, 2.0);
 
-        let want = CameraTarget::for_slot(FitSlot::Suspension);
+        let want = CameraTarget::for_slot(FitSlot::Suspension, garage.selected_vehicle());
         assert!((garage.orbit_distance - want.distance).abs() < 0.1, "boom pulls in close");
         assert!(garage.orbit_pitch < 0.05, "pitch drops to a low side pass");
         assert!(garage.pivot_offset.y < -0.3, "the look point drops to the wheels");
