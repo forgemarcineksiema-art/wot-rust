@@ -33,6 +33,11 @@ impl GarageState {
 impl ClientApp {
     pub(in crate::app) fn open_garage(&mut self) {
         self.garage.open();
+        // H1: the hall's daylight follows the PLAYER'S OWN CLOCK (standing user decision) —
+        // refreshed on each open, so an evening session gets the evening hall. The state
+        // itself never reads the wall clock; this is the one seam where the real world
+        // enters, and the override (`L`) still wins over it.
+        self.garage.set_auto_daylight(super::daylight_for_local_clock());
         self.input.clear_mouse_look();
         // Same rule as `open_pause_menu`: the battle does NOT pause behind the garage, and the
         // held keys will never deliver their release to it — without this, G with W held kept
@@ -194,6 +199,11 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::Minus) => self.garage.adjust_proficiency(-1),
             PhysicalKey::Code(KeyCode::Equal) => self.garage.adjust_proficiency(1),
             PhysicalKey::Code(KeyCode::KeyM) => self.garage.cycle_map(1),
+            // H1: the hall's daylight — Auto (the player's clock) → Morning → Day → Evening.
+            PhysicalKey::Code(KeyCode::KeyL) => {
+                self.garage.cycle_daylight();
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+            }
             PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),
                 super::GarageView::TechTree => self.garage.close_tech_tree(),

@@ -7,7 +7,7 @@ use std::time::Instant;
 use game_core::{TankId, TeamId, VehicleKind};
 use glam::Vec3;
 use net::TankSnapshot;
-use renderer_api::{CameraProjectionPolicy, RenderFrame, SceneLighting, view_projection_matrix};
+use renderer_api::{CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
@@ -35,6 +35,13 @@ impl ClientApp {
         // Keep the speculative map bake tracking the pick while the player is still in here —
         // this frame's spare cores are the ones the Battle press will not have to spend.
         self.poll_map_prebake();
+        // H1: the resolved daylight (override or the player's clock) picks which baked hall
+        // the swap uploads; a change marks the upload stale exactly like a map pick does.
+        let daylight = self.garage.hangar_light();
+        if daylight != self.garage_daylight {
+            self.garage_daylight = daylight;
+            self.scene_upload_dirty = true;
+        }
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();
@@ -83,7 +90,7 @@ impl ClientApp {
         // The air of the hall (E1): a slow trickle of dust motes inside the sun shafts, and
         // the shaft blades themselves appended as static soft-additive quads. Both read from
         // the hangar's own blade geometry, so the light, its dust and its beams agree.
-        let blades = scene_build::hangar::sun_shaft_quads();
+        let blades = scene_build::hangar::sun_shaft_quads_for(daylight);
         self.fx.hangar_motes(&blades, dt);
         // ...and the hall breathes (E2): steam off the heating duct by the stores, drifting
         // toward the gate with the draft the exhaust fan maintains.
@@ -114,10 +121,11 @@ impl ClientApp {
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
-        // The bench tube flickers (E2): the rig re-evaluated per presented frame on the same
-        // clock everything else animates on. Deterministic — at the golden harness's frozen
-        // second the factor is 1.0 and this line changes nothing.
-        renderer.set_scene_lighting(SceneLighting::garage_hero_at(scene_time_s));
+        // The bench tube flickers (E2) in whichever daylight the hall wears (H1): the rig
+        // re-evaluated per presented frame on the same clock everything else animates on.
+        // Deterministic — at the golden harness's frozen second the factor is 1.0.
+        renderer
+            .set_scene_lighting(scene_build::hangar::hangar_lighting_at(daylight, scene_time_s));
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");
         }
@@ -146,7 +154,10 @@ impl ClientApp {
                 SceneKind::Garage => {
                     // Without the gate curtain (E3): the slats render through the dynamic
                     // slot so the drive-in can move them; the BAKE still saw the parked gate.
-                    hangar_meshes = scene_build::hangar::hangar_scene_mesh_without_gate();
+                    // Under whichever daylight the hall wears this frame (H1).
+                    hangar_meshes = scene_build::hangar::hangar_scene_mesh_without_gate_for(
+                        self.garage_daylight,
+                    );
                     (&hangar_meshes.0, &hangar_meshes.1, &[], &[])
                 }
                 SceneKind::Battle => {
@@ -164,9 +175,12 @@ impl ClientApp {
             // on the turntable) over a dim, near-neutral shop interior. What shows through a
             // roof opening is the day outside — single-sourced, so the review goldens and the
             // probes cannot drift onto a different sky than the one the player sees.
-            SceneKind::Garage => {
-                (scene_build::hangar::INTERIOR_BACKGROUND, SceneLighting::garage_hero(), 0.0, 0.0)
-            }
+            SceneKind::Garage => (
+                scene_build::hangar::interior_background_for(self.garage_daylight),
+                scene_build::hangar::hangar_lighting(self.garage_daylight),
+                0.0,
+                0.0,
+            ),
             SceneKind::Battle => {
                 let frame = self.weather_frame;
                 (frame.sky, frame.lighting, frame.rain_intensity, frame.surface_wetness)
@@ -241,13 +255,15 @@ impl ClientApp {
                     renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
                     // The hero probe (Hala 3.0 B2): the hall's baked irradiance cube, so the
                     // parked vehicle receives the room's bounce the way the room itself does.
-                    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+                    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe_for(
+                        self.garage_daylight,
+                    )));
                     // ...and the hall's material grain catches the worklight (C1).
                     renderer.set_interior_detail_normal(true);
                     // ...and every polished surface mirrors the ROOM (D1): the baked,
-                    // prefiltered reflection cube from the hero station.
+                    // prefiltered reflection cube from the hero station, in this daylight.
                     renderer.set_environment_cube(Some(
-                        &scene_build::hangar::hangar_reflection_cube().mips,
+                        &scene_build::hangar::hangar_reflection_cube_for(self.garage_daylight).mips,
                     ));
                 }
                 SceneKind::Battle => {
