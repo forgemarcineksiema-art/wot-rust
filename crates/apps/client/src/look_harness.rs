@@ -249,10 +249,16 @@ pub fn render_hangar_review_views(
         };
         renderer.set_hud(&ctx, &hud);
 
-        let objects = crate::tank_vehicle_render_objects(
+        // At the parked settle its mass earns (J1) — the same pose the live garage renders.
+        // The BATTLEFIELD review path above keeps the neutral pose its goldens froze.
+        let snapshot = review_snapshot(&view.vehicle);
+        let objects = crate::vehicle::asset_render::tank_vehicle_render_objects_at_rest(
             &mut catalog,
-            &review_snapshot(&view.vehicle),
+            &snapshot,
             view.vehicle.hull_color,
+            &crate::vehicle::variation::VehicleVariation::from_snapshot(&snapshot),
+            0.0,
+            0.0,
         );
         for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
             renderer.register_vehicle_mesh(&ctx, handle, &mesh);

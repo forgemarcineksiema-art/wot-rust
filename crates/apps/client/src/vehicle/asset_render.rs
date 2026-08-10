@@ -74,6 +74,42 @@ pub fn tank_vehicle_render_objects_with_tracks(
     )
 }
 
+/// As [`tank_vehicle_render_objects_with_tracks`], at the STATIC SETTLE the vehicle's own
+/// mass earns (Hala 3.0 J1): the hull rides `rest_settle_m` lower (heave), every road wheel
+/// takes the same travel as compression — so the wheels keep their absolute contact height
+/// and the belt's bottom run stays flat on the deck while the hull visibly sits into its
+/// springs. THE GARAGE'S parked pose, and only the garage's: the battle drives its own live
+/// suspension, and the battlefield review frames keep the neutral pose their goldens froze.
+pub fn tank_vehicle_render_objects_at_rest(
+    catalog: &mut VehicleAssetCatalog,
+    snapshot: &TankSnapshot,
+    hull_color: [f32; 3],
+    variation: &VehicleVariation,
+    track_left_m: f32,
+    track_right_m: f32,
+) -> Vec<RenderObject> {
+    let settle = super::pose::rest_settle_m(snapshot.vehicle);
+    // One entry per possible road wheel; `travel_at` reads by index and ignores the rest.
+    let travel = [settle; 12];
+    tank_vehicle_render_objects_posed(
+        catalog,
+        snapshot,
+        hull_color,
+        variation,
+        track_left_m,
+        track_right_m,
+        [0.0, 0.0, -settle],
+        GearDynamics {
+            left_travel: &travel,
+            right_travel: &travel,
+            left_break_t: snapshot.track_break_t[0],
+            right_break_t: snapshot.track_break_t[1],
+            ..Default::default()
+        },
+        vehicle_geometry::GearDetail::Near,
+    )
+}
+
 /// As [`tank_vehicle_render_objects_with_tracks`], with the sprung-hull attitude
 /// `[pitch, roll, heave]` from the presentation world folded into the hull frame.
 #[allow(clippy::too_many_arguments)]
@@ -298,6 +334,72 @@ mod tests {
         assert!(
             dead_wreck < dead - 0.02,
             "a wreck's gun hangs further than a merely-dead gun: {dead_wreck} vs {dead}"
+        );
+    }
+
+    /// J1: THE PARKED HERO SITS ON ITS SPRINGS. Against the neutral pose: the hull (and
+    /// everything chained off it) rides the settle LOWER, the road wheels keep their absolute
+    /// contact height (the springs compressed — the wheel centre is HIGHER relative to the
+    /// dropped hull), and the belt's lowest run stays on the deck instead of sinking with the
+    /// hull. And the settle is the MASS talking: the Jagdtiger sits deeper than the T-54.
+    #[test]
+    fn the_parked_hero_sits_on_its_springs_and_the_tracks_stay_on_the_deck() {
+        let kind = VehicleKind::T54_1951;
+        let mut catalog = VehicleAssetCatalog::default();
+        let color = [0.34, 0.42, 0.30];
+        let shot = snapshot(kind, 0, 1500);
+        let variation = VehicleVariation::from_snapshot(&shot);
+
+        let neutral = tank_vehicle_render_objects_with_tracks(
+            &mut catalog,
+            &shot,
+            color,
+            &variation,
+            0.0,
+            0.0,
+        );
+        let rested =
+            tank_vehicle_render_objects_at_rest(&mut catalog, &shot, color, &variation, 0.0, 0.0);
+        let settle = super::super::pose::rest_settle_m(kind);
+        assert!((0.02..=0.04).contains(&settle), "the documented 2-4 cm band: {settle}");
+
+        let hull_y = |objects: &[RenderObject]| {
+            Mat4::from_cols_array_2d(&objects[crate::VEHICLE_HULL_OBJECT].transform)
+                .transform_point3(Vec3::ZERO)
+                .y
+        };
+        let dropped = hull_y(&neutral) - hull_y(&rested);
+        assert!(
+            (dropped - settle).abs() < 1.0e-4,
+            "the hull sits exactly its settle lower: {dropped} vs {settle}"
+        );
+
+        // The lowest GEAR origin under the wheel span is a contact-run belt link: it must
+        // NOT follow the hull down — the deck is where the tracks already were. Two scopes
+        // on purpose: the hull object's own origin rides the authoring ground plane and
+        // drops with the heave by design, and the ramp feet past the outermost wheels dip a
+        // few honest millimetres as the belt re-slopes toward the settled end wheels — so
+        // the sweep reads gear objects inside |z| < 2 m, the run that stands ON the deck.
+        let floor_of = |objects: &[RenderObject]| {
+            objects[crate::VEHICLE_GUN_OBJECT + 1..]
+                .iter()
+                .filter_map(|object| {
+                    let origin =
+                        Mat4::from_cols_array_2d(&object.transform).transform_point3(Vec3::ZERO);
+                    (origin.z.abs() < 2.0).then_some(origin.y)
+                })
+                .fold(f32::INFINITY, f32::min)
+        };
+        let contact_shift = (floor_of(&neutral) - floor_of(&rested)).abs();
+        assert!(
+            contact_shift < 2.0e-3,
+            "the contact band stays on the deck, moved {contact_shift} m"
+        );
+
+        // Mass is the knob: the heaviest hull in the roster sits visibly deeper.
+        assert!(
+            super::super::pose::rest_settle_m(VehicleKind::Jagdtiger) > settle + 0.005,
+            "seventy tonnes settle deeper than thirty-six"
         );
     }
 

@@ -818,7 +818,14 @@ fn garage_frame_time_capture() {
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
         eprintln!("note: no Forge artifacts loaded ({error}); hero uses the neutral material");
     }
-    let objects = client::tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
+    let objects = client::tank_vehicle_render_objects_at_rest(
+        &mut catalog,
+        &snapshot,
+        [0.72, 0.76, 0.62],
+        &client::VehicleVariation::from_snapshot(&snapshot),
+        0.0,
+        0.0,
+    );
     let hero_frame = client::render_frame_from_objects(objects);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);

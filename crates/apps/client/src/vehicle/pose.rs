@@ -14,6 +14,18 @@ use game_core::{MountFrames, VehicleKind};
 use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 
+/// The static settle a parked vehicle's own mass earns (Hala 3.0 J1): the hull sits this much
+/// lower than the neutral authoring pose, every road wheel carries it as spring compression,
+/// and the belt's contact band stays flat on the deck. Derived from the stock loadout's real
+/// mass over the fleet's band — 26 t settles the documented 2 cm, 70 t the documented 4 cm —
+/// so a Jagdtiger visibly SITS where a T-54 rests. Presentation only; the battle's live
+/// suspension and every gameplay surface are untouched.
+pub(crate) fn rest_settle_m(kind: game_core::VehicleKind) -> f32 {
+    let mass_t = kind.default_loadout().total_mass_kg() / 1000.0;
+    let t = ((mass_t - 26.0) / (70.0 - 26.0)).clamp(0.0, 1.0);
+    0.02 + 0.02 * t
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct VehiclePose {
     ground: Vec3,
