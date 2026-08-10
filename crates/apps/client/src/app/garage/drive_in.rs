@@ -139,6 +139,8 @@ impl GarageState {
     /// park heading — a new vehicle earns a fresh presentation.
     pub(super) fn start_drive_in(&mut self) {
         self.idle_turntable_yaw = 0.0;
+        // The freshly selected vehicle was not the one that fought: it arrives clean (J2).
+        self.dust = 0.0;
         self.drive_in = DriveIn {
             elapsed: Some(0.0),
             track_left_m: 0.0,
@@ -390,6 +392,29 @@ mod tests {
             GATE_AJAR_M,
             "the door is closed back to ajar behind the parked hero"
         );
+    }
+
+    /// J2: THE DUST IS A STORY, NOT A DIAL. It arrives with the hero back from the field,
+    /// settles while the hall stands, and a freshly selected vehicle rolls in clean.
+    #[test]
+    fn the_dust_arrives_from_the_field_settles_and_never_follows_a_fresh_tank() {
+        let mut garage = GarageState::default();
+        assert_eq!(garage.hangar_dust(), 0.0, "a fresh hall is clean");
+
+        garage.dust_from_the_field();
+        assert_eq!(garage.hangar_dust(), 1.0, "back from the field = dusty");
+        garage.tick_dust(30.0);
+        let settled = garage.hangar_dust();
+        assert!(
+            settled > 0.0 && settled < 1.0,
+            "half a minute settles some dust, not all: {settled}"
+        );
+        garage.tick_dust(600.0);
+        assert_eq!(garage.hangar_dust(), 0.0, "a long-standing hall is clean again");
+
+        garage.dust_from_the_field();
+        garage.start_drive_in();
+        assert_eq!(garage.hangar_dust(), 0.0, "the new pick was not the tank that fought");
     }
 
     #[test]

@@ -32,6 +32,11 @@ impl GarageState {
 
 impl ClientApp {
     pub(in crate::app) fn open_garage(&mut self) {
+        // Every open with a battle running behind it is a RETURN from the field (the G key
+        // and the pause menu both gate on `has_started`): the hero comes back dusty (J2).
+        if self.garage.has_started() {
+            self.garage.dust_from_the_field();
+        }
         self.garage.open();
         // H1: the hall's daylight follows the PLAYER'S OWN CLOCK (standing user decision) —
         // refreshed on each open, so an evening session gets the evening hall. The state

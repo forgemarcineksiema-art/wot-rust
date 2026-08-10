@@ -166,7 +166,7 @@ impl super::SceneRenderer {
                 scene_params: [
                     if self.interior_detail_normal { 1.0 } else { 0.0 },
                     if self.environment_cube_set { 1.0 } else { 0.0 },
-                    0.0,
+                    self.vehicle_dust,
                     0.0,
                 ],
             },

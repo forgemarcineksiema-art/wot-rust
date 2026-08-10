@@ -82,6 +82,10 @@ pub(super) struct GarageState {
     /// The armor inspector (I1): `I` toggles the translucent armor-volume overlay on the
     /// parked hero. Session-local — inspection is a moment, not a preference.
     inspector: bool,
+    /// Field dust on the hero (J2), 0 clean .. 1 fresh off the battlefield. Set on every
+    /// return from a running battle, settles slowly while the hall stands, and a freshly
+    /// selected vehicle rolls in clean — it was not the one that fought.
+    dust: f32,
 }
 
 impl Default for GarageState {
@@ -113,6 +117,7 @@ impl Default for GarageState {
             auto_daylight: scene_build::hangar::HangarLight::Day,
             daylight_override: None,
             inspector: false,
+            dust: 0.0,
         }
     }
 }
@@ -128,6 +133,21 @@ impl GarageState {
     /// tests and offscreen renders stay deterministic).
     pub(in crate::app) fn set_auto_daylight(&mut self, light: scene_build::hangar::HangarLight) {
         self.auto_daylight = light;
+    }
+
+    /// The hero came back from the field (J2): the hull wears the battle's dust.
+    pub(in crate::app) fn dust_from_the_field(&mut self) {
+        self.dust = 1.0;
+    }
+
+    /// Field dust this frame (J2), for `set_vehicle_dust`.
+    pub(in crate::app) fn hangar_dust(&self) -> f32 {
+        self.dust
+    }
+
+    /// The dust settles while the hall stands: clean again after ~two quiet minutes.
+    pub(in crate::app) fn tick_dust(&mut self, dt: f32) {
+        self.dust = (self.dust - dt / 120.0).max(0.0);
     }
 
     /// `I` in the hangar: the armor inspector on or off (I1).

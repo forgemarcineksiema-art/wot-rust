@@ -180,6 +180,11 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         &ctx,
         Some(&scene_build::hangar::hangar_reflection_cube_for(daylight).mips),
     );
+    // `dust <0..1>` reviews the field-dust film (J2) at a chosen amount.
+    if crate::sub_arg(2).as_deref() == Some("dust") {
+        let amount = crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.0);
+        renderer.set_vehicle_dust(amount);
+    }
     // `inspector` renders the armor inspector overlay (I1) over the parked hero.
     let mut fx = client::hangar_shaft_fx_vertices_for(daylight);
     if crate::sub_arg(2).as_deref() == Some("inspector") {

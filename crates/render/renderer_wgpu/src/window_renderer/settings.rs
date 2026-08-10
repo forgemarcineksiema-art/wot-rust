@@ -80,6 +80,13 @@ impl WindowRenderer {
         self.scene.set_interior_detail_normal(enabled);
     }
 
+    /// Field dust on the hero vehicle (see [`SceneRenderer::set_vehicle_dust`]).
+    ///
+    /// [`SceneRenderer::set_vehicle_dust`]: crate::SceneRenderer::set_vehicle_dust
+    pub fn set_vehicle_dust(&mut self, amount: f32) {
+        self.scene.set_vehicle_dust(amount);
+    }
+
     /// Set or clear the interior reflection cubemap (see
     /// [`SceneRenderer::set_environment_cube`]).
     ///
