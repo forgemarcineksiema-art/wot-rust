@@ -312,13 +312,20 @@ fn t54_headlight(f: &FittingsVisual) -> Vec<VehiclePart> {
 /// catch. That is a boss, not a hook: there is nowhere for a shackle to go (register K9).
 pub(crate) fn t54_tow_hook(index: u16, center: Vec3, half: Vec3) -> Vec<VehiclePart> {
     // The throat: a C of steel opening FORWARD, swept round so a shackle has somewhere to sit.
+    //
+    // It used to sweep `-cos(a)`, which puts the bulge at +Z and the 108-degree gap at -Z — the
+    // mouth facing the plate the hook is welded to, and the catch stranded inside the closed
+    // half. A hook a shackle cannot enter is a doughnut. The comment said "leaving the front
+    // open" the whole time; the code did the opposite and the test only asked whether three
+    // parts existed and whether the catch was ahead of the bracket, which the reversed version
+    // satisfied too.
     let radius = half.y * 0.62;
     let throat: Vec<Vec3> = (0..=9)
         .map(|k| {
-            // From the top of the mouth, round the back, to the bottom — leaving the front open.
+            // From the top of the mouth, round the BACK, to the bottom — the gap faces the bow.
             let a = std::f32::consts::PI * (0.30 + 1.40 * k as f32 / 9.0);
             let (sin, cos) = a.sin_cos();
-            center + Vec3::new(0.0, sin * radius, -cos * radius)
+            center + Vec3::new(0.0, sin * radius, cos * radius)
         })
         .collect();
     vec![
@@ -348,6 +355,9 @@ pub(crate) fn t54_tow_hook(index: u16, center: Vec3, half: Vec3) -> Vec<VehicleP
             submesh: SubmeshKind::Hull,
             material: MaterialRole::BarrelSteel,
             smoothing: SmoothingGroup::hard_edges(),
+            // Across the MOUTH. The C now closes toward the plate it is welded to and opens at
+            // the bow, so the catch belongs at +Z, spanning the gap. Sitting inside the closed
+            // half — which is where it used to be — it stopped nothing from jumping out.
             shape: PartShape::Mesh(detail::handle_rail(
                 &[
                     center + Vec3::new(0.0, radius * 0.86, radius * 0.50),
@@ -365,8 +375,18 @@ pub(crate) fn t54_deck_panel_bolts(deck: &BoxVisual, deck_top: f32) -> Vec<Vehic
     const PER_ROW: usize = 9;
     let mut heads = Vec::with_capacity(PER_ROW * 4);
     for row in 0..2 {
-        // The two long seams, inboard of the deck edges.
-        let x = deck.half.x * if row == 0 { -0.86 } else { 0.86 };
+        // The two long seams, at the deck EDGES.
+        //
+        // These used to sit at 0.86 of the half-width, which is x = +-0.817 — inside the
+        // transmission covers, which span 0.59..0.91 and stand 30 mm proud while a bolt head is
+        // 10 mm. Fourteen of the eighteen were sealed in solid geometry: 1008 triangles rendering
+        // the inside of a plate, and the four that showed were the ones nobody aimed for. The
+        // covering test asks for a span wider than 0.8 m and a height near the deck, which buried
+        // bolts satisfy perfectly.
+        //
+        // At the edge they do the job they exist for: two plates of the same colour, 30 mm apart
+        // in height, are told apart by the line of fasteners along the seam between them.
+        let x = deck.half.x * if row == 0 { -0.98 } else { 0.98 };
         for i in 0..PER_ROW {
             let t = (i as f32 + 0.5) / PER_ROW as f32;
             let z = deck.center.z - deck.half.z + t * 2.0 * deck.half.z;
@@ -469,8 +489,15 @@ fn exhaust_cowl(d: &DetailVisual) -> Vec<VehiclePart> {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::TrackMetal,
         smoothing: vehicle_geometry::SmoothingGroup(0),
+        // Set into the face rather than onto it: the slats stand `depth` proud of where they are
+        // centred, and the cowl's outboard face is already at x 1.60 against a track outer edge
+        // of 1.61. Louvres are pressed into a panel anyway — they are not fins bolted to one.
+        //
+        // Width across the face and height up it, which is now what the kernel means by those
+        // words. Before, a vertical face got them swapped: 0.675 m of "width" stood UP, so five
+        // blades grew out of a 220 mm box, through the fender, and into the moving top run.
         shape: PartShape::Mesh(detail::louvre_slats(
-            Vec3::new(c.x + out * h.x, c.y, c.z),
+            Vec3::new(c.x + out * (h.x - 0.022), c.y, c.z),
             Vec3::new(out, 0.0, 0.0),
             h.z * 1.5,
             h.y * 1.3,

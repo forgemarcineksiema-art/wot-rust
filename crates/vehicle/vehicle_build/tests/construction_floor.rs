@@ -20,21 +20,16 @@
 use std::collections::BTreeMap;
 
 use glam::Vec3;
-use vehicle_geometry::MaterialRole;
 
 /// A box presents six planes; a chamfered box presents about fourteen. Under ten planes a part is
 /// a box, at most with a corner knocked off it.
 const BOX_PLANES: usize = 10;
 
+mod common;
 /// Roles that are only ever seen through a breach. The floor is about what the vehicle presents
-/// to the world, so these are out of scope — and derived from the material rather than from a
-/// name list, so a new interior part classifies itself.
-fn is_interior(role: MaterialRole) -> bool {
-    matches!(
-        role,
-        MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition
-    )
-}
+/// to the world, so these are out of scope. Shared with `t54_turret_containment`, which judges
+/// exactly the parts this test excuses — one predicate, so a role cannot fall between them.
+use common::is_interior;
 
 /// Exterior parts for which a box is the RIGHT answer, and why. Rolled armour really is flat
 /// plate; bar stock really is a prism. Building either as anything else would be the mistake.

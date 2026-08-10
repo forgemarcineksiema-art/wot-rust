@@ -76,7 +76,13 @@ BlueprintFile(
         wheel_half_width: 0.18,
         link_half_width: 0.23,
         link_count: Some(90),
-        top_sag_m: 0.05,
+        // NO RETURN ROLLERS, so the top run hangs on the road wheels and scallops between them.
+        // That sag is the T-54's side-view signature and every reference photograph shows it
+        // deep; at 0.05 the belt read as a straight tape laid over the wheel tops. Raised to the
+        // depth the drawings show. Vehicles whose top run rides interleaved wheels (the Tiger
+        // family, Panther II, Jagdtiger) keep a shallow sag: theirs is supported nearly
+        // continuously, and a deep scallop there would be the same error in the other direction.
+        top_sag_m: 0.075,
         // Twelve radial webs, not six spokes: the obr. 1951 disc is the stamped "spider-web"
         // (12 ribs, 12 small + 12 large lightening holes) — see the part-construction dossier
         // in docs/vehicles/t-54.md. The five-arm starfish is a later/rebuild wheel.

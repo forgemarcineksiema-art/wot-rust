@@ -130,13 +130,18 @@ fn push_round(
         MaterialRole::Ammunition,
         PartLod::Detail,
     ));
+    // The PROJECTILE is painted steel, not brass. It used to carry `Ammunition` — the cartridge
+    // brass — which put 32 gold shells in the fighting compartment and made the tank look like it
+    // was stowing trophies. The case is brass and the rim is part of the case; the shell in front
+    // of it is a steel body in service paint (BR-412 black, OF-412 grey with a band). The two had
+    // it exactly backwards: brass on the projectile, machinery grey on the rim.
     parts.push(drum_part(
         PartKey::indexed("d10_projectile_nose", round_detail_index(family, index)),
         submesh,
         center + axis * 0.225,
         axis,
         (0.105, 0.048),
-        MaterialRole::Ammunition,
+        MaterialRole::InteriorMachinery,
         PartLod::Detail,
     ));
     parts.push(drum_part(
@@ -145,7 +150,7 @@ fn push_round(
         center - axis * 0.337,
         axis,
         (0.012, 0.078),
-        MaterialRole::InteriorMachinery,
+        MaterialRole::Ammunition,
         PartLod::Detail,
     ));
 }
