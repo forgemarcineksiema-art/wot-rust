@@ -15,6 +15,7 @@ use crate::voices::ambience::{RainAmbience, WindAmbience};
 use crate::voices::blast::HeBlast;
 use crate::voices::cannon::CannonShot;
 use crate::voices::engine::EngineVoice;
+use crate::voices::hangar::HangarAmbience;
 use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::track::TrackSnap;
 use crate::voices::traverse::TraverseVoice;
@@ -35,6 +36,8 @@ pub struct AudioEngine {
     remote_engines: RemoteEngines,
     wind: WindAmbience,
     rain: RainAmbience,
+    /// The hangar's own air (G1): room tone, the bench radio, the rare workshop one-shots.
+    hangar: HangarAmbience,
     turret_traverse: TraverseVoice,
     /// Sniper-scope muffle: the world through optics and a closed hatch. 0 open .. 1 scoped;
     /// eased so entering the scope is a breath, not a click.
@@ -59,6 +62,7 @@ impl AudioEngine {
             remote_engines: RemoteEngines::default(),
             wind: WindAmbience::new(sample_rate_hz, 0x57A7_1CA1),
             rain: RainAmbience::new(sample_rate_hz, 0x2A17_BED5),
+            hangar: HangarAmbience::new(sample_rate_hz, 0x4A11_6A2A),
             turret_traverse: TraverseVoice::new(sample_rate_hz, 0x7124_7E25),
             muffle: 0.0,
             muffle_target: 0.0,
@@ -90,6 +94,14 @@ impl AudioEngine {
     /// Scene wind amount: ~1 on the battlefield, ~0.25 inside the hangar.
     pub fn set_wind_level(&mut self, level: f32) {
         self.wind.set_level(level);
+    }
+
+    /// The hangar bed (G1): `level` 1 inside the garage / 0 on the field, and the bench
+    /// radio's bearing between the ears — pan and distance gain computed by the game, which
+    /// knows where the bench and the camera are.
+    pub fn set_hangar_bed(&mut self, level: f32, radio_pan: f32, radio_gain: f32) {
+        self.hangar.set_level(level);
+        self.hangar.set_radio(radio_pan, radio_gain);
     }
 
     /// Weather rain amount: 1 in a squall, 0 under a clear sky. The same knob soaks the ground
@@ -248,6 +260,9 @@ impl AudioEngine {
         }
         self.wind.render_add_stereo(out, 0.045);
         self.rain.render_add_stereo(out, 0.055);
+        // The hangar bed sits with the ambiences: a presence, never a performance — the UI
+        // clicks and the drive-in engine ride well above it (locked below).
+        self.hangar.render_add_stereo(out, 0.05);
 
         // The player's engine bed: mono at the ears, added to both channels equally.
         if self.scratch.len() < frames {
@@ -320,6 +335,33 @@ mod tests {
         let mut engine = AudioEngine::new(SR);
         let out = stereo_chunks(&mut engine, 0.5);
         assert!(rms(&out) < 1.0e-4, "no events, no engine, no wind level => silence");
+    }
+
+    /// G1's mixer-level contract: the hangar bed is a PRESENCE — audible in an otherwise
+    /// silent garage, sitting well under the click a player actually acts on — and the
+    /// battlefield never hears the radio at all.
+    #[test]
+    fn the_hangar_bed_sits_under_the_hall_events_and_dies_on_the_field() {
+        let mut engine = AudioEngine::new(SR);
+        engine.set_hangar_bed(1.0, -0.3, 0.8);
+        let bed = stereo_chunks(&mut engine, 4.0);
+        let bed_rms = rms(&bed[bed.len() / 2..]);
+        assert!(bed_rms > 1.0e-3, "the garage must not be dead silent");
+
+        engine.push_event(AudioEvent::UiClick { accent: true });
+        let click = stereo_chunks(&mut engine, 0.4);
+        let click_peak = click.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        assert!(
+            click_peak > bed_rms * 6.0,
+            "the commit click must ride clear of the bed: peak {click_peak} vs bed {bed_rms}"
+        );
+
+        engine.set_hangar_bed(0.0, 0.0, 0.0);
+        let field = stereo_chunks(&mut engine, 5.0);
+        assert!(
+            rms(&field[field.len() - 9_600..]) < 1.0e-3,
+            "the battlefield hears no workshop radio"
+        );
     }
 
     #[test]

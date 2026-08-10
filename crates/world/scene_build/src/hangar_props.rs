@@ -32,8 +32,9 @@ const OIL: [f32; 3] = [0.20, 0.19, 0.165];
 /// the nave's long axis (gate → hero station → second bay → stores), the A3 workflow line.
 pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     // Wall-side props are anchored a fixed offset in from the shell, so they follow the wall at any
-    // hall size instead of floating mid-floor.
-    let wall = HALF_X - 1.7;
+    // hall size instead of floating mid-floor. The bench itself stands at `WORKBENCH_ANCHOR` —
+    // shared with the audio bed, whose radio murmurs from the bench (G1).
+    let wall = super::hangar::WORKBENCH_ANCHOR[0];
     let gate_corner_x = HALF_X - 3.0;
     let gate_corner_z = HALF_Z - 3.0;
     overhead_crane(v, i);
@@ -49,7 +50,7 @@ pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     ammo_rack(v, i, 4.2, -(HALF_Z - 4.0));
     wheel_stack(v, i, -(HALF_X - 1.5), 0.9);
     track_link_pile(v, i, -(HALF_X - 1.6), -0.7);
-    workbench(v, i, wall, 6.0);
+    workbench(v, i, wall, super::hangar::WORKBENCH_ANCHOR[2]);
     tool_board(v, i, 6.0);
     crate_pallet(v, i, gate_corner_x, gate_corner_z);
     barrels(v, i, -wall);
