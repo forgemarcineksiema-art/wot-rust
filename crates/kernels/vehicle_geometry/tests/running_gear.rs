@@ -43,8 +43,11 @@ fn tiger_ii_dish_face_normals_stay_axial_across_the_whole_plate() {
 /// width, which this test used to demand, is exactly what a twin-tyre wheel must NOT have.
 #[test]
 fn every_road_wheel_tyre_band_is_closed_on_its_inner_face() {
+    // The Tiger II's steel-tyred wheel bands its rim in the disc's own material, which is now
+    // hull paint rather than track steel: a road wheel is painted with the tank (see
+    // `paint_the_disc`). The band still has to be closed either way — that is what this measures.
     for (kind, material) in [
-        (VehicleKind::TigerII, MaterialRole::TrackMetal),
+        (VehicleKind::TigerII, MaterialRole::RolledArmor),
         (VehicleKind::Centurion, MaterialRole::Rubber),
         (VehicleKind::T54_1951, MaterialRole::Rubber),
     ] {
@@ -502,8 +505,23 @@ fn t54_top_track_links_ride_the_wheels_with_only_the_horn_in_the_slot() {
         .collect();
     assert!(!top_links.is_empty(), "the top run must have links on it");
 
+    // MEASURE THE SHOES THAT ARE ON A WHEEL. A shoe between two wheels is not riding anything —
+    // it is the sag, which on a tank with no return rollers is the point. Judging every link in
+    // the span against the tread meant the deepest scallop set the verdict, and the way that was
+    // settled was a bare `- 0.075` on the clearance line: a margin wide enough to let the sag
+    // through, which then also let a shoe sink 75 mm into a wheel. Two different things, one
+    // number. Split them: seating is asked of the links over a wheel station, and the sag has its
+    // own bound below.
+    let half_pitch = kin.belt_length() / kin.link_count().max(1) as f32 * 0.5;
+    let over_a_wheel = |z: f32| kin.wheel_zs.iter().any(|&wz| (z - wz).abs() <= half_pitch);
+
     let (mut shoulder_min, mut horn_min) = (f32::INFINITY, f32::INFINITY);
+    let mut seated = 0usize;
     for placement in &top_links {
+        if !over_a_wheel(placement.transform.w_axis.z) {
+            continue;
+        }
+        seated += 1;
         let centre_x = placement.transform.w_axis.x;
         for vertex in link.vertices() {
             let world = placement.transform.transform_point3(vertex.position);
@@ -515,6 +533,7 @@ fn t54_top_track_links_ride_the_wheels_with_only_the_horn_in_the_slot() {
             }
         }
     }
+    assert!(seated > 0, "the top run must have shoes sitting over the road wheels");
 
     assert!(
         shoulder_min >= tread_clearance_y,
@@ -529,6 +548,24 @@ fn t54_top_track_links_ride_the_wheels_with_only_the_horn_in_the_slot() {
     assert!(
         horn_min < shoulder_min,
         "and it must actually be IN the slot: horn {horn_min:.3} vs shoe {shoulder_min:.3}"
+    );
+
+    // And BETWEEN the wheels it sags — visibly, but not into the hull. This is the half of the
+    // rule the old clearance margin was silently carrying.
+    let between_min = top_links
+        .iter()
+        .filter(|p| !over_a_wheel(p.transform.w_axis.z))
+        .map(|p| p.transform.w_axis.y)
+        .fold(f32::INFINITY, f32::min);
+    let wheel_top = kin.cy + kin.wheel_radius;
+    assert!(
+        between_min < wheel_top - 0.02,
+        "a tank with no return rollers scallops between its wheels: lowest link between stations \
+         {between_min:.3} against a wheel top of {wheel_top:.3}"
+    );
+    assert!(
+        between_min > kin.cy + kin.wheel_radius * 0.5,
+        "the top run sags, it does not collapse onto the hull roof: {between_min:.3}"
     );
 }
 
@@ -554,8 +591,11 @@ fn t54_road_wheels_have_metal_faces_and_rubber_tires() {
     let wheel = road_wheel_unit_mesh(&kin);
 
     assert!(wheel.vertices().iter().any(|vertex| vertex.material == MaterialRole::Rubber));
+    // The disc is steel, and steel on a road wheel is PAINTED steel — `RolledArmor`, the same
+    // value as the hull, not the track's own metal. The point of the assertion is unchanged: a
+    // road wheel is a disc with a tyre on it, not one black rubber cylinder.
     assert!(
-        wheel.vertices().iter().any(|vertex| vertex.material == MaterialRole::TrackMetal),
+        wheel.vertices().iter().any(|vertex| vertex.material == MaterialRole::RolledArmor),
         "T-54 road wheels need visible metal discs/hubs, not a single black rubber cylinder"
     );
     assert!(
@@ -593,7 +633,7 @@ fn t54_road_wheel_face_shows_steel_not_a_solid_rubber_disc() {
     };
 
     assert!(
-        max_radius(MaterialRole::TrackMetal) >= kin.wheel_radius * 0.7,
+        max_radius(MaterialRole::RolledArmor) >= kin.wheel_radius * 0.7,
         "steel disc should fill most of the wheel face, not sit as a tiny hub"
     );
     assert!(
@@ -823,5 +863,57 @@ fn the_torsion_arm_is_an_i_section_with_a_bar_hub() {
     assert!(
         inboard < -0.070,
         "the torsion-bar boss must stand proud toward the hull: innermost {inboard:.3}"
+    );
+}
+
+/// BOTH SIDES OF THE TANK SHOW THE OUTSIDE OF THE WHEEL.
+///
+/// Every lock in this file measures a UNIT MESH — the wheel as built, at the origin, before it is
+/// placed. That is the whole reason a wheel could be dished, hub-capped and bolted on one face and
+/// then dropped onto the left-hand side by a plain translation, showing the flat inboard back of
+/// the stamping to the world for half of every side view in the roster. The mesh was never wrong;
+/// the placement was, and no test looked at placements in world space.
+///
+/// So this one does. It takes the most outboard point of the unit wheel — the hub cap, the face
+/// that carries the bolt circle — and asks where each side's transform actually puts it.
+#[test]
+fn every_road_wheel_shows_its_hub_face_to_the_world() {
+    let mut walked = 0usize;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        walked += 1;
+        let wheel = road_wheel_unit_mesh(&kin);
+        // The unit wheel's outboard extreme, on its own axle.
+        let hub_face_x =
+            wheel.vertices().iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+        assert!(hub_face_x > 0.0, "{kind:?}: the unit wheel has no outboard face");
+
+        let placements = running_gear_placements(&kin, 0.0, 0.0);
+        let wheels: Vec<Mat4> = placements
+            .iter()
+            .filter(|p| p.part == GearPart::RoadWheel)
+            .map(|p| p.transform)
+            .collect();
+        assert!(!wheels.is_empty(), "{kind:?}: no road wheels placed");
+
+        for transform in wheels {
+            let centre = transform.transform_point3(Vec3::ZERO);
+            let hub = transform.transform_point3(Vec3::new(hub_face_x, 0.0, 0.0));
+            assert!(
+                hub.x.abs() > centre.x.abs(),
+                "{kind:?}: a road wheel at x {:.3} puts its hub face at {:.3} — INBOARD, so that \
+                 side of the tank shows the back of the stamping and points its bolt circle at \
+                 the hull",
+                centre.x,
+                hub.x
+            );
+        }
+    }
+    // Say how much of the fleet this actually walked: a `continue` past missing data would
+    // otherwise let this pass having checked nothing.
+    assert_eq!(
+        walked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle animates its running gear, so every one of them is checked here"
     );
 }

@@ -85,8 +85,21 @@ pub fn louvre_slats(
 ) -> GeometryMesh {
     let n = normal.normalize_or_zero();
     let n = if n == Vec3::ZERO { Vec3::Y } else { n };
-    let across =
-        if n.cross(Vec3::Z).length() > 1.0e-3 { n.cross(Vec3::Z).normalize() } else { Vec3::X };
+    // WIDTH RUNS ACROSS THE OPENING AND HEIGHT RUNS UP IT — on a wall as much as on a deck.
+    //
+    // This used to be `n x Z` unconditionally, which is right for a horizontal panel (`n = Y`
+    // gives across = X, stacking down Z) and turns a vertical one on its side: for `n = -X` it
+    // returns +Y, so a cowl asking for 0.675 m of width across its face got 0.675 m of fin
+    // standing UP. The T-54's exhaust grew five 675 mm blades out of a 220 mm box, through the
+    // fender and down into the moving top run of the track. Prefer world up, and only fall back
+    // to the cross product when the face IS the floor or the ceiling.
+    let across = if n.cross(Vec3::Y).length() > 1.0e-3 {
+        n.cross(Vec3::Y).normalize()
+    } else if n.cross(Vec3::Z).length() > 1.0e-3 {
+        n.cross(Vec3::Z).normalize()
+    } else {
+        Vec3::X
+    };
     let up = n.cross(across).normalize();
     let count = count.max(1);
     let pitch = height / count as f32;

@@ -114,7 +114,9 @@ fn t54() -> VehicleBlueprint {
             wheel_half_width: 0.18,
             link_half_width: 0.23,
             link_count: Some(90),
-            top_sag_m: 0.05,
+            // No return rollers: the top run hangs on the road wheels and scallops between them.
+            // See the note beside this number in `t54_1951.blueprint.ron`.
+            top_sag_m: 0.075,
             // Twelve webs between twelve pairs of lightening holes: the obr. 1951 disc is the
             // stamped spider-web, not an openwork casting (dossier, part construction / S1b).
             wheel_spokes: 12,

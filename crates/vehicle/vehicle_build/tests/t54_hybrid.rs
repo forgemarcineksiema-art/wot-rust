@@ -311,7 +311,19 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // stood 71 mm proud of the rear dome — brass on the casting with no breach needed) and the
     // radio set, whose control panel reached 94 mm outside the dome on the diagonal.
     // Previous: 0x0950_1aaa_02c5_23fa (PR-30, the bevel law).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xcaf6_206c_f364_2e35;
+    // Re-recorded 2026-08-10 (the mechanisms do what they are named for): the projectile stops
+    // being brass — the case and its rim are cartridge brass, the shell in front of them is
+    // painted steel, and the two had it exactly backwards, which is why 32 gold rounds sat in the
+    // fighting compartment. The tow hook's C is swept the other way, so its mouth faces the bow
+    // instead of the plate it is welded to, with the catch across the gap rather than stranded
+    // inside the closed half. The engine-deck bolts move from 0.86 of the half-width to 0.98:
+    // fourteen of the eighteen were sealed inside the transmission covers, 1008 triangles
+    // rendering the inside of a plate. And the exhaust louvres lie ON their cowl now that
+    // `louvre_slats` derives its across-axis from world up rather than from Z — on a vertical
+    // face the old convention turned width into height and grew five 675 mm fins out of a 220 mm
+    // box, through the fender and into the moving top run of the track.
+    // Previous: 0xcaf6_206c_f364_2e35 (PR-31, the gun group on the trunnion).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x054a_3942_e655_3e89;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
