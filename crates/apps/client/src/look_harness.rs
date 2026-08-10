@@ -261,6 +261,19 @@ pub fn render_hangar_review_views(
             renderer.register_vehicle_material(&ctx, handle, &maps);
         }
         renderer.set_vehicle_render_frame(&ctx, &crate::render_frame_from_objects(objects));
+        // The armor inspector view (I1): the same overlay builder the live client renders,
+        // appended to the frozen shafts; every other view keeps the shafts alone.
+        if view.inspector {
+            let mut fx = hangar_shaft_fx_vertices();
+            fx.extend(crate::vehicle::armor_overlay::armor_inspector_fx_vertices(
+                view.vehicle.kind,
+                glam::Vec3::from_array(view.vehicle.position),
+                view.vehicle.yaw_rad,
+            ));
+            renderer.set_fx(&ctx, &fx);
+        } else {
+            renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());
+        }
         renderer.scene_lighting = view.lighting;
         // Interior: the gradient-sky pass is off and a flat clear colour stands behind the room.
         renderer.set_interior_background(view.background.0, view.background.1, view.background.2);

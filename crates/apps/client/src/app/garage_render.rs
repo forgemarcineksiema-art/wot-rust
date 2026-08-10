@@ -99,6 +99,15 @@ impl ClientApp {
         let mut fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
         fx_vertices.extend(crate::fx::FxSystem::hangar_shaft_vertices(&blades));
+        // The armor inspector (I1): the hero's gameplay armor volumes as translucent
+        // zone-colored faces, riding the parked pose (and the drive-in pose, honestly).
+        if self.garage.inspector_on() {
+            fx_vertices.extend(crate::vehicle::armor_overlay::armor_inspector_fx_vertices(
+                self.garage.selected_vehicle(),
+                Vec3::new(0.0, crate::TURNTABLE_TOP_M, pose.z),
+                pose.yaw_rad,
+            ));
+        }
 
         let scene_time_s = self.presented_time_s();
         let Some(renderer) = self.renderer.as_mut() else {

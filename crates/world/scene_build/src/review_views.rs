@@ -91,6 +91,9 @@ pub struct HangarReviewView {
     /// bright 0.1% against the room's 2% floor with a picture that was perfectly readable).
     /// A close-up answers to its SUBJECT bounds instead; the plane locks skip it.
     pub close_up: bool,
+    /// The armor inspector overlay (I1): the client renders the vehicle's gameplay armor
+    /// volumes as translucent zone-colored FX faces over the hero. One view locks it.
+    pub inspector: bool,
     /// Which garage screen this view locks (see [`GarageScreen`]).
     pub screen: GarageScreen,
 }
@@ -205,6 +208,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         // instrument panel and answer to their own locks.
         subject_box: (screen == GarageScreen::Room).then_some(hero_subject_box()),
         close_up: false,
+        inspector: false,
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views
@@ -235,6 +239,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         // locking — the room planes skip a close-up entirely.
         subject_box: Some([0.06, 0.06, 0.94, 0.94]),
         close_up: true,
+        inspector: false,
         screen: GarageScreen::Room,
     });
     for (name, kind) in [
@@ -256,9 +261,34 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             },
             subject_box: Some(heavy_subject_box(kind)),
             close_up: false,
+            inspector: false,
             screen: GarageScreen::Room,
         });
     }
+
+    // I1: the armor inspector — the hero shot with the gameplay armor volumes drawn over the
+    // vehicle. One golden locks that the inspector still SHOWS (zones colored, discs stamped,
+    // vehicle readable underneath); the numbers it draws are locked at their source.
+    views.push(HangarReviewView {
+        name: "garage_inspector".to_string(),
+        eye: crate::hangar::hero_orbit_eye().to_array(),
+        target: crate::hangar::hangar_camera_pivot().to_array(),
+        lighting: SceneLighting::garage_hero(),
+        background: crate::hangar::INTERIOR_BACKGROUND,
+        vehicle: ReviewVehicle {
+            kind: VehicleKind::T54_1951,
+            position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
+            yaw_rad: crate::hangar::HERO_PARK_YAW,
+            turret_yaw_rad: 0.0,
+            hull_color: [0.72, 0.76, 0.62],
+        },
+        // The subject is deliberately UNDER an overlay here; the hero view already measures
+        // the bare vehicle, and a crop of translucent color would measure the overlay.
+        subject_box: None,
+        close_up: false,
+        inspector: true,
+        screen: GarageScreen::Room,
+    });
     views
 }
 

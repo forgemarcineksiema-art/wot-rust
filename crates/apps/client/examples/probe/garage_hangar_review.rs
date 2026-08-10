@@ -172,7 +172,16 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         &ctx,
         Some(&scene_build::hangar::hangar_reflection_cube_for(daylight).mips),
     );
-    renderer.set_fx(&ctx, &client::hangar_shaft_fx_vertices_for(daylight));
+    // `inspector` renders the armor inspector overlay (I1) over the parked hero.
+    let mut fx = client::hangar_shaft_fx_vertices_for(daylight);
+    if crate::sub_arg(2).as_deref() == Some("inspector") {
+        fx.extend(client::armor_inspector_fx_vertices(
+            vehicle,
+            glam::Vec3::new(0.0, client::TURNTABLE_TOP_M, 0.0),
+            scene_build::hangar::HERO_PARK_YAW,
+        ));
+    }
+    renderer.set_fx(&ctx, &fx);
     let (dyn_v, dyn_i) =
         client::hangar_dynamic_mesh_at(0.0, gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M));
     renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);

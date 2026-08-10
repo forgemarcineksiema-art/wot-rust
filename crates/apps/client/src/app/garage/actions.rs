@@ -204,6 +204,11 @@ impl ClientApp {
                 self.garage.cycle_daylight();
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
             }
+            // I1: the armor inspector — the gameplay armor volumes over the parked hero.
+            PhysicalKey::Code(KeyCode::KeyI) => {
+                self.garage.toggle_inspector();
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+            }
             PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),
                 super::GarageView::TechTree => self.garage.close_tech_tree(),

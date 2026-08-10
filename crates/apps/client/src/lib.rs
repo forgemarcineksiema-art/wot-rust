@@ -62,6 +62,7 @@ pub use scene_build::review_views::{
 };
 pub use scene_build::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
 pub use scene_build::water::battlefield_water_mesh;
+pub use vehicle::armor_overlay::armor_inspector_fx_vertices;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{
     tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,

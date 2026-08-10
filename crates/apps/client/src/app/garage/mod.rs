@@ -79,6 +79,9 @@ pub(super) struct GarageState {
     /// The player's manual daylight choice (`L` cycles Auto → Morning → Day → Evening),
     /// persisted with the garage save. `None` = follow the clock.
     daylight_override: Option<scene_build::hangar::HangarLight>,
+    /// The armor inspector (I1): `I` toggles the translucent armor-volume overlay on the
+    /// parked hero. Session-local — inspection is a moment, not a preference.
+    inspector: bool,
 }
 
 impl Default for GarageState {
@@ -109,6 +112,7 @@ impl Default for GarageState {
             selected_map: None,
             auto_daylight: scene_build::hangar::HangarLight::Day,
             daylight_override: None,
+            inspector: false,
         }
     }
 }
@@ -124,6 +128,15 @@ impl GarageState {
     /// tests and offscreen renders stay deterministic).
     pub(in crate::app) fn set_auto_daylight(&mut self, light: scene_build::hangar::HangarLight) {
         self.auto_daylight = light;
+    }
+
+    /// `I` in the hangar: the armor inspector on or off (I1).
+    pub(in crate::app) fn toggle_inspector(&mut self) {
+        self.inspector = !self.inspector;
+    }
+
+    pub(in crate::app) fn inspector_on(&self) -> bool {
+        self.inspector
     }
 
     /// `L` in the hangar: cycle Auto → Morning → Day → Evening → Auto, persisted.
