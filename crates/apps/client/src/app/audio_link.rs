@@ -36,6 +36,28 @@ impl ClientApp {
         let in_garage = self.garage.is_open();
         // The hangar is sheltered: a breath of air, engine off. The field gets the full wind.
         let wind_level = if in_garage { 0.2 } else { 1.0 };
+        // The hangar's own bed (G1): room tone + the bench radio, panned to the bench's real
+        // bearing from the orbiting camera (the same right-vector convention `spatial.rs`
+        // pans by). The battlefield hears none of it.
+        let (hangar_level, radio_pan, radio_gain) = if in_garage {
+            match listener {
+                Some(listener) => {
+                    let bench = glam::Vec3::from_array(scene_build::hangar::WORKBENCH_ANCHOR);
+                    let to = bench - listener.position;
+                    let distance = to.length().max(1.0);
+                    let right = glam::Vec3::new(-listener.forward.z, 0.0, listener.forward.x)
+                        .normalize_or_zero();
+                    let pan = (to / distance).dot(right).clamp(-1.0, 1.0);
+                    // A small speaker across a workshop: falls with distance, never to zero
+                    // inside the hall.
+                    let gain = (12.0 / (6.0 + distance)).clamp(0.25, 1.0);
+                    (1.0, pan, gain)
+                }
+                None => (1.0, 0.0, 0.6),
+            }
+        } else {
+            (0.0, 0.0, 0.0)
+        };
         // The squall's patter belongs to the battlefield's weather, never the hangar roof.
         let rain_level = if in_garage { 0.0 } else { self.weather_frame.rain_intensity };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
@@ -62,6 +84,7 @@ impl ClientApp {
                 engine.set_listener(listener);
             }
             engine.set_wind_level(wind_level);
+            engine.set_hangar_bed(hangar_level, radio_pan, radio_gain);
             engine.set_rain_level(rain_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
             engine.set_player_fire(player_burning);
