@@ -35,11 +35,20 @@ pub fn hangar_shaft_fx_vertices() -> Vec<renderer_api::FxVertex> {
 /// extraction fan, not a propeller.
 const FAN_SPEED_RAD_S: f32 = 2.4;
 
-/// The exhaust fan's blade mesh at a moment on the presentation clock — the one builder the
-/// live garage, this harness and the probes share, so the locked frame holds the exact blade
-/// angle the game would show at the frozen review second.
-pub fn hangar_fan_mesh_at(seconds: f32) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
-    scene_build::hangar::wall_fan_blades(seconds * FAN_SPEED_RAD_S)
+/// The hangar's MOVING geometry at a moment on the presentation clock: the exhaust fan's
+/// blades plus the bay gate's slat curtain at `gate_open_m` (E3) — the one builder the live
+/// garage, this harness and the probes share, so the locked frame holds the exact blade
+/// angle and curtain position the game would show at the frozen review second.
+pub fn hangar_dynamic_mesh_at(
+    seconds: f32,
+    gate_open_m: f32,
+) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
+    let (mut v, mut i) = scene_build::hangar::wall_fan_blades(seconds * FAN_SPEED_RAD_S);
+    let (slat_v, slat_i) = scene_build::hangar::bay_gate_slats(gate_open_m);
+    let base = v.len() as u32;
+    v.extend(slat_v);
+    i.extend(slat_i.iter().map(|idx| idx + base));
+    (v, i)
 }
 
 /// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the
@@ -165,12 +174,13 @@ pub fn render_hangar_review_views(
     width: u32,
     height: u32,
 ) -> Result<Vec<Vec<u8>>, LookHarnessError> {
-    let (hangar_vertices, hangar_indices) = scene_build::hangar::hangar_scene_mesh();
+    let (hangar_vertices, hangar_indices) = scene_build::hangar::hangar_scene_mesh_without_gate();
 
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     // The hangar shell rides the statics slot, exactly as `garage_render::ensure_scene` uploads
-    // it — same buffer, same shader, same lighting path as the live garage.
+    // it — same buffer, same shader, same lighting path as the live garage. WITHOUT the gate
+    // curtain (E3): the slats are dynamic geometry now, parked at ajar below.
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &hangar_vertices, &hangar_indices)?;
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
     // The orbit camera sweeps a full circle, so the battle path's forward-offset shadow heuristic
@@ -192,11 +202,13 @@ pub fn render_hangar_review_views(
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());
-    // The fan holds one exact blade angle at the frozen review clock (E2) and the flicker
-    // factor is exactly 1.0 there — `garage_hero_at(REVIEW_SCENE_TIME_S)` is `garage_hero()`
-    // to the bit, so the views' own lighting stays the single source it always was.
-    let (fan_v, fan_i) = hangar_fan_mesh_at(REVIEW_SCENE_TIME_S);
-    renderer.set_dynamic_mesh(&ctx, &fan_v, &fan_i);
+    // The fan holds one exact blade angle at the frozen review clock (E2), the gate curtain
+    // parks at ajar (E3), and the flicker factor is exactly 1.0 there —
+    // `garage_hero_at(REVIEW_SCENE_TIME_S)` is `garage_hero()` to the bit, so the views' own
+    // lighting stays the single source it always was.
+    let (dyn_v, dyn_i) =
+        hangar_dynamic_mesh_at(REVIEW_SCENE_TIME_S, scene_build::hangar::GATE_AJAR_M);
+    renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

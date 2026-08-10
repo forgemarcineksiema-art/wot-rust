@@ -105,10 +105,12 @@ impl ClientApp {
         }
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&render_frame);
-        // The exhaust fan turns (E2): its blades are the dynamic mesh the garage used to
-        // clear — rebuilt per frame at the tick-domain angle, ~180 vertices of motion.
-        let (fan_v, fan_i) = crate::look_harness::hangar_fan_mesh_at(scene_time_s);
-        renderer.set_dynamic_mesh(&fan_v, &fan_i);
+        // The exhaust fan turns (E2) and the bay gate rides its track through the drive-in
+        // (E3): both are the dynamic mesh the garage used to clear — rebuilt per frame,
+        // a few hundred vertices of motion.
+        let (dyn_v, dyn_i) =
+            crate::look_harness::hangar_dynamic_mesh_at(scene_time_s, self.garage.gate_open_m());
+        renderer.set_dynamic_mesh(&dyn_v, &dyn_i);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
@@ -142,7 +144,9 @@ impl ClientApp {
         let (vertices, indices, water_vertices, water_indices): (&[_], &[u32], &[_], &[u32]) =
             match want {
                 SceneKind::Garage => {
-                    hangar_meshes = scene_build::hangar::hangar_scene_mesh();
+                    // Without the gate curtain (E3): the slats render through the dynamic
+                    // slot so the drive-in can move them; the BAKE still saw the parked gate.
+                    hangar_meshes = scene_build::hangar::hangar_scene_mesh_without_gate();
                     (&hangar_meshes.0, &hangar_meshes.1, &[], &[])
                 }
                 SceneKind::Battle => {

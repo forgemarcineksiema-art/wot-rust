@@ -173,10 +173,10 @@ outdoor frame, and meaningless indoors.
 | `ostrogorsk_overcast` | 7.7% | 48.8% | 43.5% | 0.190 | 0.430 | 0.713 | 0.523 | 0.159 | 0.0065 | +0.306 |
 | `ostrogorsk_rain` | 7.5% | 57.7% | 34.8% | 0.181 | 0.397 | 0.676 | 0.495 | 0.173 | 0.0061 | +0.302 |
 | `ostrogorsk_canyon` | 4.8% | 62.8% | 32.4% | 0.256 | 0.526 | 0.880 | 0.624 | 0.259 | 0.0079 | +0.228 |
-| `garage_hero` | 75.3% | 19.6% | 5.2% | 0.026 | 0.148 | 0.606 | 0.580 | 0.247 | 0.0066 | −0.134 |
-| `garage_screen` | 75.8% | 19.3% | 4.9% | 0.061 | 0.130 | 0.599 | 0.539 | 0.204 | 0.0098 | −0.097 |
-| `garage_tech_tree` | 81.7% | 15.7% | 2.6% | 0.051 | 0.122 | 0.518 | 0.467 | 0.203 | 0.0056 | −0.093 |
-| `garage_option_list` | 76.5% | 18.5% | 4.9% | 0.061 | 0.128 | 0.599 | 0.539 | 0.204 | 0.0100 | −0.066 |
+| `garage_hero` | 74.9% | 19.9% | 5.2% | 0.028 | 0.152 | 0.606 | 0.578 | 0.245 | 0.0067 | −0.130 |
+| `garage_screen` | 75.5% | 19.6% | 4.9% | 0.061 | 0.133 | 0.599 | 0.539 | 0.204 | 0.0099 | −0.095 |
+| `garage_tech_tree` | 81.6% | 15.7% | 2.6% | 0.052 | 0.123 | 0.518 | 0.466 | 0.203 | 0.0056 | −0.092 |
+| `garage_option_list` | 76.2% | 18.8% | 4.9% | 0.061 | 0.130 | 0.599 | 0.539 | 0.204 | 0.0101 | −0.064 |
 
 ### What the baseline says
 
@@ -238,7 +238,6 @@ ostrogorsk_clear_afternoon:  dark plane 0.044, target 0.080 (short by 0.036, W1)
 ostrogorsk_overcast:         dark plane 0.077, target 0.080 (short by 0.003, W1)
 ostrogorsk_rain:             dark plane 0.075, target 0.080 (short by 0.005, W1)
 ostrogorsk_canyon:           dark plane 0.048, target 0.080 (short by 0.032, W1)
-garage_hero:                 dark plane 0.804, target ≤ 0.750 (over by 0.054, D20, W4)
 ```
 
 **Which frames are absent is the point.** Every golden-evening frame, the tank-at-contact frame,

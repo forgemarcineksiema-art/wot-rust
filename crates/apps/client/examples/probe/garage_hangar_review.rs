@@ -3,7 +3,7 @@ use std::io::BufWriter;
 
 use client::{
     VehicleAssetCatalog, garage_overlay, garage_overlay_option_list, hangar_camera_pivot,
-    hangar_scene_mesh, render_frame_from_objects, tank_vehicle_render_objects,
+    render_frame_from_objects, tank_vehicle_render_objects,
 };
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
@@ -19,7 +19,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let height = 900u32;
     let aspect = width as f32 / height as f32;
 
-    let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
+    // The shell without the gate curtain (E3) — the slats ride the dynamic slot below, parked
+    // at ajar, exactly as the live garage renders them.
+    let (terrain_vertices, terrain_indices) = scene_build::hangar::hangar_scene_mesh_without_gate();
 
     // Optional review args: `list <vehicle_index> <slot_index>` renders that vehicle parked with its
     // module option list open (slot 0=Turret,1=Gun,3=Engine,4=Suspension). Default: T-54, no list.
@@ -82,7 +84,21 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let orbit_yaw = (crate::sub_arg(2).as_deref() == Some("yaw"))
         .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()))
         .flatten();
-    let camera = if let Some(yaw) = orbit_yaw {
+    // `gate <open_m>` frames the bay gate with the curtain at that clear opening — the E3
+    // drive-in positions, reviewable without playing the animation.
+    let gate_open = (crate::sub_arg(2).as_deref() == Some("gate"))
+        .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()))
+        .flatten();
+    let camera = if gate_open.is_some() {
+        let eye = pivot
+            + scene_build::hangar::orbit_direction(0.15, 0.02)
+                * scene_build::hangar::HERO_ORBIT_DISTANCE;
+        Camera {
+            eye: eye.to_array(),
+            target: [0.0, 2.6, -21.5],
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    } else if let Some(yaw) = orbit_yaw {
         use scene_build::hangar::{HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH};
         let pitch =
             crate::sub_arg(4).and_then(|s| s.parse::<f32>().ok()).unwrap_or(HERO_ORBIT_PITCH);
@@ -141,8 +157,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     renderer.set_fx(&ctx, &client::hangar_shaft_fx_vertices());
-    let (fan_v, fan_i) = client::hangar_fan_mesh_at(0.0);
-    renderer.set_dynamic_mesh(&ctx, &fan_v, &fan_i);
+    let (dyn_v, dyn_i) =
+        client::hangar_dynamic_mesh_at(0.0, gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M));
+    renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

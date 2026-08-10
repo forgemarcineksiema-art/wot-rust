@@ -673,6 +673,14 @@ pub(crate) fn build_hangar_scene_mesh() -> BakedHall {
     // the long axis, standing AJAR — its slat stack raised, real daylight standing in the gap
     // under it. The gate explains the drive-in; the opening explains the light on the lane.
     push_bay_gate(&mut v, &mut i);
+    // The curtain at rest joins the PARKED mesh so the bake sees a closed-to-ajar gate (the
+    // slats occlude bounce rays and stand in the reflection cube) and the honesty locks keep
+    // a slat band that blocks the eye. The render paths split it back out
+    // (`hangar_scene_mesh_without_gate`) and animate it through the dynamic-mesh slot.
+    let (slat_v, slat_i) = bay_gate_slats(GATE_AJAR_M);
+    let slat_base = v.len() as u32;
+    v.extend(slat_v);
+    i.extend(slat_i.iter().map(|idx| idx + slat_base));
     // Joints, girt, ribs, trusses and gate are all the same stock the walls are: rolled sheet
     // and section, primed and sprayed with them.
     finish(&mut v[furniture_start..], Finish::PAINTED_STEEL);
@@ -880,10 +888,10 @@ fn push_truss_frame(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, z: f32, depth: f
     }
 }
 
-/// The ajar segmented bay gate standing in the gate wall's opening: jambs and a lintel framing
-/// the RAISED slat stack — five alternating sheet-steel slats from [`GATE_AJAR_M`] up to the
-/// gate top, everything proud of the wall plane so nothing z-fights. Below the stack: the
-/// opening itself, and the day outside in it.
+/// The segmented bay gate's FRAME standing in the gate wall's opening: jambs and a lintel,
+/// everything proud of the wall plane so nothing z-fights. The slat curtain itself is built by
+/// [`bay_gate_slats`] — E3 animates it during the drive-in, so the frame is the static half
+/// and the curtain the dynamic half, the same split the exhaust fan made in E2.
 fn push_bay_gate(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     let wall_z = -(HALF_Z - SLAB);
     // Jambs + lintel.
@@ -897,23 +905,90 @@ fn push_bay_gate(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
         );
     }
     slab(v, i, [0.0, GATE_TOP + 0.28, wall_z + 0.10], [GATE_HALF_W + 0.47, 0.16, 0.10], GATE_FRAME);
-    // Five horizontal slats, alternating tone, stacked ABOVE the ajar opening; sheet steel
-    // takes a low satin finish. The slats ABUT — behind them is the open day now, not a wall,
-    // and a 3 cm gap in front of 1.4 HDR daylight blooms into a glowing stripe (seen on the
-    // first A1 render). The segment read comes from the alternating tones and a per-slat depth
-    // step, not from gaps.
+}
+
+/// How far the gate opens for the drive-in: clearance over the tallest hull with margin, and
+/// exactly the travel at which the five-slat curtain fills its head track — the stack lip
+/// (`bay_gate_slats`) is DERIVED from this, so "fully open" and "curtain fully stacked" are
+/// the same position by construction.
+pub const GATE_DRIVE_OPEN_M: f32 = 3.6;
+
+/// The gate's slat curtain at `open_m` metres of clear opening (E3): five constant-height
+/// sheet-steel slats riding a head track. Each slat rises with the opening until it reaches
+/// its stacking position under the gate top, so the curtain compresses into an overlapped
+/// stack SEGMENT BY SEGMENT — the top slat parks first, the bottom one last — and closing
+/// peels them off one by one. The staggering is the clamp math, not a choreography.
+///
+/// Rest position is `open_m == GATE_AJAR_M`: the same five-slat band the hall carried when
+/// the curtain was static geometry. Depth steps OUTWARD toward the bottom slat (a sectional
+/// door's lower panel rides the outermost track — it has to pass the ones already stacked),
+/// which also keeps every overlapped pair on its own plane. The slats ABUT in y — behind
+/// them is the open day, and a gap in front of 1.4 HDR daylight blooms into a glowing
+/// stripe (seen on the first A1 render).
+pub fn bay_gate_slats(open_m: f32) -> (Vec<SceneVertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut i = Vec::new();
+    let wall_z = -(HALF_Z - SLAB);
     let slat_h = (GATE_TOP - GATE_AJAR_M) / 5.0;
-    for slat in 0..5 {
+    // The lip each stacked slat shows: at GATE_DRIVE_OPEN_M the bottom slat's risen position
+    // IS its stacking clamp, so the curtain exactly fills the track at full open.
+    let lip = (GATE_TOP - GATE_DRIVE_OPEN_M - slat_h) / 4.0;
+    let open = open_m.clamp(GATE_AJAR_M, GATE_DRIVE_OPEN_M);
+    for slat in 0..5u32 {
         let color = if slat % 2 == 0 { GATE_SLAT } else { GATE_SLAT_ALT };
-        let depth = if slat % 2 == 0 { 0.06 } else { 0.045 };
+        let depth = 0.045 + (4 - slat) as f32 * 0.009;
+        let risen = open + slat_h * (slat as f32 + 0.5);
+        let stacked = GATE_TOP - (4 - slat) as f32 * lip - slat_h / 2.0;
         slab(
-            v,
-            i,
-            [0.0, GATE_AJAR_M + slat_h * (slat as f32 + 0.5), wall_z + depth],
-            [GATE_HALF_W, slat_h / 2.0, 0.05],
+            &mut v,
+            &mut i,
+            [0.0, risen.min(stacked), wall_z + depth],
+            [GATE_HALF_W, slat_h / 2.0, 0.035],
             color,
         );
     }
+    // The same stock the frame and walls are; the dynamic curtain stamps it itself (the
+    // static build's furniture stamp never sees these vertices once the gate animates).
+    finish(&mut v, Finish::PAINTED_STEEL);
+    (v, i)
+}
+
+/// The vertex-level footprint of the gate curtain inside the parked hall mesh: the thin air
+/// slice of the gate opening the slats occupy at rest. Jambs sit outside it in x, the lintel
+/// above it in y, the gate wall behind it in z — measured against those pieces' literal
+/// extents, and locked by `the_gate_split_removes_the_curtain_and_nothing_else`.
+fn in_gate_curtain_slice(position: [f32; 3]) -> bool {
+    let [x, y, z] = position;
+    x.abs() < GATE_HALF_W + 0.015
+        && y > GATE_AJAR_M - 0.05
+        && y < GATE_TOP + 0.01
+        && z > -(HALF_Z - SLAB) + 0.005
+        && z < -(HALF_Z - SLAB) + 0.2
+}
+
+/// The parked hall WITHOUT the gate curtain (E3): the static buffer the client and every
+/// review render upload, with the slats re-emitted per frame through the dynamic-mesh slot
+/// (`bay_gate_slats`) so the gate can move during the drive-in. [`hangar_scene_mesh`] stays
+/// the complete parked hall — the honesty locks, the bake and the containment tests keep
+/// measuring the mesh with its gate in.
+pub fn hangar_scene_mesh_without_gate() -> (Vec<SceneVertex>, Vec<u32>) {
+    let (vertices, indices) = hangar_scene_mesh();
+    let mut keep = vec![u32::MAX; vertices.len()];
+    let mut out_v = Vec::with_capacity(vertices.len());
+    let mut out_i = Vec::with_capacity(indices.len());
+    for tri in indices.chunks_exact(3) {
+        if tri.iter().all(|&idx| in_gate_curtain_slice(vertices[idx as usize].position)) {
+            continue;
+        }
+        for &idx in tri {
+            if keep[idx as usize] == u32::MAX {
+                keep[idx as usize] = out_v.len() as u32;
+                out_v.push(vertices[idx as usize]);
+            }
+            out_i.push(keep[idx as usize]);
+        }
+    }
+    (out_v, out_i)
 }
 
 /// [`slab`] rotated around Y — for the turntable's radial plate seams.
@@ -1681,6 +1756,68 @@ mod tests {
             "the lit floor must out-bounce the dark roof: down {:?} vs up {:?}",
             probe[3],
             probe[2]
+        );
+    }
+
+    /// E3: THE CURTAIN RIDES ITS TRACK IN SEGMENTS. Opening raises the bottom edge
+    /// monotonically; every slat stays inside [ajar, gate top]; the top slat is parked from
+    /// the start and the bottom one moves last into the stack — and at full open the curtain
+    /// exactly fills the head track. Same topology at every angle of travel.
+    #[test]
+    fn the_gate_curtain_opens_in_segments_and_never_leaves_its_track() {
+        let (rest_v, rest_i) = bay_gate_slats(GATE_AJAR_M);
+        let mut last_bottom = f32::NEG_INFINITY;
+        for step in 0..=8 {
+            let open = GATE_AJAR_M + (GATE_DRIVE_OPEN_M - GATE_AJAR_M) * step as f32 / 8.0;
+            let (v, i) = bay_gate_slats(open);
+            assert_eq!(v.len(), rest_v.len(), "travel never changes topology");
+            assert_eq!(i, rest_i, "same triangles, moved vertices");
+            let bottom = v.iter().map(|s| s.position[1]).fold(f32::INFINITY, f32::min);
+            assert!(
+                (bottom - open).abs() < 1.0e-4,
+                "the clear opening IS the curtain's bottom edge: {bottom} vs {open}"
+            );
+            assert!(bottom >= last_bottom, "opening only ever raises the curtain");
+            last_bottom = bottom;
+            let top = v.iter().map(|s| s.position[1]).fold(f32::NEG_INFINITY, f32::max);
+            assert!(top <= GATE_TOP + 1.0e-4, "no slat escapes past the head track: {top}");
+        }
+        // Full open: the stack fills the track — top at the gate top, bottom edge at the
+        // drive clearance, and the clearance takes the tallest hull with a margin.
+        let (full, _) = bay_gate_slats(GATE_DRIVE_OPEN_M);
+        let top = full.iter().map(|s| s.position[1]).fold(f32::NEG_INFINITY, f32::max);
+        assert!((top - GATE_TOP).abs() < 1.0e-4, "stacked curtain parks under the lintel");
+        let clearance = full.iter().map(|s| s.position[1]).fold(f32::INFINITY, f32::min);
+        assert!(clearance > 3.2, "a drive-in clearance, not a crawl space: {clearance}");
+    }
+
+    /// E3: THE GATE SPLIT REMOVES THE CURTAIN AND NOTHING ELSE. The render mesh without the
+    /// gate stops blocking the eye exactly in the curtain band — the jambs, the lintel and
+    /// the walls still stand — and the parked curtain re-emitted dynamically puts back the
+    /// same five slats the full mesh carries.
+    #[test]
+    fn the_gate_split_removes_the_curtain_and_nothing_else() {
+        let (full_v, _) = hangar_scene_mesh();
+        let (bare_v, bare_i) = hangar_scene_mesh_without_gate();
+        let (slat_v, _) = bay_gate_slats(GATE_AJAR_M);
+        assert_eq!(
+            full_v.len(),
+            bare_v.len() + slat_v.len(),
+            "the split takes exactly the curtain's vertices"
+        );
+        let out = [0.0, 0.0, -1.0];
+        let mid_curtain = [0.0, (GATE_AJAR_M + GATE_TOP) / 2.0, -10.0];
+        assert!(
+            !ray_hits_mesh(mid_curtain, out, &bare_v, &bare_i),
+            "without the curtain the gate band is open"
+        );
+        assert!(
+            ray_hits_mesh([0.0, GATE_TOP + 0.35, -10.0], out, &bare_v, &bare_i),
+            "the lintel band still stands"
+        );
+        assert!(
+            ray_hits_mesh([GATE_HALF_W + 3.0, WALL_SEAM * 0.5, -10.0], out, &bare_v, &bare_i),
+            "the flanking wall still stands"
         );
     }
 
