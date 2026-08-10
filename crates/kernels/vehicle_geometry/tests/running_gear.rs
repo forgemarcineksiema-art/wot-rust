@@ -917,3 +917,54 @@ fn every_road_wheel_shows_its_hub_face_to_the_world() {
         "every playable vehicle animates its running gear, so every one of them is checked here"
     );
 }
+
+/// THE TOOTHED RINGS ARE BOLTED TO SOMETHING.
+///
+/// A sprocket is a disc with two removable toothed rings fixed to its rim. The rings were placed
+/// at the belt's own half-width and the disc was built to the road wheel's — so on the T-54 the
+/// disc ended at x 0.18 with a radius of 0.165 while the rings sat at x 0.262 spanning 0.181 to
+/// 0.224. Eighty-two millimetres of air along the axle, sixteen across it, and forty bolts in the
+/// gap fixing nothing to nothing.
+///
+/// Nothing caught it because the sprocket's other tests ask how BIG the wheel is — bounds, tooth
+/// count, engagement radius — and a part floating beside another part has exactly the same
+/// bounds as one welded to it.
+#[test]
+fn every_sprocket_ring_lands_on_the_disc_that_carries_it() {
+    let mut walked = 0usize;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        walked += 1;
+        let mesh = sprocket_unit_mesh(&kin);
+        let radius_of = |v: &vehicle_geometry::GeometryVertex| v.position.y.hypot(v.position.z);
+
+        // The discs are capped revolves, so each face carries a centre vertex on the axle. Those
+        // centres are the only points that belong unambiguously to the BODY — a ring and the disc
+        // it sits on must overlap in radius, so radius alone can never separate them.
+        let body_reach = mesh
+            .vertices()
+            .iter()
+            .filter(|v| radius_of(v) < kin.end_radius * 0.15)
+            .map(|v| v.position.x.abs())
+            .fold(0.0_f32, f32::max);
+
+        // Where the rings are: the band the teeth root into.
+        let ring_reach = mesh
+            .vertices()
+            .iter()
+            .filter(|v| radius_of(v) >= kin.end_radius * 0.66)
+            .map(|v| v.position.x.abs())
+            .fold(0.0_f32, f32::max);
+
+        assert!(
+            body_reach >= ring_reach - 0.045,
+            "{kind:?}: the sprocket body ends at x {body_reach:.3} while its toothed rings stand \
+             out to {ring_reach:.3} — rings and bolts floating beside the wheel they fix to"
+        );
+    }
+    assert_eq!(
+        walked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle drives through a sprocket, so every one of them is checked"
+    );
+}
