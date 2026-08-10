@@ -55,6 +55,9 @@ pub fn hangar_dynamic_mesh_at(
         scene_build::hangar::bay_gate_slats(gate_open_m),
         // The crane trolley rides its girder (K1) — somebody works this hall.
         scene_build::hangar::crane_trolley_at(seconds),
+        // ...and here he is (K2, behind its kill-switch): the mechanic on his round
+        // between the welding bay and the workbench, never inside the hero's ring.
+        scene_build::hangar_mechanic::mechanic_at(seconds),
     ] {
         let base = v.len() as u32;
         v.extend(part_v);

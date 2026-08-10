@@ -12,6 +12,7 @@ pub mod grass_cards;
 pub mod hangar;
 pub(crate) mod hangar_bake;
 pub(crate) mod hangar_gallery;
+pub mod hangar_mechanic;
 pub(crate) mod hangar_props;
 pub mod review_views;
 pub mod tank_mesh;

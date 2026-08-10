@@ -27,6 +27,12 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             Some("evening") => scene_build::hangar::HangarLight::Evening,
             _ => scene_build::hangar::HangarLight::Day,
         },
+        // `mechanic <seconds> [morning|day|evening]` judges K2 in a chosen light.
+        Some("mechanic") => match crate::sub_arg(4).as_deref() {
+            Some("morning") => scene_build::hangar::HangarLight::Morning,
+            Some("evening") => scene_build::hangar::HangarLight::Evening,
+            _ => scene_build::hangar::HangarLight::Day,
+        },
         _ => scene_build::hangar::HangarLight::Day,
     };
     // The shell without the gate curtain (E3) — the slats ride the dynamic slot below, parked
@@ -115,7 +121,25 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // the spark fountain is a live random emitter and stays out of stills by design).
     let work_seconds = (crate::sub_arg(2).as_deref() == Some("work"))
         .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()).unwrap_or(1.2));
-    let camera = if let Some(_seconds) = work_seconds {
+    // `mechanic <seconds> [light]` frames the K2 figure from the hero's side of the hall —
+    // the 10+ m half-light distance his decision gate judges him at.
+    let mechanic_seconds = (crate::sub_arg(2).as_deref() == Some("mechanic"))
+        .then(|| crate::sub_arg(3).and_then(|s| s.parse::<f32>().ok()).unwrap_or(9.0));
+    let camera = if let Some(seconds) = mechanic_seconds {
+        let (mv, _) = scene_build::hangar_mechanic::mechanic_at(seconds);
+        let mut center = glam::Vec3::ZERO;
+        for vertex in &mv {
+            center += glam::Vec3::from_array(vertex.position);
+        }
+        if !mv.is_empty() {
+            center /= mv.len() as f32;
+        }
+        Camera {
+            eye: [0.0, 1.9, 0.0],
+            target: [center.x, 1.1, center.z],
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
+    } else if let Some(_seconds) = work_seconds {
         let [wx, _, wz] = scene_build::hangar::WELDING_CORNER;
         Camera {
             eye: [2.5, 2.4, 4.0],
@@ -216,7 +240,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     renderer.set_fx(&ctx, &fx);
     let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(
-        work_seconds.unwrap_or(0.0),
+        work_seconds.or(mechanic_seconds).unwrap_or(0.0),
         gate_open.unwrap_or(scene_build::hangar::GATE_AJAR_M),
     );
     renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
