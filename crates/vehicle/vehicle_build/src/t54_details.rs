@@ -596,6 +596,110 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
         ));
     }
 
+    // THE ROOF VENTILATOR. A mushroom-domed extractor sits on the crown behind the hatches, and
+    // it is a tell: obr. 1951 has one, the plan view shows it, and the model's roof was bare
+    // where it belongs. Every reference — line drawing, museum vehicle, period photograph —
+    // reads it from above and in profile.
+    //
+    // Rooted INTO the casting rather than perched on it. Its seat is taken from the loader
+    // hatch's own height so it follows the crown if the dome is ever reshaped, and it stands on
+    // the centreline behind both hatches where the fighting compartment's foul air is drawn off.
+    {
+        let seat = Vec3::new(0.0, v.fittings.loader_hatch_center.y - 0.10, -0.50);
+        let radius = 0.132;
+        parts.push(VehiclePart {
+            key: PartKey::new("turret_ventilator"),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::CastArmor,
+            smoothing: SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::translate(
+                &revolve::revolve(
+                    Vec3::Y,
+                    // (offset along the axis, radius): a flat seat, a rolled shoulder and a
+                    // domed crown — the pressed cap of an extractor, not a bubble.
+                    &[
+                        (0.0, 0.0),
+                        (0.0, radius * 0.94),
+                        (0.055, radius),
+                        (0.125, radius * 0.92),
+                        (0.165, radius * 0.58),
+                        (0.180, 0.0),
+                    ],
+                    round_segments(radius),
+                    MaterialRole::CastArmor,
+                    SmoothingGroup(3),
+                ),
+                seat,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+        // The armoured cap stands on a short collar, so the dome reads as a cover over an opening
+        // rather than as a blister moulded into the roof.
+        parts.push(VehiclePart {
+            key: PartKey::new("turret_ventilator_collar"),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup(3),
+            shape: PartShape::Mesh(detail::coaming(
+                Vec3::new(seat.x, seat.y - 0.02, seat.z),
+                Vec3::Y,
+                radius * 0.72,
+                0.030,
+                0.016,
+                MaterialRole::RolledArmor,
+                round_segments(radius * 0.72),
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+    }
+
+    // THE AERIAL. A whip on the turret's left rear quarter, tapering as it rises. It is thin
+    // enough to cost nothing and tall enough to be part of the silhouette at any range — the
+    // reference render reads it against the sky from every angle, and the model had no antenna
+    // anywhere in the fleet.
+    {
+        let base = Vec3::new(-0.58, v.fittings.loader_hatch_center.y - 0.28, -0.70);
+        parts.push(VehiclePart {
+            key: PartKey::new("turret_aerial_base"),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::translate(
+                &revolve::revolve(
+                    Vec3::Y,
+                    &[(0.0, 0.0), (0.0, 0.052), (0.030, 0.048), (0.062, 0.030), (0.062, 0.0)],
+                    round_segments(0.052),
+                    MaterialRole::TrackMetal,
+                    SmoothingGroup(3),
+                ),
+                base,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+        parts.push(VehiclePart {
+            key: PartKey::new("turret_aerial"),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::BarrelSteel,
+            smoothing: SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::translate(
+                &revolve::revolve(
+                    Vec3::Y,
+                    // A whip tapers: 14 mm at the ferrule down to 4 mm at the tip, over 1.25 m.
+                    &[(0.0, 0.014), (0.30, 0.009), (0.60, 0.004), (0.60, 0.0)],
+                    8,
+                    MaterialRole::BarrelSteel,
+                    SmoothingGroup(3),
+                ),
+                base + Vec3::new(0.0, 0.055, 0.0),
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+    }
+
     // The driver's two forward vision periscopes on the hull roof, flanking and just ahead of the
     // driver's hatch. Derived from the hatch position (no new blueprint dimension) and clear of the
     // hatch lid; same raked prism head as the turret periscopes.

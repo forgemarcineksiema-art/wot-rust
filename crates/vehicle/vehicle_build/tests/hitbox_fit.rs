@@ -21,7 +21,11 @@ use vehicle_geometry::{MeshBounds, SubmeshKind};
 ///   * `turret_rail` — the grab rails, standing their grab-space off a casting that now carries
 ///     the full documented 2.25 m flank. Growing the turret plan to swallow them would widen the
 ///     whole gameplay target by 13 cm of air at every height a rail is not.
-const HITBOX_EXCEPTIONS: [&str; 3] = ["dshk_", "smoke_canister", "turret_rail"];
+///   * `turret_aerial` — the whip. It tapers from 28 mm to 8 mm and stands about a third of a metre over the
+///     crown; raising the hitbox roof to cover it would put a metre of empty air over the tank
+///     for every shell that passes above the turret, which is the opposite of what the box is
+///     for. A radio mast is not armour and does not stop anything.
+const HITBOX_EXCEPTIONS: [&str; 4] = ["dshk_", "smoke_canister", "turret_rail", "turret_aerial"];
 
 fn body_bounds_excluding_exceptions() -> MeshBounds {
     let description = t54_description();
@@ -156,6 +160,12 @@ fn the_documented_exceptions_stand_outside_the_box_they_are_excused_from() {
          {:.2}",
         canisters.min.z,
         -hitbox.half_length_m
+    );
+    let aerial = bounds_of("turret_aerial");
+    assert!(
+        aerial.max.y > top + 0.10,
+        "the whip stands clear of the {top:.2} apex — an aerial that fits inside the hitbox is \
+         an aerial nobody can see, and it would not need excusing",
     );
 }
 

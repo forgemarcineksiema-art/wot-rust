@@ -323,7 +323,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // face the old convention turned width into height and grew five 675 mm fins out of a 220 mm
     // box, through the fender and into the moving top run of the track.
     // Previous: 0xcaf6_206c_f364_2e35 (PR-31, the gun group on the trunnion).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x054a_3942_e655_3e89;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8c8d_d462_f899_9cfb;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

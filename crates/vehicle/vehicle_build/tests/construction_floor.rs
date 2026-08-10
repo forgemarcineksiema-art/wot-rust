@@ -42,6 +42,13 @@ const PLATES_AND_BARS: &[(&str, &str)] = &[
     ("deck_weld_bead", "a weld bead is a raised bar, not a body"),
     ("hull_plate_seam", "the same, along the plate joint"),
     ("fender_bracket", "an L-bracket is bar stock cut and bent"),
+    (
+        "turret_aerial",
+        "a whip aerial IS a tapered rod — 28 mm at the ferrule down to 8 mm at the tip, which is \
+         one to two pixels at any range this vehicle is looked at. Eight sides is already more \
+         than the roundness law asks of that radius (five); rounder would be triangles spent \
+         below the pixel.",
+    ),
 ];
 
 /// Exterior parts that present a box and SHOULD NOT — the audit's measured findings, executable.
