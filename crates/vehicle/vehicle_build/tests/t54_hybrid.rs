@@ -301,7 +301,17 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // perfectly sharp and take the arris a torch leaves. `solid::chamfer` now states the widths a
     // process gives an edge; `chamfered_box` applies them, and always could.
     // Previous: 0xc308_5dcf_814b_3e57 (PR-29, the roundness law in vehicle_build).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0950_1aaa_02c5_23fa;
+    // Re-recorded 2026-08-10 (the gun group rides the trunnion): the D-10T stops floating above
+    // the barrel it belongs to. The breech was anchored 230 mm over the bore, the cradle 420 mm,
+    // the coax 340 mm and the TSh-2 330 mm — and all of it came out through the casting roof,
+    // where the cradle rails stood ~250 mm proud in the garage hero shot. The recoil guard was
+    // the one piece anchored to the gun, which is how its own frame gave the error away. Every
+    // piece now reads ONE height from the authoritative breech volume, which the layout anchors
+    // to the blueprint's trunnion. Also home: the turret ready rack (its top round's case rim
+    // stood 71 mm proud of the rear dome — brass on the casting with no breach needed) and the
+    // radio set, whose control panel reached 94 mm outside the dome on the diagonal.
+    // Previous: 0x0950_1aaa_02c5_23fa (PR-30, the bevel law).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xcaf6_206c_f364_2e35;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
