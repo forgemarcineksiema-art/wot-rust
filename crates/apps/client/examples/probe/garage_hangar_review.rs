@@ -174,6 +174,11 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = scene_build::hangar::hangar_lighting(daylight);
     let (bg_r, bg_g, bg_b) = scene_build::hangar::interior_background_for(daylight);
     renderer.set_interior_background(bg_r, bg_g, bg_b);
+    renderer.set_shadow_softness(scene_build::hangar::HANGAR_SHADOW_SOFTNESS);
+    renderer.set_terrain_shadow_indices(
+        &ctx,
+        Some(&scene_build::hangar::hangar_shadow_indices_for(daylight)),
+    );
     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe_for(daylight)));
     renderer.set_interior_detail_normal(true);
     renderer.set_environment_cube(

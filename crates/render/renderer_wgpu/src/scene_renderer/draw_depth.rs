@@ -44,7 +44,13 @@ impl super::SceneRenderer {
         pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         self.draw_visible_ground(&mut pass, light_frustum);
-        if self.terrain_index_count > 0 {
+        if let Some((indices, count)) = &self.terrain_shadow_indices {
+            // The garage's reduced caster set (Światło służy czołgowi): the hall minus its
+            // roof clutter, drawn whole — a 30k-triangle room needs no chunk culling.
+            pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
+            pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..*count, 0, 0..1);
+        } else if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
             self.draw_visible_terrain(&mut pass, light_frustum);
@@ -124,7 +130,13 @@ impl super::SceneRenderer {
         pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         self.draw_visible_ground(&mut pass, light_frustum);
-        if self.terrain_index_count > 0 {
+        if let Some((indices, count)) = &self.terrain_shadow_indices {
+            // The garage's reduced caster set (Światło służy czołgowi): the hall minus its
+            // roof clutter, drawn whole — a 30k-triangle room needs no chunk culling.
+            pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
+            pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..*count, 0, 0..1);
+        } else if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
             self.draw_visible_terrain(&mut pass, light_frustum);

@@ -767,11 +767,16 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         dark_ceiling: 0.55,
         form_floor: 0.0100,
     },
+    // form_floor re-derived 0.0115 -> 0.0105 at the 2026-08-10 relight (Światło służy
+    // czołgowi), openly: the original floor was recorded on a frame where the roof-lattice
+    // shadow bars CROSSED the hull and inflated the crop's local contrast — the floor was
+    // partly measuring the artifact the relight removed. Measured clean: 0.01146; the new
+    // floor carries the same ~9% slack the tiger2 entry does.
     SubjectBounds {
         view: "garage_hero_jagdtiger",
         median_floor: 0.255,
         dark_ceiling: 0.49,
-        form_floor: 0.0115,
+        form_floor: 0.0105,
     },
     // F3's close orbit: the running gear fills the crop, and earth-toned tracks sit almost
     // entirely under the 0.25 luma bar — dark here measures the PAINT (see the note above on

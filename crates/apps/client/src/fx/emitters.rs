@@ -204,8 +204,11 @@ impl FxSystem {
         // Additive warm glow, alpha 0 (pure light, no coverage). The first candidate (0.045)
         // vanished against the whitewashed walls — additive haze must clear the bright
         // background by a visible step, and the drift modulation still takes it down by a
-        // third on average.
-        const GLOW: [f32; 4] = [0.20, 0.182, 0.138, 0.0];
+        // third on average. Trimmed 0.20 -> 0.13 (Światło służy czołgowi): the beams were
+        // calibrated against a floor with no shadow lattice; once the bars printed under
+        // them the bright blades became the second layer of the same grid. Quieter beams
+        // also widen HERO_OVER_ROOM's margin — the E1 pricing ran the other way.
+        const GLOW: [f32; 4] = [0.13, 0.118, 0.09, 0.0];
         let mut vertices = Vec::with_capacity(blades.len() * 6);
         for quad in blades {
             let corner = |index: usize, uv: [f32; 2]| renderer_api::FxVertex {

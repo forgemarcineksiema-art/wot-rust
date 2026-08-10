@@ -131,6 +131,10 @@ pub mod surface_role {
     /// hall with genuinely nothing to catch — so the treatment is a whisper of sidewall
     /// mottle and nothing else.
     pub const RUBBER: f32 = 13.0;
+    /// Glazing (garage, Światło służy czołgowi): dirty glass in the shed roofs. Light-passing
+    /// by SEMANTICS — the shadow caster cut and the sun-reach locks both key on this role
+    /// ("glass passes light") — and rendered as sheen plus grime, no grain. Appended.
+    pub const GLASS: f32 = 14.0;
 }
 
 impl SceneVertex {

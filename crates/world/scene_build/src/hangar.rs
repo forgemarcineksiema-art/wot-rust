@@ -63,6 +63,15 @@ const PANEL_JOINT: [f32; 3] = [0.19, 0.195, 0.205];
 const GIRT: [f32; 3] = [0.27, 0.275, 0.29];
 // The bay gate: framed, closed, segmented — cool sheet steel, never a glowing plate.
 const GATE_FRAME: [f32; 3] = [0.145, 0.15, 0.16];
+/// Dirty glazing (Światło służy czołgowi): NON-emissive on purpose — the first candidate
+/// glowed past 1.0, the bake's emission boost turned the whole roof into a lamp, and two
+/// bake-value locks rightly refused ("a roof with decks in it cannot out-lume the bare
+/// day"). Cool glass tone; the daylight read comes from the gloss lane and the environment
+/// reflection, and the BROKEN bays showing the raw sky are the roof's only true brights —
+/// which is the story.
+const GLAZE_PANE: [f32; 3] = [0.60, 0.64, 0.70];
+/// Shard remnants in a broken bay's frame: glass tone, no glow.
+const SHARD_GLASS: [f32; 3] = [0.55, 0.60, 0.62];
 const GATE_SLAT: [f32; 3] = [0.215, 0.22, 0.235];
 const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
 // The glowing "frosted panes" are GONE (Hala 2.0 T1 correction, user verdict 2026-08-05): a
@@ -319,36 +328,18 @@ pub fn sun_shaft_quads_for(light: HangarLight) -> Vec<[[f32; 3]; 4]> {
         return Vec::new();
     }
     let key = hangar_key_direction(light);
-    // (shed start, blade centre x, blade z inside the glazing band, half-width).
-    // Blade z rows sit in the CLEAR lanes between the glazing's mullion bars (the same lanes
-    // the sun lock's ray fan crosses through) — a blade hanging on a bar would fail the
-    // openings lock, and rightly: light does not beam through steel.
-    // Five blades, not a curtain: the hero-over-room lock prices every room pixel a beam
-    // crosses, so the set is the fewest blades that still read as the hall's light having a
-    // body — three over the station, two over the second bay.
-    let blades: [(f32, f32, f32, f32); 5] = [
-        // The sun shed (glazing z 1.0..5.5): the hero's own light.
-        (-5.5, -4.8, 2.7, 0.6),
-        (-5.5, -1.6, 3.9, 0.75),
-        (-5.5, 2.2, 2.7, 0.6),
-        // The far shed (glazing z 12.0..16.5): fainter depth cues over the second bay.
-        (5.5, -2.6, 13.7, 0.6),
-        (5.5, 1.8, 14.8, 0.65),
-    ];
-    let rise = SHED_RIDGE - WALL_HEIGHT;
-    blades
+    BROKEN_PANES
         .iter()
-        .map(|&(start, x, z, half_w)| {
-            // Top edge ON the glazing plane at this z (the plane falls from the ridge at
-            // start+deck to the eaves at start+deck+glaze).
-            let fall = (z - (start + SHED_DECK_RUN)) / SHED_GLAZE_RUN;
-            let top_y = SHED_RIDGE - rise * fall.clamp(0.0, 1.0);
+        .map(|pane| {
+            // Top edge ON the broken pane's centre: the shaft is the hole's own light.
+            let top = pane.center_world();
+            let half_w = (pane.x_half - 0.3).min(1.1);
             // The blades die out a metre over the floor — the classic read of a shaft
             // thinning into the air, and it keeps the beams off the bright floor pixels the
             // hero-over-room lock weighs most heavily.
-            let travel = -key * ((top_y - 1.0) / key.y);
-            let top_a = Vec3::new(x - half_w, top_y, z);
-            let top_b = Vec3::new(x + half_w, top_y, z);
+            let travel = -key * ((top.y - 1.0) / key.y);
+            let top_a = Vec3::new(top.x - half_w, top.y, top.z);
+            let top_b = Vec3::new(top.x + half_w, top.y, top.z);
             [
                 top_a.to_array(),
                 top_b.to_array(),
@@ -358,6 +349,52 @@ pub fn sun_shaft_quads_for(light: HangarLight) -> Vec<[[f32; 3]; 4]> {
         })
         .collect()
 }
+
+/// One broken glazing pane (Światło służy czołgowi, user direction 2026-08-10): visible sun
+/// shafts enter the hall ONLY through these — a beam needs an APERTURE, and clean glazing
+/// diffuses; the old five-blade set streamed rays through intact glass, which read as a
+/// light show raining on the tank. Rare and natural: three panes out of a whole roof, each
+/// aimed so its beam lands BESIDE the hero (locked), framing the tank instead of hitting it.
+#[derive(Debug, Clone, Copy)]
+struct BrokenPane {
+    /// Which shed's glazing plane (a `SHED_STARTS` value).
+    shed_start: f32,
+    /// The pane's bay centre and half-width in x (between the vertical divisions).
+    x_center: f32,
+    x_half: f32,
+    /// The pane's segment centre as a fraction of the glazing slope (between the bars).
+    along_frac: f32,
+}
+
+impl BrokenPane {
+    /// The pane's centre on the glazing plane, in world space — shared by the roof builder
+    /// (which leaves this bay OPEN and hangs shards), the shaft builder (which hangs the
+    /// blade here) and the locks.
+    fn center_world(&self) -> Vec3 {
+        let (glaze_rot, glaze_len) = glaze_plane();
+        let mid_y = (WALL_HEIGHT + SHED_RIDGE) / 2.0;
+        let mid_z = self.shed_start + SHED_DECK_RUN + SHED_GLAZE_RUN / 2.0;
+        let offset = glaze_rot * Vec3::new(0.0, 0.0, self.along_frac * glaze_len);
+        Vec3::new(self.x_center, mid_y + offset.y, mid_z + offset.z)
+    }
+}
+
+/// The glazing plane's rotation and slope length — one derivation for the roof builder, the
+/// panes and the shafts.
+fn glaze_plane() -> (Mat3, f32) {
+    let rise = SHED_RIDGE - WALL_HEIGHT;
+    let angle = rise.atan2(SHED_GLAZE_RUN);
+    (Mat3::from_rotation_x(angle), (SHED_GLAZE_RUN * SHED_GLAZE_RUN + rise * rise).sqrt())
+}
+
+/// Three broken panes: two in the sun shed (one each side of the hero, feet landing at
+/// r ≈ 7.3 and 5.3 from the turntable), one in the far shed over the stores. Bay centres
+/// sit between the real vertical divisions, segment fractions between the real bars.
+const BROKEN_PANES: [BrokenPane; 3] = [
+    BrokenPane { shed_start: -5.5, x_center: 4.7, x_half: 1.5, along_frac: -0.119 },
+    BrokenPane { shed_start: -5.5, x_center: -7.55, x_half: 1.25, along_frac: 0.1545 },
+    BrokenPane { shed_start: 5.5, x_center: 7.7, x_half: 1.5, along_frac: -0.119 },
+];
 
 /// Direction from the pivot to the eye for an orbit yaw/pitch. Shared so the live camera and
 /// every offscreen review of it cannot disagree about where the camera is.
@@ -582,6 +619,68 @@ fn push_shed_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
             );
         }
     }
+}
+
+/// The GLASS (Światło służy czołgowi, user direction 2026-08-10): every glazing bay-segment
+/// carries a dirty pane — except the [`BROKEN_PANES`], which stay open with a shard fringe
+/// on the frame. Visible sun shafts hang from those holes and ONLY those: clean glazing
+/// diffuses, an aperture beams. Pushed after the shell's blanket finish so the panes keep
+/// their own [`Finish::GLASS`] role — the role the light-passing rules key on (the shadow
+/// caster cut and the sun-reach locks both treat GLASS as what it is: a thing light
+/// crosses, not a thing that stops it).
+fn push_glazing(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let (glaze_rot, glaze_len) = glaze_plane();
+    let glaze_mid_y = (WALL_HEIGHT + SHED_RIDGE) / 2.0;
+    let bay_edges = [-10.8_f32, -8.8, -6.3, 3.2, 6.2, 9.2, 10.8];
+    let seg_edges = [-0.5_f32, -0.256, 0.018, 0.291, 0.5];
+    let start_index = v.len();
+    for start in SHED_STARTS {
+        let glaze_mid_z = start + SHED_DECK_RUN + SHED_GLAZE_RUN / 2.0;
+        for bay in bay_edges.windows(2) {
+            let (x_center, x_half) = ((bay[0] + bay[1]) / 2.0, (bay[1] - bay[0]) / 2.0);
+            for seg in seg_edges.windows(2) {
+                let frac_center = (seg[0] + seg[1]) / 2.0;
+                let broken = BROKEN_PANES.iter().any(|pane| {
+                    (pane.shed_start - start).abs() < 0.1
+                        && (pane.x_center - x_center).abs() < 0.2
+                        && (pane.along_frac - frac_center).abs() < 0.05
+                });
+                let along_center = frac_center * glaze_len;
+                let along_half = (seg[1] - seg[0]) / 2.0 * glaze_len;
+                let offset = glaze_rot * Vec3::new(0.0, 0.0, along_center);
+                let center = Vec3::new(x_center, glaze_mid_y + offset.y, glaze_mid_z + offset.z);
+                if !broken {
+                    push_oriented_box(
+                        v,
+                        i,
+                        center,
+                        Vec3::new(x_half - 0.05, 0.015, along_half - 0.05),
+                        glaze_rot,
+                        GLAZE_PANE,
+                    );
+                    continue;
+                }
+                // The shard fringe: slim jagged remnants along the frame edges — the honest
+                // witness of the break, readable from the floor 9 m below.
+                for (dx, da, half_x, yaw) in [
+                    (-x_half + 0.35, -along_half + 0.22, 0.32, 0.35_f32),
+                    (x_half - 0.4, -along_half + 0.3, 0.28, -0.5),
+                    (-x_half + 0.55, along_half - 0.25, 0.24, 0.7),
+                    (x_half - 0.3, along_half - 0.2, 0.3, -0.3),
+                ] {
+                    push_oriented_box(
+                        v,
+                        i,
+                        center + glaze_rot * Vec3::new(dx, 0.0, da),
+                        Vec3::new(half_x, 0.012, 0.16),
+                        glaze_rot * Mat3::from_rotation_y(yaw),
+                        SHARD_GLASS,
+                    );
+                }
+            }
+        }
+    }
+    finish(&mut v[start_index..], Finish::GLASS);
 }
 
 /// The hall is static and its GI bake is honest work (a hemisphere of rays per vertex), so the
@@ -857,6 +956,9 @@ pub(crate) fn build_hangar_scene_mesh_for(light: HangarLight) -> BakedHall {
     // Joints, girt, ribs, trusses and gate are all the same stock the walls are: rolled sheet
     // and section, primed and sprayed with them.
     finish(&mut v[furniture_start..], Finish::PAINTED_STEEL);
+    // The glazing panes go in AFTER the blanket stamps so they keep their GLASS role — the
+    // light-passing semantics the caster cut and the sun locks read.
+    push_glazing(&mut v, &mut i);
 
     // Floor: expansion joints score the slab into cast bays; the drive lane in from the gate is
     // worn a step darker with two track-polished strips — the floor tells the room's story.
@@ -1140,6 +1242,52 @@ fn in_gate_curtain_slice(position: [f32; 3]) -> bool {
         && z < -(HALF_Z - SLAB) + 0.2
 }
 
+/// The hall's sun-shadow penumbra radius, in shadow texels (Światło służy czołgowi) — read
+/// by the live garage, the golden harness and the review probe, so the played softness and
+/// the locked softness are one number. The hall's tight shadow box makes a ~1.8 cm texel;
+/// at radius 9 the penumbra runs ~16 cm — shade with an edge you can stand in, not a razor.
+/// Locked ≥ 8 by `the_light_serves_the_tank`.
+pub const HANGAR_SHADOW_SOFTNESS: f32 = 9.0;
+
+/// The SUN-SHADOW caster set (Światło służy czołgowi): the hall's indices minus the roof
+/// clutter — thin members above the wall band (truss bars, glazing mullions, crane rails,
+/// lamp stems: any triangle whose shortest edge is under 0.3 m) and every emissive pane
+/// (glass passes light; a pane that cast a wall's shadow was the lattice's brightest lie).
+/// The user's verdict, 2026-08-10: the floor carried a printed grid of razor bars and the
+/// lights played the lead over the tank. The camera and the SSAO prepass keep the FULL mesh
+/// — this trims what the SUN projects, not what the eye sees; the hall is presentation and
+/// the honesty doctrine's "what blocks the shell blocks the eye" governs the battlefield,
+/// not the furniture's light. The deck panels, walls and floor keep casting: a few large
+/// soft shapes ARE the mood.
+pub fn hangar_shadow_indices() -> Vec<u32> {
+    hangar_shadow_indices_for(HangarLight::Day)
+}
+
+/// [`hangar_shadow_indices`] under a chosen daylight. Filters the WITHOUT-GATE mesh — the
+/// exact vertex order the render paths upload to the statics slot — so the reduced index
+/// set and the uploaded vertex buffer can never disagree (the gate split compacts and
+/// re-indexes its vertices; filtering the full mesh here would index garbage).
+pub fn hangar_shadow_indices_for(light: HangarLight) -> Vec<u32> {
+    let (vertices, indices) = hangar_scene_mesh_without_gate_for(light);
+    let mut out = Vec::with_capacity(indices.len());
+    for tri in indices.chunks_exact(3) {
+        let p: [Vec3; 3] = [0, 1, 2].map(|k| Vec3::from_array(vertices[tri[k] as usize].position));
+        let above_band = p.iter().all(|v| v.y > 6.5);
+        let emissive = tri.iter().any(|&idx| vertices[idx as usize].color.iter().any(|c| *c > 1.0));
+        let glass = tri
+            .iter()
+            .any(|&idx| vertices[idx as usize].surface == renderer_api::surface_role::GLASS);
+        let shortest_edge =
+            (p[0] - p[1]).length().min((p[1] - p[2]).length()).min((p[2] - p[0]).length());
+        let thin_roof_member = above_band && shortest_edge < 0.3;
+        if thin_roof_member || (above_band && (emissive || glass)) {
+            continue;
+        }
+        out.extend_from_slice(tri);
+    }
+    out
+}
+
 /// The parked hall WITHOUT the gate curtain (E3): the static buffer the client and every
 /// review render upload, with the slats re-emitted per frame through the dynamic-mesh slot
 /// (`bay_gate_slats`) so the gate can move during the drive-in. [`hangar_scene_mesh`] stays
@@ -1248,6 +1396,9 @@ impl Finish {
     /// role to say the same thing would be a role for one prop.
     pub(super) const CANVAS: Self =
         Self { surface: renderer_api::surface_role::PLASTER, gloss: 0.10 };
+    /// Dirty glazing (Światło służy czołgowi): high gloss — glass IS its sheen — and the
+    /// role the light-passing rules key on (caster cut, sun-reach locks).
+    pub(super) const GLASS: Self = Self { surface: renderer_api::surface_role::GLASS, gloss: 0.75 };
 }
 
 /// Give the vertices a builder just appended a sway amplitude (E2): hanging pieces — the
@@ -1393,6 +1544,30 @@ mod tests {
         assert!(!disc, "the faked shadow disc must be gone");
     }
 
+    /// [`ray_hits_mesh`] that treats EMISSIVE triangles as transparent: glass passes light —
+    /// the same principle the shadow caster cut established. The sun-reach locks ask "does
+    /// the LIGHT arrive", and a dirty pane dims light without stopping it; steel stops it.
+    fn ray_hits_opaque(
+        origin: [f32; 3],
+        dir: [f32; 3],
+        vertices: &[SceneVertex],
+        indices: &[u32],
+    ) -> bool {
+        let opaque: Vec<u32> = indices
+            .chunks_exact(3)
+            .filter(|tri| {
+                !tri.iter().any(|&idx| {
+                    let vertex = &vertices[idx as usize];
+                    vertex.color.iter().any(|c| *c > 1.0)
+                        || vertex.surface == renderer_api::surface_role::GLASS
+                })
+            })
+            .flatten()
+            .copied()
+            .collect();
+        ray_hits_mesh(origin, dir, vertices, &opaque)
+    }
+
     /// Ray-vs-mesh (Möller–Trumbore over the triangle list): does a ray from `origin` along
     /// `dir` hit any hangar triangle?
     fn ray_hits_mesh(
@@ -1443,9 +1618,11 @@ mod tests {
         // stands — the lock is "the sun reaches the hero's station", not "the deck sticker".
         let deck = TURNTABLE_TOP_M + 0.6;
 
-        // The hero's centre stands in the sun, exactly.
+        // The hero's centre stands in the sun, exactly. Through GLASS if glass is in the
+        // way: the panes are emissive and light-passing (the same principle the shadow
+        // caster cut established), so the reach test skips them — steel still blocks.
         assert!(
-            !ray_hits_mesh([0.0, deck, 0.0], key, &vertices, &indices),
+            !ray_hits_opaque([0.0, deck, 0.0], key, &vertices, &indices),
             "the key must reach the turntable centre unobstructed"
         );
         // Across the deck, most of the sun arrives; mullions, trusses and the lamp rig are
@@ -1455,7 +1632,7 @@ mod tests {
             for gz in -2i32..=2 {
                 total += 1;
                 let origin = [gx as f32 * 1.5, deck, gz as f32 * 1.5];
-                if !ray_hits_mesh(origin, key, &vertices, &indices) {
+                if !ray_hits_opaque(origin, key, &vertices, &indices) {
                     clear += 1;
                 }
             }
@@ -1938,6 +2115,55 @@ mod tests {
         );
     }
 
+    /// ŚWIATŁO SŁUŻY CZOŁGOWI (user verdict 2026-08-10: the lights played the lead over the
+    /// tank — a razor-bar lattice on the floor, a shouting key). Three causes, three bolts:
+    /// the hall's penumbra stays real (soft-kernel radius ≥ 8 texels), the roof clutter
+    /// stays out of the caster set (the reduced indices genuinely drop a large share), and
+    /// the key:ambient ratio stays priced — the sun leads the room without shouting over it.
+    /// The re-recorded goldens are the picture's own ratchet on top of these.
+    /// Locking constants is the point (the same deliberate silence as
+    /// `the_hero_framing_is_the_roomy_cathedral_shot`).
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn the_light_serves_the_tank() {
+        assert!(
+            HANGAR_SHADOW_SOFTNESS >= 8.0,
+            "the hall's penumbra must stay real: {HANGAR_SHADOW_SOFTNESS} texels"
+        );
+        let (vertices, full) = hangar_scene_mesh_without_gate();
+        let reduced = hangar_shadow_indices();
+        assert!(
+            reduced.len() < full.len(),
+            "the caster cut must actually cut ({} of {})",
+            reduced.len(),
+            full.len()
+        );
+        // The CONTRACT, asserted on the output: nothing thin and nothing emissive above the
+        // wall band survives in the caster set — thin bars are few triangles (the cut is
+        // ~10% of indices) but they were the whole printed lattice.
+        for tri in reduced.chunks_exact(3) {
+            let p: [Vec3; 3] =
+                [0, 1, 2].map(|k| Vec3::from_array(vertices[tri[k] as usize].position));
+            if !p.iter().all(|v| v.y > 6.5) {
+                continue;
+            }
+            let emissive =
+                tri.iter().any(|&idx| vertices[idx as usize].color.iter().any(|c| *c > 1.0));
+            assert!(!emissive, "a pane casts a wall's shadow again at {:?}", p[0]);
+            let shortest =
+                (p[0] - p[1]).length().min((p[1] - p[2]).length()).min((p[2] - p[0]).length());
+            assert!(shortest >= 0.3, "a roof bar is back in the caster set at {:?}", p[0]);
+        }
+        let luma = |rgb: [f32; 3]| 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+        let rig = SceneLighting::garage_hero();
+        let ratio = luma(rig.key_rgb) / luma(rig.ambient_rgb).max(1.0e-3);
+        assert!(
+            (1.6..=3.4).contains(&ratio),
+            "the key leads without shouting: key/ambient luma {ratio:.2} (the lattice-era \
+             rig measured ~4.9 and printed a 4.8x stripe swing on the floor)"
+        );
+    }
+
     /// H1: THE CANONICAL DAYLIGHT IS THE GOLDEN RIG. Every review artifact and every golden
     /// pins `HangarLight::Day`, and Day must be `garage_hero()` to the bit — a variant system
     /// that nudged the canonical picture would re-record 27 goldens as a side effect.
@@ -2010,7 +2236,7 @@ mod tests {
         for light in HangarLight::ALL {
             let key = hangar_key_direction(light).to_array();
             assert!(
-                !ray_hits_mesh([0.0, TURNTABLE_TOP_M + 0.6, 0.0], key, &vertices, &indices),
+                !ray_hits_opaque([0.0, TURNTABLE_TOP_M + 0.6, 0.0], key, &vertices, &indices),
                 "{light:?}: the key must reach the turntable centre unobstructed"
             );
             // The same 60% deck fan the day's own sun lock demands — a variant whose sun
@@ -2020,7 +2246,7 @@ mod tests {
                 for gz in -2i32..=2 {
                     total += 1;
                     let origin = [gx as f32 * 1.5, TURNTABLE_TOP_M + 0.6, gz as f32 * 1.5];
-                    if !ray_hits_mesh(origin, key, &vertices, &indices) {
+                    if !ray_hits_opaque(origin, key, &vertices, &indices) {
                         clear += 1;
                     }
                 }
@@ -2033,7 +2259,7 @@ mod tests {
         assert!(sun_shaft_quads_for(HangarLight::Morning).is_empty(), "morning hangs no beam");
         for light in [HangarLight::Day, HangarLight::Evening] {
             let quads = sun_shaft_quads_for(light);
-            assert_eq!(quads.len(), 5, "{light:?}: the five-blade set");
+            assert_eq!(quads.len(), BROKEN_PANES.len(), "{light:?}: one blade per broken pane");
             for quad in &quads {
                 let top_y = quad[0][1].max(quad[1][1]);
                 let bottom_y = quad[2][1].min(quad[3][1]);
@@ -2168,16 +2394,20 @@ mod tests {
     fn the_shafts_hang_from_real_openings() {
         let (vertices, indices) = hangar_scene_mesh();
         let quads = sun_shaft_quads();
-        assert!(quads.len() >= 5, "the hall hangs a real set of blades, got {}", quads.len());
+        // Rare and natural (user direction 2026-08-10): a beam per BROKEN pane, nothing else
+        // — clean glazing diffuses, only an aperture beams.
+        assert_eq!(quads.len(), BROKEN_PANES.len(), "one blade per broken pane, no strays");
         for quad in &quads {
             let top_mid = [
                 (quad[0][0] + quad[1][0]) / 2.0,
                 (quad[0][1] + quad[1][1]) / 2.0 - 0.25,
                 (quad[0][2] + quad[1][2]) / 2.0,
             ];
+            // The FULL geometry test, glass included: a blade under an intact pane is the
+            // pane-glow lie — the ray may only escape through a genuinely broken bay.
             assert!(
                 !ray_hits_mesh(top_mid, [0.0, 1.0, 0.0], &vertices, &indices),
-                "a blade top at {top_mid:?} hangs under solid roof — its opening is a lie"
+                "a blade top at {top_mid:?} hangs under glass or roof — its hole is a lie"
             );
             assert!(
                 quad[2][1] < 1.5,
@@ -2189,6 +2419,20 @@ mod tests {
                 "a blade hangs from the glazing plane, top at {}",
                 quad[0][1]
             );
+            // THE BEAM FRAMES THE HERO, NEVER HITS IT (the whole point of the rework): the
+            // blade's foot lands outside the turntable's reach in every daylight.
+            let foot = [(quad[2][0] + quad[3][0]) / 2.0, (quad[2][2] + quad[3][2]) / 2.0];
+            let reach = (foot[0] * foot[0] + foot[1] * foot[1]).sqrt();
+            assert!(
+                reach > 4.5,
+                "a beam lands on the hero's station (foot at {foot:?}, r {reach:.1})"
+            );
+        }
+        // And in the evening too — the lower sun throws the feet farther, never closer.
+        for quad in &sun_shaft_quads_for(HangarLight::Evening) {
+            let foot = [(quad[2][0] + quad[3][0]) / 2.0, (quad[2][2] + quad[3][2]) / 2.0];
+            let reach = (foot[0] * foot[0] + foot[1] * foot[1]).sqrt();
+            assert!(reach > 4.5, "an evening beam lands on the station (r {reach:.1})");
         }
     }
 

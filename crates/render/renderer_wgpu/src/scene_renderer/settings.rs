@@ -84,6 +84,29 @@ impl SceneRenderer {
         self.vehicle_dust = amount.clamp(0.0, 1.0);
     }
 
+    /// Sun-shadow penumbra radius in shadow texels (Światło służy czołgowi): the garage's
+    /// tight shadow box makes a ~1.8 cm texel, and the stock 1-texel kernel printed every
+    /// roof member on the floor as a razor bar. 0 (the battle, and the default) keeps the
+    /// shipped kernel byte-for-byte.
+    pub fn set_shadow_softness(&mut self, texels: f32) {
+        self.shadow_softness = texels.max(0.0);
+    }
+
+    /// Give the sun-shadow passes a reduced statics index set (Światło służy czołgowi), or
+    /// `None` to draw the full statics indices as ever. The garage passes the hall minus its
+    /// roof clutter; every camera pass and the SSAO prepass keep the full mesh regardless.
+    pub fn set_terrain_shadow_indices(&mut self, ctx: &crate::GpuContext, indices: Option<&[u32]>) {
+        use wgpu::util::DeviceExt;
+        self.terrain_shadow_indices = indices.filter(|set| !set.is_empty()).map(|set| {
+            let buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("scene_terrain_shadow_i"),
+                contents: bytemuck::cast_slice(set),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+            (buffer, set.len() as u32)
+        });
+    }
+
     /// Set or clear the interior reflection cubemap (Hala 3.0 D1): `Some(mips)` uploads the
     /// baked, prefiltered room cube (each mip: 6 faces of RGBA f32 texels, WebGPU face order)
     /// and points every glossy interior reflection at it; `None` restores the black default

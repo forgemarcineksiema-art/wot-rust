@@ -106,6 +106,28 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>, frag: vec4<f32>) -> f32 {
         let texel = camera.shadow_params.x;
         let reference = ndc.z - camera.shadow_params.y;
         var sum = 0.0;
+        // Garage penumbra (Światło służy czołgowi): scene_params.w > 0 widens the kernel to
+        // that many texels — the hall's tight shadow box makes a ~1.8 cm texel, and the stock
+        // 1-texel cross printed every roof member on the floor as a razor bar. Two rotated
+        // crosses (inner + outer) keep the widened kernel hole-free the way the single cross
+        // cannot at large radius. The battle never sets it: at 0.0 this branch is never
+        // taken and the shipped path below is untouched.
+        if (camera.scene_params.w > 0.0) {
+            let rot = pcf_rotation(frag.xy);
+            let outer = rot * texel * camera.scene_params.w;
+            let outer_cross = vec2<f32>(-rot.y, rot.x) * texel * camera.scene_params.w;
+            let inner = rot * texel * (camera.scene_params.w * 0.45);
+            let inner_cross = vec2<f32>(-rot.y, rot.x) * texel * (camera.scene_params.w * 0.45);
+            sum = textureSampleCompareLevel(shadow_map, shadow_sampler, uv + outer, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - outer, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + outer_cross, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - outer_cross, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + inner, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - inner, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + inner_cross, reference)
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - inner_cross, reference);
+            return mix(1.0, sum / 8.0, strength);
+        }
         // Full detail (time_params.w, F2): the 3×3 reference kernel — nine taps straddling the
         // fragment at ±1 texel, contiguous bilinear coverage, ~3-texel penumbra.
         if (detail_bit(16u)) {

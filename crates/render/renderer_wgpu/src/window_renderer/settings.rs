@@ -87,6 +87,21 @@ impl WindowRenderer {
         self.scene.set_vehicle_dust(amount);
     }
 
+    /// Sun-shadow penumbra radius (see [`SceneRenderer::set_shadow_softness`]).
+    ///
+    /// [`SceneRenderer::set_shadow_softness`]: crate::SceneRenderer::set_shadow_softness
+    pub fn set_shadow_softness(&mut self, texels: f32) {
+        self.scene.set_shadow_softness(texels);
+    }
+
+    /// Reduced sun-shadow caster set for the statics slot (see
+    /// [`SceneRenderer::set_terrain_shadow_indices`]).
+    ///
+    /// [`SceneRenderer::set_terrain_shadow_indices`]: crate::SceneRenderer::set_terrain_shadow_indices
+    pub fn set_terrain_shadow_indices(&mut self, indices: Option<&[u32]>) {
+        self.scene.set_terrain_shadow_indices(&self.ctx, indices);
+    }
+
     /// Set or clear the interior reflection cubemap (see
     /// [`SceneRenderer::set_environment_cube`]).
     ///
