@@ -37,13 +37,13 @@ impl MeshBuilder {
             d.normalize_or_zero()
         };
         let mut splits = vec![false; n];
-        for i in 1..n - 1 {
-            if spec.profile[i].radius <= f32::EPSILON {
+        for (offset, window) in spec.profile.windows(3).enumerate() {
+            if window[1].radius <= f32::EPSILON {
                 continue;
             }
-            let before = band_dir(spec.profile[i - 1], spec.profile[i]);
-            let after = band_dir(spec.profile[i], spec.profile[i + 1]);
-            splits[i] = before.dot(after) < HARD_BREAK_COS;
+            let before = band_dir(window[0], window[1]);
+            let after = band_dir(window[1], window[2]);
+            splits[offset + 1] = before.dot(after) < HARD_BREAK_COS;
         }
         // Expanded rows: each split point occupies two rows at the same position. `top_row[k]`
         // is the row band k starts from (the copy facing it); `bottom_row[k]` the row it ends

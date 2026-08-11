@@ -165,6 +165,13 @@ pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
 /// fittings, headlights — now come from `game_core::roundness::round_segments` instead of a number
 /// typed at the call site. Positions are unchanged; only ring resolution moves.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
+    // Re-recorded 2026-08-11 (a lathe corner is a line): profile corners sharper than 40 deg
+    // now carry one vertex row per band, so hard-smoothing lathes keep crisp arrises through
+    // the weld. Six rows move — the vehicles whose recipes turn hard-edged drums and rims; the
+    // Prototype, IS-3 and Centurion rows are byte-identical, which is the check that
+    // smooth-group lathes still weld back to the old bake (that survival is a named, separate
+    // decision). The shipped T-54 hybrid builds without the MeshBuilder and its own golden did
+    // not move for this change.
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
     // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
@@ -191,7 +198,8 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // since the Model Idealny pass, which is why this row moves and the hybrid's own golden in
     // `vehicle_build/tests/t54_hybrid.rs` does not.
     // Previous: 7_427_199_630_274_926_331 (W4 F5.ii, the authored gun group).
-    (VehicleKind::T54_1951, 15_649_090_968_640_575_833_u64),
+    // Previous: 15_649_090_968_640_575_833 (the material law).
+    (VehicleKind::T54_1951, 3_041_646_403_573_294_078_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
@@ -202,20 +210,23 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // double-baffle brake as chambers with a waist, and the Walzenblende body spanning exactly
     // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
     // Previous: 11_582_503_112_659_279_264 (the model-logic review).
-    (VehicleKind::TigerI, 16_183_656_741_282_067_528_u64),
-    (VehicleKind::TigerII, 6_095_313_843_902_085_214_u64),
+    // Previous: 16_183_656_741_282_067_528 (W4 F5.iii, the authored gun group).
+    (VehicleKind::TigerI, 8_084_924_222_118_822_635_u64),
+    (VehicleKind::TigerII, 14_430_130_810_638_667_670_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
     // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
-    (VehicleKind::Jagdtiger, 9_354_888_225_361_852_958_u64),
+    // Previous: 9_354_888_225_361_852_958 (dossier JT.3).
+    (VehicleKind::Jagdtiger, 9_586_643_183_783_154_166_u64),
     // Re-recorded 2026-07-29 (PR-06): the Panther II turret face and rear carried two angles
     // each (11 vs 20, 25 vs 20). The dossier states 20 deg for both, three times over, so the
     // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
     // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
-    (VehicleKind::PantherII, 1_355_280_321_240_589_747_u64),
+    // Previous: 1_355_280_321_240_589_747 (PR-06, one-slope-one-truth).
+    (VehicleKind::PantherII, 18_011_846_316_592_020_185_u64),
     (VehicleKind::IS3, 7_213_915_726_535_595_403_u64),
     (VehicleKind::Centurion, 4_873_872_249_549_936_266_u64),
-    (VehicleKind::T34_85, 12_022_500_052_051_988_711_u64),
+    (VehicleKind::T34_85, 16_650_410_597_310_043_606_u64),
 ];
 
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {
