@@ -207,6 +207,16 @@ pub struct ArmorShape {
     /// without a documented taper keeps.
     #[serde(default)]
     pub turret_side_taper: Option<f32>,
+    /// The LOWER front plate's own slope (degrees from vertical) and thickness factor relative
+    /// to the hull-front module plate. `None` keeps the fleet derivation (0.45 x the glacis
+    /// angle, 0.72 x its thickness) that every welded-box bow ships with.
+    ///
+    /// The T-54 authors it: its dossier states 100 mm @ 55 deg where the derivation produced a
+    /// 27-degree plate - and the VISIBLE nose reads this same field, so the plate the player
+    /// sees and the plate a shell resolves against are one number
+    /// (`the_visible_nose_and_the_armour_nose_are_one_plane`).
+    #[serde(default)]
+    pub hull_lower_front: Option<(f32, f32)>,
     /// The PORTS cut through the bow plates — the driver's visor and the hull MG mount — as
     /// aimable armour patches on the glacis. A port's weakness is GEOMETRY, not a scalar: the
     /// ball or visor presents FLAT where the plate around it rakes, so the patch resolves the

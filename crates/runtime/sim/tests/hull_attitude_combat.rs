@@ -62,10 +62,34 @@ fn hull_tilt_angles_the_glacis_against_a_level_shot() {
             cover: &[],
             water: None,
         };
-        let from = Vec3::new(0.0, 1.0, 0.0);
-        let to = Vec3::new(0.0, 1.0, 40.0);
+        // Aim at the GLACIS AS POSED, and pin the zone. The old aim was a fixed horizontal
+        // line at y 1.0: level it crossed the glacis band, but nose-up lifts the bow's fold by
+        // ~0.7 m, so the tilted shot slid onto the lower plate — which, now that that plate
+        // plays its authored 55 degrees, answered 40.7 (55 minus the 14.3-degree tilt) and the
+        // test read its own aim error as a glacis regression. Same idiom as
+        // `hull_down_nose_up_steepens_the_glacis`: a point on the real blueprint glacis plane,
+        // carried through the pose, fired through flat.
+        let blueprint =
+            game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        let cy = blueprint.hull.hitbox_center_y;
+        let up_the_plate = 0.29;
+        let glacis_local = Vec3::new(
+            0.0,
+            (blueprint.hull.sponson_y - cy) + up_the_plate,
+            blueprint.hull.half_len
+                - up_the_plate * blueprint.armor.hull_front.0.to_radians().tan(),
+        );
+        // yaw PI turns the bow toward the shooter; the pose's basis carries the point.
+        let pose = HullPose { yaw_rad: std::f32::consts::PI, pitch_rad, roll_rad: 0.0 };
+        let world_point =
+            Vec3::new(0.0, 0.0, 30.0) + pose.basis() * (Vec3::Y * cy) + pose.basis() * glacis_local;
+        let from = Vec3::new(0.0, world_point.y, world_point.z - 20.0);
+        let to = Vec3::new(0.0, world_point.y, world_point.z + 10.0);
         match segment_impact(from, to, Vec3::Z, &world) {
-            Some(SegmentImpact::Tank { impact_angle_degrees, .. }) => impact_angle_degrees,
+            Some(SegmentImpact::Tank { impact_angle_degrees, zone, .. }) => {
+                assert_eq!(zone, game_core::ArmorZone::UpperGlacis, "aimed at the glacis");
+                impact_angle_degrees
+            }
             other => panic!("expected a tank hit, got {other:?}"),
         }
     };

@@ -28,7 +28,6 @@ use super::{
 /// the blueprint states how proud the drum stands (`cupola_height`), not how deep it roots.
 const CUPOLA_HALF_HEIGHT_M: f32 = 0.18;
 const GLACIS_SETBACK_M: f32 = 0.05;
-const NOSE_SETBACK_M: f32 = 0.48;
 /// How far the engine deck's rear edge stops short of the rear plate.
 const DECK_REAR_GAP_M: f32 = 0.20;
 /// How far each fender run stops short of the hull's end plates.
@@ -66,7 +65,17 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     // `half_len` or the glacis angle the drift would have become visible instead of merely
     // measurable. They are derived here, from the same armour rake the plate is built at.
     let glacis_base_z = hull.half_len - GLACIS_SETBACK_M;
-    let nose_base_z = hull.half_len - NOSE_SETBACK_M;
+    // The nose fold-to-belly run is DERIVED from the armour's authored plate angle - one number
+    // for the plate a player sees and the plane a shell meets. It was `half_len - 0.48`, an
+    // authored setback that worked out to 36.8 degrees under a dossier that says 55 and an
+    // armour derivation that played 27: three descriptions of one plate, all different.
+    let lower_deg = file
+        .armor
+        .hull_lower_front
+        .map(|(deg, _)| deg)
+        .expect("the T-54 blueprint authors its lower front plate");
+    let nose_base_z =
+        glacis_base_z - lower_deg.to_radians().tan() * (hull.sponson_y - hull.belly_y);
     let (sin_rake, cos_rake) = armor.hull_front.0.to_radians().sin_cos();
     let glacis_offset = sin_rake * hull.sponson_y + cos_rake * glacis_base_z;
     // The lower nose runs from the fold down to the belly front; its normal is the perpendicular

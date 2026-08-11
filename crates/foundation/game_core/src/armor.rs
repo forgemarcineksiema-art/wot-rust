@@ -49,6 +49,11 @@ pub struct ArmorProfile {
     /// documents say 30.
     #[serde(default)]
     pub turret_roof_mm: Option<f32>,
+    /// The lower front plate, when the vehicle's dossier states it. `None` falls back to the
+    /// fleet derivation off the glacis (0.72 thickness, 0.45 slope) - which is how the T-54
+    /// carried a 27-degree lower plate under a dossier that says 55.
+    #[serde(default)]
+    pub lower_front: Option<ArmorFacet>,
     #[serde(default)]
     pub facets: ArmorFacetProfile,
 }
@@ -92,6 +97,7 @@ impl ArmorProfile {
             hull_rear_mm: hull_rear.nominal_thickness_mm,
             turret_front_mm: turret_front.nominal_thickness_mm,
             turret_side_mm: turret_side.nominal_thickness_mm,
+            lower_front: None,
             turret_rear_mm: turret_rear.nominal_thickness_mm,
             turret_roof_mm: None,
             facets: ArmorFacetProfile {
