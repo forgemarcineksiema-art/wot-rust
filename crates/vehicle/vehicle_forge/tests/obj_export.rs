@@ -93,7 +93,8 @@ fn drawn_triangle_count(kind: VehicleKind) -> usize {
                 GearPart::Idler => meshes.1.triangle_count(),
                 GearPart::Sprocket => meshes.2.triangle_count(),
                 GearPart::Link => meshes.3.triangle_count(),
-                GearPart::SwingArm => meshes.4.triangle_count(),
+                // The left arm mirrors the right: same count by construction.
+                GearPart::SwingArm | GearPart::SwingArmLeft => meshes.4.triangle_count(),
                 GearPart::ReturnRoller => meshes.5.triangle_count(),
             };
         }

@@ -330,7 +330,15 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // blocks under its top rim, each an armoured hood rooted into the wall with a glass pane in
     // its face — the ring of devices the drum exists to carry.
     // Previous: 0x8c8d_d462_f899_9cfb (PR-32, the sprocket's rings and the roof furniture).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8ebd_c33e_7f84_bc86;
+    // Re-recorded 2026-08-11 (the slits go INTO the drum): the dimension gate threw the proud
+    // vision hoods back — the cupola's Locked ⌀624 tape caught them at ⌀675 — and it was right
+    // on the history too: the obr. 1951 cupola carries slits with glass behind them, not pods.
+    // Frames flush with the drum's nominal radius (width bounded by chord geometry against the
+    // tape), glass recessed 6 mm so the slit reads as a dark opening. The left swing arm also
+    // becomes its own mirrored unit mesh (GearPart::SwingArmLeft) — instanced gear, so the
+    // static bake moves only through the slit rework.
+    // Previous: 0x8ebd_c33e_7f84_bc86 (PR-33, the hatch hardware and the first cupola blocks).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x82a8_3c8e_17e9_3af2;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

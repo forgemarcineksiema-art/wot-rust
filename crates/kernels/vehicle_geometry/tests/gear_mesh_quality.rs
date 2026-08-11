@@ -105,6 +105,7 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
                 | GearPart::Sprocket
                 | GearPart::Link
                 | GearPart::SwingArm
+                | GearPart::SwingArmLeft
                 | GearPart::ReturnRoller => {}
             }
             if placement.transform.w_axis.x < 0.0 {

@@ -19,6 +19,9 @@ pub(crate) struct GearMeshSet {
     pub sprocket: MeshHandle,
     pub link: MeshHandle,
     pub swing_arm: MeshHandle,
+    /// The left-hand arm: mirrored geometry, because the torsion boss faces the hull on both
+    /// sides and an arm is the one gear part a rotation cannot turn around.
+    pub swing_arm_left: MeshHandle,
     pub return_roller: MeshHandle,
 }
 
@@ -89,6 +92,7 @@ pub(crate) fn gear_objects_from(
                 GearPart::Sprocket => set.sprocket,
                 GearPart::Link => set.link,
                 GearPart::SwingArm => set.swing_arm,
+                GearPart::SwingArmLeft => set.swing_arm_left,
                 GearPart::ReturnRoller => set.return_roller,
             };
             RenderObject {

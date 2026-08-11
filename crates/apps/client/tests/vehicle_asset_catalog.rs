@@ -11,16 +11,18 @@ fn t54_object_count() -> usize {
     3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus six unit gear meshes (road
-/// wheel, swing arm, sprocket, idler, track link, return roller) at EACH of the two detail
-/// tiers.
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus seven unit gear meshes (road
+/// wheel, swing arm, its mirrored LEFT arm, sprocket, idler, track link, return roller) at EACH
+/// of the two detail tiers.
 ///
-/// The second set of six is what the distance tier costs, and it is worth stating plainly: six
-/// extra unit meshes per vehicle kind, resident for the battle, in exchange for 47-61% of the
-/// gear's triangles on every tank past 60 m. The gear is the largest body of geometry a vehicle
-/// has (38.6k triangles on a T-54, more than twice its whole static bake), so the trade is not
-/// close.
-const BLUEPRINT_MESH_COUNT: usize = 3 + 6 * 2;
+/// The second set is what the distance tier costs, and it is worth stating plainly: seven extra
+/// unit meshes per vehicle kind, resident for the battle, in exchange for 47-61% of the gear's
+/// triangles on every tank past 60 m. The gear is the largest body of geometry a vehicle has
+/// (38.6k triangles on a T-54, more than twice its whole static bake), so the trade is not
+/// close. The seventh is the left-hand arm: an arm is the one gear part a rotation cannot turn
+/// to face the other side of the tank, so its mirror is real geometry — one more resident mesh,
+/// zero more instances or drawn triangles.
+const BLUEPRINT_MESH_COUNT: usize = 3 + 7 * 2;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {

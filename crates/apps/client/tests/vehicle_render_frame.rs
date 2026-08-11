@@ -19,13 +19,14 @@ fn expected_object_count() -> usize {
         .sum()
 }
 
-/// Cached meshes: hull/turret/gun for every vehicle, plus six unit gear meshes per blueprint one
-/// (road wheel, swing arm, sprocket, idler, track link, return roller) at EACH of the two detail
-/// tiers — the near set and the distant set are registered together at load.
+/// Cached meshes: hull/turret/gun for every vehicle, plus seven unit gear meshes per blueprint
+/// one (road wheel, swing arm, its mirrored LEFT arm, sprocket, idler, track link, return
+/// roller) at EACH of the two detail tiers — the near set and the distant set are registered
+/// together at load.
 fn expected_mesh_count() -> usize {
     VehicleKind::ALL
         .iter()
-        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 6 * 2 } else { 0 })
+        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 7 * 2 } else { 0 })
         .sum()
 }
 
@@ -48,6 +49,7 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
             spotted_by_teams_mask: 0,
             module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
@@ -157,6 +159,7 @@ fn presentation_tanks() -> Vec<PresentationTank> {
             spotted_by_teams_mask: 0,
             module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
@@ -198,6 +201,7 @@ fn frame_for_t54_tracks_with_masks(
             spotted_by_teams_mask: 0,
             module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
             track_damage_mask,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,

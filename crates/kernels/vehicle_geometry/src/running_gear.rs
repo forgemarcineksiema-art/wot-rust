@@ -311,6 +311,13 @@ pub enum GearPart {
     SwingArm,
     /// Small top-run carrier roller (IS family); spins with the belt like everything it touches.
     ReturnRoller,
+    /// The left-hand [`GearPart::SwingArm`]: the arm is the one gear part that is neither a solid
+    /// of revolution (the wheels — a half-turn about Y made those face outward) nor X-symmetric
+    /// (the shoes). Its torsion boss stands proud INBOARD, and a rotation that kept the arm
+    /// trailing would point that boss at the wheel — which is exactly how it shipped: the left
+    /// arms drove their bosses 89 mm into the wheel discs. A true mirror needs mirrored GEOMETRY,
+    /// so the left side is its own unit mesh with the winding re-reversed.
+    SwingArmLeft,
 }
 
 /// One instanced running-gear part: the unit mesh to draw and where (hull-local).

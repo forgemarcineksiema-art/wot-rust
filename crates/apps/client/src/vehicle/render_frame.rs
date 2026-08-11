@@ -151,12 +151,19 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         let landing_slack = (-tank.attitude_heave_m).max(0.0) * 2.5;
         let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05 + landing_slack).clamp(0.72, 1.5);
         let damage = game_core::TrackDamageMask::from_bits(tank.track_damage_mask);
-        let side_sag = |broken: bool| if broken { 2.2 } else { sag_scale };
         let dynamics = GearDynamics {
             left_travel: &left_travel,
             right_travel: &right_travel,
-            left_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Left)),
-            right_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Right)),
+            left_sag_scale: side_sag_scale(
+                damage.is_broken(game_core::TrackSide::Left),
+                tank.track_hp[0],
+                sag_scale,
+            ),
+            right_sag_scale: side_sag_scale(
+                damage.is_broken(game_core::TrackSide::Right),
+                tank.track_hp[1],
+                sag_scale,
+            ),
             left_break_t: tank.track_break_t[0],
             right_break_t: tank.track_break_t[1],
         };
@@ -321,6 +328,24 @@ fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_sc
     }
 }
 
+/// How slack one side's top run hangs, from its damage state.
+///
+/// Three tiers, three reads: a HEALTHY track carries the drive-state scale (taut under power,
+/// slack when braking); a DAMAGED one has lost tension it cannot recover, so it hangs past the
+/// healthy band's ceiling but well short of dead; a BROKEN one is off the wheels entirely and
+/// its 2.2 hangs on whatever is left. The Damaged tier existed in the game and on the HUD since
+/// two-tier tracks landed, and the model rendered it identically to Healthy because the render
+/// snapshot zeroed the pools back to MAX.
+pub(crate) fn side_sag_scale(broken: bool, hp: u8, drive_scale: f32) -> f32 {
+    if broken {
+        return 2.2;
+    }
+    match game_core::TrackSeverity::from_hp(hp) {
+        game_core::TrackSeverity::Damaged => (drive_scale * 1.45).clamp(1.2, 1.8),
+        _ => drive_scale,
+    }
+}
+
 /// Adapt a presentation entity into the pose-only `TankSnapshot` the procedural mesh kernels
 /// consume. The fields the meshes never read (`reload_remaining_s`, `aim_dispersion_mrad`) are
 /// zeroed — they belong to the player's HUD path, not vehicle geometry.
@@ -344,7 +369,11 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         module_hit_points: tank.module_hit_points,
         destroyed_modules_mask: tank.destroyed_modules_mask,
         track_damage_mask: tank.track_damage_mask,
-        track_hp: [game_core::TRACK_HP_MAX; 2],
+        // The REAL pools, at last. This line used to zero them back to MAX "because the mesh
+        // kernels never read them" — and then the sag path upstream DID read them, which made
+        // the Damaged tier a state the HUD showed and the model contradicted, every battle,
+        // for as long as two-tier tracks existed.
+        track_hp: tank.track_hp,
         // Ammo is HUD state, not geometry: the mesh kernels never read it (like reload above).
         ammo_counts: [0; game_core::MAX_AMMO_SLOTS],
         selected_ammo: 0,
@@ -363,6 +392,35 @@ pub fn render_frame_from_objects(objects: Vec<RenderObject>) -> RenderFrame {
 
 #[cfg(test)]
 mod tests {
+    /// The Damaged tier is VISIBLE: slacker than any healthy drive state, tauter than a thrown
+    /// track. The tier existed in the game and on the HUD since two-tier tracks landed, and the
+    /// model rendered it identically to Healthy.
+    #[test]
+    fn the_damaged_tier_hangs_between_healthy_and_thrown() {
+        for drive in [0.72_f32, 1.0, 1.5] {
+            let healthy = super::side_sag_scale(false, game_core::TRACK_HP_MAX, drive);
+            let damaged = super::side_sag_scale(false, game_core::TRACK_HP_MAX / 2, drive);
+            let broken = super::side_sag_scale(true, 0, drive);
+            assert_eq!(healthy, drive, "a full pool carries the drive state through");
+            assert!(
+                damaged > healthy.min(1.19),
+                "a damaged track has lost tension it cannot recover: {damaged} vs {healthy}"
+            );
+            assert!((1.2..=1.8).contains(&damaged), "damaged hangs in its own band: {damaged}");
+            assert!(broken > damaged, "a thrown track hangs deeper still: {broken}");
+        }
+    }
+
+    /// The render snapshot carries the REAL pools. This line used to zero them back to MAX
+    /// "because the mesh kernels never read them" — and the sag path upstream did read them,
+    /// which made the Damaged tier a state the HUD showed and the model contradicted.
+    #[test]
+    fn the_render_snapshot_carries_the_real_track_pools() {
+        let mut tank = presentation_tank(7, 1);
+        tank.track_hp = [3, 97];
+        assert_eq!(super::render_snapshot(&tank).track_hp, [3, 97]);
+    }
+
     use game_core::{
         ApertureLobe, ArmorBreach, ArmorBreachDescriptor, ArmorFrame, ArmorMaterial,
         ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, ShellType, TankId, TeamId,
@@ -390,6 +448,7 @@ mod tests {
             spotted_by_teams_mask: 0,
             module_hit_points: [1; game_core::MODULE_SLOT_COUNT],
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
@@ -639,6 +698,7 @@ mod tests {
             spotted_by_teams_mask: 0,
             module_hit_points: [11, 22, 33, 44, 55, 66],
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
@@ -682,6 +742,7 @@ mod tests {
                 spotted_by_teams_mask: 0,
                 module_hit_points: [1; game_core::MODULE_SLOT_COUNT],
                 track_damage_mask: 0,
+                track_hp: [game_core::TRACK_HP_MAX; 2],
                 track_break_t: [None, None],
                 engine_fire: false,
                 fuel_fire: false,
