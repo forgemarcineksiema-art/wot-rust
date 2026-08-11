@@ -544,3 +544,104 @@ fn vertex(position: Vec3, normal: Vec3) -> vehicle_geometry::GeometryVertex {
         SmoothingGroup(2),
     )
 }
+
+/// A MACHINED ARRIS IS A LINE, NOT A BLEND. The lathe shares one vertex per (segment, profile
+/// point) and averages its normal over every band that touches it — so a 90-degree corner on a
+/// wheel rim, a flange or a drum shades like a fillet, on every lathe in the fleet. (And because
+/// a CLOSED profile duplicates its first point, exactly one corner of a rectangular ring is
+/// accidentally crisp: three soft corners and one hard one on the same part.)
+///
+/// The contract: profile corners sharper than the hard-break threshold carry one normal PER
+/// BAND — same position, different normals — while gentle turns keep sharing. Zero new
+/// triangles; the split is vertex-only.
+#[test]
+fn a_lathe_profile_corner_sharper_than_the_threshold_is_crisp() {
+    // A closed rectangular ring: four 90-degree corners.
+    let ring = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.20, -0.05),
+                ProfilePoint::new(0.30, -0.05),
+                ProfilePoint::new(0.30, 0.05),
+                ProfilePoint::new(0.20, 0.05),
+                ProfilePoint::new(0.20, -0.05),
+            ],
+            axis: Axis::X,
+            segments: 12,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(5),
+        })
+        .build();
+
+    // Every corner position must present at least two distinct normals.
+    let mut positions: std::collections::BTreeMap<(i32, i32, i32), Vec<glam::Vec3>> =
+        std::collections::BTreeMap::new();
+    for v in ring.vertices() {
+        let key = (
+            (v.position.x * 4096.0).round() as i32,
+            (v.position.y * 4096.0).round() as i32,
+            (v.position.z * 4096.0).round() as i32,
+        );
+        positions.entry(key).or_default().push(v.normal);
+    }
+    let mut crisp = 0usize;
+    let mut soft_corners = 0usize;
+    for normals in positions.values() {
+        if normals.len() < 2 {
+            continue;
+        }
+        let spread = normals
+            .iter()
+            .flat_map(|a| normals.iter().map(move |b| a.dot(*b)))
+            .fold(f32::INFINITY, f32::min);
+        if spread < 0.7 {
+            crisp += 1;
+        } else {
+            soft_corners += 1;
+        }
+    }
+    // 4 corners x 12 segments = 48 crisp positions. Before the split the welded average left
+    // only the accidental seam corner crisp (12 positions).
+    assert!(
+        crisp >= 48,
+        "a rectangular ring has four crisp corners per segment: {crisp} crisp positions found \
+         ({soft_corners} corner positions still blended)"
+    );
+
+    // And a GENTLE profile stays smooth: a shallow dome must not sprout seams.
+    let dome = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.30, 0.00),
+                ProfilePoint::new(0.29, 0.03),
+                ProfilePoint::new(0.26, 0.06),
+                ProfilePoint::new(0.21, 0.085),
+                ProfilePoint::new(0.15, 0.10),
+            ],
+            axis: Axis::X,
+            segments: 12,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(5),
+        })
+        .build();
+    let mut dome_positions: std::collections::BTreeMap<(i32, i32, i32), Vec<glam::Vec3>> =
+        std::collections::BTreeMap::new();
+    for v in dome.vertices() {
+        let key = (
+            (v.position.x * 4096.0).round() as i32,
+            (v.position.y * 4096.0).round() as i32,
+            (v.position.z * 4096.0).round() as i32,
+        );
+        dome_positions.entry(key).or_default().push(v.normal);
+    }
+    for normals in dome_positions.values() {
+        let spread = normals
+            .iter()
+            .flat_map(|a| normals.iter().map(move |b| a.dot(*b)))
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            spread > 0.9,
+            "a gentle dome profile must stay smooth — a split there is a seam nobody machined"
+        );
+    }
+}

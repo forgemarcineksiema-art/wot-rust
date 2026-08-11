@@ -174,6 +174,58 @@ impl TurretLoftVisual {
         support
     }
 
+    /// A point on (or `standoff` metres proud of) the loft's superellipse family at height `y`
+    /// and azimuth `phi` (0 = forward +Z, positive toward +X) — WITHOUT the bumps. This is the
+    /// bare ring the kit lines used to duplicate privately in `vehicle_build`; it lives here so
+    /// the shell, the armour and every fitting that follows the casting read ONE family.
+    pub fn ring_point(&self, y: f32, phi: f32, standoff: f32) -> Vec3 {
+        let s = &self.stations;
+        let above = s.iter().position(|st| st.y >= y).unwrap_or(s.len() - 1).max(1);
+        let (a, b) = (&s[above - 1], &s[above]);
+        let t = ((y - a.y) / (b.y - a.y).max(1.0e-4)).clamp(0.0, 1.0);
+        let lerp = |p: f32, q: f32| p + (q - p) * t;
+        let half_width = lerp(a.half_width, b.half_width);
+        let z_center = lerp(a.z_center, b.z_center);
+        let (dx, dz) = (phi.sin(), phi.cos());
+        let half_len = if dz >= 0.0 {
+            lerp(a.half_len_front, b.half_len_front)
+        } else {
+            lerp(a.half_len_rear, b.half_len_rear)
+        };
+        let n = self.exponent;
+        let scale =
+            ((dx.abs() / half_width).powf(n) + (dz.abs() / half_len).powf(n)).powf(-1.0 / n);
+        Vec3::new(dx * (scale + standoff), y, z_center + dz * (scale + standoff))
+    }
+
+    /// [`Self::ring_point`] WITH the casting's bumps: where the surface actually is, cheeks and
+    /// embrasure included. A fitting that follows the casting has to follow this, not the bare
+    /// ring — the mould line drawn off the bare family sat ~50 mm inside the cheek plateau and
+    /// hung ~70 mm off the gun window, paying 480 triangles for a feature that read as an error.
+    ///
+    /// With every bump amount at zero this IS `ring_point`, term for term — the equivalence the
+    /// rails rely on, pinned by `surface_point_without_bumps_is_the_bare_ring`.
+    pub fn surface_point(&self, y: f32, phi: f32, standoff: f32) -> Vec3 {
+        let bare = self.ring_point(y, phi, standoff);
+        // The bump family speaks the outline's azimuth (0 = +X, front at PI/2); the fitting
+        // convention here is phi 0 = forward +Z. Same angle, different zero.
+        let push = self.radial_push(std::f32::consts::FRAC_PI_2 - phi, y);
+        if push == 0.0 {
+            return bare;
+        }
+        let radial = Vec3::new(bare.x, 0.0, bare.z - self.station_z_center(y)).normalize_or_zero();
+        bare + radial * push
+    }
+
+    /// The interpolated station centreline at height `y` — the axis `surface_point` pushes from.
+    fn station_z_center(&self, y: f32) -> f32 {
+        let s = &self.stations;
+        let above = s.iter().position(|st| st.y >= y).unwrap_or(s.len() - 1).max(1);
+        let (a, b) = (&s[above - 1], &s[above]);
+        let t = ((y - a.y) / (b.y - a.y).max(1.0e-4)).clamp(0.0, 1.0);
+        a.z_center + (b.z_center - a.z_center) * t
+    }
+
     /// The casting's localized radial modulation at `(azimuth, y)`: the two cheek swells and the
     /// gun embrasure recess. Mirrors `cast_loft::CastBump::push` for the bumps this shell
     /// carries — the loft builder feeds the kernel exactly these three.
@@ -192,33 +244,34 @@ impl TurretLoftVisual {
         let gaussian = |center: f32, az_width: f32, center_y: f32, y_width: f32, amount: f32| {
             bump(center, az_width, center_y, y_width, amount, 2.0)
         };
-        gaussian(
-            front - self.cheek_azimuth,
-            self.cheek_az_width,
-            self.cheek_y,
-            self.cheek_y_width,
-            self.cheek_amount,
-        ) + gaussian(
-            front + self.cheek_azimuth,
-            self.cheek_az_width,
-            self.cheek_y,
-            self.cheek_y_width,
-            self.cheek_amount,
-        ) + bump(
-            front,
-            self.embrasure_az_width,
-            self.embrasure_y,
-            self.embrasure_y_width,
-            self.embrasure_amount,
-            self.embrasure_falloff,
-        ) + bump(
-            front,
-            self.window_az_width,
-            self.embrasure_y,
-            self.window_y_width,
-            self.window_amount,
-            self.window_falloff,
-        )
+        // ONE face plateau, falloff 6 — exactly what the mesh builder feeds `cast_loft`
+        // (`t54_turret_loft.rs`: a single `CastBump::plateau` at the front). This used to be a
+        // PAIR of gaussians at `front ± cheek_azimuth`, and with `cheek_azimuth` authored at 0
+        // the pair collapsed onto one spot and DOUBLE-COUNTED the amount: the armour volume
+        // carried a +0.100 face where the metal carries +0.050 — four to five centimetres of
+        // phantom armour across the whole face plateau, hidden exactly under the 0.05 m
+        // tolerance of `the_armour_dome_does_not_stand_proud_of_the_casting`. The mould-line
+        // lock caught it the day the seam started following the surface: the seam landed on the
+        // armour's face and hung 45 mm off the metal's.
+        let _ = gaussian;
+        let _ = self.cheek_azimuth;
+        bump(front, self.cheek_az_width, self.cheek_y, self.cheek_y_width, self.cheek_amount, 6.0)
+            + bump(
+                front,
+                self.embrasure_az_width,
+                self.embrasure_y,
+                self.embrasure_y_width,
+                self.embrasure_amount,
+                self.embrasure_falloff,
+            )
+            + bump(
+                front,
+                self.window_az_width,
+                self.embrasure_y,
+                self.window_y_width,
+                self.window_amount,
+                self.window_falloff,
+            )
     }
 }
 

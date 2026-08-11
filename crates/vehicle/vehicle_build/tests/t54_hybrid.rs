@@ -338,7 +338,17 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // becomes its own mirrored unit mesh (GearPart::SwingArmLeft) — instanced gear, so the
     // static bake moves only through the slit rework.
     // Previous: 0x8ebd_c33e_7f84_bc86 (PR-33, the hatch hardware and the first cupola blocks).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x82a8_3c8e_17e9_3af2;
+    // Re-recorded 2026-08-11 (the mould line finds the metal, and so does the armour): the seam
+    // moves from y 1.95 off the bare curve family to y 1.71 ON the modulated surface — a mould
+    // parts at its widest band, and the line now rides the cheeks and dips through the window
+    // like the reference casting's. Drawing it there exposed the real find: the armour's bump
+    // mirror double-counted the cheek plateau (two gaussians at +-0 vs the mesh's single
+    // plateau), leaving ~45 mm of phantom armour across the whole face, hidden at 0.049 under a
+    // 0.05 tolerance. Mirror corrected (slack now 1.5 mm), tolerance tightened to 0.010, and
+    // the seam path plus rails now read the blueprint's OWN ring/surface family — the private
+    // duplicate in kit_lines is gone.
+    // Previous: 0x82a8_3c8e_17e9_3af2 (PR-34, the flush cupola slits and the mirrored arm).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xf74e_0e22_b2ab_8199;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

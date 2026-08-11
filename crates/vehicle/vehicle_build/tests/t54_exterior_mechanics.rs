@@ -420,3 +420,110 @@ fn the_unditching_beam_is_banded_to_its_brackets() {
         beam.max.y
     );
 }
+
+/// With every bump amount at zero, `surface_point` IS `ring_point` — the equivalence the rails
+/// rely on when they read the shared family instead of the private copy this file's kit used to
+/// carry. If the two evaluations ever drift, every fitting that follows the casting drifts with
+/// whichever copy it happens to read: the exact two-curves disease the armour volume already
+/// cured for the shell itself.
+#[test]
+fn surface_point_without_bumps_is_the_bare_ring() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let visual = bp.complete_visual().expect("visual");
+    let mut bald = *visual.turret_loft;
+    bald.cheek_amount = 0.0;
+    bald.embrasure_amount = 0.0;
+    bald.window_amount = 0.0;
+    for k in 0..24 {
+        let phi = std::f32::consts::TAU * k as f32 / 24.0;
+        for y in [1.62_f32, 1.71, 1.90, 2.10] {
+            let ring = bald.ring_point(y, phi, 0.004);
+            let surface = bald.surface_point(y, phi, 0.004);
+            assert!(
+                (ring - surface).length() < 1.0e-5,
+                "bald surface departs its own ring at y {y} phi {phi}: {ring:?} vs {surface:?}"
+            );
+        }
+    }
+}
+
+/// THE MOULD LINE LIES ON THE CASTING — measured against the built shell, not against the curve
+/// family the path was drawn from. At y 1.95 off the bare family the seam sat 20 cm above the
+/// widest band (a mould split above its widest section cannot open), buried under the face
+/// plateau's +49 mm and hanging over the gun window's -71 mm. Every prior assertion about it
+/// measured spans, which a buried loop satisfies.
+#[test]
+fn the_mould_line_lies_on_the_casting() {
+    let description = t54_description();
+    let shell =
+        description.parts.iter().find(|p| p.key.name == "turret_shell").expect("shell").mesh();
+    let samples: Vec<(f32, f32, f32)> = shell
+        .vertices()
+        .iter()
+        .map(|v| (v.position.y, v.position.z.atan2(v.position.x), v.position.x.hypot(v.position.z)))
+        .collect();
+    // The shell's radius near (y, az) as a RANGE, not a single nearest vertex. At the gun
+    // window's wall the radius drops 0.1 m over 0.03 rad, and a nearest-vertex sampler on that
+    // cliff picks whichever side happens to be closer — which is how the first draft reported
+    // the seam floating 92 mm at the recess wall while the seam was exactly on the metal. The
+    // float check compares against the window's OUTERMOST metal and the burial check against
+    // its innermost: each conservative in its own direction, neither confused by the cliff.
+    let shell_radius_range = |y: f32, az: f32| {
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        let mut window = 0.05_f32;
+        while hi < lo {
+            for &(sy, saz, sr) in &samples {
+                let mut daz = (saz - az).abs();
+                if daz > std::f32::consts::PI {
+                    daz = std::f32::consts::TAU - daz;
+                }
+                if (sy - y).abs() < window && daz < window {
+                    lo = lo.min(sr);
+                    hi = hi.max(sr);
+                }
+            }
+            window *= 2.0;
+        }
+        (lo, hi)
+    };
+
+    let seam = description
+        .parts
+        .iter()
+        .find(|p| p.key.name == "turret_casting_seam")
+        .expect("the cast turret carries its mould line")
+        .mesh();
+    let (mut min_proud, mut max_proud, mut y_sum, mut n) = (f32::MAX, f32::MIN, 0.0_f32, 0usize);
+    let (mut at_max, mut at_min) = (glam::Vec3::ZERO, glam::Vec3::ZERO);
+    for v in seam.vertices() {
+        let az = v.position.z.atan2(v.position.x);
+        let (inner, outer) = shell_radius_range(v.position.y, az);
+        let radius = v.position.x.hypot(v.position.z);
+        if radius - outer > max_proud {
+            max_proud = radius - outer;
+            at_max = v.position;
+        }
+        if radius - inner < min_proud {
+            min_proud = radius - inner;
+            at_min = v.position;
+        }
+        y_sum += v.position.y;
+        n += 1;
+    }
+    let y_mean = y_sum / n as f32;
+    assert!(
+        (1.64..=1.78).contains(&y_mean),
+        "the mould parts at the casting's widest band: seam rides y {y_mean:.3}"
+    );
+    assert!(
+        max_proud < 0.030,
+        "the seam floats {max_proud:.3} m off the metal at {at_max:?} — a mould line hangs on the casting, \
+         not in the air beside it"
+    );
+    assert!(
+        min_proud > -0.020,
+        "the seam sinks {min_proud:.3} m into the metal at {at_min:?} — a buried bead is triangles rendering \
+         the inside of a casting"
+    );
+}
