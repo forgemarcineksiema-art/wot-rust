@@ -38,16 +38,13 @@ fn the_hull_bake_carries_no_swing_arm_of_its_own() {
 #[test]
 fn the_running_gear_instances_exactly_one_arm_per_wheel_per_side() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("running gear");
-    let arms = running_gear_placements(&kin, 0.0, 0.0)
-        .iter()
-        .filter(|placement| placement.part == GearPart::SwingArm)
-        .count();
-    assert_eq!(
-        arms,
-        kin.wheel_zs.len() * 2,
-        "five stations a side means ten trailing arms — no more (a doubled arm) and no fewer \
-         (wheels floating on a bare axle line)"
-    );
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    let count_of = |part: GearPart| placements.iter().filter(|p| p.part == part).count();
+    // The two sides are DIFFERENT parts now — the left arm is the right one mirrored, because
+    // the torsion boss faces the hull on both sides — so each side answers separately: no
+    // doubled arm, no wheels floating on a bare axle line, and no side wearing the other's arm.
+    assert_eq!(count_of(GearPart::SwingArm), kin.wheel_zs.len(), "one right arm per station");
+    assert_eq!(count_of(GearPart::SwingArmLeft), kin.wheel_zs.len(), "one left arm per station");
 }
 
 /// Why the baked copy could never have been right: the arm's whole job is to move.

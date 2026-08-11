@@ -49,7 +49,8 @@ fn gear_tris(kin: &RunningGearKinematics) -> usize {
         .map(|placement| match placement.part {
             GearPart::RoadWheel => wheel,
             GearPart::Link => link,
-            GearPart::SwingArm => arm,
+            // The left arm is the right one mirrored: same triangle count by construction.
+            GearPart::SwingArm | GearPart::SwingArmLeft => arm,
             GearPart::Idler => idler,
             GearPart::Sprocket => sprocket,
             GearPart::ReturnRoller => roller,

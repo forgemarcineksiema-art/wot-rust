@@ -19,13 +19,44 @@ const ARM_HALF_X: f32 = 0.045;
 
 /// One trailing swing arm, authored with the HULL PIVOT at the origin and the axle tip at
 /// `(0, -ARM_RISE_M, -ARM_REACH_M)`: a tapered forged arm, a pivot boss, and an axle stub that
-/// reaches outboard into the road wheel's hub.
+/// reaches outboard into the road wheel's hub. This is the RIGHT-hand arm; the left is
+/// [`swing_arm_unit_mesh_left`].
 pub fn swing_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     match kin.suspension {
         game_core::SuspensionKind::TorsionBar => torsion_arm_unit_mesh(kin),
         game_core::SuspensionKind::Christie => christie_crank_unit_mesh(kin),
         game_core::SuspensionKind::Horstmann => horstmann_bogie_unit_mesh(kin),
     }
+}
+
+/// The LEFT-hand arm: the right one mirrored across the wheel plane.
+///
+/// An arm cannot be turned to face the other side of the tank. It is not a solid of revolution
+/// (a half-turn about Y fixed the wheels) and it is not X-symmetric (its torsion boss stands
+/// proud INBOARD, toward the hull the bar crosses); a half-turn would also swap trailing for
+/// leading. So the left side gets mirrored GEOMETRY — x negated on positions and normals, each
+/// triangle's winding re-reversed so the mesh stays outward-facing under back-face culling —
+/// which handles every suspension family this dispatch will ever grow, not just the one whose
+/// asymmetry was noticed.
+pub fn swing_arm_unit_mesh_left(kin: &RunningGearKinematics) -> GeometryMesh {
+    mirror_x(&swing_arm_unit_mesh(kin))
+}
+
+/// Mirror a mesh across the YZ plane, keeping it a valid outward-facing mesh: a mirror has a
+/// negative determinant, so the triangle winding is reversed to compensate.
+fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
+    let vertices = mesh
+        .vertices()
+        .iter()
+        .map(|v| {
+            let mut m = *v;
+            m.position.x = -m.position.x;
+            m.normal.x = -m.normal.x;
+            m
+        })
+        .collect();
+    let indices = mesh.indices().chunks_exact(3).flat_map(|t| [t[0], t[2], t[1]]).collect();
+    GeometryMesh::new(vertices, indices)
 }
 
 /// One trailing torsion arm.

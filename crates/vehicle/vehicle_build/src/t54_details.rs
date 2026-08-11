@@ -146,23 +146,36 @@ pub fn t54_cupola_vision_blocks(center: Vec3, radius: f32, top_y: f32) -> Vec<Ve
     let mut parts = Vec::new();
     // Just under the top rim, looking out and slightly over the forward half.
     let band_y = top_y - 0.048;
-    let (half_w, half_h, half_d) = (0.048, 0.026, 0.036);
+    // Width is bounded by CHORD geometry, not taste: the slit's frame is a flat plate on a
+    // curved drum, so its corners reach `sqrt(r² + half_w²)` — at 48 mm of half-width that is
+    // ⌀637 against the Locked ⌀624 ±10 tape. 42 mm keeps the corners inside the anchor.
+    let (half_w, half_h, half_d) = (0.042, 0.026, 0.036);
     for (i, azimuth) in [-1.55_f32, -0.78, 0.0, 0.78, 1.55].into_iter().enumerate() {
         let (sin, cos) = azimuth.sin_cos();
         // 0 rad faces +Z, the bow; the tangent runs across the face.
         let out = Vec3::new(sin, 0.0, cos);
         let across = Vec3::new(cos, 0.0, -sin);
-        // Rooted: the hood's inner half sits inside the drum, its face stands 22 mm proud. The
-        // band height is ABSOLUTE — `center` carries the drum's own y, which must not be added
-        // twice (the first build put the ring 2.4 m over the tank).
-        let hood_centre = Vec3::new(center.x, band_y, center.z) + out * (radius - half_d + 0.022);
+        // FLUSH, NOT PROUD. The first build stood armoured hoods 22 mm off the drum, and the
+        // dimension gate threw it straight back: the cupola's Locked ⌀624 mm is measured as a
+        // tape around the armour skin, and the tape caught the hoods at ⌀675. The gate was
+        // right on the history too — the obr. 1951 cupola carries its vision devices IN the
+        // drum, slits with armoured glass behind them, not pods bolted onto it. So the frame
+        // sits 3 mm proud (inside the anchor's ±10 mm) and the GLASS is recessed 6 mm into the
+        // opening, which is what makes a slit read as a slit: a dark rectangle in the casting
+        // with glass at the bottom of it. The band height is ABSOLUTE — `center` carries the
+        // drum's own y, which must not be added twice (the very first build put the ring 2.4 m
+        // over the tank).
+        let wall = Vec3::new(center.x, band_y, center.z) + out * radius;
         parts.push(VehiclePart {
             key: PartKey::indexed("cupola_vision_block", i as u16),
             submesh: SubmeshKind::Turret,
             material: MaterialRole::CastArmor,
             smoothing: SmoothingGroup::hard_edges(),
+            // Outer face AT the drum's nominal radius: the 24-gon's facets sag ~2.7 mm below it
+            // between vertices, so the frame still stands off the wall it is set into — and the
+            // tape around the casting stays inside its Locked diameter.
             shape: PartShape::Mesh(detail::oriented_plate(
-                hood_centre,
+                wall - out * half_d,
                 across * half_w,
                 Vec3::Y * half_h,
                 out * half_d,
@@ -171,17 +184,17 @@ pub fn t54_cupola_vision_blocks(center: Vec3, radius: f32, top_y: f32) -> Vec<Ve
             lod: PartLod::Detail,
             generator: GeneratorKind::Solid,
         });
-        // The pane: inset from the hood's edges, a hair proud of its face so glass reads as
-        // glass instead of z-fighting — the same convention as the periscope prisms.
+        // The pane, at the bottom of its opening: recessed behind the frame's face, spanning
+        // most of the slit so the dark rectangle has glass in it rather than more steel.
         parts.push(VehiclePart {
             key: PartKey::indexed("cupola_vision_block", 8 + i as u16),
             submesh: SubmeshKind::Turret,
             material: MaterialRole::Glass,
             smoothing: SmoothingGroup::hard_edges(),
             shape: PartShape::Mesh(detail::oriented_plate(
-                hood_centre + out * (half_d + 0.0015),
-                across * (half_w * 0.72),
-                Vec3::Y * (half_h * 0.62),
+                wall - out * 0.006,
+                across * (half_w * 0.80),
+                Vec3::Y * (half_h * 0.70),
                 out * 0.003,
                 MaterialRole::Glass,
             )),

@@ -101,7 +101,9 @@ fn gear_object_name(part: GearPart, side: f32) -> String {
         GearPart::Idler => "Idlers",
         GearPart::Sprocket => "Sprockets",
         GearPart::Link => "TrackLinks",
-        GearPart::SwingArm => "SwingArms",
+        // One outliner group either side: the left arm is the same assembly mirrored, and
+        // the side suffix below already tells the two apart.
+        GearPart::SwingArm | GearPart::SwingArmLeft => "SwingArms",
         GearPart::ReturnRoller => "ReturnRollers",
     };
     // Side by the world convention (+X is the vehicle's right) so an inspector can check the
@@ -199,6 +201,7 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
         let sprocket = sprocket_unit_mesh(&kin);
         let link = track_link_unit_mesh(&kin);
         let swing_arm = swing_arm_unit_mesh(&kin);
+        let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(&kin);
         let return_roller = return_roller_unit_mesh(&kin);
         // Group instances per part and side so the outliner reads like the real assembly.
         let mut groups: Vec<(String, Vec<(&GeometryMesh, Mat4)>)> = Vec::new();
@@ -209,6 +212,7 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
                 GearPart::Sprocket => &sprocket,
                 GearPart::Link => &link,
                 GearPart::SwingArm => &swing_arm,
+                GearPart::SwingArmLeft => &swing_arm_left,
                 GearPart::ReturnRoller => &return_roller,
             };
             let name = gear_object_name(placement.part, placement.transform.w_axis.x);

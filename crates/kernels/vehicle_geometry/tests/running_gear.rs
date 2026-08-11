@@ -448,7 +448,10 @@ fn centurion_uses_three_horstmann_bogies_per_side() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::Centurion).expect("Centurion gear");
     assert_eq!(kin.suspension, game_core::SuspensionKind::Horstmann);
     let placements = running_gear_placements(&kin, 0.0, 0.0);
-    assert_eq!(count(&placements, GearPart::SwingArm), 6, "three paired bogies per side");
+    // Each side wears its own arm part now (the left is the mirrored mesh), so each side
+    // answers separately.
+    assert_eq!(count(&placements, GearPart::SwingArm), 3, "three paired bogies, right side");
+    assert_eq!(count(&placements, GearPart::SwingArmLeft), 3, "and three on the left");
 
     let bounds = swing_arm_unit_mesh(&kin).bounds().expect("Horstmann bounds");
     assert!(bounds.max.z - bounds.min.z > 0.5, "bogie rocker spans a wheel pair");
@@ -460,7 +463,8 @@ fn t34_uses_one_christie_crank_per_wheel() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T34_85).expect("T-34 gear");
     assert_eq!(kin.suspension, game_core::SuspensionKind::Christie);
     let placements = running_gear_placements(&kin, 0.0, 0.0);
-    assert_eq!(count(&placements, GearPart::SwingArm), 10, "five Christie cranks per side");
+    assert_eq!(count(&placements, GearPart::SwingArm), 5, "five Christie cranks, right side");
+    assert_eq!(count(&placements, GearPart::SwingArmLeft), 5, "and five on the left");
 
     let bounds = swing_arm_unit_mesh(&kin).bounds().expect("Christie bounds");
     assert!(bounds.max.y - bounds.min.y > 0.2, "crank rises steeply into the hull side");
@@ -966,5 +970,61 @@ fn every_sprocket_ring_lands_on_the_disc_that_carries_it() {
         walked,
         VehicleKind::PLAYABLE.len(),
         "every playable vehicle drives through a sprocket, so every one of them is checked"
+    );
+}
+
+/// EVERY SWING ARM POINTS ITS TORSION BOSS AT THE HULL.
+///
+/// The boss is the splined hub the torsion bar twists inside — it stands proud INBOARD, where
+/// the bar actually crosses the floor. The arm is the one gear part that is neither a solid of
+/// revolution (a half-turn fixed the wheels) nor X-symmetric (the shoes): both sides used to
+/// instance the RIGHT arm, so every left arm drove its boss 89 mm into the wheel disc and showed
+/// the hull its axle face. The fix is mirrored geometry (`GearPart::SwingArmLeft`), and this is
+/// the world-space lock that keeps each side wearing its own arm.
+#[test]
+fn every_swing_arm_points_its_torsion_boss_at_the_hull() {
+    let mut walked = 0usize;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        walked += 1;
+        for (part, mesh) in [
+            (GearPart::SwingArm, vehicle_geometry::swing_arm_unit_mesh(&kin)),
+            (GearPart::SwingArmLeft, vehicle_geometry::swing_arm_unit_mesh_left(&kin)),
+        ] {
+            // The unit arm's boss extreme: whichever local-x reach is larger. On the right-hand
+            // mesh the boss reaches -x; the mirrored mesh must reach +x — but the test does not
+            // assume either: it asks where that extreme lands in the WORLD.
+            let lo = mesh.vertices().iter().map(|v| v.position.x).fold(f32::INFINITY, f32::min);
+            let hi = mesh.vertices().iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+            // A symmetric arm has no boss to point: the Horstmann bogie and the Christie crank
+            // read the same from either side, and demanding a direction of them flags every
+            // placement. The lock is about ASYMMETRY facing the right way.
+            if (hi.abs() - lo.abs()).abs() < 0.005 {
+                continue;
+            }
+            let boss_local = if hi.abs() > lo.abs() { hi } else { lo };
+
+            let placements = running_gear_placements(&kin, 0.0, 0.0);
+            let arms: Vec<Mat4> =
+                placements.iter().filter(|p| p.part == part).map(|p| p.transform).collect();
+            assert!(!arms.is_empty(), "{kind:?}: no {part:?} placed");
+            for transform in arms {
+                let pivot = transform.transform_point3(Vec3::ZERO);
+                let boss = transform.transform_point3(Vec3::new(boss_local, 0.0, 0.0));
+                assert!(
+                    boss.x.abs() < pivot.x.abs(),
+                    "{kind:?} {part:?}: the torsion boss at x {:.3} stands OUTBOARD of its pivot \
+                     at {:.3} — an arm wearing the other side's geometry drives its boss into \
+                     the wheel disc",
+                    boss.x,
+                    pivot.x
+                );
+            }
+        }
+    }
+    assert_eq!(
+        walked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle hangs its wheels on arms, so every one of them is checked"
     );
 }

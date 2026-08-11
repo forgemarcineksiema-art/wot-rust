@@ -180,8 +180,11 @@ fn place_side(
         // THIRD, deeper plane; that invented row crossed the blueprint's lower hull side on the
         // Tiger II, Jagdtiger and Panther II and visibly disappeared into the tub.
     }
+    // The left side instances the MIRRORED arm mesh: the torsion boss must face the hull on both
+    // sides, and an arm is the one gear part a rotation cannot turn around (see `SwingArmLeft`).
+    let arm_part = if side_sign < 0.0 { GearPart::SwingArmLeft } else { GearPart::SwingArm };
     for transform in crate::running_gear_arms::suspension_transforms(kin, side_sign, travel) {
-        out.push(GearPlacement { part: GearPart::SwingArm, transform });
+        out.push(GearPlacement { part: arm_part, transform });
     }
 
     // Return rollers carry the taut top run and spin with the belt passing over them.

@@ -115,6 +115,7 @@ fn render_camera_at_with_gear(
         let sprocket = sprocket_unit_mesh(kin);
         let link = track_link_unit_mesh(kin);
         let swing_arm = swing_arm_unit_mesh(kin);
+        let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(kin);
         let return_roller = return_roller_unit_mesh(kin);
         for placement in running_gear_placements(kin, 0.0, 0.0) {
             let mesh = match placement.part {
@@ -123,6 +124,7 @@ fn render_camera_at_with_gear(
                 GearPart::Sprocket => &sprocket,
                 GearPart::Link => &link,
                 GearPart::SwingArm => &swing_arm,
+                GearPart::SwingArmLeft => &swing_arm_left,
                 GearPart::ReturnRoller => &return_roller,
             };
             tris.extend(projected_mesh_tris(mesh, placement.transform, &basis));
