@@ -328,8 +328,14 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
 // asserted, and closed by the wave named beside it.
 // ---------------------------------------------------------------------------------------------
 
-/// Recorded worst outdoor dark share: `prokhorovka_overcast` at 0.9%.
-const OUTDOOR_DARK_FLOOR: f32 = 0.008;
+/// Recorded worst outdoor dark share: the two overcast frames at 0.68%.
+///
+/// Re-derived 2026-08-11 with the instrument change, not as a debt: the previous 0.008 was
+/// recorded off 4x-multisampled goldens, and the review path now renders the SHIPPED 1x picture
+/// — the same scene measures a hair darker when its edge pixels stop being blended fractions.
+/// The floor moves WITH the instrument or it asserts that the flattering copy was the truth.
+/// The target does not move: the debt to rule 1 is unchanged.
+const OUTDOOR_DARK_FLOOR: f32 = 0.0065;
 /// Rule 1 wants a real shade mass in every frame, not a token one.
 const OUTDOOR_DARK_TARGET: f32 = 0.08;
 /// Recorded worst outdoor p95−p05 spread: `prokhorovka_overcast` at 0.348.

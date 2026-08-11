@@ -559,6 +559,20 @@ fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
     }
 }
 
+/// The metalness lane is CONSUMED. The synthesis has packed metalness into every texture's blue
+/// channel since the maps existed (track links 0.5, glass a trace) and the shader read only
+/// `.r`/`.g` — a quarter of every upload, dead, and steel that caught the sky exactly like
+/// paint. This pins the read so the lane cannot quietly die again; what the read DOES to the
+/// image is the look goldens' business.
+#[test]
+fn the_metalness_lane_reaches_the_vehicle_shader() {
+    let source = vehicle_shader_source();
+    assert!(
+        source.contains("ao_rough.b"),
+        "vehicle.wgsl no longer reads the metalness lane (ao_rough.b) — the blue channel of          every synthesized texture is dead weight again"
+    );
+}
+
 #[test]
 fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
     use renderer_wgpu::{rain_shader_source, ssao_shader_source, water_shader_source};

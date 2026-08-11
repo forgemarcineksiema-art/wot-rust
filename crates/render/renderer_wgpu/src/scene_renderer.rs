@@ -225,8 +225,9 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
-    /// A renderer for a REVIEW image, multisampled at `msaa::review_sample_count` — not what the
-    /// game runs. For a frame-time capture use [`Self::for_offscreen_as_shipped`].
+    /// A renderer for a REVIEW image, at `msaa::review_sample_count` — which resolves to the
+    /// SHIPPED sample count since 2026-08-11, so a golden and the player's screen are the same
+    /// picture. For a frame-time capture use [`Self::for_offscreen_as_shipped`].
     pub fn for_offscreen(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
