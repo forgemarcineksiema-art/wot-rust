@@ -138,11 +138,19 @@ fn every_hatch_carries_a_coaming_a_hinge_and_a_handle() {
             .mesh()
             .bounds()
             .expect("coaming bounds");
+        // The collar RINGS the cover; the cover's crown stands above it. This used to demand
+        // `coaming.min.y <= lid.min.y` — collar at least as deep as the lid's base — and a lid is
+        // deliberately rooted DEEP into the casting so it cannot levitate. Chasing that base is
+        // what buried the cupola's and loader's collars completely (412 triangles, zero pixels).
+        // Where the collar meets the METAL is the visibility lock's business
+        // (`t54_hatch_visibility`); this test owns the collar's relation to its lid.
         assert!(
-            coaming.min.y <= lid.min.y + 1.0e-3,
-            "{hatch}: the collar is UNDER the cover it seats, {:.3} vs {:.3}",
+            coaming.min.y < lid.max.y && coaming.max.y < lid.max.y,
+            "{hatch}: the collar rings the cover and the cover crowns it, collar {:.3}..{:.3} vs \
+             lid top {:.3}",
             coaming.min.y,
-            lid.min.y
+            coaming.max.y,
+            lid.max.y
         );
         assert!(
             coaming.max.x - coaming.min.x > lid.max.x - lid.min.x,

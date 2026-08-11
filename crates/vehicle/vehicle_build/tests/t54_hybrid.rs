@@ -323,7 +323,14 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // face the old convention turned width into height and grew five 675 mm fins out of a 220 mm
     // box, through the fender and into the moving top run of the track.
     // Previous: 0xcaf6_206c_f364_2e35 (PR-31, the gun group on the trunnion).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8c8d_d462_f899_9cfb;
+    // Re-recorded 2026-08-11 (the hardware meets the metal): hatch collars and the loader's hinge
+    // seat on the LOCAL surface — the cupola drum's top, the dome's roof plate, the hull roof —
+    // instead of hanging off the lid's buried base, which had 412 triangles of coamings and hinge
+    // rendering the inside of a casting. And the cupola stops being a smooth drum: five vision
+    // blocks under its top rim, each an armoured hood rooted into the wall with a glass pane in
+    // its face — the ring of devices the drum exists to carry.
+    // Previous: 0x8c8d_d462_f899_9cfb (PR-32, the sprocket's rings and the roof furniture).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8ebd_c33e_7f84_bc86;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
