@@ -111,8 +111,14 @@ fn the_armour_dome_does_not_stand_proud_of_the_casting() {
         }
     }
     println!("TURRET ARMOUR SLACK: worst {worst_slack:.4} m of air on {worst_zone:?}");
+    // Tightened 0.05 -> 0.01 (2026-08-11). The old tolerance was wide enough to hide a whole
+    // defect class: the armour's face mirror double-counted the cheek plateau, and 45 mm of
+    // phantom armour sat across the turret face for as long as the mirror existed — at 0.049,
+    // under a 0.05 bar, invisible. With the mirror corrected the honest slack is 1.5 mm; the
+    // bar sits at 10 so sampling noise cannot flake it, and a returning double-count cannot
+    // pass it.
     assert!(
-        worst_slack <= 0.05,
+        worst_slack <= 0.010,
         "the armour dome reaches {worst_slack:.3} m past the metal on {worst_zone:?} — shells \
          stop in air that looks like sky"
     );

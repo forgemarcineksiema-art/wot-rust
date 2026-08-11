@@ -69,15 +69,20 @@ fn beam_bands(v: CompleteVisual<'_>) -> VehiclePart {
 /// called once. A cast turret without its mould line reads as a pressing — and this is a vehicle
 /// whose whole front is one casting.
 fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
-    // At the widest band of the casting, where the mould parts. Traced right round, so the seam
-    // closes on itself the way the mould does.
-    let y = 1.95;
+    // AT THE WIDEST BAND, ON THE REAL SURFACE. The seam used to run at y 1.95 off the bare
+    // superellipse family — 20 cm above the casting's widest band (1.66-1.76), which is where a
+    // mould actually parts (a mould split above its widest section cannot open), and blind to
+    // the bumps: the face plateau pushed the metal 49 mm out from under it (seam buried) while
+    // the gun window pulled it 71 mm in (seam hanging in air). 480 triangles reading as an
+    // error. `surface_point` follows the loft WITH its modulations, so the seam now rides the
+    // cheeks and dips through the window the way the mould line on the reference casting does.
+    let y = 1.71;
     // No repeated first point: the sweep closes the loop itself. Repeating it puts two end caps
     // in the same place, and the weld turns that into non-manifold edges on the turret submesh.
     let path: Vec<Vec3> = (0..48)
         .map(|k| {
             let phi = std::f32::consts::TAU * k as f32 / 48.0;
-            loft_ring_point(loft, y, phi, 0.004)
+            loft.surface_point(y, phi, 0.004)
         })
         .collect();
     VehiclePart {
@@ -271,7 +276,7 @@ fn turret_rails(loft: &TurretLoftVisual) -> Vec<VehiclePart> {
             let path: Vec<Vec3> = (0..=6)
                 .map(|k| {
                     let phi = (40.0 + 95.0 * k as f32 / 6.0).to_radians();
-                    loft_ring_point(loft, y, side * phi, 0.05)
+                    loft.ring_point(y, side * phi, 0.05)
                 })
                 .collect();
             VehiclePart {
@@ -287,27 +292,9 @@ fn turret_rails(loft: &TurretLoftVisual) -> Vec<VehiclePart> {
         .collect()
 }
 
-/// A point on (or just off) the lofted turret shell at height `y` and azimuth `phi` (0 = forward,
-/// positive toward +X), `standoff` metres proud of the casting. Interpolates the blueprint's loft
-/// stations and evaluates the same superellipse family the shell is skinned from.
-fn loft_ring_point(loft: &TurretLoftVisual, y: f32, phi: f32, standoff: f32) -> Vec3 {
-    let s = &loft.stations;
-    let above = s.iter().position(|st| st.y >= y).unwrap_or(s.len() - 1).max(1);
-    let (a, b) = (&s[above - 1], &s[above]);
-    let t = ((y - a.y) / (b.y - a.y).max(1.0e-4)).clamp(0.0, 1.0);
-    let lerp = |p: f32, q: f32| p + (q - p) * t;
-    let half_width = lerp(a.half_width, b.half_width);
-    let z_center = lerp(a.z_center, b.z_center);
-    let (dx, dz) = (phi.sin(), phi.cos());
-    let half_len = if dz >= 0.0 {
-        lerp(a.half_len_front, b.half_len_front)
-    } else {
-        lerp(a.half_len_rear, b.half_len_rear)
-    };
-    let n = loft.exponent;
-    let scale = ((dx.abs() / half_width).powf(n) + (dz.abs() / half_len).powf(n)).powf(-1.0 / n);
-    Vec3::new(dx * (scale + standoff), y, z_center + dz * (scale + standoff))
-}
+// `loft_ring_point` lived here as a private duplicate of the blueprint's superellipse family —
+// two copies of one curve, and the seam's whole defect class came from the copy being blind to
+// the bumps. Both callers read `TurretLoftVisual::{ring_point, surface_point}` now.
 
 /// The stowed tow cables: one running diagonally across the glacis (the top view's signature
 /// diagonal), one draped across the hull rear plate.

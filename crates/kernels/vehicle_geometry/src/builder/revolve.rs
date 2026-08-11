@@ -19,12 +19,52 @@ impl MeshBuilder {
     fn append_revolve(mut self, origin: Vec3, spec: RevolveSpec, cap_ends: bool) -> Self {
         assert!(spec.segments >= 3);
         assert!(spec.profile.len() >= 2);
+
+        // A MACHINED ARRIS IS A LINE, NOT A BLEND. One vertex per (segment, profile point) means
+        // one normal per point — averaged over every band that touches it — so a 90-degree
+        // corner on a rim, flange or drum shaded like a fillet on every lathe in the fleet
+        // (while the CLOSED profile's duplicated first point left exactly one corner
+        // accidentally crisp: three soft corners and one hard on the same ring). Profile points
+        // whose bands turn sharper than `HARD_BREAK_COS` get a duplicated row, so each band
+        // keeps its own normal across the corner. Zero new triangles: no band is emitted
+        // between a point and its duplicate.
+        //
+        // Apex rows (radius 0) never split — a cone's tip is one point, not a seam.
+        const HARD_BREAK_COS: f32 = 0.766; // cos 40 deg
+        let n = spec.profile.len();
+        let band_dir = |a: ProfilePoint, b: ProfilePoint| {
+            let d = glam::Vec2::new(b.offset - a.offset, b.radius - a.radius);
+            d.normalize_or_zero()
+        };
+        let mut splits = vec![false; n];
+        for (offset, window) in spec.profile.windows(3).enumerate() {
+            if window[1].radius <= f32::EPSILON {
+                continue;
+            }
+            let before = band_dir(window[0], window[1]);
+            let after = band_dir(window[1], window[2]);
+            splits[offset + 1] = before.dot(after) < HARD_BREAK_COS;
+        }
+        // Expanded rows: each split point occupies two rows at the same position. `top_row[k]`
+        // is the row band k starts from (the copy facing it); `bottom_row[k]` the row it ends
+        // on.
+        let mut row_of = Vec::with_capacity(n);
+        let mut expanded: Vec<ProfilePoint> = Vec::with_capacity(n + 4);
+        for (i, point) in spec.profile.iter().enumerate() {
+            row_of.push(expanded.len() as u32);
+            expanded.push(*point);
+            if splits[i] {
+                expanded.push(*point);
+            }
+        }
+        let profile_len = expanded.len() as u32;
+
         let base = self.vertices.len() as u32;
         for segment in 0..spec.segments {
             let angle = (segment as f32 / spec.segments as f32) * std::f32::consts::TAU;
             let (sin, cos) = angle.sin_cos();
             let radial = radial_for(spec.axis, cos, sin);
-            for point in &spec.profile {
+            for point in &expanded {
                 let position = origin + position_for(spec.axis, radial, *point);
                 self.vertices.push(GeometryVertex::new(
                     position,
@@ -35,7 +75,6 @@ impl MeshBuilder {
             }
         }
 
-        let profile_len = spec.profile.len() as u32;
         let surface_index_start = self.indices.len();
         // Emit the whole lathe with ONE winding. Every quad follows the same (segment, row)
         // traversal, so the surface is consistently wound by construction: each interior edge is
@@ -49,11 +88,15 @@ impl MeshBuilder {
         // steel ring, on every road wheel, tyre, roller and drum in the fleet.
         for segment in 0..spec.segments as u32 {
             let next = (segment + 1) % spec.segments as u32;
-            for row in 0..profile_len - 1 {
-                let a = base + segment * profile_len + row;
-                let b = base + next * profile_len + row;
-                let c = b + 1;
-                let d = a + 1;
+            for band in 0..n - 1 {
+                // The band starts on its point's LAST copy and ends on the next point's FIRST:
+                // the duplicates between belong to the corner, not to any band.
+                let top = row_of[band] + splits[band] as u32;
+                let bottom = row_of[band + 1];
+                let a = base + segment * profile_len + top;
+                let b = base + next * profile_len + top;
+                let c = base + next * profile_len + bottom;
+                let d = base + segment * profile_len + bottom;
                 self.indices.extend_from_slice(&[a, b, c, a, c, d]);
             }
         }
@@ -65,7 +108,7 @@ impl MeshBuilder {
         self.orient_revolve_outward(origin, &spec, surface_index_start, surface_index_end);
         self.rebuild_surface_normals(
             base,
-            spec.segments * spec.profile.len(),
+            spec.segments * profile_len as usize,
             surface_index_start,
             surface_index_end,
         );
@@ -82,8 +125,8 @@ impl MeshBuilder {
             let last = spec.profile[spec.profile.len() - 1].offset;
             let forward = if last >= first { 1.0 } else { -1.0 };
             let axial = axis_vector(spec.axis) * forward;
-            self.push_revolve_cap(origin, &spec, base, 0, -axial);
-            self.push_revolve_cap(origin, &spec, base, spec.profile.len() as u32 - 1, axial);
+            self.push_revolve_cap(origin, &spec, base, profile_len, 0, -axial);
+            self.push_revolve_cap(origin, &spec, base, profile_len, profile_len - 1, axial);
         }
         self
     }
@@ -163,15 +206,18 @@ impl MeshBuilder {
         origin: Vec3,
         spec: &RevolveSpec,
         base: u32,
+        // The EXPANDED row stride and row index: hard-break duplicates widen the lathe's rows,
+        // and a cap reading the original profile length would fan around the wrong ring.
+        profile_len: u32,
         row: u32,
         normal: Vec3,
     ) {
-        let center = origin + axis_vector(spec.axis) * spec.profile[row as usize].offset;
+        let end = if row == 0 { 0 } else { spec.profile.len() - 1 };
+        let center = origin + axis_vector(spec.axis) * spec.profile[end].offset;
         let center_index = self.vertices.len() as u32;
         self.vertices.push(GeometryVertex::new(center, normal, spec.material, spec.smoothing));
         // The cap gets its own rim vertices carrying the axial cap normal, not the side wall's radial
         // normals — sharing the wall verts shaded a flat end disc as a dome (axial→radial fan).
-        let profile_len = spec.profile.len() as u32;
         let rim_base = self.vertices.len() as u32;
         let segments = spec.segments as u32;
         for segment in 0..segments {
