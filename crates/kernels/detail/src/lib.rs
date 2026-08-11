@@ -13,7 +13,8 @@ mod fitting;
 pub use bolt::bolt_head;
 pub use fitting::{coaming, grab_handle, hinge};
 pub use scatter::{
-    ExclusionZone, ScatterPlacement, ScatterRequest, ScatterSlot, louvre_slats, scatter,
+    ExclusionZone, ScatterPlacement, ScatterRequest, ScatterSlot, louvre_slats, oriented_plate,
+    scatter,
 };
 pub use weld::{casting_seam, casting_seam_loop, handle_rail, weld_bead};
 

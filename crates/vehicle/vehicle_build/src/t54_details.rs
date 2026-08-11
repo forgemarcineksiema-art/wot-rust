@@ -60,10 +60,21 @@ fn drum_fitting(
     }
 }
 
+/// Where each hatch's hardware meets the metal: the LOCAL surface height under every lid, owned
+/// by the caller who builds that surface (the cupola drum, the dome roof, the hull roof).
+pub struct HatchSeats {
+    /// Top of the commander's cupola drum.
+    pub cupola: f32,
+    /// The hull roof plane the driver's hatch is cut into.
+    pub driver: f32,
+    /// The dome's roof plate — the loader's hatch stands inside the top station's footprint.
+    pub loader: f32,
+}
+
 /// The semantic drum fittings: the commander's cupola hatch and the loader's hatch ride the turret
 /// (so they traverse); the driver's hatch and the glacis headlight ride the hull. Each is its own
 /// part, not anonymous greeble.
-pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
+pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehiclePart> {
     let mut parts = vec![
         drum_fitting(
             PartKey::new("cupola_hatch"),
@@ -99,6 +110,7 @@ pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
         f.cupola_hatch_radius,
         f.cupola_hatch_half_height,
         HandlePlacement::Rim,
+        seats.cupola,
     ));
     parts.extend(hatch_hardware(
         "driver_hatch",
@@ -107,6 +119,7 @@ pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
         f.driver_hatch_radius,
         f.driver_hatch_half_height,
         HandlePlacement::Crown,
+        seats.driver,
     ));
     parts.extend(hatch_hardware(
         "loader_hatch",
@@ -115,7 +128,67 @@ pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
         f.loader_hatch_radius,
         f.loader_hatch_half_height,
         HandlePlacement::Crown,
+        seats.loader,
     ));
+    parts
+}
+
+/// Vision blocks around the commander's cupola — the reason the drum exists at all.
+///
+/// The cupola was a smooth 24-sided cylinder: the tallest fitting on the vehicle, the one thing
+/// standing above the roofline at every range, and it carried not a single device a commander
+/// could look through. Every reference shows the ring of blocks under the drum's top rim.
+///
+/// Five around the forward arc, each a device in the periscope pattern: an armoured hood rooted
+/// INTO the drum with a GLASS pane lying in its outer face, both sharing one part key so the
+/// construction floor judges the device rather than its flattest piece.
+pub fn t54_cupola_vision_blocks(center: Vec3, radius: f32, top_y: f32) -> Vec<VehiclePart> {
+    let mut parts = Vec::new();
+    // Just under the top rim, looking out and slightly over the forward half.
+    let band_y = top_y - 0.048;
+    let (half_w, half_h, half_d) = (0.048, 0.026, 0.036);
+    for (i, azimuth) in [-1.55_f32, -0.78, 0.0, 0.78, 1.55].into_iter().enumerate() {
+        let (sin, cos) = azimuth.sin_cos();
+        // 0 rad faces +Z, the bow; the tangent runs across the face.
+        let out = Vec3::new(sin, 0.0, cos);
+        let across = Vec3::new(cos, 0.0, -sin);
+        // Rooted: the hood's inner half sits inside the drum, its face stands 22 mm proud. The
+        // band height is ABSOLUTE — `center` carries the drum's own y, which must not be added
+        // twice (the first build put the ring 2.4 m over the tank).
+        let hood_centre = Vec3::new(center.x, band_y, center.z) + out * (radius - half_d + 0.022);
+        parts.push(VehiclePart {
+            key: PartKey::indexed("cupola_vision_block", i as u16),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::CastArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            shape: PartShape::Mesh(detail::oriented_plate(
+                hood_centre,
+                across * half_w,
+                Vec3::Y * half_h,
+                out * half_d,
+                MaterialRole::CastArmor,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Solid,
+        });
+        // The pane: inset from the hood's edges, a hair proud of its face so glass reads as
+        // glass instead of z-fighting — the same convention as the periscope prisms.
+        parts.push(VehiclePart {
+            key: PartKey::indexed("cupola_vision_block", 8 + i as u16),
+            submesh: SubmeshKind::Turret,
+            material: MaterialRole::Glass,
+            smoothing: SmoothingGroup::hard_edges(),
+            shape: PartShape::Mesh(detail::oriented_plate(
+                hood_centre + out * (half_d + 0.0015),
+                across * (half_w * 0.72),
+                Vec3::Y * (half_h * 0.62),
+                out * 0.003,
+                MaterialRole::Glass,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Solid,
+        });
+    }
     parts
 }
 
@@ -140,8 +213,18 @@ fn hatch_hardware(
     radius: f32,
     half_height: f32,
     handle: HandlePlacement,
+    seat_y: f32,
 ) -> Vec<VehiclePart> {
-    let seat = center.y - half_height;
+    // THE HARDWARE SITS ON THE METAL, NOT ON THE LID'S MATHS. It used to hang everything off
+    // `center.y - half_height` — the lid's own base — and a lid is deliberately rooted DEEP into
+    // the casting so it cannot levitate. Root the lid 120 mm down and the collar goes down with
+    // it: the cupola's coaming sat entirely inside the drum, the loader's coaming AND hinge lay
+    // under the dome roof — 412 triangles rendering zero pixels — and the covering test measured
+    // the collar against the lid, which is the exact relationship that never breaks. `seat_y` is
+    // the LOCAL metal surface (drum top, dome roof, hull roof), passed by the caller who owns
+    // that geometry; the visibility lock measures the result against the built meshes.
+    let lid_top = center.y + half_height;
+    let exposed = (lid_top - seat_y).max(0.02);
     // The hinge lies BEHIND the lid (toward -Z), which is the way these covers open on a T-54:
     // forward, so the crewman is shielded by the raised cover.
     let hinge_z = center.z - radius * 0.94;
@@ -152,10 +235,11 @@ fn hatch_hardware(
             material: MaterialRole::RolledArmor,
             smoothing: SmoothingGroup(3),
             shape: PartShape::Mesh(detail::coaming(
-                Vec3::new(center.x, seat, center.z),
+                // An 8 mm weld bite into the surface, and the collar climbs from there.
+                Vec3::new(center.x, seat_y - 0.008, center.z),
                 Vec3::Y,
                 radius * 1.10,
-                half_height * 0.85,
+                (exposed * 0.55).clamp(0.018, 0.045) + 0.008,
                 radius * 0.14,
                 MaterialRole::RolledArmor,
                 round_segments(radius),
@@ -169,7 +253,7 @@ fn hatch_hardware(
             material: MaterialRole::BarrelSteel,
             smoothing: SmoothingGroup(3),
             shape: PartShape::Mesh(detail::hinge(
-                Vec3::new(center.x, center.y + half_height * 0.55, hinge_z),
+                Vec3::new(center.x, seat_y + exposed * 0.55, hinge_z),
                 Vec3::X,
                 radius * 0.80,
                 radius * 0.075,
@@ -199,9 +283,19 @@ fn hatch_hardware(
                     Vec3::Y,
                     (half_height * 0.45).min(0.05),
                 ),
+                // The rim handle rides where the lid shows, not the lid's buried midline: at
+                // `center.y` half of it sat inside the cupola drum.
                 HandlePlacement::Rim => detail::grab_handle(
-                    Vec3::new(center.x - radius * 0.40, center.y, center.z + radius * 0.80),
-                    Vec3::new(center.x + radius * 0.40, center.y, center.z + radius * 0.80),
+                    Vec3::new(
+                        center.x - radius * 0.40,
+                        seat_y + exposed * 0.45,
+                        center.z + radius * 0.80,
+                    ),
+                    Vec3::new(
+                        center.x + radius * 0.40,
+                        seat_y + exposed * 0.45,
+                        center.z + radius * 0.80,
+                    ),
                     Vec3::Z,
                     radius * 0.22,
                 ),
