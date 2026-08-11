@@ -140,6 +140,10 @@ BlueprintFile(
         turret_side: (25.0, 1.0),
         turret_rear: (10.0, 1.0),
         turret_side_taper: Some(0.41),
+        // 100 mm @ 55 deg (dossier, high confidence). The fleet derivation (glacis x 0.45)
+        // made this a 27-degree plate under a 36.8-degree visual - both wrong, each
+        // differently. Authored, both read this line.
+        hull_lower_front: Some((55.0, 1.0)),
         // The course MG port, right of the driver — the same seat the kit draws
         // (t54_kit_lines::course_mg_port at glacis x 0.42, y 1.15, muzzle disc 0.105).
         // Inside the disc the 100 mm plate presents FLAT: the 60-degree rake that doubles

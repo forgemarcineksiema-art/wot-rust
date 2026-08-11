@@ -236,3 +236,44 @@ fn a_shell_dropping_on_the_deck_lands_on_the_hull_deck_measured_against_up() {
     assert_eq!(zone, ArmorZone::HullDeck, "the deck is hull plate, not the turret roof");
     assert!(angle < 1.0, "a vertical drop is square-on to the deck (angle vs UP), got {angle}");
 }
+// APPEND to crates/runtime/sim/tests/armor_geometry.rs
+// (PR-1c z mapy kaskad: pierwszy test sim, ktory w ogole strzela w dolna plyte.)
+
+/// THE LOWER PLATE PLAYS ITS AUTHORED GEOMETRY. No sim test ever fired at it — which is how a
+/// 27-degree armour plate lived under a 36.8-degree visual and a 55-degree dossier without one
+/// red test. A flat bow shot below the fold must meet the LowerPlate zone at the blueprint's
+/// authored angle, and the facet the resolver reads must carry the dossier's 100 mm — LOS
+/// 100/cos(55°) ≈ 174 mm, the number the plate was always supposed to be worth.
+#[test]
+fn a_flat_shot_meets_the_lower_plate_at_its_authored_slope() {
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("blueprint");
+    let (authored_deg, _) =
+        blueprint.armor.hull_lower_front.expect("the T-54 authors its lower plate");
+
+    // Below the fold (sponson step at 1.0), above the belly: the middle of the plate.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 0.70, 10.0),
+        Vec3::new(0.0, 0.70, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::LowerPlate);
+    assert!(
+        (angle - authored_deg).abs() < 1.0,
+        "a flat shot below the fold meets the plate at its authored {authored_deg}°, got {angle}"
+    );
+
+    // And the facet the resolver reads carries the dossier's steel: full module thickness at
+    // the authored angle — not 72% of the glacis at 45% of its slope.
+    let plate = TankSpec::t54_1951().hull.plate(ArmorZone::LowerPlate);
+    assert!(
+        (plate.slope_degrees - authored_deg).abs() < 0.1,
+        "facet slope {} vs authored {authored_deg}",
+        plate.slope_degrees
+    );
+    let los = plate.nominal_thickness_mm / plate.slope_degrees.to_radians().cos();
+    assert!(
+        (170.0..180.0).contains(&los),
+        "100 mm at 55 degrees is ~174 mm of line-of-sight steel, got {los:.0}"
+    );
+}

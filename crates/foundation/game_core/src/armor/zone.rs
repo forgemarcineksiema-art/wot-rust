@@ -99,7 +99,14 @@ impl ArmorProfile {
     pub fn plate(&self, zone: ArmorZone) -> ArmorFacet {
         match zone {
             ArmorZone::UpperGlacis => self.facet(ArmorFacing::HullFront),
-            ArmorZone::LowerPlate => derived(self.facet(ArmorFacing::HullFront), 0.72, 0.45, 1.10),
+            // Authored beats formula (the turret-roof idiom): a stated lower plate keeps the
+            // module's full thickness at its stated angle. The 1.10 weakspot multiplier stays -
+            // the plate is still the aimed spot on a bow-on hull; what changes is that its
+            // geometry stops being an arbitrary fraction of a different plate's.
+            ArmorZone::LowerPlate => match self.lower_front {
+                Some(facet) => facet,
+                None => derived(self.facet(ArmorFacing::HullFront), 0.72, 0.45, 1.10),
+            },
             ArmorZone::HullSide => self.facet(ArmorFacing::HullSide),
             ArmorZone::HullRear => self.facet(ArmorFacing::HullRear),
             ArmorZone::TurretFront => self.facet(ArmorFacing::TurretFront),

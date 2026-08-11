@@ -185,6 +185,7 @@ fn t54() -> VehicleBlueprint {
             // 65 mm rear over the 160 mm side wall: the documented taper of the
             // obr. 1951 casting.
             turret_side_taper: Some(0.41),
+            hull_lower_front: Some((55.0, 1.0)),
             glacis_ports: [Some(super::GlacisPort { x: 0.42, y: 1.15, radius_m: 0.11 }), None],
         },
         visual_detail: None,

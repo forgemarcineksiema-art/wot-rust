@@ -348,7 +348,14 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // the seam path plus rails now read the blueprint's OWN ring/surface family — the private
     // duplicate in kit_lines is gone.
     // Previous: 0x82a8_3c8e_17e9_3af2 (PR-34, the flush cupola slits and the mirrored arm).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xf74e_0e22_b2ab_8199;
+    // Re-recorded 2026-08-11 (the lower plate plays its dossier): the nose fold-to-belly run is
+    // DERIVED from the blueprint's authored 55-degree plate — one field for the metal, the
+    // armour volume and the facet model, where there were three descriptions of one plate
+    // (36.8 visual / 27 armour / 55 dossier) and the armour's fold sat 50 mm ahead of the
+    // visible one. NOSE_SETBACK_M is gone; the first sim shot ever fired at the lower plate
+    // lands at 55 degrees for ~174 mm LOS.
+    // Previous: 0xf74e_0e22_b2ab_8199 (PR-35, the mould line and the armour mirror).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x2ad8_4963_8c30_5751;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

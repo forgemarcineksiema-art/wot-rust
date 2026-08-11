@@ -119,11 +119,18 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
             ArmorFacet::new(t.rear_mm, a.turret_rear.0, a.turret_rear.1),
         );
         // An authored roof beats the fleet formula: the T-54's documents say 30 mm where the
-        // derivation off the front plate produced 24.
-        return match authored_roof {
+        // derivation off the front plate produced 24. The lower front plate follows the same
+        // idiom: stated in the dossier, authored in the blueprint, read by armour and metal
+        // alike.
+        let mut profile = match authored_roof {
             Some(roof_mm) => profile.with_turret_roof_mm(roof_mm),
             None => profile,
         };
+        if let Some((deg, thickness_factor)) = a.hull_lower_front {
+            profile.lower_front =
+                Some(crate::ArmorFacet::new(h.front_mm * thickness_factor, deg, 1.10));
+        }
+        return profile;
     }
     match kind {
         // Blueprint-migrated: facets come from `bp.armor` above, always.
