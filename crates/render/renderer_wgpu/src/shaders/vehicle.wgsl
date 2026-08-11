@@ -463,7 +463,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Painted vehicle surfaces are dielectric at normal incidence. Starting Fresnel at 0.25 made
     // a dark barrel mostly mirror the blue sky; the physical ~0.04 F0 keeps the reflection as a
     // readable grazing highlight instead of replacing the material colour.
-    let fresnel = 0.04 + 0.96 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
+    //
+    // METAL IS NOT PAINT. The synthesis has written a metalness lane into every texture's blue
+    // channel since the maps existed (track links 0.5, glass a trace) and the shader never read
+    // it — a quarter of every uploaded texture, dead. Bare steel reflects face-on the way paint
+    // only reflects at grazing angles, so F0 rides the lane: worn track metal catches the sky at
+    // any angle instead of only silhouette-on, which is most of what separates a steel belt from
+    // a rubber one at battle range.
+    let metal = ao_rough.b;
+    let f0 = mix(0.04, 0.32, metal);
+    let fresnel = f0 + (1.0 - f0) * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
     let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
     let fracture_env = select(1.0, 0.32, fractured_steel);
