@@ -127,9 +127,15 @@ pub(crate) fn push_track_callout(
         let mut color = base;
         color[3] *= fade;
         if color[3] > 0.0 {
+            // The sim's TrackSide word-web still calls the -X flank "Left" — that pre-mirror
+            // convention is load-bearing through the wire slots (track_hp[0]), BeltDrive and
+            // the physics right-vector, so swapping it is a coordinated wave (B2 register),
+            // not a rename. The PLAYER lives in the true convention (+X is the port track,
+            // and the break DRAWS on the flank the shell hit), so the one point where the
+            // word reaches a human compensates: the letter names the flank the eye sees.
             let side = match callout.side {
-                TrackSide::Left => "L",
-                TrackSide::Right => "R",
+                TrackSide::Left => "R",
+                TrackSide::Right => "L",
             };
             let label = if callout.broke { "TRACK DESTROYED" } else { "TRACK DAMAGED" };
             let text = format!("{label} {side}");
@@ -155,8 +161,10 @@ pub(crate) fn push_track_callout(
         // The bar brightens as it nears re-seat; a just-broken bar reads dimmer.
         fill[3] *= 0.55 + 0.45 * frac;
         push_bar(vertices, [-BAR_HALF[0], y], BAR_HALF, *frac, fill);
-        // A side tag on the left of its bar so two down tracks are told apart.
-        let tag = if index == 0 { "L" } else { "R" };
+        // A side tag on the left of its bar so two down tracks are told apart. Slot 0 is the
+        // word-web's "Left" = the -X flank = the tank's STARBOARD — same compensation as the
+        // callout letter above (see the B2 register): the tag names the flank the eye sees.
+        let tag = if index == 0 { "R" } else { "L" };
         super::font::push_text(
             vertices,
             tag,
