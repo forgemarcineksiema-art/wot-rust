@@ -1,50 +1,122 @@
 //! The T-54's external kit: the fender stowage line (fuel tanks and bins on the shelves over the
-//! tracks), the sloping fender end sections, the glacis splash board, the turret handrails and the
-//! stowed tow cables. All are `PartLod::Detail` visual parts derived from the blueprint's
-//! [`VisualDetail`]; none adds a gameplay dimension. The kit is what makes the narrow-box hull read
-//! as a T-54: the tracks stay exposed and the shelves above them carry the visual mass.
+//! tracks), the arched mudguards over the end wheels, the glacis splash board, the turret
+//! handrails and the stowed tow cables. All are `PartLod::Detail` visual parts derived from the
+//! blueprint's [`VisualDetail`]; none adds a gameplay dimension. The kit is what makes the
+//! narrow-box hull read as a T-54: the tracks stay exposed and the shelves above them carry the
+//! visual mass.
 
-use game_core::{CompleteVisual, FenderVisual};
-use glam::Vec3;
-use vehicle_geometry::{MaterialRole, SubmeshKind};
+use game_core::{CompleteVisual, FenderVisual, TrackShape};
+use glam::{Vec2, Vec3};
+use sweep::{SweepCaps, SweepFrameMode, SweepPath, SweepSection, SweepSpec, try_sweep};
+use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
-/// Every kit part: fender stowage, sloping fender ends, splash board, turret rails, tow cables.
+/// Every kit part: fender stowage, arched mudguards, splash board, turret rails, tow cables.
 pub fn t54_kit_parts(
     v: CompleteVisual<'_>,
     glacis_deg: f32,
+    track: &TrackShape,
     stern: crate::t54_kit_lines::SternLine,
 ) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     parts.extend(fender_stowage(v.fender));
-    for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
-        for (j, sign) in [1.0_f32, -1.0].into_iter().enumerate() {
-            parts.push(detail_plate(
-                PartKey::indexed("fender_slope", (i * 2 + j) as u16),
-                SubmeshKind::Hull,
-                MaterialRole::RolledArmor,
-                solid::t54_fender_slope(side, v.fender, sign),
-            ));
-            // The tail flaps carry their pressed stiffening ribs (reference rear view); the bow
-            // mudguards are smooth.
-            if sign < 0.0 {
-                for (r, rib) in
-                    solid::t54_fender_slope_ribs(side, v.fender, sign).into_iter().enumerate()
+    parts.extend(mudguard_arches(v.fender, track));
+    // Line-work: splash board, turret rails, tow cables, the unditching beam, the travel lock.
+    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v, glacis_deg, stern));
+    parts
+}
+
+/// The mudguard arches over the end wheels, with their hanging flaps — ONE swept sheet per side
+/// and end.
+///
+/// The old construction had the vertical logic of the fender line BACKWARDS: a flat shelf ran
+/// the full hull length (so its lip had to clear the loop's HIGHEST links, up on the end
+/// wraps), and plain slabs angled DOWN over the ends. Every reference shows the opposite: the
+/// flat shelf sits LOW between the wraps — the crest links nearly brush it — and over each end
+/// wheel the sheet KICKS UP into an arched guard (the three-view reads the bow guard's band at
+/// 1.17-1.24) before falling to the hanging flap. The arch is what buys the low shelf.
+///
+/// Paths are authored around the blueprint's own end wheels (`end_front` / `end_z`), so moving
+/// an axle carries its guard along.
+fn mudguard_arches(fender: &FenderVisual, track: &TrackShape) -> Vec<VehiclePart> {
+    let shelf_top = fender.center_y + fender.half.y;
+    let (idler_z, _) = track.end_front.unwrap_or((track.end_z, track.end_radius));
+    // (key, sign toward the end, end-wheel axle |z|, ribbed flap?)
+    let ends =
+        [("mudguard_bow", 1.0_f32, idler_z, false), ("mudguard_tail", -1.0, track.end_z, true)];
+    let mut parts = Vec::new();
+    let mut index = 0u16;
+    for (name, sign, axle_z, ribbed) in ends {
+        // The wave, in the y-z side plane: off the shelf, up over the wrap, down the outboard
+        // face, then the near-vertical flap. z magnitudes run outboard; `sign` mirrors for the
+        // tail. Clearance over the wrap's link line is asserted by
+        // `the_mudguards_arch_over_the_end_wheels`.
+        let profile: [(f32, f32); 7] = [
+            (axle_z - 0.24, shelf_top),
+            (axle_z - 0.10, shelf_top + 0.115),
+            (axle_z + 0.03, shelf_top + 0.165),
+            (axle_z + 0.18, shelf_top + 0.115),
+            (axle_z + 0.33, shelf_top - 0.075),
+            (axle_z + 0.40, shelf_top - 0.185),
+            (axle_z + 0.42, shelf_top - 0.305),
+        ];
+        for side in [fender.side_x, -fender.side_x] {
+            let path: Vec<Vec3> =
+                profile.iter().map(|&(z, y)| Vec3::new(side, y, sign * z)).collect();
+            let section = SweepSection {
+                points: vec![
+                    Vec2::new(-fender.half.x, -0.005),
+                    Vec2::new(fender.half.x, -0.005),
+                    Vec2::new(fender.half.x, 0.005),
+                    Vec2::new(-fender.half.x, 0.005),
+                ],
+                closed: true,
+            };
+            let mesh = try_sweep(&SweepSpec {
+                path: &SweepPath { points: path, closed: false },
+                section: &section,
+                frame_mode: SweepFrameMode::FixedUp(Vec3::X),
+                caps: SweepCaps::Both,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+                section_scale: None,
+            })
+            .expect("a mudguard arch is a valid sweep");
+            parts.push(VehiclePart {
+                key: PartKey::indexed(name, index),
+                submesh: SubmeshKind::Hull,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+                shape: PartShape::Mesh(mesh),
+                lod: PartLod::Detail,
+                generator: GeneratorKind::Sweep,
+            });
+            // The tail flap carries its pressed stiffening ribs (reference rear view); the bow
+            // guard is smooth.
+            if ribbed {
+                let (top, bottom) = (profile[5], profile[6]);
+                for (r, rib) in solid::t54_flap_ribs(
+                    side,
+                    Vec2::new(sign * top.0, top.1),
+                    Vec2::new(sign * bottom.0, bottom.1),
+                    fender.half.x,
+                )
+                .into_iter()
+                .enumerate()
                 {
                     parts.push(detail_plate(
-                        PartKey::indexed("fender_flap_rib", (i * 3 + r) as u16),
+                        PartKey::indexed("fender_flap_rib", index * 3 + r as u16),
                         SubmeshKind::Hull,
                         MaterialRole::RolledArmor,
                         rib,
                     ));
                 }
             }
+            index += 1;
         }
     }
-    // Line-work: splash board, turret rails, tow cables, the unditching beam, the travel lock.
-    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v, glacis_deg, stern));
     parts
 }
 

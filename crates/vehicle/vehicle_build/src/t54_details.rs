@@ -657,9 +657,73 @@ fn exhaust_cowl(d: &DetailVisual) -> Vec<VehiclePart> {
 }
 
 /// Every factory detail part for the T-54, all at `PartLod::Detail`.
-pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
+/// The hull-side suspension furniture: the row of torsion-arm PIVOT BOSSES and the bump stops
+/// over the end stations. The band between the wheels used to be bare plate — the references
+/// show machinery there (arm, boss, stop), and the boss row is what anchors the arms visually
+/// to the tub instead of letting them float beside it.
+///
+/// Positions are DERIVED from the same blueprint fields the animated arms read
+/// (`wheel_stations` + `arm_reach`/`arm_rise` + `axle_y`), so a suspension retune carries the
+/// furniture with it — `the_pivot_bosses_sit_on_the_arm_pivots` holds the two to one another.
+/// (The lever shock absorbers at stations 1 and 5 are deliberately NOT here: they span from
+/// the hull to the MOVING axle, so they belong to the animated gear pass, not to static
+/// furniture that would tear off the arm at full jounce.)
+fn suspension_furniture(track: &game_core::TrackShape) -> Vec<VehiclePart> {
+    let mut parts = Vec::new();
+    let pivot_y = track.axle_y() + track.arm_rise();
+    let stations = track.wheel_stations();
+    let wall_x = 1.03_f32;
+    let mut index = 0u16;
+    for side in [1.0_f32, -1.0] {
+        for &station in &stations {
+            let pivot_z = station + track.arm_reach();
+            // The boss: a stepped drum on the tub wall, axis across the vehicle — the torsion
+            // bar's bearing housing the arm swings on.
+            let profile: [(f32, f32); 5] =
+                [(0.0, 0.0), (0.0, 0.085), (0.045, 0.085), (0.07, 0.062), (0.07, 0.0)];
+            let mesh = revolve::translate(
+                &revolve::revolve(
+                    Vec3::X * side,
+                    &profile,
+                    round_segments(0.085),
+                    MaterialRole::RolledArmor,
+                    vehicle_geometry::SmoothingGroup(3),
+                ),
+                Vec3::new(side * wall_x, pivot_y, pivot_z),
+            );
+            parts.push(VehiclePart {
+                key: PartKey::indexed("suspension_pivot_boss", index),
+                submesh: SubmeshKind::Hull,
+                material: MaterialRole::RolledArmor,
+                smoothing: vehicle_geometry::SmoothingGroup(3),
+                shape: PartShape::Mesh(mesh),
+                lod: PartLod::Detail,
+                generator: GeneratorKind::Revolve,
+            });
+            index += 1;
+        }
+        // Bump stops over the FIRST and LAST arms — the stations that take the hits. A small
+        // bracket with its rubber block, under the sponson overhang where the swinging arm
+        // meets it at full jounce.
+        for &station in [stations.first(), stations.last()].into_iter().flatten() {
+            let z = station + track.arm_reach() * 0.5;
+            let center = Vec3::new(side * (wall_x + 0.055), pivot_y + 0.175, z);
+            parts.push(detail_plate(
+                PartKey::indexed("suspension_bump_stop", index),
+                SubmeshKind::Hull,
+                MaterialRole::TrackMetal,
+                solid::chamfered_box(center, Vec3::new(0.05, 0.045, 0.075), 0.015),
+            ));
+            index += 1;
+        }
+    }
+    parts
+}
+
+pub fn t54_detail_parts(v: CompleteVisual<'_>, track: &game_core::TrackShape) -> Vec<VehiclePart> {
     let d = &v.detail;
     let mut parts = Vec::new();
+    parts.extend(suspension_furniture(track));
 
     // Engine-deck grille (well + frame + slats) and the left-fender exhaust cover ride the hull. The
     // well under the slats sits in shadow (the "engine_grille" surface bake) so it reads as a dark

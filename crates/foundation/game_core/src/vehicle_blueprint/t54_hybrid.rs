@@ -30,8 +30,6 @@ const CUPOLA_HALF_HEIGHT_M: f32 = 0.18;
 const GLACIS_SETBACK_M: f32 = 0.05;
 /// How far the engine deck's rear edge stops short of the rear plate.
 const DECK_REAR_GAP_M: f32 = 0.20;
-/// How far each fender run stops short of the hull's end plates.
-const FENDER_END_GAP_M: f32 = 0.30;
 
 pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     let (hull, armor) = (&file.hull, &file.armor);
@@ -232,14 +230,20 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // a rounding ghost is not worth the precedent. The blueprint lint still holds the
             // shelf centred on the belt, so the pair cannot drift.
             side_x: 1.32,
-            // 1.05, down from 1.12 (2026-08-12): the calibrated three-view puts the fender
-            // sheet at ~1.00-1.06 — the shelf rode ~80 mm high, and together with the slab
-            // thickness below it ate the daylight windows the scallops open between the
-            // wheel crests and the sheet. The 10 mm plate half replaces a 20 mm one: a
-            // fender is pressed sheet, not armour.
-            center_y: 1.06,
-            // The shelf runs the length of the hull, short of each end plate.
-            half: Vec3::new(0.315, 0.006, hull.half_len - FENDER_END_GAP_M),
+            // 1.00, down from 1.12 across two passes (2026-08-12): the calibrated three-view
+            // puts the fender SHEET at ~1.00-1.06, and the reference read of the whole band is
+            // that the crest links nearly brush the shelf — daylight lives in the scallop
+            // valleys, nowhere else. What made 1.06 the floor before was the lint anchoring
+            // the lip on the loop's HIGHEST links up on the end wraps; the wraps wear their
+            // own arched mudguards now (`t54_kit::mudguard_arches`), the flat shelf answers
+            // only for the carrier band it spans, and the kiss is locked from the PLACED
+            // links by `the_crest_links_kiss_the_shelf` (12 mm sheet, hem at sheet scale).
+            center_y: 1.000,
+            // z half 2.39: the SHELF ends where the mudguard arches take over (their inner
+            // points root at end-axle − 0.24; sprocket 2.59 → 2.35, idler 2.62 → 2.38, and
+            // the shelf tucks a few cm under each arch root). It ran the full hull length,
+            // which is exactly why its lip could never come down to the sheet line.
+            half: Vec3::new(0.315, 0.006, 2.39),
         }),
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
@@ -281,8 +285,8 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             grille_slats: 6,
             // The louvered exhaust box sits ON the left fender at the engine bay, as the top view
             // shows — the dark armoured cover among the left-fender stowage line.
-            // Rides the fender line: dropped with the shelf (1.12 -> 1.05).
-            exhaust_center: Vec3::new(-1.34, 1.18, -hull.half_len + 2.10),
+            // Rides the fender line: dropped with the shelf (1.12 -> 1.017 across two passes).
+            exhaust_center: Vec3::new(-1.34, 1.10, -hull.half_len + 2.10),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.
