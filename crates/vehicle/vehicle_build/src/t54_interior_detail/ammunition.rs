@@ -83,7 +83,7 @@ fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, c
             "loader_wall_round",
             index,
             SubmeshKind::Turret,
-            Vec3::new(0.67, cy + 0.56 + index as f32 * 0.20, 0.28),
+            Vec3::new(-0.67, cy + 0.56 + index as f32 * 0.20, 0.28),
             Vec3::Z,
         );
     }
@@ -107,7 +107,7 @@ fn add_hull_wall_rounds(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy:
         "bulkhead_floor_round",
         0,
         SubmeshKind::Hull,
-        Vec3::new(-0.30, cy - 0.48, -0.70),
+        Vec3::new(0.30, cy - 0.48, -0.70),
         Vec3::X,
     );
 }

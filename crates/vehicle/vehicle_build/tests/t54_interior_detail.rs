@@ -187,11 +187,11 @@ fn t54_driver_station_and_v54_ancillaries_read_as_the_manuals_describe() {
     // The station sits left of centerline; the instrument panel hugs the left sponson wall.
     let seat = parts_named(&description, "driver_station_seat")[0].mesh();
     let seat_bounds = seat.bounds().expect("seat bounds");
-    assert!(seat_bounds.max.x < 0.0, "the T-54 driver sits LEFT of the centerline");
+    assert!(seat_bounds.min.x > 0.0, "the T-54 driver sits LEFT (port, +X) of the centerline");
     let panel = parts_named(&description, "driver_instrument_panel")[0].mesh();
     let panel_bounds = panel.bounds().expect("panel bounds");
     assert!(
-        panel_bounds.max.x < seat_bounds.min.x,
+        panel_bounds.min.x > seat_bounds.max.x,
         "the instrument panel hangs on the sponson wall outboard of the seat"
     );
 

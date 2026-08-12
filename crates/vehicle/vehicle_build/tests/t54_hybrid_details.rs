@@ -31,7 +31,7 @@ fn t54_carries_driver_and_loader_hatches() {
 
     // Driver's hatch: a raised round lid on the hull roof, forward and to the left of centre.
     assert!(f.driver_hatch_center.z > 0.5, "driver hatch sits forward on the hull");
-    assert!(f.driver_hatch_center.x < 0.0, "driver hatch sits on the left");
+    assert!(f.driver_hatch_center.x > 0.0, "driver hatch sits on the left (port, +X)");
     let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
     let driver_apex = lid_apex(hull, f.driver_hatch_center, f.driver_hatch_radius);
     assert!(
@@ -41,7 +41,7 @@ fn t54_carries_driver_and_loader_hatches() {
 
     // Loader's hatch: a raised round lid on the turret roof, loader (right) side — it rides the
     // turret submesh so it traverses with the vehicle.
-    assert!(f.loader_hatch_center.x > 0.0, "loader hatch sits on the loader (right) side");
+    assert!(f.loader_hatch_center.x < 0.0, "loader hatch sits on the loader (starboard, -X) side");
     let turret = &baked.submesh(SubmeshKind::Turret).expect("turret").mesh;
     let loader_apex = lid_apex(turret, f.loader_hatch_center, f.loader_hatch_radius);
     assert!(
@@ -77,11 +77,11 @@ fn t54_periscopes_are_raked_prism_heads_on_turret_and_hull() {
             && v.normal.y > 0.5
             && v.normal.z > 0.6
             && v.position.z > 1.2
-            && v.position.x < 0.0
+            && v.position.x > 0.0
     });
     assert!(
         driver_raked,
-        "driver periscopes must read as raked prism heads on the hull roof, left"
+        "driver periscopes must read as raked prism heads on the hull roof, left (port, +X)"
     );
 }
 
@@ -567,11 +567,19 @@ fn t54_fenders_are_asymmetric_the_way_the_references_are() {
             })
             .count()
     };
-    assert_eq!(count("fuel_tank", 1.0), 2, "the right shelf carries two flat fuel tanks");
-    assert_eq!(count("fuel_tank", -1.0), 0, "the left shelf carries none");
-    assert_eq!(count("stowage_bin", -1.0), 3, "the left shelf carries three stowage bins");
+    assert_eq!(
+        count("fuel_tank", -1.0),
+        2,
+        "the right (starboard, -X) shelf carries two flat fuel tanks"
+    );
+    assert_eq!(count("fuel_tank", 1.0), 0, "the left shelf carries none");
+    assert_eq!(
+        count("stowage_bin", 1.0),
+        3,
+        "the left (port, +X) shelf carries three stowage bins"
+    );
     assert!(
-        count("stowage_bin", 1.0) >= 2,
+        count("stowage_bin", -1.0) >= 2,
         "and the right carries stowage fore and aft of its tanks"
     );
 }
@@ -588,7 +596,10 @@ fn t54_carries_a_course_machine_gun_port_right_of_centre() {
         .expect("the glacis carries the course MG's port");
     let bounds = port.mesh().bounds().expect("port bounds");
     let center_x = (bounds.min.x + bounds.max.x) * 0.5;
-    assert!(center_x > 0.15, "the gun is right of centre, opposite the driver: x {center_x:.3}");
+    assert!(
+        center_x < -0.15,
+        "the gun is right of centre (starboard, -X), opposite the driver: x {center_x:.3}"
+    );
 
     let driver = description
         .parts
@@ -597,7 +608,7 @@ fn t54_carries_a_course_machine_gun_port_right_of_centre() {
         .expect("driver's hatch");
     let driver_x = driver.mesh().bounds().expect("hatch bounds");
     assert!(
-        (driver_x.min.x + driver_x.max.x) * 0.5 < 0.0,
+        (driver_x.min.x + driver_x.max.x) * 0.5 > 0.0,
         "and the driver is on the other side of it"
     );
 

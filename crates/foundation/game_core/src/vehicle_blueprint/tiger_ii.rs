@@ -104,7 +104,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             side_slope_deg: 21.0,
             rear_slope_deg: 20.0,
             // The low commander's cupola on the left rear roof.
-            cupola_x: -0.28,
+            cupola_x: 0.28,
             cupola_z: -0.55,
             cupola_radius: 0.32,
             cupola_height: None,

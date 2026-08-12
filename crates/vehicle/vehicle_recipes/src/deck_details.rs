@@ -547,14 +547,14 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     }
     // Driver's twin periscope hoods at the roof front edge, left side — each looking through
     // its own glass, not through a steel bump.
-    for x in [-0.72_f32, -0.46] {
+    for x in [0.72_f32, 0.46] {
         let hood_c = Vec3::new(x, hull.deck_y + 0.035, edge - 0.10);
         let hood_half = Vec3::new(0.055, 0.035, 0.055);
         b = b.plate_box(hood_c, hood_half, 0.015, MaterialRole::RolledArmor, SG_HARD);
         b = vision_prism(b, hood_c, hood_half, 1.0);
     }
     // The MG Kugelblende in the glacis right — a cast ball seated in the 55-degree plate.
-    let ball = on_glacis(0.60, 1.42, 0.0);
+    let ball = on_glacis(-0.60, 1.42, 0.0);
     b = b.capped_revolve_at(
         Vec3::new(ball.x, ball.y, 0.0),
         RevolveSpec {
@@ -569,9 +569,9 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         },
     );
     // ONE Bosch headlight standing on the glacis LEFT on a short bracket (F4).
-    let light = on_glacis(-0.95, 1.70, 0.10);
+    let light = on_glacis(0.95, 1.70, 0.10);
     b = b.plate_box(
-        on_glacis(-0.95, 1.70, 0.05),
+        on_glacis(0.95, 1.70, 0.05),
         Vec3::new(0.03, 0.03, 0.05),
         0.01,
         MaterialRole::BarrelSteel,
@@ -642,7 +642,7 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         * hull.glacis_slope_deg.to_radians().tan();
     let plate_z = hull.half_len - run;
     b = b.capped_revolve_at(
-        Vec3::new(0.58, ball_y, 0.0),
+        Vec3::new(-0.58, ball_y, 0.0),
         RevolveSpec {
             profile: vec![
                 ProfilePoint::new(0.13, plate_z - 0.05),
@@ -691,7 +691,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     };
     let mut b = MeshBuilder::new();
     // Driver's glacis hatch: proud plate on the slope with two periscope hoods on its top edge.
-    let hatch_c = on_glacis(-0.45, hull.sponson_y + 0.55, 0.02);
+    let hatch_c = on_glacis(0.45, hull.sponson_y + 0.55, 0.02);
     b = b.plate_box(
         hatch_c,
         Vec3::new(0.28, 0.30, 0.035),
@@ -707,7 +707,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     }
     // Hull MG ball right of the hatch.
     b = b.capped_revolve_at(
-        on_glacis(0.55, hull.sponson_y + 0.50, 0.0),
+        on_glacis(-0.55, hull.sponson_y + 0.50, 0.0),
         RevolveSpec {
             profile: vec![ProfilePoint::new(0.12, -0.03), ProfilePoint::new(0.09, 0.11)],
             axis: vehicle_geometry::Axis::Z,
@@ -716,7 +716,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
             smoothing: SG_HARD,
         },
     );
-    b = headlight(b, on_glacis(-0.75, hull.deck_y - 0.10, 0.10), 0.075, false);
+    b = headlight(b, on_glacis(0.75, hull.deck_y - 0.10, 0.10), 0.075, false);
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     b = soviet_exhaust_ports(b, bp, hull.sponson_y + 0.42);
     engine_deck_soviet(b, bp)
@@ -751,7 +751,7 @@ pub(crate) fn t54_family_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     if !turret_covers(bp, hatch_z, 0.30) {
         b = rect_hatch(
             b,
-            Vec3::new(-bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
+            Vec3::new(bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
             0.26,
             0.30,
             1.0,
@@ -771,7 +771,7 @@ pub(crate) fn centurion_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     if !turret_covers(bp, hatch_z, 0.30) {
         b = rect_hatch(
             b,
-            Vec3::new(bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
+            Vec3::new(-bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
             0.26,
             0.28,
             1.0,

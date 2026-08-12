@@ -102,7 +102,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             front_slope_deg: 40.0,
             side_slope_deg: 30.0,
             rear_slope_deg: 15.0,
-            cupola_x: -0.40,
+            cupola_x: 0.40,
             cupola_z: -0.55,
             cupola_radius: 0.33,
             cupola_height: None,

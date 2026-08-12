@@ -92,7 +92,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             rear_slope_deg: 5.0,
             // No cupola on a Jagdtiger: the "cupola" slot carries the commander's periscope
             // housing, a low box on the right roof.
-            cupola_x: 0.45,
+            cupola_x: -0.45,
             cupola_z: -0.90,
             cupola_radius: 0.14,
             cupola_height: None,

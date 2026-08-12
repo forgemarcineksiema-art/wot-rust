@@ -442,7 +442,13 @@ pub fn turret_group(env: &HullEnvelope, fit: TurretFit) -> Vec<DamageComponent> 
         ));
     }
 
-    // The wireless against the rear wall, on the commander's side.
+    // The wireless against the rear wall, on the commander's side — the CUPOLA's side, read
+    // from the blueprint rather than assumed (the 2026-08-12 mirror flip moved every cupola;
+    // a literal here would have stranded the set on the loader's side).
+    let commander_sign = crate::VehicleBlueprint::for_vehicle(env.kind)
+        .map(|bp| bp.turret.cupola_x.signum())
+        .filter(|sign| *sign != 0.0)
+        .unwrap_or(1.0);
     let radio_half = [span * 0.22, height * 0.16, span * 0.14];
     let radio_y = env.ring_y + height * 0.28;
     let radio_span = env.casting_half_span_at(radio_y + radio_half[1]);
@@ -453,7 +459,7 @@ pub fn turret_group(env: &HullEnvelope, fit: TurretFit) -> Vec<DamageComponent> 
         DamageMaterial::Electronics,
         obb(
             [
-                -radio_half[0] * 0.9,
+                commander_sign * radio_half[0] * 0.9,
                 radio_y,
                 env.ring_z - forward_within(radio_span, radio_half[0] * 1.9, radio_half[2]),
             ],

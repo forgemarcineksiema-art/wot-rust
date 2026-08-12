@@ -171,7 +171,7 @@ fn the_kwk36_carries_a_muzzle_brake_and_no_evacuator() {
 #[test]
 fn the_drum_cupola_tops_the_three_meter_silhouette_on_the_left() {
     let bp = blueprint();
-    assert!(bp.turret.cupola_x < -0.3, "the commander sits on the left");
+    assert!(bp.turret.cupola_x > 0.3, "the commander sits on the left (port, +X)");
     let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
     let turret_mesh = &baked.submesh(SubmeshKind::Turret).expect("turret submesh").mesh;
     let apex = turret_mesh
@@ -180,7 +180,7 @@ fn the_drum_cupola_tops_the_three_meter_silhouette_on_the_left() {
         .max_by(|a, b| a.position.y.total_cmp(&b.position.y))
         .expect("turret has vertices");
     assert!((apex.position.y - 3.01).abs() < 0.05, "cupola top ~3.0 m: {}", apex.position.y);
-    assert!(apex.position.x < 0.0, "the apex is the left-side cupola");
+    assert!(apex.position.x > 0.0, "the apex is the left-side (port, +X) cupola");
 }
 
 /// The migrated body is the RESEARCHED Tiger: 6.32 m hull in a 6.44 m box, 3.705 m over the

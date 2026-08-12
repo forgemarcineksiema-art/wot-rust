@@ -75,7 +75,7 @@ BlueprintFile(
         side_slope_deg: 20.0,
         rear_slope_deg: 12.0,
         // Commander's cupola aft-left on the roof.
-        cupola_x: -0.32,
+        cupola_x: 0.32,
         cupola_z: -0.05,
         cupola_radius: 0.28,
         plan_half_width: 1.10,

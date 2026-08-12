@@ -137,15 +137,18 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     // lids on the 1.58 roof line — the flush, continuous side silhouette both projections of
     // the reference sheet show (box tops and roof line are ONE line there) — and the flat fuel
     // tanks ride a shade lower, as a flat tank does.
+    // Side signs: +X is the vehicle's LEFT (port) in this right-handed, +Z-forward frame —
+    // the 2026-08-12 mirror audit found every asymmetric fitting authored under the opposite
+    // belief and rendering mirrored. The RIGHT (starboard) shelf is -1.0 here.
     let boxes: [(f32, &str, f32, f32, f32); 8] = [
-        (1.0, "stowage_bin", 2.15, 0.28, 0.11),
-        (1.0, "fuel_tank", 1.05, 0.42, 0.10),
-        (1.0, "fuel_tank", -0.15, 0.42, 0.10),
-        (1.0, "stowage_bin", -1.35, 0.40, 0.11),
-        (1.0, "stowage_bin", -2.35, 0.28, 0.11),
-        (-1.0, "stowage_bin", 1.95, 0.40, 0.11),
-        (-1.0, "stowage_bin", 0.55, 0.35, 0.11),
-        (-1.0, "stowage_bin", -2.30, 0.35, 0.11),
+        (-1.0, "stowage_bin", 2.15, 0.28, 0.11),
+        (-1.0, "fuel_tank", 1.05, 0.42, 0.10),
+        (-1.0, "fuel_tank", -0.15, 0.42, 0.10),
+        (-1.0, "stowage_bin", -1.35, 0.40, 0.11),
+        (-1.0, "stowage_bin", -2.35, 0.28, 0.11),
+        (1.0, "stowage_bin", 1.95, 0.40, 0.11),
+        (1.0, "stowage_bin", 0.55, 0.35, 0.11),
+        (1.0, "stowage_bin", -2.30, 0.35, 0.11),
     ];
     let mut parts = Vec::new();
     for (i, &(side, key, z, half_z, half_y)) in boxes.iter().enumerate() {
