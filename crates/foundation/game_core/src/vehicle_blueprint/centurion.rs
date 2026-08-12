@@ -86,6 +86,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
             arm_reach_m: None,
             arm_rise_m: None,
+            end_front: None,
             drive_front: false,
         },
         turret: TurretShape {

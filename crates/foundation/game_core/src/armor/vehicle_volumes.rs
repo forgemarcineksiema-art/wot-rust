@@ -317,7 +317,12 @@ fn lower_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
 /// face, from ground contact to the belt's top run, over the full idler-to-sprocket span.
 fn track(blueprint: &VehicleBlueprint, cy: f32, side: f32, zone: ArmorZone) -> ArmorVolume {
     let track = blueprint.track;
-    let half_len = track.end_z + track.end_radius;
+    // Per-end reach: an authored front end (the T-54's outboard idler) carries the band's
+    // front face out with the metal; the rear face stays on the sprocket. Symmetric fleets
+    // resolve both from `end_z`/`end_radius` as before.
+    let (front_z, front_r) = track.end_front.unwrap_or((track.end_z, track.end_radius));
+    let front_len = front_z + front_r;
+    let rear_len = track.end_z + track.end_radius;
     let top_y = track.top_y + track.belt_half_thickness - cy;
     let bottom_y = track.bottom_y - cy;
     let outer = Vec3::new(side * track.outer_x, 0.0, 0.0);
@@ -328,8 +333,8 @@ fn track(blueprint: &VehicleBlueprint, cy: f32, side: f32, zone: ArmorZone) -> A
             TaggedPlane::new(-Vec3::X * side, inner, zone),
             TaggedPlane::new(Vec3::Y, Vec3::new(0.0, top_y, 0.0), zone),
             TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, bottom_y, 0.0), zone),
-            TaggedPlane::new(Vec3::Z, Vec3::new(0.0, 0.0, half_len), zone),
-            TaggedPlane::new(-Vec3::Z, Vec3::new(0.0, 0.0, -half_len), zone),
+            TaggedPlane::new(Vec3::Z, Vec3::new(0.0, 0.0, front_len), zone),
+            TaggedPlane::new(-Vec3::Z, Vec3::new(0.0, 0.0, -rear_len), zone),
         ],
     }
 }

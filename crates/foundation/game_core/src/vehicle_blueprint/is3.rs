@@ -72,6 +72,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             link_count: Some(86),
             top_sag_m: 0.012,
             wheel_spokes: 12,
+            end_front: None,
             drive_front: false,
             shoe_pattern: ShoePattern::Omsh,
             wheel_face: WheelFace::Openwork,

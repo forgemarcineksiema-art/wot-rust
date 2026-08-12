@@ -52,8 +52,20 @@ BlueprintFile(
         // 0.30 put the wrap at 0.32, which is why the tooth count came out 14 (the modernised
         // T-55 / Obj. 167 wheel) where the T-54 has 13. The count is not authored anywhere: it
         // is the number of link pitches around this circle, so fixing the circle fixes it.
+        // REAR (sprocket) end. 2.590 is not free to move: the sprocket disc clears the last
+        // road wheel's tyre by millimetres already (`no_running_gear_disc_merges_into_another`
+        // — pulling it to the three-view's ~2.53 buries 58 mm of disc in the wheel), and the
+        // 90 x 137 mm loop identity pins the other side. The sheet's far-out end axles imply
+        // a 93-95 link belt and are rejected on that identity, the same way its idler was.
         end_radius: 0.2662,
         end_z: 2.590,
+        // FRONT (idler): its own wheel at its own axle — the dossier's ⌀510 cast idler with
+        // steel tyres (it was drawn as a second sprocket-sized wheel), stood as far outboard
+        // as the loop identity and the sprocket's fixed seat allow (taut pitch 137.3 mm).
+        // The wrap's outer tip gains ~20 mm toward the bow; the honest half of the sheet's
+        // "idler proud of the bow" read — the other half fails the link-count identity that
+        // arbitrates every end-position claim on this vehicle.
+        end_front: Some((2.620, 0.255)),
         // Raised so the top run leaves the end wheels ABOVE the 0.88 m wheel tops — links
         // grinding the tyres z-fight. What is authored is that 0.96 m anchor, and it was
         // written as 0.66 against a 0.32 wrap. The wrap is the sprocket's real pitch circle

@@ -28,7 +28,7 @@ pub fn end_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// that tells you which end of the tank the idler is, and it was not there at all.
 pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments_for(20);
-    let r = kin.end_radius;
+    let r = kin.idler_radius();
     let half_w = kin.wheel_half_width;
     MeshBuilder::new()
         // The dished disc: a rim band and a recessed web, not one flat coin.
@@ -144,11 +144,11 @@ fn tread_band(center_x: f32, radius: f32, half_width: f32, segments: usize) -> G
 /// on a T-54, the dominant visual feature of the disc). They used to be solid coins.
 pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments_for(16);
-    let r = kin.end_radius;
+    let r = kin.sprocket_radius();
     let half_w = kin.wheel_half_width;
     let tooth_half = 0.028;
     let ring_x = (kin.band_half_width - tooth_half).max(0.02);
-    let wrap_r = crate::running_gear_belt::wrap_radius(kin);
+    let wrap_r = crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
     // Out to the hinge-eye barrel and no further: engagement, without cutting the shoe plate.
     let tooth_outer_r = wrap_r - kin.hinge_eye_offset() * 0.90;
     let pitch = (kin.belt_length() / kin.link_count().max(1) as f32).max(0.05);
