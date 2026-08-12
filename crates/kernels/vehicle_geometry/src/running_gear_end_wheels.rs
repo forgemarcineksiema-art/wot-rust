@@ -31,8 +31,19 @@ pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let r = kin.idler_radius();
     let half_w = kin.wheel_half_width;
     MeshBuilder::new()
-        // The dished disc: a rim band and a recessed web, not one flat coin.
-        .append(&wheel_disc_at(0.0, r * 0.86, half_w * 0.42, seg, MaterialRole::TrackMetal))
+        // An OPEN wheel, not a drum (2026-08-12 review: the idler read as a solid barrel with
+        // one hole). The reference idler is a cast wheel with an open web: an outer ring under
+        // the rim, a hub, and spokes with DAYLIGHT between them. At the distance tier the
+        // openwork cannot be resolved, so the far mesh keeps the solid dished web — same
+        // silhouette, coarser construction, exactly the tier contract.
+        .append(&if kin.detail == crate::GearDetail::Near {
+            MeshBuilder::new()
+                .append(&steel_rim(0.0, r * 0.58, r * 0.86, half_w * 0.30, seg))
+                .append(&idler_spokes(r * 0.24, r * 0.62, half_w * 0.30, 6))
+                .build()
+        } else {
+            wheel_disc_at(0.0, r * 0.86, half_w * 0.42, seg, MaterialRole::TrackMetal)
+        })
         .append(&steel_rim(0.0, r * 0.62, r * 0.88, half_w, seg))
         .append(&tread_band(0.0, r, half_w * 0.9, seg))
         .append(&wheel_disc_at(0.0, r * 0.28, half_w * 1.12, seg, MaterialRole::TrackMetal))
@@ -45,6 +56,39 @@ pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
             GeometryMesh::default()
         })
         .build()
+}
+
+/// The idler's cast spokes: closed bars from the hub boss out to the web ring, with open air
+/// between them — the daylight that makes the wheel a wheel. Each spoke is its own closed
+/// prism (the same separate-solids construction the swing arm uses), so the mesh stays
+/// manifold under the gear quality audit.
+fn idler_spokes(r_in: f32, r_out: f32, half_depth: f32, count: usize) -> GeometryMesh {
+    let mut builder = MeshBuilder::new();
+    for k in 0..count {
+        let theta = std::f32::consts::TAU * (k as f32 + 0.5) / count as f32;
+        let dir = Vec2::new(theta.cos(), theta.sin());
+        let across = Vec2::new(-dir.y, dir.x) * 0.040;
+        builder = builder.append(
+            &MeshBuilder::new()
+                .extrude(
+                    Vec3::ZERO,
+                    ExtrudeSpec {
+                        section: vec![
+                            dir * r_in - across,
+                            dir * r_in + across,
+                            dir * r_out + across,
+                            dir * r_out - across,
+                        ],
+                        axis: Axis::X,
+                        half_depth,
+                        material: MaterialRole::TrackMetal,
+                        smoothing: SG_HARD,
+                    },
+                )
+                .build(),
+        );
+    }
+    builder.build()
 }
 
 /// A steel rim band: the ring the tyres are pressed onto, closed on both faces.
