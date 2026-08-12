@@ -320,12 +320,14 @@ fn t54_top_track_run_sags_without_return_rollers() {
 
 /// The scallop's DEPTH, measured on the placed links — the outcome, not the authored input.
 ///
-/// The old lock above asks only "does it sag at all" (>= 40 mm end-to-middle), and that is how
-/// an authored 0.075 "raised to the depth the drawings show" shipped a 33 mm dip for months:
-/// the tension formula halved it on the 0.906 m span and nothing measured what the eye got.
-/// The calibrated three-view reads link tops ~0.99 over the wheels and ~0.89-0.90 mid-span —
-/// a ~95 mm scallop — and the DoD rear photograph shows the same deep drape. This lock holds
-/// the REST-state dip between road wheels 2 and 3 inside the measured band.
+/// RE-DERIVED 2026-08-12 (second measurement of the same references): the "~95 mm" band this
+/// lock used to hold came from the mis-calibrated three-view session that also parked the
+/// fender sheet on the track crest — its "link tops 0.99 / mid-span 0.89" read spanned the
+/// LINK HEIGHT, not the drape. Scanned properly, the reference sheet's own scallops measure
+/// 20-45 mm; the rear photographs show a deeper hang than the idealized sheet; the authored
+/// depth lands between the two. This lock holds the REST-state dip between road wheels 2 and
+/// 3 inside that band — and the SHAPE is the v4 flat-to-flat drape, so the dip is a curve
+/// between crest flats, not a tent pitched on wheel-top points.
 #[test]
 fn the_top_run_scallops_to_its_measured_depth() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
@@ -351,8 +353,10 @@ fn the_top_run_scallops_to_its_measured_depth() {
         .fold(f32::INFINITY, f32::min);
     let dip = over_wheels - valley;
     assert!(
-        (0.075..=0.120).contains(&dip),
-        "the rest-state scallop between wheels must sit in the measured ~95 mm band, got          {dip:.3} (supports {over_wheels:.3}, valley {valley:.3})"
+        (0.045..=0.080).contains(&dip),
+        "the rest-state scallop between wheels must sit in the re-measured 45-80 mm band \
+         (sheet 20-45, photographs deeper), got {dip:.3} (supports {over_wheels:.3}, valley \
+         {valley:.3})"
     );
 }
 
