@@ -392,10 +392,30 @@ mod tests {
         // raise `roof_y` in the RON and the visible dome would have stayed where it was.
         let loft = &h.turret_loft.expect("benchmark loft part");
         let stations = &loft.stations;
-        let first = stations.first().expect("the loft starts at the ring");
+        let first = stations.first().expect("the loft starts at the skirt lip");
         let last = stations.last().expect("the loft ends at the roof");
-        same("turret_loft.first_station.y", first.y, turret.ring_y);
-        same("turret_loft.first_station.z_center", first.z_center, turret.ring_z);
+        // The casting OVERHANGS its race: the skirt lip hangs below the ring plane, and a
+        // seat station sits exactly ON it. What replaced the old "first station IS the ring"
+        // pairing: the seat must exist at ring_y, the lip must not float above it, and the
+        // seat's outline must still cover the machined race circle (radius `ring_radius`
+        // about `ring_z`) — the skirt may sit forward-registered, but the race can never
+        // poke out from under the casting.
+        assert!(
+            first.y <= turret.ring_y,
+            "the skirt lip ({}) must not float above the ring plane ({})",
+            first.y,
+            turret.ring_y
+        );
+        let seat = stations
+            .iter()
+            .find(|s| (s.y - turret.ring_y).abs() < 1.0e-4)
+            .expect("a loft station sits exactly on the ring plane");
+        assert!(
+            seat.half_width >= turret.ring_radius
+                && seat.z_center + seat.half_len_front >= turret.ring_z + turret.ring_radius
+                && seat.z_center - seat.half_len_rear <= turret.ring_z - turret.ring_radius,
+            "the seat station must cover the ring race"
+        );
         same("turret_loft.last_station.y", last.y, turret.roof_y);
         same("turret_loft.last_station.half_width", last.half_width, turret.roof_radius);
         same("turret_loft.cupola_center.x", loft.cupola_center.x, turret.cupola_x);

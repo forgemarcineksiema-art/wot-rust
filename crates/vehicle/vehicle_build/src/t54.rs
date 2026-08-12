@@ -205,6 +205,11 @@ pub fn t54_from_modules_with_blueprint(
         shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(
             trunnion,
             v.gun.canvas.as_ref().expect("the benchmark wears its canvas"),
+            // The casting's FACE at the gun line — the bare nose plus the cheek plateau the
+            // fastening strip actually sits on — from the loft the panel is fastened to.
+            // Typed twice, stranded twice; derived is the rule now.
+            v.turret_loft.ring_point(trunnion.y, 0.0, 0.0).z + v.turret_loft.cheek_amount
+                - trunnion.z,
         )),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Sweep,

@@ -159,29 +159,55 @@ fn the_cast_shell_is_lower_and_wider_than_tall() {
 #[test]
 fn the_low_station_is_wider_than_the_roof_station() {
     let v = turret_visual();
-    let low = v.stations[1].half_width; // widest, just above the ring seat
+    let low = v.stations.iter().map(|s| s.half_width).fold(0.0_f32, f32::max);
     let roof = v.stations.last().unwrap().half_width;
     assert!(low > roof + 0.2, "low station {low:.2} must overhang the roof {roof:.2}");
+    // And the widest band sits LOW — in the bottom third of the casting, where the ring
+    // overhang is — not up the dome.
+    let widest =
+        v.stations.iter().max_by(|a, b| a.half_width.total_cmp(&b.half_width)).expect("stations");
+    let (lip, roof_y) = (v.stations.first().unwrap().y, v.stations.last().unwrap().y);
+    assert!(
+        widest.y < lip + (roof_y - lip) * 0.34,
+        "the widest band ({:.2}) must sit low on the casting",
+        widest.y
+    );
 }
 
+/// REWRITTEN 2026-08-12: this cage used to demand `half_len_front >= half_len_rear` at every
+/// station — "front-heavy" as a per-station SPLIT about the ring axis. That encoding is exactly
+/// how the egg became an oval: S1 measured the widest cut at 43% of the casting's length from
+/// the front and flagged its registration as the open question, and the split-based cage forced
+/// the waist onto the ring axis (52% from the front) — the plan overlay against the calibrated
+/// three-view showed the symmetric result plainly. Front-heaviness is a property of the EGG,
+/// not of the split: the casting reaches farther forward of the ring axis than rearward, and
+/// its waist sits forward of its own mid-length. Both are what the references show; both are
+/// what this test now measures.
 #[test]
-fn the_front_reach_exceeds_the_rear_reach_at_a_matching_height() {
-    // Front-heaviness is a per-station property (front half-length >= rear at the same y); the
-    // absolute Z extent is deliberately offset by the rear-pulled bustle (negative z_center) and
-    // the front embrasure recess, so it is not the right measure.
+fn the_egg_is_registered_front_heavy() {
     let v = turret_visual();
-    let mut strictly_front_heavy = false;
-    for s in &v.stations {
-        assert!(
-            s.half_len_front >= s.half_len_rear,
-            "station at y={:.2} is not front-heavy: front {:.2} rear {:.2}",
-            s.y,
-            s.half_len_front,
-            s.half_len_rear
-        );
-        strictly_front_heavy |= s.half_len_front > s.half_len_rear + 1.0e-4;
-    }
-    assert!(strictly_front_heavy, "at least one station must reach further front than rear");
+    // Absolute reach about the ring axis, at the waist band.
+    let front_tip =
+        v.stations.iter().map(|s| s.z_center + s.half_len_front).fold(f32::NEG_INFINITY, f32::max);
+    let rear_tip =
+        v.stations.iter().map(|s| s.z_center - s.half_len_rear).fold(f32::INFINITY, f32::min);
+    assert!(
+        front_tip > -rear_tip + 0.05,
+        "the casting must reach farther forward of the ring axis ({front_tip:.3}) than rearward \
+         ({rear_tip:.3})"
+    );
+    // Registration: the waist (widest cut, at the widest station's z_center) sits FORWARD of
+    // the casting's own mid-length — the drawing/S1 put it at 43% from the front; anything at
+    // or behind 50% is the oval this cage used to enforce.
+    let widest =
+        v.stations.iter().max_by(|a, b| a.half_width.total_cmp(&b.half_width)).expect("stations");
+    let mid = (front_tip + rear_tip) * 0.5;
+    assert!(
+        widest.z_center > mid + 0.05,
+        "the waist (z {:.3}) must sit forward of the casting's mid-length ({mid:.3}) — a waist \
+         on or behind the middle is an oval, not a T-54 egg",
+        widest.z_center
+    );
 }
 
 #[test]
