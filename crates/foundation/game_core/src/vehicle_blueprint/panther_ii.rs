@@ -92,7 +92,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             side_slope_deg: 25.0,
             rear_slope_deg: 20.0,
             // The low cupola sits close to the centreline — the converged roof is narrow.
-            cupola_x: -0.22,
+            cupola_x: 0.22,
             cupola_z: -0.55,
             cupola_radius: 0.31,
             cupola_height: None,

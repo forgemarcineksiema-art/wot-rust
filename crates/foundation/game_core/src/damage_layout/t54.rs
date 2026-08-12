@@ -73,7 +73,7 @@ fn turret_components() -> Vec<DamageComponent> {
             K::TurretDrive,
             ModuleSlot::Turret,
             M::Driveline,
-            cylinder_shape([0.62, 0.47, 0.02], Vec3::Y, 0.24, 0.20),
+            cylinder_shape([-0.62, 0.47, 0.02], Vec3::Y, 0.24, 0.20),
             34,
             1.0,
         ),
@@ -93,7 +93,7 @@ fn turret_components() -> Vec<DamageComponent> {
             // tank, sweeping through the hull roof plane at every traverse. The same defect the
             // note above declares fixed, on the other axis, because the fix moved the number that
             // failed instead of measuring the box against the dome.
-            obb([-0.48, 0.38, 0.68], [0.27, 0.22, 0.20], 0.0),
+            obb([0.48, 0.38, 0.68], [0.27, 0.22, 0.20], 0.0),
             28,
             1.4,
         ),
@@ -143,7 +143,7 @@ fn hull_components() -> Vec<DamageComponent> {
             // x pulled to 0.58 (2026-07-29 interior audit): at 0.65 the rack's outer face
             // reached 1.02 — through the inner wall of the 80 mm side plate on a 1.03 tub.
             // Rounds stored inside armour are rounds a side penetration cannot reach honestly.
-            obb([0.58, -0.12, 1.20], [0.37, 0.48, 0.36], 0.0),
+            obb([-0.58, -0.12, 1.20], [0.37, 0.48, 0.36], 0.0),
             32,
             1.35,
         ),
@@ -158,7 +158,7 @@ fn hull_components() -> Vec<DamageComponent> {
             M::Ammunition,
             // x 0.88 -> 0.85 (interior audit): the clips hug the INNER face of the wall
             // (0.95), not the middle of the plate.
-            obb([0.85, -0.335, 0.0], [0.10, 0.18, 0.69], 0.0),
+            obb([-0.85, -0.335, 0.0], [0.10, 0.18, 0.69], 0.0),
             32,
             1.35,
         ),

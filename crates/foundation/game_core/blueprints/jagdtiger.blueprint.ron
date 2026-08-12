@@ -57,7 +57,7 @@ BlueprintFile(
         front_slope_deg: 15.0,
         side_slope_deg: 25.0,
         rear_slope_deg: 5.0,
-        cupola_x: 0.45,
+        cupola_x: -0.45,
         cupola_z: -0.9,
         cupola_radius: 0.14,
         plan_half_width: 1.356,

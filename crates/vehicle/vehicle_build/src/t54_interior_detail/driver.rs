@@ -10,7 +10,7 @@ use crate::part::{PartKey, PartLod, VehiclePart};
 use crate::t54_interior::{box_part, drum_part};
 
 pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
-    let station = Vec3::new(-0.55, cy, 1.55);
+    let station = Vec3::new(0.55, cy, 1.55);
 
     parts.push(box_part(
         PartKey::new("driver_station_seat"),
@@ -55,7 +55,7 @@ pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
     parts.push(box_part(
         PartKey::new("driver_instrument_panel"),
         SubmeshKind::Hull,
-        station + Vec3::new(-0.34, 0.22, 0.24),
+        station + Vec3::new(0.34, 0.22, 0.24),
         Vec3::new(0.035, 0.14, 0.22),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
@@ -64,8 +64,8 @@ pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
     parts.push(drum_part(
         PartKey::new("driver_gear_selector"),
         SubmeshKind::Hull,
-        station + Vec3::new(0.33, -0.02, 0.10),
-        Vec3::new(0.15, 1.0, 0.0).normalize(),
+        station + Vec3::new(-0.33, -0.02, 0.10),
+        Vec3::new(-0.15, 1.0, 0.0).normalize(),
         (0.17, 0.014),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
@@ -84,7 +84,7 @@ pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
         parts.push(drum_part(
             PartKey::indexed("driver_air_bottle", index as u16),
             SubmeshKind::Hull,
-            Vec3::new(-station.x.abs() + x + 0.0, cy + 0.05, 2.02),
+            Vec3::new(station.x - x, cy + 0.05, 2.02),
             Vec3::new(0.0, 1.0, 0.35).normalize(),
             (0.20, 0.065),
             MaterialRole::InteriorPrimer,

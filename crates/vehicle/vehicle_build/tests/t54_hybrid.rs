@@ -398,7 +398,17 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // (both tied to it by lock now), the part graph's fender box on the fender's own plane.
     // The kiss lock inverts into the daylight band it should always have been.
     // Previous: 0xc48c_3c82_61a0_1d06 (the suspension band works as a system).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x3659_281f_e969_9037;
+    // Re-recorded 2026-08-12 (the mirror): every hand-authored asymmetric fitting flips to the
+    // side the references show. The world is right-handed, +Y up, +Z bow — local +X is the
+    // vehicle's PORT side — and the whole authoring layer believed the opposite, judged against
+    // Studio tiles whose camera basis carried the same inversion (two consistent errors, zero
+    // red gates). Cupola, driver hatch + periscopes, headlight, exhaust, course MG port, DShK,
+    // fender asymmetry and the glacis tow-cable diagonal cross the centreline; the interior
+    // (driver station, bow rack, loader wall, radio, turret drive) crosses WITH them, in this
+    // same commit, so mesh space, armour volumes and breach frames never disagree. Locked by
+    // `game_core/tests/handedness.rs` — the blueprint-to-screen chain no layer held before.
+    // Previous: 0x3659_281f_e969_9037 (the shelf rides daylight).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe766_ae22_e3f4_4df7;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

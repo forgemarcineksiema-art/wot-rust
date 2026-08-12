@@ -256,21 +256,21 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             cupola_hatch_half_height: 0.04,
             // Driver's hatch on the hull roof, front-left: ahead of the turret ring, on the flat roof
             // that the 60deg glacis cuts off at z ~= 1.95, so the lid stays clear of the slope.
-            driver_hatch_center: Vec3::new(-0.45, 1.62, hull.half_len - 1.55),
+            driver_hatch_center: Vec3::new(0.45, 1.62, hull.half_len - 1.55),
             driver_hatch_radius: 0.17,
             driver_hatch_half_height: 0.05,
             // Loader's hatch ring on the turret roof, loader (right) side. Like the cupola it is
             // rooted deep into the curved dome (base ~2.04) so the lid never levitates.
             // Deep enough to root in the casting, shallow enough that the LID is not what a
             // tape measure finds when it asks how tall the bare turret roof is.
-            loader_hatch_center: Vec3::new(0.36, roof - 0.085, 0.05),
+            loader_hatch_center: Vec3::new(-0.36, roof - 0.085, 0.05),
             loader_hatch_radius: 0.19,
             loader_hatch_half_height: 0.12,
             // On the left fender front, outboard of the glacis, as every reference view shows.
             // Raised with the shelf (2026-08-12): the lamp stands over the bow guard's sheet
             // (~1.37 there), its bracket reaching down to it — at the old 1.225 the whole drum
             // sat UNDER the corrected fender plane, buried in the guard.
-            headlight_center: Vec3::new(-1.25, 1.56, hull.half_len - 0.45),
+            headlight_center: Vec3::new(1.25, 1.56, hull.half_len - 0.45),
             headlight_radius: 0.10,
             headlight_half_height: 0.09,
             // Bow hooks at the lower corners of the narrow nose plate.
@@ -292,7 +292,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // shows — the dark armoured cover among the left-fender stowage line.
             // Rides the fender line: seated so its bottom (1.47 − 0.11) meets the sheet top
             // (1.356) — the cowl moved up with the shelf's corrected 1.35 plane (2026-08-12).
-            exhaust_center: Vec3::new(-1.34, 1.47, -hull.half_len + 2.10),
+            exhaust_center: Vec3::new(1.34, 1.47, -hull.half_len + 2.10),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.
@@ -304,7 +304,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             periscope_center: Vec3::new(0.34, roof - 0.02, 0.42),
             periscope_half: Vec3::new(0.055, 0.055, 0.055),
             // The pedestal drum centre; the DShK barrel rides near its top (+0.16).
-            dshk_mount_center: Vec3::new(0.48, roof - 0.07, -0.18),
+            dshk_mount_center: Vec3::new(-0.48, roof - 0.07, -0.18),
             // The DShK's barrel is a documented 1070 mm. It was 0.62 — sized to look plausible
             // beside a gun that was lying flat on the roof.
             dshk_barrel_length: 1.07,

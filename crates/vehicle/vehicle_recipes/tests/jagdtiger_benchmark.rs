@@ -423,10 +423,10 @@ fn the_jt2_dressing_holds_collar_racks_guards_and_ball() {
         .iter()
         .filter(|v| {
             v.material == vehicle_geometry::MaterialRole::CastArmor
-                && (v.position.x - 0.58).abs() < 0.20
+                && (v.position.x + 0.58).abs() < 0.20
                 && (v.position.y - 1.45).abs() < 0.20
                 && v.position.z > 2.0
         })
         .count();
-    assert!(ball_vertices > 0, "the bow MG Kugelblende sits in the glacis right");
+    assert!(ball_vertices > 0, "the bow MG Kugelblende sits in the glacis right (starboard, -X)");
 }

@@ -94,8 +94,13 @@ fn base_cameras() -> Vec<ReviewCameraSpec> {
     vec![
         camera(ReviewCamera::Front, 0.0, -6.0, 1.45),
         camera(ReviewCamera::Rear, 180.0, -6.0, 1.45),
-        camera(ReviewCamera::LeftProfile, -90.0, -4.0, 1.55),
-        camera(ReviewCamera::RightProfile, 90.0, -4.0, 1.55),
+        // Profile yaws re-labelled with the 2026-08-12 chirality fix: +X is the vehicle's PORT
+        // side (right-handed, +Y up, +Z forward), so the LEFT profile camera stands at +90°.
+        // The old -90/+90 pair was named under the inverted belief and, together with the
+        // mirrored basis, produced tiles whose gun pointed the right way while every
+        // asymmetry sat on the wrong side.
+        camera(ReviewCamera::LeftProfile, 90.0, -4.0, 1.55),
+        camera(ReviewCamera::RightProfile, -90.0, -4.0, 1.55),
         camera(ReviewCamera::Top, 0.0, -82.0, 1.70),
         camera(ReviewCamera::BattleOblique, 35.0, -12.0, 1.35),
     ]

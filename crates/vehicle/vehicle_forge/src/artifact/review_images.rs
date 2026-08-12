@@ -196,15 +196,18 @@ fn projected_mesh_tris(
         .collect()
 }
 
-/// The camera frame, in the world's own convention (+X is the vehicle's RIGHT side — see
-/// `ArmorZone::RightTrack`, the left-fender exhaust at x −1.34 and the port-side cupola).
+/// The camera frame, in the world's own convention: right-handed, +Y up, +Z the vehicle's bow —
+/// which makes **+X the vehicle's PORT (left) side** (`right = forward × up = -X` for a body
+/// facing +Z). The 2026-08-12 mirror audit found the previous docstring asserting the opposite
+/// ("+X is the RIGHT side"), and the basis built to match it.
 ///
 /// The viewer stands on the `+forward` side and looks back along `-forward`: the painter's
 /// order draws larger `p·forward` last, so the surfaces facing `+forward` are the ones seen.
-/// For THAT viewer screen-right is `forward × up`, not `up × forward`. The old order mirrored
-/// every tile: a T-54 photographed head-on shows its port-side cupola on the viewer's RIGHT,
-/// while the review tiles put it on the left — silently flipping every asymmetry judgement
-/// (fender stowage, exhaust, cupola, DShK) a reviewer made from these images.
+/// For THAT viewer, screen-right is `view × up = (-forward) × up = up × forward`. The previous
+/// "fix" flipped this to `forward × up` while keeping the inverted side convention — two
+/// consistent errors that made the gun point the right way on every tile while every asymmetry
+/// judgement (fender stowage, exhaust, cupola, DShK) still read from the mirror. Verified
+/// against the CLIENT render path (probe frames), which was honest all along.
 fn camera_basis(camera: &ReviewCameraSpec) -> CameraBasis {
     let yaw = camera.yaw_deg().to_radians();
     let pitch = camera.pitch_deg().to_radians();
@@ -213,8 +216,8 @@ fn camera_basis(camera: &ReviewCameraSpec) -> CameraBasis {
     // A camera looking straight down (or up) has no yaw-defined right in the Y reference;
     // fall back to the hull's forward axis so a top view keeps a stable, non-degenerate frame.
     let reference_up = if forward.y.abs() > 0.999 { Vec3::Z } else { Vec3::Y };
-    let right = forward.cross(reference_up).normalize_or_zero();
-    let up = right.cross(forward).normalize_or_zero();
+    let right = reference_up.cross(forward).normalize_or_zero();
+    let up = forward.cross(right).normalize_or_zero();
     CameraBasis { right, up, forward }
 }
 
@@ -305,27 +308,30 @@ mod tests {
         project(point, &camera_basis(&spec(kind))).x
     }
 
-    /// The chirality lock. World convention: +X is the vehicle's RIGHT side, +Z its bow.
-    /// A tile must read like a photograph taken from that camera's side:
-    /// - head-on, the tank faces you, so its right side is on YOUR left;
-    /// - from behind, its right side is on your right;
+    /// The chirality lock. World convention: right-handed, +Y up, +Z the bow — so **+X is the
+    /// vehicle's PORT side** (`right = forward × up = -X`). A tile must read like a photograph
+    /// taken from that camera's side:
+    /// - head-on, the tank faces you, so its PORT side is on YOUR right (their left, your right);
+    /// - from behind, its port side is on your left;
     /// - from the port side, the bow runs to the left of frame (and vice versa).
     ///
-    /// This is the invariant that was inverted: the old basis used `up × forward` for
-    /// screen-right, mirroring every tile and silently reversing every asymmetry judgement
-    /// (cupola side, exhaust side, fender stowage) an author made from a Studio image.
+    /// Second correction of the same invariant (2026-08-12): the first "fix" flipped the basis
+    /// while keeping the inverted "+X is starboard" belief, so the gun pointed the right way on
+    /// every tile while every asymmetry judgement (cupola side, exhaust side, fender stowage)
+    /// still read from the mirror. Anchored now against the client render path, which was
+    /// honest all along.
     #[test]
     fn tiles_read_like_photographs_not_mirrors() {
-        let starboard = Vec3::new(1.0, 1.0, 0.0);
+        let port = Vec3::new(1.0, 1.0, 0.0);
         let bow = Vec3::new(0.0, 1.0, 1.0);
 
         assert!(
-            screen_x(ReviewCamera::Front, starboard) < 0.0,
-            "head-on: the vehicle's right side belongs on the viewer's LEFT"
+            screen_x(ReviewCamera::Front, port) > 0.0,
+            "head-on: the vehicle's PORT side belongs on the viewer's RIGHT"
         );
         assert!(
-            screen_x(ReviewCamera::Rear, starboard) > 0.0,
-            "from behind: the vehicle's right side belongs on the viewer's RIGHT"
+            screen_x(ReviewCamera::Rear, port) < 0.0,
+            "from behind: the vehicle's port side belongs on the viewer's LEFT"
         );
         assert!(
             screen_x(ReviewCamera::LeftProfile, bow) < 0.0,

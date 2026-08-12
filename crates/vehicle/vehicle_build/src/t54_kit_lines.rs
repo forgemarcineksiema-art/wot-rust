@@ -253,9 +253,10 @@ fn unditching_beam(stern: SternLine) -> VehiclePart {
 /// revolution about the vehicle's forward axis is the shape, not a convenience: the boss is a
 /// cylinder pushed through a raked plate, which is what the aperture is.
 fn course_mg_port(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
-    // Right of centre, at the height the driver's shoulder reaches. The driver's hatch sits at
-    // x = -0.45, so this is the other side of the plate from him — as every reference view shows.
-    let seat = glacis_point(v, glacis_deg, 0.42, 1.15, 0.0);
+    // Right of centre (-X is starboard in this frame), at the height the driver's shoulder
+    // reaches. The driver's hatch sits at x = +0.45 (port), so this is the other side of the
+    // plate from him — as every reference view shows.
+    let seat = glacis_point(v, glacis_deg, -0.42, 1.15, 0.0);
     let profile = [
         (-0.10_f32, 0.000_f32),
         (-0.10, 0.105),
@@ -424,16 +425,17 @@ fn turret_rails(loft: &TurretLoftVisual) -> Vec<VehiclePart> {
 /// diagonal), one draped across the hull rear plate.
 fn tow_cables(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
     // The diagonal stays in the LOWER half of the plate, under the splash board's V, so the two
-    // never cross into an X.
-    let glacis: Vec<Vec3> = [(0.95_f32, 1.02_f32), (0.35, 1.10), (-0.35, 1.20), (-0.95, 1.30)]
+    // never cross into an X. High end toward the headlight on the PORT (+X) side, as the top
+    // view shows — mirrored with the rest of the asymmetric kit in the 2026-08-12 flip.
+    let glacis: Vec<Vec3> = [(-0.95_f32, 1.02_f32), (-0.35, 1.10), (0.35, 1.20), (0.95, 1.30)]
         .iter()
         .map(|&(x, y)| glacis_point(v, glacis_deg, x, y, 0.04))
         .collect();
     let rear = vec![
-        Vec3::new(-0.65, 1.22, -v.hull.half_len - 0.02),
-        Vec3::new(-0.20, 1.34, -v.hull.half_len - 0.05),
-        Vec3::new(0.30, 1.34, -v.hull.half_len - 0.05),
-        Vec3::new(0.70, 1.22, -v.hull.half_len - 0.02),
+        Vec3::new(0.65, 1.22, -v.hull.half_len - 0.02),
+        Vec3::new(0.20, 1.34, -v.hull.half_len - 0.05),
+        Vec3::new(-0.30, 1.34, -v.hull.half_len - 0.05),
+        Vec3::new(-0.70, 1.22, -v.hull.half_len - 0.02),
     ];
     // A stowed cable is not a floating tube. Each end carries a THIMBLE — the teardrop steel eye
     // the rope is spliced round — and the run is held down by CLAMPS bolted to the plate. Ours

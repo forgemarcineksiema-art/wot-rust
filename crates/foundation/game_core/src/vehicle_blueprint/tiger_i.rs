@@ -112,7 +112,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // The drum cupola sits on the LEFT rear roof (the commander's side), at the ⌀0.78 m
             // a crewman actually climbs through — pulled slightly inboard/forward of the old
             // ⌀0.66 station so the honest drum still lands inside the bent rear wall.
-            cupola_x: -0.50,
+            cupola_x: 0.50,
             cupola_z: -0.35,
             cupola_radius: 0.39,
             // 3.00 m to the cupola top over the 2.885 m roof — straight from the dossier.

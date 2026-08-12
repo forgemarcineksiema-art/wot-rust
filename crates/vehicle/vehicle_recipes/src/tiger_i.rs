@@ -239,14 +239,14 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
         hull.half_len - run
     };
     builder = builder.plate_box(
-        Vec3::new(-0.55, 1.62, plate_z(1.62) + 0.02),
+        Vec3::new(0.55, 1.62, plate_z(1.62) + 0.02),
         Vec3::new(0.20, 0.07, 0.05),
         0.03,
         MaterialRole::RolledArmor,
         SG_HARD,
     );
     builder = builder.capped_revolve_at(
-        Vec3::new(0.62, 1.58, 0.0),
+        Vec3::new(-0.62, 1.58, 0.0),
         RevolveSpec {
             profile: vec![
                 ProfilePoint::new(0.13, plate_z(1.58) - 0.04),

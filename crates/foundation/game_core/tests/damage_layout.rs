@@ -24,8 +24,8 @@ fn internal_path_hits_t54_modules_nearest_first() {
     // Down the loader's side: bow skeleton rack, fuel cell, transmission — in that order.
     let hits = DamageLayout::t54_1951().intersections(
         true,
-        Vec3::new(0.65, 0.2, 3.2),
-        Vec3::new(0.65, 0.2, -3.2),
+        Vec3::new(-0.65, 0.2, 3.2),
+        Vec3::new(-0.65, 0.2, -3.2),
     );
     let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();
     assert_eq!(
@@ -46,8 +46,8 @@ fn the_drivers_side_of_the_hull_carries_no_ammunition() {
     // the racked rounds to the loader's side; a full left-side run must meet none.
     let hits = DamageLayout::t54_1951().intersections(
         true,
-        Vec3::new(-0.6, 0.2, 3.2),
-        Vec3::new(-0.6, 0.2, -3.2),
+        Vec3::new(0.6, 0.2, 3.2),
+        Vec3::new(0.6, 0.2, -3.2),
     );
     assert!(hits.iter().all(|hit| hit.kind != DamageComponentKind::AmmunitionRack));
     let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();

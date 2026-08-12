@@ -146,7 +146,7 @@ fn tiger_ii_hull_details(hull: &HullShape) -> GeometryMesh {
     // The driver's periscope box riding the glacis line, just left of the centre.
     let run = (hull.deck_y - hull.sponson_y) * hull.glacis_slope_deg.to_radians().tan();
     builder = builder.plate_box(
-        Vec3::new(-0.60, hull.deck_y + 0.03, hull.half_len - run - 0.30),
+        Vec3::new(0.60, hull.deck_y + 0.03, hull.half_len - run - 0.30),
         Vec3::new(0.16, 0.06, 0.12),
         0.03,
         MaterialRole::RolledArmor,

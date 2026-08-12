@@ -145,7 +145,7 @@ fn t54() -> VehicleBlueprint {
             front_slope_deg: 35.0,
             side_slope_deg: 25.0,
             rear_slope_deg: 10.0,
-            cupola_x: -0.34,
+            cupola_x: 0.34,
             cupola_z: -0.10,
             // The commander's cupola is 624 mm across the outside (Tankograd). The model carried
             // 480 — a fifth too small on the one fitting that reads at every range, because it is

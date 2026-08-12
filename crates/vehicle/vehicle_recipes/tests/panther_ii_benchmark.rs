@@ -194,7 +194,7 @@ fn the_pii3_bow_dressing_holds_ball_periscopes_light_and_sweeps() {
         .iter()
         .filter(|v| {
             v.material == vehicle_geometry::MaterialRole::CastArmor
-                && (v.position.x - 0.60).abs() < 0.20
+                && (v.position.x + 0.60).abs() < 0.20
                 && (v.position.y - 1.42).abs() < 0.20
                 && v.position.z > 2.0
         })
@@ -206,8 +206,8 @@ fn the_pii3_bow_dressing_holds_ball_periscopes_light_and_sweeps() {
         .vertices()
         .iter()
         .filter(|v| {
-            v.position.x < -0.35
-                && v.position.x > -0.85
+            v.position.x > 0.35
+                && v.position.x < 0.85
                 && v.position.y > bp.hull.deck_y + 0.01
                 && v.position.z > 2.0
         })
@@ -220,7 +220,7 @@ fn the_pii3_bow_dressing_holds_ball_periscopes_light_and_sweeps() {
         .iter()
         .filter(|v| {
             v.material == vehicle_geometry::MaterialRole::BarrelSteel
-                && v.position.x < -0.7
+                && v.position.x > 0.7
                 && v.position.y > 1.5
                 && v.position.z > 2.0
         })

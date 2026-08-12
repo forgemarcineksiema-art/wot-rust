@@ -115,7 +115,7 @@ fn casemate_roof_furniture(builder: MeshBuilder, t: &TurretShape) -> MeshBuilder
         )
         // Ventilator dome on the forward roof, left of the periscope.
         .plate_box(
-            Vec3::new(-0.42, roof + 0.030, t.ring_z + 0.62),
+            Vec3::new(0.42, roof + 0.030, t.ring_z + 0.62),
             Vec3::new(0.115, 0.030, 0.115),
             0.018,
             MaterialRole::CastArmor,
