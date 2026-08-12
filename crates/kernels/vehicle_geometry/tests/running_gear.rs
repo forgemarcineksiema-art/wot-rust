@@ -1075,3 +1075,36 @@ fn every_swing_arm_points_its_torsion_boss_at_the_hull() {
         "every playable vehicle hangs its wheels on arms, so every one of them is checked"
     );
 }
+
+/// The idler is its OWN wheel at its OWN axle — the dossier's ⌀510 cast wheel, stood as far
+/// outboard as the loop identity and the sprocket's fixed seat allow. It was drawn as a second
+/// sprocket-sized wheel on a symmetric axle, which is a layout no photograph of this tank shows.
+#[test]
+fn the_t54_idler_is_its_own_wheel_at_its_own_axle() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    assert!(
+        (kin.idler_radius() - 0.255).abs() < 1.0e-4,
+        "the idler is the dossier's 510 mm wheel, got {:.4}",
+        kin.idler_radius()
+    );
+    assert!(
+        kin.idler_cz() > kin.sprocket_cz() + 0.02,
+        "the idler stands outboard of the sprocket's seat: idler {:.3} vs sprocket {:.3}",
+        kin.idler_cz(),
+        kin.sprocket_cz()
+    );
+    // And the placed idler wheel is where the kinematics say, on both sides.
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    let idlers: Vec<f32> = placements
+        .iter()
+        .filter(|p| p.part == GearPart::Idler)
+        .map(|p| p.transform.w_axis.z)
+        .collect();
+    assert_eq!(idlers.len(), 2, "one idler per side");
+    for z in idlers {
+        assert!(
+            (z - kin.idler_cz()).abs() < 1.0e-4,
+            "the placed idler rides the authored axle, got z {z:.3}"
+        );
+    }
+}

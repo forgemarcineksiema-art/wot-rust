@@ -68,6 +68,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             link_count: Some(86), // Kgs 64/660/150
             top_sag_m: 0.035,
             wheel_spokes: 6,
+            end_front: None,
             drive_front: true,
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,

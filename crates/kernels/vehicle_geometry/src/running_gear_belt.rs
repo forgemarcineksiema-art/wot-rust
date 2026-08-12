@@ -22,8 +22,11 @@ pub(crate) const LINK_SEAT: f32 = 0.02;
 
 /// Radius the shoe-link centre line wraps the end wheels at. The sprocket/idler SPIN must use
 /// this (not the bare wheel radius) so tooth surfaces and links move together.
-pub(crate) fn wrap_radius(kin: &RunningGearKinematics) -> f32 {
-    kin.end_radius.max(0.05) + LINK_SEAT
+/// The wrap circle for an end-wheel radius: links seat OUTSIDE the tread, so the belt's centre
+/// line wraps a seat above the wheel. Per-end, because an authored idler and its sprocket are
+/// different wheels.
+pub(crate) fn wrap_radius_of(wheel_radius: f32) -> f32 {
+    wheel_radius.max(0.05) + LINK_SEAT
 }
 
 /// The resolved belt path in the side plane. Two layouts share one loop model:
@@ -37,16 +40,12 @@ pub(crate) struct BeltPath {
     y_bot: f32,
     /// |z| where the bottom run ends and the ramp begins.
     bottom_end_z: f32,
-    /// End-wrap circle: |z| of centre, centre height, radius.
-    end_cz: f32,
     end_cy: f32,
-    r: f32,
-    /// Ramp tangent direction for the rear side (unit `(dz, dy)`, pointing rear-and-up).
-    ramp_dir: (f32, f32),
-    /// Angle (about the rear end circle) where the ramp meets the wrap; `-PI/2` when degenerate.
-    theta_start: f32,
-    ramp_len: f32,
-    arc_len: f32,
+    /// The two end wraps. Symmetric on the fleet; the T-54 authors its idler (front) a fifth
+    /// of a metre beyond its sprocket, at its own wheel size — so each end carries its own
+    /// wrap circle, ramp tangent and arc.
+    rear: EndGeom,
+    front: EndGeom,
     /// The top run as a support polyline (rear→front): the upper convex hull of the two
     /// end-wrap tops and the top-run carriers (return rollers where the layout has them,
     /// road-wheel tops otherwise). Between hull points the run SAGS, and the sag is clamped
@@ -56,6 +55,21 @@ pub(crate) struct BeltPath {
     /// straight ribbon was the model-logic audit's defect #7.
     top: Vec<TopSegment>,
     top_len: f32,
+}
+
+/// One end of the loop: the wrap circle plus the tangent ramp that climbs onto it.
+#[derive(Clone, Copy)]
+pub(crate) struct EndGeom {
+    /// |z| of the end-wheel axle.
+    cz: f32,
+    /// Wrap radius (wheel radius + link seat).
+    r: f32,
+    /// Ramp tangent direction (unit `(dz, dy)`, pointing outboard-and-up from the ground run).
+    ramp_dir: (f32, f32),
+    /// Angle (about the end circle) where the ramp meets the wrap; `-PI/2` when degenerate.
+    theta_start: f32,
+    ramp_len: f32,
+    arc_len: f32,
 }
 
 /// One straight-chord segment of the top-run polyline, with its sag and its clamp floor.
@@ -92,40 +106,40 @@ impl BeltPath {
     fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {
         // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
         // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
-        let r = wrap_radius(kin);
+        let r_rear = kin.end_radius.max(0.05) + LINK_SEAT;
+        let r_front = kin.end_front_radius.max(0.05) + LINK_SEAT;
         let wheel_ground = kin.cy - kin.wheel_radius - LINK_SEAT;
-        let raised = kin.end_cy - r > wheel_ground + 1.0e-3 && kin.end_cz > kin.half_run + 1.0e-3;
-        let (y_bot, bottom_end_z, ramp_dir, theta_start, ramp_len, arc_len);
+        let raised =
+            kin.end_cy - r_rear > wheel_ground + 1.0e-3 && kin.end_cz > kin.half_run + 1.0e-3;
+        let (y_bot, bottom_end_z, rear, front);
         if raised {
             // Ramped: the ground run extends just past the last road wheel, then climbs the
-            // external tangent from that point onto the raised end wrap.
+            // external tangent from that point onto each raised end wrap — each end its OWN
+            // tangent, because an authored idler stands at its own axle and wheel size.
             y_bot = wheel_ground;
             bottom_end_z = kin.half_run + kin.wheel_radius * 0.25;
-            let p = (-bottom_end_z, y_bot);
-            let c = (-kin.end_cz, kin.end_cy);
-            let d = ((c.0 - p.0), (c.1 - p.1));
-            let dist = (d.0 * d.0 + d.1 * d.1).sqrt().max(r + 1.0e-3);
-            ramp_len = (dist * dist - r * r).sqrt();
-            // Tangent leaving the point on the wrap's ground side: the line's direction angle
-            // is the centre bearing rotated outward by asin(r / dist).
-            let dir_angle = d.1.atan2(d.0) + (r / dist).asin();
-            ramp_dir = (dir_angle.cos(), dir_angle.sin());
-            let t = (p.0 + ramp_dir.0 * ramp_len, p.1 + ramp_dir.1 * ramp_len);
-            theta_start = (t.1 - c.1).atan2(t.0 - c.0);
-            // Wrap from the tangent point, through the rear (-PI), up to the top (+PI/2).
-            arc_len = r * (theta_start + 1.5 * PI);
+            rear = end_geom(bottom_end_z, y_bot, kin.end_cz, kin.end_cy, r_rear);
+            front = end_geom(bottom_end_z, y_bot, kin.end_front_cz, kin.end_cy, r_front);
         } else {
-            // Stadium: full semicircular end wraps on the axle line at the wheel span.
-            y_bot = kin.end_cy - r;
+            // Stadium: full semicircular end wraps on the axle line at the wheel span. The
+            // stadium fleet never authors a front override, so both ends share one circle.
+            y_bot = kin.end_cy - r_rear;
             bottom_end_z = kin.end_cz;
-            ramp_dir = (-1.0, 0.0);
-            theta_start = -PI / 2.0;
-            ramp_len = 0.0;
-            arc_len = PI * r;
+            let semicircle = EndGeom {
+                cz: kin.end_cz,
+                r: r_rear,
+                ramp_dir: (-1.0, 0.0),
+                theta_start: -PI / 2.0,
+                ramp_len: 0.0,
+                arc_len: PI * r_rear,
+            };
+            rear = semicircle;
+            front = EndGeom { ..semicircle };
         }
 
         // --- The top run: supports, upper convex hull, then clamped sag (drape). ---
-        let wrap_top = kin.end_cy + r;
+        let wrap_top_rear = kin.end_cy + rear.r;
+        let wrap_top_front = kin.end_cy + front.r;
         // The carriers under the top run: return rollers where the layout has them, road-wheel
         // tops otherwise. Their tops wear the same LINK_SEAT the ground run does.
         let carrier_y = if kin.roller_zs.is_empty() {
@@ -140,17 +154,21 @@ impl BeltPath {
         // floats ABOVE the carriers; at rest and under braking it reaches them and RESTS,
         // then each span between contacts hangs by `s * span / 1.8`.
         let reach = 2.2 * top_sag;
-        // The wrap tops share one height, so the wrap chord is flat at `wrap_top`.
-        let chord_y = |_z: f32| -> f32 { wrap_top };
+        // The wrap chord runs from the rear wrap's top to the front's — one line even when an
+        // authored idler carries a different wheel size at its own axle.
+        let chord_y = |z: f32| -> f32 {
+            let t = ((z + rear.cz) / (front.cz + rear.cz).max(1.0e-4)).clamp(0.0, 1.0);
+            wrap_top_rear + (wrap_top_front - wrap_top_rear) * t
+        };
         let mut pts: Vec<(f32, f32)> = Vec::with_capacity(carrier_zs.len() + 2);
-        pts.push((-kin.end_cz, wrap_top));
+        pts.push((-rear.cz, wrap_top_rear));
         for &z in carrier_zs {
             let touches = chord_y(z) - reach <= carrier_y + 1.0e-4;
-            if touches && z > -kin.end_cz + 1.0e-3 && z < kin.end_cz - 1.0e-3 {
+            if touches && z > -rear.cz + 1.0e-3 && z < front.cz - 1.0e-3 {
                 pts.push((z, carrier_y));
             }
         }
-        pts.push((kin.end_cz, wrap_top));
+        pts.push((front.cz, wrap_top_front));
         // The touch test above already decided which carriers are path nodes: a floating
         // (driven-tight) belt has no carrier nodes and hangs as one span; a resting belt
         // strings wrap → carrier → carrier → wrap, and the spans between contacts sag.
@@ -223,31 +241,21 @@ impl BeltPath {
             }
         }
 
-        Self {
-            y_bot,
-            bottom_end_z,
-            end_cz: kin.end_cz,
-            end_cy: kin.end_cy,
-            r,
-            ramp_dir,
-            theta_start,
-            ramp_len,
-            arc_len,
-            top,
-            top_len,
-        }
+        Self { y_bot, bottom_end_z, end_cy: kin.end_cy, rear, front, top, top_len }
     }
 
     /// Length of the closed loop (bottom run, two ramps, two end wraps, top run).
     pub(crate) fn length(&self) -> f32 {
-        2.0 * self.bottom_end_z + 2.0 * (self.ramp_len + self.arc_len) + self.top_len
+        2.0 * self.bottom_end_z
+            + (self.rear.ramp_len + self.rear.arc_len)
+            + (self.front.ramp_len + self.front.arc_len)
+            + self.top_len
     }
 
     /// Sample the loop at arc length `s` in `[0, length)`. The loop runs: bottom run (front→rear)
     /// → rear ramp → rear wrap → top run (rear→front) → front wrap → front ramp.
     pub(crate) fn sample(&self, s: f32) -> BeltSample {
         let bottom = 2.0 * self.bottom_end_z;
-        let (dzr, dyr) = self.ramp_dir;
 
         if s < bottom {
             // Bottom run: front -> rear, tangent toward -Z.
@@ -258,7 +266,8 @@ impl BeltPath {
             };
         }
         let s = s - bottom;
-        if s < self.ramp_len {
+        let (dzr, dyr) = self.rear.ramp_dir;
+        if s < self.rear.ramp_len {
             // Rear ramp: climbing rear-and-up from the ground run onto the wrap.
             return BeltSample {
                 y: self.y_bot + dyr * s,
@@ -266,18 +275,18 @@ impl BeltPath {
                 rot_x: tangent_rot(dzr, dyr),
             };
         }
-        let s = s - self.ramp_len;
-        if s < self.arc_len {
-            // Rear wrap around (-end_cz, end_cy): tangent point -> rear -> top. Theta decreases
+        let s = s - self.rear.ramp_len;
+        if s < self.rear.arc_len {
+            // Rear wrap around (-rear.cz, end_cy): tangent point -> rear -> top. Theta decreases
             // with s (dtheta/ds = -1/r), so the unit tangent is (sin theta, -cos theta).
-            let theta = self.theta_start - s / self.r;
+            let theta = self.rear.theta_start - s / self.rear.r;
             return BeltSample {
-                y: self.end_cy + self.r * theta.sin(),
-                z: -self.end_cz + self.r * theta.cos(),
+                y: self.end_cy + self.rear.r * theta.sin(),
+                z: -self.rear.cz + self.rear.r * theta.cos(),
                 rot_x: tangent_rot(theta.sin(), -theta.cos()),
             };
         }
-        let s = s - self.arc_len;
+        let s = s - self.rear.arc_len;
         if s < self.top_len {
             // Top run: rear -> front along the support polyline, sagging within each span and
             // landing flat on the carrier floor where the drape reaches it.
@@ -307,22 +316,24 @@ impl BeltPath {
             // Numerical tail: fall through to the front wrap start.
         }
         let s = (s - self.top_len).max(0.0);
-        if s < self.arc_len {
-            // Front wrap around (+end_cz, end_cy): top -> front -> tangent point (mirror of rear).
-            let theta = PI / 2.0 - s / self.r;
+        if s < self.front.arc_len {
+            // Front wrap around (+front.cz, end_cy): top -> front -> tangent point (the rear's
+            // mirror, on the front end's own circle).
+            let theta = PI / 2.0 - s / self.front.r;
             return BeltSample {
-                y: self.end_cy + self.r * theta.sin(),
-                z: self.end_cz + self.r * theta.cos(),
+                y: self.end_cy + self.front.r * theta.sin(),
+                z: self.front.cz + self.front.r * theta.cos(),
                 rot_x: tangent_rot(theta.sin(), -theta.cos()),
             };
         }
-        let s = s - self.arc_len;
+        let s = s - self.front.arc_len;
         // Front ramp: descending rearward-and-down from the idler underside onto the ground run
-        // (the mirror of the rear ramp; travel keeps the rear ramp's dz and inverts its dy).
+        // (the mirror of the rear ramp; travel keeps the ramp's dz and inverts its dy).
+        let (dzf, dyf) = self.front.ramp_dir;
         BeltSample {
-            y: self.y_bot + dyr * (self.ramp_len - s),
-            z: self.bottom_end_z - dzr * (self.ramp_len - s),
-            rot_x: tangent_rot(dzr, -dyr),
+            y: self.y_bot + dyf * (self.front.ramp_len - s),
+            z: self.bottom_end_z - dzf * (self.front.ramp_len - s),
+            rot_x: tangent_rot(dzf, -dyf),
         }
     }
 }
@@ -334,4 +345,24 @@ impl BeltPath {
 /// guide horns outward on the bends).
 fn tangent_rot(dz: f32, dy: f32) -> f32 {
     (-dy).atan2(dz)
+}
+
+/// The external tangent from the ground-run end onto a raised end wrap, computed on the REAR
+/// (-z) side; `sample` mirrors it for the front. One helper, two ends — an authored idler gets
+/// its own circle without a second copy of the trigonometry.
+fn end_geom(bottom_end_z: f32, y_bot: f32, cz: f32, cy: f32, r: f32) -> EndGeom {
+    let p = (-bottom_end_z, y_bot);
+    let c = (-cz, cy);
+    let d = ((c.0 - p.0), (c.1 - p.1));
+    let dist = (d.0 * d.0 + d.1 * d.1).sqrt().max(r + 1.0e-3);
+    let ramp_len = (dist * dist - r * r).sqrt();
+    // Tangent leaving the point on the wrap's ground side: the line's direction angle is the
+    // centre bearing rotated outward by asin(r / dist).
+    let dir_angle = d.1.atan2(d.0) + (r / dist).asin();
+    let ramp_dir = (dir_angle.cos(), dir_angle.sin());
+    let t = (p.0 + ramp_dir.0 * ramp_len, p.1 + ramp_dir.1 * ramp_len);
+    let theta_start = (t.1 - c.1).atan2(t.0 - c.0);
+    // Wrap from the tangent point, through the outboard extreme (-PI), up to the top (+PI/2).
+    let arc_len = r * (theta_start + 1.5 * PI);
+    EndGeom { cz, r, ramp_dir, theta_start, ramp_len, arc_len }
 }

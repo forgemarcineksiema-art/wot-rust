@@ -84,6 +84,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             link_count: Some(96),
             top_sag_m: 0.035,
             wheel_spokes: 6,
+            end_front: None,
             drive_front: true,
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,

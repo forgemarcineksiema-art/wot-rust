@@ -70,6 +70,14 @@ pub struct TrackShape {
     /// the forward end wheel — photo-confirmed on all four (model-logic audit #16).
     #[serde(default)]
     pub drive_front: bool,
+    /// FRONT end-wheel overrides, `(z, wheel_radius)`: `None` keeps the fleet's symmetric
+    /// ends (`end_z` / `end_radius` serve both). Authored, `end_z`/`end_radius` become the
+    /// REAR end alone and the front (idler, on a rear-drive layout) stands at its own axle
+    /// and its own wheel size — the T-54's idler is a ⌀510 wheel a fifth of a metre further
+    /// from the hull centre than its sprocket, and the 90 x 137 mm loop identity is what
+    /// arbitrates both numbers (`the_t54_sprocket_meshes_the_belt_it_is_given` guards it).
+    #[serde(default)]
+    pub end_front: Option<(f32, f32)>,
     /// The track-shoe pattern the link unit mesh stamps — per FAMILY, from the photos (audit
     /// #14: one shoe design used to run on every vehicle across three nations).
     #[serde(default)]

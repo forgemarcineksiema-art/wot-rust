@@ -198,16 +198,25 @@ fn place_side(
     }
 
     // End wheels spin at the LINK line's radius (wheel radius + seat), so the sprocket's teeth
-    // and the shoes they flank move together instead of creeping past each other.
-    let end_spin = phase / crate::running_gear_belt::wrap_radius(kin);
+    // and the shoes they flank move together instead of creeping past each other — each end at
+    // its OWN radius, because an authored idler is a different wheel from the sprocket.
     // Which end drives is per-vehicle DATA (audit #16): the German line's transmission sits
     // at the bow, so its toothed sprocket is the FRONT end wheel; everyone else drives rear.
-    let sprocket_z = if kin.drive_front { kin.end_cz } else { -kin.end_cz };
-    for (part, z) in [(GearPart::Sprocket, sprocket_z), (GearPart::Idler, -sprocket_z)] {
+    let front_sign = 1.0_f32;
+    let (sprocket_z, idler_z) = if kin.drive_front {
+        (front_sign * kin.end_front_cz, -kin.end_cz)
+    } else {
+        (-kin.end_cz, front_sign * kin.end_front_cz)
+    };
+    let sprocket_spin = phase / crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
+    let idler_spin = phase / crate::running_gear_belt::wrap_radius_of(kin.idler_radius());
+    for (part, z, spin) in
+        [(GearPart::Sprocket, sprocket_z, sprocket_spin), (GearPart::Idler, idler_z, idler_spin)]
+    {
         out.push(GearPlacement {
             part,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.end_cy, z))
-                * facing(side_sign, end_spin),
+                * facing(side_sign, spin),
         });
     }
 
@@ -262,7 +271,7 @@ pub fn thrown_remnant_placements(
     /// How far around the front wrap the chain stays seated before it hangs free (radians
     /// from the top of the sprocket, toward the front and under).
     const WRAP_EXIT_RAD: f32 = 2.0;
-    let radius = crate::running_gear_belt::wrap_radius(kin);
+    let radius = crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
     // The remnant drapes over the DRIVE sprocket, whichever end that is (audit #16): the
     // torque that threw the band lives there. `drive` flips the wrap and hang direction.
     let drive = if kin.drive_front { 1.0_f32 } else { -1.0 };
@@ -277,7 +286,7 @@ pub fn thrown_remnant_placements(
             let phi = d / radius;
             (
                 kin.end_cy + radius * phi.cos(),
-                drive * (kin.end_cz + radius * phi.sin()),
+                drive * (kin.sprocket_cz() + radius * phi.sin()),
                 (drive * phi.sin()).atan2(-phi.cos()),
             )
         } else {
@@ -287,7 +296,7 @@ pub fn thrown_remnant_placements(
             let z_dir = drive * -exit_cos;
             (
                 kin.end_cy + radius * exit_cos + y_dir * overshoot,
-                drive * (kin.end_cz + radius * exit_sin) + z_dir * overshoot,
+                drive * (kin.sprocket_cz() + radius * exit_sin) + z_dir * overshoot,
                 (-y_dir).atan2(z_dir),
             )
         };

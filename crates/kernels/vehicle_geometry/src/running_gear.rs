@@ -30,13 +30,19 @@ pub struct RunningGearKinematics {
     pub cz: f32,
     /// Half the distance between the front and rear road wheels.
     pub half_run: f32,
-    /// Radius the belt wraps at each end (sprocket / idler).
+    /// Radius the belt wraps at the REAR end wheel (the sprocket on a rear-drive layout).
     pub end_radius: f32,
-    /// |Z| of the idler/sprocket axles — beyond `half_run` on the T-54, whose belt ramps up past
+    /// |Z| of the REAR end-wheel axle — beyond `half_run` on the T-54, whose belt ramps up past
     /// the road wheels onto separate end wheels; equal to `half_run` for the stadium loop.
     pub end_cz: f32,
-    /// Y of the idler/sprocket axles (raised above `cy` on the T-54).
+    /// Y of the idler/sprocket axles (raised above `cy` on the T-54; shared by both ends).
     pub end_cy: f32,
+    /// |Z| of the FRONT end-wheel axle. Equal to `end_cz` on the symmetric fleet; the T-54
+    /// authors its idler a fifth of a metre further out than its sprocket (`TrackShape::
+    /// end_front`), with the 90-link loop identity arbitrating the pair.
+    pub end_front_cz: f32,
+    /// Radius the belt wraps at the FRONT end wheel (`end_radius` unless authored).
+    pub end_front_radius: f32,
     /// Radius of a road wheel.
     pub wheel_radius: f32,
     /// `x` of the wheel-disc centre (between the inner and outer rubber faces).
@@ -171,6 +177,8 @@ impl RunningGearKinematics {
             end_radius: track.end_radius,
             end_cz: track.end_z,
             end_cy: track.end_y,
+            end_front_cz: track.end_front.map(|(z, _)| z).unwrap_or(track.end_z),
+            end_front_radius: track.end_front.map(|(_, r)| r).unwrap_or(track.end_radius),
             wheel_radius: track.wheel_radius,
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
             band_half_width: ((track.outer_x - track.inner_x) * 0.5).max(0.05),
@@ -227,6 +235,27 @@ impl RunningGearKinematics {
     /// longer on a deep-scallop vehicle; link pitch and tooth meshing derive from THIS one.
     pub fn taut_belt_length(&self) -> f32 {
         crate::running_gear_belt::BeltPath::with_sag(self, 0.0).length()
+    }
+
+    /// The idler's axle |z|: the FRONT end wheel on a rear-drive layout, the rear one on the
+    /// German front-drive line.
+    pub fn idler_cz(&self) -> f32 {
+        if self.drive_front { self.end_cz } else { self.end_front_cz }
+    }
+
+    /// The idler's wheel radius (same resolution as [`Self::idler_cz`]).
+    pub fn idler_radius(&self) -> f32 {
+        if self.drive_front { self.end_radius } else { self.end_front_radius }
+    }
+
+    /// The drive sprocket's axle |z| — the end the torque lives at.
+    pub fn sprocket_cz(&self) -> f32 {
+        if self.drive_front { self.end_front_cz } else { self.end_cz }
+    }
+
+    /// The drive sprocket's wheel radius (same resolution as [`Self::sprocket_cz`]).
+    pub fn sprocket_radius(&self) -> f32 {
+        if self.drive_front { self.end_front_radius } else { self.end_radius }
     }
 
     /// Number of shoe links around the loop.

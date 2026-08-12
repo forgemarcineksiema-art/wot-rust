@@ -93,6 +93,7 @@ fn t54() -> VehicleBlueprint {
             // is the number of link pitches around this circle, so fixing the circle fixes it.
             end_radius: 0.2662,
             end_z: 2.590,
+            end_front: Some((2.620, 0.255)),
             // Raised so the top run leaves the end wheels ABOVE the 0.88 m wheel tops — links
             // grinding the tyres z-fight. What is authored is that 0.96 m anchor, and it was
             // written as 0.66 against a 0.32 wrap. The wrap is the sprocket's real pitch circle
