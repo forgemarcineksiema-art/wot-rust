@@ -1,12 +1,14 @@
-//! The suspension band works as a SYSTEM: the shelf sits at the sheet line with the crest
-//! links nearly brushing it (daylight lives in the scallop valleys, nowhere else), the
-//! mudguards ARCH over the end wheels instead of a full-length shelf clearing the wraps, and
-//! the tub wall between the wheels carries its machinery (the pivot-boss row, the bump stops).
+//! The suspension band works as a SYSTEM: the shelf rides HIGH at its measured 1.35 sheet line
+//! with ~0.30 m of daylight over the crest links (the light through under the fenders every
+//! side photograph shows), the stowage on it closes the silhouette at the roof line, the
+//! guards over the end wheels FALL from that shelf into their flaps, and the tub wall between
+//! the wheels carries its machinery (the pivot-boss row, the bump stops).
 //!
-//! This is the band the 2026-08-12 review called out: the sag alone was fixed while the stack
-//! stayed exploded — a uniform slot above the whole run, a shelf a hand too high, slabs over
-//! the ends, bare plate between the wheels. Locks measure the OUTCOME, on placed links and
-//! finished parts.
+//! RE-MEASURED 2026-08-12 (second pass over the same sheet, both projections): the first pass
+//! scanned the track CREST's line, called it the fender sheet, parked the shelf on the crest
+//! and LOCKED the error ("the crest links kiss the shelf"). The kiss was the defect. Locks
+//! still measure the OUTCOME, on placed links and finished parts — but now they hold the
+//! daylight the reference actually shows.
 
 use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_build::t54_description;
@@ -22,11 +24,14 @@ fn link_top_half(kin: &RunningGearKinematics) -> f32 {
     vehicle_geometry::track_link_unit_mesh(kin).bounds().expect("link bounds").max.y
 }
 
-/// The crest links KISS the shelf: over the road-wheel stations the top run rises to within a
-/// few centimetres of the fender lip — the compressed stack every reference shows. Too small is
-/// z-fighting; too large is the old floating band.
+/// The shelf rides DAYLIGHT over the crest: between the crest links and the fender lip there is
+/// ~0.30 m of open air — the light through under the fenders that both projections of the
+/// reference sheet (and every side photograph) show. The suspension, the sag and the hull side
+/// live in that band. Too small is the shelf parked back on the crest (the 2026-08-12 mis-scan
+/// this replaces — its "kiss" lock demanded 5-50 mm and was the defect itself); too large means
+/// the shelf has drifted past the sheet line toward the roof.
 #[test]
-fn the_crest_links_kiss_the_shelf() {
+fn the_shelf_rides_daylight_over_the_crest() {
     let bp = blueprint();
     let v = bp.complete_visual().expect("visual");
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
@@ -42,15 +47,17 @@ fn the_crest_links_kiss_the_shelf() {
     let lip_bottom = v.fender.center_y - v.fender.half.y - v.detail.fender_lip_drop;
     let gap = lip_bottom - crest_top;
     assert!(
-        (0.005..=0.050).contains(&gap),
-        "the crest links kiss the shelf: gap {gap:.3} (crest top {crest_top:.3}, lip \
-         {lip_bottom:.3}) — under 5 mm z-fights, over 50 mm is the floating band again"
+        (0.25..=0.45).contains(&gap),
+        "the shelf rides daylight over the crest: gap {gap:.3} (crest top {crest_top:.3}, lip \
+         {lip_bottom:.3}) — under 0.25 the shelf is back on the crest, over 0.45 it has left \
+         the sheet line"
     );
 }
 
-/// The mudguards arch OVER the end wheels: four swept guards, each clearing its wrap's link
-/// line, each peaking in the three-view's 1.15-1.24 band — the kicked-up bow guard every
-/// reference shows, not a slab angled at the dirt.
+/// The mudguards continue the HIGH shelf over the end wheels: four swept guards, each clearing
+/// its wrap's link line, each cresting just over the corrected 1.35 sheet plane (a gentle crown,
+/// not the old kicked-up hump — that hump only existed because the shelf itself was parked on
+/// the crest) before falling into the hanging flap.
 #[test]
 fn the_mudguards_arch_over_the_end_wheels() {
     let bp = blueprint();
@@ -81,8 +88,8 @@ fn the_mudguards_arch_over_the_end_wheels() {
             let peak =
                 mesh.vertices().iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
             assert!(
-                (1.15..=1.24).contains(&peak),
-                "{name}: the arch peaks in the three-view's band, got {peak:.3}"
+                (1.34..=1.40).contains(&peak),
+                "{name}: the guard crests just over the 1.35 sheet plane, got {peak:.3}"
             );
         }
     }

@@ -230,15 +230,17 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // a rounding ghost is not worth the precedent. The blueprint lint still holds the
             // shelf centred on the belt, so the pair cannot drift.
             side_x: 1.32,
-            // 1.00, down from 1.12 across two passes (2026-08-12): the calibrated three-view
-            // puts the fender SHEET at ~1.00-1.06, and the reference read of the whole band is
-            // that the crest links nearly brush the shelf — daylight lives in the scallop
-            // valleys, nowhere else. What made 1.06 the floor before was the lint anchoring
-            // the lip on the loop's HIGHEST links up on the end wraps; the wraps wear their
-            // own arched mudguards now (`t54_kit::mudguard_arches`), the flat shelf answers
-            // only for the carrier band it spans, and the kiss is locked from the PLACED
-            // links by `the_crest_links_kiss_the_shelf` (12 mm sheet, hem at sheet scale).
-            center_y: 1.000,
+            // 1.35, up from 1.00 (2026-08-12, second measurement of the same sheet): the
+            // "calibrated three-view puts the sheet at ~1.00-1.06" reading that drove the shelf
+            // DOWN was the track CREST's line (and the drooping bow-guard tip), not the sheet.
+            // Scanned properly in BOTH projections the sheet rides 1.32-1.37 with ~0.30 m of
+            // DAYLIGHT over the crest links — the light through under the fenders that every
+            // side photograph shows — and the stowage lids on it licują with the 1.58 roof
+            // line, closing the side silhouette. Locked three ways now: the placed-link
+            // daylight band (`the_shelf_rides_daylight_over_the_crest`), the flush-lid check
+            // on the stowage line, and the `FenderShelfHeight` dossier anchor measured off
+            // the bake at the shelf's outer edge.
+            center_y: 1.350,
             // z half 2.39: the SHELF ends where the mudguard arches take over (their inner
             // points root at end-axle − 0.24; sprocket 2.59 → 2.35, idler 2.62 → 2.38, and
             // the shelf tucks a few cm under each arch root). It ran the full hull length,
@@ -265,7 +267,10 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             loader_hatch_radius: 0.19,
             loader_hatch_half_height: 0.12,
             // On the left fender front, outboard of the glacis, as every reference view shows.
-            headlight_center: Vec3::new(-1.25, 1.225, hull.half_len - 0.45),
+            // Raised with the shelf (2026-08-12): the lamp stands over the bow guard's sheet
+            // (~1.37 there), its bracket reaching down to it — at the old 1.225 the whole drum
+            // sat UNDER the corrected fender plane, buried in the guard.
+            headlight_center: Vec3::new(-1.25, 1.56, hull.half_len - 0.45),
             headlight_radius: 0.10,
             headlight_half_height: 0.09,
             // Bow hooks at the lower corners of the narrow nose plate.
@@ -285,8 +290,9 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             grille_slats: 6,
             // The louvered exhaust box sits ON the left fender at the engine bay, as the top view
             // shows — the dark armoured cover among the left-fender stowage line.
-            // Rides the fender line: dropped with the shelf (1.12 -> 1.017 across two passes).
-            exhaust_center: Vec3::new(-1.34, 1.10, -hull.half_len + 2.10),
+            // Rides the fender line: seated so its bottom (1.47 − 0.11) meets the sheet top
+            // (1.356) — the cowl moved up with the shelf's corrected 1.35 plane (2026-08-12).
+            exhaust_center: Vec3::new(-1.34, 1.47, -hull.half_len + 2.10),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.

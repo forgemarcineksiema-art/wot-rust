@@ -85,6 +85,11 @@ pub enum DimensionKind {
     /// Height to the structural turret roof EXCLUDING the cupola (the number Soviet documents
     /// quote as "по крышу башни"); flush hatch lids count as roof plane by design.
     HeightToTurretRoofBare,
+    /// Height of the fender shelf's SHEET TOP above the ground plane, measured in a thin strip
+    /// at the fender's outer edge (mid-hull, clear of the mudguard arches and the stowage line).
+    /// This is the band the 2026-08-12 review found mis-read: the sheet was authored onto the
+    /// track crest because a three-view scan measured the crest line and called it the shelf.
+    FenderShelfHeight,
 }
 
 impl DimensionKind {
@@ -104,6 +109,7 @@ impl DimensionKind {
             DimensionKind::TrackLinkCountPerSide => "track links per side (count)",
             DimensionKind::RoadWheelCount => "road wheels per side (count)",
             DimensionKind::HeightToTurretRoofBare => "height to turret roof (bare, no cupola)",
+            DimensionKind::FenderShelfHeight => "fender shelf height (sheet top)",
         }
     }
 

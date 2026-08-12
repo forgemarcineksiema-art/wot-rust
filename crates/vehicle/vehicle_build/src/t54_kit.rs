@@ -31,12 +31,12 @@ pub fn t54_kit_parts(
 /// The mudguard arches over the end wheels, with their hanging flaps — ONE swept sheet per side
 /// and end.
 ///
-/// The old construction had the vertical logic of the fender line BACKWARDS: a flat shelf ran
-/// the full hull length (so its lip had to clear the loop's HIGHEST links, up on the end
-/// wraps), and plain slabs angled DOWN over the ends. Every reference shows the opposite: the
-/// flat shelf sits LOW between the wraps — the crest links nearly brush it — and over each end
-/// wheel the sheet KICKS UP into an arched guard (the three-view reads the bow guard's band at
-/// 1.17-1.24) before falling to the hanging flap. The arch is what buys the low shelf.
+/// RE-MEASURED 2026-08-12: the "shelf low, guard kicked up into a 1.17-1.24 arch" reading was
+/// an artifact of the shelf being parked on the track crest by a mis-scanned three-view (the
+/// scan measured the CREST's line and called it the sheet). With the sheet at its actual
+/// 1.35 plane the reference guards are nearly FLAT continuations of the shelf: a gentle crown
+/// over the axle, then the sheet FALLS over the wrap into the hanging flap — the bow tip drops
+/// to ~1.02, which is the very line the old reading mistook for the shelf itself.
 ///
 /// Paths are authored around the blueprint's own end wheels (`end_front` / `end_z`), so moving
 /// an axle carries its guard along.
@@ -49,18 +49,19 @@ fn mudguard_arches(fender: &FenderVisual, track: &TrackShape) -> Vec<VehiclePart
     let mut parts = Vec::new();
     let mut index = 0u16;
     for (name, sign, axle_z, ribbed) in ends {
-        // The wave, in the y-z side plane: off the shelf, up over the wrap, down the outboard
-        // face, then the near-vertical flap. z magnitudes run outboard; `sign` mirrors for the
-        // tail. Clearance over the wrap's link line is asserted by
+        // The fall, in the y-z side plane: off the shelf, a gentle crown over the axle, then
+        // down over the wheel's front and into the near-vertical flap (bow tip ~1.02 — the
+        // reference sheet's own guard-tip line). z magnitudes run outboard; `sign` mirrors for
+        // the tail. Clearance over the wrap's link line is asserted by
         // `the_mudguards_arch_over_the_end_wheels`.
         let profile: [(f32, f32); 7] = [
             (axle_z - 0.24, shelf_top),
-            (axle_z - 0.10, shelf_top + 0.115),
-            (axle_z + 0.03, shelf_top + 0.165),
-            (axle_z + 0.18, shelf_top + 0.115),
-            (axle_z + 0.33, shelf_top - 0.075),
-            (axle_z + 0.40, shelf_top - 0.185),
-            (axle_z + 0.42, shelf_top - 0.305),
+            (axle_z - 0.08, shelf_top + 0.012),
+            (axle_z + 0.10, shelf_top + 0.015),
+            (axle_z + 0.24, shelf_top - 0.030),
+            (axle_z + 0.35, shelf_top - 0.130),
+            (axle_z + 0.42, shelf_top - 0.270),
+            (axle_z + 0.46, shelf_top - 0.420),
         ];
         for side in [fender.side_x, -fender.side_x] {
             let path: Vec<Vec3> =
@@ -131,15 +132,20 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     // rectangular external fuel tanks with stowage fore and aft of them; the LEFT carries three
     // stowage bins and the exhaust cover (placed by `t54_details`). The model had three tanks on
     // the right, which is a later fit — obr. 1951 is two.
+    //
+    // Heights are sized to the CORRECTED shelf (1.35, 2026-08-12): bins at half 0.11 put their
+    // lids on the 1.58 roof line — the flush, continuous side silhouette both projections of
+    // the reference sheet show (box tops and roof line are ONE line there) — and the flat fuel
+    // tanks ride a shade lower, as a flat tank does.
     let boxes: [(f32, &str, f32, f32, f32); 8] = [
-        (1.0, "stowage_bin", 2.15, 0.28, 0.15),
-        (1.0, "fuel_tank", 1.05, 0.42, 0.13),
-        (1.0, "fuel_tank", -0.15, 0.42, 0.13),
-        (1.0, "stowage_bin", -1.35, 0.40, 0.14),
-        (1.0, "stowage_bin", -2.35, 0.28, 0.14),
-        (-1.0, "stowage_bin", 1.95, 0.40, 0.15),
-        (-1.0, "stowage_bin", 0.55, 0.35, 0.14),
-        (-1.0, "stowage_bin", -2.30, 0.35, 0.14),
+        (1.0, "stowage_bin", 2.15, 0.28, 0.11),
+        (1.0, "fuel_tank", 1.05, 0.42, 0.10),
+        (1.0, "fuel_tank", -0.15, 0.42, 0.10),
+        (1.0, "stowage_bin", -1.35, 0.40, 0.11),
+        (1.0, "stowage_bin", -2.35, 0.28, 0.11),
+        (-1.0, "stowage_bin", 1.95, 0.40, 0.11),
+        (-1.0, "stowage_bin", 0.55, 0.35, 0.11),
+        (-1.0, "stowage_bin", -2.30, 0.35, 0.11),
     ];
     let mut parts = Vec::new();
     for (i, &(side, key, z, half_z, half_y)) in boxes.iter().enumerate() {

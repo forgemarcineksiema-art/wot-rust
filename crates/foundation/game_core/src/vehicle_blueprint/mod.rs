@@ -490,16 +490,19 @@ mod tests {
         // Restrained, factory-clean detail: lips and weld beads are small.
         assert!(d.fender_lip_drop < 0.20 && d.weld_seam_half_thickness < 0.05);
 
-        // The fender lip curtain must clear the CREST links — the top run where it rides the
-        // road wheels (authored centreline + a link body). It was anchored on the loop's
-        // highest links up on the END WRAPS, which forced the whole shelf a hand too high;
-        // the wraps wear their own arched mudguards now (`t54_kit::mudguard_arches`), and the
-        // flat shelf answers only for the band it actually spans.
+        // The fender lip curtain rides DAYLIGHT over the crest links: the corrected sheet
+        // plane (1.35, measured in both projections of the reference sheet, 2026-08-12) puts
+        // ~0.3 m of open air between the top run and the shelf — the band the suspension and
+        // the hull side live in. Bounded on BOTH sides so the shelf can neither sink back onto
+        // the crest (the mis-scan this corrects: a three-view read of the CREST line was taken
+        // for the sheet and the shelf was parked on it) nor drift up past the sheet line.
         let lip_bottom = h_fender.center_y - h_fender.half.y - d.fender_lip_drop;
         let crest_links = bp.track.top_y + 0.055;
+        let daylight = lip_bottom - crest_links;
         assert!(
-            lip_bottom > crest_links,
-            "fender lip bottom {lip_bottom} must clear the crest links {crest_links}"
+            (0.20..=0.45).contains(&daylight),
+            "fender lip bottom {lip_bottom} rides daylight over the crest links {crest_links}: \
+             gap {daylight:.3} must stay in the reference's 0.20-0.45 band"
         );
 
         // The grille must ride proud of the engine-deck top, never coplanar with it — a coplanar

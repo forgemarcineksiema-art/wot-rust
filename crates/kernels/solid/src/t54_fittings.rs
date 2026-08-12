@@ -84,9 +84,9 @@ pub fn t54_flap_ribs(side_x: f32, top: Vec2, bottom: Vec2, half_x: f32) -> Vec<C
 
 /// Thin gusset plates under the fender's INNER edge, evenly spaced along its run — the supports
 /// that carry the shelf, triangulating against the hull wall the way real fender gussets do.
-/// They used to span the whole shelf width and hang 80 mm into the band the belt sweeps: with
-/// the shelf at its measured 1.05 line and the scallop at its measured depth, a wheel over a
-/// bump would have carried the links straight through them. Visual only, close-up detail tier.
+/// With the shelf at its corrected 1.35 sheet plane (2026-08-12) the gussets hang in the open
+/// daylight band over the crest links, far clear of anything a jounced wheel sweeps. Visual
+/// only, close-up detail tier.
 pub fn t54_fender_brackets(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
     const BRACKETS: usize = 5;
     let drop = 0.04_f32;
@@ -170,15 +170,14 @@ mod tests {
             .to_owned()
     }
 
-    /// REWRITTEN 2026-08-12 with the shelf at its measured 1.06 line and the scallop at its
-    /// measured depth: the old gussets spanned the WHOLE shelf width and hung 80 mm into the
-    /// band a jounced wheel sweeps its links through — the old assert ("spans the fender over
-    /// the track band") demanded exactly the collision. Real fender gussets triangulate at the
-    /// hull wall; that is where these live now.
+    /// REWRITTEN 2026-08-12 (twice): first with the shelf mis-parked on the crest, now with the
+    /// shelf at its corrected 1.35 sheet plane. The gussets triangulate at the hull wall just
+    /// under the sheet, hanging in the daylight band the reference shows over the crest links —
+    /// they must never reach back down toward the run a jounced wheel sweeps.
     #[test]
     fn fender_brackets_hug_the_hull_side_below_the_shelf() {
         let f = fender();
-        let brackets = t54_fender_brackets(1.345, &f);
+        let brackets = t54_fender_brackets(1.32, &f);
         assert!(brackets.len() >= 3, "several brackets along the run");
         let bottom = f.center_y - f.half.y;
         for bracket in &brackets {
@@ -188,9 +187,9 @@ mod tests {
                 .bounds()
                 .expect("non-empty bracket");
             assert!(b.min.y < bottom - 0.02, "bracket hangs below the fender plate");
-            // The crest links top out at ~0.934 (placed-link measurement, the kiss lock's
-            // own instrument); the gussets stop a hand of clearance above them.
-            assert!(b.min.y > 0.94, "bracket stays clear of the crest-riding links");
+            // The crest links top out at ~0.934 (placed-link measurement); the gussets live a
+            // third of a metre above them, just under the corrected sheet.
+            assert!(b.min.y > 1.25, "bracket stays up in the daylight band under the sheet");
             assert!(
                 b.max.x < 1.25,
                 "bracket hugs the hull side instead of reaching over the belt: {:.3}",

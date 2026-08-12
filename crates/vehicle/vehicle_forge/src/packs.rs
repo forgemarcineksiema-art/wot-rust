@@ -199,6 +199,17 @@ pub fn t54_reference_pack() -> ReferencePack {
             0.02,
             t54_dossier("2640 mm gauge; the belts sit on it (PR-18)."),
         ),
+        // The band the 2026-08-12 review found mis-read: a three-view scan measured the track
+        // crest's line and called it the fender sheet, and the lint built on that reading pinned
+        // the shelf ONTO the crest. Measured properly (both projections of the reference sheet,
+        // pixel scan), the sheet rides ~1.35 with ~0.30 m of daylight over the crest and the
+        // stowage lids flush with the 1.58 roof line.
+        DimensionTarget::new(
+            DimensionKind::FenderShelfHeight,
+            1.35,
+            0.04,
+            t54_dossier("1.35 m fender sheet top; two-projection sheet scan (2026-08-12)."),
+        ),
     ])
 }
 

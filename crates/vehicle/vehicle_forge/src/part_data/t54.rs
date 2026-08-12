@@ -21,6 +21,14 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
         .and_then(|hybrid| hybrid.fender.as_ref())
         .map(|fender| fender.side_x + fender.half.x)
         .unwrap_or(h.hitbox_half_width);
+    // The shelf PLANE comes from the same authored fender, not from `sponson_y`: the two used
+    // to coincide by accident, and when the sheet moved to its measured 1.35 line the part
+    // graph's box would have kept describing metal 0.35 m below anything drawn.
+    let fender_plane = bp
+        .visual_detail()
+        .and_then(|hybrid| hybrid.fender.as_ref())
+        .map(|fender| fender.center_y - fender.half.y)
+        .unwrap_or(h.sponson_y);
 
     let track_mid_y = 0.5 * (t.top_y + t.bottom_y);
     let wheel_top = track_mid_y + t.wheel_radius;
@@ -63,9 +71,9 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             ForgePartKind::Fenders,
             PartAnchor::Hull,
             MaterialRole::RolledArmor,
-            Vec3::new(0.0, h.sponson_y + 0.08, 0.0),
-            Vec3::new(-fender_half_width, h.sponson_y, -h.half_len),
-            Vec3::new(fender_half_width, h.sponson_y + 0.16, h.half_len),
+            Vec3::new(0.0, fender_plane + 0.08, 0.0),
+            Vec3::new(-fender_half_width, fender_plane, -h.half_len),
+            Vec3::new(fender_half_width, fender_plane + 0.16, h.half_len),
             "Named T-54 side fenders over the exposed track run.",
         ),
         part(

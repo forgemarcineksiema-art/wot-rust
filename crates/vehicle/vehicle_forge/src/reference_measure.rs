@@ -214,6 +214,9 @@ pub(crate) fn measure_dimensions(
             DimensionKind::HeightToTurretRoofBare => {
                 (bare_roof_height(vehicle, blueprint.as_ref()), MeasurementBasis::Mesh)
             }
+            DimensionKind::FenderShelfHeight => {
+                (fender_shelf_height(vehicle, blueprint.as_ref()), MeasurementBasis::Mesh)
+            }
         };
         measurements.push(
             MeasuredDimension::new(target.clone(), measured_m.unwrap_or(f32::NAN))
@@ -293,6 +296,31 @@ fn ground_clearance(vehicle: &BakedVehicle, blueprint: Option<&VehicleBlueprint>
         }
     }
     min_y.is_finite().then_some(min_y)
+}
+
+/// The fender sheet's TOP surface, read in a thin strip at the shelf's OUTER edge over the
+/// mid-hull run. The strip is outboard of the stowage line (boxes stop short of the edge) and
+/// the z-window excludes the mudguard arches over the end wheels, so what remains in it is the
+/// pressed sheet itself and its hem — whose highest point IS the sheet top. Measured off the
+/// mesh, not the blueprint field, because the mesh disagreeing with its own blueprint is exactly
+/// what this instrument must be able to catch. Vehicles without an authored fender (the recipe
+/// fleet) return `None` and the row fails loudly if a pack ever anchors it.
+fn fender_shelf_height(
+    vehicle: &BakedVehicle,
+    blueprint: Option<&VehicleBlueprint>,
+) -> Option<f32> {
+    let bp = blueprint?;
+    let fender = bp.visual_detail().and_then(|hybrid| hybrid.fender.as_ref())?;
+    let edge = fender.side_x + fender.half.x;
+    let z_window = fender.half.z * 0.75;
+    let mesh = &vehicle.submesh(SubmeshKind::Hull)?.mesh;
+    let mut max_y = f32::NEG_INFINITY;
+    for vertex in mesh.vertices().iter().filter(|vertex| is_exterior(vertex.material)) {
+        if (vertex.position.x.abs() - edge).abs() <= 0.02 && vertex.position.z.abs() <= z_window {
+            max_y = max_y.max(vertex.position.y);
+        }
+    }
+    max_y.is_finite().then_some(max_y)
 }
 
 /// Armor skin only — turret roof/cupola measurements must not read the AA machine gun or other
