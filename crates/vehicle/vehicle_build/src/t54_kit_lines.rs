@@ -15,15 +15,126 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// Every line-work part: splash board, turret handrails, tow cables, unditching beam, the course
 /// MG's glacis port and the two rear smoke canisters.
-pub(crate) fn t54_line_kit_parts(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
-    let mut parts = vec![splash_board(v, glacis_deg), unditching_beam(v)];
+pub(crate) fn t54_line_kit_parts(
+    v: CompleteVisual<'_>,
+    glacis_deg: f32,
+    stern: SternLine,
+) -> Vec<VehiclePart> {
+    let mut parts = vec![splash_board(v, glacis_deg), unditching_beam(stern)];
     parts.extend(turret_rails(v.turret_loft));
     parts.extend(tow_cables(v, glacis_deg));
     parts.extend(course_mg_port(v, glacis_deg));
-    parts.extend(smoke_canisters(v));
+    parts.extend(smoke_canisters(stern));
     parts.push(turret_casting_seam(v.turret_loft));
-    parts.push(beam_bands(v));
+    parts.push(beam_bands(stern));
+    parts.extend(stern_furniture(stern));
     parts
+}
+
+/// The upper rear plate's service furniture: two dished round plugs and the bolt rows along the
+/// plate's edges. Obr. 1951 pulls its transmission by UNBOLTING this whole plate — the rear
+/// photographs show a big bolted panel with two round covers, and a stern without them reads as
+/// one anonymous wall. Only a knuckled stern carries them: the fleet's single-plate tails have
+/// no such panel.
+fn stern_furniture(stern: SternLine) -> Vec<VehiclePart> {
+    if stern.knuckle.is_none() {
+        return Vec::new();
+    }
+    let rear = stern.rear_deg.to_radians();
+    // The plate's outward normal: rearward, tipped up by the 17-degree rake.
+    let normal = Vec3::new(0.0, rear.sin(), -rear.cos());
+    let mut parts = Vec::with_capacity(3);
+    // The two round access plugs, dished with a rim, standing a plug's height off the plate.
+    let plug_profile: [(f32, f32); 5] =
+        [(0.0, 0.0), (0.0, 0.140), (0.016, 0.140), (0.034, 0.095), (0.040, 0.0)];
+    for (i, x) in [-0.55_f32, 0.55].into_iter().enumerate() {
+        let seat_y = 1.33;
+        let seat = Vec3::new(x, seat_y, stern.z_at(seat_y)) + normal * 0.002;
+        parts.push(VehiclePart {
+            key: PartKey::indexed("stern_plug", i as u16),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::RolledArmor,
+            smoothing: vehicle_geometry::SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::translate(
+                &revolve::revolve(
+                    normal,
+                    &plug_profile,
+                    round_segments(0.140),
+                    MaterialRole::RolledArmor,
+                    vehicle_geometry::SmoothingGroup(3),
+                ),
+                seat,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+    }
+    // The bolt rows: a run under the deck edge and a short column down each side — the fasteners
+    // that make "removable panel" legible. Small studs, one merged mesh.
+    let bolt_profile: [(f32, f32); 4] = [(0.0, 0.0), (0.0, 0.016), (0.018, 0.016), (0.018, 0.0)];
+    let mut studs = Vec::with_capacity(13);
+    let mut seat_bolt = |x: f32, y: f32| {
+        let seat = Vec3::new(x, y, stern.z_at(y)) + normal * 0.002;
+        studs.push(revolve::translate(
+            &revolve::revolve(
+                normal,
+                &bolt_profile,
+                8,
+                MaterialRole::BarrelSteel,
+                vehicle_geometry::SmoothingGroup(3),
+            ),
+            seat,
+        ));
+    };
+    for k in 0..7 {
+        seat_bolt(-0.84 + k as f32 * 0.28, 1.52);
+    }
+    for side in [-1.0_f32, 1.0] {
+        for y in [1.27_f32, 1.37, 1.47] {
+            seat_bolt(side * 0.93, y);
+        }
+    }
+    parts.push(VehiclePart {
+        key: PartKey::new("stern_plate_bolts"),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: vehicle_geometry::SmoothingGroup(3),
+        shape: PartShape::Mesh(revolve::merge(&studs).weld_and_smooth()),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    });
+    parts
+}
+
+/// The stern's side profile, for everything that hangs ON the rear plates: upper-plate angle and
+/// the knuckle/undercut pair, read from the same authored armour fields the metal and the armour
+/// volumes fold at. Before this, the kit hinged its private 5-degree plate at the DECK while the
+/// hull solid hinged its own at the BELLY — the beam and the drums floated against a plate that
+/// existed only here.
+#[derive(Clone, Copy)]
+pub(crate) struct SternLine {
+    pub half_len: f32,
+    pub belly_y: f32,
+    pub rear_deg: f32,
+    pub knuckle: Option<(f32, f32)>,
+}
+
+impl SternLine {
+    /// The stern surface's z at height `y`: on the upper plate above the knuckle, on the
+    /// undercut below it; with no knuckle authored, the fleet's single plate hinged at the
+    /// hull's rearmost line (the belly, as the solid builds it).
+    fn z_at(&self, y: f32) -> f32 {
+        match self.knuckle {
+            Some((ky, lower_deg)) => {
+                if y >= ky {
+                    -self.half_len + (y - ky) * self.rear_deg.to_radians().tan()
+                } else {
+                    -self.half_len + (ky - y) * lower_deg.to_radians().tan()
+                }
+            }
+            None => -self.half_len + (y - self.belly_y) * self.rear_deg.to_radians().tan(),
+        }
+    }
 }
 
 /// The steel bands that strap the unditching log to its brackets.
@@ -34,15 +145,16 @@ pub(crate) fn t54_line_kit_parts(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<
 /// The log itself stays `TrackMetal` for now: giving wood its own `MaterialRole` is open decision
 /// #6, and it belongs with the material families rather than being smuggled in here. The bands
 /// are the part of this defect that can be closed honestly today.
-fn beam_bands(v: CompleteVisual<'_>) -> VehiclePart {
-    let z = -v.hull.half_len - 0.04;
+fn beam_bands(stern: SternLine) -> VehiclePart {
+    let seat_y = 0.90;
+    let z = stern.z_at(seat_y) - 0.04 - 0.098;
     let mut pieces = Vec::with_capacity(2);
     for side in [-1.0_f32, 1.0] {
-        // Outboard of the BDSh-5 drums below (their ends reach |x| 0.685): the bands and the
-        // drums share the rear plate, and the log is 1.9 m wide — there is room for both.
+        // Outboard of the BDSh-5 drums above (their ends reach |x| 0.685): the bands and the
+        // drums share the stern, and the log is 1.9 m wide — there is room for both.
         let x = side * 0.78;
         pieces.push(detail::coaming(
-            Vec3::new(x, 1.02, z),
+            Vec3::new(x, seat_y, z),
             Vec3::X,
             0.118,
             0.030,
@@ -69,15 +181,20 @@ fn beam_bands(v: CompleteVisual<'_>) -> VehiclePart {
 /// called once. A cast turret without its mould line reads as a pressing — and this is a vehicle
 /// whose whole front is one casting.
 fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
-    // At the widest band of the casting, where the mould parts. Traced right round, so the seam
-    // closes on itself the way the mould does.
-    let y = 1.95;
+    // AT THE WIDEST BAND, ON THE REAL SURFACE. The seam used to run at y 1.95 off the bare
+    // superellipse family — 20 cm above the casting's widest band (1.66-1.76), which is where a
+    // mould actually parts (a mould split above its widest section cannot open), and blind to
+    // the bumps: the face plateau pushed the metal 49 mm out from under it (seam buried) while
+    // the gun window pulled it 71 mm in (seam hanging in air). 480 triangles reading as an
+    // error. `surface_point` follows the loft WITH its modulations, so the seam now rides the
+    // cheeks and dips through the window the way the mould line on the reference casting does.
+    let y = 1.71;
     // No repeated first point: the sweep closes the loop itself. Repeating it puts two end caps
     // in the same place, and the weld turns that into non-manifold edges on the turret submesh.
     let path: Vec<Vec3> = (0..48)
         .map(|k| {
             let phi = std::f32::consts::TAU * k as f32 / 48.0;
-            loft_ring_point(loft, y, phi, 0.004)
+            loft.surface_point(y, phi, 0.004)
         })
         .collect();
     VehiclePart {
@@ -105,10 +222,12 @@ fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
 ///
 /// (The comment that used to sit beside this said the log "stays `TrackMetal` for now" pending a
 /// wood role. The role landed; the beam has been `Timber` since, and the note outlived its fact.)
-fn unditching_beam(v: CompleteVisual<'_>) -> VehiclePart {
-    // Stowed against the rear plate, a hand's width off it — so it follows the stern rather than
-    // sitting at a Z somebody typed once.
-    let center = Vec3::new(0.0, 1.02, -v.hull.half_len - 0.04);
+fn unditching_beam(stern: SternLine) -> VehiclePart {
+    // Stowed LOW across the undercut, a hand's width off the plate and tucked under the BDSh
+    // drums that hang on the upper plate above — the stacking every rear walkaround shows. The
+    // seat height and the plate's z both follow the authored stern, not a Z somebody typed once.
+    let seat_y = 0.90;
+    let center = Vec3::new(0.0, seat_y, stern.z_at(seat_y) - 0.04 - 0.098);
     let half = Vec3::new(0.95, 0.098, 0.098);
     VehiclePart {
         key: PartKey::new("unditching_beam"),
@@ -163,7 +282,9 @@ fn course_mg_port(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
     }]
 }
 
-/// Two BDSh-5 smoke canisters on the lower rear plate, below the unditching beam.
+/// Two BDSh-5 smoke canisters HIGH on the upper rear plate, tucked under the deck edge — the
+/// documented seat (rear photographs show the pair hung just below the deck lip, not lying at
+/// the tail's foot where the first pass left them).
 ///
 /// At their DOCUMENTED size. The tank smoke canister is the BDSh-5 (developed 1944 for the
 /// T-34-85's rear plate, carried until exhaust smoke systems displaced it; "MDSh" in the
@@ -176,17 +297,22 @@ fn course_mg_port(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
 /// stowage stands outside it (2.6 m of barrel already does). The reach is asserted, not hidden:
 /// `t54_carries_two_smoke_canisters_on_the_rear_plate` locks both the documented diameter and
 /// the documented protrusion.
-fn smoke_canisters(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
-    // Axis ACROSS the vehicle, one drum each side of the centreline, under the beam. The lower
-    // plate rakes 5 degrees, so the hang point follows it down.
+fn smoke_canisters(stern: SternLine) -> Vec<VehiclePart> {
+    // Axis ACROSS the vehicle, one drum each side of the centreline. The hang point follows the
+    // AUTHORED upper plate — the same 17-degree plane the armour resolves — with the drum tops
+    // held under the 1.58 deck line.
     const RADIUS: f32 = 0.225;
     const HALF_LEN: f32 = 0.325;
     let profile = [(-HALF_LEN, 0.0_f32), (-HALF_LEN, RADIUS), (HALF_LEN, RADIUS), (HALF_LEN, 0.0)];
-    let hang_y = 0.665;
-    let plate_z = -v.hull.half_len + (1.58 - hang_y) * (5.0_f32).to_radians().tan();
+    let hang_y = 1.26;
+    let plate_z = stern.z_at(hang_y);
+    // Stand the drum a strap's thickness off the PLATE PLANE, along its normal — an offset down
+    // the z axis alone would bury the upper edge of the drum in the leaning plate.
+    let rear = stern.rear_deg.to_radians();
+    let normal = Vec3::new(0.0, rear.sin(), -rear.cos());
     let mut parts = Vec::new();
     for (i, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
-        let center = Vec3::new(side * 0.36, hang_y, plate_z - 0.012 - RADIUS);
+        let center = Vec3::new(side * 0.36, hang_y, plate_z) + normal * (RADIUS + 0.012);
         parts.push(VehiclePart {
             key: PartKey::indexed("smoke_canister", i as u16),
             submesh: SubmeshKind::Hull,
@@ -271,7 +397,7 @@ fn turret_rails(loft: &TurretLoftVisual) -> Vec<VehiclePart> {
             let path: Vec<Vec3> = (0..=6)
                 .map(|k| {
                     let phi = (40.0 + 95.0 * k as f32 / 6.0).to_radians();
-                    loft_ring_point(loft, y, side * phi, 0.05)
+                    loft.ring_point(y, side * phi, 0.05)
                 })
                 .collect();
             VehiclePart {
@@ -287,27 +413,9 @@ fn turret_rails(loft: &TurretLoftVisual) -> Vec<VehiclePart> {
         .collect()
 }
 
-/// A point on (or just off) the lofted turret shell at height `y` and azimuth `phi` (0 = forward,
-/// positive toward +X), `standoff` metres proud of the casting. Interpolates the blueprint's loft
-/// stations and evaluates the same superellipse family the shell is skinned from.
-fn loft_ring_point(loft: &TurretLoftVisual, y: f32, phi: f32, standoff: f32) -> Vec3 {
-    let s = &loft.stations;
-    let above = s.iter().position(|st| st.y >= y).unwrap_or(s.len() - 1).max(1);
-    let (a, b) = (&s[above - 1], &s[above]);
-    let t = ((y - a.y) / (b.y - a.y).max(1.0e-4)).clamp(0.0, 1.0);
-    let lerp = |p: f32, q: f32| p + (q - p) * t;
-    let half_width = lerp(a.half_width, b.half_width);
-    let z_center = lerp(a.z_center, b.z_center);
-    let (dx, dz) = (phi.sin(), phi.cos());
-    let half_len = if dz >= 0.0 {
-        lerp(a.half_len_front, b.half_len_front)
-    } else {
-        lerp(a.half_len_rear, b.half_len_rear)
-    };
-    let n = loft.exponent;
-    let scale = ((dx.abs() / half_width).powf(n) + (dz.abs() / half_len).powf(n)).powf(-1.0 / n);
-    Vec3::new(dx * (scale + standoff), y, z_center + dz * (scale + standoff))
-}
+// `loft_ring_point` lived here as a private duplicate of the blueprint's superellipse family —
+// two copies of one curve, and the seam's whole defect class came from the copy being blind to
+// the bumps. Both callers read `TurretLoftVisual::{ring_point, surface_point}` now.
 
 /// The stowed tow cables: one running diagonally across the glacis (the top view's signature
 /// diagonal), one draped across the hull rear plate.

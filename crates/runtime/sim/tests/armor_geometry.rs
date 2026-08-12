@@ -236,3 +236,95 @@ fn a_shell_dropping_on_the_deck_lands_on_the_hull_deck_measured_against_up() {
     assert_eq!(zone, ArmorZone::HullDeck, "the deck is hull plate, not the turret roof");
     assert!(angle < 1.0, "a vertical drop is square-on to the deck (angle vs UP), got {angle}");
 }
+// APPEND to crates/runtime/sim/tests/armor_geometry.rs
+// (PR-1c z mapy kaskad: pierwszy test sim, ktory w ogole strzela w dolna plyte.)
+
+/// THE LOWER PLATE PLAYS ITS AUTHORED GEOMETRY. No sim test ever fired at it — which is how a
+/// 27-degree armour plate lived under a 36.8-degree visual and a 55-degree dossier without one
+/// red test. A flat bow shot below the fold must meet the LowerPlate zone at the blueprint's
+/// authored angle, and the facet the resolver reads must carry the dossier's 100 mm — LOS
+/// 100/cos(55°) ≈ 174 mm, the number the plate was always supposed to be worth.
+#[test]
+fn a_flat_shot_meets_the_lower_plate_at_its_authored_slope() {
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("blueprint");
+    let (authored_deg, _) =
+        blueprint.armor.hull_lower_front.expect("the T-54 authors its lower plate");
+
+    // Below the fold (sponson step at 1.0), above the belly: the middle of the plate.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 0.70, 10.0),
+        Vec3::new(0.0, 0.70, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::LowerPlate);
+    assert!(
+        (angle - authored_deg).abs() < 1.0,
+        "a flat shot below the fold meets the plate at its authored {authored_deg}°, got {angle}"
+    );
+
+    // And the facet the resolver reads carries the dossier's steel: full module thickness at
+    // the authored angle — not 72% of the glacis at 45% of its slope.
+    let plate = TankSpec::t54_1951().hull.plate(ArmorZone::LowerPlate);
+    assert!(
+        (plate.slope_degrees - authored_deg).abs() < 0.1,
+        "facet slope {} vs authored {authored_deg}",
+        plate.slope_degrees
+    );
+    let los = plate.nominal_thickness_mm / plate.slope_degrees.to_radians().cos();
+    assert!(
+        (170.0..180.0).contains(&los),
+        "100 mm at 55 degrees is ~174 mm of line-of-sight steel, got {los:.0}"
+    );
+}
+
+/// The FIRST shots ever fired at the T-54's stern. The rear was one sourceless 5-degree plate
+/// for months and nothing noticed, because nothing looked: the same disease the lower plate had.
+/// Now the tail is the authored pair — 45 mm @ 17 above the knuckle, the undercut below it —
+/// and a shell meets each plate at the angle the player sees.
+#[test]
+fn a_flat_shot_meets_the_stern_pair_at_its_authored_angles() {
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("blueprint");
+    let (knuckle_y, lower_deg) =
+        blueprint.armor.hull_rear_knuckle.expect("the T-54 authors its stern knuckle");
+    let upper_deg = blueprint.armor.hull_rear.0;
+
+    // From BEHIND, above the knuckle: the upper plate at its documented 17 degrees.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 1.40, -10.0),
+        Vec3::new(0.0, 1.40, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::HullRear);
+    assert!(
+        (angle - upper_deg).abs() < 1.0,
+        "a flat shot above the knuckle meets the upper plate at {upper_deg}°, got {angle}"
+    );
+
+    // From behind, below the knuckle (and below the sponson, into the tub's tail): the undercut.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 0.90, -10.0),
+        Vec3::new(0.0, 0.90, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::HullRear);
+    assert!(
+        (angle - lower_deg).abs() < 1.0,
+        "a flat shot below the knuckle meets the undercut at {lower_deg}° (authored at \
+         knuckle_y {knuckle_y}), got {angle}"
+    );
+
+    // The facet the resolver reads: 45 mm at 17 degrees is ~47 mm of line-of-sight steel.
+    let plate = TankSpec::t54_1951().hull.plate(ArmorZone::HullRear);
+    assert!(
+        (plate.slope_degrees - upper_deg).abs() < 0.1,
+        "facet slope {} vs authored {upper_deg}",
+        plate.slope_degrees
+    );
+    let los = plate.nominal_thickness_mm / plate.slope_degrees.to_radians().cos();
+    assert!(
+        (45.0..50.0).contains(&los),
+        "45 mm at 17 degrees is ~47 mm of line-of-sight steel, got {los:.0}"
+    );
+}

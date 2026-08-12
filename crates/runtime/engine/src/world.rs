@@ -76,6 +76,7 @@ impl PresentationWorld {
                 ModuleHitPoints(tank.module_hit_points),
                 VehicleDamage {
                     mask: tank.track_damage_mask,
+                    track_hp: tank.track_hp,
                     break_t: tank.track_break_t,
                     armor_breaches: tank.armor_breaches.clone(),
                     engine_fire: tank.engine_fire,
@@ -204,6 +205,7 @@ impl PresentationWorld {
                         spotted_by_teams_mask: spotted.0,
                         module_hit_points: modules.0,
                         track_damage_mask: damage.mask,
+                        track_hp: damage.track_hp,
                         track_break_t: damage.break_t,
                         engine_fire: damage.engine_fire,
                         fuel_fire: damage.fuel_fire,

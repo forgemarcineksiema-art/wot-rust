@@ -63,14 +63,34 @@ pub struct Spotted(pub u8);
 pub struct ModuleHitPoints(pub [u32; MODULE_SLOT_COUNT]);
 
 /// Side-specific track damage bitmask replicated from the authoritative simulation.
-#[derive(Debug, Clone, PartialEq, Default, Component)]
+#[derive(Debug, Clone, PartialEq, Component)]
 pub struct VehicleDamage {
     pub mask: u8,
+    /// Per-side track HP, replicated raw: the render maps it to `TrackSeverity`, because the
+    /// DAMAGED middle tier is a real state the HUD has shown since two-tier landed while the
+    /// model showed nothing — the old path zeroed this back to MAX before the mesh ever saw it.
+    pub track_hp: [u8; 2],
     pub break_t: [Option<f32>; 2],
     pub armor_breaches: ArmorBreachSet,
     pub engine_fire: bool,
     /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.
     pub fuel_fire: bool,
+}
+
+impl Default for VehicleDamage {
+    fn default() -> Self {
+        Self {
+            mask: 0,
+            // Full pools, not zeroed ones: `u8::default()` is 0, and 0 HP IS the Broken tier —
+            // a derived Default would spawn every tank with both tracks reading dead slack for
+            // the frame before its first snapshot lands.
+            track_hp: [game_core::TRACK_HP_MAX; 2],
+            break_t: [None, None],
+            armor_breaches: ArmorBreachSet::default(),
+            engine_fire: false,
+            fuel_fire: false,
+        }
+    }
 }
 
 /// Per-side track distance travelled (metres), accumulated from the hull's frame-to-frame pose so
@@ -172,6 +192,8 @@ pub struct PresentationTank {
     /// Live module HP in `ModuleSlot::ALL` wire order (partial-damage presentation cues).
     pub module_hit_points: [u32; MODULE_SLOT_COUNT],
     pub track_damage_mask: u8,
+    /// Per-side track HP: the render maps it to a severity tier (see `VehicleDamage`).
+    pub track_hp: [u8; 2],
     pub track_break_t: [Option<f32>; 2],
     pub engine_fire: bool,
     /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.

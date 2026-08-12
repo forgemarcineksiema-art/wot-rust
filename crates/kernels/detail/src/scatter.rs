@@ -85,8 +85,21 @@ pub fn louvre_slats(
 ) -> GeometryMesh {
     let n = normal.normalize_or_zero();
     let n = if n == Vec3::ZERO { Vec3::Y } else { n };
-    let across =
-        if n.cross(Vec3::Z).length() > 1.0e-3 { n.cross(Vec3::Z).normalize() } else { Vec3::X };
+    // WIDTH RUNS ACROSS THE OPENING AND HEIGHT RUNS UP IT — on a wall as much as on a deck.
+    //
+    // This used to be `n x Z` unconditionally, which is right for a horizontal panel (`n = Y`
+    // gives across = X, stacking down Z) and turns a vertical one on its side: for `n = -X` it
+    // returns +Y, so a cowl asking for 0.675 m of width across its face got 0.675 m of fin
+    // standing UP. The T-54's exhaust grew five 675 mm blades out of a 220 mm box, through the
+    // fender and down into the moving top run of the track. Prefer world up, and only fall back
+    // to the cross product when the face IS the floor or the ceiling.
+    let across = if n.cross(Vec3::Y).length() > 1.0e-3 {
+        n.cross(Vec3::Y).normalize()
+    } else if n.cross(Vec3::Z).length() > 1.0e-3 {
+        n.cross(Vec3::Z).normalize()
+    } else {
+        Vec3::X
+    };
     let up = n.cross(across).normalize();
     let count = count.max(1);
     let pitch = height / count as f32;
@@ -118,6 +131,19 @@ pub fn louvre_slats(
 /// A hard-edged box centred at `c` with half-axes `du`, `dv`, `dw`. Each face authors its own
 /// geometric normal so the welder keeps the corners crisp instead of rounding them.
 pub(crate) fn plate_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
+    oriented_plate(c, du, dv, dw, MaterialRole::CastArmor)
+}
+
+/// [`plate_box`] with the CALLER's material — the same lesson `coaming` already carries: a
+/// generator that hard-codes one steel hands every consumer that steel. The louvre slats shipped
+/// as team-tinted armour because of it; a vision block's GLASS cannot be cast armour at all.
+pub fn oriented_plate(
+    c: Vec3,
+    du: Vec3,
+    dv: Vec3,
+    dw: Vec3,
+    material: MaterialRole,
+) -> GeometryMesh {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     // (sign axis, in-plane half-axes) per face, wound CCW seen from outside.
@@ -130,7 +156,7 @@ pub(crate) fn plate_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
             vertices.push(GeometryVertex::new(
                 c + corner,
                 normal,
-                MaterialRole::CastArmor,
+                material,
                 SmoothingGroup::hard_edges(),
             ));
         }

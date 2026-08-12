@@ -124,6 +124,7 @@ pub fn t54_from_modules_with_blueprint(
             &bp.hull,
             v.hull_plates,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )),
         lod: PartLod::Silhouette,
         generator: GeneratorKind::Solid,
@@ -139,6 +140,7 @@ pub fn t54_from_modules_with_blueprint(
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )),
         lod: PartLod::Silhouette,
         generator: GeneratorKind::Solid,
@@ -236,7 +238,23 @@ pub fn t54_from_modules_with_blueprint(
         vec![lower_tub, upper_hull, turret, cupola, mantlet, mantlet_cover, mantlet_frame, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
-    parts.extend(crate::t54_details::t54_fitting_parts(f));
+    //
+    // Each hatch's hardware seats on the LOCAL metal, and this file owns all three surfaces: the
+    // cupola drum it just built, the loft's roof plate, the hull roof. The loader's hatch stands
+    // inside the top station's footprint (the visibility lock measures that against the mesh, so
+    // the assumption cannot rot silently).
+    let seats = crate::t54_details::HatchSeats {
+        cupola: v.turret_loft.cupola_center.y + v.turret_loft.cupola_half_height,
+        driver: v.hull.roof_y,
+        loader: v.turret_loft.stations[v.turret_loft.stations.len() - 1].y,
+    };
+    parts.extend(crate::t54_details::t54_fitting_parts(f, &seats));
+    // The ring of vision blocks under the cupola's top rim — the reason the drum exists.
+    parts.extend(crate::t54_details::t54_cupola_vision_blocks(
+        v.turret_loft.cupola_center,
+        v.turret_loft.cupola_radius,
+        seats.cupola,
+    ));
     // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
     let deck_top = v.deck.center.y + v.deck.half.y;
     for (i, panel) in solid::t54_engine_deck_panels(v.deck).into_iter().enumerate() {
@@ -271,7 +289,16 @@ pub fn t54_from_modules_with_blueprint(
     parts.extend(crate::t54_details::t54_detail_parts(v));
     // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
     // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
-    parts.extend(crate::t54_kit::t54_kit_parts(v, bp.armor.hull_front.0));
+    parts.extend(crate::t54_kit::t54_kit_parts(
+        v,
+        bp.armor.hull_front.0,
+        crate::t54_kit_lines::SternLine {
+            half_len: bp.hull.half_len,
+            belly_y: bp.hull.belly_y,
+            rear_deg: bp.armor.hull_rear.0,
+            knuckle: bp.armor.hull_rear_knuckle,
+        },
+    ));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
     // Damage-ready interior: major visible assemblies are generated from the authoritative

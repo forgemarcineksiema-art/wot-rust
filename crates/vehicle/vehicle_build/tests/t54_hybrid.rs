@@ -23,6 +23,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )
         .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
         .expect("hull solid is valid")
@@ -301,7 +302,67 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // perfectly sharp and take the arris a torch leaves. `solid::chamfer` now states the widths a
     // process gives an edge; `chamfered_box` applies them, and always could.
     // Previous: 0xc308_5dcf_814b_3e57 (PR-29, the roundness law in vehicle_build).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0950_1aaa_02c5_23fa;
+    // Re-recorded 2026-08-10 (the gun group rides the trunnion): the D-10T stops floating above
+    // the barrel it belongs to. The breech was anchored 230 mm over the bore, the cradle 420 mm,
+    // the coax 340 mm and the TSh-2 330 mm — and all of it came out through the casting roof,
+    // where the cradle rails stood ~250 mm proud in the garage hero shot. The recoil guard was
+    // the one piece anchored to the gun, which is how its own frame gave the error away. Every
+    // piece now reads ONE height from the authoritative breech volume, which the layout anchors
+    // to the blueprint's trunnion. Also home: the turret ready rack (its top round's case rim
+    // stood 71 mm proud of the rear dome — brass on the casting with no breach needed) and the
+    // radio set, whose control panel reached 94 mm outside the dome on the diagonal.
+    // Previous: 0x0950_1aaa_02c5_23fa (PR-30, the bevel law).
+    // Re-recorded 2026-08-10 (the mechanisms do what they are named for): the projectile stops
+    // being brass — the case and its rim are cartridge brass, the shell in front of them is
+    // painted steel, and the two had it exactly backwards, which is why 32 gold rounds sat in the
+    // fighting compartment. The tow hook's C is swept the other way, so its mouth faces the bow
+    // instead of the plate it is welded to, with the catch across the gap rather than stranded
+    // inside the closed half. The engine-deck bolts move from 0.86 of the half-width to 0.98:
+    // fourteen of the eighteen were sealed inside the transmission covers, 1008 triangles
+    // rendering the inside of a plate. And the exhaust louvres lie ON their cowl now that
+    // `louvre_slats` derives its across-axis from world up rather than from Z — on a vertical
+    // face the old convention turned width into height and grew five 675 mm fins out of a 220 mm
+    // box, through the fender and into the moving top run of the track.
+    // Previous: 0xcaf6_206c_f364_2e35 (PR-31, the gun group on the trunnion).
+    // Re-recorded 2026-08-11 (the hardware meets the metal): hatch collars and the loader's hinge
+    // seat on the LOCAL surface — the cupola drum's top, the dome's roof plate, the hull roof —
+    // instead of hanging off the lid's buried base, which had 412 triangles of coamings and hinge
+    // rendering the inside of a casting. And the cupola stops being a smooth drum: five vision
+    // blocks under its top rim, each an armoured hood rooted into the wall with a glass pane in
+    // its face — the ring of devices the drum exists to carry.
+    // Previous: 0x8c8d_d462_f899_9cfb (PR-32, the sprocket's rings and the roof furniture).
+    // Re-recorded 2026-08-11 (the slits go INTO the drum): the dimension gate threw the proud
+    // vision hoods back — the cupola's Locked ⌀624 tape caught them at ⌀675 — and it was right
+    // on the history too: the obr. 1951 cupola carries slits with glass behind them, not pods.
+    // Frames flush with the drum's nominal radius (width bounded by chord geometry against the
+    // tape), glass recessed 6 mm so the slit reads as a dark opening. The left swing arm also
+    // becomes its own mirrored unit mesh (GearPart::SwingArmLeft) — instanced gear, so the
+    // static bake moves only through the slit rework.
+    // Previous: 0x8ebd_c33e_7f84_bc86 (PR-33, the hatch hardware and the first cupola blocks).
+    // Re-recorded 2026-08-11 (the mould line finds the metal, and so does the armour): the seam
+    // moves from y 1.95 off the bare curve family to y 1.71 ON the modulated surface — a mould
+    // parts at its widest band, and the line now rides the cheeks and dips through the window
+    // like the reference casting's. Drawing it there exposed the real find: the armour's bump
+    // mirror double-counted the cheek plateau (two gaussians at +-0 vs the mesh's single
+    // plateau), leaving ~45 mm of phantom armour across the whole face, hidden at 0.049 under a
+    // 0.05 tolerance. Mirror corrected (slack now 1.5 mm), tolerance tightened to 0.010, and
+    // the seam path plus rails now read the blueprint's OWN ring/surface family — the private
+    // duplicate in kit_lines is gone.
+    // Previous: 0x82a8_3c8e_17e9_3af2 (PR-34, the flush cupola slits and the mirrored arm).
+    // Re-recorded 2026-08-11 (the lower plate plays its dossier): the nose fold-to-belly run is
+    // DERIVED from the blueprint's authored 55-degree plate — one field for the metal, the
+    // armour volume and the facet model, where there were three descriptions of one plate
+    // (36.8 visual / 27 armour / 55 dossier) and the armour's fold sat 50 mm ahead of the
+    // visible one. NOSE_SETBACK_M is gone; the first sim shot ever fired at the lower plate
+    // lands at 55 degrees for ~174 mm LOS.
+    // Previous: 0xf74e_0e22_b2ab_8199 (PR-35, the mould line and the armour mirror).
+    // Re-recorded 2026-08-12 (the stern is a knuckled pair): rear 5 -> 17 degrees per the
+    // armour table, the authored knuckle at 1.20 with a 45-degree undercut below it, the deck
+    // ending where the upper plate leaves the roofline, the BDSh drums re-seated HIGH on the
+    // plate under the deck lip with the log stowed low, service plugs + bolt rows + tail-flap
+    // ribs, and the first sim shots ever fired at the stern (17 and 45 degrees, ~47 mm LOS).
+    // Previous: 0x2ad8_4963_8c30_5751 (the lower plate plays its dossier).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x509a_93b1_dd51_8346;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

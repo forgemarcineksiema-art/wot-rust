@@ -227,6 +227,7 @@ mod tests {
             spotted_by_teams_mask: 0b11,
             module_hit_points: [100; game_core::MODULE_SLOT_COUNT],
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,

@@ -15,6 +15,7 @@
     "turret_side_mm": 160.0,
     "turret_rear_mm": 110.0,
     "turret_roof_mm": null,
+    "lower_front": null,
     "facets": {
       "hull_front": {
         "nominal_thickness_mm": 110.0,

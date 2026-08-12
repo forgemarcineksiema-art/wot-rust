@@ -412,6 +412,7 @@ fn running_gear_bounds(kin: &RunningGearKinematics) -> Option<MeshBounds> {
     let sprocket = sprocket_unit_mesh(kin);
     let link = track_link_unit_mesh(kin);
     let swing_arm = vehicle_geometry::swing_arm_unit_mesh(kin);
+    let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(kin);
     let return_roller = vehicle_geometry::return_roller_unit_mesh(kin);
     let mut bounds: Option<MeshBounds> = None;
     for placement in running_gear_placements(kin, 0.0, 0.0) {
@@ -421,6 +422,7 @@ fn running_gear_bounds(kin: &RunningGearKinematics) -> Option<MeshBounds> {
             GearPart::Sprocket => &sprocket,
             GearPart::Link => &link,
             GearPart::SwingArm => &swing_arm,
+            GearPart::SwingArmLeft => &swing_arm_left,
             GearPart::ReturnRoller => &return_roller,
         };
         include_transformed_mesh(&mut bounds, mesh, placement.transform);

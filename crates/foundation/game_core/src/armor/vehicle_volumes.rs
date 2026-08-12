@@ -211,14 +211,34 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
             Vec3::new(-hull.half_width, step_y, 0.0),
             ArmorZone::HullSide,
         ),
-        TaggedPlane::new(
-            Vec3::new(0.0, rear_sin, -rear_cos),
-            Vec3::new(0.0, step_y, -hull.half_len),
-            ArmorZone::HullRear,
-        ),
         // The sponson underside: reachable only from below the overhang.
         TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
     ]);
+    // The stern. Authored knuckle: the upper plate's plane runs THROUGH the knuckle line (the
+    // hull's rearmost point) and the undercut leans forward-down below it — the same two planes
+    // the visible metal folds at, so a shell meets what the player sees. No knuckle: the
+    // fleet's single plate hinged at the sponson step, exactly as before.
+    match blueprint.armor.hull_rear_knuckle {
+        Some((knuckle_y, lower_deg)) => {
+            let knuckle = Vec3::new(0.0, knuckle_y - cy, -hull.half_len);
+            let lower = lower_deg.to_radians();
+            planes.push(TaggedPlane::new(
+                Vec3::new(0.0, rear_sin, -rear_cos),
+                knuckle,
+                ArmorZone::HullRear,
+            ));
+            planes.push(TaggedPlane::new(
+                Vec3::new(0.0, -lower.sin(), -lower.cos()),
+                knuckle,
+                ArmorZone::HullRear,
+            ));
+        }
+        None => planes.push(TaggedPlane::new(
+            Vec3::new(0.0, rear_sin, -rear_cos),
+            Vec3::new(0.0, step_y, -hull.half_len),
+            ArmorZone::HullRear,
+        )),
+    }
     ArmorVolume { planes }
 }
 
@@ -230,11 +250,26 @@ fn bow_sweeps(pike_sweep_deg: f32) -> Vec<f32> {
 /// The lower hull tub: nose plate, belly, tub sides, lower rear — below the sponson step.
 fn lower_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let hull = blueprint.hull;
-    let lower_slope = (blueprint.armor.hull_front.0 * LOWER_PLATE_SLOPE_FACTOR).to_radians();
+    // Authored beats formula, the turret-roof idiom: a dossier that states the lower plate's
+    // angle wins over the fleet's 0.45-of-the-glacis derivation. The same field drives the
+    // VISIBLE nose, so the two cannot disagree again.
+    let lower_deg = blueprint
+        .armor
+        .hull_lower_front
+        .map(|(deg, _)| deg)
+        .unwrap_or(blueprint.armor.hull_front.0 * LOWER_PLATE_SLOPE_FACTOR);
+    let lower_slope = lower_deg.to_radians();
     let (rear_sin, rear_cos) = blueprint.armor.hull_rear.0.to_radians().sin_cos();
     let step_y = hull.sponson_y - cy;
     let belly_y = hull.belly_y - cy;
-    let fold = Vec3::new(0.0, step_y, hull.half_len);
+    // The fold the armour's nose plane passes through is the fold the METAL folds at. It was
+    // anchored at `half_len` while the visible glacis folds 50 mm behind it (the hybrid's
+    // glacis setback) - five centimetres of disagreement between the plate a player sees and
+    // the plane a shell meets, on every bow shot. Hybrid vehicles carry the visual fold in
+    // their blueprint; the recipe fleet keeps the envelope fold it always had.
+    let fold_z =
+        blueprint.complete_visual().map(|v| v.hull_plates.glacis_base_z).unwrap_or(hull.half_len);
+    let fold = Vec3::new(0.0, step_y, fold_z);
     let mut planes = Vec::with_capacity(8);
     // The nose rakes back going DOWN: its outward normal tips forward-and-down. A pike bow
     // carries its sweep into the lower plates too.
@@ -255,13 +290,26 @@ fn lower_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
             Vec3::new(-hull.lower_half_width, belly_y, 0.0),
             ArmorZone::HullSide,
         ),
-        TaggedPlane::new(
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
+    ]);
+    // The tub sits entirely below the knuckle, so an authored stern reaches it as the undercut
+    // alone, hinged on the knuckle line above; the fleet keeps its sponson-hinged plate.
+    let rear_plane = match blueprint.armor.hull_rear_knuckle {
+        Some((knuckle_y, lower_deg)) => {
+            let lower = lower_deg.to_radians();
+            TaggedPlane::new(
+                Vec3::new(0.0, -lower.sin(), -lower.cos()),
+                Vec3::new(0.0, knuckle_y - cy, -hull.half_len),
+                ArmorZone::HullRear,
+            )
+        }
+        None => TaggedPlane::new(
             Vec3::new(0.0, -rear_sin, -rear_cos),
             Vec3::new(0.0, step_y, -hull.half_len),
             ArmorZone::HullRear,
         ),
-        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
-    ]);
+    };
+    planes.push(rear_plane);
     ArmorVolume { planes }
 }
 

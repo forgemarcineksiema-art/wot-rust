@@ -138,11 +138,19 @@ fn every_hatch_carries_a_coaming_a_hinge_and_a_handle() {
             .mesh()
             .bounds()
             .expect("coaming bounds");
+        // The collar RINGS the cover; the cover's crown stands above it. This used to demand
+        // `coaming.min.y <= lid.min.y` — collar at least as deep as the lid's base — and a lid is
+        // deliberately rooted DEEP into the casting so it cannot levitate. Chasing that base is
+        // what buried the cupola's and loader's collars completely (412 triangles, zero pixels).
+        // Where the collar meets the METAL is the visibility lock's business
+        // (`t54_hatch_visibility`); this test owns the collar's relation to its lid.
         assert!(
-            coaming.min.y <= lid.min.y + 1.0e-3,
-            "{hatch}: the collar is UNDER the cover it seats, {:.3} vs {:.3}",
+            coaming.min.y < lid.max.y && coaming.max.y < lid.max.y,
+            "{hatch}: the collar rings the cover and the cover crowns it, collar {:.3}..{:.3} vs \
+             lid top {:.3}",
             coaming.min.y,
-            lid.min.y
+            coaming.max.y,
+            lid.max.y
         );
         assert!(
             coaming.max.x - coaming.min.x > lid.max.x - lid.min.x,
@@ -304,6 +312,82 @@ fn the_tow_hooks_have_a_throat_and_a_catch() {
     assert!(catch.max.z > bracket.max.z, "the catch closes the mouth, which faces the bow");
 }
 
+/// And the mouth is a MOUTH: the gap in the C faces the bow, not the plate the hook is welded to.
+///
+/// The assertions above are satisfied by a hook built backwards — three keys exist and the catch
+/// is ahead of the bracket either way — and for a long time that is exactly what shipped. The
+/// sweep ran `-cos(a)`, which bulges toward +Z and leaves the 108-degree gap at -Z, facing the
+/// bracket. A shackle had nowhere to go in. This measures the ring itself: where the steel is
+/// thick, and where the air is.
+#[test]
+fn a_tow_hook_opens_toward_the_bow() {
+    let throat = part_mesh("tow_hook_throat");
+    let bounds = throat.bounds().expect("throat bounds");
+    let center_z = (bounds.min.z + bounds.max.z) * 0.5;
+    let center_y = (bounds.min.y + bounds.max.y) * 0.5;
+
+    // Where the ring HAS steel, as angles about its own centre in the YZ plane. 0 rad is +Z, the
+    // bow. A C leaves an arc empty; this finds it and asks which way it faces.
+    let mut occupied = [false; 36];
+    for v in throat.vertices() {
+        let (dy, dz) = (v.position.y - center_y, v.position.z - center_z);
+        if dy.hypot(dz) < (bounds.max.y - center_y) * 0.45 {
+            continue;
+        }
+        let bucket = (dz.atan2(dy).rem_euclid(std::f32::consts::TAU)
+            / (std::f32::consts::TAU / 36.0)) as usize;
+        occupied[bucket.min(35)] = true;
+    }
+    // The bow direction (+Z) is `atan2(dz=1, dy=0)` = PI/2, which is bucket 9.
+    let bow = 9usize;
+    let gap_at_bow = (0..3).all(|k| !occupied[(bow + 36 - 1 + k) % 36]);
+    assert!(
+        gap_at_bow,
+        "the hook's mouth does not face the bow — steel found across +Z. A hook a shackle cannot \
+         enter is a doughnut, and `catch.max.z > bracket.max.z` is satisfied either way round. \
+         Occupied sectors: {occupied:?}"
+    );
+}
+
+/// The exhaust's louvres lie ON the cowl, and nowhere near the track.
+///
+/// `louvre_slats` derived its across-axis as `n x Z`, which is right for a deck and wrong for a
+/// wall: with `n = -X` it returns +Y, so the cowl's 0.675 m of WIDTH became 0.675 m of fin
+/// standing up. Five blades grew out of a 220 mm box, through the fender, and down into the
+/// moving top run of the track — a static part inside an animated one, on the side of the tank
+/// the camera sees whenever it looks down the flank.
+#[test]
+fn the_exhaust_louvres_lie_on_their_cowl_and_clear_the_track() {
+    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let indexed = |name: &str, instance: u16| {
+        t54_description()
+            .parts
+            .iter()
+            .find(|p| p.key.name == name && p.key.instance == instance)
+            .unwrap_or_else(|| panic!("the vehicle carries {name}:{instance}"))
+            .mesh()
+    };
+    let cowl = indexed("exhaust_cover", 0).bounds().expect("cowl bounds");
+    let louvres = indexed("exhaust_cover", 1).bounds().expect("louvre bounds");
+
+    assert!(
+        louvres.min.y >= cowl.min.y - 0.01 && louvres.max.y <= cowl.max.y + 0.01,
+        "the louvres stand {:.0}..{:.0} against a cowl of {:.0}..{:.0} mm — width belongs across \
+         the face, not up it",
+        louvres.min.y * 1000.0,
+        louvres.max.y * 1000.0,
+        cowl.min.y * 1000.0,
+        cowl.max.y * 1000.0
+    );
+
+    let belt_top = blueprint.track.top_y + blueprint.track.belt_half_thickness;
+    assert!(
+        louvres.min.y > belt_top,
+        "the louvres reach {:.3} m, into the top run of the track at {belt_top:.3} m",
+        louvres.min.y
+    );
+}
+
 /// K9. A stowed cable is spliced round a thimble at each end and clamped to the plate along its
 /// run. Ours were bare tubes floating on a standoff.
 #[test]
@@ -334,5 +418,112 @@ fn the_unditching_beam_is_banded_to_its_brackets() {
         "and wrap it rather than lying under it: {:.3} vs {:.3}",
         bands.max.y,
         beam.max.y
+    );
+}
+
+/// With every bump amount at zero, `surface_point` IS `ring_point` — the equivalence the rails
+/// rely on when they read the shared family instead of the private copy this file's kit used to
+/// carry. If the two evaluations ever drift, every fitting that follows the casting drifts with
+/// whichever copy it happens to read: the exact two-curves disease the armour volume already
+/// cured for the shell itself.
+#[test]
+fn surface_point_without_bumps_is_the_bare_ring() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let visual = bp.complete_visual().expect("visual");
+    let mut bald = *visual.turret_loft;
+    bald.cheek_amount = 0.0;
+    bald.embrasure_amount = 0.0;
+    bald.window_amount = 0.0;
+    for k in 0..24 {
+        let phi = std::f32::consts::TAU * k as f32 / 24.0;
+        for y in [1.62_f32, 1.71, 1.90, 2.10] {
+            let ring = bald.ring_point(y, phi, 0.004);
+            let surface = bald.surface_point(y, phi, 0.004);
+            assert!(
+                (ring - surface).length() < 1.0e-5,
+                "bald surface departs its own ring at y {y} phi {phi}: {ring:?} vs {surface:?}"
+            );
+        }
+    }
+}
+
+/// THE MOULD LINE LIES ON THE CASTING — measured against the built shell, not against the curve
+/// family the path was drawn from. At y 1.95 off the bare family the seam sat 20 cm above the
+/// widest band (a mould split above its widest section cannot open), buried under the face
+/// plateau's +49 mm and hanging over the gun window's -71 mm. Every prior assertion about it
+/// measured spans, which a buried loop satisfies.
+#[test]
+fn the_mould_line_lies_on_the_casting() {
+    let description = t54_description();
+    let shell =
+        description.parts.iter().find(|p| p.key.name == "turret_shell").expect("shell").mesh();
+    let samples: Vec<(f32, f32, f32)> = shell
+        .vertices()
+        .iter()
+        .map(|v| (v.position.y, v.position.z.atan2(v.position.x), v.position.x.hypot(v.position.z)))
+        .collect();
+    // The shell's radius near (y, az) as a RANGE, not a single nearest vertex. At the gun
+    // window's wall the radius drops 0.1 m over 0.03 rad, and a nearest-vertex sampler on that
+    // cliff picks whichever side happens to be closer — which is how the first draft reported
+    // the seam floating 92 mm at the recess wall while the seam was exactly on the metal. The
+    // float check compares against the window's OUTERMOST metal and the burial check against
+    // its innermost: each conservative in its own direction, neither confused by the cliff.
+    let shell_radius_range = |y: f32, az: f32| {
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        let mut window = 0.05_f32;
+        while hi < lo {
+            for &(sy, saz, sr) in &samples {
+                let mut daz = (saz - az).abs();
+                if daz > std::f32::consts::PI {
+                    daz = std::f32::consts::TAU - daz;
+                }
+                if (sy - y).abs() < window && daz < window {
+                    lo = lo.min(sr);
+                    hi = hi.max(sr);
+                }
+            }
+            window *= 2.0;
+        }
+        (lo, hi)
+    };
+
+    let seam = description
+        .parts
+        .iter()
+        .find(|p| p.key.name == "turret_casting_seam")
+        .expect("the cast turret carries its mould line")
+        .mesh();
+    let (mut min_proud, mut max_proud, mut y_sum, mut n) = (f32::MAX, f32::MIN, 0.0_f32, 0usize);
+    let (mut at_max, mut at_min) = (glam::Vec3::ZERO, glam::Vec3::ZERO);
+    for v in seam.vertices() {
+        let az = v.position.z.atan2(v.position.x);
+        let (inner, outer) = shell_radius_range(v.position.y, az);
+        let radius = v.position.x.hypot(v.position.z);
+        if radius - outer > max_proud {
+            max_proud = radius - outer;
+            at_max = v.position;
+        }
+        if radius - inner < min_proud {
+            min_proud = radius - inner;
+            at_min = v.position;
+        }
+        y_sum += v.position.y;
+        n += 1;
+    }
+    let y_mean = y_sum / n as f32;
+    assert!(
+        (1.64..=1.78).contains(&y_mean),
+        "the mould parts at the casting's widest band: seam rides y {y_mean:.3}"
+    );
+    assert!(
+        max_proud < 0.030,
+        "the seam floats {max_proud:.3} m off the metal at {at_max:?} — a mould line hangs on the casting, \
+         not in the air beside it"
+    );
+    assert!(
+        min_proud > -0.020,
+        "the seam sinks {min_proud:.3} m into the metal at {at_min:?} — a buried bead is triangles rendering \
+         the inside of a casting"
     );
 }

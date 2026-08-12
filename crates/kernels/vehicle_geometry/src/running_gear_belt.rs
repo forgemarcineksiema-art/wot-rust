@@ -79,7 +79,14 @@ impl BeltPath {
     /// As [`Self::new`], with an explicit top-run sag: the render scales it with drive state
     /// (a driven track pulls its top run tight; braking or coasting lets it hang).
     pub(crate) fn with_sag(kin: &RunningGearKinematics, top_sag: f32) -> Self {
-        Self::build(kin, top_sag.clamp(0.0, 0.12))
+        // The ceiling is for a DEAD SLACK track, not for a healthy one: the render multiplies the
+        // authored sag by up to 2.2 when a side loses its tension. At 0.12 that ceiling started
+        // biting the moment the T-54's own sag went to the depth its drawings show (0.075 x 2.2 =
+        // 0.165), which squeezed the slack side back up against the taut one until the two were
+        // 19 mm apart and a thrown track stopped reading as thrown. Raised to clear the scaled
+        // range. Vehicles with interleaved wheels sit at 0.035 and never reached the old ceiling,
+        // so nothing else moves.
+        Self::build(kin, top_sag.clamp(0.0, 0.20))
     }
 
     fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {

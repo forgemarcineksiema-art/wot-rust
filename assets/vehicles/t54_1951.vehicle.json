@@ -15,6 +15,11 @@
     "turret_side_mm": 160.0,
     "turret_rear_mm": 65.0,
     "turret_roof_mm": 30.0,
+    "lower_front": {
+      "nominal_thickness_mm": 100.0,
+      "slope_degrees": 55.0,
+      "weakspot_multiplier": 1.1
+    },
     "facets": {
       "hull_front": {
         "nominal_thickness_mm": 100.0,
@@ -28,7 +33,7 @@
       },
       "hull_rear": {
         "nominal_thickness_mm": 45.0,
-        "slope_degrees": 5.0,
+        "slope_degrees": 17.0,
         "weakspot_multiplier": 1.0
       },
       "turret_front": {
@@ -124,7 +129,7 @@
           "Obb": {
             "center": [
               0.0,
-              0.82,
+              0.59,
               0.58
             ],
             "half_extents": [
@@ -149,7 +154,7 @@
           "Cylinder": {
             "center": [
               -0.25,
-              0.98,
+              0.65999997,
               0.42
             ],
             "axis": [
@@ -175,7 +180,7 @@
           "Cylinder": {
             "center": [
               0.25,
-              0.98,
+              0.65999997,
               0.42
             ],
             "axis": [
@@ -226,9 +231,9 @@
         "shape": {
           "Obb": {
             "center": [
-              -0.64,
+              -0.48,
               0.38,
-              0.8
+              0.68
             ],
             "half_extents": [
               0.27,
@@ -252,12 +257,12 @@
           "Obb": {
             "center": [
               0.0,
-              0.86,
-              -0.62
+              0.74,
+              -0.55
             ],
             "half_extents": [
               0.36,
-              0.26,
+              0.22,
               0.12
             ],
             "yaw_rad": 0.0
@@ -402,13 +407,13 @@
           "Obb": {
             "center": [
               0.0,
-              -0.02,
-              -2.65
+              0.02,
+              -2.51
             ],
             "half_extents": [
               0.68,
-              0.42,
-              0.3
+              0.36,
+              0.25
             ],
             "yaw_rad": 0.0
           }

@@ -42,7 +42,11 @@ fn the_interior_lives_inside_the_hull_walls_the_blueprint_authors() {
             }
             continue;
         }
-        // The turret's own interior answers to the casting, via its skin and basket tests.
+        // The turret's own interior answers to the casting — in `t54_turret_containment`, which
+        // measures every turret-frame vertex against the finished dome. This claim used to name
+        // "its skin and basket tests", which check the skin's bounds and normals and never look
+        // at what lives inside it; on the strength of that sentence four assemblies walked out
+        // through the armour (2026-08-10 audit). Name the lock, not a hope.
         if part.key.name == "turret_inner_skin" {
             continue;
         }
@@ -59,7 +63,10 @@ fn the_interior_lives_inside_the_hull_walls_the_blueprint_authors() {
             continue;
         }
         if let Some(b) = mesh.bounds() {
-            // Judge what lives between the hull walls; turret-carried interior sits above 1.58.
+            // Judge what lives between the hull walls; turret-carried interior sits above 1.58
+            // and is judged against the CASTING by `t54_turret_containment`. Measuring it here
+            // would ask the wrong question anyway: `wall_inner` is the hull's side plate, and a
+            // radio panel 0.91 out passes that while standing clear outside the dome.
             if b.min.y > 1.58 {
                 continue;
             }

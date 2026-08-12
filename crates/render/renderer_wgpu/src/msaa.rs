@@ -5,18 +5,21 @@ use crate::GpuContext;
 /// The sample count REVIEW images are rendered at: golden look frames, studio tiles, and every
 /// `*_probe` that produces a picture for a human to judge.
 ///
-/// This is NOT what the game renders. The window resolves to 1x on every adapter
-/// ([`resolve_msaa_samples`]), so a review frame is multisampled 4x while the shipped frame is
-/// not. That divergence is a KNOWN DEBT, deliberately held here rather than fixed by flipping
-/// the goldens: re-recording 24 committed frames is an art-direction decision, and it needs the
-/// measured 1x-versus-4x cost per pass before anyone can take it. Until then the debt is at
-/// least named, and it is pinned by
-/// `the_review_path_is_pinned_and_does_not_claim_to_be_the_shipped_game`.
-///
-/// Anything that MEASURES the game — frame-time probes — must use [`shipped_sample_count`]
-/// instead, so the instrument and the thing it measures are the same picture.
+/// THE SAME COUNT THE GAME SHIPS. It was 4x for the review path against 1x on every player's
+/// screen — a named debt, held until re-recording the goldens was taken as a decision. It was
+/// taken (2026-08-11): an instrument that renders a cleaner picture than the player ever sees
+/// grades every model, every material and every lighting change on evidence the game does not
+/// produce. Every visual judgement made through this path — including the audits that shaped
+/// the T-54 — was made on the flattering copy. The goldens are re-recorded at the shipped
+/// count in the same change, and the divergence pin
+/// (`the_review_path_is_pinned_and_does_not_claim_to_be_the_shipped_game`) is retired on its
+/// own instruction.
 pub(crate) fn review_sample_count() -> u32 {
-    u32::from(DEFAULT_MSAA_SAMPLES)
+    resolve_msaa_samples(
+        DEFAULT_MSAA_SAMPLES,
+        rich_profile_requested(),
+        std::env::var("WOT_MSAA").ok().as_deref(),
+    )
 }
 
 /// The sample count the SHIPPED game resolves to, read through the same two knobs the window
@@ -97,24 +100,21 @@ mod tests {
 
     use super::{resolve_msaa_samples, review_sample_count};
 
-    /// The review path is multisampled and the shipped game is not — the divergence that made
-    /// every frame-time number this project has quoted describe a picture nobody plays, and made
-    /// every golden PNG a cleaner image than the one on screen.
-    ///
-    /// Both numbers are written down here so the gap is a decision with a size, not a surprise
-    /// waiting to be found a third time. When the goldens move to the shipped count, this test
-    /// fails on its own `assert_ne!` — that is the signal to delete it together with the debt
-    /// note on [`review_sample_count`].
+    /// THE INSTRUMENT AND THE GAME ARE THE SAME PICTURE. This replaces the divergence pin that
+    /// held the 4x-review / 1x-shipped gap as a named debt: the debt was paid on 2026-08-11 and
+    /// that test retired on its own instruction. What stays locked is the agreement — a review
+    /// path that quietly drifts back to a cleaner sample count than the player's screen makes
+    /// every golden and every audit describe a picture nobody plays.
     #[test]
-    fn the_review_path_is_pinned_and_does_not_claim_to_be_the_shipped_game() {
+    fn the_review_path_renders_the_picture_the_game_ships() {
         let shipped = resolve_msaa_samples(DEFAULT_MSAA_SAMPLES, false, None);
-        assert_eq!(review_sample_count(), 4, "review images stay multisampled for now");
         assert_eq!(shipped, 1, "the shipped window is 1x on every adapter");
-        assert_ne!(
-            review_sample_count(),
-            shipped,
-            "the review path and the game agree now — retire this test and the debt it names"
-        );
+        // The review path resolves through the same knobs, so absent dev overrides it must land
+        // on the shipped count. (Under WOT_QUALITY=high / WOT_MSAA both move together, which is
+        // exactly the point: one resolution, one picture.)
+        if std::env::var("WOT_QUALITY").is_err() && std::env::var("WOT_MSAA").is_err() {
+            assert_eq!(review_sample_count(), shipped, "goldens grade what the player sees");
+        }
     }
 
     /// One-look policy: the shipped picture is 1× on EVERY adapter; only the dev-only rich

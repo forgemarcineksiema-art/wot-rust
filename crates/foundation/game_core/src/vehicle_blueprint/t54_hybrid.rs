@@ -28,7 +28,6 @@ use super::{
 /// the blueprint states how proud the drum stands (`cupola_height`), not how deep it roots.
 const CUPOLA_HALF_HEIGHT_M: f32 = 0.18;
 const GLACIS_SETBACK_M: f32 = 0.05;
-const NOSE_SETBACK_M: f32 = 0.48;
 /// How far the engine deck's rear edge stops short of the rear plate.
 const DECK_REAR_GAP_M: f32 = 0.20;
 /// How far each fender run stops short of the hull's end plates.
@@ -66,7 +65,25 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     // `half_len` or the glacis angle the drift would have become visible instead of merely
     // measurable. They are derived here, from the same armour rake the plate is built at.
     let glacis_base_z = hull.half_len - GLACIS_SETBACK_M;
-    let nose_base_z = hull.half_len - NOSE_SETBACK_M;
+    // Where the stern's upper plate leaves the deck line — the deck's rear edge. With no
+    // knuckle the old hand's-width gap stands.
+    let deck_rear_gap = match file.armor.hull_rear_knuckle {
+        Some((knuckle_y, _)) => {
+            (hull.deck_y - knuckle_y) * file.armor.hull_rear.0.to_radians().tan()
+        }
+        None => DECK_REAR_GAP_M,
+    };
+    // The nose fold-to-belly run is DERIVED from the armour's authored plate angle - one number
+    // for the plate a player sees and the plane a shell meets. It was `half_len - 0.48`, an
+    // authored setback that worked out to 36.8 degrees under a dossier that says 55 and an
+    // armour derivation that played 27: three descriptions of one plate, all different.
+    let lower_deg = file
+        .armor
+        .hull_lower_front
+        .map(|(deg, _)| deg)
+        .expect("the T-54 blueprint authors its lower front plate");
+    let nose_base_z =
+        glacis_base_z - lower_deg.to_radians().tan() * (hull.sponson_y - hull.belly_y);
     let (sin_rake, cos_rake) = armor.hull_front.0.to_radians().sin_cos();
     let glacis_offset = sin_rake * hull.sponson_y + cos_rake * glacis_base_z;
     // The lower nose runs from the fold down to the belly front; its normal is the perpendicular
@@ -186,11 +203,14 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             muzzle_brake: None,
             module_delta_scale: 0.65,
         }),
-        // The engine deck runs from behind the turret ring back to a hand's width off the rear
-        // plate: its REAR edge belongs to the stern, its front edge to the fighting compartment.
+        // The engine deck runs from behind the turret ring back to the stern's top edge: its
+        // REAR edge belongs to the stern — where the authored knuckle folds the tail, the deck
+        // ends where the 17-degree upper plate leaves the roofline, derived from the same
+        // armour fields the plate is built at (a typed gap would have parted from the metal the
+        // moment the stern angle moved).
         deck: Some(BoxVisual {
-            center: Vec3::new(0.0, 1.53, (-hull.half_len + DECK_REAR_GAP_M - 0.80) * 0.5),
-            half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + DECK_REAR_GAP_M).abs() * 0.5),
+            center: Vec3::new(0.0, 1.53, (-hull.half_len + deck_rear_gap - 0.80) * 0.5),
+            half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + deck_rear_gap).abs() * 0.5),
         }),
         // The fender shelf rides over the 1.03..1.61 track band at 1.12 — the primary kit line of
         // the vehicle (stowage, fuel tanks and the exhaust all live on it), with sloping end

@@ -15,12 +15,32 @@ const SG_WHEEL: SmoothingGroup = SmoothingGroup(5);
 /// rim ring under the tyre and the proud hub cap; the FACE between them is what tells the
 /// vehicles apart, and each is its own construction rather than one mesh with a parameter.
 pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    match kin.wheel_face {
+    let wheel = match kin.wheel_face {
         game_core::WheelFace::Openwork => openwork_wheel(kin),
         game_core::WheelFace::SteelDish => dished_wheel(kin, false),
         game_core::WheelFace::RubberDish => dished_wheel(kin, true),
         game_core::WheelFace::SpiderWeb => spider_web_wheel(kin),
+    };
+    paint_the_disc(wheel)
+}
+
+/// A ROAD WHEEL IS PAINTED WITH THE TANK. Only its tyres are black.
+///
+/// Every disc was built in `TrackMetal` — the same value as the track links running over it — so
+/// the whole running gear read as one dark mass and the construction inside it went to waste: on
+/// the T-54 that is two solid bands, twelve ribs, ten hub bolts and a dished stamping, all of it
+/// invisible against a belt of the same colour. Every reference photograph of every vehicle in
+/// this roster shows the opposite: discs in hull paint, rubber black, track a third value again.
+///
+/// Sprockets and idlers keep their steel. They are the ends the belt is dragged over, they wear
+/// bright, and photographs agree with the model there.
+fn paint_the_disc(mut wheel: GeometryMesh) -> GeometryMesh {
+    for vertex in wheel.vertices_mut() {
+        if vertex.material == MaterialRole::TrackMetal {
+            vertex.material = MaterialRole::RolledArmor;
+        }
     }
+    wheel
 }
 
 /// The Soviet post-war **"spider-web"** road wheel: a stamped disc lightened by TWO concentric

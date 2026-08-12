@@ -158,8 +158,17 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     // dimensional register, M9/PR-18. Faking the count here would only hide it.)
     let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0) as usize;
 
+    // THE DISC REACHES ITS RINGS. It used to stop at 0.62 of the radius and at the road wheel's
+    // half-width, which on the T-54 is x 0.18 and r 0.165 — while the toothed rings sit at x
+    // 0.262 with an inner radius of 0.181. Nothing touched anything: 82 mm of air along the axle,
+    // 16 mm across it, and forty bolts hanging in the gap between. The bounds test that covered
+    // this asked how big the wheel was, not what was joined to what.
+    //
+    // Widened to carry them: the rings now land on the disc's rim and the bolts pass through
+    // both. Same segment count, so the same triangles — a sprocket is a plate with rings bolted
+    // to its edge, and it costs nothing to say so.
     let mut builder = MeshBuilder::new()
-        .append(&wheel_disc_at(0.0, r * 0.62, half_w, seg, MaterialRole::TrackMetal))
+        .append(&wheel_disc_at(0.0, r * 0.70, ring_x, seg, MaterialRole::TrackMetal))
         .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal));
     for side in [-1.0_f32, 1.0] {
         let center_x = side * ring_x;
@@ -181,13 +190,18 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         // for a number nobody had looked up.)
         // Sub-pixel at the switch range, exactly like the shoe detail: a 32 mm bolt head on a
         // wheel 60 m away is not a thing anyone can see, and there are forty of them per tank.
+        // ON the ring, through into the disc behind it — a fastener that holds two things
+        // together has to touch both. These sat at 0.50 of the radius, inboard of the ring's own
+        // inner edge (0.68) and outboard of the disc that ended at 0.62: a bolt circle fixing
+        // nothing, in mid-air, which is the "dominant visual feature of the disc" the dossier
+        // describes.
         for i in 0..(if kin.detail == crate::GearDetail::Near { RING_BOLTS } else { 0 }) {
             let angle = (i as f32 / RING_BOLTS as f32) * std::f32::consts::TAU;
             let (sin, cos) = angle.sin_cos();
             builder = builder.append(&ring_bolt(Vec3::new(
-                center_x - side * 0.014,
-                sin * r * 0.50,
-                cos * r * 0.50,
+                center_x + side * 0.008,
+                sin * r * 0.76,
+                cos * r * 0.76,
             )));
         }
     }

@@ -133,6 +133,27 @@ fn bottom_travel(kin: &RunningGearKinematics, travel: &[f32], z: f32) -> f32 {
     0.0
 }
 
+/// WHICH WAY A WHEEL FACES, plus its own spin.
+///
+/// A road wheel is not symmetric about its axle: the disc is DISHED, the hub cap stands proud on
+/// one face and the bolt circle is on that same face. Both sides were placed with a plain
+/// translation, so the left-hand wheels showed the flat inboard back of the stamping to the world
+/// and pointed their hub bolts at the hull — as did the idler tensioner crank and the torsion-bar
+/// hub. Half of every side view of every vehicle in the roster was the wrong side of the wheel.
+///
+/// The turn is 180 degrees about Y rather than a mirror. A wheel is a solid of revolution about
+/// X, so for its shape the two are identical — but a mirror has a negative determinant and would
+/// flip the winding of every triangle, which needs either a second unit mesh or a second cull
+/// state. A rotation costs neither. The spin is negated to compensate: the tank drives forward,
+/// so both belts must run the same way in the world.
+fn facing(side_sign: f32, spin: f32) -> Mat4 {
+    if side_sign < 0.0 {
+        Mat4::from_rotation_y(std::f32::consts::PI) * Mat4::from_rotation_x(-spin)
+    } else {
+        Mat4::from_rotation_x(spin)
+    }
+}
+
 fn place_side(
     kin: &RunningGearKinematics,
     side_sign: f32,
@@ -152,15 +173,18 @@ fn place_side(
         out.push(GearPlacement {
             part: GearPart::RoadWheel,
             transform: Mat4::from_translation(Vec3::new(side_sign * wheel_x, y, z))
-                * Mat4::from_rotation_x(wheel_spin),
+                * facing(side_sign, wheel_spin),
         });
         // One authored axle produces one visible wheel unit. Alternating axles form the two
         // overlapping planes. A previous presentation-only duplicate put every even axle on a
         // THIRD, deeper plane; that invented row crossed the blueprint's lower hull side on the
         // Tiger II, Jagdtiger and Panther II and visibly disappeared into the tub.
     }
+    // The left side instances the MIRRORED arm mesh: the torsion boss must face the hull on both
+    // sides, and an arm is the one gear part a rotation cannot turn around (see `SwingArmLeft`).
+    let arm_part = if side_sign < 0.0 { GearPart::SwingArmLeft } else { GearPart::SwingArm };
     for transform in crate::running_gear_arms::suspension_transforms(kin, side_sign, travel) {
-        out.push(GearPlacement { part: GearPart::SwingArm, transform });
+        out.push(GearPlacement { part: arm_part, transform });
     }
 
     // Return rollers carry the taut top run and spin with the belt passing over them.
@@ -169,7 +193,7 @@ fn place_side(
         out.push(GearPlacement {
             part: GearPart::ReturnRoller,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.roller_y, z))
-                * Mat4::from_rotation_x(roller_spin),
+                * facing(side_sign, roller_spin),
         });
     }
 
@@ -183,7 +207,7 @@ fn place_side(
         out.push(GearPlacement {
             part,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.end_cy, z))
-                * Mat4::from_rotation_x(end_spin),
+                * facing(side_sign, end_spin),
         });
     }
 

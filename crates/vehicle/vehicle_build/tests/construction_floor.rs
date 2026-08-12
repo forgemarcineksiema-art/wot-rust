@@ -20,21 +20,16 @@
 use std::collections::BTreeMap;
 
 use glam::Vec3;
-use vehicle_geometry::MaterialRole;
 
 /// A box presents six planes; a chamfered box presents about fourteen. Under ten planes a part is
 /// a box, at most with a corner knocked off it.
 const BOX_PLANES: usize = 10;
 
+mod common;
 /// Roles that are only ever seen through a breach. The floor is about what the vehicle presents
-/// to the world, so these are out of scope — and derived from the material rather than from a
-/// name list, so a new interior part classifies itself.
-fn is_interior(role: MaterialRole) -> bool {
-    matches!(
-        role,
-        MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition
-    )
-}
+/// to the world, so these are out of scope. Shared with `t54_turret_containment`, which judges
+/// exactly the parts this test excuses — one predicate, so a role cannot fall between them.
+use common::is_interior;
 
 /// Exterior parts for which a box is the RIGHT answer, and why. Rolled armour really is flat
 /// plate; bar stock really is a prism. Building either as anything else would be the mistake.
@@ -47,6 +42,19 @@ const PLATES_AND_BARS: &[(&str, &str)] = &[
     ("deck_weld_bead", "a weld bead is a raised bar, not a body"),
     ("hull_plate_seam", "the same, along the plate joint"),
     ("fender_bracket", "an L-bracket is bar stock cut and bent"),
+    (
+        "fender_flap_rib",
+        "a pressed stiffening bead on the tail flap is a raised bar riding the slope face — the \
+         press leaves a straight-sided ridge, and three of them are the reference rear view's \
+         read of the flap",
+    ),
+    (
+        "turret_aerial",
+        "a whip aerial IS a tapered rod — 28 mm at the ferrule down to 8 mm at the tip, which is \
+         one to two pixels at any range this vehicle is looked at. Eight sides is already more \
+         than the roundness law asks of that radius (five); rounder would be triangles spent \
+         below the pixel.",
+    ),
 ];
 
 /// Exterior parts that present a box and SHOULD NOT — the audit's measured findings, executable.
