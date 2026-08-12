@@ -95,6 +95,36 @@ fn the_mudguards_arch_over_the_end_wheels() {
     }
 }
 
+/// The lever shock absorbers ride the DAMPED stations (blueprint `damper_stations` — the
+/// T-54's 1st and 5th wheels): one per damped wheel per side, anchored above the arm pivot
+/// with the lever reaching for the axle line. They are ANIMATED gear, not hull furniture,
+/// because a damper spans hull to MOVING axle — the constraint `suspension_furniture` has
+/// documented since it declined to fake them statically. Un-authored vehicles draw none.
+#[test]
+fn the_dampers_ride_the_damped_stations() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    let dampers: Vec<_> = placements
+        .iter()
+        .filter(|p| matches!(p.part, GearPart::Damper | GearPart::DamperLeft))
+        .collect();
+    assert_eq!(dampers.len(), 4, "two damped stations per side");
+    for p in &dampers {
+        let w = p.transform.w_axis.truncate();
+        let near_station = kin
+            .damper_stations
+            .iter()
+            .filter_map(|&s| kin.wheel_zs.get(s))
+            .any(|&z| (w.z - (z + kin.arm_reach + 0.15)).abs() < 0.02);
+        assert!(near_station, "a damper anchors at a damped station, got z {:.3}", w.z);
+        assert!(w.y > kin.cy + kin.arm_rise + 0.05, "anchored above the arm pivot: y {:.3}", w.y);
+        assert!(
+            (w.x < 0.0) == matches!(p.part, GearPart::DamperLeft),
+            "the -X flank instances the mirrored damper, like the arms"
+        );
+    }
+}
+
 /// The pivot-boss row sits ON the arm pivots: ten bosses, each on the same axle the animated
 /// arm swings about — one source (`wheel_stations` + `arm_reach`/`arm_rise`), two readers, and
 /// this lock holding them to one another. Bare tub wall between the wheels was the tell that

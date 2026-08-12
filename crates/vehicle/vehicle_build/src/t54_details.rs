@@ -666,8 +666,9 @@ fn exhaust_cowl(d: &DetailVisual) -> Vec<VehiclePart> {
 /// (`wheel_stations` + `arm_reach`/`arm_rise` + `axle_y`), so a suspension retune carries the
 /// furniture with it — `the_pivot_bosses_sit_on_the_arm_pivots` holds the two to one another.
 /// (The lever shock absorbers at stations 1 and 5 are deliberately NOT here: they span from
-/// the hull to the MOVING axle, so they belong to the animated gear pass, not to static
-/// furniture that would tear off the arm at full jounce.)
+/// the hull to the MOVING axle, so they live in the animated gear — `GearPart::Damper`,
+/// placed from the blueprint's `damper_stations` and riding the same live travel as the arms —
+/// rather than as static furniture that would tear off the arm at full jounce.)
 fn suspension_furniture(track: &game_core::TrackShape) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     let pivot_y = track.axle_y() + track.arm_rise();

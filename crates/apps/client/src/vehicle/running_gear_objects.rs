@@ -23,6 +23,9 @@ pub(crate) struct GearMeshSet {
     /// sides and an arm is the one gear part a rotation cannot turn around.
     pub swing_arm_left: MeshHandle,
     pub return_roller: MeshHandle,
+    /// The lever shock absorbers at the blueprint's damped stations (and the left mirror).
+    pub damper: MeshHandle,
+    pub damper_left: MeshHandle,
 }
 
 /// Both detail tiers of one vehicle's running gear, registered once at load.
@@ -93,6 +96,8 @@ pub(crate) fn gear_objects_from(
                 GearPart::Link => set.link,
                 GearPart::SwingArm => set.swing_arm,
                 GearPart::SwingArmLeft => set.swing_arm_left,
+                GearPart::Damper => set.damper,
+                GearPart::DamperLeft => set.damper_left,
                 GearPart::ReturnRoller => set.return_roller,
             };
             RenderObject {

@@ -187,6 +187,14 @@ fn place_side(
         out.push(GearPlacement { part: arm_part, transform });
     }
 
+    // The lever shock absorbers at the blueprint's damped stations (the T-54's 1st and 5th
+    // wheels): hull-anchored bodies whose levers ride the same live travel as the arms. A
+    // vehicle that authors no damped stations draws none — absent beats invented.
+    let damper_part = if side_sign < 0.0 { GearPart::DamperLeft } else { GearPart::Damper };
+    for transform in crate::running_gear_arms::damper_transforms(kin, side_sign, travel) {
+        out.push(GearPlacement { part: damper_part, transform });
+    }
+
     // Return rollers carry the taut top run and spin with the belt passing over them.
     let roller_spin = phase / kin.roller_radius.max(0.05);
     for &z in &kin.roller_zs {

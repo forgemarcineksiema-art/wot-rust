@@ -72,6 +72,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             outer_x: 1.87,
             segments: 14,
             wheel_stations: None,
+            damper_stations: &[],
             return_rollers: 0,
             roller_radius: 0.0,
             overlap_inner_dx: 0.20,

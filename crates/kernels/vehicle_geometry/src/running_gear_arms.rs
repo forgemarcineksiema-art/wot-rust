@@ -189,6 +189,71 @@ fn horstmann_bogie_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .build()
 }
 
+/// The lever shock absorber at a damped station: the hydraulic body on its shaft at the origin,
+/// the forged lever falling to the link pin near the axle line. Authored like the arm — hull
+/// anchor at the origin — and CHIRAL like it (the body stands proud inboard toward its hull
+/// bracket), so the left flank instances [`damper_unit_mesh_left`].
+///
+/// This is the part `t54_details::suspension_furniture` explicitly declined to fake statically:
+/// a damper spans hull to MOVING axle, so it belongs here, riding the same live travel the arm
+/// swings on.
+pub fn damper_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    let seg = kin.segments_for(12);
+    // The lever toe: down to the axle line, trailing over the wheel's rim.
+    let tip = Vec2::new(-(kin.arm_rise + 0.11), -0.16);
+    let along = tip.normalize_or_zero();
+    let across = Vec2::new(-along.y, along.x);
+    let lever = vec![-across * 0.026, across * 0.026, tip + across * 0.018, tip - across * 0.018];
+    let mut builder = MeshBuilder::new().append(
+        &MeshBuilder::new()
+            .extrude(
+                Vec3::ZERO,
+                ExtrudeSpec {
+                    section: lever,
+                    axis: Axis::X,
+                    half_depth: ARM_HALF_X * 0.5,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_HARD,
+                },
+            )
+            .build(),
+    );
+    // The hydraulic body: a squat drum on the shaft, proud INBOARD toward the hull bracket.
+    builder =
+        builder.append(&stub(Vec3::new(-ARM_HALF_X * 0.8, 0.0, 0.0), 0.074, ARM_HALF_X * 1.7, seg));
+    if kin.detail == crate::GearDetail::Near {
+        // The link pin at the lever's toe — the joint that makes "this connects" legible.
+        builder = builder.append(&stub(Vec3::new(0.0, tip.x, tip.y), 0.032, ARM_HALF_X * 1.3, seg));
+    }
+    builder.build()
+}
+
+/// The left-hand damper: mirrored geometry, winding re-reversed (see [`swing_arm_unit_mesh_left`]).
+pub fn damper_unit_mesh_left(kin: &RunningGearKinematics) -> GeometryMesh {
+    mirror_x(&damper_unit_mesh(kin))
+}
+
+/// Damper placements for one side: anchored above-and-ahead of each damped station's axle, the
+/// lever pivoting with that wheel's live travel at half amplitude (a damper lever's stroke is
+/// shorter than the arm's swing).
+pub(crate) fn damper_transforms(
+    kin: &RunningGearKinematics,
+    side_sign: f32,
+    travel: &[f32],
+) -> Vec<Mat4> {
+    let travel_at = |index: usize| travel.get(index).copied().unwrap_or(0.0).clamp(-0.08, 0.20);
+    kin.damper_stations
+        .iter()
+        .filter_map(|&station| kin.wheel_zs.get(station).map(|&z| (station, z)))
+        .map(|(station, z)| {
+            let x = side_sign * (kin.wheel_x - kin.wheel_half_width - ARM_HALF_X);
+            let anchor = Vec3::new(x, kin.cy + kin.arm_rise + 0.13, z + kin.arm_reach + 0.15);
+            let swing = (travel_at(station) * 0.5 / kin.arm_reach).clamp(-1.0, 1.0).asin();
+            Mat4::from_translation(anchor) * Mat4::from_rotation_x(swing)
+        })
+        .collect()
+}
+
 /// A short capped cylinder along the axle axis: the pivot boss / axle stub.
 fn stub(center: Vec3, radius: f32, half_width: f32, segments: usize) -> GeometryMesh {
     MeshBuilder::new()

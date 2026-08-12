@@ -104,9 +104,10 @@ fn gear_object_name(part: GearPart, side: f32) -> String {
         // One outliner group either side: the left arm is the same assembly mirrored, and
         // the side suffix below already tells the two apart.
         GearPart::SwingArm | GearPart::SwingArmLeft => "SwingArms",
+        GearPart::Damper | GearPart::DamperLeft => "Dampers",
         GearPart::ReturnRoller => "ReturnRollers",
     };
-    // Side by the world convention (+X is the vehicle's right) so an inspector can check the
+    // Side by the world convention (+X is the vehicle's PORT side) so an inspector can check the
     // asymmetric fittings against a photograph without guessing which belt is which.
     format!("{base}_{}", if side >= 0.0 { "R" } else { "L" })
 }
@@ -202,6 +203,8 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
         let link = track_link_unit_mesh(&kin);
         let swing_arm = swing_arm_unit_mesh(&kin);
         let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(&kin);
+        let damper = vehicle_geometry::damper_unit_mesh(&kin);
+        let damper_left = vehicle_geometry::damper_unit_mesh_left(&kin);
         let return_roller = return_roller_unit_mesh(&kin);
         // Group instances per part and side so the outliner reads like the real assembly.
         let mut groups: Vec<(String, Vec<(&GeometryMesh, Mat4)>)> = Vec::new();
@@ -213,6 +216,8 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
                 GearPart::Link => &link,
                 GearPart::SwingArm => &swing_arm,
                 GearPart::SwingArmLeft => &swing_arm_left,
+                GearPart::Damper => &damper,
+                GearPart::DamperLeft => &damper_left,
                 GearPart::ReturnRoller => &return_roller,
             };
             let name = gear_object_name(placement.part, placement.transform.w_axis.x);

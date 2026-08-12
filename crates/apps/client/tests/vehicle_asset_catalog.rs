@@ -5,24 +5,25 @@ use vehicle_forge::{BakeProfile, ForgeArtifact, bake_production_vehicle};
 use vehicle_geometry::{RunningGearKinematics, SubmeshKind};
 
 /// Render objects for one T-54: hull/turret/gun plus the animated running-gear instances (road
-/// wheels and their swing arms both sides, two end wheels per side, and the belt links).
+/// wheels and their swing arms both sides, two end wheels per side, the belt links, and the
+/// lever dampers at the blueprint's damped stations).
 fn t54_object_count() -> usize {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
-    3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
+    3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2 + kin.damper_stations.len() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus seven unit gear meshes (road
-/// wheel, swing arm, its mirrored LEFT arm, sprocket, idler, track link, return roller) at EACH
-/// of the two detail tiers.
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus nine unit gear meshes (road
+/// wheel, swing arm, its mirrored LEFT arm, damper and ITS mirror, sprocket, idler, track link,
+/// return roller) at EACH of the two detail tiers.
 ///
-/// The second set is what the distance tier costs, and it is worth stating plainly: seven extra
+/// The second set is what the distance tier costs, and it is worth stating plainly: nine extra
 /// unit meshes per vehicle kind, resident for the battle, in exchange for 47-61% of the gear's
 /// triangles on every tank past 60 m. The gear is the largest body of geometry a vehicle has
 /// (38.6k triangles on a T-54, more than twice its whole static bake), so the trade is not
-/// close. The seventh is the left-hand arm: an arm is the one gear part a rotation cannot turn
-/// to face the other side of the tank, so its mirror is real geometry — one more resident mesh,
+/// close. Two of the nine are mirrored left-hand geometry (arm, damper): those parts cannot be
+/// turned to face the other flank, so each mirror is real geometry — resident meshes,
 /// zero more instances or drawn triangles.
-const BLUEPRINT_MESH_COUNT: usize = 3 + 7 * 2;
+const BLUEPRINT_MESH_COUNT: usize = 3 + 9 * 2;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {

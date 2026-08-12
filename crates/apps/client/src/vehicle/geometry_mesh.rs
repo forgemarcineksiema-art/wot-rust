@@ -78,6 +78,8 @@ fn append_running_gear(
     let road_wheel = road_wheel_unit_mesh(kin);
     let swing_arm = swing_arm_unit_mesh(kin);
     let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(kin);
+    let damper = vehicle_geometry::damper_unit_mesh(kin);
+    let damper_left = vehicle_geometry::damper_unit_mesh_left(kin);
     let idler = idler_unit_mesh(kin);
     let sprocket = sprocket_unit_mesh(kin);
     let link = track_link_unit_mesh(kin);
@@ -91,6 +93,8 @@ fn append_running_gear(
             GearPart::Link => &link,
             GearPart::SwingArm => &swing_arm,
             GearPart::SwingArmLeft => &swing_arm_left,
+            GearPart::Damper => &damper,
+            GearPart::DamperLeft => &damper_left,
             GearPart::ReturnRoller => &return_roller,
         };
         let normal_basis = hull_basis * Mat3::from_mat4(placement.transform);

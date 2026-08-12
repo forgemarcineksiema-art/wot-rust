@@ -19,14 +19,14 @@ fn expected_object_count() -> usize {
         .sum()
 }
 
-/// Cached meshes: hull/turret/gun for every vehicle, plus seven unit gear meshes per blueprint
-/// one (road wheel, swing arm, its mirrored LEFT arm, sprocket, idler, track link, return
-/// roller) at EACH of the two detail tiers — the near set and the distant set are registered
+/// Cached meshes: hull/turret/gun for every vehicle, plus nine unit gear meshes per blueprint
+/// one (road wheel, swing arm and damper with their mirrored LEFT hands, sprocket, idler,
+/// track link, return roller) at EACH of the two detail tiers — near and distant are registered
 /// together at load.
 fn expected_mesh_count() -> usize {
     VehicleKind::ALL
         .iter()
-        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 7 * 2 } else { 0 })
+        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 9 * 2 } else { 0 })
         .sum()
 }
 
@@ -124,7 +124,7 @@ fn pbr_render_stops_only_the_broken_track_side() {
         frame_for_t54_tracks_with_masks(0.0, 0.0, 0, TrackDamageMask::LEFT.bits());
 
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
-    let right_count = kin.wheel_zs.len() * 2 + 2 + kin.link_count();
+    let right_count = kin.wheel_zs.len() * 2 + kin.damper_stations.len() + 2 + kin.link_count();
     let right_range = 3..3 + right_count;
     let left_range = 3 + right_count..3 + right_count * 2;
 
