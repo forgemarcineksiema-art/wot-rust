@@ -160,12 +160,20 @@ impl BeltPath {
             let t = ((z + rear.cz) / (front.cz + rear.cz).max(1.0e-4)).clamp(0.0, 1.0);
             wrap_top_rear + (wrap_top_front - wrap_top_rear) * t
         };
-        let mut pts: Vec<(f32, f32)> = Vec::with_capacity(carrier_zs.len() + 2);
+        let mut pts: Vec<(f32, f32)> = Vec::with_capacity(carrier_zs.len() * 2 + 2);
         pts.push((-rear.cz, wrap_top_rear));
+        // The belt does not touch a carrier at a POINT: it lies along the crest over a short
+        // contact flat and leaves it tangentially. One node per carrier put a C0 kink exactly
+        // on every wheel top — the "canvas draped over poles" read the 2026-08-12 review
+        // called out — so a touched carrier contributes TWO nodes and every span drapes
+        // flat-to-flat.
+        let carrier_r = if kin.roller_zs.is_empty() { kin.wheel_radius } else { kin.roller_radius };
+        let contact_half = (carrier_r * 0.28).clamp(0.02, 0.14);
         for &z in carrier_zs {
             let touches = chord_y(z) - reach <= carrier_y + 1.0e-4;
             if touches && z > -rear.cz + 1.0e-3 && z < front.cz - 1.0e-3 {
-                pts.push((z, carrier_y));
+                pts.push((z - contact_half, carrier_y));
+                pts.push((z + contact_half, carrier_y));
             }
         }
         pts.push((front.cz, wrap_top_front));
@@ -189,36 +197,39 @@ impl BeltPath {
                 .fold(f32::NEG_INFINITY, f32::max);
             // Span sag: slack spread over the span, never past the tension reach, and never
             // through a carrier riding under the span. SHORT spans stay dead straight: between
-            // closely-spaced carriers (the Tiger family's interleaved stations sit ~0.5 m
-            // apart, about one link pitch) a sinus dip aliases against the link spacing into
-            // a jagged, drunken top run — on the real vehicles tension flattens those spans
-            // completely, and the sag lives only in the long gaps (wrap→first wheel, the IS
-            // family's roller bays).
+            // closely-spaced carriers (the Tiger family's interleaved stations leave ~0.3 m
+            // between contact flats) a sinus dip aliases against the link spacing into a
+            // jagged, drunken top run — on the real vehicles tension flattens those spans
+            // completely, and the sag lives only in the long gaps.
             //
-            // Span normalisation is 1.0 m (was 1.8). Nothing ever measured the OUTCOME of the
-            // old divisor: the T-54's authored 0.075 — raised "to the depth the drawings show"
-            // — came through a 0.906 m wheel span as a 33 mm dip against the ~95 mm the
-            // calibrated three-view and the rear photographs actually show. The authored
-            // number is the slack the eye is meant to get on a ~1 m span (the no-return-roller
-            // layouts this scallop exists for); vehicles whose spans sit under the 0.85 m
-            // rigid threshold never reach this line, and `the_top_run_scallops_to_its_measured
-            // _depth` locks the result — not the input — from here on.
-            let desired = if span >= 0.85 { (top_sag * span).min(reach) } else { 0.0 };
+            // Spans are measured FLAT-TO-FLAT now (two nodes per carrier), so the T-54's
+            // 0.906 m wheel bay presents ~0.7 m of open span and the rigid threshold sits at
+            // 0.45 — between the Tiger family's flats and the open Soviet bays. Normalisation
+            // is that open span (0.65), so the authored number IS the dip the eye gets in a
+            // T-54-scale bay. Depth re-derived 2026-08-12 (second pass): the "~95 mm" this
+            // read used to chase came from the same mis-calibrated three-view session that
+            // parked the fender on the track crest; the reference sheet's own scallops measure
+            // 20-45 mm and the rear photographs show a deeper drape, so the authored depth
+            // lands between the two and `the_top_run_scallops_to_its_measured_depth` locks
+            // the OUTCOME band.
+            let desired = if span >= 0.45 { (top_sag * (span / 0.65)).min(reach) } else { 0.0 };
             let mid = 0.5 * (y0 + y1);
             let sag = if floor.is_finite() { desired.min((mid - floor).max(0.0)) } else { desired };
-            // v3 (user report: the top run read as a jagged, per-link-tilted ladder): a
-            // sagging span becomes THREE dead-straight sub-chords through the hang curve's
-            // third-points instead of a continuous sinus — every shoe within a sub-chord is
-            // collinear, the macro drape (and the v27 tension read the dynamics tests lock)
-            // lives in the NODE geometry.
+            // v4 (the tent-peak fix, 2026-08-12): a sagging span becomes FIVE dead-straight
+            // sub-chords through the hang sine — shoes within a sub-chord stay collinear (the
+            // v3 anti-ladder property), but the polyline now enters and leaves each contact
+            // flat at a shallow tangent instead of diving off a three-chord tent. The macro
+            // drape (and the v27 tension read the dynamics tests lock) lives in the NODE
+            // geometry, as before.
             if sag > 1.0e-4 {
-                let hang = sag * (PI / 3.0).sin();
-                let nodes = [
-                    (z0, y0),
-                    (z0 + span / 3.0, y0 + (y1 - y0) / 3.0 - hang),
-                    (z0 + 2.0 * span / 3.0, y0 + 2.0 * (y1 - y0) / 3.0 - hang),
-                    (z1, y1),
-                ];
+                const CHORDS: usize = 5;
+                let nodes: Vec<(f32, f32)> = (0..=CHORDS)
+                    .map(|k| {
+                        let t = k as f32 / CHORDS as f32;
+                        let hang = sag * (PI * t).sin();
+                        (z0 + span * t, y0 + (y1 - y0) * t - hang)
+                    })
+                    .collect();
                 for pair in nodes.windows(2) {
                     let (nz0, ny0) = pair[0];
                     let (nz1, ny1) = pair[1];

@@ -102,7 +102,7 @@ BlueprintFile(
         // ~94 mm between wheels and ~118 mm across the enlarged front gap. Vehicles whose top
         // run rides interleaved wheels (the Tiger family, Panther II, Jagdtiger) keep a
         // shallow sag: theirs is supported nearly continuously.
-        top_sag_m: 0.12,
+        top_sag_m: 0.06,
         // Twelve radial webs, not six spokes: the obr. 1951 disc is the stamped "spider-web"
         // (12 ribs, 12 small + 12 large lightening holes) — see the part-construction dossier
         // in docs/vehicles/t-54.md. The five-arm starfish is a later/rebuild wheel.
