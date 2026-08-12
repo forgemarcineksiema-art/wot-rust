@@ -371,7 +371,15 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // speaks parameter azimuth — up to ~40 mm of silent disagreement at the window flank,
     // now converted exactly through the superellipse identity.
     // Previous: 0x509a_93b1_dd51_8346 (the stern is a knuckled pair).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x091f_bf1a_1900_21ae;
+    // Re-recorded 2026-08-12 again (the belt hangs and the shelf comes down): scallop authored
+    // for its measured ~95 mm OUTCOME (span normalisation 1.8 -> 1.0 in the belt kernel, T-54
+    // top_sag 0.075 -> 0.12, locked by `the_top_run_scallops_to_its_measured_depth`), the
+    // fender shelf 1.12 -> 1.06 as 12 mm sheet with a 10 mm hem (the old 12 mm fold in a
+    // 10 mm plate silently dropped whole sections), gussets moved to the hull side out of the
+    // jounce band, exhaust box down with the shelf. Link pitch derives from the TAUT length —
+    // the drape redistributes 90 x 137 mm, it does not mint more belt.
+    // Previous: 0x091f_bf1a_1900_21ae (the egg is registered).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe0a9_4b97_593b_9332;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

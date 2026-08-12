@@ -176,7 +176,16 @@ impl BeltPath {
             // a jagged, drunken top run — on the real vehicles tension flattens those spans
             // completely, and the sag lives only in the long gaps (wrap→first wheel, the IS
             // family's roller bays).
-            let desired = if span >= 0.85 { (top_sag * span / 1.8).min(reach) } else { 0.0 };
+            //
+            // Span normalisation is 1.0 m (was 1.8). Nothing ever measured the OUTCOME of the
+            // old divisor: the T-54's authored 0.075 — raised "to the depth the drawings show"
+            // — came through a 0.906 m wheel span as a 33 mm dip against the ~95 mm the
+            // calibrated three-view and the rear photographs actually show. The authored
+            // number is the slack the eye is meant to get on a ~1 m span (the no-return-roller
+            // layouts this scallop exists for); vehicles whose spans sit under the 0.85 m
+            // rigid threshold never reach this line, and `the_top_run_scallops_to_its_measured
+            // _depth` locks the result — not the input — from here on.
+            let desired = if span >= 0.85 { (top_sag * span).min(reach) } else { 0.0 };
             let mid = 0.5 * (y0 + y1);
             let sag = if floor.is_finite() { desired.min((mid - floor).max(0.0)) } else { desired };
             // v3 (user report: the top run read as a jagged, per-link-tilted ladder): a

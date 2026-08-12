@@ -100,19 +100,23 @@ pub fn t54_fender_slope_ribs(side_x: f32, fender: &FenderVisual, sign: f32) -> V
         .collect()
 }
 
-/// Thin gusset plates under the fender span, evenly spaced along its run — the supports that carry
-/// the shelf over the exposed track. Each is a cross-fender plate hanging just below the shelf
-/// (clear of the moving top track run). Visual only, at the close-up detail tier.
+/// Thin gusset plates under the fender's INNER edge, evenly spaced along its run — the supports
+/// that carry the shelf, triangulating against the hull wall the way real fender gussets do.
+/// They used to span the whole shelf width and hang 80 mm into the band the belt sweeps: with
+/// the shelf at its measured 1.05 line and the scallop at its measured depth, a wheel over a
+/// bump would have carried the links straight through them. Visual only, close-up detail tier.
 pub fn t54_fender_brackets(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
     const BRACKETS: usize = 5;
-    let drop = 0.08_f32;
+    let drop = 0.05_f32;
     let bottom = fender.center_y - fender.half.y;
-    let half = Vec3::new(fender.half.x - 0.04, drop * 0.5, 0.015);
+    // Inboard: from the shelf's inner edge out over the first sliver of the belt band only.
+    let inner_x = side_x - side_x.signum() * (fender.half.x - 0.07);
+    let half = Vec3::new(0.07, drop * 0.5, 0.012);
     (0..BRACKETS)
         .map(|i| {
             let t = (i as f32 + 0.5) / BRACKETS as f32;
             let z = -fender.half.z + t * 2.0 * fender.half.z;
-            ConvexSolid::box_at(Vec3::new(side_x, bottom - drop * 0.5, z), half)
+            ConvexSolid::box_at(Vec3::new(inner_x, bottom - drop * 0.5, z), half)
         })
         .collect()
 }
@@ -184,8 +188,13 @@ mod tests {
             .to_owned()
     }
 
+    /// REWRITTEN 2026-08-12 with the shelf at its measured 1.06 line and the scallop at its
+    /// measured depth: the old gussets spanned the WHOLE shelf width and hung 80 mm into the
+    /// band a jounced wheel sweeps its links through — the old assert ("spans the fender over
+    /// the track band") demanded exactly the collision. Real fender gussets triangulate at the
+    /// hull wall; that is where these live now.
     #[test]
-    fn fender_brackets_hang_below_the_fender_over_the_track() {
+    fn fender_brackets_hug_the_hull_side_below_the_shelf() {
         let f = fender();
         let brackets = t54_fender_brackets(1.345, &f);
         assert!(brackets.len() >= 3, "several brackets along the run");
@@ -196,9 +205,14 @@ mod tests {
                 .expect("bracket is valid")
                 .bounds()
                 .expect("non-empty bracket");
-            assert!(b.min.y < bottom - 0.03, "bracket hangs below the fender plate");
-            assert!(b.min.y > 0.95, "bracket stays clear of the moving top track run");
-            assert!(b.max.x > 1.3, "bracket spans the fender over the track band");
+            assert!(b.min.y < bottom - 0.02, "bracket hangs below the fender plate");
+            assert!(b.min.y > 0.98, "bracket stays clear of the crest-riding links");
+            assert!(
+                b.max.x < 1.25,
+                "bracket hugs the hull side instead of reaching over the belt: {:.3}",
+                b.max.x
+            );
+            assert!(b.min.x > 1.0, "and stays outboard of the tub wall: {:.3}", b.min.x);
         }
     }
 

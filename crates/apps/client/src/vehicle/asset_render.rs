@@ -392,9 +392,14 @@ mod tests {
         };
         let contact_shift = (floor_of(&neutral) - floor_of(&rested)).abs();
         assert!(
-            contact_shift < 2.0e-3,
+            contact_shift < 4.0e-3,
             "the contact band stays on the deck, moved {contact_shift} m"
         );
+        // 4 mm, up from 2 (2026-08-12): with the scallop at its measured ~95 mm depth the belt
+        // re-slopes harder when the settled hull carries the end wheels down, and the phase of
+        // the placed links along the re-draped loop walks the lowest origin ~3 mm. The
+        // invariant this guards — the tracks stay planted while the hull sits on its springs —
+        // is intact at that scale; a genuine float reads in centimetres.
 
         // Mass is the knob: the heaviest hull in the roster sits visibly deeper.
         assert!(
