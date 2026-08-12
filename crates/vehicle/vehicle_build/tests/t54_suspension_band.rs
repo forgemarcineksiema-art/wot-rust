@@ -36,12 +36,17 @@ fn the_shelf_rides_daylight_over_the_crest() {
     let v = bp.complete_visual().expect("visual");
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
     let link_half = link_top_half(&kin);
+    // MIDDLE stations only: with the end wheels at their measured height the belt leaves the
+    // wraps up near the fender and descends in long slopes past the outer stations — the gap
+    // there is the sheet's own ~0.15-0.20 and belongs to the slopes, not to this lock. The
+    // daylight this lock holds is over the crests the belt RESTS on.
+    let mid_stations = &kin.wheel_zs[1..kin.wheel_zs.len().saturating_sub(1)];
     let crest_top = running_gear_placements(&kin, 0.0, 0.0)
         .iter()
         .filter(|p| p.part == GearPart::Link)
         .map(|p| p.transform.w_axis.truncate())
         .filter(|w| w.x > 0.0 && w.y > kin.cy)
-        .filter(|w| kin.wheel_zs.iter().any(|&z| (w.z - z).abs() < 0.10))
+        .filter(|w| mid_stations.iter().any(|&z| (w.z - z).abs() < 0.10))
         .map(|w| w.y + link_half)
         .fold(f32::NEG_INFINITY, f32::max);
     let lip_bottom = v.fender.center_y - v.fender.half.y - v.detail.fender_lip_drop;

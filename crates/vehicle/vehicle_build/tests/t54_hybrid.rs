@@ -408,7 +408,19 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // same commit, so mesh space, armour volumes and breach frames never disagree. Locked by
     // `game_core/tests/handedness.rs` — the blueprint-to-screen chain no layer held before.
     // Previous: 0x3659_281f_e969_9037 (the shelf rides daylight).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe766_ae22_e3f4_4df7;
+    // Re-recorded 2026-08-12 (the ends ride high): the reference sheet puts BOTH end-wheel
+    // axles at ~0.85-0.86 m — a third of a metre above the road-wheel line, not the 0.674 the
+    // model carried — so the belt leaves the wraps up near the fender (~1.19) and descends in
+    // long straight slopes to rest on the road-wheel crests: "od góry, po środku prosto", as
+    // the review read the sheet. end_y 0.674 -> 0.860, end axles pulled in 6 cm each so the
+    // loop still closes on the documented 90 x 137 mm (the pitch lock is the anchor), sag
+    // 0.06 -> 0.07 so the mid-run lands on the crests under the raised chord, and the
+    // mudguards drop off the shelf to hug the raised wraps instead of levitating over low
+    // ones. Static-bake side: only the mudguard sheets moved.
+    // Previous: 0xe766_ae22_e3f4_4df7 (the mirror).
+    // (And the interior follows: the final-drive housings ride the pulled-in sprocket axle,
+    // locked by `the_final_drives_cross_the_hull_to_their_sprockets`.)
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8104_653a_e429_4265;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

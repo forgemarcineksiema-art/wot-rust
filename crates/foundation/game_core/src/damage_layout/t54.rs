@@ -219,12 +219,12 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FinalDrive,
             ModuleSlot::Suspension,
             M::Driveline,
-            // z -2.77 -> -2.59 (interior audit): PR-18 moved the end wheels onto the
+            // z -2.77 -> -2.59 (interior audit) -> -2.53 (the ends ride high): the housing
             // documented belt, and the final drives stayed where the OLD sprocket was — a
             // drive housing 18 cm behind the axle it turns. The housing still crosses the hull
             // side deliberately: the drive must reach the sprocket, and that penetration is the
             // one interior element allowed outside the tub (see the interior containment lock).
-            cylinder_shape([-1.08, -0.34, -2.59], Vec3::X, 0.18, 0.24),
+            cylinder_shape([-1.08, -0.34, -2.53], Vec3::X, 0.18, 0.24),
             28,
             1.0,
         ),
@@ -233,7 +233,7 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FinalDrive,
             ModuleSlot::Suspension,
             M::Driveline,
-            cylinder_shape([1.08, -0.34, -2.59], Vec3::X, 0.18, 0.24),
+            cylinder_shape([1.08, -0.34, -2.53], Vec3::X, 0.18, 0.24),
             28,
             1.0,
         ),

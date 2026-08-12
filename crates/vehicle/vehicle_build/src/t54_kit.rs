@@ -54,14 +54,20 @@ fn mudguard_arches(fender: &FenderVisual, track: &TrackShape) -> Vec<VehiclePart
         // reference sheet's own guard-tip line). z magnitudes run outboard; `sign` mirrors for
         // the tail. Clearance over the wrap's link line is asserted by
         // `the_mudguards_arch_over_the_end_wheels`.
+        // With the end wheels at their measured height (axles 0.86, wraps to ~1.19) the guard
+        // is no longer a level continuation of the shelf: the reference sheet drops it off the
+        // shelf edge and lays it CLOSE over the raised wrap (~a hand of clearance), then folds
+        // it down into the flap — the "guard belongs to the hull" fit the 2026-08-12 review
+        // asked for. Clearance over the wrap's link line stays asserted by
+        // `the_mudguards_arch_over_the_end_wheels`.
         let profile: [(f32, f32); 7] = [
             (axle_z - 0.24, shelf_top),
-            (axle_z - 0.08, shelf_top + 0.012),
-            (axle_z + 0.10, shelf_top + 0.015),
-            (axle_z + 0.24, shelf_top - 0.030),
-            (axle_z + 0.35, shelf_top - 0.130),
-            (axle_z + 0.42, shelf_top - 0.270),
-            (axle_z + 0.46, shelf_top - 0.420),
+            (axle_z - 0.08, shelf_top - 0.050),
+            (axle_z + 0.06, shelf_top - 0.100),
+            (axle_z + 0.20, shelf_top - 0.140),
+            (axle_z + 0.32, shelf_top - 0.240),
+            (axle_z + 0.40, shelf_top - 0.340),
+            (axle_z + 0.46, shelf_top - 0.440),
         ];
         for side in [fender.side_x, -fender.side_x] {
             let path: Vec<Vec3> =

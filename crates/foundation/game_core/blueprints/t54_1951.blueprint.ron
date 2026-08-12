@@ -58,14 +58,14 @@ BlueprintFile(
         // 90 x 137 mm loop identity pins the other side. The sheet's far-out end axles imply
         // a 93-95 link belt and are rejected on that identity, the same way its idler was.
         end_radius: 0.2662,
-        end_z: 2.590,
+        end_z: 2.530,
         // FRONT (idler): its own wheel at its own axle — the dossier's ⌀510 cast idler with
         // steel tyres (it was drawn as a second sprocket-sized wheel), stood as far outboard
         // as the loop identity and the sprocket's fixed seat allow (taut pitch 137.3 mm).
         // The wrap's outer tip gains ~20 mm toward the bow; the honest half of the sheet's
         // "idler proud of the bow" read — the other half fails the link-count identity that
         // arbitrates every end-position claim on this vehicle.
-        end_front: Some((2.620, 0.255)),
+        end_front: Some((2.560, 0.255)),
         // Raised so the top run leaves the end wheels ABOVE the 0.88 m wheel tops — links
         // grinding the tyres z-fight. What is authored is that 0.96 m anchor, and it was
         // written as 0.66 against a 0.32 wrap. The wrap is the sprocket's real pitch circle
@@ -73,7 +73,7 @@ BlueprintFile(
         // as a bare 0.66 the anchor would have dropped 34 mm the moment the wrap was corrected,
         // silently — the middle of the span is governed by the wheels and would not have shown
         // it.
-        end_y: 0.674,
+        end_y: 0.860,
         // 580 mm of shoe, on the 2.640 gauge: 1.32 ± 0.29. It was 570 on a 2.690 gauge.
         inner_x: 1.03,
         outer_x: 1.61,
@@ -102,7 +102,7 @@ BlueprintFile(
         // ~94 mm between wheels and ~118 mm across the enlarged front gap. Vehicles whose top
         // run rides interleaved wheels (the Tiger family, Panther II, Jagdtiger) keep a
         // shallow sag: theirs is supported nearly continuously.
-        top_sag_m: 0.06,
+        top_sag_m: 0.075,
         // Twelve radial webs, not six spokes: the obr. 1951 disc is the stamped "spider-web"
         // (12 ribs, 12 small + 12 large lightening holes) — see the part-construction dossier
         // in docs/vehicles/t-54.md. The five-arm starfish is a later/rebuild wheel.
