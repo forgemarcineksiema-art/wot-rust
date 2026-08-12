@@ -107,14 +107,17 @@ fn t54_fenders_are_segmented_with_support_brackets() {
         z_bands.len()
     );
 
-    // Support gussets hang just below the fender shelf (above the moving top track run), on both
-    // fenders over the exposed track band.
+    // Support gussets hang just below the fender shelf at the HULL side, on both fenders —
+    // triangulating against the wall like the real supports, not reaching over the belt band
+    // a jounced wheel sweeps its links through (they used to, and with the shelf at its
+    // measured 1.06 line that was a collision waiting for the first bump).
     let has_bracket = |sign: f32| {
         hull.vertices().iter().any(|v| {
             v.material == MaterialRole::TrackMetal
-                && v.position.x * sign > 1.15
-                && v.position.y > 0.99
-                && v.position.y < 1.11
+                && v.position.x * sign > 1.00
+                && v.position.x * sign < 1.20
+                && v.position.y > 0.97
+                && v.position.y < 1.06
         })
     };
     assert!(has_bracket(1.0) && has_bracket(-1.0), "fender support brackets hang below both sides");

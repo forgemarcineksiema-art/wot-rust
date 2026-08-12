@@ -222,6 +222,13 @@ impl RunningGearKinematics {
         crate::running_gear_belt::BeltPath::new(self).length()
     }
 
+    /// The TAUT loop length — the belt with its slack pulled out, which is what the physical
+    /// belt's length IS (link count times pitch). The draped [`Self::belt_length`] runs ~1%
+    /// longer on a deep-scallop vehicle; link pitch and tooth meshing derive from THIS one.
+    pub fn taut_belt_length(&self) -> f32 {
+        crate::running_gear_belt::BeltPath::with_sag(self, 0.0).length()
+    }
+
     /// Number of shoe links around the loop.
     pub fn link_count(&self) -> usize {
         self.link_count

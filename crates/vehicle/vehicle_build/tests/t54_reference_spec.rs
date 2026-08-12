@@ -139,7 +139,8 @@ fn the_finished_mesh_is_the_vehicle_the_dossier_describes() {
     // The belt is the chain the dossier specifies, and the pitch falls out of it.
     let kin = vehicle_geometry::RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
         .expect("running gear");
-    let pitch = kin.belt_length() / kin.link_count() as f32;
+    // Taut length: the drape redistributes the belt's 90 x 137 mm, it does not mint more.
+    let pitch = kin.taut_belt_length() / kin.link_count() as f32;
     assert!(
         (pitch - dossier::TRACK_PITCH).abs() <= 0.001,
         "90 links of a documented 137 mm: got {pitch:.4}"

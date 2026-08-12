@@ -318,6 +318,44 @@ fn t54_top_track_run_sags_without_return_rollers() {
     );
 }
 
+/// The scallop's DEPTH, measured on the placed links — the outcome, not the authored input.
+///
+/// The old lock above asks only "does it sag at all" (>= 40 mm end-to-middle), and that is how
+/// an authored 0.075 "raised to the depth the drawings show" shipped a 33 mm dip for months:
+/// the tension formula halved it on the 0.906 m span and nothing measured what the eye got.
+/// The calibrated three-view reads link tops ~0.99 over the wheels and ~0.89-0.90 mid-span —
+/// a ~95 mm scallop — and the DoD rear photograph shows the same deep drape. This lock holds
+/// the REST-state dip between road wheels 2 and 3 inside the measured band.
+#[test]
+fn the_top_run_scallops_to_its_measured_depth() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    let top_links: Vec<Vec3> = placements
+        .iter()
+        .filter(|p| p.part == GearPart::Link)
+        .map(|p| p.transform.w_axis.truncate())
+        .filter(|p| p.x > 0.0 && p.y > kin.cy + kin.wheel_radius * 0.5)
+        .collect();
+    // Link centres directly over the second and third wheel stations: the supports.
+    let over_wheels = top_links
+        .iter()
+        .filter(|p| kin.wheel_zs.iter().any(|&z| (p.z - z).abs() < 0.12))
+        .map(|p| p.y)
+        .fold(f32::NEG_INFINITY, f32::max);
+    // The valley between wheels 2 and 3 (stations -1.014 and -0.108).
+    let mid_span = 0.5 * (kin.wheel_zs[1] + kin.wheel_zs[2]);
+    let valley = top_links
+        .iter()
+        .filter(|p| (p.z - mid_span).abs() < 0.16)
+        .map(|p| p.y)
+        .fold(f32::INFINITY, f32::min);
+    let dip = over_wheels - valley;
+    assert!(
+        (0.075..=0.120).contains(&dip),
+        "the rest-state scallop between wheels must sit in the measured ~95 mm band, got          {dip:.3} (supports {over_wheels:.3}, valley {valley:.3})"
+    );
+}
+
 #[test]
 fn t54_uses_historical_ninety_track_links_per_side() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
@@ -476,6 +514,8 @@ fn every_animated_track_link_carries_an_overlapping_backing_skin() {
     for kind in VehicleKind::PLAYABLE {
         let kin = RunningGearKinematics::for_vehicle(kind).expect("playable vehicle gear");
         let bounds = track_link_unit_mesh(&kin).bounds().expect("link bounds");
+        // The PLACED spacing (draped path over link count): the backing skin must overlap
+        // its neighbours at the spacing links actually stand at.
         let pitch = kin.belt_length() / kin.link_count() as f32;
         assert!(
             bounds.max.z - bounds.min.z > pitch,
@@ -516,8 +556,11 @@ fn t54_top_track_links_ride_the_wheels_with_only_the_horn_in_the_slot() {
     // through, which then also let a shoe sink 75 mm into a wheel. Two different things, one
     // number. Split them: seating is asked of the links over a wheel station, and the sag has its
     // own bound below.
-    let half_pitch = kin.belt_length() / kin.link_count().max(1) as f32 * 0.5;
-    let over_a_wheel = |z: f32| kin.wheel_zs.iter().any(|&wz| (z - wz).abs() <= half_pitch);
+    // 0.35 of a pitch, not 0.5: with the scallop at its measured ~95 mm depth, a link half a
+    // pitch off the crest is already ON the descending chord — that is the drape, not bad
+    // seating. Only the links genuinely astride a crest owe the tread contact.
+    let crest_window = kin.taut_belt_length() / kin.link_count().max(1) as f32 * 0.35;
+    let over_a_wheel = |z: f32| kin.wheel_zs.iter().any(|&wz| (z - wz).abs() <= crest_window);
 
     let (mut shoulder_min, mut horn_min) = (f32::INFINITY, f32::INFINITY);
     let mut seated = 0usize;
@@ -748,7 +791,11 @@ fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
 #[test]
 fn the_t54_sprocket_meshes_the_belt_it_is_given() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
-    let pitch = kin.belt_length() / kin.link_count() as f32;
+    // The TAUT length: a belt's length is its 90 links times their pitch, full stop — the
+    // drape redistributes that length, it does not mint more of it. Deriving the pitch from
+    // the sagged path length inflated it by exactly the drape (~1%), which is how deepening
+    // the scallop to its measured depth "changed" a documented 137 mm pitch.
+    let pitch = kin.taut_belt_length() / kin.link_count() as f32;
     let wrap_r = kin.end_radius + 0.02;
     let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round() as usize;
     assert!(

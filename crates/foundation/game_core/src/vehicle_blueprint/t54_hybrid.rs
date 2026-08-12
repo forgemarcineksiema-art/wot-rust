@@ -217,7 +217,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             center: Vec3::new(0.0, 1.53, (-hull.half_len + deck_rear_gap - 0.80) * 0.5),
             half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + deck_rear_gap).abs() * 0.5),
         }),
-        // The fender shelf rides over the 1.03..1.61 track band at 1.12 — the primary kit line of
+        // The fender shelf rides over the 1.03..1.61 track band at 1.05 — the primary kit line of
         // the vehicle (stowage, fuel tanks and the exhaust all live on it), with sloping end
         // sections over the idler and sprocket added by the detail pass.
         //
@@ -232,9 +232,14 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // a rounding ghost is not worth the precedent. The blueprint lint still holds the
             // shelf centred on the belt, so the pair cannot drift.
             side_x: 1.32,
-            center_y: 1.12,
+            // 1.05, down from 1.12 (2026-08-12): the calibrated three-view puts the fender
+            // sheet at ~1.00-1.06 — the shelf rode ~80 mm high, and together with the slab
+            // thickness below it ate the daylight windows the scallops open between the
+            // wheel crests and the sheet. The 10 mm plate half replaces a 20 mm one: a
+            // fender is pressed sheet, not armour.
+            center_y: 1.06,
             // The shelf runs the length of the hull, short of each end plate.
-            half: Vec3::new(0.315, 0.02, hull.half_len - FENDER_END_GAP_M),
+            half: Vec3::new(0.315, 0.006, hull.half_len - FENDER_END_GAP_M),
         }),
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
@@ -276,7 +281,8 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             grille_slats: 6,
             // The louvered exhaust box sits ON the left fender at the engine bay, as the top view
             // shows — the dark armoured cover among the left-fender stowage line.
-            exhaust_center: Vec3::new(-1.34, 1.25, -hull.half_len + 2.10),
+            // Rides the fender line: dropped with the shelf (1.12 -> 1.05).
+            exhaust_center: Vec3::new(-1.34, 1.18, -hull.half_len + 2.10),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.
@@ -294,8 +300,14 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             dshk_barrel_length: 1.07,
             // Shallow folded edge: the belt's top run carries its link bodies up to ~1.02, so a
             // deeper lip curtain has the scrolling shoes cutting through it (lip bottom 1.05).
-            fender_lip_drop: 0.05,
-            fender_lip_thickness: 0.03,
+            // Sheet-metal scale (was 0.05 / 0.03 — a pressing whose fold alone was three
+            // plates thick). The hem stays: the fold is the fender's edge light.
+            fender_lip_drop: 0.030,
+            // Thinner than the 12 mm sheet: the panel kernel folds a hem only into a plate
+            // at least as thick as the fold (it silently dropped whole sections when the
+            // first pass asked for a 12 mm fold in a 10 mm plate — the segmentation ratchet
+            // caught the vanishing).
+            fender_lip_thickness: 0.010,
             weld_seam_half_thickness: 0.015,
         }),
     }
