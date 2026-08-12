@@ -43,6 +43,12 @@ const PLATES_AND_BARS: &[(&str, &str)] = &[
     ("hull_plate_seam", "the same, along the plate joint"),
     ("fender_bracket", "an L-bracket is bar stock cut and bent"),
     (
+        "fender_flap_rib",
+        "a pressed stiffening bead on the tail flap is a raised bar riding the slope face — the \
+         press leaves a straight-sided ridge, and three of them are the reference rear view's \
+         read of the flap",
+    ),
+    (
         "turret_aerial",
         "a whip aerial IS a tapered rod — 28 mm at the ferrule down to 8 mm at the tip, which is \
          one to two pixels at any range this vehicle is looked at. Eight sides is already more \

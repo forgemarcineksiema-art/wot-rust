@@ -33,7 +33,7 @@
       },
       "hull_rear": {
         "nominal_thickness_mm": 45.0,
-        "slope_degrees": 5.0,
+        "slope_degrees": 17.0,
         "weakspot_multiplier": 1.0
       },
       "turret_front": {
@@ -407,13 +407,13 @@
           "Obb": {
             "center": [
               0.0,
-              -0.02,
-              -2.65
+              0.02,
+              -2.51
             ],
             "half_extents": [
               0.68,
-              0.42,
-              0.3
+              0.36,
+              0.25
             ],
             "yaw_rad": 0.0
           }

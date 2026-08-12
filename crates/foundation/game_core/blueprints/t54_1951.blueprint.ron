@@ -17,7 +17,10 @@ BlueprintFile(
         glacis_slope_deg: 60.0,
         pike_sweep_deg: 0.0,
         nose_rise: 0.06,
-        rear_slope_deg: 5.0,
+        // 45 mm @ 17 deg (ru-wiki armour table + warbook agree). It was 5.0 — typed in the
+        // data.rs era with no source, and for months nothing ever fired at the stern to
+        // notice. The knuckle and the undercut below it live in `armor.hull_rear_knuckle`.
+        rear_slope_deg: 17.0,
         lower_half_width: 1.03,
         sponson_y: 1.0,
         skirt: None,
@@ -135,7 +138,7 @@ BlueprintFile(
     armor: ArmorShape(
         hull_front: (60.0, 1.0),
         hull_side: (0.0, 1.0),
-        hull_rear: (5.0, 1.0),
+        hull_rear: (17.0, 1.0),
         turret_front: (35.0, 1.0),
         turret_side: (25.0, 1.0),
         turret_rear: (10.0, 1.0),
@@ -144,6 +147,12 @@ BlueprintFile(
         // made this a 27-degree plate under a 36.8-degree visual - both wrong, each
         // differently. Authored, both read this line.
         hull_lower_front: Some((55.0, 1.0)),
+        // The overhung tail: knuckle at 1.20 m (the hull's rearmost line — measured off the
+        // calibrated three-view, where it lands on the same stern the muzzle and wheelbase
+        // anchors hit to the pixel), undercut ~45 deg below it (drawing-derived, medium
+        // confidence — no armour table splits the lower rear out; it hides behind the
+        // sprocket either way).
+        hull_rear_knuckle: Some((1.20, 45.0)),
         // The course MG port, right of the driver — the same seat the kit draws
         // (t54_kit_lines::course_mg_port at glacis x 0.42, y 1.15, muzzle disc 0.105).
         // Inside the disc the 100 mm plate presents FLAT: the 60-degree rake that doubles

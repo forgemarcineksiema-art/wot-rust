@@ -199,7 +199,13 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // `vehicle_build/tests/t54_hybrid.rs` does not.
     // Previous: 7_427_199_630_274_926_331 (W4 F5.ii, the authored gun group).
     // Previous: 15_649_090_968_640_575_833 (the material law).
-    (VehicleKind::T54_1951, 3_041_646_403_573_294_078_u64),
+    // Re-recorded 2026-08-12 (the stern is a knuckled pair): the legacy bake's rear plate reads
+    // the corrected 17-degree `rear_slope_deg` where a sourceless 5 had sat since the data.rs
+    // era. The legacy hull keeps its single-plate stern; the knuckle/undercut pair lives on the
+    // shipped hybrid. Only this row and the hybrid's own golden move — the six siblings author
+    // no knuckle and their bakes hold byte-for-byte.
+    // Previous: 3_041_646_403_573_294_078 (the crisp lathe edges).
+    (VehicleKind::T54_1951, 12_847_834_877_477_127_274_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to

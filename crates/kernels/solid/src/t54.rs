@@ -12,39 +12,81 @@ use glam::Vec3;
 
 use crate::{ConvexSolid, Plane};
 
+/// The stern's plane pair. With no knuckle the rear is the fleet's single plate: the upper-plate
+/// plane anchored so the hull's rearmost point sits at `anchor_y` (the caller's bottom edge), and
+/// no second plane. With a knuckle `(knuckle_y, lower_deg)` the rear becomes the T-54's overhung
+/// tail: the upper plate's rake anchors THROUGH the knuckle line at `(knuckle_y, -half_len)` — the
+/// rearmost line of the hull — and an undercut plane leans forward-down below it. Both planes pass
+/// through the knuckle, so the two metal faces and the two armour faces share one fold, exactly as
+/// the bow's glacis/nose pair does.
+fn stern_planes(
+    half_len: f32,
+    rear_deg: f32,
+    knuckle: Option<(f32, f32)>,
+    anchor_y: f32,
+) -> (Plane, Option<Plane>) {
+    let rear = rear_deg.to_radians();
+    match knuckle {
+        None => {
+            let rear_off = rear.sin() * anchor_y + rear.cos() * half_len;
+            (Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), rear_off), None)
+        }
+        Some((knuckle_y, lower_deg)) => {
+            let upper_off = rear.sin() * knuckle_y + rear.cos() * half_len;
+            let lower = lower_deg.to_radians();
+            // Outward normal rear-and-DOWN: below the knuckle the plate tucks forward.
+            let lower_off = -lower.sin() * knuckle_y + lower.cos() * half_len;
+            (
+                Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), upper_off),
+                Some(Plane::new(Vec3::new(0.0, -lower.sin(), -lower.cos()), lower_off)),
+            )
+        }
+    }
+}
+
 /// The wide upper hull (sponson body): a convex solid from the sponson step up to the deck, whose
 /// front is the steep upper glacis, sides rake inward, and rear rakes up — each at its blueprint
 /// armour angle. It overhangs the narrower lower tub, forming the sponson step over the tracks.
+/// An authored stern knuckle folds the rear into its upper-plate/undercut pair.
 pub fn t54_upper_hull(
     h: &HullShape,
     p: &HullPlatesVisual,
     front_deg: f32,
     side_deg: f32,
     rear_deg: f32,
+    knuckle: Option<(f32, f32)>,
 ) -> ConvexSolid {
-    let (front, side, rear) =
-        (front_deg.to_radians(), side_deg.to_radians(), rear_deg.to_radians());
+    let (front, side) = (front_deg.to_radians(), side_deg.to_radians());
     let side_off = h.half_width * side.cos() + h.sponson_y * side.sin();
     let glacis_off = front.sin() * h.sponson_y + front.cos() * p.glacis_base_z;
-    let rear_off = rear.sin() * h.sponson_y + rear.cos() * h.half_len;
+    let (rear_upper, rear_lower) = stern_planes(h.half_len, rear_deg, knuckle, h.sponson_y);
     // The T-54's narrow box carries ONE plane per facet — the glacis is a plain full-hull-width
     // plate with no bow taper (the exposed tracks flank it; the plan stays rectangular).
-    ConvexSolid::new(vec![
+    let mut planes = vec![
         Plane::new(Vec3::new(0.0, -1.0, 0.0), -h.sponson_y),
         Plane::new(Vec3::new(0.0, 1.0, 0.0), h.deck_y),
         Plane::new(Vec3::new(side.cos(), side.sin(), 0.0), side_off),
-        Plane::new(Vec3::new(-side.cos(), side.sin(), 0.0), side_off),
-        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), rear_off),
         Plane::new(Vec3::new(0.0, front.sin(), front.cos()), glacis_off),
-    ])
+        Plane::new(Vec3::new(-side.cos(), side.sin(), 0.0), side_off),
+        rear_upper,
+    ];
+    planes.extend(rear_lower);
+    ConvexSolid::new(planes)
 }
 
 /// The narrow lower tub between the tracks: a convex solid from the belly to the sponson step, with
-/// vertical sides at the tub half-width, a raked rear, and a lower nose plate that folds under the
-/// upper glacis at the blueprint fold line.
-pub fn t54_lower_tub(h: &HullShape, p: &HullPlatesVisual, rear_deg: f32) -> ConvexSolid {
-    let rear = rear_deg.to_radians();
-    let rear_off = rear.sin() * h.belly_y + rear.cos() * h.half_len;
+/// vertical sides at the tub half-width, a raked rear (the stern undercut, where authored), and a
+/// lower nose plate that folds under the upper glacis at the blueprint fold line.
+pub fn t54_lower_tub(
+    h: &HullShape,
+    p: &HullPlatesVisual,
+    rear_deg: f32,
+    knuckle: Option<(f32, f32)>,
+) -> ConvexSolid {
+    // The tub sits entirely below the knuckle, so only ONE of the stern pair can bind here: the
+    // undercut where authored, the single fleet plate otherwise.
+    let (rear_single, rear_undercut) = stern_planes(h.half_len, rear_deg, knuckle, h.belly_y);
+    let rear_plane = rear_undercut.unwrap_or(rear_single);
     // Lower nose plate: the plane through the fold line (sponson step) and the tucked-back belly
     // front, spanning the tub width. Its forward-and-down normal carries the lower-glacis rake.
     let dz = p.nose_base_z - p.glacis_base_z;
@@ -56,32 +98,36 @@ pub fn t54_lower_tub(h: &HullShape, p: &HullPlatesVisual, rear_deg: f32) -> Conv
         Plane::new(Vec3::new(0.0, 1.0, 0.0), h.sponson_y),
         Plane::new(Vec3::new(1.0, 0.0, 0.0), h.lower_half_width),
         Plane::new(Vec3::new(-1.0, 0.0, 0.0), h.lower_half_width),
-        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), rear_off),
+        rear_plane,
         Plane::new(nose_normal, nose_off),
     ])
 }
 
 /// The full hull as a convex solid: a block whose glacis, sloped sides and sloped rear carry the
-/// blueprint armour angles (degrees of the plate normal above horizontal), plus a lower nose bevel.
+/// blueprint armour angles (degrees of the plate normal above horizontal), plus a lower nose bevel
+/// and — where authored — the stern's knuckle/undercut pair.
 pub fn t54_hull_solid(
     hull: &HullVisual,
     front_deg: f32,
     side_deg: f32,
     rear_deg: f32,
+    knuckle: Option<(f32, f32)>,
 ) -> ConvexSolid {
-    let (front, side, rear) =
-        (front_deg.to_radians(), side_deg.to_radians(), rear_deg.to_radians());
+    let (front, side) = (front_deg.to_radians(), side_deg.to_radians());
     let (hx, belly, roof, hz) = (hull.half_width, hull.belly_y, hull.roof_y, hull.half_len);
     let side_off = hx * side.cos() + belly * side.sin();
-    ConvexSolid::new(vec![
+    let mut planes = vec![
         Plane::new(Vec3::new(0.0, -1.0, 0.0), -belly),
         Plane::new(Vec3::new(0.0, 1.0, 0.0), roof),
         Plane::new(Vec3::new(side.cos(), side.sin(), 0.0), side_off),
         Plane::new(Vec3::new(-side.cos(), side.sin(), 0.0), side_off),
-        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), belly * rear.sin() + hz * rear.cos()),
         Plane::new(Vec3::new(0.0, front.sin(), front.cos()), hull.glacis_offset),
         Plane::new(hull.nose_normal, hull.nose_offset),
-    ])
+    ];
+    let (rear_upper, rear_lower) = stern_planes(hz, rear_deg, knuckle, belly);
+    planes.push(rear_upper);
+    planes.extend(rear_lower);
+    ConvexSolid::new(planes)
 }
 
 /// The engine deck split into three recognizable panels (front/centre/rear) separated by thin seam
@@ -200,6 +246,7 @@ mod tests {
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )
         .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
         .expect("hull solid is valid");

@@ -126,6 +126,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             turret_rear: (30.0, 1.0),
             turret_side_taper: None,
             hull_lower_front: None,
+            hull_rear_knuckle: None,
             glacis_ports: [None, None],
         },
         visual_detail: None,

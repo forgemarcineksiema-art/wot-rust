@@ -75,14 +75,15 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     renderer.set_vehicle_render_frame(&ctx, &render_frame);
 
-    // The hull faces +X (yaw 90°), so the gun points toward -X... pick eyes around the turret centre.
+    // Pick eyes around the turret centre. At yaw 90° the gun points toward +X — verified off
+    // the rendered frames (2026-08-11: the "-X is the front" comment here was inverted, and
+    // every view shipped under the opposite label; the stern view was called `_front`).
     let tc = [cx, ground + 1.55, cz];
-    // The hull faces +X, so the gun points toward -X: -X eyes are the front, +X eyes the rear.
     let views = [
-        ("front", [cx - 7.0, ground + 1.7, cz], tc),
+        ("front", [cx + 7.0, ground + 1.7, cz], tc),
         ("top", [cx - 0.6, ground + 6.5, cz + 0.2], tc),
-        ("threequarter", [cx - 5.5, ground + 3.2, cz + 5.0], tc),
-        ("rearthreequarter", [cx + 5.5, ground + 3.2, cz - 5.0], tc),
+        ("threequarter", [cx + 5.5, ground + 3.2, cz - 5.0], tc),
+        ("rearthreequarter", [cx - 5.5, ground + 3.2, cz + 5.0], tc),
         ("side", [cx, ground + 2.0, cz + 8.5], [cx, ground + 1.15, cz]),
     ];
 

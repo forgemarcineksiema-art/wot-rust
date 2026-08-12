@@ -74,6 +74,32 @@ pub fn t54_fender_slope(side_x: f32, fender: &FenderVisual, sign: f32) -> Convex
     ])
 }
 
+/// The pressed stiffening ribs on a fender end flap: three raised beads running DOWN the slope
+/// face, as the rear view of the reference drawing shows on both tail flaps. A flat flap is a
+/// slab; the ribs are what say "pressed sheet" at the tail, where the viewer meets the flap
+/// square-on. Same face frame as [`t54_fender_slope`], standing a bead's height proud of it.
+pub fn t54_fender_slope_ribs(side_x: f32, fender: &FenderVisual, sign: f32) -> Vec<ConvexSolid> {
+    let top = Vec3::new(side_x, fender.center_y, sign * fender.half.z);
+    let bottom = Vec3::new(side_x, fender.center_y - 0.33, sign * (fender.half.z + 0.31));
+    let along = (bottom - top).normalize();
+    let normal = Vec3::X.cross(along).normalize();
+    let mid = 0.5 * (top + bottom);
+    // Proud of the 15 mm slope slab: the bead's own centre rides the face plus half its height.
+    let centre = mid + normal * (0.015 + 0.010) * normal.dot(Vec3::Y).signum();
+    let half_run = (bottom - top).length() * 0.5 - 0.05;
+    (-1..=1)
+        .map(|k| {
+            let c = centre + Vec3::X * (k as f32 * 0.19);
+            let mut planes = Vec::with_capacity(6);
+            for (axis, half) in [(Vec3::X, 0.016), (along, half_run), (normal, 0.010)] {
+                planes.push(Plane::new(axis, axis.dot(c) + half));
+                planes.push(Plane::new(-axis, (-axis).dot(c) + half));
+            }
+            ConvexSolid::new(planes)
+        })
+        .collect()
+}
+
 /// Thin gusset plates under the fender span, evenly spaced along its run — the supports that carry
 /// the shelf over the exposed track. Each is a cross-fender plate hanging just below the shelf
 /// (clear of the moving top track run). Visual only, at the close-up detail tier.

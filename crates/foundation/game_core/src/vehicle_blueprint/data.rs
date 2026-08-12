@@ -50,7 +50,7 @@ fn t54() -> VehicleBlueprint {
             glacis_slope_deg: 60.0,
             pike_sweep_deg: 0.0,
             nose_rise: 0.06,
-            rear_slope_deg: 5.0,
+            rear_slope_deg: 17.0,
             // One box: the "tub" and the plate above the fold share the same vertical side plane.
             lower_half_width: 1.03,
             sponson_y: 1.00,
@@ -178,7 +178,7 @@ fn t54() -> VehicleBlueprint {
             // The documented 80 mm side plates are VERTICAL — and the visible side carries the
             // same rake the penetration model reads ("what you see is what you shoot").
             hull_side: (0.0, 1.0),
-            hull_rear: (5.0, 1.0),
+            hull_rear: (17.0, 1.0),
             turret_front: (35.0, 1.0),
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
@@ -186,6 +186,7 @@ fn t54() -> VehicleBlueprint {
             // obr. 1951 casting.
             turret_side_taper: Some(0.41),
             hull_lower_front: Some((55.0, 1.0)),
+            hull_rear_knuckle: Some((1.20, 45.0)),
             glacis_ports: [Some(super::GlacisPort { x: 0.42, y: 1.15, radius_m: 0.11 }), None],
         },
         visual_detail: None,

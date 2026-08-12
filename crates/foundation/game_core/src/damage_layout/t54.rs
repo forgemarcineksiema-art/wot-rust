@@ -206,7 +206,11 @@ fn hull_components() -> Vec<DamageComponent> {
             K::Transmission,
             ModuleSlot::Engine,
             M::Driveline,
-            obb([0.0, -0.02, -2.65], [0.68, 0.42, 0.30], 0.0),
+            // Reshaped for the authored stern (2026-08-11): the tail is a knuckled wedge now —
+            // the undercut below h 1.20 cuts the old box's rear-bottom corner off the vehicle.
+            // The gearbox rides higher and a shade forward, inside the wedge, as the real unit
+            // sits over the rear floor's rise toward the final drives.
+            obb([0.0, 0.02, -2.51], [0.68, 0.36, 0.25], 0.0),
             30,
             0.9,
         ),

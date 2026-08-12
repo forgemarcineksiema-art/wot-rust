@@ -124,6 +124,7 @@ pub fn t54_from_modules_with_blueprint(
             &bp.hull,
             v.hull_plates,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )),
         lod: PartLod::Silhouette,
         generator: GeneratorKind::Solid,
@@ -139,6 +140,7 @@ pub fn t54_from_modules_with_blueprint(
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )),
         lod: PartLod::Silhouette,
         generator: GeneratorKind::Solid,
@@ -287,7 +289,16 @@ pub fn t54_from_modules_with_blueprint(
     parts.extend(crate::t54_details::t54_detail_parts(v));
     // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
     // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
-    parts.extend(crate::t54_kit::t54_kit_parts(v, bp.armor.hull_front.0));
+    parts.extend(crate::t54_kit::t54_kit_parts(
+        v,
+        bp.armor.hull_front.0,
+        crate::t54_kit_lines::SternLine {
+            half_len: bp.hull.half_len,
+            belly_y: bp.hull.belly_y,
+            rear_deg: bp.armor.hull_rear.0,
+            knuckle: bp.armor.hull_rear_knuckle,
+        },
+    ));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
     // Damage-ready interior: major visible assemblies are generated from the authoritative

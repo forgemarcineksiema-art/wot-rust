@@ -211,14 +211,34 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
             Vec3::new(-hull.half_width, step_y, 0.0),
             ArmorZone::HullSide,
         ),
-        TaggedPlane::new(
-            Vec3::new(0.0, rear_sin, -rear_cos),
-            Vec3::new(0.0, step_y, -hull.half_len),
-            ArmorZone::HullRear,
-        ),
         // The sponson underside: reachable only from below the overhang.
         TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
     ]);
+    // The stern. Authored knuckle: the upper plate's plane runs THROUGH the knuckle line (the
+    // hull's rearmost point) and the undercut leans forward-down below it — the same two planes
+    // the visible metal folds at, so a shell meets what the player sees. No knuckle: the
+    // fleet's single plate hinged at the sponson step, exactly as before.
+    match blueprint.armor.hull_rear_knuckle {
+        Some((knuckle_y, lower_deg)) => {
+            let knuckle = Vec3::new(0.0, knuckle_y - cy, -hull.half_len);
+            let lower = lower_deg.to_radians();
+            planes.push(TaggedPlane::new(
+                Vec3::new(0.0, rear_sin, -rear_cos),
+                knuckle,
+                ArmorZone::HullRear,
+            ));
+            planes.push(TaggedPlane::new(
+                Vec3::new(0.0, -lower.sin(), -lower.cos()),
+                knuckle,
+                ArmorZone::HullRear,
+            ));
+        }
+        None => planes.push(TaggedPlane::new(
+            Vec3::new(0.0, rear_sin, -rear_cos),
+            Vec3::new(0.0, step_y, -hull.half_len),
+            ArmorZone::HullRear,
+        )),
+    }
     ArmorVolume { planes }
 }
 
@@ -270,13 +290,26 @@ fn lower_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
             Vec3::new(-hull.lower_half_width, belly_y, 0.0),
             ArmorZone::HullSide,
         ),
-        TaggedPlane::new(
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
+    ]);
+    // The tub sits entirely below the knuckle, so an authored stern reaches it as the undercut
+    // alone, hinged on the knuckle line above; the fleet keeps its sponson-hinged plate.
+    let rear_plane = match blueprint.armor.hull_rear_knuckle {
+        Some((knuckle_y, lower_deg)) => {
+            let lower = lower_deg.to_radians();
+            TaggedPlane::new(
+                Vec3::new(0.0, -lower.sin(), -lower.cos()),
+                Vec3::new(0.0, knuckle_y - cy, -hull.half_len),
+                ArmorZone::HullRear,
+            )
+        }
+        None => TaggedPlane::new(
             Vec3::new(0.0, -rear_sin, -rear_cos),
             Vec3::new(0.0, step_y, -hull.half_len),
             ArmorZone::HullRear,
         ),
-        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
-    ]);
+    };
+    planes.push(rear_plane);
     ArmorVolume { planes }
 }
 

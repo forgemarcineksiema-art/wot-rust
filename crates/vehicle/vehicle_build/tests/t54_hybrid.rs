@@ -23,6 +23,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
+            bp.armor.hull_rear_knuckle,
         )
         .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
         .expect("hull solid is valid")
@@ -355,7 +356,13 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // visible one. NOSE_SETBACK_M is gone; the first sim shot ever fired at the lower plate
     // lands at 55 degrees for ~174 mm LOS.
     // Previous: 0xf74e_0e22_b2ab_8199 (PR-35, the mould line and the armour mirror).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x2ad8_4963_8c30_5751;
+    // Re-recorded 2026-08-12 (the stern is a knuckled pair): rear 5 -> 17 degrees per the
+    // armour table, the authored knuckle at 1.20 with a 45-degree undercut below it, the deck
+    // ending where the upper plate leaves the roofline, the BDSh drums re-seated HIGH on the
+    // plate under the deck lip with the log stowed low, service plugs + bolt rows + tail-flap
+    // ribs, and the first sim shots ever fired at the stern (17 and 45 degrees, ~47 mm LOS).
+    // Previous: 0x2ad8_4963_8c30_5751 (the lower plate plays its dossier).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x509a_93b1_dd51_8346;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

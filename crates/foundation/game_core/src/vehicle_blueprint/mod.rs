@@ -217,6 +217,20 @@ pub struct ArmorShape {
     /// (`the_visible_nose_and_the_armour_nose_are_one_plane`).
     #[serde(default)]
     pub hull_lower_front: Option<(f32, f32)>,
+    /// The stern's knuckle, `(knuckle_y, lower_rear_slope_deg)`: `None` keeps the fleet's
+    /// single flat rear plate at `hull_rear`. Authored, the stern becomes TWO planes meeting at
+    /// the hull's rearmost line: the upper plate at `hull_rear`'s angle runs from the deck edge
+    /// down to the knuckle at `knuckle_y`, and below it the lower plate undercuts forward-down
+    /// at `lower_rear_slope_deg` — the T-54's overhung tail, where the knuckle (not the belly)
+    /// is what sticks out furthest.
+    ///
+    /// The T-54 authors it: the armour table says 45 mm @ 17 deg for the upper plate
+    /// (ru-wiki/warbook agree), the knuckle height and the undercut come from the calibrated
+    /// three-view (h ~= 1.20 m, ~45 deg — drawing-derived, medium confidence). The VISIBLE
+    /// stern reads this same field, so the tail the player sees and the planes a shell
+    /// resolves against are one pair of numbers.
+    #[serde(default)]
+    pub hull_rear_knuckle: Option<(f32, f32)>,
     /// The PORTS cut through the bow plates — the driver's visor and the hull MG mount — as
     /// aimable armour patches on the glacis. A port's weakness is GEOMETRY, not a scalar: the
     /// ball or visor presents FLAT where the plate around it rakes, so the patch resolves the

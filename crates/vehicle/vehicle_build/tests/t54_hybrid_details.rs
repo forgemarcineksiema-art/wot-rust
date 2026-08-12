@@ -630,9 +630,10 @@ fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
             b.max.x.abs().max(b.min.x.abs()) <= bp.hull.half_width,
             "and stays inside the hull's own width"
         );
-        // Below the banded log, above the ground line.
-        assert!(b.max.y < 0.92, "clear of the beam above them: top {:.3}", b.max.y);
-        assert!(b.min.y > bp.hull.belly_y, "and off the ground: bottom {:.3}", b.min.y);
+        // HIGH on the upper plate, under the deck lip — the documented seat (the first pass
+        // left them lying at the tail's foot) — and clear of the log stowed LOW below them.
+        assert!(b.max.y < bp.hull.deck_y, "tucked under the deck lip: top {:.3}", b.max.y);
+        assert!(b.min.y > 1.00, "clear of the beam stowed below: bottom {:.3}", b.min.y);
         // A 50 kg drum is strapped, not glued.
         let strap = description
             .parts

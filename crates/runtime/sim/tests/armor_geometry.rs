@@ -277,3 +277,54 @@ fn a_flat_shot_meets_the_lower_plate_at_its_authored_slope() {
         "100 mm at 55 degrees is ~174 mm of line-of-sight steel, got {los:.0}"
     );
 }
+
+/// The FIRST shots ever fired at the T-54's stern. The rear was one sourceless 5-degree plate
+/// for months and nothing noticed, because nothing looked: the same disease the lower plate had.
+/// Now the tail is the authored pair — 45 mm @ 17 above the knuckle, the undercut below it —
+/// and a shell meets each plate at the angle the player sees.
+#[test]
+fn a_flat_shot_meets_the_stern_pair_at_its_authored_angles() {
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("blueprint");
+    let (knuckle_y, lower_deg) =
+        blueprint.armor.hull_rear_knuckle.expect("the T-54 authors its stern knuckle");
+    let upper_deg = blueprint.armor.hull_rear.0;
+
+    // From BEHIND, above the knuckle: the upper plate at its documented 17 degrees.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 1.40, -10.0),
+        Vec3::new(0.0, 1.40, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::HullRear);
+    assert!(
+        (angle - upper_deg).abs() < 1.0,
+        "a flat shot above the knuckle meets the upper plate at {upper_deg}°, got {angle}"
+    );
+
+    // From behind, below the knuckle (and below the sponson, into the tub's tail): the undercut.
+    let (zone, angle) = hit(
+        Vec3::new(0.0, 0.90, -10.0),
+        Vec3::new(0.0, 0.90, 0.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert_eq!(zone, ArmorZone::HullRear);
+    assert!(
+        (angle - lower_deg).abs() < 1.0,
+        "a flat shot below the knuckle meets the undercut at {lower_deg}° (authored at \
+         knuckle_y {knuckle_y}), got {angle}"
+    );
+
+    // The facet the resolver reads: 45 mm at 17 degrees is ~47 mm of line-of-sight steel.
+    let plate = TankSpec::t54_1951().hull.plate(ArmorZone::HullRear);
+    assert!(
+        (plate.slope_degrees - upper_deg).abs() < 0.1,
+        "facet slope {} vs authored {upper_deg}",
+        plate.slope_degrees
+    );
+    let los = plate.nominal_thickness_mm / plate.slope_degrees.to_radians().cos();
+    assert!(
+        (45.0..50.0).contains(&los),
+        "45 mm at 17 degrees is ~47 mm of line-of-sight steel, got {los:.0}"
+    );
+}
