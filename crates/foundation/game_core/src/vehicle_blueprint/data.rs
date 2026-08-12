@@ -92,8 +92,8 @@ fn t54() -> VehicleBlueprint {
             // T-55 / Obj. 167 wheel) where the T-54 has 13. The count is not authored anywhere: it
             // is the number of link pitches around this circle, so fixing the circle fixes it.
             end_radius: 0.2662,
-            end_z: 2.590,
-            end_front: Some((2.620, 0.255)),
+            end_z: 2.530,
+            end_front: Some((2.560, 0.255)),
             // Raised so the top run leaves the end wheels ABOVE the 0.88 m wheel tops — links
             // grinding the tyres z-fight. What is authored is that 0.96 m anchor, and it was
             // written as 0.66 against a 0.32 wrap. The wrap is the sprocket's real pitch circle
@@ -101,7 +101,7 @@ fn t54() -> VehicleBlueprint {
             // as a bare 0.66 the anchor would have dropped 34 mm the moment the wrap was corrected,
             // silently — the middle of the span is governed by the wheels and would not have shown
             // it.
-            end_y: 0.674,
+            end_y: 0.860,
             inner_x: 1.03,
             outer_x: 1.61,
             segments: 14,
@@ -120,7 +120,7 @@ fn t54() -> VehicleBlueprint {
             link_count: Some(90),
             // No return rollers: the top run hangs on the road wheels and scallops between them.
             // See the note beside this number in `t54_1951.blueprint.ron`.
-            top_sag_m: 0.06,
+            top_sag_m: 0.075,
             // Twelve webs between twelve pairs of lightening holes: the obr. 1951 disc is the
             // stamped spider-web, not an openwork casting (dossier, part construction / S1b).
             wheel_spokes: 12,

@@ -222,7 +222,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // visual-detail inputs, so the re-registered loft/mantlet move this row with the hybrid
     // golden. Six siblings hold byte-for-byte, as with the stern.
     // Previous: 12_847_834_877_477_127_274 (the stern is a knuckled pair).
-    (VehicleKind::T54_1951, 14_623_353_746_941_616_067_u64),
+    (VehicleKind::T54_1951, 2_698_233_402_623_154_907_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to

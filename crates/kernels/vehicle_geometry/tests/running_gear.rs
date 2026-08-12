@@ -338,10 +338,14 @@ fn the_top_run_scallops_to_its_measured_depth() {
         .map(|p| p.transform.w_axis.truncate())
         .filter(|p| p.x > 0.0 && p.y > kin.cy + kin.wheel_radius * 0.5)
         .collect();
-    // Link centres directly over the second and third wheel stations: the supports.
+    // Link centres over the MIDDLE stations: the supports the resting belt actually lies on.
+    // With the end wheels at their measured height the run near stations 1 and 5 is already
+    // climbing its long slope to the wraps — legitimately high, per the sheet — so the outer
+    // stations belong to the slopes, not to this scallop.
+    let mid_stations = &kin.wheel_zs[1..kin.wheel_zs.len().saturating_sub(1)];
     let over_wheels = top_links
         .iter()
-        .filter(|p| kin.wheel_zs.iter().any(|&z| (p.z - z).abs() < 0.12))
+        .filter(|p| mid_stations.iter().any(|&z| (p.z - z).abs() < 0.12))
         .map(|p| p.y)
         .fold(f32::NEG_INFINITY, f32::max);
     // The valley between wheels 2 and 3 (stations -1.014 and -0.108).

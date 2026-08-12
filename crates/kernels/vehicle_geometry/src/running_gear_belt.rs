@@ -153,7 +153,13 @@ impl BeltPath {
         // can drop at most `reach = 2.2*s` below the wrap chord — a driven track (small s)
         // floats ABOVE the carriers; at rest and under braking it reaches them and RESTS,
         // then each span between contacts hangs by `s * span / 1.8`.
-        let reach = 2.2 * top_sag;
+        // 3.0 (was 2.2), re-derived with the raised end wheels: at REST the run must be able
+        // to fall from the wrap chord (~1.14 with axles at their measured 0.86) onto the
+        // road-wheel seat (0.90) — a 0.24 m drop; 3.5x the authored sag clears it with real margin.
+        // The DRIVEN scale (0.72x) then pulls reach under that drop, so a moving tank's top
+        // run lifts off the crests and runs taut from wrap to wrap — which is exactly what
+        // the real belt does under drive tension.
+        let reach = 3.5 * top_sag;
         // The wrap chord runs from the rear wrap's top to the front's — one line even when an
         // authored idler carries a different wheel size at its own axle.
         let chord_y = |z: f32| -> f32 {
@@ -205,14 +211,14 @@ impl BeltPath {
             // Spans are measured FLAT-TO-FLAT now (two nodes per carrier), so the T-54's
             // 0.906 m wheel bay presents ~0.7 m of open span and the rigid threshold sits at
             // 0.45 — between the Tiger family's flats and the open Soviet bays. Normalisation
-            // is that open span (0.65), so the authored number IS the dip the eye gets in a
+            // is that open span (0.70), so the authored number IS the dip the eye gets in a
             // T-54-scale bay. Depth re-derived 2026-08-12 (second pass): the "~95 mm" this
             // read used to chase came from the same mis-calibrated three-view session that
             // parked the fender on the track crest; the reference sheet's own scallops measure
             // 20-45 mm and the rear photographs show a deeper drape, so the authored depth
             // lands between the two and `the_top_run_scallops_to_its_measured_depth` locks
             // the OUTCOME band.
-            let desired = if span >= 0.45 { (top_sag * (span / 0.65)).min(reach) } else { 0.0 };
+            let desired = if span >= 0.45 { (top_sag * (span / 0.70)).min(reach) } else { 0.0 };
             let mid = 0.5 * (y0 + y1);
             let sag = if floor.is_finite() { desired.min((mid - floor).max(0.0)) } else { desired };
             // v4 (the tent-peak fix, 2026-08-12): a sagging span becomes FIVE dead-straight
