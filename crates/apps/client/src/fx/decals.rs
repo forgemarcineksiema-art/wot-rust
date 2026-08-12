@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use game_core::{ArmorFacing, DamageEvent};
+use game_core::{ArmorFacing, ArmorZone, DamageEvent};
 use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::FxVertex;
@@ -40,12 +40,22 @@ const NEAREST_SNAP_M: f32 = 0.30;
 /// point floats proud of the surface; casting the shell's line against the real mesh — with a
 /// nearest-point snap and an other-frame retry for the turret-ring seam — recovers the true
 /// contact. Falls back through the transmitted plate normal to the old cardinal guess, so it is
-/// never worse than before. Returns `None` only when the hit degenerates (a corrupt event).
+/// never worse than before. Returns `None` for track-zone hits (the belt is animated gear, not
+/// a decal frame) and when the hit degenerates (a corrupt event).
 pub fn decal_from_damage_event(
     event: &DamageEvent,
     target: &TankSnapshot,
     contact: Option<&VehicleContactIndex>,
 ) -> Option<HitDecal> {
+    // A mark cannot ride a scrolling belt: the track zones' visible surface is the ANIMATED
+    // running gear, which none of the decal frames (hull bake, turret, gun) carry. These hits
+    // keep their impact FX and the track's own damage read (HP tiers, the thrown-belt visuals);
+    // they leave no hull decal. Until the fender band was measured correctly the seat quietly
+    // snapped these marks onto the fender lip that happened to hug the belt — a static scar on
+    // sheet metal the shell never touched. The honest daylight band exposed that lie.
+    if matches!(event.armor_zone, ArmorZone::LeftTrack | ArmorZone::RightTrack) {
+        return None;
+    }
     let pose = pose_of(target);
     let facing = event.armor_zone.facing();
     let primary = if event.armor_zone == game_core::ArmorZone::Mantlet {

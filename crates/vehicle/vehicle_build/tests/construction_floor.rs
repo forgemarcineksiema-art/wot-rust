@@ -37,7 +37,6 @@ const PLATES_AND_BARS: &[(&str, &str)] = &[
     ("upper_hull", "rolled plate assembly — six planes carrying the blueprint's armour angles"),
     ("lower_tub", "the narrow lower hull, same: exact plate, exact slope, sharp seam"),
     ("engine_deck_panel", "a hinged deck plate is a plate"),
-    ("fender_slope", "a folded fender section over the sponson step"),
     ("transmission_cover", "a flat bolted access cover"),
     ("deck_weld_bead", "a weld bead is a raised bar, not a body"),
     ("hull_plate_seam", "the same, along the plate joint"),

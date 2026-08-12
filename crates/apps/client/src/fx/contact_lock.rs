@@ -132,6 +132,18 @@ fn every_real_hit_seats_its_decal_on_the_visual_mesh() {
             let Some(event) = trace_event(from, aim, &spec) else {
                 continue;
             };
+            // Track hits leave no hull decal BY CONTRACT: the belt is animated running gear,
+            // and with the fender band at its measured daylight the nearest static metal is a
+            // third of a metre away — the old behaviour seated these marks on the fender lip
+            // that happened to hug the belt, which was a mark on metal the shell never touched.
+            if matches!(event.armor_zone, ArmorZone::LeftTrack | ArmorZone::RightTrack) {
+                assert!(
+                    decal_from_damage_event(&event, &snapshot, Some(&contact)).is_none(),
+                    "a track hit must not seat a hull decal (zone {:?})",
+                    event.armor_zone
+                );
+                continue;
+            }
             let decal = decal_from_damage_event(&event, &snapshot, Some(&contact))
                 .expect("a real hit resolves to a decal");
             let local = Vec3::from_array(decal.local_position);

@@ -388,7 +388,17 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // wraps' links — the single number that held the whole band a hand too high — answers to
     // the crest line now.
     // Previous: 0xe0a9_4b97_593b_9332 (the belt hangs and the shelf comes down).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xc48c_3c82_61a0_1d06;
+    // Re-recorded 2026-08-12 (the shelf rides daylight — the band, measured again): the
+    // "sheet at 1.00-1.06" three-view reading behind the previous two re-records was the track
+    // CREST's line, not the fender sheet. Scanned in BOTH projections the sheet rides 1.35
+    // with ~0.30 m of daylight over the crest links and the stowage lids ON the 1.58 roof
+    // line. So: shelf 1.00 -> 1.35 (`FenderShelfHeight` dossier anchor, measured off the bake
+    // at the shelf's outer edge), bins re-heighted for flush lids, guards falling from the
+    // shelf instead of humping over it, exhaust and headlight riding the sheet they sit on
+    // (both tied to it by lock now), the part graph's fender box on the fender's own plane.
+    // The kiss lock inverts into the daylight band it should always have been.
+    // Previous: 0xc48c_3c82_61a0_1d06 (the suspension band works as a system).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x3659_281f_e969_9037;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

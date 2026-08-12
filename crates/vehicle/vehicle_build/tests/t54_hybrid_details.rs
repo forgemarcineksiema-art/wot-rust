@@ -93,11 +93,11 @@ fn t54_fenders_are_segmented_with_support_brackets() {
 
     // Segmented fender: the outer fender top now carries many distinct z-edges (one per section
     // boundary); a single continuous slab would expose only the two end edges.
-    // The fender now rides over the track (top ≈1.03), not up at the roof, so the outer top sits
-    // above 1.0 while staying well below the 1.20 roof.
+    // The fender rides its measured 1.35 sheet plane (2026-08-12, both projections), so the
+    // outer edge lives above 1.3 while staying below the 1.58 roof.
     let mut z_bands: HashSet<i32> = HashSet::new();
     for v in hull.vertices() {
-        if v.material == MaterialRole::RolledArmor && v.position.x > 1.6 && v.position.y > 1.0 {
+        if v.material == MaterialRole::RolledArmor && v.position.x > 1.6 && v.position.y > 1.3 {
             z_bands.insert((v.position.z / 0.05).round() as i32);
         }
     }
@@ -108,16 +108,15 @@ fn t54_fenders_are_segmented_with_support_brackets() {
     );
 
     // Support gussets hang just below the fender shelf at the HULL side, on both fenders —
-    // triangulating against the wall like the real supports, not reaching over the belt band
-    // a jounced wheel sweeps its links through (they used to, and with the shelf at its
-    // measured 1.06 line that was a collision waiting for the first bump).
+    // triangulating against the wall like the real supports. With the shelf at its measured
+    // 1.35 sheet plane the gusset band sits at ~1.30-1.35, far clear of the links below.
     let has_bracket = |sign: f32| {
         hull.vertices().iter().any(|v| {
             v.material == MaterialRole::TrackMetal
                 && v.position.x * sign > 1.00
                 && v.position.x * sign < 1.20
-                && v.position.y > 0.97
-                && v.position.y < 1.06
+                && v.position.y > 1.28
+                && v.position.y < 1.36
         })
     };
     assert!(has_bracket(1.0) && has_bracket(-1.0), "fender support brackets hang below both sides");
@@ -486,6 +485,7 @@ fn t54_fenders_carry_the_reference_stowage_line() {
     let outer = bp.track.outer_x;
     let baked = t54_description().build();
     let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
+    let description = t54_description();
 
     for side in [1.0_f32, -1.0] {
         let stowage: Vec<_> = hull
@@ -493,13 +493,32 @@ fn t54_fenders_carry_the_reference_stowage_line() {
             .iter()
             .filter(|vert| vert.position.x * side > bp.hull.half_width)
             .filter(|vert| {
-                vert.position.y > fender_top + 0.03 && vert.position.y < bp.hull.deck_y - 0.05
+                vert.position.y > fender_top + 0.03 && vert.position.y < bp.hull.deck_y + 0.04
             })
             .collect();
         assert!(
             stowage.len() >= 8,
             "fender (side {side}) must carry stowage above its shelf, got {} vertices",
             stowage.len()
+        );
+        // The lids close the silhouette AT the roof line: both projections of the reference
+        // sheet draw box tops and roof as ONE line. A stowage line ending a hand below the
+        // deck is the "boxes on the ground" read the 2026-08-12 review called out. Measured
+        // on the BOX bodies (`PartShape::Plates`) — the lid furniture (hinge knuckles, grab
+        // handles) rides a knuckle higher and is not the line the silhouette reads.
+        let lid_line = description
+            .parts
+            .iter()
+            .filter(|part| matches!(part.key.name, "stowage_bin" | "fuel_tank"))
+            .filter(|part| matches!(part.shape, vehicle_build::PartShape::Plates(_)))
+            .filter_map(|part| part.mesh().bounds())
+            .filter(|b| (b.min.x + b.max.x) * 0.5 * side > 0.0)
+            .map(|b| b.max.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            (bp.hull.deck_y - 0.03..=bp.hull.deck_y + 0.01).contains(&lid_line),
+            "stowage lids (side {side}) must sit flush with the {:.2} roof line, got {lid_line:.3}",
+            bp.hull.deck_y
         );
         let (mut zs_min, mut zs_max) = (f32::INFINITY, f32::NEG_INFINITY);
         // The band's widest honest reach is the FENDER LINE (side_x + half.x = the documented

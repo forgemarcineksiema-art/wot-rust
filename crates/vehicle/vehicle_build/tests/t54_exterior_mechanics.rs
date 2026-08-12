@@ -59,6 +59,25 @@ fn the_headlight_is_bracketed_and_guarded() {
         bracket.min.y,
         body.min.y
     );
+    // And the fender it stands on is the SHEET, at its corrected plane — nothing tied the lamp
+    // to the shelf before, so when the shelf was mis-parked on the track crest the lamp stayed
+    // behind, and when the shelf came back up a free-floating lamp would have drowned in the
+    // bow guard. The drum lives ABOVE the sheet; the stalk roots at or below it.
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let sheet_top = {
+        let fender = bp.complete_visual().expect("visual").fender;
+        fender.center_y + fender.half.y
+    };
+    assert!(
+        body.min.y > sheet_top - 0.02,
+        "the lamp body stands over the sheet plane {sheet_top:.3}, got {:.3}",
+        body.min.y
+    );
+    assert!(
+        bracket.min.y < sheet_top + 0.06,
+        "the stalk reaches the sheet it is bolted to: {:.3} vs sheet {sheet_top:.3}",
+        bracket.min.y
+    );
     let guard = part_mesh("headlight_guard").bounds().expect("guard bounds");
     assert!(
         guard.max.z >= body.max.z - 0.01,
@@ -381,13 +400,25 @@ fn the_exhaust_louvres_lie_on_their_cowl_and_clear_the_track() {
     );
 
     // The CREST links, not the armour band: `belt_half_thickness` is the gameplay band's
-    // generous half, and with the shelf down at the sheet line everything riding it sits
-    // inside that band while clearing the real links by a hand.
+    // generous half; everything riding the shelf clears the real links by the daylight band.
     let crest_links = blueprint.track.top_y + 0.055;
     assert!(
         louvres.min.y > crest_links,
         "the louvres reach {:.3} m, into the crest links at {crest_links:.3} m",
         louvres.min.y
+    );
+
+    // The cowl SITS on the shelf — its underside meets the sheet top. Nothing tied the exhaust
+    // to the fender before (its y was a free literal), which is how it once stayed behind while
+    // the shelf moved under it.
+    let sheet_top = {
+        let fender = blueprint.complete_visual().expect("visual").fender;
+        fender.center_y + fender.half.y
+    };
+    assert!(
+        (cowl.min.y - sheet_top).abs() <= 0.02,
+        "the cowl's underside meets the sheet top {sheet_top:.3}, got {:.3}",
+        cowl.min.y
     );
 }
 
