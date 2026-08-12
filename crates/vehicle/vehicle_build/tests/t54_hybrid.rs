@@ -362,7 +362,16 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // plate under the deck lip with the log stowed low, service plugs + bolt rows + tail-flap
     // ribs, and the first sim shots ever fired at the stern (17 and 45 degrees, ~47 mm LOS).
     // Previous: 0x2ad8_4963_8c30_5751 (the lower plate plays its dossier).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x509a_93b1_dd51_8346;
+    // Re-recorded 2026-08-12 (the egg is registered): the waist moves to S1's 43%-from-the-
+    // front (z_center +0.20 at the widest band), an 11th skirt station hangs the casting lip
+    // below the ring plane, the crown biases forward, and the front package follows the metal
+    // it sits on — mantlet +55 mm, canvas panel anchored to the loft's face (typed twice,
+    // stranded twice, derived now), coax lengthened to daylight. Plus the latent frame bug the
+    // reshape exposed: `surface_point` evaluated bumps at the geometric angle where the mesh
+    // speaks parameter azimuth — up to ~40 mm of silent disagreement at the window flank,
+    // now converted exactly through the superellipse identity.
+    // Previous: 0x509a_93b1_dd51_8346 (the stern is a knuckled pair).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x091f_bf1a_1900_21ae;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

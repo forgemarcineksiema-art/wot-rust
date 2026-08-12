@@ -205,7 +205,11 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // shipped hybrid. Only this row and the hybrid's own golden move — the six siblings author
     // no knuckle and their bakes hold byte-for-byte.
     // Previous: 3_041_646_403_573_294_078 (the crisp lathe edges).
-    (VehicleKind::T54_1951, 12_847_834_877_477_127_274_u64),
+    // Re-recorded 2026-08-12 again (the egg is registered): the legacy bake shares the hybrid's
+    // visual-detail inputs, so the re-registered loft/mantlet move this row with the hybrid
+    // golden. Six siblings hold byte-for-byte, as with the stern.
+    // Previous: 12_847_834_877_477_127_274 (the stern is a knuckled pair).
+    (VehicleKind::T54_1951, 6_808_283_701_457_254_743_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to

@@ -162,15 +162,20 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // Pulled 30 mm deeper behind the face after the egg reshape: the casting's nose
             // sits further back than the old squircle plateau, and the internal body must keep
             // clearing it by the contract's 80 mm. It is occluded by the canvas either way.
+            // Shifted +0.055 with the egg re-registration (2026-08-12): the forward-registered
+            // waist carries the window's pocket floor out to ~1.105, and the face must stand
+            // proud of the floor (it shows through the hole) while the widest band stays
+            // behind it — the internal-mount contract, re-measured by
+            // `the_mantlet_is_an_internal_closed_body_wider_than_its_aperture`.
             mantlet_profile: [
-                (-0.330, 0.000),
-                (-0.295, 0.135),
-                (-0.220, 0.220),
-                (-0.145, 0.250),
-                (-0.100, 0.243),
-                (-0.080, 0.185),
-                (-0.070, 0.155),
-                (-0.060, 0.000),
+                (-0.275, 0.000),
+                (-0.240, 0.135),
+                (-0.165, 0.220),
+                (-0.090, 0.250),
+                (-0.045, 0.243),
+                (-0.025, 0.185),
+                (-0.015, 0.155),
+                (-0.005, 0.000),
             ],
             // Twelve: the mantlet lives BEHIND the canvas now — the cover panel occludes it
             // from every exterior angle, and it only shows through a breach remesh. Twenty-eight

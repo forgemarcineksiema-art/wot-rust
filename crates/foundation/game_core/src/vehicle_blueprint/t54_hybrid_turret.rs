@@ -1,10 +1,11 @@
 //! The T-54 lofted cast-turret stations and shaping — split out of `t54_hybrid` to keep each file
-//! within the reviewability budget. Stations run from the ring seat (1.58, the LOW hull-roof
-//! plane) up to the flat roof (2.27): the tall ~0.7 m hemispherical casting of the references,
-//! widest LOW (station 2) for the ring overhang at the ~2.25 m casting diameter, front-heavy
-//! (front > rear half-length) with a rear-pulled bustle (negative z_center climbing with height),
-//! rounding continuously into the roof. All within the ±1.125 / ±1.17 turret plan. Cheeks and the
-//! front gun embrasure ride as localized radial modulations of the one surface.
+//! within the reviewability budget. Stations run from the skirt lip (1.54, BELOW the hull-roof
+//! plane — the casting overhangs its race) up to the flat roof (2.40): the low ~0.86 m
+//! hemispherical casting of the references, widest LOW at the ~2.25 m casting diameter, its
+//! waist (widest cut) registered 0.20 m FORWARD of the ring axis (S1's "43% from the front") so
+//! the plan reads as the T-54's egg — blunt wide front, long tapering rear — with the crown
+//! biased toward the cheeks. Cheeks and the front gun embrasure ride as localized radial
+//! modulations of the one surface.
 
 use glam::Vec3;
 
@@ -36,95 +37,112 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         // is internally inconsistent by 4-7% (its own projections disagree) and the crown widths
         // came from closure rather than measurement, with roof furniture in the way.
         stations: [
-            // PHOTO-DERIVED (pilot module 1, 2026-07-29). Source: walkaround REF 46 full side
-            // profile, calibrated by the anchored ring->roof span (1.58 -> 2.40 = 187 px), with
-            // the depth-plane correction cross-checked against the wheel-plane scale (ratio
-            // 1.137 = camera ~9.6 m, internally consistent). LENGTH sums per height come from
-            // the photo and are registration-independent (front_x - rear_x); the front/rear
-            // SPLIT keeps the kernel-contract front-heavy registration. What the photo settles:
+            // PHOTO-DERIVED (pilot module 1, 2026-07-29), RE-REGISTERED 2026-08-12. Module 1's
+            // heights, widths and length sums stand — what moves is WHERE the egg sits over the
+            // ring, and it moves back to S1's own measurement. S1 measured the widest cut at
+            // 43% of the casting's length from the front and flagged only its registration to
+            // the ring as an assumption; module 1 kept the kernel-contract's "front-heavy from
+            // the ring axis" registration instead, and in trimming the beak the asymmetry
+            // shrank to 8% — a symmetric OVAL, which the plan overlay against the calibrated
+            // three-view shows plainly (the drawing's egg: waist ~0.2-0.4 m FORWARD of the
+            // hull centre, rear taper the long one; the museum and WG references read the
+            // same). Re-registration, with S1's L = 2.363 and the overlay-validated rear tip:
             //
-            //   * there is NO vertical flank band. The rear begins pulling in essentially AT
-            //     the ring (a_r 1.35 -> 1.18 by h=1.84, 1.02 by 2.00) - the S1 drawing's
-            //     "vertical to 2.00" was the pancake, and the player called it;
-            //   * the skirt OVERHANGS the seat slightly (widest cut ~1.66-1.76, length grows
-            //     ~15 mm over the seat) - a cast dome tucks under to its race;
-            //   * the nose is BLUNT: the front profile above the window falls steeply, and
-            //     the first draft's long shallow forward slope read as a beak (A/B v1) - the
-            //     front reaches carry the registration uncertainty, trimmed to the blunt read;
-            //   * the crown does NOT drift rearward. The old -0.14/-0.18 z_center came from the
-            //     S1 sheet's closure band, which S1 itself marked untrusted; the photo's roof
-            //     line holds high toward the cheeks and falls in one long sweep to the rear lip.
+            //   * rear tip -1.128 (validated: the drawing overlay matches it to ~3 cm);
+            //   * front tip 1.233 -> authored 1.28 at the waist band (the sheet reads the
+            //     collar zone out to ~1.4-1.5; hedged toward S1's casting-only tip);
+            //   * waist (widest cut) at z = +0.20 = front tip - 0.43 x 2.363, S1's number;
+            //   * the crown holds toward the cheeks (z_center +0.06 at the roof) and the rear
+            //     falls in one long sweep - the photo's read, now expressed in registration
+            //     instead of being flattened out of it;
+            //   * a SKIRT station below the ring plane: the casting overhangs its race and the
+            //     lip drops ~4 cm below the 1.58 roofline with a slight tuck - the shadow line
+            //     every reference photograph shows around the base of the dome.
+            //
+            // The blunt nose stands: the front tips fall steeply above the window band.
+            // Front-heaviness now lives where the metal has it - the casting still reaches
+            // farther forward of the RING AXIS than rearward (1.28 vs 1.128), but each
+            // station's own rear half-length exceeds its front one because the waist sits
+            // forward; `t54_kernel_contract` measures the registration, not the split.
+            LoftStation {
+                y: 1.54,
+                half_width: 1.074,
+                half_len_front: 1.065,
+                half_len_rear: 1.275,
+                z_center: 0.18,
+            },
             LoftStation {
                 y: 1.58,
                 half_width: 1.090,
-                half_len_front: 1.190,
-                half_len_rear: 1.115,
-                z_center: 0.00,
+                half_len_front: 1.075,
+                half_len_rear: 1.305,
+                z_center: 0.19,
             },
             LoftStation {
                 y: 1.66,
                 half_width: 1.125,
-                half_len_front: 1.215,
-                half_len_rear: 1.128,
-                z_center: 0.00,
+                half_len_front: 1.080,
+                half_len_rear: 1.328,
+                z_center: 0.20,
             },
             LoftStation {
                 y: 1.76,
                 half_width: 1.125,
-                half_len_front: 1.218,
-                half_len_rear: 1.105,
-                z_center: 0.00,
+                half_len_front: 1.075,
+                half_len_rear: 1.320,
+                z_center: 0.20,
             },
             LoftStation {
                 y: 1.88,
                 half_width: 1.105,
-                half_len_front: 1.200,
-                half_len_rear: 1.055,
-                z_center: 0.00,
+                half_len_front: 1.055,
+                half_len_rear: 1.265,
+                z_center: 0.19,
             },
             LoftStation {
                 y: 2.00,
                 half_width: 1.060,
-                half_len_front: 1.150,
-                half_len_rear: 0.980,
-                z_center: 0.00,
+                half_len_front: 1.015,
+                half_len_rear: 1.170,
+                z_center: 0.17,
             },
             LoftStation {
                 y: 2.12,
                 half_width: 0.980,
-                half_len_front: 1.040,
-                half_len_rear: 0.820,
-                z_center: 0.00,
+                half_len_front: 0.915,
+                half_len_rear: 0.995,
+                z_center: 0.15,
             },
             LoftStation {
                 y: 2.22,
                 half_width: 0.865,
-                half_len_front: 0.880,
-                half_len_rear: 0.660,
-                z_center: -0.01,
+                half_len_front: 0.770,
+                half_len_rear: 0.815,
+                z_center: 0.13,
             },
             LoftStation {
                 y: 2.30,
                 half_width: 0.700,
-                half_len_front: 0.720,
-                half_len_rear: 0.495,
-                z_center: -0.02,
+                half_len_front: 0.625,
+                half_len_rear: 0.625,
+                z_center: 0.11,
             },
             LoftStation {
                 y: 2.36,
                 half_width: 0.495,
-                half_len_front: 0.480,
-                half_len_rear: 0.335,
-                z_center: -0.02,
+                half_len_front: 0.410,
+                half_len_rear: 0.440,
+                z_center: 0.09,
             },
             // The roof plate: a small near-flat crown the photo shows, big enough to root the
-            // hatch coamings - the cupola and furniture root INTO the dome, not onto this plate.
+            // hatch coamings - the cupola and furniture root INTO the dome, not onto this
+            // plate. Forward-biased with the crown, not drifted rearward.
             LoftStation {
                 y: 2.40,
                 half_width: 0.420,
-                half_len_front: 0.420,
-                half_len_rear: 0.320,
-                z_center: -0.02,
+                half_len_front: 0.385,
+                half_len_rear: 0.390,
+                z_center: 0.06,
             },
         ],
         // 2.35: the plan reads as an EGG. The S1 fit said 2.8, and 2.8 is a squircle - the

@@ -100,8 +100,9 @@ impl LoftStation {
 /// casting from every angle. The cupola and the moving mantlet stay separate bedded parts.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TurretLoftVisual {
-    /// Cross-sections, ring seat (bottom) to roof (top).
-    pub stations: [LoftStation; 10],
+    /// Cross-sections, skirt lip (bottom, below the ring plane — the casting overhangs its
+    /// race) to roof (top).
+    pub stations: [LoftStation; 11],
     /// Superellipse fullness (`2.0` = ellipse, `>2.0` = fuller cast shoulders).
     pub exponent: f32,
     /// Azimuth samples per ring.
@@ -207,13 +208,36 @@ impl TurretLoftVisual {
     /// rails rely on, pinned by `surface_point_without_bumps_is_the_bare_ring`.
     pub fn surface_point(&self, y: f32, phi: f32, standoff: f32) -> Vec3 {
         let bare = self.ring_point(y, phi, standoff);
-        // The bump family speaks the outline's azimuth (0 = +X, front at PI/2); the fitting
-        // convention here is phi 0 = forward +Z. Same angle, different zero.
-        let push = self.radial_push(std::f32::consts::FRAC_PI_2 - phi, y);
+        // The bump family speaks the outline's PARAMETER azimuth — the angle the kernel walks
+        // when it skins the stations — not the geometric direction angle `phi`. On a circle the
+        // two coincide; on the superellipse they diverge hardest just off the axes, and that
+        // divergence is where this used to lie: the bumps were evaluated at the geometric
+        // angle, so the analytic surface disagreed with the skinned mesh by up to ~40 mm at
+        // the gun window's flank (the old blunt-front table kept it under the seam lock's
+        // tolerance; the forward-registered egg pushed it out into the open). The parameter is
+        // recovered exactly from the bare point through the superellipse identity:
+        // |x/w|^n + |z'/l|^n = 1 with x = w·|cos t|^(2/n) gives cos t = (|x|/w)^(n/2),
+        // sin t = (|z'|/l)^(n/2), and cos²+sin² = 1 lands for free.
+        let s = &self.stations;
+        let above = s.iter().position(|st| st.y >= y).unwrap_or(s.len() - 1).max(1);
+        let (a, b) = (&s[above - 1], &s[above]);
+        let t = ((y - a.y) / (b.y - a.y).max(1.0e-4)).clamp(0.0, 1.0);
+        let lerp = |p: f32, q: f32| p + (q - p) * t;
+        let half_width = lerp(a.half_width, b.half_width);
+        let z_local = bare.z - self.station_z_center(y);
+        let half_len = if z_local >= 0.0 {
+            lerp(a.half_len_front, b.half_len_front)
+        } else {
+            lerp(a.half_len_rear, b.half_len_rear)
+        };
+        let half = self.exponent * 0.5;
+        let cos_t = (bare.x.abs() / half_width).clamp(0.0, 1.0).powf(half).copysign(bare.x);
+        let sin_t = (z_local.abs() / half_len).clamp(0.0, 1.0).powf(half).copysign(z_local);
+        let push = self.radial_push(sin_t.atan2(cos_t), y);
         if push == 0.0 {
             return bare;
         }
-        let radial = Vec3::new(bare.x, 0.0, bare.z - self.station_z_center(y)).normalize_or_zero();
+        let radial = Vec3::new(bare.x, 0.0, z_local).normalize_or_zero();
         bare + radial * push
     }
 

@@ -137,9 +137,12 @@ fn add_coaxial_sg43(parts: &mut Vec<VehiclePart>, axis_y: f32) {
     parts.push(drum_part(
         PartKey::new("sg43_coax_barrel"),
         SubmeshKind::Turret,
-        Vec3::new(0.22, axis_y - 0.04, 0.87),
+        // Lengthened with the egg re-registration: the forward-registered waist carries the
+        // window's floor out ~25 mm, and the old tube ended inside the casting — a gun with
+        // no muzzle (`the_coaxial_muzzle_reaches_daylight_through_the_gun_window`).
+        Vec3::new(0.22, axis_y - 0.04, 0.95),
         Vec3::Z,
-        (0.24, 0.018),
+        (0.28, 0.018),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
     ));

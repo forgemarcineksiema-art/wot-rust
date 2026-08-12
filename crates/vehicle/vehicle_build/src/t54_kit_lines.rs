@@ -191,9 +191,12 @@ fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
     let y = 1.71;
     // No repeated first point: the sweep closes the loop itself. Repeating it puts two end caps
     // in the same place, and the weld turns that into non-manifold edges on the turret submesh.
-    let path: Vec<Vec3> = (0..48)
+    // 96 azimuths: at 48 the polyline cut the corner of the gun-window recess — the forward-
+    // registered egg carries a tighter nose, and the wall between two samples left the seam
+    // hanging 53 mm off the metal at the window's flank.
+    let path: Vec<Vec3> = (0..96)
         .map(|k| {
-            let phi = std::f32::consts::TAU * k as f32 / 48.0;
+            let phi = std::f32::consts::TAU * k as f32 / 96.0;
             loft.surface_point(y, phi, 0.004)
         })
         .collect();

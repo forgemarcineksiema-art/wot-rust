@@ -38,15 +38,26 @@ const CORNER_PTS: usize = 3;
 /// first build ran the taper all the way to 0.30 and the front read as a pyramid of diagonals.
 ///
 /// The EDGE is anchored to the frame's clamp (z −0.010, where `t54_mantlet_frame` grips the
-/// hem); the BULGE is anchored to the casting. When the pilot-foto rebuild pushed the loft's
-/// nose out to z 1.2424 these stations stayed at their 2026-07 values, the face swallowed the
-/// border station, and the front read flat again — the swallowed-boot verdict the panel exists
-/// to prevent (`the_visible_gun_mount_is_no_wider_than_its_canvas_cover` measures exactly
-/// this, and was red for it). The border and face stations sit AHEAD of the measured nose:
-/// clamped at the floor, pressed out past the rim by the mount under it, as the photographs
-/// show.
-const PANEL_STATIONS: [(f32, f32); 4] =
-    [(-0.010, 1.0), (0.040, 1.015), (0.105, 0.97), (0.150, 0.80)];
+/// hem); the BULGE and FACE are anchored to the CASTING'S NOSE — passed in by the caller from
+/// the loft, never typed here again. When the pilot-foto rebuild pushed the loft's nose out to
+/// z 1.2424 these stations were typed constants, stayed at their 2026-07 values, the face
+/// swallowed the border station and the front read flat — and the egg re-registration
+/// (2026-08-12) stranded them the SAME way a second time. Twice is a rule: the panel follows
+/// the metal it is fastened to. The offsets reproduce the measured pillow: bulge a strap's
+/// width behind the bare nose, border just past it, the flat face ~55 mm proud — clamped at
+/// the floor, pressed out past the rim by the mount under it, as the photographs show.
+fn panel_stations(nose_z_rel: f32) -> [(f32, f32); 4] {
+    // The face stands 70 mm proud of the LOCAL nose: the casting's global front tip sits at
+    // the waist band (~1.70), a shade ahead of the nose at the gun line, and the pillow must
+    // read past THAT — the reference-quality lock measures the fabric ahead of the whole
+    // casting, not ahead of the panel's own wall.
+    [
+        (-0.010, 1.0),
+        (nose_z_rel - 0.052, 1.015),
+        (nose_z_rel + 0.028, 0.97),
+        (nose_z_rel + 0.070, 0.80),
+    ]
+}
 
 /// A rounded-rectangle ring of points, counter-clockwise, no repeated vertex: each corner arc
 /// samples `[base, base + 90)`, so quadrant boundaries appear exactly once.
@@ -67,14 +78,19 @@ fn rounded_rect_ring(half_x: f32, half_y: f32) -> Vec<Vec2> {
 }
 
 /// The canvas: panel + sleeve + folds, one fabric mesh in vehicle-local space.
-pub fn t54_mantlet_cover(trunnion: Vec3, canvas: &CanvasCoverVisual) -> GeometryMesh {
+pub fn t54_mantlet_cover(
+    trunnion: Vec3,
+    canvas: &CanvasCoverVisual,
+    nose_z_rel: f32,
+) -> GeometryMesh {
     let (fx, fy) = canvas.frame_half;
     let mut pieces: Vec<GeometryMesh> = Vec::new();
 
     // --- the panel -------------------------------------------------------------------------
+    let stations = panel_stations(nose_z_rel);
     let panel_points: Vec<Vec3> =
-        PANEL_STATIONS.iter().map(|&(z, _)| trunnion + Vec3::new(0.0, 0.0, z)).collect();
-    let panel_scales: Vec<f32> = PANEL_STATIONS.iter().map(|&(_, s)| s).collect();
+        stations.iter().map(|&(z, _)| trunnion + Vec3::new(0.0, 0.0, z)).collect();
+    let panel_scales: Vec<f32> = stations.iter().map(|&(_, s)| s).collect();
     // The sweep's FixedUp(Y) frame on a +Z path maps the section's X axis onto world Y —
     // measured, not assumed (the first build came out portrait). The ring is built with the
     // HEIGHT half first so the wide side lands across the vehicle.
@@ -182,7 +198,7 @@ mod tests {
     #[test]
     fn the_cover_is_a_rectangle_wider_than_tall() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
-        let cover = t54_mantlet_cover(trunnion, &canvas());
+        let cover = t54_mantlet_cover(trunnion, &canvas(), 0.119);
         let b = cover.bounds().expect("cover bounds");
         let width = b.max.x - b.min.x;
         let height = b.max.y - b.min.y;
@@ -195,7 +211,7 @@ mod tests {
     #[test]
     fn the_sleeve_ends_gripping_the_tube() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
-        let cover = t54_mantlet_cover(trunnion, &canvas());
+        let cover = t54_mantlet_cover(trunnion, &canvas(), 0.119);
         let far = canvas().sleeve[3].0;
         let ring: Vec<f32> = cover
             .vertices()
