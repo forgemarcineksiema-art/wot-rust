@@ -319,6 +319,16 @@ impl VehicleAssetCatalog {
                 &name("swing_arm_left"),
                 &vehicle_geometry::swing_arm_unit_mesh_left(&kin),
             ),
+            damper: self.register_gear_mesh(
+                kind,
+                &name("damper"),
+                &vehicle_geometry::damper_unit_mesh(&kin),
+            ),
+            damper_left: self.register_gear_mesh(
+                kind,
+                &name("damper_left"),
+                &vehicle_geometry::damper_unit_mesh_left(&kin),
+            ),
             idler: self.register_gear_mesh(kind, &name("idler"), &idler_unit_mesh(&kin)),
             sprocket: self.register_gear_mesh(kind, &name("sprocket"), &sprocket_unit_mesh(&kin)),
             link: self.register_gear_mesh(kind, &name("track_link"), &track_link_unit_mesh(&kin)),

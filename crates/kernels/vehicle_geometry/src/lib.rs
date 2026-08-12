@@ -42,7 +42,9 @@ pub use running_gear::{
     GEAR_DETAIL_SWITCH_M, GearDetail, GearPart, GearPlacement, RunningGearKinematics,
     gear_detail_for_distance,
 };
-pub use running_gear_arms::{swing_arm_unit_mesh, swing_arm_unit_mesh_left};
+pub use running_gear_arms::{
+    damper_unit_mesh, damper_unit_mesh_left, swing_arm_unit_mesh, swing_arm_unit_mesh_left,
+};
 pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket_unit_mesh};
 pub use running_gear_geom::track_link_unit_mesh;
 pub use running_gear_place::{

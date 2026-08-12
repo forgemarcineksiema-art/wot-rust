@@ -85,6 +85,7 @@ BlueprintFile(
             0.798,
             1.92,
         ]),
+        damper_stations: [0, 4],
         return_rollers: 0,
         roller_radius: 0.0,
         overlap_inner_dx: 0.0,

@@ -60,6 +60,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             wheel_stations: None,
             // The IS family carries its top run on three small return rollers per side — the
             // heavy's look against the T-54's wheel-riding run.
+            damper_stations: &[],
             return_rollers: 3,
             roller_radius: 0.11,
             overlap_inner_dx: 0.0,

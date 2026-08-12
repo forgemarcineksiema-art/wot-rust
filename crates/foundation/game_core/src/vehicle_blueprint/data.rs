@@ -109,6 +109,9 @@ fn t54() -> VehicleBlueprint {
             // first and second road wheels at the front (+Z). Single source: the rendered
             // running gear and the physics contact footprint both read these stations.
             wheel_stations: Some(&[-1.92, -1.014, -0.108, 0.798, 1.92]),
+            // External hydraulic lever dampers on the 1st and 5th wheels — the T-54's visible
+            // pair (recognition detail of the daylight band); the bars between damp internally.
+            damper_stations: &[0, 4],
             return_rollers: 0,
             roller_radius: 0.0,
             overlap_inner_dx: 0.0,

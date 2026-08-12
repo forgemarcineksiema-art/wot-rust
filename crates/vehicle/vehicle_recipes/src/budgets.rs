@@ -115,8 +115,14 @@ pub struct GearBudgets {
 /// 12.19 ms p50 / 13.68 ms p95 of GPU work against a 16.67 ms line, and forcing every tank to
 /// NEAR gear costs +1.55 ms p50 and leaves **1.46 ms of p95 headroom**. That is the budget the
 /// five vehicles with 1.65–2.05x oversized shoes have to fit their fix into.
+/// RAISED 40_000 -> 40_500 (2026-08-12, the suspension-read wave, measured): the T-54's four
+/// lever shock absorbers land at 40,144 near triangles (+512 over the previous 39,632 — 128 per
+/// damper across 4 instances, 208 total instances). Priced at the measured 9.76 ns/triangle x3
+/// passes that is 15 us for the one or two vehicles ever close enough to draw NEAR gear, against
+/// the 1.46 ms of documented p95 headroom. Far tier keeps its pin-less damper and stays at
+/// 15,968 (60% saved, floor 40%). Per-item raise for a named part — not fleet headroom.
 pub const GEAR_BUDGETS: GearBudgets =
-    GearBudgets { near_tri_max: 40_000, far_tri_max: 18_500, instances_max: 260 };
+    GearBudgets { near_tri_max: 40_500, far_tri_max: 18_500, instances_max: 260 };
 
 /// The distance tier must remove at least this share of the gear's triangles, or it is not
 /// earning the second mesh set it costs to keep.

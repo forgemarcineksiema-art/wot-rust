@@ -90,6 +90,9 @@ pub struct RunningGearKinematics {
     /// pivot to the axle, and how far the pivot stands above that axle at rest.
     pub arm_reach: f32,
     pub arm_rise: f32,
+    /// Station indices carrying a visible lever shock absorber (blueprint-authored; empty for
+    /// vehicles that damp internally). The T-54 dampers its 1st and 5th wheels.
+    pub damper_stations: &'static [usize],
     pub segments: usize,
     /// How finely this gear is built. Every generator asks [`Self::segments_for`] rather than
     /// reading `segments` directly, so one field switches the whole running gear between the
@@ -200,6 +203,7 @@ impl RunningGearKinematics {
             roller_y: track.top_y - track.roller_radius,
             arm_reach: track.arm_reach(),
             arm_rise: track.arm_rise(),
+            damper_stations: track.damper_stations,
             segments: track.segments.max(12),
             detail: GearDetail::Near,
             link_count,
@@ -354,6 +358,14 @@ pub enum GearPart {
     /// arms drove their bosses 89 mm into the wheel discs. A true mirror needs mirrored GEOMETRY,
     /// so the left side is its own unit mesh with the winding re-reversed.
     SwingArmLeft,
+    /// The lever shock absorber at a damped station (blueprint `damper_stations`): the hydraulic
+    /// body on the tub wall and the lever reaching down to the swinging axle. It spans hull to
+    /// MOVING axle — the reason it could never be static hull furniture — so its lever pivots
+    /// with the same live travel the arm swings on. Appended for the 2026-08-12 suspension-read
+    /// wave; like the arm it is chiral (body inboard), so the left side mirrors.
+    Damper,
+    /// The left-hand [`GearPart::Damper`], mirrored geometry like [`GearPart::SwingArmLeft`].
+    DamperLeft,
 }
 
 /// One instanced running-gear part: the unit mesh to draw and where (hull-local).

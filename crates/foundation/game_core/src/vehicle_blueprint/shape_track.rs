@@ -41,6 +41,12 @@ pub struct TrackShape {
     /// kind per process, parsed once behind a `OnceLock` (see `source.rs`).
     #[serde(deserialize_with = "leak_wheel_stations")]
     pub wheel_stations: Option<&'static [f32]>,
+    /// Road-wheel STATION INDICES (into [`TrackShape::wheel_stations`]) that carry a visible
+    /// lever shock absorber on the hull side. Authored per vehicle: the T-54 dampers its 1st
+    /// and 5th wheels with external hydraulic levers; the German cats damp internally, so they
+    /// author nothing and draw nothing. Empty by default — absent beats invented.
+    #[serde(default, deserialize_with = "leak_damper_stations")]
+    pub damper_stations: &'static [usize],
     /// Return rollers carrying the top run (`0` for layouts whose top run rests on the road
     /// wheels, like the T-54 family). The IS family runs three small rollers per side.
     pub return_rollers: usize,
@@ -161,6 +167,15 @@ where
 {
     let stations: Option<Vec<f32>> = serde::Deserialize::deserialize(deserializer)?;
     Ok(stations.map(|list| &*list.leak()))
+}
+
+/// Same leak-once pattern for the damper station indices (empty when the field is absent).
+fn leak_damper_stations<'de, D>(deserializer: D) -> Result<&'static [usize], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let stations: Vec<usize> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(&*stations.leak())
 }
 
 impl TrackShape {

@@ -71,6 +71,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             outer_x: 1.58,
             segments: 14,
             wheel_stations: Some(&[-2.05, -1.39, -0.33, 0.33, 1.39, 2.05]),
+            damper_stations: &[],
             return_rollers: 3,
             roller_radius: 0.10,
             overlap_inner_dx: 0.0,
