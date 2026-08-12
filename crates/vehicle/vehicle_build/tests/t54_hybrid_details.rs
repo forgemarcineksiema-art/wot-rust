@@ -502,9 +502,14 @@ fn t54_fenders_carry_the_reference_stowage_line() {
             stowage.len()
         );
         let (mut zs_min, mut zs_max) = (f32::INFINITY, f32::NEG_INFINITY);
+        // The band's widest honest reach is the FENDER LINE (side_x + half.x = the documented
+        // 3.27 m over the fenders): the mudguard arches span exactly that, like the shelf
+        // whose run they continue. Stowage proper stays inside the track band below it.
+        let fender_edge = bp.complete_visual().expect("visual").fender.side_x
+            + bp.complete_visual().expect("visual").fender.half.x;
         for vert in &stowage {
             assert!(
-                vert.position.x.abs() <= outer + 1.0e-3,
+                vert.position.x.abs() <= fender_edge.max(outer) + 1.0e-3,
                 "stowage must not widen the vehicle: x {}",
                 vert.position.x
             );

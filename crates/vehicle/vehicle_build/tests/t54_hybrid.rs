@@ -379,7 +379,16 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // jounce band, exhaust box down with the shelf. Link pitch derives from the TAUT length —
     // the drape redistributes 90 x 137 mm, it does not mint more belt.
     // Previous: 0x091f_bf1a_1900_21ae (the egg is registered).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe0a9_4b97_593b_9332;
+    // Re-recorded 2026-08-12 (the suspension band works as a system): the shelf drops to the
+    // sheet line at 1.00 with the crest links kissing its lip (locked from the placed links),
+    // the full-length shelf ends at the carrier band and ARCHED MUDGUARDS take the end wheels
+    // (peaks in the three-view's 1.15-1.24 band, flaps in the sweep, ribs on the tail),
+    // and the tub wall carries its machinery — ten pivot bosses on the arms' own pivot
+    // formula, bump stops over the end stations. The lint that anchored the lip on the end
+    // wraps' links — the single number that held the whole band a hand too high — answers to
+    // the crest line now.
+    // Previous: 0xe0a9_4b97_593b_9332 (the belt hangs and the shelf comes down).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xc48c_3c82_61a0_1d06;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

@@ -380,10 +380,13 @@ fn the_exhaust_louvres_lie_on_their_cowl_and_clear_the_track() {
         cowl.max.y * 1000.0
     );
 
-    let belt_top = blueprint.track.top_y + blueprint.track.belt_half_thickness;
+    // The CREST links, not the armour band: `belt_half_thickness` is the gameplay band's
+    // generous half, and with the shelf down at the sheet line everything riding it sits
+    // inside that band while clearing the real links by a hand.
+    let crest_links = blueprint.track.top_y + 0.055;
     assert!(
-        louvres.min.y > belt_top,
-        "the louvres reach {:.3} m, into the top run of the track at {belt_top:.3} m",
+        louvres.min.y > crest_links,
+        "the louvres reach {:.3} m, into the crest links at {crest_links:.3} m",
         louvres.min.y
     );
 }

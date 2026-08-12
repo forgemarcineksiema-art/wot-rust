@@ -490,14 +490,16 @@ mod tests {
         // Restrained, factory-clean detail: lips and weld beads are small.
         assert!(d.fender_lip_drop < 0.20 && d.weld_seam_half_thickness < 0.05);
 
-        // The fender lip curtain must clear the track's top run (wrap top + link seat + link
-        // body, ~0.08 over the wrap): a lip that dips into the belt band has the scrolling
-        // shoes cutting through it on every frame.
+        // The fender lip curtain must clear the CREST links — the top run where it rides the
+        // road wheels (authored centreline + a link body). It was anchored on the loop's
+        // highest links up on the END WRAPS, which forced the whole shelf a hand too high;
+        // the wraps wear their own arched mudguards now (`t54_kit::mudguard_arches`), and the
+        // flat shelf answers only for the band it actually spans.
         let lip_bottom = h_fender.center_y - h_fender.half.y - d.fender_lip_drop;
-        let belt_top = bp.track.end_y + bp.track.end_radius + 0.08;
+        let crest_links = bp.track.top_y + 0.055;
         assert!(
-            lip_bottom > belt_top,
-            "fender lip bottom {lip_bottom} must clear the belt's top run {belt_top}"
+            lip_bottom > crest_links,
+            "fender lip bottom {lip_bottom} must clear the crest links {crest_links}"
         );
 
         // The grille must ride proud of the engine-deck top, never coplanar with it — a coplanar

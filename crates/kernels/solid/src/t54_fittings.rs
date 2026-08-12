@@ -3,7 +3,7 @@
 //! [`FenderVisual`] / [`DetailVisual`]; nothing here invents a tank dimension.
 
 use game_core::{DetailVisual, FenderVisual};
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use crate::{ConvexSolid, Plane};
 
@@ -56,40 +56,22 @@ pub fn chamfered_box(center: Vec3, half: Vec3, chamfer: f32) -> ConvexSolid {
 /// One sloping fender end section (front mudguard dropping over the idler, or the rear flap over
 /// the sprocket): a thin plate falling from the flat fender run down toward the track end, as the
 /// references show. `sign` is +1 for the front section, -1 for the rear.
-pub fn t54_fender_slope(side_x: f32, fender: &FenderVisual, sign: f32) -> ConvexSolid {
-    let top = Vec3::new(side_x, fender.center_y, sign * fender.half.z);
-    let bottom = Vec3::new(side_x, fender.center_y - 0.33, sign * (fender.half.z + 0.31));
-    let along = (bottom - top).normalize();
-    let normal = Vec3::X.cross(along).normalize();
-    let mid = 0.5 * (top + bottom);
-    let x_out = side_x + side_x.signum() * fender.half.x;
-    let x_in = side_x - side_x.signum() * fender.half.x;
-    ConvexSolid::new(vec![
-        Plane::new(normal, normal.dot(mid) + 0.015),
-        Plane::new(-normal, -(normal.dot(mid) - 0.015)),
-        Plane::new(along, along.dot(bottom)),
-        Plane::new(-along, -along.dot(top)),
-        Plane::new(Vec3::X, x_out.max(x_in)),
-        Plane::new(-Vec3::X, -x_out.min(x_in)),
-    ])
-}
-
-/// The pressed stiffening ribs on a fender end flap: three raised beads running DOWN the slope
-/// face, as the rear view of the reference drawing shows on both tail flaps. A flat flap is a
-/// slab; the ribs are what say "pressed sheet" at the tail, where the viewer meets the flap
-/// square-on. Same face frame as [`t54_fender_slope`], standing a bead's height proud of it.
-pub fn t54_fender_slope_ribs(side_x: f32, fender: &FenderVisual, sign: f32) -> Vec<ConvexSolid> {
-    let top = Vec3::new(side_x, fender.center_y, sign * fender.half.z);
-    let bottom = Vec3::new(side_x, fender.center_y - 0.33, sign * (fender.half.z + 0.31));
-    let along = (bottom - top).normalize();
-    let normal = Vec3::X.cross(along).normalize();
-    let mid = 0.5 * (top + bottom);
-    // Proud of the 15 mm slope slab: the bead's own centre rides the face plus half its height.
-    let centre = mid + normal * (0.015 + 0.010) * normal.dot(Vec3::Y).signum();
-    let half_run = (bottom - top).length() * 0.5 - 0.05;
+/// The pressed stiffening ribs on a hanging tail flap: three raised beads down the flap's
+/// face, as the reference rear view shows. The flap itself is the mudguard sweep's last
+/// segment (`vehicle_build::t54_kit`); the ribs ride that segment's plane, a bead proud.
+pub fn t54_flap_ribs(side_x: f32, top: Vec2, bottom: Vec2, half_x: f32) -> Vec<ConvexSolid> {
+    let top3 = Vec3::new(side_x, top.y, top.x);
+    let bottom3 = Vec3::new(side_x, bottom.y, bottom.x);
+    let along = (bottom3 - top3).normalize();
+    let normal_raw = Vec3::X.cross(along).normalize();
+    // Outward: away from the hull centre plane in z (the flap faces the end of the tank).
+    let normal = if normal_raw.z * top.x.signum() >= 0.0 { normal_raw } else { -normal_raw };
+    let mid = 0.5 * (top3 + bottom3);
+    let centre = mid + normal * (0.005 + 0.010);
+    let half_run = (bottom3 - top3).length() * 0.5 - 0.015;
     (-1..=1)
         .map(|k| {
-            let c = centre + Vec3::X * (k as f32 * 0.19);
+            let c = centre + Vec3::X * (k as f32 * (half_x * 0.6));
             let mut planes = Vec::with_capacity(6);
             for (axis, half) in [(Vec3::X, 0.016), (along, half_run), (normal, 0.010)] {
                 planes.push(Plane::new(axis, axis.dot(c) + half));
@@ -107,7 +89,7 @@ pub fn t54_fender_slope_ribs(side_x: f32, fender: &FenderVisual, sign: f32) -> V
 /// bump would have carried the links straight through them. Visual only, close-up detail tier.
 pub fn t54_fender_brackets(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
     const BRACKETS: usize = 5;
-    let drop = 0.05_f32;
+    let drop = 0.04_f32;
     let bottom = fender.center_y - fender.half.y;
     // Inboard: from the shelf's inner edge out over the first sliver of the belt band only.
     let inner_x = side_x - side_x.signum() * (fender.half.x - 0.07);
@@ -206,7 +188,9 @@ mod tests {
                 .bounds()
                 .expect("non-empty bracket");
             assert!(b.min.y < bottom - 0.02, "bracket hangs below the fender plate");
-            assert!(b.min.y > 0.98, "bracket stays clear of the crest-riding links");
+            // The crest links top out at ~0.934 (placed-link measurement, the kiss lock's
+            // own instrument); the gussets stop a hand of clearance above them.
+            assert!(b.min.y > 0.94, "bracket stays clear of the crest-riding links");
             assert!(
                 b.max.x < 1.25,
                 "bracket hugs the hull side instead of reaching over the belt: {:.3}",
@@ -227,18 +211,6 @@ mod tests {
             .iter()
             .any(|v| v.normal.y > 0.5 && (v.normal.x.abs() > 0.5 || v.normal.z.abs() > 0.5));
         assert!(bevelled, "the pressed bin needs 45-degree bevel faces, not raw box edges");
-    }
-
-    #[test]
-    fn the_fender_slope_drops_over_the_track_end() {
-        let f = fender();
-        let front = t54_fender_slope(1.345, &f, 1.0)
-            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-            .expect("front mudguard is valid")
-            .bounds()
-            .expect("non-empty mudguard");
-        assert!(front.max.z > f.half.z + 0.2, "the mudguard reaches out past the fender run");
-        assert!(front.min.y < f.center_y - 0.25, "the mudguard drops down over the idler");
     }
 
     #[test]

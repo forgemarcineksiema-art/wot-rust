@@ -291,12 +291,13 @@ pub fn t54_from_modules_with_blueprint(
     parts.extend(crate::t54_fender::t54_fender_parts(v.fender, v.detail));
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
-    parts.extend(crate::t54_details::t54_detail_parts(v));
+    parts.extend(crate::t54_details::t54_detail_parts(v, &bp.track));
     // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
     // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
     parts.extend(crate::t54_kit::t54_kit_parts(
         v,
         bp.armor.hull_front.0,
+        &bp.track,
         crate::t54_kit_lines::SternLine {
             half_len: bp.hull.half_len,
             belly_y: bp.hull.belly_y,
