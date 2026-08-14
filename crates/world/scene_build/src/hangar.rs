@@ -809,6 +809,21 @@ pub fn is_baked() -> bool {
 /// [`hangar_scene_mesh`] they cannot, because the `OnceLock` hands both calls the same value —
 /// which is exactly how `the_bake_is_deterministic` came to compare a clone with itself.
 pub(crate) fn build_hangar_scene_mesh_for(light: HangarLight) -> BakedHall {
+    let (mut v, mut i) = hangar_geometry(true);
+    // Hala 2.0 T1: subdivide for bake resolution and gather one bounce of light into the
+    // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
+    // albedos; cached by `hangar_scene_mesh` because the gather is real work. B2 gathers the
+    // hero probe in the same pass; D1 gathers the reflection cubemap — one BVH, one bake.
+    let (probe, cube) =
+        super::hangar_bake::bake_bounce_lane(&mut v, &mut i, &hangar_lighting(light));
+    (v, i, probe, cube)
+}
+
+/// The hall's geometry before the bounce bake — one function, so the probe's ablation variant
+/// (`furnished = false`, which skips EXACTLY the gallery and the props) stays a strict subset
+/// of the shipped hall by construction rather than by parallel maintenance. Geometry is
+/// identical across daylights (H1: "same geometry, its own rig"), so no variant enters here.
+fn hangar_geometry(furnished: bool) -> (Vec<SceneVertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
 
@@ -1048,19 +1063,14 @@ pub(crate) fn build_hangar_scene_mesh_for(light: HangarLight) -> BakedHall {
     }
     finish(&mut v[drain..], Finish::MACHINED_STEEL);
 
-    super::hangar_gallery::push_gallery(&mut v, &mut i);
-    super::hangar_props::push_props(&mut v, &mut i);
+    if furnished {
+        super::hangar_gallery::push_gallery(&mut v, &mut i);
+        super::hangar_props::push_props(&mut v, &mut i);
+    }
 
     bake_corner_shade(&mut v[furniture_start..]);
 
-    // Hala 2.0 T1: subdivide for bake resolution and gather one bounce of light into the
-    // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
-    // albedos; cached by `hangar_scene_mesh` because the gather is real work. B2 gathers the
-    // hero probe in the same pass; D1 gathers the reflection cubemap — one BVH, one bake.
-    let (probe, cube) =
-        super::hangar_bake::bake_bounce_lane(&mut v, &mut i, &hangar_lighting(light));
-
-    (v, i, probe, cube)
+    (v, i)
 }
 
 /// Analytic, view-independent corner shade baked into the vertex colours of the hall's
@@ -1321,6 +1331,12 @@ pub fn hangar_shadow_indices() -> Vec<u32> {
 /// re-indexes its vertices; filtering the full mesh here would index garbage).
 pub fn hangar_shadow_indices_for(light: HangarLight) -> Vec<u32> {
     let (vertices, indices) = hangar_scene_mesh_without_gate_for(light);
+    sun_caster_indices(&vertices, &indices)
+}
+
+/// The caster filter itself, over any (vertices, indices) pair — one implementation, so the
+/// probe's ablation meshes trim their sun exactly the way the shipped hall trims its own.
+fn sun_caster_indices(vertices: &[SceneVertex], indices: &[u32]) -> Vec<u32> {
     let mut out = Vec::with_capacity(indices.len());
     for tri in indices.chunks_exact(3) {
         let p: [Vec3; 3] = [0, 1, 2].map(|k| Vec3::from_array(vertices[tri[k] as usize].position));
@@ -1352,6 +1368,13 @@ pub fn hangar_scene_mesh_without_gate() -> (Vec<SceneVertex>, Vec<u32>) {
 /// [`hangar_scene_mesh_without_gate`] under a chosen daylight (H1).
 pub fn hangar_scene_mesh_without_gate_for(light: HangarLight) -> (Vec<SceneVertex>, Vec<u32>) {
     let (vertices, indices) = hangar_scene_mesh_for(light);
+    strip_gate_curtain(&vertices, &indices)
+}
+
+/// Remove the gate-curtain slats from a baked hall mesh, compacting the vertex buffer — the
+/// one strip the shipped upload and the probe's ablation meshes share, so "without the gate"
+/// means the same triangles everywhere.
+fn strip_gate_curtain(vertices: &[SceneVertex], indices: &[u32]) -> (Vec<SceneVertex>, Vec<u32>) {
     let mut keep = vec![u32::MAX; vertices.len()];
     let mut out_v = Vec::with_capacity(vertices.len());
     let mut out_i = Vec::with_capacity(indices.len());
@@ -1368,6 +1391,32 @@ pub fn hangar_scene_mesh_without_gate_for(light: HangarLight) -> (Vec<SceneVerte
         }
     }
     (out_v, out_i)
+}
+
+/// PROBE-ONLY (Hala v4 P1): the hall with its gallery and props left out — same shell, same
+/// fixtures, same bounce bake and the same gate-curtain strip the shipped mesh gets, so the
+/// delta between this and the shipped hall prices exactly the furnishings' fill. The game
+/// never uploads it; `perf_capture` renders it to attribute the garage frame. Returns the
+/// mesh with its own sun-caster subset, because the shipped caster indices are built against
+/// the shipped vertex buffer and would index garbage against this one.
+pub fn hangar_probe_mesh_unfurnished() -> (Vec<SceneVertex>, Vec<u32>, Vec<u32>) {
+    let (mut v, mut i) = hangar_geometry(false);
+    let _ =
+        super::hangar_bake::bake_bounce_lane(&mut v, &mut i, &hangar_lighting(HangarLight::Day));
+    let (v, i) = strip_gate_curtain(&v, &i);
+    let casters = sun_caster_indices(&v, &i);
+    (v, i, casters)
+}
+
+/// PROBE-ONLY (Hala v4 P1): a bare concrete slab of the hall's footprint and nothing else —
+/// the reference floor under the probe's "vehicle only" block, so the hero's own fill can be
+/// told apart from the room's. No bake: the block prices the vehicle, not the slab's light.
+pub fn hangar_probe_mesh_floor_slab() -> (Vec<SceneVertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut i = Vec::new();
+    slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF_X, SLAB, HALF_Z], CONCRETE);
+    finish(&mut v[..], Finish::CONCRETE);
+    (v, i)
 }
 
 /// [`slab`] rotated around Y — for the turntable's radial plate seams.
@@ -1567,6 +1616,34 @@ mod tests {
         assert!(!vertices.is_empty() && !indices.is_empty());
         assert_eq!(indices.len() % 3, 0, "triangle list");
         assert!(indices.iter().all(|&i| (i as usize) < vertices.len()));
+    }
+
+    /// Hala v4 P1: the probe's unfurnished hall is the shipped geometry minus EXACTLY the
+    /// gallery and the props — a literal prefix of the same build (the two pushes it skips
+    /// come last), checked pre-bake so this costs a mesh assembly, not a BVH gather.
+    #[test]
+    fn the_probe_ablation_hall_is_a_strict_prefix_of_the_shipped_geometry() {
+        let (full_v, full_i) = hangar_geometry(true);
+        let (bare_v, bare_i) = hangar_geometry(false);
+        assert!(bare_i.len() < full_i.len(), "the furnishings must cost triangles");
+        assert!(bare_v.len() < full_v.len(), "the furnishings must cost vertices");
+        assert_eq!(&full_v[..bare_v.len()], &bare_v[..], "vertex prefix drifted");
+        assert_eq!(&full_i[..bare_i.len()], &bare_i[..], "index prefix drifted");
+    }
+
+    /// Hala v4 P1: the probe's reference slab spans the hall footprint and nothing above it —
+    /// a floor to park the hero on, not a second room.
+    #[test]
+    fn the_probe_floor_slab_covers_the_hall_footprint_and_nothing_more() {
+        let (v, i) = hangar_probe_mesh_floor_slab();
+        assert!(!v.is_empty() && i.len() % 3 == 0);
+        assert!(i.iter().all(|&idx| (idx as usize) < v.len()));
+        let max_x = v.iter().map(|p| p.position[0].abs()).fold(0.0f32, f32::max);
+        let max_z = v.iter().map(|p| p.position[2].abs()).fold(0.0f32, f32::max);
+        let max_y = v.iter().map(|p| p.position[1]).fold(f32::MIN, f32::max);
+        assert!((max_x - HALF_X).abs() < 1.0e-4, "slab spans the hall in x: {max_x}");
+        assert!((max_z - HALF_Z).abs() < 1.0e-4, "slab spans the hall in z: {max_z}");
+        assert!(max_y <= 1.0e-4, "a floor, not a room: top at {max_y}");
     }
 
     #[test]

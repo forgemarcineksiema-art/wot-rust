@@ -254,6 +254,25 @@ impl SceneRenderer {
         )
     }
 
+    /// A renderer at an EXPLICIT sample count, for pricing a CANDIDATE configuration against
+    /// the shipped one (Hala v4 P1: the garage @4x block is half of the F2 go/no-go number).
+    /// Never a quality knob: shipping paths resolve their count through the `msaa` policy,
+    /// and a probe that uses this labels the block as the candidate, not the frame.
+    pub fn for_offscreen_with_sample_count(
+        ctx: &GpuContext,
+        sample_count: u32,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+    ) -> Result<Self, RenderError> {
+        Self::new_with_sample_count(
+            ctx,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            sample_count,
+            terrain_vertices,
+            terrain_indices,
+        )
+    }
+
     /// As [`Self::for_offscreen`] with an EXPLICIT lighting quality, bypassing the adapter
     /// classification and env overrides. For feature tests that measure a specific chain
     /// (bloom halo, cloud shade, far cascade): the F3 fold keys quality on the machine the
