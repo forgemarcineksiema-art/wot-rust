@@ -53,9 +53,11 @@ BlueprintFile(
         wheel_half_width: 0.16,
         link_half_width: 0.22,
         link_count: Some(72), // the 500 mm waffle track
-        // Christie suspension, five wheels, no return rollers: the same deep scallops the T-54
-        // shows, for the same reason. See the note on `top_sag_m` in `t54_1951.blueprint.ron`.
-        top_sag_m: 0.075,
+        // Christie suspension, five wheels, no return rollers: the top run rests on the wheel
+        // crests and scallops between them, exactly as the T-54's does — and it follows the
+        // same re-derivation to the reference sheet's 20-45 mm band (owner verdict 2026-08-14:
+        // the deep drape read as canvas on poles). See `top_sag_m` in `t54_1951.blueprint.ron`.
+        top_sag_m: 0.035,
         wheel_spokes: 6,
         shoe_pattern: Waffle,
         suspension: Christie,

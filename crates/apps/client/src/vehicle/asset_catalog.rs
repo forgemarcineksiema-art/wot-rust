@@ -45,6 +45,10 @@ pub struct VehicleAssetCatalog {
     /// because the catalog is already threaded to every caller that builds gear, so caching costs
     /// no signature anywhere.
     pub(crate) gear_placements: super::gear_cache::GearPlacementCache,
+    /// Per-tank eased drive tension (`gear_cache.rs`): the sag scale the frame draws chases the
+    /// sim's stepped target over ~0.3 s, so a throttle tap firms the top run instead of
+    /// snapping it. Lives here for the same reason the placement cache does.
+    pub(crate) tension_ease: super::gear_cache::TensionEase,
 }
 
 /// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame
