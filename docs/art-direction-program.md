@@ -152,37 +152,48 @@ a wave moves a number. Luminance is display-linear, so `dark < 0.25` is roughly 
 on screen". `band` is the top 15% of rows minus the bottom 40% — sky-band minus near-field on an
 outdoor frame, and meaningless indoors.
 
+Re-measured in full 2026-08-14 (the goldens re-bless after the T-54 repair + track-tension
+waves #563–#570): the table now matches the committed set row for row — several battlefield
+rows had quietly outlived their frames (`prokhorovka_evening_midfield` was carried at 26.6%
+dark while its committed golden measured 40.8%), and `prokhorovka_contact_backlit` was never
+in the table at all.
+
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `prokhorovka_clear_afternoon` | 1.0% | 40.1% | 58.9% | 0.452 | 0.623 | 0.889 | 0.437 | 0.300 | 0.0077 | +0.160 |
-| `prokhorovka_golden_evening` | 18.1% | 47.3% | 34.6% | 0.143 | 0.497 | 0.702 | 0.559 | 0.426 | 0.0104 | +0.294 |
-| `prokhorovka_overcast` | 0.9% | 49.4% | 49.7% | 0.365 | 0.570 | 0.713 | 0.348 | 0.176 | 0.0049 | +0.205 |
-| `prokhorovka_evening_midfield` | 26.6% | 38.1% | 35.3% | 0.110 | 0.358 | 0.697 | 0.587 | 0.451 | 0.0105 | +0.361 |
-| `prokhorovka_grass_midfield` | 8.1% | 49.1% | 42.8% | 0.070 | 0.574 | 0.873 | 0.803 | 0.315 | 0.0087 | +0.213 |
-| `prokhorovka_evening_contact` | 34.6% | 40.6% | 24.8% | 0.064 | 0.302 | 0.681 | 0.617 | 0.516 | 0.0122 | +0.347 |
-| `bystra_clear_afternoon` | 4.6% | 50.9% | 44.5% | 0.267 | 0.494 | 0.761 | 0.494 | 0.303 | 0.0086 | +0.311 |
-| `bystra_rain` | 7.4% | 58.8% | 33.8% | 0.147 | 0.433 | 0.676 | 0.529 | 0.221 | 0.0052 | +0.276 |
-| `bystra_dawn_fog` | 25.1% | 28.8% | 46.1% | 0.100 | 0.377 | 0.779 | 0.679 | 0.234 | 0.0075 | +0.463 |
-| `bystra_town_lane` | 10.6% | 44.6% | 44.8% | 0.079 | 0.473 | 0.762 | 0.683 | 0.302 | 0.0076 | +0.274 |
-| `orliny_clear_afternoon` | 3.6% | 55.2% | 41.1% | 0.272 | 0.417 | 0.827 | 0.556 | 0.296 | 0.0108 | +0.435 |
-| `orliny_golden_evening` | 49.2% | 15.2% | 35.6% | 0.087 | 0.254 | 0.815 | 0.728 | 0.407 | 0.0130 | +0.591 |
-| `orliny_overcast` | 2.1% | 54.2% | 43.7% | 0.327 | 0.425 | 0.720 | 0.393 | 0.209 | 0.0062 | +0.328 |
-| `orliny_pine_belt` | 6.2% | 48.3% | 45.5% | 0.156 | 0.487 | 0.777 | 0.621 | 0.292 | 0.0107 | +0.283 |
-| `ostrogorsk_clear_afternoon` | 4.4% | 50.9% | 44.7% | 0.286 | 0.534 | 0.847 | 0.561 | 0.270 | 0.0106 | +0.301 |
-| `ostrogorsk_golden_evening` | 43.2% | 19.4% | 37.4% | 0.059 | 0.276 | 0.800 | 0.741 | 0.379 | 0.0110 | +0.555 |
-| `ostrogorsk_overcast` | 7.7% | 48.8% | 43.5% | 0.190 | 0.430 | 0.713 | 0.523 | 0.159 | 0.0065 | +0.306 |
-| `ostrogorsk_rain` | 7.5% | 57.7% | 34.8% | 0.181 | 0.397 | 0.676 | 0.495 | 0.173 | 0.0061 | +0.302 |
-| `ostrogorsk_canyon` | 4.8% | 62.8% | 32.4% | 0.256 | 0.526 | 0.880 | 0.624 | 0.259 | 0.0079 | +0.228 |
-| `garage_hero` | 72.4% | 23.6% | 4.0% | 0.030 | 0.161 | 0.568 | 0.537 | 0.229 | 0.0067 | −0.130 |
-| `garage_screen` | 75.5% | 20.7% | 3.8% | 0.063 | 0.140 | 0.559 | 0.497 | 0.190 | 0.0098 | −0.086 |
-| `garage_tech_tree` | 78.6% | 19.7% | 1.8% | 0.062 | 0.126 | 0.494 | 0.432 | 0.191 | 0.0057 | −0.097 |
-| `garage_option_list` | 76.8% | 19.4% | 3.8% | 0.063 | 0.138 | 0.560 | 0.497 | 0.191 | 0.0100 | −0.073 |
-| `garage_susp_close` | 85.9% | 14.1% | 0.0% | 0.045 | 0.103 | 0.390 | 0.345 | 0.412 | 0.0054 | +0.131 |
-| `garage_hero_tiger2` | 67.4% | 30.0% | 2.6% | 0.028 | 0.176 | 0.523 | 0.495 | 0.238 | 0.0064 | −0.184 |
-| `garage_hero_jagdtiger` | 64.2% | 33.4% | 2.5% | 0.027 | 0.183 | 0.521 | 0.494 | 0.238 | 0.0066 | −0.239 |
-| `garage_inspector` | 68.1% | 26.1% | 5.8% | 0.031 | 0.171 | 0.607 | 0.577 | 0.256 | 0.0064 | −0.161 |
+| `prokhorovka_clear_afternoon` | 0.7% | 54.0% | 45.3% | 0.379 | 0.555 | 0.865 | 0.486 | 0.303 | 0.0082 | +0.279 |
+| `prokhorovka_golden_evening` | 41.7% | 23.9% | 34.4% | 0.117 | 0.425 | 0.704 | 0.587 | 0.364 | 0.0085 | +0.395 |
+| `prokhorovka_overcast` | 0.7% | 49.9% | 49.5% | 0.353 | 0.553 | 0.720 | 0.367 | 0.182 | 0.0061 | +0.283 |
+| `prokhorovka_evening_midfield` | 40.8% | 24.0% | 35.2% | 0.091 | 0.311 | 0.717 | 0.627 | 0.387 | 0.0087 | +0.412 |
+| `prokhorovka_grass_midfield` | 1.9% | 52.9% | 45.1% | 0.388 | 0.565 | 0.863 | 0.474 | 0.286 | 0.0078 | +0.229 |
+| `prokhorovka_contact_backlit` | 20.5% | 55.8% | 23.7% | 0.050 | 0.476 | 0.830 | 0.781 | 0.379 | 0.0077 | +0.336 |
+| `prokhorovka_evening_contact` | 49.5% | 25.7% | 24.8% | 0.071 | 0.252 | 0.701 | 0.630 | 0.449 | 0.0090 | +0.394 |
+| `bystra_clear_afternoon` | 3.6% | 51.7% | 44.7% | 0.264 | 0.476 | 0.777 | 0.514 | 0.281 | 0.0100 | +0.377 |
+| `bystra_rain` | 1.3% | 54.0% | 44.7% | 0.292 | 0.428 | 0.689 | 0.397 | 0.197 | 0.0058 | +0.329 |
+| `bystra_dawn_fog` | 25.0% | 28.4% | 46.7% | 0.183 | 0.510 | 0.779 | 0.596 | 0.204 | 0.0083 | +0.472 |
+| `bystra_town_lane` | 12.1% | 47.0% | 40.9% | 0.104 | 0.425 | 0.769 | 0.665 | 0.299 | 0.0082 | +0.329 |
+| `orliny_clear_afternoon` | 5.2% | 53.8% | 41.0% | 0.248 | 0.412 | 0.819 | 0.572 | 0.281 | 0.0108 | +0.422 |
+| `orliny_golden_evening` | 49.0% | 15.3% | 35.7% | 0.108 | 0.255 | 0.806 | 0.698 | 0.329 | 0.0107 | +0.566 |
+| `orliny_overcast` | 0.9% | 55.3% | 43.8% | 0.332 | 0.419 | 0.721 | 0.388 | 0.188 | 0.0061 | +0.314 |
+| `orliny_pine_belt` | 4.0% | 49.8% | 46.2% | 0.265 | 0.577 | 0.776 | 0.511 | 0.268 | 0.0096 | +0.313 |
+| `ostrogorsk_clear_afternoon` | 2.5% | 51.2% | 46.4% | 0.360 | 0.549 | 0.847 | 0.487 | 0.231 | 0.0094 | +0.283 |
+| `ostrogorsk_golden_evening` | 39.2% | 21.5% | 39.2% | 0.107 | 0.297 | 0.799 | 0.692 | 0.318 | 0.0093 | +0.532 |
+| `ostrogorsk_overcast` | 4.7% | 50.0% | 45.4% | 0.277 | 0.445 | 0.721 | 0.444 | 0.126 | 0.0065 | +0.288 |
+| `ostrogorsk_rain` | 4.3% | 51.0% | 44.7% | 0.275 | 0.411 | 0.683 | 0.408 | 0.133 | 0.0060 | +0.294 |
+| `ostrogorsk_canyon` | 6.0% | 63.4% | 30.6% | 0.233 | 0.475 | 0.863 | 0.630 | 0.210 | 0.0076 | +0.277 |
+| `garage_hero` | 72.3% | 23.6% | 4.2% | 0.030 | 0.162 | 0.574 | 0.544 | 0.228 | 0.0074 | −0.133 |
+| `garage_screen` | 75.4% | 20.7% | 4.0% | 0.064 | 0.140 | 0.567 | 0.503 | 0.189 | 0.0105 | −0.091 |
+| `garage_tech_tree` | 78.3% | 19.8% | 1.9% | 0.063 | 0.127 | 0.495 | 0.432 | 0.190 | 0.0063 | −0.101 |
+| `garage_option_list` | 76.7% | 19.3% | 4.0% | 0.064 | 0.138 | 0.568 | 0.504 | 0.190 | 0.0107 | −0.075 |
+| `garage_susp_close` | 86.4% | 13.6% | 0.0% | 0.050 | 0.125 | 0.317 | 0.267 | 0.405 | 0.0058 | +0.069 |
+| `garage_hero_tiger2` | 67.4% | 29.9% | 2.6% | 0.028 | 0.176 | 0.523 | 0.495 | 0.238 | 0.0068 | −0.183 |
+| `garage_hero_jagdtiger` | 64.2% | 33.3% | 2.5% | 0.027 | 0.184 | 0.520 | 0.492 | 0.237 | 0.0071 | −0.239 |
+| `garage_inspector` | 68.0% | 26.4% | 5.7% | 0.030 | 0.171 | 0.607 | 0.577 | 0.255 | 0.0070 | −0.161 |
 
 ### What the baseline says
+
+*(Reading of 2026-08-09. The specific figures cited below predate the 2026-08-14 re-measure
+above — the diagnosis and its direction are unchanged, so the reading stands as the record of
+why W1 exists; re-derive it only when a wave actually moves the milk.)*
 
 **The evening looks are not the problem.** `prokhorovka_evening_contact` (34.6% dark, spread
 0.617), `orliny_golden_evening` (49.2%, 0.728) and `ostrogorsk_golden_evening` (43.2%, 0.741) all

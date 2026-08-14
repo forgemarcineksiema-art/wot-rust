@@ -748,9 +748,15 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         dark_ceiling: 0.76,
         form_floor: 0.0070,
     },
+    // median_floor re-derived 0.110 -> 0.102 at the 2026-08-14 re-bless, openly: the T-54
+    // repair + track-tension waves (#563-#570 — fender band raised to the drawing, fittings
+    // mirrored to their true sides, taut top run) changed the SUBJECT, not the light. The
+    // raised band puts more shaded hull side into this backlit crop (median 0.108), while the
+    // corrected shape carries MORE structure, not less: form measures 0.0167 against the
+    // 0.0135 floor. The floor follows the intended shape with the usual ~6% slack.
     SubjectBounds {
         view: "prokhorovka_evening_contact",
-        median_floor: 0.110,
+        median_floor: 0.102,
         dark_ceiling: 0.92,
         form_floor: 0.0135,
     },
