@@ -148,8 +148,11 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         // tap reads as the track convulsing rather than tensioning. A hard landing (the sprung
         // hull dips below the replicated height) throws extra slack into both runs for a beat,
         // and a THROWN track loses its tension entirely — that side hangs deep and dead.
+        // The accel target still STEPS between ticks, so the drawn tension chases it through
+        // the per-tank ease (~0.3 s) — a belt firms and slackens, it never snaps (2026-08-14).
         let landing_slack = (-tank.attitude_heave_m).max(0.0) * 2.5;
-        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05 + landing_slack).clamp(0.72, 1.5);
+        let sag_target = (1.0 - tank.accel_long_mps2 * 0.05 + landing_slack).clamp(0.72, 1.5);
+        let sag_scale = catalog.tension_ease.eased(tank.id, sag_target, now_tick);
         let damage = game_core::TrackDamageMask::from_bits(tank.track_damage_mask);
         let dynamics = GearDynamics {
             left_travel: &left_travel,
@@ -185,6 +188,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     // AFTER the frame's tanks have been asked: the cache evicts whatever went unasked, which is
     // every tank that left the field. Called earlier it would evict the whole roster.
     catalog.gear_placements.retain_live();
+    catalog.tension_ease.retain_live();
     VehicleRenderFrame { objects, armor_damage }
 }
 

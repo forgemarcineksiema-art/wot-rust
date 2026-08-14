@@ -324,10 +324,15 @@ fn t54_top_track_run_sags_without_return_rollers() {
 /// lock used to hold came from the mis-calibrated three-view session that also parked the
 /// fender sheet on the track crest — its "link tops 0.99 / mid-span 0.89" read spanned the
 /// LINK HEIGHT, not the drape. Scanned properly, the reference sheet's own scallops measure
-/// 20-45 mm; the rear photographs show a deeper hang than the idealized sheet; the authored
-/// depth lands between the two. This lock holds the REST-state dip between road wheels 2 and
-/// 3 inside that band — and the SHAPE is the v4 flat-to-flat drape, so the dip is a curve
-/// between crest flats, not a tent pitched on wheel-top points.
+/// 20-45 mm; the rear photographs show a deeper hang than the idealized sheet.
+///
+/// RE-DERIVED AGAIN 2026-08-14, this time against the OWNER'S EYE: the split-the-difference
+/// 45-80 mm depth read on screen as canvas draped over poles ("the belts trying to lie on
+/// every wheel"), and the verdict was that the taut read is the game's. The authored depth
+/// now sits inside the reference sheet's own 20-45 mm band: the run still visibly rests on
+/// the crests, but it reads as a tensioned steel belt. This lock holds the REST-state dip
+/// between road wheels 2 and 3 inside that band — and the SHAPE is the v4 flat-to-flat
+/// drape, so the dip is a curve between crest flats, not a tent pitched on wheel-top points.
 #[test]
 fn the_top_run_scallops_to_its_measured_depth() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
@@ -357,10 +362,10 @@ fn the_top_run_scallops_to_its_measured_depth() {
         .fold(f32::INFINITY, f32::min);
     let dip = over_wheels - valley;
     assert!(
-        (0.045..=0.080).contains(&dip),
-        "the rest-state scallop between wheels must sit in the re-measured 45-80 mm band \
-         (sheet 20-45, photographs deeper), got {dip:.3} (supports {over_wheels:.3}, valley \
-         {valley:.3})"
+        (0.020..=0.045).contains(&dip),
+        "the rest-state scallop between wheels must sit in the reference sheet's 20-45 mm \
+         band (owner verdict 2026-08-14: the deeper drape read as hung canvas), got {dip:.3} \
+         (supports {over_wheels:.3}, valley {valley:.3})"
     );
 }
 

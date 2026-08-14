@@ -100,10 +100,18 @@ impl BeltPath {
         // 19 mm apart and a thrown track stopped reading as thrown. Raised to clear the scaled
         // range. Vehicles with interleaved wheels sit at 0.035 and never reached the old ceiling,
         // so nothing else moves.
-        Self::build(kin, top_sag.clamp(0.0, 0.20))
+        Self::build(kin, top_sag.clamp(0.0, 0.20), true)
     }
 
-    fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {
+    /// The loop with ALL slack pulled out — no carrier contact, the top run a straight chord
+    /// from wrap to wrap. This is the length the physical belt IS (link count x pitch derives
+    /// from it), never a drawn state: the drawn belt always rests on its carriers, because a
+    /// tonne and a half of steel does not levitate off its wheels however hard it is driven.
+    pub(crate) fn fully_taut(kin: &RunningGearKinematics) -> Self {
+        Self::build(kin, 0.0, false)
+    }
+
+    fn build(kin: &RunningGearKinematics, top_sag: f32, seated: bool) -> Self {
         // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
         // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
         let r_rear = kin.end_radius.max(0.05) + LINK_SEAT;
@@ -149,17 +157,25 @@ impl BeltPath {
         };
         let carrier_zs: &[f32] =
             if kin.roller_zs.is_empty() { &kin.wheel_zs } else { &kin.roller_zs };
-        // Tension model (v27 read preserved): `top_sag` is the slack allowance `s`. The belt
-        // can drop at most `reach = 2.2*s` below the wrap chord — a driven track (small s)
-        // floats ABOVE the carriers; at rest and under braking it reaches them and RESTS,
-        // then each span between contacts hangs by `s * span / 1.8`.
-        // 3.0 (was 2.2), re-derived with the raised end wheels: at REST the run must be able
-        // to fall from the wrap chord (~1.14 with axles at their measured 0.86) onto the
-        // road-wheel seat (0.90) — a 0.24 m drop; 3.5x the authored sag clears it with real margin.
-        // The DRIVEN scale (0.72x) then pulls reach under that drop, so a moving tank's top
-        // run lifts off the crests and runs taut from wrap to wrap — which is exactly what
-        // the real belt does under drive tension.
+        // Tension model v5 (2026-08-14): WHICH carriers the run rests on is a property of the
+        // LAYOUT, decided by structure alone; the live tension scales only how deep the spans
+        // between those contacts hang. The v27 model let the live sag decide the contacts
+        // too, and that made the transition BINARY: the moment the driven scale pulled
+        // `reach` under the wrap-chord-to-crest drop (~0.24 m on the T-54), every carrier
+        // stopped being a path node at once and the whole top run snapped from "resting on
+        // the wheels" to "floating chord" in a single frame — the pop the 2026-08-14 review
+        // called out. It was also the wrong picture: a 90-shoe steel belt does not levitate
+        // off its wheels under drive; tension flattens the scallops, it does not un-seat the
+        // run. `reach` still caps a span's DEPTH below the wrap chord, and
+        // [`Self::fully_taut`] keeps the no-contact chord for pitch derivation only.
         let reach = 3.5 * top_sag;
+        // How far under the wrap chord a falling run still lands on a carrier. A track is a
+        // heavy chain: it rests on everything its weight can reach, so this is a structural
+        // allowance, not a tension. Sized over the fleet's one real drop (the T-54's raised
+        // end axles put the chord ~0.24 m above its crests; everyone else's carriers ride
+        // within 15 mm of the chord or proud of it) — a "carrier" more than this far under
+        // the chord would not be carrying anything.
+        const REST_CONTACT_DROP_M: f32 = 0.30;
         // The wrap chord runs from the rear wrap's top to the front's — one line even when an
         // authored idler carries a different wheel size at its own axle.
         let chord_y = |z: f32| -> f32 {
@@ -176,16 +192,20 @@ impl BeltPath {
         let carrier_r = if kin.roller_zs.is_empty() { kin.wheel_radius } else { kin.roller_radius };
         let contact_half = (carrier_r * 0.28).clamp(0.02, 0.14);
         for &z in carrier_zs {
-            let touches = chord_y(z) - reach <= carrier_y + 1.0e-4;
+            // Structure decides the contact set (v5): the same carriers stay path nodes at
+            // every live tension, so scaling the sag can never change the run's topology —
+            // only how deep it hangs between the contacts it always has.
+            let touches = seated && chord_y(z) - REST_CONTACT_DROP_M <= carrier_y + 1.0e-4;
             if touches && z > -rear.cz + 1.0e-3 && z < front.cz - 1.0e-3 {
                 pts.push((z - contact_half, carrier_y));
                 pts.push((z + contact_half, carrier_y));
             }
         }
         pts.push((front.cz, wrap_top_front));
-        // The touch test above already decided which carriers are path nodes: a floating
-        // (driven-tight) belt has no carrier nodes and hangs as one span; a resting belt
-        // strings wrap → carrier → carrier → wrap, and the spans between contacts sag.
+        // The touch test above already decided which carriers are path nodes: a resting belt
+        // strings wrap → carrier → carrier → wrap, and the spans between contacts sag by the
+        // LIVE tension. Only [`Self::fully_taut`] (pitch derivation, never drawn) drops the
+        // carriers and hangs as one straight chord.
         let hull = pts;
         // Segments, each with its sag clamped from below by the carriers riding under the
         // span: the belt hangs until it lands on them - "the track rests on the wheels".

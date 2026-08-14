@@ -92,17 +92,19 @@ BlueprintFile(
         wheel_half_width: 0.18,
         link_half_width: 0.23,
         link_count: Some(90),
-        // NO RETURN ROLLERS, so the top run hangs on the road wheels and scallops between them.
-        // That sag is the T-54's side-view signature and every reference photograph shows it
-        // deep. The 0.075 it carried was ALSO "raised to the depth the drawings show" — but
-        // nobody measured the outcome: the tension formula halved it on the 0.906 m wheel
-        // span and the eye got a 33 mm dip against the ~95 mm the calibrated three-view and
-        // the DoD rear photo show. Authored for the RESULT now (formula normalises at 1 m,
-        // `the_top_run_scallops_to_its_measured_depth` locks the dip itself): 0.12 hangs
-        // ~94 mm between wheels and ~118 mm across the enlarged front gap. Vehicles whose top
-        // run rides interleaved wheels (the Tiger family, Panther II, Jagdtiger) keep a
-        // shallow sag: theirs is supported nearly continuously.
-        top_sag_m: 0.075,
+        // NO RETURN ROLLERS, so the top run rests on the road wheels and scallops between
+        // them. The DEPTH has now been re-derived twice, in opposite directions: the "~95 mm"
+        // chase came from the mis-calibrated three-view session, the 0.075 that replaced it
+        // split the difference toward the rear photographs — and on screen it read as canvas
+        // draped over poles (owner verdict 2026-08-14: "the belts trying to lie on every
+        // wheel" — the taut read is the one the game wants). The reference sheet's own
+        // scallops measure 20-45 mm, so the authored depth sits inside THAT band: the run
+        // still visibly rests on the crests, but it reads as a tensioned steel belt, not a
+        // hung tarpaulin. Live tension scales this depth only — the contact topology is fixed
+        // at rest (tension model v5, `running_gear_belt.rs`), so drive/brake can never snap
+        // the run's shape, in the garage or mid-battle.
+        // `the_top_run_scallops_to_its_measured_depth` locks the resulting dip.
+        top_sag_m: 0.035,
         // Twelve radial webs, not six spokes: the obr. 1951 disc is the stamped "spider-web"
         // (12 ribs, 12 small + 12 large lightening holes) — see the part-construction dossier
         // in docs/vehicles/t-54.md. The five-arm starfish is a later/rebuild wheel.

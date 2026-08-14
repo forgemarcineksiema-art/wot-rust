@@ -237,8 +237,10 @@ impl RunningGearKinematics {
     /// The TAUT loop length — the belt with its slack pulled out, which is what the physical
     /// belt's length IS (link count times pitch). The draped [`Self::belt_length`] runs ~1%
     /// longer on a deep-scallop vehicle; link pitch and tooth meshing derive from THIS one.
+    /// This is the one consumer of the no-contact chord path: the DRAWN belt always rests on
+    /// its carriers, whatever its live tension (`running_gear_belt.rs`, tension model v5).
     pub fn taut_belt_length(&self) -> f32 {
-        crate::running_gear_belt::BeltPath::with_sag(self, 0.0).length()
+        crate::running_gear_belt::BeltPath::fully_taut(self).length()
     }
 
     /// The idler's axle |z|: the FRONT end wheel on a rear-drive layout, the rear one on the

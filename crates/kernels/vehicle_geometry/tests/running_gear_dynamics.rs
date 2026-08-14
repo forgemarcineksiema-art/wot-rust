@@ -159,6 +159,79 @@ fn drive_tension_tightens_the_top_run_and_slack_deepens_it() {
     );
 }
 
+/// Tension model v5 (2026-08-14): tension changes the top run's DEPTH, never its TOPOLOGY.
+///
+/// The v27 model let the live sag decide which wheels the run rests on, so the driven scale
+/// crossed a threshold where every carrier stopped being a path node at once: on the first
+/// throttle tap the whole top run snapped from "resting on the wheels" to "floating chord"
+/// in a single frame — the pop the 2026-08-14 review called out. Two claims lock the fix:
+///
+/// 1. SEATED AT EVERY TENSION: over each middle road wheel the run stays on the crest flat,
+///    from the deepest slack the render can ask for to the tightest drive.
+/// 2. NO JUMPS: sweeping the sag scale in small steps moves the valley between wheels in
+///    correspondingly small steps — the transition is a glide, not a switch.
+#[test]
+fn tension_changes_the_scallop_depth_never_the_contact_topology() {
+    let kin = t54();
+    let seat_y = kin.cy + kin.wheel_radius + 0.02; // wheel crest + LINK_SEAT
+    let top_links_at = |sag_scale: f32| -> Vec<glam::Vec4> {
+        let dynamics = vehicle_geometry::GearDynamics {
+            left_travel: &[],
+            right_travel: &[],
+            left_sag_scale: sag_scale,
+            right_sag_scale: sag_scale,
+            left_break_t: None,
+            right_break_t: None,
+        };
+        vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics)
+            .iter()
+            .filter(|p| p.part == GearPart::Link)
+            .map(|p| p.transform.w_axis)
+            .filter(|w| w.x > 0.0 && w.y > kin.cy)
+            .collect()
+    };
+    let mid_stations = &kin.wheel_zs[1..kin.wheel_zs.len() - 1];
+    let valley_span = 0.5 * (kin.wheel_zs[1] + kin.wheel_zs[2]);
+
+    let mut previous_valley: Option<f32> = None;
+    let mut scale = 0.55_f32; // tighter than the render's tightest clamp (0.72)
+    while scale <= 2.2 + 1.0e-4 {
+        let links = top_links_at(scale);
+        for &station in mid_stations {
+            let crest = links
+                .iter()
+                .filter(|w| (w.z - station).abs() < 0.12)
+                .map(|w| w.y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            assert!(
+                (crest - seat_y).abs() < 0.01,
+                "at sag scale {scale:.2} the run must still REST on the wheel at z={station}: \
+                 crest {crest:.3} vs seat {seat_y:.3} — a lift-off means tension changed the \
+                 topology again"
+            );
+        }
+        let valley = links
+            .iter()
+            .filter(|w| (w.z - valley_span).abs() < 0.16)
+            .map(|w| w.y)
+            .fold(f32::INFINITY, f32::min);
+        if let Some(previous) = previous_valley {
+            assert!(
+                (valley - previous).abs() < 0.012,
+                "a 0.05 tension step moved the valley {:.4} m — that is a snap, not a glide",
+                (valley - previous).abs()
+            );
+            assert!(
+                valley <= previous + 1.0e-3,
+                "more slack must hang the valley deeper (scale {scale:.2}): {valley:.4} after \
+                 {previous:.4}"
+            );
+        }
+        previous_valley = Some(valley);
+        scale += 0.05;
+    }
+}
+
 #[test]
 fn rendered_wheels_and_physics_footprint_share_one_set_of_stations() {
     // The wheels the player sees must be the wheels the hull rides on: the rendered running
