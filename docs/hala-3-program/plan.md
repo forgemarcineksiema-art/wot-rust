@@ -1,6 +1,9 @@
 # Hala 3.0 — przebudowa hangaru (moody workshop, pełny program)
 
-Status: ZATWIERDZONY 2026-08-09 (decyzje: pełna przebudowa rzutu; tożsamość „moody workshop";
+Status: ZAKOŃCZONY 2026-08-10 (PR #536–#557: A–L w całości + relight „światło służy czołgowi"
+#554; M skreślone NA STAŁE decyzją usera 2026-08-10 — nie wraca). Długi F2/D2 oraz drobne
+domknięcia przejął program Hala v4 (`docs/hala-4-program/plan.md`).
+Zatwierdzony 2026-08-09 (decyzje: pełna przebudowa rzutu; tożsamość „moody workshop";
 pełny program produktowy). Następca programu Hala 2.0 (`docs/hala-2-program.md`, retired) —
 odpowiedź na standing verdict z ROADMAP: *„the garage owes its rebuild"*.
 
@@ -235,27 +238,33 @@ K2 to research z osobną bramką decyzyjną. L wymaga J (parametr kurzu) i zysku
 przy naprawie), ale go nie wymaga. M zamyka program — dopiero gdy pierwszy hangar jest wzorcem,
 ma sens jego parametryzacja.
 
-## Checklista etapów
+## Checklista etapów (stan faktyczny na zamknięciu, 2026-08-14)
 
-- [ ] A1: nowy shell hali — nawa 22×44×9 m, dach szedowy z prawdziwymi otworami, głębokie
-      kratownice, uchylona brama na osi; nowe stałe kadru i zamki
-- [ ] A2: stanowisko hero — obrotnica wpuszczona w posadzkę, elementy ludzkiej skali, pas
-      przejazdowy
-- [ ] A3: strefy pod 4 kadry slotów + przepływ pracy wzdłuż ściany
-- [ ] B1: relight workshop — grade, rig lamp, wiązka z bramy, zamki hero > podłoga i p05
-- [ ] B2: gęstszy GI bake (1.4 m / 32 promienie) + sonda SH na hero (G5/G6)
-- [ ] C: materiały T2 — detail_normal w interiorach, WHITEWASH i bogatsza paleta, test ≥6 ról
-- [ ] D: odbicia — prefiltrowana cubemapa IBL + planar na deku stanowiska
-- [ ] E: ruch i powietrze — smugi+kurz (T1c), sway/flicker, obrót hero, pierwszy plan, drive-in
-      przy pierwszym uruchomieniu
-- [ ] F: bramki jakości — perf_capture garażu (MX330), 4× MSAA per-scene + parytet goldenów
-      (G9), golden bliskiej orbity + flota ciężkich
-- [ ] G: audio bed hangaru — voice, pętla + one-shoty, wpięcie w audio_link, test mixera
-- [ ] H: pory dnia — warianty poranek/wieczór, golden kanoniczny + testy wartości
-- [ ] I: inspektor pancerza — overlay stref z game_core/armor, toggle w UI, golden
-      garage_inspector
-- [ ] J: hero pod ciężarem — poza spoczynkowa (ugięcie zawieszenia, osiadanie gąsienic) + pas
-      kurzu w vehicle.wgsl
-- [ ] K: obecność mechanika — K1 obecność implikowana; K2 (research) proceduralny mechanik
-- [ ] L: garaż reaguje na stan czołgu — przeniesienie stanu po bitwie + moment naprawy 2–5 s
-- [ ] M: wiele hangarów — HangarBlueprint (RON), warianty Field camp / Factory / Winter
+- [x] A1 (#536): nowy shell hali — nawa 22×44×9 m, dach szedowy z prawdziwymi otworami
+- [x] A2 (#537): stanowisko hero — obrotnica wpuszczona w posadzkę, pas przejazdowy
+- [x] A3 (#538): strefy pod 4 kadry slotów + przepływ pracy wzdłuż ściany
+- [x] B1 (#539): relight workshop — grade 1.10/0.020, zamki GARAGE_P05_FLOOR + HERO_OVER_ROOM
+- [x] B2 (#540): gęstszy GI bake — krawędź 2.2→1.6 m + sonda hero; cel 1.4 m / 32 promienie
+      ODROCZONY POMIAREM (prewarm 2.06 s vs budżet 1 s; wraca, gdy gather przyspieszy 2× —
+      przejęte przez Halę v4, `hangar_bake.rs:29`)
+- [x] C (#541, #542): detail_normal za flagą per-scene + WHITEWASH/RUBBER, role 4→6
+- [x] D1 (#544): prefiltrowana cubemapa IBL wypiekana CPU-side; **D2 planar NIE WSZEDŁ** —
+      odroczony pomiarem F1 (druga passa sceny przy debecie −3 ms); przejęty przez Halę v4
+- [x] E (#545–#547): smugi+kurz, sway/flicker/turntable/wentylator/para, kurtyna bramy +
+      drive-in pierwszego uruchomienia; ciemny plan hero 0.749 — pierwszy raz pod celem 0.75
+- [x] F1 (#543): perf_capture garażu na MX330 — POMIAR: GPU p50 19.66 ms vs budżet 16.67
+      (debet ~3 ms, scene_pass 81%, fill-bound); **F2 4×MSAA NIE WSZEDŁ** — twardo zagate'owany
+      tym debetem; F3 (#548) goldeny bliskiej orbity + flota ciężkich weszły. F2+dieta przejęte
+      przez Halę v4
+- [x] G1 (#549): audio bed hangaru — room tone, radio z ławy, one-shoty, test mixera
+- [x] H1 (#550): pory dnia Morning/Day/Evening z zegara gracza + override L
+- [x] I1 (#551): inspektor pancerza z brył game_core/armor, toggle I, golden garage_inspector;
+      legenda mm w HUD = follow-up, przejęty przez Halę v4
+- [x] J (#552, #553): poza spoczynkowa z masy + pas kurzu
+- [x] K (#555, #556): K1 wózek suwnicy + łuk spawalniczy; K2 proceduralny mechanik
+      z kill-switchem MECHANIC_ENABLED (shipnięty włączony)
+- [x] L (#557): FieldWear z surowego snapshotu + naprawa [R] z beatem 3.2 s; dźwięk pracy
+      naprawy i mechanik-przy-naprawie = follow-upy przejęte przez Halę v4
+- [SKREŚLONE] M: wiele hangarów — HangarBlueprint; decyzja usera 2026-08-10: odpada NA STAŁE
+- [x] Poza planem (#554): relight „światło służy czołgowi" po werdykcie usera — półcień
+      9 texeli, cięcie casterów, klucz:ambient 2.8, szkło GLASS z wybitymi taflami
