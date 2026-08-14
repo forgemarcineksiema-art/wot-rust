@@ -214,8 +214,8 @@ row above it had been wrong for months in two different directions at once (see 
 again 2026-08-14, because the 2026-08-09 sentence ("80.4% dark against a 75% bound is what
 remains") outlived its own fix by four days. Hala 3.0 E3 (#547, the gate curtain and the chain
 hoist foreground) took the hero's dark plane under the bound for the first time, and the #554
-relight held it there: the table above measures `garage_hero` at **72.4% dark against the 75%
-bound**, 4.0% bright against the 2% target, spread 0.537. What the garage still owes is not a
+relight held it there: the table above measures `garage_hero` at **72.3% dark against the 75%
+bound**, 4.2% bright against the 2% target, spread 0.544. What the garage still owes is not a
 value — it is the frame budget (~3 ms over on the MX330, which gates 4x MSAA and the deck
 reflection), owned by `docs/hala-4-program/plan.md`.
 
