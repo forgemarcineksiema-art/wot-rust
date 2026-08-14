@@ -322,8 +322,9 @@ five instances, two of them in this document.
 | G4 | **CLOSED.** The overhead reflection is the skylights' area share of the daylight behind them, held to the roof geometry by `the_rooms_reflection_is_the_room`. |
 | G8 | **PARTLY** — see the withdrawal above. Far cascade dropped, test reads the shipped resolution. |
 | G10 | **CLOSED.** Floors raised to measurement (bright 0.0025 → 0.020, dark 0.905 → 0.810); D20 and the register's garage table rewritten from measured frames. |
-| G11 | **PARTLY.** The garage has a subject crop and it reads hero median 0.161 against room median 0.089 — 1.81x, floored at 1.4x. The byte harness reports all drift at once instead of dying on the first frame. **`perf_capture` still has no garage entry**: its frame time remains unmeasured. |
-| G5, G6, G7, G9, G12 | **OPEN**, as ranked. |
+| G11 | **CLOSED** (2026-08-10, PR #543 — Hala 3.0 F1). `perf_capture` gained `garage_frame_time_capture` and the number is on record: garage GPU p50 19.66 ms vs the 16.67 budget, scene_pass 81%, fill-bound. The debt itself transferred to Hala v4 (`docs/hala-4-program/plan.md`). |
+| G5, G6 | **CLOSED** (2026-08-09, PR #540 — Hala 3.0 B2). The hero gained an SH probe (6-face cube, uniform +96 B) and the bake edge tightened 2.2 → 1.6 m with a direct cache per triangle. The plan's 1.4 m / 32-ray target stays deferred by measurement (prewarm 2.06 s vs the 1 s budget, `hangar_bake.rs:29`) — that residual rides with Hala v4. |
+| G7, G9, G12 | **OPEN**, as ranked. G9's historical half was paid outside this program (2026-08-11: review/goldens render the shipped 1x); the prospective half — garage goldens must move WITH the garage if F2 lands 4x — is Hala v4's P8. |
 
 The frame, before and after, from the always-on harness:
 
@@ -336,6 +337,12 @@ The bright plane clears its 2% target for the first time. **The dark plane did n
 that is the honest headline: a corrected reflection and a material treatment are both multiplied
 BY the light already reaching a surface, so neither can lift shade. 80.4% against a 75% bound is
 what the garage still owes, and it is a lighting question.
+
+*(Postscript 2026-08-14: the lighting question was answered as predicted — with light, not
+material. Hala 3.0's shaft/foreground/relight chain (#545–#547, #554) took `garage_hero` to
+72.4% dark, under the bound; the current numbers live in `docs/art-direction-program.md`'s
+measured-frames table. What the room owes now is frame time, tracked by
+`docs/hala-4-program/plan.md`.)*
 
 ## 5. The order
 

@@ -86,7 +86,7 @@ it closes.
 | ~~D13~~ | ~~**The locked goldens render imported flora as WHITE.**~~ — **CLOSED (W0)**; then **OBSOLETE (Świat 2.0 F0)**: there is no foliage atlas to bind — trees are vertex-coloured procedural meshes | — | W0 |
 | ~~D14~~ | ~~The imported `stylized-tree` orange-red trunk~~ — **CLOSED (Świat 2.0 F0)**: the asset is gone with the import pipeline | — | W2 |
 | D15 | Outside the T-54 the fleet offers nothing to look at up close: unbroken plates, no weld seams, grab handles, tow cable, spare track or vision blocks; hull and turret read as two different paints (cast vs rolled split too far); running gear is a black void with no contact | `target/closeup_probe/centurion_flank.png` | W3 |
-| D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background — **PARTLY CLOSED**: `HERO_ORBIT_PITCH` 0.28 → 0.13 brought the gallery band, the bay gate and the frosted panes into frame (at 0.28 the top of the frame sat exactly on the horizon through the pivot, so *everything* above the eye was out of shot). The value separation is still owed and rides with D20 | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
+| ~~D16~~ | ~~The garage room's content sits entirely outside the hero framing; the hero does not separate in value from its background~~ — **CLOSED (Hala 3.0)**. First half by the reframing: `HERO_ORBIT_PITCH` 0.28 → 0.13 brought the gallery band, the bay gate and the frosted panes into frame, and A3 (#538) gave every slot frame a composed background. Second half by the relight chain (#539 → #547): the hero-over-room separation is now a LOCKED ratio — `HERO_OVER_ROOM` re-derived explicitly 2.0 → 1.7 when the shafts landed (the derivation history lives in the lock's comment), measured 1.83x at E3 — so the hero separates from its background by contract, not by luck | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
 | D22 | **The hero was parked at the camera's own bearing.** `HERO_ORBIT_YAW` and the parked `yaw_rad` were both 0.6, so the "three-quarter" the comments claimed was a head-on elevation with the barrel bisecting the hull — the one angle at which the whole fleet looks alike. **CLOSED**: `hangar::HERO_PARK_YAW = HERO_ORBIT_YAW + 0.65`, read by the live garage, the golden and the example | `hangar.rs`, `garage_render.rs`, `review_views.rs` | W4 |
 | D23 | **The human-review example hard-coded the framing** — `(0.60, 0.28, 14.0)` and a 32° lens, copied beside the constants `ecc0777` had just centralised so that "a reframing moves the played picture and the locked picture together". A reframing would have moved the golden and left the reviewed frame behind, which is D13's disease exactly. **CLOSED**: the example reads `hero_orbit_eye()` / `HERO_FOV_DEGREES` | `examples/garage_hangar_review.rs:70` | W4 |
 | D24 | **The garage UI had no picture lock of any kind.** `garage_hero` is the room only; the overlay was covered solely by unit tests over rect arithmetic, which cannot see a control drawn off its plate. It had shipped for months with the top-bar plate ending at y=0.86 while both screen tabs hit-tested 0.785–0.845 — GARAGE and TECH TREE rendered as dim text on the hangar wall, and GARAGE answered no click at all. **CLOSED**: `garage_screen` golden + the plate reaches its own tab row | `review_views.rs`, `panels/topbar.rs` | W4 |
@@ -209,11 +209,15 @@ picture in the set at spread 0.348. That is the milk, quantified: not a colour p
 `ostrogorsk_golden_evening` (19.4%) read bimodal — lit or black, with little in between. Watch
 this when W1 retunes exposure; deepening the shade further would make it worse.
 
-**The garage is the outlier on the axis that is left.** Rewritten 2026-08-09 against measured
-frames, because the row above it had been wrong for months in two different directions at once
-(see D20). The bright plane and the spread are no longer the problem: 2.3% bright against a 2%
-target and a spread of 0.572 put it inside the set. **80.4% dark against a 75% bound is what
-remains**, and it is the garage's one open value debt.
+**The garage's value debt is paid.** Rewritten 2026-08-09 against measured frames, because the
+row above it had been wrong for months in two different directions at once (see D20); rewritten
+again 2026-08-14, because the 2026-08-09 sentence ("80.4% dark against a 75% bound is what
+remains") outlived its own fix by four days. Hala 3.0 E3 (#547, the gate curtain and the chain
+hoist foreground) took the hero's dark plane under the bound for the first time, and the #554
+relight held it there: the table above measures `garage_hero` at **72.4% dark against the 75%
+bound**, 4.0% bright against the 2% target, spread 0.537. What the garage still owes is not a
+value — it is the frame budget (~3 ms over on the MX330, which gates 4x MSAA and the deck
+reflection), owned by `docs/hala-4-program/plan.md`.
 
 Its lowest-local-contrast standing is WITHDRAWN as a finding, because local contrast cannot
 measure what it was being read as measuring. It is the mean step between horizontally adjacent

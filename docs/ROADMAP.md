@@ -89,5 +89,9 @@ grind and the first numeric release criteria this project had written down; it w
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.
 
 The open picture work is `docs/art-direction-program.md`, and it is on the marketing
-critical path, because a store page is made of frames. Two standing verdicts outlived their
-documents: the world reads too small, and the garage owes its rebuild.
+critical path, because a store page is made of frames. One standing verdict outlived its
+documents: the world reads too small. The garage's rebuild verdict was answered by Hala 3.0
+(PR #536–#557, closed 2026-08-10); what the room still owes is itemized in
+`docs/hala-4-program/plan.md` — the frame runs ~3 ms over the MX330 budget (which gates
+4x MSAA and the deck reflection), and the product shell around the garage (battle results,
+settings, PL glyphs) does not exist yet.
