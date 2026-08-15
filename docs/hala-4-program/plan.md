@@ -213,7 +213,11 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       między przebiegami — flaga wybrana dla bitowej zamrożoności bitwy; rozstrzygnięcie
       globalnego reorderu wymaga A/B bitwy w JEDNEJ rotacji (follow-up, nieblokujący)
 - [ ] P3: dieta SSAO garażu
-- [ ] P4: dieta jądra półcienia
+- [x] P4: jądro półcienia 8 → 6 tapów (zewnętrzny krzyż zostaje, wewnętrzny krzyż → para
+      pod 45°; rotacja per piksel = reguła anty-tkaninowa bez zmian; promień 9 texeli i zamek
+      ≥8 nietknięte). Przegląd okiem hero + susp_close: nierozróżnialne; goldeny garażu
+      scoped re-record; zamki wartości 6/6. POMIAR w rotacji: koszt cieni (delta no-shadows,
+      GPU) ~2,35 → ~0,91 ms; ścieżka bitewna nieruszona (dryf zero klatek bitewnych)
 - [x] P5: ziarno wnętrz na jednej oktawie — `interior_grain` (drobna oktawa `ground_grain`
       SAMA; szeroka liczyła się i szła do kosza, bo bend czyta tylko gradient drobnej).
       Bend bitowo identyczny — goldeny garażu bajt-w-bajt (zamek). POMIAR: cena flagi C1

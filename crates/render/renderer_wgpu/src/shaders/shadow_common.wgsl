@@ -113,20 +113,26 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>, frag: vec4<f32>) -> f32 {
         // cannot at large radius. The battle never sets it: at 0.0 this branch is never
         // taken and the shipped path below is untouched.
         if (camera.scene_params.w > 0.0) {
+            // Hala v4 P4: six taps instead of eight. The outer rotated cross carries the
+            // penumbra width; the inner ring drops from a cross to a PAIR rotated 45° off
+            // the outer arms, so the six taps still cover six distinct angles per pixel and
+            // the per-pixel rotation keeps neighbours decorrelated (the anti-weave rule the
+            // shipped 4-tap battle kernel proved out). The 3x3 blur the penumbra passes
+            // through at this radius smears the two lost samples' noise the same way it
+            // smears the rest.
             let rot = pcf_rotation(frag.xy);
             let outer = rot * texel * camera.scene_params.w;
             let outer_cross = vec2<f32>(-rot.y, rot.x) * texel * camera.scene_params.w;
-            let inner = rot * texel * (camera.scene_params.w * 0.45);
-            let inner_cross = vec2<f32>(-rot.y, rot.x) * texel * (camera.scene_params.w * 0.45);
+            // 45° between the outer arms, at the inner radius: (x-y, x+y)/sqrt(2).
+            let inner = vec2<f32>(rot.x - rot.y, rot.x + rot.y) * 0.70710678
+                * texel * (camera.scene_params.w * 0.45);
             sum = textureSampleCompareLevel(shadow_map, shadow_sampler, uv + outer, reference)
                 + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - outer, reference)
                 + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + outer_cross, reference)
                 + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - outer_cross, reference)
                 + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + inner, reference)
-                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - inner, reference)
-                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + inner_cross, reference)
-                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - inner_cross, reference);
-            return mix(1.0, sum / 8.0, strength);
+                + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - inner, reference);
+            return mix(1.0, sum / 6.0, strength);
         }
         // Full detail (time_params.w, F2): the 3×3 reference kernel — nine taps straddling the
         // fragment at ±1 texel, contiguous bilinear coverage, ~3-texel penumbra.
