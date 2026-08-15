@@ -244,8 +244,15 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       zabrania i klatki pod 60 FPS, i opcji jakości; wraca po P6b albo po decyzji
 - [ ] P8: F2 4×MSAA per-scene + parytet goldenów (G9) — za bramką P7 (dziś NO-GO)
 - [ ] P9: decyzja D2 pomiarem — automatycznie odroczona razem z F2 (bramka D2 liczy od @4×)
-- [ ] R1: legenda mm inspektora
-- [ ] R2: dźwięk pracy naprawy
+- [x] R1: legenda mm inspektora (#580) — pasek pod pasmem nameplate'u, swatche PRÓBKOWANE
+      z `color_for_mm` na kotwicach gradientu (10/40/90/150/230), zamek
+      `the_legend_is_the_scale_it_explains` + zamek pasma; harness wiesza tę samą legendę
+      nad widokiem inspektora, golden przegrany scoped (0,8% pikseli)
+- [x] R2: dźwięk pracy naprawy (ten PR) — głos `RatchetWork` w audio crate (klucz nasadowy:
+      3 pociągnięcia z przyspieszającą zapadką i jaśniejszym tikiem osadzenia, deterministyczny
+      per seed), event `RepairWork { seconds }` spięty z `REPAIR_BEAT_S` (jedno źródło beatu
+      dla dźwięku, podnośnika i nameplate'u); zamki: praca słyszalna nad bedem w każdej
+      tercji beatu i KOŃCZY SIĘ z beatem (finishing clunk ma ostatnie słowo)
 - [ ] R3: mechanik przy naprawie
 - [ ] R4: prawo faz w hali (G7)
 - [ ] R5: B2 GI do celu albo zamknięcie pomiarem

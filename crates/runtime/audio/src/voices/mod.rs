@@ -13,3 +13,4 @@ pub mod impact;
 pub mod track;
 pub mod traverse;
 pub mod ui;
+pub mod workshop;

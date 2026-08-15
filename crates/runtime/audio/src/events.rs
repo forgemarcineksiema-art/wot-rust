@@ -32,4 +32,7 @@ pub enum AudioEvent {
     /// The garage REFUSED an edit (incompatible fit): the dull knock that answers the red flash,
     /// so a rejection is heard, not only seen.
     UiReject,
+    /// The garage repair beat (Hala v4 R2): the wrench works for `seconds` — the shop is
+    /// HEARD fixing what the nameplate says it is fixing.
+    RepairWork { seconds: f32 },
 }

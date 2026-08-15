@@ -231,6 +231,11 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyR) => {
                 if self.garage.start_repair() {
                     self.queue_audio(audio::AudioEvent::UiClick { accent: true });
+                    // ...and the shop actually WORKS for the beat (R2): the wrench spans the
+                    // same seconds the lift and the nameplate do, one source for all three.
+                    self.queue_audio(audio::AudioEvent::RepairWork {
+                        seconds: super::wear::REPAIR_BEAT_S,
+                    });
                 }
             }
             PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
