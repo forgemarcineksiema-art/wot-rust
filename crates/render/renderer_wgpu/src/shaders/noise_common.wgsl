@@ -84,6 +84,19 @@ fn ground_grain(world_xz: vec2<f32>) -> vec3<f32> {
     );
 }
 
+// The interior grain (Hala v4 P5): the fine octave of `ground_grain` ALONE, because that is
+// all the interior bend ever read — its `.x` was discarded by the C1 arm, so the broad
+// octave was a lattice evaluation per interior pixel thrown away. Same frame, same scale,
+// same chain rule as ground_grain's fine half: the returned gradient is BIT-IDENTICAL to
+// ground_grain(p).yz, which is what lets the garage goldens prove this cut byte-for-byte.
+// x = the fine octave's value (unused by the bend; kept so a future sheen can share the
+// evaluation instead of paying a fourth one).
+fn interior_grain(world_xz: vec2<f32>) -> vec3<f32> {
+    let fine = value_noise_grad(octave_frame_fine(world_xz) * 1.7);
+    let g = fine.yz * 1.7;
+    return vec3<f32>(fine.x, 0.8 * g.x - 0.6 * g.y, 0.6 * g.x + 0.8 * g.y);
+}
+
 // The near-eye micro octave (~31 cm crumb): x = value, yz = world-space analytic gradient.
 // Shares the broad frame's rotation (different scale — the lattices cannot align anyway).
 fn micro_grain(world_xz: vec2<f32>) -> vec3<f32> {

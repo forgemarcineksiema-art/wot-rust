@@ -325,7 +325,10 @@ fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
             return n;
         }
         let p = world.xz * 1.3 + vec2<f32>(world.y * 0.7, world.y * 0.4);
-        let grain = ground_grain(p);
+        // interior_grain (Hala v4 P5): the bend only ever read ground_grain's fine-octave
+        // gradient, so the broad octave was a wasted lattice evaluation per interior pixel.
+        // The gradient is bit-identical — the garage goldens hold byte-for-byte.
+        let grain = interior_grain(p);
         let bend = vec3<f32>(-grain.y, 0.0, -grain.z) * 0.07 * clamp(1.0 - gloss, 0.35, 1.0);
         return normalize(n + bend);
     }
