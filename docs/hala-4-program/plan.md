@@ -50,6 +50,51 @@ Fakty nośne pod dietę (zweryfikowane na masterze `4d4115b4`):
   liczy `value_noise` na tej samej płaszczyźnie — jedna ewaluacja `value_noise_grad`
   obsłużyłaby obie.
 
+## Pomiar P1 (2026-08-15, #573 zmergowane, MX330, wierny przyrząd)
+
+Pierwszy pomiar SHIPOWANEJ sceny od #554 (F1 mierzył halę bez półcienia, kostki, smug
+i cięcia casterów). Rotacja interleaved, 10 konfiguracji × 4 cykle, 120 próbek/konfig;
+wall zawiera fence per klatkę (protokół F1); „GPU" = przyrząd per-pass.
+
+| konfiguracja | wall p50 | GPU p50 | scene_pass | delta wall vs full |
+|---|---:|---:|---:|---:|
+| garage full (shipowana) | 27,43 | **18,88** | 15,50 (82%) | — |
+| no interior grain (C1) | 25,60 | 17,67 | 14,30 | −1,83 |
+| no shadows | 24,30 | 16,53 | 13,73 | −3,13 |
+| no ssao | 24,88 | 17,26 | 15,17 | −2,55 |
+| no fx (smugi) | 27,02 | 18,84 | 15,41 | −0,41 |
+| battle shadow kernel (softness 0) | 28,64 | 21,37 | 17,49 | **+1,21 (!)** |
+| hall only (bez pojazdu) | 25,12 | 17,84 | 14,42 | −2,31 |
+| unfurnished hall (bez propów/galerii) | 29,33 | 20,99 | 17,12 | **+1,89 (!)** |
+| vehicle on bare slab | 16,58 | 9,21 | 6,33 | −10,85 |
+| **garage @4× (kandydat F2)** | 32,71 | **24,80** | 20,91 | **+5,28 (GPU +5,92)** |
+
+Fence p50 5,57 → budżetowo: wall−fence **21,86 ms vs 16,67** (GPU-instrument 18,88 — między
+miarami ~3 ms; obie zapisane, delty czytać z rotacji). Koda @720p: GPU 18,88 → 9,84 ms =
+×1,92 przy ×2,25 pikseli — **fill-bound potwierdzone (~85%)**.
+
+**Wnioski, które PRZESTAWIAJĄ dietę:**
+
+1. **Dług 1× jest większy niż w rejestrze F1**: ~2,2 ms GPU / ~5,2 ms wall−fence (19,66 było
+   pomiarem nie-shipowanej sceny). **Dopłata 4× zmierzona: +5,9 ms GPU** — bramka F2-GO
+   wymaga znalezienia **~8 ms GPU** (24,80 → 16,67), nie ~5.
+2. **ANOMALIA A (jądro bitewne droższe)**: softness 0 → scene_pass +2,0 ms. Ścieżka bitewna
+   próbkuje mapę CHMUR (D21), miękka garażowa nie — dieta półcienia (P4) tnie tapy MIĘKKIEJ
+   ścieżki, nie przełącza na bitewną; realny zysk ~0,7–0,9 ms (no-shadows w scene_pass
+   = −1,78).
+3. **ANOMALIA B (hala bez propów droższa)**: −18k trójkątów → scene_pass +1,6 ms. Propy
+   ZASŁANIAJĄ najdroższe piksele wnętrza (ich shading jest tańszy niż to, co zakrywają).
+   „Cięcie propów" jako lever jest MARTWE; wygrana leży w nie-cieniowaniu zasłoniętych
+   pikseli — **hero-first (P2) i depth prepass (P6) awansują z warunkowego do rdzenia**.
+4. **Pokój kosztuje ~9–11 ms scene_pass, pojazd ~2** (goły slab 6,33 vs pełna hala 15,50):
+   debet to per-piksel wnętrzowej ścieżki materiału na ~2 Mpx.
+5. Ranking diety po P1: **P6 depth prepass** (największy potencjał — overdraw wnętrza) ·
+   **P5 unifikacja ziarna** (−1,2 ms zmierzone flagą C1) · **P2 hero-first** (~1–2 ms,
+   udział ekranowy hero × koszt wnętrza) · **P4 tapy półcienia** (~0,7–0,9) · **P3 SSAO**
+   (łańcuch to dziś 1,26 + 0,33 w scene — zysk ≤ ~1, niżej niż szacowano).
+   Zejście pod budżet 1× (2,2 GPU) jest osiągalne bez prepassu; **F2 (+5,9) najpewniej
+   wymaga prepassu i wszystkich leverów razem** — decyzja spadnie na bramkę P7 z liczbami.
+
 ## Fala 0 — rozliczenie (1 PR)
 
 Dokumentacja mówi prawdę o stanie: checklista Hali 3.0 odhaczona wg faktów; werdykt
@@ -156,8 +201,11 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
 
 ## Checklista
 
-- [ ] Fala 0: rozliczenie dokumentacji (ten PR)
-- [ ] P1: pomiar-atrybucja + bloki ablacji + wycena @4×
+- [x] Fala 0: rozliczenie dokumentacji (#571) + re-bless goldenów po falach #563–#570 (#572 —
+      nawrót choroby „kafle studia blessowane, look-goldeny nie"; przegląd klatka-po-klatce,
+      jedna zapadka re-derywowana jawnie)
+- [x] P1: pomiar-atrybucja + bloki ablacji + wycena @4× (#573 przyrząd, sekcja „Pomiar P1"
+      wyżej; ranking diety przestawiony anomaliami A/B)
 - [ ] P2: hero-first draw order
 - [ ] P3: dieta SSAO garażu
 - [ ] P4: dieta jądra półcienia
