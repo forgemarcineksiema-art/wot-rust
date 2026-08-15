@@ -117,12 +117,29 @@ impl super::GarageState {
             return false;
         };
         *elapsed += dt;
+        // R3: the mechanic's round clock pauses for the length of the beat — he steps toward
+        // the ring to work instead of walking his round, and resumes exactly where he left.
+        self.mechanic_pause_s += dt;
         if *elapsed >= REPAIR_BEAT_S {
             self.repair = None;
             self.wear = None;
             return true;
         }
         false
+    }
+
+    /// The live work cue for the mechanic (R3), while a beat plays: its elapsed seconds and
+    /// the one beat length everything answers to.
+    pub(in crate::app) fn repair_work_cue(&self) -> Option<scene_build::hangar_mechanic::WorkCue> {
+        self.repair.map(|elapsed_s| scene_build::hangar_mechanic::WorkCue {
+            elapsed_s,
+            beat_s: REPAIR_BEAT_S,
+        })
+    }
+
+    /// Total time the mechanic's round clock has been paused by repair beats (R3).
+    pub(in crate::app) fn mechanic_pause_s(&self) -> f32 {
+        self.mechanic_pause_s
     }
 
     /// The jack's lift this frame: a smooth rise-and-settle bump over the beat, zero when

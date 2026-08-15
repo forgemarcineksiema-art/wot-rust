@@ -253,7 +253,13 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       per seed), event `RepairWork { seconds }` spięty z `REPAIR_BEAT_S` (jedno źródło beatu
       dla dźwięku, podnośnika i nameplate'u); zamki: praca słyszalna nad bedem w każdej
       tercji beatu i KOŃCZY SIĘ z beatem (finishing clunk ma ostatnie słowo)
-- [ ] R3: mechanik przy naprawie
+- [x] R3: mechanik przy naprawie (ten PR) — `WorkCue` w hangar_mechanic: na czas beatu
+      mechanik schodzi z rundy, staje twarzą do hero i podchodzi 1,2 m ku KRAWĘDZI ringu
+      (stopa ≥8,55 m — zamek ringu 8 m nietknięty, nowy zamek próbkuje pełny beat), pracuje,
+      wraca symetrycznie; zegar rundy PAUZUJE na beat (garaż akumuluje pauzę), więc koniec
+      beatu = bitowo punkt rundy — zero snapu (zamek bit-for-bit). Goldeny bajt-w-bajt
+      (mroźna sekunda nie niesie cue). Klucz (R2), podnośnik, nameplate i mechanik odpowiadają
+      JEDNEMU `REPAIR_BEAT_S`
 - [ ] R4: prawo faz w hali (G7)
 - [ ] R5: B2 GI do celu albo zamknięcie pomiarem
 - [ ] W1: proficiency = 1,0
