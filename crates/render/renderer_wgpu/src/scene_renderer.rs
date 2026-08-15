@@ -119,6 +119,15 @@ pub struct SceneRenderer {
     /// `scene_params.w`. The garage widens its razor-edged tight-box shadows into real
     /// penumbra; the battle leaves 0, where the shader keeps its shipped kernel untouched.
     shadow_softness: f32,
+    /// Draw the vehicles BEFORE the world in the scene pass (Hala v4 P2). In the garage the
+    /// hero is the nearest opaque thing in frame and every pixel it claims up front is one
+    /// the ~9-11 ms interior path never shades — measured -1.3 ms at 1x and -4.2 ms at the
+    /// 4x candidate. In the BATTLE the trade runs the other way: hulls hide behind crests
+    /// and buildings, and drawing them first pays their full shading before the terrain
+    /// covers them — measured +0.8 ms on the fleet delta — so the battle keeps its shipped
+    /// order (false, the default) and the image is byte-identical either way (opaque +
+    /// depth Less; the golden byte-checks in both scopes are the proof).
+    vehicles_first: bool,
     /// Optional reduced index set the SUN-SHADOW passes draw the statics slot with (Światło
     /// służy czołgowi): the garage exempts its roof clutter — thin bars and emissive panes —
     /// from casting, so the floor carries a few large soft shapes instead of a printed
@@ -563,6 +572,7 @@ impl SceneRenderer {
             environment_cube_set: false,
             vehicle_dust: 0.0,
             shadow_softness: 0.0,
+            vehicles_first: false,
             terrain_shadow_indices: None,
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,

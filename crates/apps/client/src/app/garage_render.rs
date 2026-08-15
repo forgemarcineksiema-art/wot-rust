@@ -316,6 +316,9 @@ impl ClientApp {
                     )));
                     // ...and the hall's material grain catches the worklight (C1).
                     renderer.set_interior_detail_normal(true);
+                    // The hero draws before the room (Hala v4 P2): its pixels are the
+                    // cheapest way to not shade the priciest interior path behind it.
+                    renderer.set_vehicles_first(true);
                     // ...and every polished surface mirrors the ROOM (D1): the baked,
                     // prefiltered reflection cube from the hero station, in this daylight.
                     renderer.set_environment_cube(Some(
@@ -332,6 +335,9 @@ impl ClientApp {
                     // No hall, no probe: zero lanes, a bit-exact no-op in the vehicle shader.
                     renderer.set_hero_probe(None);
                     renderer.set_interior_detail_normal(false);
+                    // ...and the battle keeps its shipped draw order (P2: hero-first LOSES
+                    // outdoors, where crests and buildings hide hulls).
+                    renderer.set_vehicles_first(false);
                     renderer.set_environment_cube(None);
                     // No garage dust either (J2): at zero the shader's dust math is a
                     // bit-exact no-op, which is the battle goldens' byte stability.

@@ -206,7 +206,12 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       jedna zapadka re-derywowana jawnie)
 - [x] P1: pomiar-atrybucja + bloki ablacji + wycena @4× (#573 przyrząd, sekcja „Pomiar P1"
       wyżej; ranking diety przestawiony anomaliami A/B)
-- [ ] P2: hero-first draw order
+- [x] P2: hero-first draw order — per-scene `vehicles_first` (garaż true, bitwa false =
+      bitowo shipowany porządek). POMIAR: garaż GPU 18,88 → 16,85 ms (−2,0), @4× 24,80 →
+      19,82 (dopłata 4× +5,9 → +3,0); goldeny bajt-w-bajt w obu scope'ach. Sygnał regresji
+      bitwy przy globalnym reorderze (+0,8 na delcie floty) okazał się W GRANICACH szumu
+      między przebiegami — flaga wybrana dla bitowej zamrożoności bitwy; rozstrzygnięcie
+      globalnego reorderu wymaga A/B bitwy w JEDNEJ rotacji (follow-up, nieblokujący)
 - [ ] P3: dieta SSAO garażu
 - [ ] P4: dieta jądra półcienia
 - [ ] P5: unifikacja ziarna wnętrz

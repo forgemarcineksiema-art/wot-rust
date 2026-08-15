@@ -92,6 +92,13 @@ impl SceneRenderer {
         self.shadow_softness = texels.max(0.0);
     }
 
+    /// Draw the fleet before the world in the scene pass (Hala v4 P2) — the garage's order,
+    /// where the hero occludes the priciest interior pixels. `false` (the battle, and the
+    /// default) keeps the shipped order byte-for-byte. Scene-swap cadence.
+    pub fn set_vehicles_first(&mut self, enabled: bool) {
+        self.vehicles_first = enabled;
+    }
+
     /// Give the sun-shadow passes a reduced statics index set (Światło służy czołgowi), or
     /// `None` to draw the full statics indices as ever. The garage passes the hall minus its
     /// roof clutter; every camera pass and the SSAO prepass keep the full mesh regardless.
