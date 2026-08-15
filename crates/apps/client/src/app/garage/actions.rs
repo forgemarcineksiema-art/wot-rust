@@ -125,7 +125,6 @@ impl ClientApp {
                 let step = if shift { 5 } else { 1 };
                 self.garage.adjust_ammo_count(index, dir as i32 * step);
             }
-            GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
             GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
@@ -212,8 +211,6 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
             PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
             PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
-            PhysicalKey::Code(KeyCode::Minus) => self.garage.adjust_proficiency(-1),
-            PhysicalKey::Code(KeyCode::Equal) => self.garage.adjust_proficiency(1),
             PhysicalKey::Code(KeyCode::KeyM) => self.garage.cycle_map(1),
             // H1: the hall's daylight — Auto (the player's clock) → Morning → Day → Evening.
             PhysicalKey::Code(KeyCode::KeyL) => {

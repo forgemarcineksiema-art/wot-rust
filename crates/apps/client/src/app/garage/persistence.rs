@@ -326,7 +326,9 @@ mod tests {
         let reloaded = load(&path).expect("the save still parses after the persist");
         let kept = reloaded.loadouts.get(default_kind.slug()).expect("the entry survives");
         assert_eq!(kept.option_index, edited.option_index, "the persist keeps the edits");
-        assert!((kept.crew_proficiency - 0.7).abs() < 1.0e-6);
+        // W1: the historical dial value migrates UP to the pin when the draft stands up —
+        // the MODULE edits are the player's property here, the dial no longer is.
+        assert!((kept.crew_proficiency - 1.0).abs() < 1.0e-6);
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 

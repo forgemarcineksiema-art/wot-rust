@@ -66,10 +66,7 @@ pub(super) const CREW_HALF_X: f32 = 0.18;
 // `first_row_clears_the_header_hairline` lock in `panels/stats.rs`.
 pub(super) const CREW_TOP: f32 = 0.71;
 pub(super) const CREW_PITCH: f32 = 0.105;
-pub(super) const PROF_Y: f32 = 0.18;
-pub(super) const PROF_LEFT_X: f32 = -0.90;
-pub(super) const PROF_RIGHT_X: f32 = -0.70;
-pub(super) const ARROW_HALF: [f32; 2] = [0.024, 0.034];
+// The proficiency dial's rects (PROF_*, ARROW_HALF) left with the dial (Hala v4 W1).
 
 // Right stats list.
 pub(super) const STAT_X: f32 = 0.78;
@@ -198,10 +195,6 @@ pub(super) fn carousel_cell_center(slot: usize, visible: usize) -> [f32; 2] {
 /// Left/right scroll-arrow centres.
 pub(super) fn carousel_arrows() -> ([f32; 2], [f32; 2]) {
     ([-CAR_ARROW_X, CAR_Y], [CAR_ARROW_X, CAR_Y])
-}
-
-pub(super) fn crew_prof_arrows() -> ([f32; 2], [f32; 2]) {
-    ([PROF_LEFT_X, PROF_Y], [PROF_RIGHT_X, PROF_Y])
 }
 
 /// The garage's rects are the HUD's rects — one hit test for every clickable surface in the

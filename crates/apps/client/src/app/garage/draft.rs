@@ -78,10 +78,6 @@ impl LoadoutDraft {
         }
     }
 
-    pub(super) fn crew(&self) -> Crew {
-        self.crew
-    }
-
     pub(super) fn options_len(&self, slot: FitSlot) -> usize {
         match slot {
             FitSlot::Turret => self.kind.turret_options().len(),
@@ -370,10 +366,6 @@ impl LoadoutDraft {
         true
     }
 
-    pub(super) fn adjust_proficiency(&mut self, dir: isize) {
-        self.crew = Crew::new(self.crew.proficiency() + 0.05 * dir as f32);
-    }
-
     /// Compose modules + crew + selected ammo into the live spec the stat panel previews and the
     /// battle installs.
     pub(super) fn assembled_spec(&self) -> TankSpec {
@@ -414,7 +406,6 @@ mod tests {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
         draft.cycle_module(FitSlot::Gun, 1);
         draft.set_ammo(1);
-        draft.adjust_proficiency(1);
 
         let restored = LoadoutDraft::from_saved(VehicleKind::T54_1951, &draft.to_saved());
 
@@ -439,7 +430,8 @@ mod tests {
 
         assert_eq!(draft.option_index, [0; 6], "unknown options fall back to stock");
         assert!(draft.ammo_index < draft.ammo_options().len(), "ammo clamps into range");
-        assert!((draft.crew.proficiency() - 0.8).abs() < 1.0e-6, "valid fields still apply");
+        // W1: the historical dial value migrates UP to the pin — no save can undertrain a crew.
+        assert!((draft.crew.proficiency() - 1.0).abs() < 1.0e-6, "the pin migrates old saves");
     }
 
     #[test]
@@ -621,15 +613,13 @@ mod tests {
         assert_eq!(legacy.rack_total(), legacy.rack_capacity());
     }
 
+    /// W1: proficiency is pinned — the assembled spec carries the gun's RATED reload, with
+    /// no crew tax anywhere between the screen and the battle.
     #[test]
-    fn higher_proficiency_lowers_reload() {
-        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerI);
-        let mid = draft.assembled_spec().gun.reload_seconds;
-        draft.adjust_proficiency(-1);
-        assert!(draft.assembled_spec().gun.reload_seconds >= mid, "greener crew reloads slower");
-        draft.adjust_proficiency(1);
-        draft.adjust_proficiency(1);
-        assert!(draft.assembled_spec().gun.reload_seconds <= mid, "better crew reloads faster");
+    fn the_assembled_spec_carries_the_rated_reload() {
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::TigerI);
+        let rated = VehicleKind::TigerI.spec().gun.reload_seconds;
+        assert!((draft.assembled_spec().gun.reload_seconds - rated).abs() < 1.0e-6);
     }
 
     #[test]

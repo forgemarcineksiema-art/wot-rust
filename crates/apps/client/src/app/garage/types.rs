@@ -18,8 +18,6 @@ pub(in crate::app) enum GarageHit {
     /// Move rounds into (`+1`) or out of (`-1`) rack slot `index` — the count editor's − / +
     /// zones under the ammo slot. Shift steps by 5.
     AmmoAdjust(usize, isize),
-    /// Nudge crew proficiency by `dir`.
-    CrewProf(isize),
     /// The "Battle" button.
     Battle,
     /// The map row next to the Battle button: cycle the pre-battle map choice by `dir`
