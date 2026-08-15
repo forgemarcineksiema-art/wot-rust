@@ -20,6 +20,7 @@ use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::track::TrackSnap;
 use crate::voices::traverse::TraverseVoice;
 use crate::voices::ui::{DoubleThud, MechanicalClick, RejectedThunk};
+use crate::voices::workshop::RatchetWork;
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
 const MAX_VOICES: usize = 40;
@@ -202,6 +203,12 @@ impl AudioEngine {
                 let voice = Box::new(RejectedThunk::new(self.sample_rate_hz, seed));
                 self.spawn_flat(voice, 0.45);
             }
+            AudioEvent::RepairWork { seconds } => {
+                // The wrench at the listener's own bench: flat like every garage cue, held
+                // a step under the click so the WORK reads as background craft, not alarm.
+                let voice = Box::new(RatchetWork::new(seconds, self.sample_rate_hz, seed));
+                self.spawn_flat(voice, 0.5);
+            }
         }
     }
 
@@ -361,6 +368,39 @@ mod tests {
         assert!(
             rms(&field[field.len() - 9_600..]) < 1.0e-3,
             "the battlefield hears no workshop radio"
+        );
+    }
+
+    /// R2's mixer-level contract, on G1's pattern: the repair work is HEARD over the hangar
+    /// bed for the length of the beat, and the shop falls quiet when the wrench is done —
+    /// a work sound that outlives its work would be a looping bug wearing craft's clothes.
+    #[test]
+    fn the_repair_work_rides_over_the_bed_and_ends_with_the_beat() {
+        let mut engine = AudioEngine::new(SR);
+        engine.set_hangar_bed(1.0, -0.3, 0.8);
+        let bed = stereo_chunks(&mut engine, 4.0);
+        let bed_rms = rms(&bed[bed.len() / 2..]);
+
+        engine.push_event(AudioEvent::RepairWork { seconds: 3.2 });
+        let work = stereo_chunks(&mut engine, 3.2);
+        let work_peak = work.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        assert!(
+            work_peak > bed_rms * 4.0,
+            "the wrench must be heard over the bed: peak {work_peak} vs bed {bed_rms}"
+        );
+        // Every third of the beat carries a pull — the work spans the repair, not its onset.
+        let third = work.len() / 3;
+        for window in work.chunks(third).take(3) {
+            let pull = window.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+            assert!(pull > bed_rms * 2.0, "a pull must land in each third: {pull} vs {bed_rms}");
+        }
+
+        // After the beat (plus decay), the bed is all that remains.
+        let after = stereo_chunks(&mut engine, 1.0);
+        let after_rms = rms(&after[after.len() / 2..]);
+        assert!(
+            after_rms < bed_rms * 2.0,
+            "the work must END with the beat: after {after_rms} vs bed {bed_rms}"
         );
     }
 
