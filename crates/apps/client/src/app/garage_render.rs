@@ -160,9 +160,17 @@ impl ClientApp {
         renderer.set_vehicle_render_frame(&render_frame);
         // The exhaust fan turns (E2) and the bay gate rides its track through the drive-in
         // (E3): both are the dynamic mesh the garage used to clear — rebuilt per frame,
-        // a few hundred vertices of motion.
-        let (dyn_v, dyn_i) =
-            crate::look_harness::hangar_dynamic_mesh_at(scene_time_s, self.garage.gate_open_m());
+        // a few hundred vertices of motion. The mechanic rides his OWN clock (R3): it pauses
+        // for each repair beat, during which the work cue walks him to the ring's edge — the
+        // wrench is heard AND seen answering the same REPAIR_BEAT_S.
+        let work_cue = self.garage.repair_work_cue();
+        let mechanic_s = scene_time_s - self.garage.mechanic_pause_s();
+        let (dyn_v, dyn_i) = crate::look_harness::hangar_dynamic_mesh_worked(
+            scene_time_s,
+            self.garage.gate_open_m(),
+            mechanic_s,
+            work_cue.as_ref(),
+        );
         renderer.set_dynamic_mesh(&dyn_v, &dyn_i);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);

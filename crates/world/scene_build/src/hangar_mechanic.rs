@@ -113,19 +113,70 @@ fn limb(
     );
 }
 
+/// The repair-work cue (Hala v4 R3): how far into the hero's repair beat the hall is, and
+/// how long the beat runs. While it is live the mechanic answers the shop's own work — he
+/// stops his round, faces the hero and steps TOWARD the ring's edge, works there, and walks
+/// back so the beat's end lands him exactly on his round anchor (the caller pauses the round
+/// clock for the beat, so nothing snaps). He still never crosses the ring: the approach is
+/// capped a margin outside the 8 m lock.
+pub struct WorkCue {
+    pub elapsed_s: f32,
+    pub beat_s: f32,
+}
+
+/// How far toward the hero the work pulls him — sized so a 3.2 s beat holds a real working
+/// stand between the walk in and the walk back (1.2 m at walking speed ≈ 1.15 s each way).
+const WORK_APPROACH_M: f32 = 1.2;
+/// The FOOT's radius floor while working: vertices reach ~0.45 m past the foot mid-swing,
+/// so this keeps every vertex clear of the 8 m ring lock with margin.
+const WORK_FOOT_RADIUS_M: f32 = 8.55;
+
 /// The mechanic at a moment on the presentation clock. Empty when the kill-switch is off.
 pub fn mechanic_at(seconds: f32) -> (Vec<SceneVertex>, Vec<u32>) {
+    mechanic_working_at(seconds, None)
+}
+
+/// [`mechanic_at`] with an optional repair-work cue (R3). With `None` this is bit-for-bit
+/// the plain round — the goldens' frozen second carries no cue and holds byte-for-byte.
+pub fn mechanic_working_at(seconds: f32, cue: Option<&WorkCue>) -> (Vec<SceneVertex>, Vec<u32>) {
     if !MECHANIC_ENABLED {
         return (Vec::new(), Vec::new());
     }
-    let (dist, sign, walking) = walk_state(seconds);
-    let (foot, fwd) = path_point(dist, sign);
+    let (dist, sign, mut walking) = walk_state(seconds);
+    let (mut foot, mut fwd) = path_point(dist, sign);
+    let mut phase = dist / STRIDE_M * std::f32::consts::TAU;
+    if let Some(cue) = cue {
+        // The approach is SYMMETRIC in the beat: walk in for `walk_t`, stand working, walk
+        // back over the same distance in the tail — offset returns to zero exactly when the
+        // beat ends, so the resumed round continues from the same anchor without a snap.
+        let toward = (-Vec3::new(foot.x, 0.0, foot.z)).normalize_or_zero();
+        let reach = (foot.length() - WORK_FOOT_RADIUS_M).clamp(0.0, WORK_APPROACH_M);
+        let walk_t = reach / WALK_SPEED_M_S;
+        let back_start = (cue.beat_s - walk_t).max(walk_t);
+        let offset = if cue.elapsed_s < walk_t {
+            cue.elapsed_s * WALK_SPEED_M_S
+        } else if cue.elapsed_s < back_start {
+            reach
+        } else {
+            ((cue.beat_s - cue.elapsed_s).max(0.0) * WALK_SPEED_M_S).min(reach)
+        };
+        // Applied only while the offset is real: at the beat's very edges the pose IS the
+        // round pose (bit-for-bit), so the cue appearing or vanishing between frames can
+        // never snap the figure.
+        if offset > 0.005 {
+            foot += toward * offset;
+            // He faces the work — the hero is the reason he came over.
+            fwd = toward;
+            walking = offset < reach - 0.01;
+            // The feet claim the approach ground exactly as they claim the round's.
+            phase += offset / STRIDE_M * std::f32::consts::TAU;
+        }
+    }
     let right = fwd.cross(Vec3::Y).normalize();
     let up = Vec3::Y;
 
     // Gait phase from ground covered — feet never skate. Dwelling collapses the swing to a
     // stand with a slow breath.
-    let phase = dist / STRIDE_M * std::f32::consts::TAU;
     let swing = if walking { 1.0 } else { 0.0 };
     let bob = if walking { 0.028 * (2.0 * phase).cos() } else { 0.012 * (seconds * 1.4).sin() };
 
@@ -263,6 +314,50 @@ mod tests {
         let (a, ai) = mechanic_at(31.7);
         let (b, bi) = mechanic_at(31.7);
         assert!(a == b && ai == bi, "the mechanic is a pure function of the clock");
+    }
+
+    /// R3 CONTRACT: the work cue pulls him TOWARD the hero (closer than his round anchor,
+    /// facing the ring) yet every vertex stays outside the 8 m ring at every sampled moment
+    /// of the beat — and the beat's end lands him exactly on the plain round pose, so the
+    /// caller's paused clock resumes without a snap.
+    #[test]
+    fn the_work_cue_approaches_the_ring_and_never_enters_it() {
+        let beat = 3.2;
+        for step in 0..48 {
+            let seconds = step as f32 * 1.7;
+            for tick in 0..=16 {
+                let elapsed = beat * tick as f32 / 16.0;
+                let cue = WorkCue { elapsed_s: elapsed, beat_s: beat };
+                let (v, _) = mechanic_working_at(seconds, Some(&cue));
+                for vertex in &v {
+                    let [x, _, z] = vertex.position;
+                    let r = (x * x + z * z).sqrt();
+                    assert!(
+                        r > 8.0,
+                        "work entered the hero ring: r={r:.2} at t={seconds} e={elapsed}"
+                    );
+                }
+            }
+            // Mid-beat he genuinely stands CLOSER than the round left him.
+            let radial = |verts: &[renderer_api::SceneVertex]| {
+                verts
+                    .iter()
+                    .map(|v| (v.position[0] * v.position[0] + v.position[2] * v.position[2]).sqrt())
+                    .fold(f32::MAX, f32::min)
+            };
+            let (plain, _) = mechanic_working_at(seconds, None);
+            let mid = WorkCue { elapsed_s: beat * 0.5, beat_s: beat };
+            let (working, _) = mechanic_working_at(seconds, Some(&mid));
+            assert!(
+                radial(&working) < radial(&plain) - 0.5,
+                "the approach must be real at t={seconds}"
+            );
+            // The beat's end IS the round: bit-for-bit, so the resume cannot snap.
+            let done = WorkCue { elapsed_s: beat, beat_s: beat };
+            let (after, after_i) = mechanic_working_at(seconds, Some(&done));
+            let (plain_v, plain_i) = mechanic_working_at(seconds, None);
+            assert!(after == plain_v && after_i == plain_i, "beat end must equal the round");
+        }
     }
 
     /// The round genuinely travels between its two work sites (welding bay ↔ workbench):

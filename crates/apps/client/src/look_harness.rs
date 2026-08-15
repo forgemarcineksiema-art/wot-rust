@@ -50,14 +50,28 @@ pub fn hangar_dynamic_mesh_at(
     seconds: f32,
     gate_open_m: f32,
 ) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
+    hangar_dynamic_mesh_worked(seconds, gate_open_m, seconds, None)
+}
+
+/// [`hangar_dynamic_mesh_at`] with the mechanic's OWN clock and an optional repair-work cue
+/// (Hala v4 R3). The garage pauses the round clock for the length of each repair beat and
+/// hands the cue over, so the mechanic answers the wrench; the goldens and the probes pass
+/// the plain clock and no cue — bit-for-bit the old mesh.
+pub fn hangar_dynamic_mesh_worked(
+    seconds: f32,
+    gate_open_m: f32,
+    mechanic_seconds: f32,
+    work: Option<&scene_build::hangar_mechanic::WorkCue>,
+) -> (Vec<renderer_api::SceneVertex>, Vec<u32>) {
     let (mut v, mut i) = scene_build::hangar::wall_fan_blades(seconds * FAN_SPEED_RAD_S);
     for (part_v, part_i) in [
         scene_build::hangar::bay_gate_slats(gate_open_m),
         // The crane trolley rides its girder (K1) — somebody works this hall.
         scene_build::hangar::crane_trolley_at(seconds),
         // ...and here he is (K2, behind its kill-switch): the mechanic on his round
-        // between the welding bay and the workbench, never inside the hero's ring.
-        scene_build::hangar_mechanic::mechanic_at(seconds),
+        // between the welding bay and the workbench, never inside the hero's ring —
+        // stepping toward its EDGE while the repair beat runs (R3).
+        scene_build::hangar_mechanic::mechanic_working_at(mechanic_seconds, work),
     ] {
         let base = v.len() as u32;
         v.extend(part_v);

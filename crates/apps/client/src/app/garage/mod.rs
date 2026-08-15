@@ -92,6 +92,10 @@ pub(super) struct GarageState {
     wear: Option<wear::FieldWear>,
     /// The repair beat's elapsed seconds while one plays (L2); `None` = shop idle.
     repair: Option<f32>,
+    /// How long the mechanic's round clock has been PAUSED across repair beats (R3): during
+    /// a beat he steps toward the ring instead of walking his round, and the paused clock is
+    /// what lets him resume the round exactly where the beat interrupted it — no snap.
+    mechanic_pause_s: f32,
 }
 
 impl Default for GarageState {
@@ -126,6 +130,7 @@ impl Default for GarageState {
             dust: 0.0,
             wear: None,
             repair: None,
+            mechanic_pause_s: 0.0,
         }
     }
 }
