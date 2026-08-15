@@ -218,6 +218,60 @@ pub fn render_review_views_with_fov(
     Ok(frames)
 }
 
+/// Everything scene-level the SHIPPED garage sets, applied to an offscreen renderer in one
+/// place — the golden path and the perf probe both call THIS, so the locked picture, the
+/// measured frame and the played frame are one room.
+///
+/// It exists because the instrument drifted: #544 (reflection cube), #545 (sun shafts) and
+/// #554 (penumbra + caster cut) each changed the shipped garage, the golden path followed,
+/// and `perf_capture`'s garage block kept measuring the old room — the fourth instrument-
+/// fidelity defect in this project's history (after MSAA, the missing adapter and the fleet
+/// taking the scenery path). A shared function does not rot; parallel setup blocks do.
+///
+/// Scene-LEVEL only: the caller still parks its own vehicle, HUD and camera. The lighting
+/// and background applied here are the shipped Day baseline; the golden path overrides them
+/// per view (that override is the views' own single-source, untouched).
+pub fn apply_shipped_garage_scene(ctx: &GpuContext, renderer: &mut SceneRenderer) {
+    renderer.scene_time_s = REVIEW_SCENE_TIME_S;
+    // The orbit camera sweeps a full circle, so the battle path's forward-offset shadow heuristic
+    // would walk the boxes off the subject. Pin them to the turntable AND size them to the room,
+    // as the garage does — a review artifact shows what the game shows. Same for the garage's
+    // richer bloom chain (Hala 2.0 T1): the panes' glow is part of the locked picture.
+    renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
+    renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
+    // Światło służy czołgowi: the same penumbra and the same reduced caster set the live
+    // garage runs — the locked picture is the played picture.
+    renderer.set_shadow_softness(scene_build::hangar::HANGAR_SHADOW_SOFTNESS);
+    renderer.set_terrain_shadow_indices(ctx, Some(&scene_build::hangar::hangar_shadow_indices()));
+    // And the single cascade the live garage runs: the near box holds the whole hall, so the
+    // far one draws a map nothing samples. A review artifact shows what the game shows.
+    renderer.shadow_cascades = Some(1);
+    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+    // The hero probe (Hala 3.0 B2), the interior detail normal (C1), the reflection cube
+    // (D1) and the sun shafts (E1), exactly as the live garage sets them: the locked picture
+    // is the played picture. The shafts are static geometry whose drift runs on the frozen
+    // review clock, so they lock; the dust MOTES are a live random trickle and stay live-only
+    // (the same standing exemption the drive-in dust has always had).
+    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+    renderer.set_interior_detail_normal(true);
+    renderer.set_environment_cube(ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
+    renderer.set_fx(ctx, &hangar_shaft_fx_vertices());
+    // The fan holds one exact blade angle at the frozen review clock (E2), the gate curtain
+    // parks at ajar (E3), and the flicker factor is exactly 1.0 there —
+    // `garage_hero_at(REVIEW_SCENE_TIME_S)` is `garage_hero()` to the bit, so the views' own
+    // lighting stays the single source it always was.
+    let (dyn_v, dyn_i) =
+        hangar_dynamic_mesh_at(REVIEW_SCENE_TIME_S, scene_build::hangar::GATE_AJAR_M);
+    renderer.set_dynamic_mesh(ctx, &dyn_v, &dyn_i);
+    // The shipped Day rig and its backdrop, so a caller that sets nothing else still renders
+    // the room the player sits in. H1 locks Day == `garage_hero()` to the bit.
+    renderer.scene_lighting =
+        scene_build::hangar::hangar_lighting(scene_build::hangar::HangarLight::Day);
+    let (bg_r, bg_g, bg_b) =
+        scene_build::hangar::interior_background_for(scene_build::hangar::HangarLight::Day);
+    renderer.set_interior_background(bg_r, bg_g, bg_b);
+}
+
 /// Render the garage review views. Separate from the battlefield path on purpose: the hangar has
 /// no terrain, no water, no grass, no sky dome and no fog — it is a lit interior with one
 /// subject, and pretending otherwise would mean a review that quietly exercises passes the
@@ -235,37 +289,7 @@ pub fn render_hangar_review_views(
     // it — same buffer, same shader, same lighting path as the live garage. WITHOUT the gate
     // curtain (E3): the slats are dynamic geometry now, parked at ajar below.
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &hangar_vertices, &hangar_indices)?;
-    renderer.scene_time_s = REVIEW_SCENE_TIME_S;
-    // The orbit camera sweeps a full circle, so the battle path's forward-offset shadow heuristic
-    // would walk the boxes off the subject. Pin them to the turntable AND size them to the room,
-    // as the garage does — a review artifact shows what the game shows. Same for the garage's
-    // richer bloom chain (Hala 2.0 T1): the panes' glow is part of the locked picture.
-    renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
-    renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
-    // Światło służy czołgowi: the same penumbra and the same reduced caster set the live
-    // garage runs — the locked picture is the played picture.
-    renderer.set_shadow_softness(scene_build::hangar::HANGAR_SHADOW_SOFTNESS);
-    renderer.set_terrain_shadow_indices(&ctx, Some(&scene_build::hangar::hangar_shadow_indices()));
-    // And the single cascade the live garage runs: the near box holds the whole hall, so the
-    // far one draws a map nothing samples. A review artifact shows what the game shows.
-    renderer.shadow_cascades = Some(1);
-    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
-    // The hero probe (Hala 3.0 B2), the interior detail normal (C1), the reflection cube
-    // (D1) and the sun shafts (E1), exactly as the live garage sets them: the locked picture
-    // is the played picture. The shafts are static geometry whose drift runs on the frozen
-    // review clock, so they lock; the dust MOTES are a live random trickle and stay live-only
-    // (the same standing exemption the drive-in dust has always had).
-    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
-    renderer.set_interior_detail_normal(true);
-    renderer.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
-    renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());
-    // The fan holds one exact blade angle at the frozen review clock (E2), the gate curtain
-    // parks at ajar (E3), and the flicker factor is exactly 1.0 there —
-    // `garage_hero_at(REVIEW_SCENE_TIME_S)` is `garage_hero()` to the bit, so the views' own
-    // lighting stays the single source it always was.
-    let (dyn_v, dyn_i) =
-        hangar_dynamic_mesh_at(REVIEW_SCENE_TIME_S, scene_build::hangar::GATE_AJAR_M);
-    renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
+    apply_shipped_garage_scene(&ctx, &mut renderer);
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

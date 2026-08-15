@@ -728,6 +728,12 @@ per-pass GPU time (ms, timestamp queries; every config equally armed):"
 ///   flag's price, the number the C1 purchase was made on credit against;
 /// - "no shadows"/"no ssao" split the room's per-pixel lighting cost the way the battle
 ///   rows do.
+///
+/// Hala v4 P1 widened it into an ATTRIBUTION instrument: the scene comes from the same
+/// `apply_shipped_garage_scene` the goldens use (the capture measured a stale room for four
+/// days once); ablation rigs isolate the vehicle's overdraw, the furnishings' fill, the
+/// shaft quads and the penumbra kernel; a @4x block prices the F2 candidate; per-pass
+/// tables print for every config; and a 720p coda confirms (or refutes) fill-bound.
 fn garage_frame_time_capture() {
     use game_core::{TankId, TeamId, VehicleKind};
 
@@ -738,8 +744,11 @@ fn garage_frame_time_capture() {
     let (width, height) = (1920u32, 1080u32);
 
     // What the game uploads post-E3: the shell without the gate curtain in the statics slot,
-    // fan blades + parked slats in the dynamic slot.
+    // fan blades + parked slats in the dynamic slot. Beside it, the P1 ablation variants:
+    // the same hall unfurnished (gallery + props skipped) and a bare slab of its footprint.
     let (hangar_v, hangar_i) = scene_build::hangar::hangar_scene_mesh_without_gate();
+    let (bare_v, bare_i, bare_casters) = scene_build::hangar::hangar_probe_mesh_unfurnished();
+    let (slab_v, slab_i) = scene_build::hangar::hangar_probe_mesh_floor_slab();
 
     let Ok(ctx) =
         renderer_wgpu::GpuContext::headless_with_options(renderer_wgpu::GpuContextOptions {
@@ -753,37 +762,64 @@ fn garage_frame_time_capture() {
         println!("garage frame time: offscreen target unavailable — skipped");
         return;
     };
-    let Ok(mut renderer) =
-        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &hangar_v, &hangar_i)
-    else {
-        println!("garage frame time: scene renderer unavailable — skipped");
+    // Four renderers, ONE rotation: the statics buffer is constructor-bound, so each mesh
+    // variant (and the 4x candidate) is its own renderer, and the blocks interleave across
+    // all of them so every rig visits every thermal state.
+    let built = (
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &hangar_v, &hangar_i),
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &bare_v, &bare_i),
+        renderer_wgpu::SceneRenderer::for_offscreen_as_shipped(&ctx, &slab_v, &slab_i),
+        renderer_wgpu::SceneRenderer::for_offscreen_with_sample_count(
+            &ctx, 4, &hangar_v, &hangar_i,
+        ),
+    );
+    let (Ok(mut shipped), Ok(mut unfurnished), Ok(mut slab), Ok(mut four_x)) = built else {
+        println!("garage frame time: a scene renderer was unavailable — skipped");
         return;
     };
-    let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(0.0, scene_build::hangar::GATE_AJAR_M);
-    renderer.set_dynamic_mesh(&ctx, &dyn_v, &dyn_i);
     let adapter = ctx.adapter.get_info();
     println!(
-        "garage frame time: {}x{} offscreen, {}x MSAA, adapter: {} ({:?})",
+        "garage frame time: {}x{} offscreen, {}x MSAA shipped (+{}x candidate), adapter: {} ({:?})",
         width,
         height,
-        renderer.sample_count(),
+        shipped.sample_count(),
+        four_x.sample_count(),
         adapter.name,
         adapter.backend,
     );
-    let profiler = renderer_wgpu::FrameProfiler::new(&ctx.device, &ctx.queue, true);
-    let timed = profiler.active().is_some();
-    renderer.set_pass_profiler(profiler);
+    for renderer in [&mut shipped, &mut unfurnished, &mut slab, &mut four_x] {
+        renderer.set_pass_profiler(renderer_wgpu::FrameProfiler::new(
+            &ctx.device,
+            &ctx.queue,
+            true,
+        ));
+    }
+    let timed = shipped.pass_profiler().active().is_some();
 
-    // The SHIPPED garage configuration, exactly as `ensure_scene(SceneKind::Garage)` and the
-    // golden harness set it — the instrument measures the scene the player sits in.
-    renderer.scene_lighting = renderer_api::SceneLighting::garage_hero();
+    // The SHIPPED garage scene, from the SAME function the golden harness applies — this
+    // capture measured a stale room for four days once (#544/#545/#554 changed the shipped
+    // garage; the instrument kept the old setup), so the assembly is shared, not copied.
+    client::apply_shipped_garage_scene(&ctx, &mut shipped);
+    client::apply_shipped_garage_scene(&ctx, &mut four_x);
+    client::apply_shipped_garage_scene(&ctx, &mut unfurnished);
+    // ...except the caster set: the shipped indices index the shipped vertex buffer, and the
+    // unfurnished hall trims its own sun with the same filter instead.
+    unfurnished.set_terrain_shadow_indices(&ctx, Some(&bare_casters));
+    // The slab rig is the "vehicle only" reference: the shipped rig and switches with none of
+    // the hall's own draws — no shafts, no fan/gate/mechanic, casters = the slab itself.
+    slab.scene_time_s = 12.0; // the frozen review second, as the shared assembly sets it
+    slab.scene_lighting =
+        scene_build::hangar::hangar_lighting(scene_build::hangar::HangarLight::Day);
     let (bg_r, bg_g, bg_b) = scene_build::hangar::INTERIOR_BACKGROUND;
-    renderer.set_interior_background(bg_r, bg_g, bg_b);
-    renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
-    renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
-    renderer.shadow_cascades = Some(1);
-    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
-    renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+    slab.set_interior_background(bg_r, bg_g, bg_b);
+    slab.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
+    slab.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
+    slab.shadow_cascades = Some(1);
+    slab.set_shadow_softness(scene_build::hangar::HANGAR_SHADOW_SOFTNESS);
+    slab.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
+    slab.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
+    slab.set_interior_detail_normal(true);
+    slab.set_environment_cube(&ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
 
     // The parked hero, in the live rest pose.
     let vehicle = VehicleKind::T54_1951;
@@ -828,28 +864,68 @@ fn garage_frame_time_capture() {
         0.0,
     );
     let hero_frame = client::render_frame_from_objects(objects);
-    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
-        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+    let empty_frame = client::render_frame_from_objects(Vec::new());
+    let vehicle_meshes = catalog.take_pending_vehicle_meshes();
+    let vehicle_materials = catalog.take_pending_vehicle_materials();
+    for renderer in [&mut shipped, &mut unfurnished, &mut slab, &mut four_x] {
+        for (handle, mesh) in &vehicle_meshes {
+            renderer.register_vehicle_mesh(&ctx, *handle, mesh);
+        }
+        for (handle, maps) in &vehicle_materials {
+            renderer.register_vehicle_material(&ctx, *handle, maps);
+        }
+        renderer.set_vehicle_render_frame(&ctx, &hero_frame);
     }
-    for (handle, maps) in catalog.take_pending_vehicle_materials() {
-        renderer.register_vehicle_material(&ctx, handle, &maps);
-    }
-    renderer.set_vehicle_render_frame(&ctx, &hero_frame);
 
+    #[derive(Clone, Copy)]
+    enum Rig {
+        Shipped,
+        Unfurnished,
+        Slab,
+        FourX,
+    }
+    #[derive(Clone, Copy)]
     struct GarageConfig {
         name: &'static str,
+        rig: Rig,
         grain: bool,
         shadows: bool,
         ssao: bool,
+        /// Penumbra radius for the block — the shipped kernel unless a config isolates it.
+        softness: f32,
+        fx: bool,
+        vehicle: bool,
     }
+    const SOFT: f32 = scene_build::hangar::HANGAR_SHADOW_SOFTNESS;
+    let shipped_cfg = GarageConfig {
+        name: "garage full",
+        rig: Rig::Shipped,
+        grain: true,
+        shadows: true,
+        ssao: true,
+        softness: SOFT,
+        fx: true,
+        vehicle: true,
+    };
+    // The attribution table (Hala v4 P1). Deltas vs [garage full] price, in order: the C1
+    // grain flag, the whole shadow system, the whole AO system, the blended shaft quads, the
+    // 8-tap penumbra alone, the hero's overdraw, the props' fill, the room minus the vehicle,
+    // and the 4x candidate — the second half of the F2 go/no-go number.
     let configs = [
-        GarageConfig { name: "garage full", grain: true, shadows: true, ssao: true },
-        GarageConfig { name: "no interior grain (C1)", grain: false, shadows: true, ssao: true },
-        GarageConfig { name: "no shadows", grain: true, shadows: false, ssao: true },
-        GarageConfig { name: "no ssao", grain: true, shadows: true, ssao: false },
+        shipped_cfg,
+        GarageConfig { name: "no interior grain (C1)", grain: false, ..shipped_cfg },
+        GarageConfig { name: "no shadows", shadows: false, ..shipped_cfg },
+        GarageConfig { name: "no ssao", ssao: false, ..shipped_cfg },
+        GarageConfig { name: "no fx (shaft blades)", fx: false, ..shipped_cfg },
+        GarageConfig { name: "battle shadow kernel", softness: 0.0, ..shipped_cfg },
+        GarageConfig { name: "hall only (no vehicle)", vehicle: false, ..shipped_cfg },
+        GarageConfig { name: "unfurnished hall", rig: Rig::Unfurnished, ..shipped_cfg },
+        GarageConfig { name: "vehicle on bare slab", rig: Rig::Slab, fx: false, ..shipped_cfg },
+        GarageConfig { name: "garage @4x (F2 candidate)", rig: Rig::FourX, ..shipped_cfg },
     ];
-    const CONFIGS: usize = 4;
+    const CONFIGS: usize = 10;
     assert_eq!(configs.len(), CONFIGS, "the garage config table and its arrays disagree");
+    let shaft_fx = client::hangar_shaft_fx_vertices();
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
     let pivot = scene_build::hangar::hangar_camera_pivot();
@@ -881,7 +957,7 @@ fn garage_frame_time_capture() {
             projection.near_plane_m(),
             projection.far_plane_m(),
         );
-        if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
+        if shipped.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
             println!("garage frame time: a render failed — skipped");
             return;
         }
@@ -890,9 +966,21 @@ fn garage_frame_time_capture() {
 
     for cycle in 0..CYCLES {
         for (config, cfg) in configs.iter().enumerate() {
+            let renderer: &mut renderer_wgpu::SceneRenderer = match cfg.rig {
+                Rig::Shipped => &mut shipped,
+                Rig::Unfurnished => &mut unfurnished,
+                Rig::Slab => &mut slab,
+                Rig::FourX => &mut four_x,
+            };
             renderer.set_interior_detail_normal(cfg.grain);
             renderer.set_shadows_enabled(cfg.shadows);
             renderer.set_ssao_enabled(cfg.ssao);
+            renderer.set_shadow_softness(cfg.softness);
+            renderer.set_fx(&ctx, if cfg.fx { &shaft_fx } else { &[] });
+            renderer.set_vehicle_render_frame(
+                &ctx,
+                if cfg.vehicle { &hero_frame } else { &empty_frame },
+            );
             for block_frame in 0..(BLOCK_WARMUP + block_frames) {
                 let t_orbit = block_frame.saturating_sub(BLOCK_WARMUP) as f32 / block_frames as f32;
                 let camera = camera_at(t_orbit);
@@ -966,13 +1054,74 @@ fn garage_frame_time_capture() {
          16.67 ms (one-look: meaningful only when this box IS the MX330; elsewhere read deltas)",
         full_p50 - fence_p50,
     );
-    if timed && stats.imbalance().is_none() {
-        println!("  garage per-pass GPU time (ms):");
-        let frame = stats.frame(0);
-        println!("    [garage full] frame p50 {:.3}  p95 {:.3}", frame.p50, frame.p95);
-        for (index, id) in renderer_wgpu::PassId::ALL.iter().enumerate() {
-            let Some(pass) = stats.pass(0, index) else { continue };
-            println!("      {:<18} p50 {:>7.3}  p95 {:>7.3}", id.label(), pass.p50, pass.p95);
+    println!(
+        "  F2 gate: the @4x block's delta vs [garage full] IS the measured 4x surcharge; \
+         F2-GO asks (post-diet) @4x p50 minus fence <= 16.67 ms"
+    );
+    if let Some(problem) = stats.imbalance() {
+        println!("  {problem}");
+    } else if timed {
+        println!("  garage per-pass GPU time (ms), per config:");
+        for (config, cfg) in configs.iter().enumerate() {
+            let frame = stats.frame(config);
+            let residual = stats.unattributed(config);
+            println!(
+                "    [{}] GPU frame p50 {:.3}  p95 {:.3}  (outside passes p50 {:.3})",
+                cfg.name, frame.p50, frame.p95, residual.p50
+            );
+            for (index, id) in renderer_wgpu::PassId::ALL.iter().enumerate() {
+                let Some(pass) = stats.pass(config, index) else { continue };
+                println!("      {:<18} p50 {:>7.3}  p95 {:>7.3}", id.label(), pass.p50, pass.p95);
+            }
         }
+    }
+
+    // Fill-bound confirmation: the shipped config once more at 720p, compared on the pass
+    // instrument's GPU frame (not wall clock, so the fence stays out of the ratio). This
+    // block is sequential rather than rotated — it argues a RATIO against the rotation's
+    // config 0, and only the ratio: near 2.25x for 2.25x the pixels reads fill/bandwidth-
+    // bound, near 1.0x reads raster/fixed-cost.
+    let Ok(target720) = renderer_wgpu::OffscreenTarget::new(&ctx, 1280, 720) else {
+        println!("  720p target unavailable — fill-bound check skipped");
+        return;
+    };
+    let cfg = shipped_cfg;
+    shipped.set_interior_detail_normal(cfg.grain);
+    shipped.set_shadows_enabled(cfg.shadows);
+    shipped.set_ssao_enabled(cfg.ssao);
+    shipped.set_shadow_softness(cfg.softness);
+    shipped.set_fx(&ctx, &shaft_fx);
+    shipped.set_vehicle_render_frame(&ctx, &hero_frame);
+    let mut gpu_720_ms: Vec<f32> = Vec::new();
+    for block_frame in 0..(BLOCK_WARMUP + block_frames) {
+        let t_orbit = block_frame.saturating_sub(BLOCK_WARMUP) as f32 / block_frames as f32;
+        let camera = camera_at(t_orbit);
+        let view_proj = renderer_api::view_projection_matrix(
+            &camera,
+            1280.0 / 720.0,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
+        if shipped.render(&ctx, target720.render_target(), view_proj, camera.eye).is_err()
+            || target720.read_rgba8(&ctx).is_err()
+        {
+            println!("  720p render failed — fill-bound check skipped");
+            return;
+        }
+        if block_frame >= BLOCK_WARMUP
+            && let Some(timings) = shipped.read_pass_timings(&ctx)
+        {
+            gpu_720_ms.push(timings.frame_ms());
+        }
+    }
+    gpu_720_ms.sort_by(f32::total_cmp);
+    if timed && !gpu_720_ms.is_empty() {
+        let p50_720 = gpu_720_ms[gpu_720_ms.len() / 2];
+        let p50_1080 = stats.frame(0).p50;
+        println!(
+            "  fill-bound check: GPU p50 {p50_1080:.2} ms @1080p vs {p50_720:.2} ms @720p \
+             = x{:.2} for x2.25 pixels",
+            p50_1080 / p50_720.max(0.01),
+        );
     }
 }
