@@ -3,6 +3,7 @@
 
 pub(in crate::app::garage) mod carousel;
 pub(in crate::app::garage) mod crew;
+pub(in crate::app::garage) mod inspector_legend;
 pub(in crate::app::garage) mod loadout;
 pub(in crate::app::garage) mod nameplate;
 pub(in crate::app::garage) mod options;

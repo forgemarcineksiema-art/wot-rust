@@ -43,6 +43,12 @@ fn build_hangar(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     panels::loadout::draw(&mut v, state, aspect);
     panels::carousel::draw(&mut v, state, aspect);
 
+    // The armor inspector's mm legend (R1): on screen exactly while the overlay it explains
+    // is — a color ramp without its unit was a guess, not an instrument.
+    if state.inspector_on() {
+        panels::inspector_legend::draw(&mut v, aspect);
+    }
+
     // The option list, if open, floats above the loadout strip on top of everything else.
     if let Some(slot) = state.option_list() {
         panels::options::draw(&mut v, state, slot, aspect);

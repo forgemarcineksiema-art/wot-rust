@@ -313,6 +313,11 @@ pub fn render_hangar_review_views(
         // calls, driven from a default `GarageState`, not a review-only reconstruction.
         let aspect = width as f32 / height as f32;
         let hud = match view.screen {
+            // The inspector view carries the legend the live screen shows with the overlay
+            // (R1) — the locked frame explains its own color ramp.
+            scene_build::review_views::GarageScreen::Room if view.inspector => {
+                crate::garage_inspector_legend(aspect)
+            }
             scene_build::review_views::GarageScreen::Room => Vec::new(),
             scene_build::review_views::GarageScreen::Hangar => crate::garage_overlay(false, aspect),
             scene_build::review_views::GarageScreen::TechTree => {
