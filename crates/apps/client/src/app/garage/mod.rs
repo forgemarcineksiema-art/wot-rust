@@ -201,6 +201,15 @@ pub(in crate::app) fn daylight_for_local_clock() -> scene_build::hangar::HangarL
 }
 
 /// Build the garage HUD overlay for an offscreen review render (`tech_tree` picks the view).
+/// The armor inspector's mm legend alone (Hala v4 R1) — what the review harness hangs over
+/// the inspector golden, so the locked frame carries the ramp's unit exactly the way the
+/// live screen does.
+pub fn garage_inspector_legend(aspect: f32) -> Vec<renderer_api::HudVertex> {
+    let mut v = Vec::new();
+    panels::inspector_legend::draw(&mut v, aspect);
+    v
+}
+
 pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVertex> {
     let mut state = GarageState::default();
     if tech_tree {

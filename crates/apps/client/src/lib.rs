@@ -15,7 +15,7 @@ mod ui_strings;
 mod vehicle;
 
 pub use app::run;
-pub use app::{garage_overlay, garage_overlay_option_list};
+pub use app::{garage_inspector_legend, garage_overlay, garage_overlay_option_list};
 pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
