@@ -68,9 +68,12 @@ struct Camera {
     // shader blends the three faces its normal leans into; all-zero on battle frames, which
     // adds exactly nothing.
     hero_probe: array<vec4<f32>, 6>,
-    // Per-scene render flags (Hala 3.0 C1): x = interior detail-normal enable (the hangar
-    // asks for its material grain to catch light; other interiors keep the authored normal),
-    // y/z/w reserved (0).
+    // Per-scene render flags: x = interior detail-normal enable (Hala 3.0 C1), y = interior
+    // reflection cube bound (D1), z = hero field dust 0..1 (J2), w = sun-shadow penumbra
+    // radius in texels (Światło służy czołgowi; 0 = the battle kernel). All four are zero on
+    // battle frames, where each shader arm is a bit-exact no-op. (This comment once said
+    // "y/z/w reserved" three purchases after they stopped being reserved — the Rust setters
+    // in scene_renderer/settings.rs are the source of truth.)
     scene_params: vec4<f32>,
 };
 
