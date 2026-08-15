@@ -214,7 +214,13 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       globalnego reorderu wymaga A/B bitwy w JEDNEJ rotacji (follow-up, nieblokujący)
 - [ ] P3: dieta SSAO garażu
 - [ ] P4: dieta jądra półcienia
-- [ ] P5: unifikacja ziarna wnętrz
+- [x] P5: ziarno wnętrz na jednej oktawie — `interior_grain` (drobna oktawa `ground_grain`
+      SAMA; szeroka liczyła się i szła do kosza, bo bend czyta tylko gradient drobnej).
+      Bend bitowo identyczny — goldeny garażu bajt-w-bajt (zamek). POMIAR: cena flagi C1
+      w rotacji −1,0 → −0,26 ms (odzysk ~0,7); absoluty między przebiegami ±1 ms, dowód
+      w delcie-delt. Korekta założeń planu: wnętrzowa gałąź `material_detail` prawie nie
+      działa w hali (każda powierzchnia NAZYWA materiał → `surface_treatment`), więc
+      „unifikacja wartości" z pierwotnego szkicu nie miała czego kupić
 - [ ] P6 (warunkowy): depth prepass garażu
 - [ ] P7: bramka F2-GO (zapis pomiaru)
 - [ ] P8: F2 4×MSAA per-scene + parytet goldenów (G9)
