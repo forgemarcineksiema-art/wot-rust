@@ -370,6 +370,15 @@ impl super::SceneRenderer {
         eye: [f32; 3],
         band_scale: f32,
     ) {
+        // Vehicles FIRST in the garage (Hala v4 P2, `vehicles_first`) — the sky-last argument
+        // run the other way around: the hero is the nearest opaque thing in frame, and every
+        // pixel it claims up front is one the ~9-11 ms interior path never shades. In the
+        // battle the same reorder LOSES (hulls hide behind crests and pay full shading before
+        // the terrain covers them), so the flag rides the scene swap and the battle keeps its
+        // shipped order below. Image byte-identical either way: opaque + depth Less.
+        if self.vehicles_first {
+            self.draw_vehicles(pass);
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
@@ -424,30 +433,8 @@ impl super::SceneRenderer {
             pass.set_vertex_buffer(1, self.identity_instance.slice(..));
             self.draw_visible_ground(pass, camera_frustum);
         }
-        if self.vehicle_instance_count > 0 {
-            pass.set_pipeline(&self.vehicle_pipeline);
-            pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            pass.set_bind_group(2, &self.shadow.bind_group, &[]);
-            pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
-            for draw in &self.vehicle_draws {
-                pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
-                let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
-                    self.skipped_mesh_draws.set(self.skipped_mesh_draws.get().saturating_add(1));
-                    debug_assert!(
-                        false,
-                        "vehicle render frame references unregistered mesh handle {}",
-                        draw.mesh.0
-                    );
-                    continue;
-                };
-                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(
-                    0..mesh.index_count,
-                    0,
-                    draw.instance_start..draw.instance_start + draw.instance_count,
-                );
-            }
+        if !self.vehicles_first {
+            self.draw_vehicles(pass);
         }
         // Gradient sky LAST, at the far plane behind a LessEqual depth test (F2): before this
         // it was drawn FIRST with compare Always — the heaviest per-pixel shader in the frame
@@ -458,6 +445,37 @@ impl super::SceneRenderer {
             pass.set_pipeline(&self.sky_pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.draw(0..3, 0..1);
+        }
+    }
+
+    /// The fleet's draws, at whichever end of the opaque order `vehicles_first` puts them —
+    /// one body, so the two orders cannot drift apart in what they draw.
+    fn draw_vehicles(&self, pass: &mut crate::pass_recorder::CountedPass<'_, '_>) {
+        if self.vehicle_instance_count == 0 {
+            return;
+        }
+        pass.set_pipeline(&self.vehicle_pipeline);
+        pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(2, &self.shadow.bind_group, &[]);
+        pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
+        for draw in &self.vehicle_draws {
+            pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
+            let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
+                self.skipped_mesh_draws.set(self.skipped_mesh_draws.get().saturating_add(1));
+                debug_assert!(
+                    false,
+                    "vehicle render frame references unregistered mesh handle {}",
+                    draw.mesh.0
+                );
+                continue;
+            };
+            pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(
+                0..mesh.index_count,
+                0,
+                draw.instance_start..draw.instance_start + draw.instance_count,
+            );
         }
     }
 

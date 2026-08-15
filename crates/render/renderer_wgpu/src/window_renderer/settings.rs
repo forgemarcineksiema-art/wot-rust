@@ -94,6 +94,13 @@ impl WindowRenderer {
         self.scene.set_shadow_softness(texels);
     }
 
+    /// Draw the fleet before the world (see [`SceneRenderer::set_vehicles_first`]).
+    ///
+    /// [`SceneRenderer::set_vehicles_first`]: crate::SceneRenderer::set_vehicles_first
+    pub fn set_vehicles_first(&mut self, enabled: bool) {
+        self.scene.set_vehicles_first(enabled);
+    }
+
     /// Reduced sun-shadow caster set for the statics slot (see
     /// [`SceneRenderer::set_terrain_shadow_indices`]).
     ///

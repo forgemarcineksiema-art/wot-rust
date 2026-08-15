@@ -254,6 +254,9 @@ pub fn apply_shipped_garage_scene(ctx: &GpuContext, renderer: &mut SceneRenderer
     // (the same standing exemption the drive-in dust has always had).
     renderer.set_hero_probe(Some(scene_build::hangar::hangar_hero_probe()));
     renderer.set_interior_detail_normal(true);
+    // The hero draws before the room (Hala v4 P2) — the shipped garage order, so the
+    // goldens and the perf probe measure the frame the player pays for.
+    renderer.set_vehicles_first(true);
     renderer.set_environment_cube(ctx, Some(&scene_build::hangar::hangar_reflection_cube().mips));
     renderer.set_fx(ctx, &hangar_shaft_fx_vertices());
     // The fan holds one exact blade angle at the frozen review clock (E2), the gate curtain
