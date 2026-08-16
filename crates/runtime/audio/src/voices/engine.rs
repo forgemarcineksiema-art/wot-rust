@@ -261,6 +261,35 @@ mod tests {
         );
     }
 
+    /// Immersja C1's audible promise, DSP side: the same rpm under MORE load is louder
+    /// (the working body swells) and brighter (the exhaust bark opens up). Probed at a
+    /// standstill — a stall dig — so the track clatter cannot mask the exhaust's voice.
+    /// The client feeds this knob the predictor's honest strain; this locks what the
+    /// knob buys when it arrives.
+    #[test]
+    fn more_load_at_the_same_rpm_is_louder_and_brighter() {
+        let run = |load: f32| {
+            let mut engine = EngineVoice::new(SR, 4);
+            engine.set_state(0.6, load, 0.0, true);
+            let out = render(&mut engine, 2.0);
+            out[SR as usize..].to_vec()
+        };
+        let relaxed = run(0.35);
+        let straining = run(1.0);
+        assert!(
+            rms(&straining) > rms(&relaxed) * 1.15,
+            "a straining engine must swell: {} vs {}",
+            rms(&straining),
+            rms(&relaxed)
+        );
+        assert!(
+            zero_crossing_rate_hz(&straining, SR) > zero_crossing_rate_hz(&relaxed, SR) * 1.05,
+            "and its exhaust must bark brighter: {} vs {}",
+            zero_crossing_rate_hz(&straining, SR),
+            zero_crossing_rate_hz(&relaxed, SR)
+        );
+    }
+
     #[test]
     fn the_bed_is_additive_and_bounded() {
         let mut engine = EngineVoice::new(SR, 4);

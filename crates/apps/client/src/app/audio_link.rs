@@ -215,8 +215,9 @@ impl ClientApp {
     }
 
     /// The powerplant knobs for the engine bed: RPM follows the faster of actual ground speed
-    /// (fraction of the vehicle's top speed) and throttle demand — a tank crawling uphill at
-    /// full power screams, one coasting downhill hums.
+    /// (fraction of the vehicle's top speed) and throttle demand, and the LOAD is the
+    /// predictor's honest strain (Immersja C1) — a tank crawling uphill at full power
+    /// screams, one cruising the same pedal on flat hums along relaxed.
     fn player_engine_audio_state(&self, in_garage: bool) -> (f32, f32, f32, bool) {
         if in_garage {
             // The hangar is not deaf: while the freshly picked tank rolls in (or pivots to
@@ -234,8 +235,12 @@ impl ClientApp {
         let alive = self.player_hud_hit_points() > 0;
         let speed_mps = self.predictor.speed_mps().abs();
         let top_speed = self.player_spec().max_forward_speed_mps.max(1.0);
-        let load = self.input.throttle().abs().clamp(0.0, 1.0);
-        let rpm_norm = (speed_mps / top_speed).clamp(0.0, 1.0).max(load * 0.85);
+        let throttle = self.input.throttle();
+        let demand = throttle.abs().clamp(0.0, 1.0);
+        let rpm_norm = (speed_mps / top_speed).clamp(0.0, 1.0).max(demand * 0.85);
+        // Immersja C1: the LOAD is the predictor's strain, not the raw key — a hull digging
+        // up a grade at full pedal reports more work than the same pedal cruising on flat.
+        let load = self.predictor.drive_strain(throttle);
         (rpm_norm, load, speed_mps, alive)
     }
 }
@@ -330,7 +335,9 @@ mod tests {
         let mut app = deployed_app();
         app.input.forward = true;
         let (rpm_norm, load, _, _) = app.player_engine_audio_state(false);
-        assert!(load > 0.9, "throttle demand is the load");
+        // Immersja C1: at a standstill under full pedal nothing has materialized yet, so the
+        // strain reads as a full stall dig — the old raw-throttle number, now for a reason.
+        assert!(load > 0.9, "the stall dig is full strain, got {load}");
         assert!(rpm_norm > 0.7, "the governor answers the pedal, not just the speedometer");
     }
 
