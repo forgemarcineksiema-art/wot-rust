@@ -89,6 +89,47 @@ fn prediction_seeds_then_drives_the_hull_forward() {
     assert!((pos.x - 10.0).abs() < 1.0e-3, "predicted x = {}", pos.x);
 }
 
+/// Immersja C1: the strain signal the engine bed breathes with. The same full pedal must
+/// report MORE work climbing a grade than cruising flat — raw throttle could not tell the
+/// difference, which is why the engine never screamed uphill. Coasting reports nothing.
+#[test]
+fn full_throttle_up_a_grade_strains_harder_than_the_same_pedal_on_flat() {
+    let dt = 1.0 / 60.0;
+    let run = |heightmap: &HeightMap| {
+        let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
+        predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+        // Long enough that speed reaches its terrain-shaped equilibrium.
+        for _ in 0..600 {
+            predictor.step(TankCommand::drive(1.0, 0.0), heightmap, &[], &[], &[], None, dt);
+        }
+        predictor
+    };
+
+    let flat = HeightMap::flat(16, 64, 4.0, 0.0).unwrap();
+    // A steady grade rising along +Z (the drive direction at yaw 0): ~5.7 degrees.
+    let (width, depth, cell) = (16_usize, 64_usize, 4.0_f32);
+    let samples: Vec<f32> =
+        (0..depth).flat_map(|row| std::iter::repeat_n(row as f32 * cell * 0.1, width)).collect();
+    let grade = HeightMap::new(width, depth, cell, samples).unwrap();
+
+    let cruising = run(&flat);
+    let climbing = run(&grade);
+    assert!(
+        climbing.speed_mps() < cruising.speed_mps() - 0.5,
+        "the grade must actually cost speed: {} vs {}",
+        climbing.speed_mps(),
+        cruising.speed_mps()
+    );
+    let flat_strain = cruising.drive_strain(1.0);
+    let climb_strain = climbing.drive_strain(1.0);
+    assert!(
+        climb_strain > flat_strain + 0.2,
+        "the climb must be heard as work: climb {climb_strain} vs flat {flat_strain}"
+    );
+    assert!(flat_strain > 0.3, "a flat-out cruise still works, relaxed: {flat_strain}");
+    assert!(climbing.drive_strain(0.0) == 0.0, "no pedal, no strain — coasting is silent work");
+}
+
 #[test]
 fn prediction_tracks_turret_and_gun_pitch_from_local_commands() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();

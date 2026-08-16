@@ -255,6 +255,34 @@ impl LocalPredictor {
         self.drive.kinematic.speed()
     }
 
+    /// How hard the powerplant is actually working, 0..1, as the ear should hear it
+    /// (Immersja C1). Raw throttle used to BE the engine load, so a hull crawling up a
+    /// grade at full pedal and one idling forward on flat reported the same number.
+    /// Composed from what the rigid body already knows this tick:
+    /// - a BASE share of the demand (an engine at flat-out cruise works, relaxed),
+    /// - a CLIMB term: the hull's nose-up grade in the direction of drive,
+    /// - a LAG term: demand that became neither speed nor acceleration — the drivetrain
+    ///   fighting a grade, rolling resistance or a wall.
+    ///
+    /// Freeze-safe by construction: `freeze_motion()` retires the speed and acceleration
+    /// this reads, and the climb term dies with the demand.
+    pub fn drive_strain(&self, throttle: f32) -> f32 {
+        let demand = throttle.abs().clamp(0.0, 1.0);
+        if demand <= f32::EPSILON {
+            return 0.0;
+        }
+        let drive_sign = throttle.signum();
+        // 0.30 rad (~17 deg) of grade under power is a full-strain climb.
+        let climb = ((self.drive.kinematic.pitch_rad * drive_sign).max(0.0) / 0.30).min(1.0);
+        let top_speed = self.spec.max_forward_speed_mps.max(1.0);
+        let speed_share =
+            ((self.drive.kinematic.forward_speed() * drive_sign).max(0.0) / top_speed).min(1.0);
+        // ~2.5 m/s^2 is a healthy pull-away: acceleration that materialized is not strain.
+        let accel_share = ((self.tick_accel_long_mps2 * drive_sign).max(0.0) / 2.5).min(1.0);
+        let lag = (demand - speed_share.max(accel_share)).max(0.0);
+        (demand * 0.55 + (climb + lag) * 0.45).clamp(0.0, 1.0)
+    }
+
     /// Freeze the locally presented hull when authority is no longer accepting commands.
     ///
     /// Merely skipping future prediction is not enough: the last predicted velocity would keep
