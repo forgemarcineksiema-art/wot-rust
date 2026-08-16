@@ -58,6 +58,7 @@ impl BuildingStyle {
                 eaves_height: 2.7,
                 ridge_height: 4.6,
                 plinth_height: 0.45,
+                storeys: 1,
                 windows_per_side: 2,
                 window_size: (0.85, 1.1),
                 door_size: (0.9, 1.95),
@@ -68,6 +69,7 @@ impl BuildingStyle {
                 eaves_height: 3.4,
                 ridge_height: 5.4,
                 plinth_height: 0.35,
+                storeys: 1,
                 windows_per_side: 1,
                 window_size: (0.6, 0.7),
                 door_size: (2.4, 2.6),
@@ -78,6 +80,7 @@ impl BuildingStyle {
                 eaves_height: 5.6,
                 ridge_height: 7.6,
                 plinth_height: 0.55,
+                storeys: 2,
                 windows_per_side: 3,
                 window_size: (0.9, 1.4),
                 door_size: (0.9, 2.0),
@@ -89,6 +92,7 @@ impl BuildingStyle {
                 eaves_height: 4.4,
                 ridge_height: 11.0,
                 plinth_height: 0.6,
+                storeys: 1,
                 windows_per_side: 3,
                 window_size: (0.8, 2.2),
                 door_size: (1.4, 2.4),
@@ -100,6 +104,7 @@ impl BuildingStyle {
                 eaves_height: 6.2,
                 ridge_height: 8.6,
                 plinth_height: 0.5,
+                storeys: 1,
                 windows_per_side: 1,
                 window_size: (0.6, 0.8),
                 door_size: (0.9, 1.95),
@@ -112,6 +117,7 @@ impl BuildingStyle {
                 eaves_height: 10.4,
                 ridge_height: 12.0,
                 plinth_height: 0.7,
+                storeys: 3,
                 windows_per_side: 4,
                 window_size: (0.95, 1.7),
                 door_size: (1.3, 2.4),
@@ -124,6 +130,7 @@ impl BuildingStyle {
                 eaves_height: 7.2,
                 ridge_height: 9.0,
                 plinth_height: 0.6,
+                storeys: 1,
                 windows_per_side: 5,
                 window_size: (0.8, 1.4),
                 door_size: (2.6, 3.4),
@@ -138,6 +145,11 @@ struct StyleParams {
     eaves_height: f32,
     ridge_height: f32,
     plinth_height: f32,
+    /// How many floors the wall carries (Immersja A1.3): canonical styles keep their
+    /// authored count; a sized bake derives it from the target height at the civic
+    /// ~3 m floor pitch, so a 19 m elevator head house gets five storeys of windows
+    /// instead of three stretched ones.
+    storeys: u32,
     windows_per_side: u32,
     window_size: (f32, f32),
     door_size: (f32, f32),
@@ -251,14 +263,17 @@ fn sized_params(style: BuildingStyle, target_half: Vec3) -> StyleParams {
     // a genuinely tiny wall.
     let plinth_height = canonical.plinth_height.min(eaves_height * 0.3);
 
-    // The storey ladder these clamps must respect (the bake fns' own constants; A1.3
-    // derives them from height, this wave only refuses to overflow them).
+    // The storey ladder (Immersja A1.3): the multi-floor styles derive their floor count
+    // from the target height at the civic ~3 m pitch, so a 19 m head house earns five
+    // storeys of windows instead of three stretched ones. On the canonical boxes the
+    // formula reproduces the authored counts exactly (townhouse 2, tenement 3).
     let storeys = match style {
-        BuildingStyle::Townhouse => 2,
-        BuildingStyle::Tenement => 3,
+        BuildingStyle::Townhouse | BuildingStyle::Tenement => {
+            (((eaves_height - plinth_height) / 3.0).round() as u32).clamp(1, 8)
+        }
         _ => 1,
-    } as f32;
-    let storey_h = (eaves_height - plinth_height) / storeys;
+    };
+    let storey_h = (eaves_height - plinth_height) / storeys as f32;
 
     // Window height: absolute, clamped into the band its style cuts it from (each arm
     // mirrors the bake fn's own sill formula).
@@ -299,6 +314,7 @@ fn sized_params(style: BuildingStyle, target_half: Vec3) -> StyleParams {
         eaves_height,
         ridge_height,
         plinth_height,
+        storeys,
         windows_per_side,
         window_size: (window_w, window_h),
         door_size: (door_w, door_h),
@@ -692,10 +708,10 @@ fn bake_townhouse(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Bake
     let (door_w, door_h) = params.door_size;
     let door_half = door_w * 0.5;
     let door_z = rng.signed() * leaf_depth * 0.35;
-    const STOREYS: u32 = 2;
-    let storey_h = (params.eaves_height - params.plinth_height) / STOREYS as f32;
+    let storeys = params.storeys.max(1);
+    let storey_h = (params.eaves_height - params.plinth_height) / storeys as f32;
     for side in [-1.0_f32, 1.0] {
-        for storey in 0..STOREYS {
+        for storey in 0..storeys {
             let floor = params.plinth_height + storey_h * storey as f32;
             let sill = (floor + 0.8).min(floor + storey_h);
             let head = (sill + window_h).min(floor + storey_h);
@@ -1033,14 +1049,14 @@ fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
     // every proud mark (sills, lesenes, courses, cornice) stays inside that allowance.
     let face = params.half_width - 0.1;
     let leaf_depth = params.half_depth - 0.1;
-    const STOREYS: u32 = 3;
-    let storey_h = (params.eaves_height - params.plinth_height) / STOREYS as f32;
+    let storeys = params.storeys.max(1);
+    let storey_h = (params.eaves_height - params.plinth_height) / storeys as f32;
     let (window_w, window_h) = params.window_size;
     let half_w = window_w * 0.5;
     // The window grid: one row per storey on BOTH street fronts, aligned in slots with a
     // hand-set jitter per bay. The SAME slots cut the leaf and take the window assembly.
     for side in [-1.0_f32, 1.0] {
-        for storey in 0..STOREYS {
+        for storey in 0..storeys {
             let floor = params.plinth_height + storey_h * storey as f32;
             let sill = (floor + 0.85).min(floor + storey_h);
             let head = (sill + window_h).min(floor + storey_h);
@@ -1096,7 +1112,7 @@ fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
         );
     }
     // A stone string course marks each floor line, wrapping the leaves.
-    for course in 1..STOREYS {
+    for course in 1..storeys {
         push_box(
             &mut walls,
             &mut wall_indices,
@@ -2215,6 +2231,37 @@ mod tests {
                 narrow.windows_per_side
             );
         }
+    }
+
+    /// Immersja A1.3: floors follow the target height at the civic ~3 m pitch — an 11 m
+    /// tenement carries three storeys, the 19 m elevator head house five — and the pitch
+    /// never leaves the band a real staircase would accept. The windows stay absolute
+    /// through it all, and the canonical boxes reproduce their authored counts through
+    /// the same formula (townhouse 2, tenement 3), which is why the canonical goldens
+    /// never moved.
+    #[test]
+    fn storeys_follow_height_at_a_civic_pitch() {
+        for (target, expected) in [
+            (Vec3::new(5.5, 5.5, 8.0), 3_u32), // an Ostrogorsk tenement box
+            (Vec3::new(6.0, 9.5, 6.0), 5),     // the elevator head house
+            (Vec3::new(4.6, 6.0, 6.0), 3),     // the canonical tenement height
+            (Vec3::new(4.6, 12.0, 6.0), 7),    // a hypothetical tower still walks stairs
+        ] {
+            let params = sized_params(BuildingStyle::Tenement, target);
+            assert_eq!(params.storeys, expected, "{target:?}");
+            let pitch = (params.eaves_height - params.plinth_height) / params.storeys as f32;
+            assert!(
+                (2.3..=3.9).contains(&pitch),
+                "a staircase must accept the pitch, got {pitch} at {target:?}"
+            );
+            assert_eq!(
+                params.window_size,
+                BuildingStyle::Tenement.params().window_size,
+                "the tall building's windows stay the human size at {target:?}"
+            );
+        }
+        let town = sized_params(BuildingStyle::Townhouse, Vec3::new(3.8, 3.8, 5.2));
+        assert_eq!(town.storeys, 2, "the canonical townhouse keeps its two floors");
     }
 
     /// The frame-budget fence for the sized path: the biggest half-extents actually
