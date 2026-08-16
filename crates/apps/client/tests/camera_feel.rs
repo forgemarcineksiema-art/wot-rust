@@ -370,3 +370,73 @@ fn the_boom_snaps_shorter_at_a_wall_and_recovers_smoothly_past_it() {
     let final_boom = (glam::Vec3::from_array(last.eye) - target).length();
     assert!((final_boom - open_boom).abs() < 0.05, "the boom fully recovers");
 }
+
+/// Immersja B1: the presented TPP rig rides a fraction of the sprung hull — a brake dive
+/// dips the VIEW the way it dips the tank, heave lowers the whole rig — while the LOGICAL
+/// camera is bit-identical with the springs loaded (aiming never reads them), the sniper
+/// never moves at all, and defensive caps mean a runaway spring can nod the view but never
+/// throw it.
+#[test]
+fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let calm = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    // A brake dive: the spring noses down 0.03 rad and sags 0.12 m under the transfer.
+    let diving = calm.with_sprung_attitude(-0.03, -0.12);
+
+    // The LOGICAL camera ignores the springs entirely — bit-identical output.
+    let mut logical = BattleCameraController::new(BattleCameraSettings::default());
+    logical.set_mode(BattleCameraMode::ThirdPerson);
+    assert_eq!(
+        logical.render_camera(&calm, &environment),
+        logical.render_camera(&diving, &environment),
+        "aiming must never read the presentation springs"
+    );
+
+    // The PRESENTED TPP rides them: the view direction dips and the rig sits lower.
+    let mut calm_rig = BattleCameraController::new(BattleCameraSettings::default());
+    calm_rig.set_mode(BattleCameraMode::ThirdPerson);
+    let mut dive_rig = BattleCameraController::new(BattleCameraSettings::default());
+    dive_rig.set_mode(BattleCameraMode::ThirdPerson);
+    let presented_calm = calm_rig.present(&calm, &environment, 1.0 / 60.0);
+    let presented_dive = dive_rig.present(&diving, &environment, 1.0 / 60.0);
+    let dir_of = |camera: &renderer_api::Camera| {
+        (glam::Vec3::from_array(camera.target) - glam::Vec3::from_array(camera.eye))
+            .normalize_or_zero()
+    };
+    assert!(
+        dir_of(&presented_dive).y < dir_of(&presented_calm).y - 1.0e-4,
+        "the brake dive visibly dips the presented view"
+    );
+    let expected_heave = -0.12 * 0.5;
+    assert!(
+        (presented_dive.eye[1] - (presented_calm.eye[1] + expected_heave)).abs() < 1.0e-3,
+        "heave lowers the rig by its fraction, got {} vs {}",
+        presented_dive.eye[1],
+        presented_calm.eye[1]
+    );
+
+    // Caps: an absurd spring input nods the view inside the caps, never throws it.
+    let mut absurd_rig = BattleCameraController::new(BattleCameraSettings::default());
+    absurd_rig.set_mode(BattleCameraMode::ThirdPerson);
+    let presented_absurd =
+        absurd_rig.present(&calm.with_sprung_attitude(-10.0, -10.0), &environment, 1.0 / 60.0);
+    let tilt = dir_of(&presented_absurd).angle_between(dir_of(&presented_calm));
+    assert!(tilt <= 0.021, "view tilt stays inside the 0.02 rad cap, got {tilt}");
+    assert!(
+        (presented_absurd.eye[1] - presented_calm.eye[1]).abs() <= 0.201,
+        "rig drop stays inside the 0.2 m cap"
+    );
+
+    // Sniper: bit-identical with the springs loaded — aiming tolerates no theatrics.
+    let mut sniper_calm = BattleCameraController::new(BattleCameraSettings::default());
+    sniper_calm.set_mode(BattleCameraMode::Sniper);
+    let mut sniper_dive = BattleCameraController::new(BattleCameraSettings::default());
+    sniper_dive.set_mode(BattleCameraMode::Sniper);
+    assert_eq!(
+        sniper_calm.present(&calm, &environment, 1.0 / 60.0),
+        sniper_dive.present(&diving, &environment, 1.0 / 60.0),
+        "the sniper eye stays rigid through the springs"
+    );
+}

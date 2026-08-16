@@ -79,6 +79,12 @@ pub struct CameraSubject {
     pub view_yaw_rad: f32,
     pub desired_yaw_rad: f32,
     pub desired_pitch_rad: f32,
+    /// Presentation-only sprung-hull residuals (Immersja B1): the DYNAMIC part of the render
+    /// hull's dive/squat pitch (sprung minus authoritative, so a steady slope contributes
+    /// nothing) and its heave. Only the PRESENTED third-person camera reads these; the
+    /// logical camera and the sniper ignore them entirely.
+    pub sprung_dive_rad: f32,
+    pub sprung_heave_m: f32,
 }
 
 impl CameraSubject {
@@ -95,7 +101,16 @@ impl CameraSubject {
             view_yaw_rad: desired_yaw_rad,
             desired_yaw_rad,
             desired_pitch_rad: gun_pitch_rad,
+            sprung_dive_rad: 0.0,
+            sprung_heave_m: 0.0,
         }
+    }
+
+    /// Attach the sprung-hull residuals for the presented TPP camera (Immersja B1).
+    pub fn with_sprung_attitude(mut self, dive_rad: f32, heave_m: f32) -> Self {
+        self.sprung_dive_rad = dive_rad;
+        self.sprung_heave_m = heave_m;
+        self
     }
 
     pub fn with_view_yaw(mut self, yaw_rad: f32) -> Self {

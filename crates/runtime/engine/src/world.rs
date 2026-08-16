@@ -135,6 +135,18 @@ impl PresentationWorld {
         self.entities.get(&tank_id).copied()
     }
 
+    /// One tank's sprung presentation attitude — `(spring pitch, heave)` — for the camera's
+    /// feel layer (Immersja B1): the camera rides a fraction of the same spring the rendered
+    /// hull rides, instead of standing on a tripod while the hull nods. Read-only by design:
+    /// presentation cues never flow back into the springs, and the camera must never
+    /// re-derive motion from presented poses.
+    pub fn sprung_attitude(&self, tank_id: TankId) -> Option<(f32, f32)> {
+        let entity = self.entity_of(tank_id)?;
+        self.world
+            .get::<HullAttitude>(entity)
+            .map(|attitude| (attitude.pitch_rad, attitude.heave_m))
+    }
+
     /// Mutable access to the raw ECS world for sibling presentation modules (`sync_cues`).
     pub(crate) fn world_mut(&mut self) -> &mut World {
         &mut self.world

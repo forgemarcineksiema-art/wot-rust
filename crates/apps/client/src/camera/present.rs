@@ -20,6 +20,18 @@ use super::{BattleCameraEnvironment, BattleCameraMode, CameraSubject};
 const MODE_BLEND_S: f32 = 0.14;
 /// Boom length recovery rate (m/s) once a camera obstacle clears.
 const BOOM_RECOVER_MPS: f32 = 14.0;
+/// Fractions of the sprung hull's dynamic dive/heave the presented TPP camera rides
+/// (Immersja B1). Deliberately well under 1: the hull SHOWS the motion, the camera only
+/// corroborates it — a camera that matched the hull would read as a bobblehead. No new
+/// state lives here: both inputs are already spring-filtered upstream (`engine::attitude`)
+/// and already retire through the predictor's freeze, so the presented camera stays a pure
+/// function of frozen-safe inputs.
+const SPRUNG_DIVE_FRAC: f32 = 0.35;
+const SPRUNG_HEAVE_FRAC: f32 = 0.5;
+/// Defensive caps, independent of the upstream spring caps (0.035 rad / 0.30 m): a runaway
+/// input may nod the view, never throw it.
+const SPRUNG_DIVE_CAP_RAD: f32 = 0.02;
+const SPRUNG_HEAVE_CAP_M: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(super) struct PresentedCamera {
@@ -46,6 +58,7 @@ impl BattleCameraController {
 
         if self.mode() == BattleCameraMode::ThirdPerson {
             camera = self.presented.smooth_boom(camera, dt);
+            camera = ride_sprung_hull(camera, subject);
         } else {
             self.presented.boom_m = None;
         }
@@ -112,6 +125,30 @@ impl PresentedCamera {
         self.boom_m = Some(boom);
         Camera { eye: (target + (eye - target) / raw * boom).to_array(), ..camera }
     }
+}
+
+/// The presented TPP rig rides a fraction of the sprung hull (Immersja B1): heave lifts the
+/// whole rig, the dynamic dive/squat tilts the view about the camera's right axis — braking
+/// dips the nose of the VIEW the way it dips the nose of the TANK. Presented layer only:
+/// the logical camera (aiming) and the sniper never pass through here.
+fn ride_sprung_hull(camera: Camera, subject: &CameraSubject) -> Camera {
+    let dive = (subject.sprung_dive_rad * SPRUNG_DIVE_FRAC)
+        .clamp(-SPRUNG_DIVE_CAP_RAD, SPRUNG_DIVE_CAP_RAD);
+    let heave =
+        (subject.sprung_heave_m * SPRUNG_HEAVE_FRAC).clamp(-SPRUNG_HEAVE_CAP_M, SPRUNG_HEAVE_CAP_M);
+    if dive == 0.0 && heave == 0.0 {
+        return camera;
+    }
+    let eye = Vec3::from_array(camera.eye) + Vec3::Y * heave;
+    let target = Vec3::from_array(camera.target) + Vec3::Y * heave;
+    let dir = target - eye;
+    let right = dir.cross(Vec3::Y).normalize_or_zero();
+    if right == Vec3::ZERO {
+        // Looking straight along the vertical axis: no stable right axis, keep the heave only.
+        return Camera { eye: eye.to_array(), target: target.to_array(), ..camera };
+    }
+    let tilted = glam::Quat::from_axis_angle(right, dive) * dir;
+    Camera { eye: eye.to_array(), target: (eye + tilted).to_array(), ..camera }
 }
 
 /// Blend two cameras by **view direction**, not by target position. Lerping the target position

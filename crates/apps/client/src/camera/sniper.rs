@@ -108,6 +108,8 @@ mod tests {
             view_yaw_rad: 0.0,
             desired_yaw_rad: 0.0,
             desired_pitch_rad,
+            sprung_dive_rad: 0.0,
+            sprung_heave_m: 0.0,
         }
     }
 
