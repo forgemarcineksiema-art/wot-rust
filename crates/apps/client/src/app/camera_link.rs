@@ -58,7 +58,14 @@ impl ClientApp {
     /// reading the unfiltered [`Self::camera_from_tank`].
     pub(super) fn presented_camera_for_player(&mut self, alpha: f32, dt: f32) -> Option<Camera> {
         let tank = self.interpolated_local_tank(alpha)?;
-        let subject = self.camera_subject_from_tank(tank);
+        let (tank_id, hull_pitch_rad) = (tank.tank_id, tank.hull_pitch_rad);
+        let mut subject = self.camera_subject_from_tank(tank);
+        // Immersja B1: hand the presented rig the sprung hull's residuals. The DIVE is the
+        // spring minus the authoritative attitude, so a steady slope contributes nothing and
+        // only the dynamic nod (brake dive, launch squat, terrain settle) reaches the camera.
+        if let Some((spring_pitch, heave_m)) = self.presentation.sprung_attitude(tank_id) {
+            subject = subject.with_sprung_attitude(spring_pitch - hull_pitch_rad, heave_m);
+        }
         let environment = BattleCameraEnvironment::with_obstacles(
             &self.battlefield.heightmap,
             self.live_cover.camera_obstacles(),
