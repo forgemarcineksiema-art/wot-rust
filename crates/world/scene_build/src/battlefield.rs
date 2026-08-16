@@ -1126,12 +1126,14 @@ fn push_surfaced_box(
     }
 }
 
-/// A building inside its box — FORGED (B4): the world_forge generator picks a style from the
-/// box's proportions (a long low box is a barn, a tall one a townhouse, the rest cottages),
-/// seeds the joinery from the building id, and the bake is scaled per axis into the collision
-/// AABB — the generator's own honesty lock guarantees every vertex stays inside, so the rule
-/// "what blocks the shell blocks the eye" survives the swap. Palette stays per id: a town is a
-/// town, not a barracks.
+/// A building inside its box — FORGED (B4), baked AT SIZE (Immersja A1.2): the world_forge
+/// generator picks a style from the box's proportions (a long low box is a barn, a tall one
+/// a townhouse, the rest cottages), seeds the joinery from the building id, and the bake is
+/// computed IN the collision AABB's own meters — openings keep their real-world absolute
+/// sizes and a longer wall earns MORE windows, never wider ones (the per-axis stretch that
+/// scaled a window with its box is retired). The generator's honesty lock still guarantees
+/// every vertex stays inside, so the rule "what blocks the shell blocks the eye" is
+/// unchanged. Palette stays per id: a town is a town, not a barracks.
 fn append_building(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -1146,29 +1148,27 @@ fn append_building(
         seed = seed.wrapping_mul(0x0100_0000_01b3);
     }
     let style = derived_building_style(&cover.id, half);
-    let baked = world_forge::building::bake_building(
+    // The generator's ridge runs +Z; run it down the box's LONG axis like the roofs always
+    // did — the bake receives the box PRE-SWAPPED so its layout math works in the meters the
+    // rotated mesh will actually occupy.
+    let rotate = half.x > half.z;
+    let target = if rotate { Vec3::new(half.z, half.y, half.x) } else { half };
+    let baked = world_forge::building::bake_building_sized(
         style,
         seed,
         world_forge::building::StructureForm::Intact,
+        target,
     );
-    // The generator's ridge runs +Z; run it down the box's LONG axis like the roofs always did.
-    let rotate = half.x > half.z;
-    let footprint = baked.footprint_half;
     let ground = Vec3::new(center.x, center.y - half.y, center.z);
-    let scale = if rotate {
-        Vec3::new(half.z / footprint.x, half.y / footprint.y, half.x / footprint.z)
-    } else {
-        Vec3::new(half.x / footprint.x, half.y / footprint.y, half.z / footprint.z)
-    };
     let stone = stone_palette(&cover.id);
     for mesh in [&baked.walls, &baked.roof] {
         let base = vertices.len() as u32;
         for vertex in mesh.vertices() {
-            let scaled = vertex.position * scale;
             // A true 90-degree rotation (det +1), never an axis swap: a swap is a REFLECTION
             // and would wind every triangle inside-out.
-            let local = if rotate { Vec3::new(scaled.z, scaled.y, -scaled.x) } else { scaled };
-            let n = vertex.normal / scale;
+            let p = vertex.position;
+            let local = if rotate { Vec3::new(p.z, p.y, -p.x) } else { p };
+            let n = vertex.normal;
             let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
             // Colour names the palette; the surface-role lane names the MATERIAL the scene
             // shader dresses it in (Materia Świata 3): rendered walls, coursed roofs, plank
