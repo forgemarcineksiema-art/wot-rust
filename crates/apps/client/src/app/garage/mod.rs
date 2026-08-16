@@ -306,12 +306,6 @@ impl GarageState {
         }
     }
 
-    pub(super) fn adjust_proficiency(&mut self, dir: isize) {
-        self.draft.adjust_proficiency(dir);
-        self.rejected_slot = None;
-        self.persist();
-    }
-
     /// Step keyboard focus between module slots (`[` prev, `]` next), wrapping around.
     pub(super) fn focus_adjacent(&mut self, dir: isize) {
         let len = FitSlot::ALL.len() as isize;

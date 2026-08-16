@@ -94,12 +94,13 @@ fn selecting_a_vehicle_restores_the_safe_inspection_framing() {
 fn confirm_returns_the_edited_spec_and_closes_the_garage() {
     let mut garage = GarageState::default();
     garage.select_vehicle(VehicleKind::TigerII);
-    garage.adjust_proficiency(-1);
-    let green = garage.draft().assembled_spec().gun.reload_seconds;
+    // W1: the edit that survives to battle is a MODULE choice — the crew dial is gone.
+    garage.cycle_module(crate::app::garage::draft::FitSlot::Gun, 1);
+    let edited = garage.draft().assembled_spec().gun.reload_seconds;
     let spec = garage.confirm();
     assert!(!garage.is_open() && garage.has_started());
     assert_eq!(spec.kind, VehicleKind::TigerII);
-    assert!((spec.gun.reload_seconds - green).abs() < 1.0e-6, "confirmed spec carries the edit");
+    assert!((spec.gun.reload_seconds - edited).abs() < 1.0e-6, "confirmed spec carries the edit");
 }
 
 #[test]

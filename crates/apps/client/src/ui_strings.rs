@@ -14,8 +14,6 @@ pub(crate) mod garage {
     pub const TAB_TECH_TREE: &str = "TECH TREE";
     /// Left crew panel header.
     pub const CREW: &str = "CREW";
-    /// Label over the shared crew proficiency control.
-    pub const PROFICIENCY: &str = "Proficiency";
     /// Right stats panel header.
     pub const VEHICLE: &str = "VEHICLE";
     /// Tech-tree close button.
@@ -79,7 +77,6 @@ mod tests {
             super::garage::TAB_GARAGE,
             super::garage::TAB_TECH_TREE,
             super::garage::CREW,
-            super::garage::PROFICIENCY,
             super::garage::VEHICLE,
             super::garage::BACK,
             super::garage::ERA_RESERVED,

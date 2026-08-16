@@ -87,11 +87,6 @@ fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2
             let (minus, plus) = ammo_adjust_centers(*i);
             Some((if *dir < 0 { minus } else { plus }, AMMO_ADJUST_HALF))
         }
-        GarageHit::CrewProf(dir) => {
-            let (l, r) = crew_prof_arrows();
-            let center = if *dir < 0 { l } else { r };
-            Some((center, ARROW_HALF))
-        }
         // A vehicle node lives in a different place per view: the bottom carousel in the hangar, a
         // nation column in the tech tree. Resolve the rect against the active view so the highlight
         // lands on the node the click would hit (the old code always used the carousel rect, so
@@ -195,13 +190,6 @@ fn hit_test_hangar(state: &GarageState, shift: bool) -> GarageHit {
             return GarageHit::AmmoSelect(i);
         }
     }
-    let (left, right) = crew_prof_arrows();
-    if in_rect(p, left, ARROW_HALF) {
-        return GarageHit::CrewProf(-1);
-    }
-    if in_rect(p, right, ARROW_HALF) {
-        return GarageHit::CrewProf(1);
-    }
     let count = VehicleKind::PLAYABLE.len();
     if carousel_overflows(count) {
         let (left, right) = carousel_arrows();
@@ -295,12 +283,13 @@ mod tests {
         assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((plus, AMMO_ADJUST_HALF)));
     }
 
+    /// W1: the proficiency dial is gone — a click where its arrows used to sit orbits the
+    /// scene like any other empty floor, and no control answers.
     #[test]
-    fn crew_proficiency_arrows_hit() {
+    fn the_old_proficiency_arrows_are_plain_scene_now() {
         let mut g = GarageState::default();
-        let (left, right) = crew_prof_arrows();
-        assert_eq!(at(&mut g, right), GarageHit::CrewProf(1));
-        assert_eq!(at(&mut g, left), GarageHit::CrewProf(-1));
+        assert_eq!(at(&mut g, [-0.855, 0.18]), GarageHit::Scene);
+        assert_eq!(at(&mut g, [-0.745, 0.18]), GarageHit::Scene);
     }
 
     #[test]

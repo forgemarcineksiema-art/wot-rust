@@ -1,7 +1,11 @@
-//! A lightweight crew model: a fixed roster of five roles with a single shared proficiency. There
-//! is no economy/XP yet — proficiency is just a dial that nudges the assembled stats so a better
-//! trained crew reloads and aims a touch faster. [`Crew::apply`] is the single bridge from crew to
-//! [`crate::TankSpec`], applied after the modules assemble.
+//! A lightweight crew model: a fixed roster of five roles, fully trained.
+//!
+//! Proficiency is PINNED to 1.0 (user decision 2026-08-14, Hala v4 W1). The old 0.5..=1.0
+//! dial was a free, dominated choice that punished not knowing about it — +4.5% reload/aim
+//! at the 0.85 default while bots played unpenalized — which is the exact opposite of the
+//! creed "progression is proof, never power". The type and [`Crew::apply`] stay as the seam
+//! a future crew system would use; the band collapsed to the pin, so every old save and
+//! every call site migrates by clamp.
 
 use serde::{Deserialize, Serialize};
 
@@ -37,14 +41,17 @@ impl CrewRole {
     }
 }
 
-/// The crew aboard a vehicle. `proficiency` is a single 0.5..=1.0 dial shared by all roles.
+/// The crew aboard a vehicle — fully trained, always (see the module doc for the decision).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Crew {
     proficiency: f32,
 }
 
 impl Crew {
-    pub const MIN_PROFICIENCY: f32 = 0.5;
+    /// The band is the pin: both bounds are 1.0, so `new` migrates every historical value
+    /// (old saves carried 0.5..=1.0) up by clamp and no code path can reopen the dial
+    /// without moving these constants — which is the deliberate, test-visible act.
+    pub const MIN_PROFICIENCY: f32 = 1.0;
     pub const MAX_PROFICIENCY: f32 = 1.0;
 
     pub fn new(proficiency: f32) -> Self {
@@ -59,9 +66,9 @@ impl Crew {
         CrewRole::ALL
     }
 
-    /// Scale the gun handling by crew quality: a fully trained crew (1.0) keeps the gun's rated
-    /// reload and aim time; a green crew (0.5) is up to ~15% slower. Monotonic — more proficiency
-    /// never makes the tank worse.
+    /// The crew→spec bridge. At the 1.0 pin the penalty is exactly 1.0 and the rated values
+    /// pass through untouched — the formula stays as the seam a future crew system plugs
+    /// into, and the pin test below is what makes it provably inert today.
     pub fn apply(self, spec: &mut TankSpec) {
         let penalty = 1.0 + (1.0 - self.proficiency) * 0.30;
         spec.gun.reload_seconds *= penalty;
@@ -71,7 +78,7 @@ impl Crew {
 
 impl Default for Crew {
     fn default() -> Self {
-        Self { proficiency: 0.85 }
+        Self { proficiency: 1.0 }
     }
 }
 
@@ -80,22 +87,20 @@ mod tests {
     use super::*;
     use crate::VehicleKind;
 
+    /// The W1 pin, locked from both ends: every input collapses to 1.0 (old saves carried
+    /// 0.5..=1.0 and migrate up by clamp), and the crew bridge leaves the rated gun values
+    /// untouched — the screen's numbers ARE the battle's numbers, for humans and bots alike.
     #[test]
-    fn proficiency_is_clamped_to_the_trained_band() {
-        assert_eq!(Crew::new(5.0).proficiency(), Crew::MAX_PROFICIENCY);
-        assert_eq!(Crew::new(0.0).proficiency(), Crew::MIN_PROFICIENCY);
-    }
+    fn the_crew_is_pinned_fully_trained() {
+        for historical in [0.0, 0.5, 0.85, 1.0, 5.0] {
+            assert_eq!(Crew::new(historical).proficiency(), 1.0, "pin migrates {historical}");
+        }
+        assert_eq!(Crew::default().proficiency(), 1.0);
 
-    #[test]
-    fn better_crew_never_reloads_slower() {
         let base = VehicleKind::TigerII.spec();
-        let mut green = base.clone();
-        let mut elite = base.clone();
-        Crew::new(0.5).apply(&mut green);
-        Crew::new(1.0).apply(&mut elite);
-        assert!(elite.gun.reload_seconds <= green.gun.reload_seconds);
-        assert!(elite.gun.aim_time_seconds <= green.gun.aim_time_seconds);
-        // A fully trained crew leaves the rated values untouched.
-        assert!((elite.gun.reload_seconds - base.gun.reload_seconds).abs() < 1.0e-6);
+        let mut crewed = base.clone();
+        Crew::default().apply(&mut crewed);
+        assert!((crewed.gun.reload_seconds - base.gun.reload_seconds).abs() < 1.0e-6);
+        assert!((crewed.gun.aim_time_seconds - base.gun.aim_time_seconds).abs() < 1.0e-6);
     }
 }

@@ -262,7 +262,11 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       JEDNEMU `REPAIR_BEAT_S`
 - [ ] R4: prawo faz w hali (G7)
 - [ ] R5: B2 GI do celu albo zamknięcie pomiarem
-- [ ] W1: proficiency = 1,0
+- [x] W1: proficiency = 1,0 (ten PR) — pas w game_core zwinięty do pinu (MIN==MAX==1,0,
+      default 1,0; formuła kary zostaje jako szew przyszłego systemu załogi, dowodnie martwa
+      zamkiem `the_crew_is_pinned_fully_trained`); suwak, `GarageHit::CrewProf`, klawisze −/=
+      i rects usunięte; stare save'y migrują W GÓRĘ przez clamp (zamek); kolumna CREW zostaje
+      jako prezentacja ról; goldeny garage_screen/option_list przegrane scoped (0,23%)
 - [ ] W2: ekran wyników bitwy
 - [ ] W3: lokalna historia bitew
 - [ ] W4: ekran SETTINGS
