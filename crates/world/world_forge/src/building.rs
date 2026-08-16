@@ -59,8 +59,8 @@ impl BuildingStyle {
                 ridge_height: 4.6,
                 plinth_height: 0.45,
                 windows_per_side: 2,
-                window_size: (0.55, 0.7),
-                door_size: (0.6, 1.05),
+                window_size: (0.85, 1.1),
+                door_size: (0.9, 1.95),
             },
             BuildingStyle::Barn => StyleParams {
                 half_width: 4.4,
@@ -69,8 +69,8 @@ impl BuildingStyle {
                 ridge_height: 5.4,
                 plinth_height: 0.35,
                 windows_per_side: 1,
-                window_size: (0.45, 0.5),
-                door_size: (1.4, 1.6),
+                window_size: (0.6, 0.7),
+                door_size: (2.4, 2.6),
             },
             BuildingStyle::Townhouse => StyleParams {
                 half_width: 3.8,
@@ -79,8 +79,8 @@ impl BuildingStyle {
                 ridge_height: 7.6,
                 plinth_height: 0.55,
                 windows_per_side: 3,
-                window_size: (0.6, 0.85),
-                door_size: (0.7, 1.15),
+                window_size: (0.9, 1.4),
+                door_size: (0.9, 2.0),
             },
             // ridge_height is the SPIRE TOP: the footprint must contain the whole silhouette.
             BuildingStyle::Church => StyleParams {
@@ -90,8 +90,8 @@ impl BuildingStyle {
                 ridge_height: 11.0,
                 plinth_height: 0.6,
                 windows_per_side: 3,
-                window_size: (0.5, 1.3),
-                door_size: (0.9, 1.7),
+                window_size: (0.8, 2.2),
+                door_size: (1.4, 2.4),
             },
             // ridge_height is the cap peak; the body tapers inside half_width.
             BuildingStyle::Windmill => StyleParams {
@@ -101,8 +101,8 @@ impl BuildingStyle {
                 ridge_height: 8.6,
                 plinth_height: 0.5,
                 windows_per_side: 1,
-                window_size: (0.45, 0.6),
-                door_size: (0.8, 1.5),
+                window_size: (0.6, 0.8),
+                door_size: (0.9, 1.95),
             },
             // Three storeys of masonry under a shallow roof: eaves ~10.4 m puts each floor
             // near the civic 3.2 m, and the low ridge keeps the skyline a wall, not a barn.
@@ -113,8 +113,8 @@ impl BuildingStyle {
                 ridge_height: 12.0,
                 plinth_height: 0.7,
                 windows_per_side: 4,
-                window_size: (0.65, 1.0),
-                door_size: (0.85, 1.3),
+                window_size: (0.95, 1.7),
+                door_size: (1.3, 2.4),
             },
             // A working span, not a house: one tall volume, high sills so machines line the
             // walls, and a door a loaded wagon clears. ridge_height caps the clerestory.
@@ -189,13 +189,17 @@ impl BakedBuilding {
 }
 
 /// Style goldens at seed 0, Intact form (rubble is derived; its own lock is the honesty test).
+/// Blessed 2026-08-16 (Immersja A1.1): openings raised to real-world absolutes — the
+/// 2026-08-03 audit measured doors/windows 30-45 % short, which is why an 11 m tenement
+/// read as a maquette. FactoryHall was already true and its hash is UNCHANGED, proving the
+/// wave touched nothing else. Canonical footprints did not move (map goldens untouched).
 pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 7] = [
-    (BuildingStyle::Cottage, 0x4a53_74d0_e901_3642),
-    (BuildingStyle::Barn, 0x722e_0809_3a7c_73a0),
-    (BuildingStyle::Townhouse, 0x01a7_beb7_a7b9_a292),
-    (BuildingStyle::Church, 0x871c_50ea_ed80_777e),
-    (BuildingStyle::Windmill, 0xeb28_4dff_02e0_1929),
-    (BuildingStyle::Tenement, 0x8525_c30b_4231_ab98),
+    (BuildingStyle::Cottage, 0xddc3_1870_16a5_036a),
+    (BuildingStyle::Barn, 0x9ee8_9ec1_cb17_2858),
+    (BuildingStyle::Townhouse, 0x8786_05a6_615f_a9f6),
+    (BuildingStyle::Church, 0xef7e_f288_7997_c4c6),
+    (BuildingStyle::Windmill, 0x9702_54dc_8c3c_74bd),
+    (BuildingStyle::Tenement, 0xffe8_ca8e_053c_8dc0),
     (BuildingStyle::FactoryHall, 0xc2a7_6240_a862_1b1a),
 ];
 
@@ -1949,5 +1953,50 @@ mod tests {
         let r2 =
             bake_building(BuildingStyle::Cottage, 5, StructureForm::Rubble { height_frac: 0.3 });
         assert_eq!(r1.deterministic_hash(), r2.deterministic_hash(), "one ruin per seed");
+    }
+
+    /// Immersja A1.1: openings are the only absolute numbers the eye can read scale from,
+    /// so they carry REAL-WORLD minima — a person's door clears a person (>= 1.9 m for
+    /// every inhabited style), the barn portal clears a loaded wagon, and dwelling windows
+    /// are windows, not slits. The 2026-08-03 audit measured the whole table 30-45 % short;
+    /// this lock keeps it from ever shrinking back into the maquette.
+    #[test]
+    fn opening_sizes_carry_real_world_minima() {
+        let inhabited = [
+            BuildingStyle::Cottage,
+            BuildingStyle::Townhouse,
+            BuildingStyle::Church,
+            BuildingStyle::Windmill,
+            BuildingStyle::Tenement,
+            BuildingStyle::FactoryHall,
+        ];
+        for style in inhabited {
+            let params = style.params();
+            let (door_w, door_h) = params.door_size;
+            assert!(door_h >= 1.9, "{style:?}: a person's door is {door_h} m tall");
+            assert!(door_w >= 0.85, "{style:?}: a person's door is {door_w} m wide");
+        }
+        let barn = BuildingStyle::Barn.params();
+        assert!(
+            barn.door_size.0 >= 2.2 && barn.door_size.1 >= 2.4,
+            "the barn portal must clear a loaded wagon, got {:?}",
+            barn.door_size
+        );
+        for style in [BuildingStyle::Cottage, BuildingStyle::Townhouse, BuildingStyle::Tenement] {
+            let (window_w, window_h) = style.params().window_size;
+            assert!(
+                window_w >= 0.8 && window_h >= 1.0,
+                "{style:?}: a dwelling window is a window, not a slit — got {window_w}x{window_h}"
+            );
+        }
+        // The bigger openings still live inside their walls: every door fits under the
+        // eaves band it is cut into, so honesty never trades against realism.
+        for style in BuildingStyle::ALL {
+            let params = style.params();
+            assert!(
+                params.plinth_height + params.door_size.1 < params.eaves_height,
+                "{style:?}: the door head must stay under the eaves"
+            );
+        }
     }
 }
