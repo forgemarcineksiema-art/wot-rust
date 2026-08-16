@@ -214,6 +214,97 @@ pub fn bake_building(style: BuildingStyle, seed: u64, form: StructureForm) -> Ba
     }
 }
 
+/// Bake AT the blueprint's size instead of stretching a canonical bake into it (Immersja
+/// A1.2). The per-axis AABB stretch scaled the OPENINGS with the box — a wide tenement got
+/// wide windows instead of more windows, and the same style wore a 0.92 m window on one
+/// building and a 1.58 m one on another, which is exactly how a city becomes a maquette.
+/// Here the facade layout is computed in world units: openings keep their real-world
+/// absolute sizes and the COUNT comes from the wall's length (the canonical facade's
+/// rhythm carried to the target). Every vertex provably stays inside `target_half` — the
+/// honesty contract is unchanged, only the stretch is gone.
+pub fn bake_building_sized(
+    style: BuildingStyle,
+    seed: u64,
+    form: StructureForm,
+    target_half: Vec3,
+) -> BakedBuilding {
+    let params = sized_params(style, target_half);
+    match form {
+        StructureForm::Intact => bake_intact(style, seed, &params, target_half),
+        StructureForm::Rubble { height_frac } => {
+            bake_rubble(style, seed, &params, target_half, height_frac.clamp(0.05, 0.9))
+        }
+    }
+}
+
+/// The style table re-derived for a target box: masses follow the box, the roof keeps the
+/// style's proportion, openings keep their ABSOLUTE size, and the window count follows the
+/// wall length at the canonical rhythm. Degenerate boxes degrade gracefully — an opening
+/// that cannot fit its band shrinks and then disappears rather than ever leaving the box.
+fn sized_params(style: BuildingStyle, target_half: Vec3) -> StyleParams {
+    let canonical = style.params();
+    let half_width = target_half.x.max(0.3);
+    let half_depth = target_half.z.max(0.3);
+    let ridge_height = (target_half.y * 2.0).max(0.8);
+    let eaves_height = ridge_height * (canonical.eaves_height / canonical.ridge_height);
+    // The plinth is a real-world course, not a proportion — absolute, but never a third of
+    // a genuinely tiny wall.
+    let plinth_height = canonical.plinth_height.min(eaves_height * 0.3);
+
+    // The storey ladder these clamps must respect (the bake fns' own constants; A1.3
+    // derives them from height, this wave only refuses to overflow them).
+    let storeys = match style {
+        BuildingStyle::Townhouse => 2,
+        BuildingStyle::Tenement => 3,
+        _ => 1,
+    } as f32;
+    let storey_h = (eaves_height - plinth_height) / storeys;
+
+    // Window height: absolute, clamped into the band its style cuts it from (each arm
+    // mirrors the bake fn's own sill formula).
+    let (window_w, window_h) = canonical.window_size;
+    let band_headroom = match style {
+        BuildingStyle::Cottage => eaves_height - plinth_height - 0.55 - 0.15,
+        BuildingStyle::Barn => eaves_height - plinth_height - 1.8 - 0.15,
+        BuildingStyle::Townhouse => storey_h - 0.8 - 0.15,
+        BuildingStyle::Church => eaves_height - plinth_height - 0.9 - 0.2,
+        BuildingStyle::Windmill => eaves_height - plinth_height - 0.9 - 0.15,
+        BuildingStyle::Tenement => storey_h - 0.85 - 0.15,
+        BuildingStyle::FactoryHall => eaves_height - plinth_height - 1.2,
+    };
+    let window_h = window_h.min(band_headroom.max(0.0));
+
+    // Window count: the canonical facade's rhythm (meters of wall per window along the
+    // ridge axis) carried to the target length, capped so glass never crowds the piers out
+    // and a budget cap keeps a city block from baking a curtain wall.
+    let rhythm = (canonical.half_depth * 2.0) / canonical.windows_per_side.max(1) as f32;
+    let by_rhythm = ((half_depth * 2.0) / rhythm).round() as u32;
+    let by_fit = ((half_depth - 0.1) * 2.0 * 0.6 / window_w.max(0.1)).floor() as u32;
+    let windows_per_side =
+        if window_h < 0.3 { 0 } else { by_rhythm.clamp(1, 12).min(by_fit.max(1)) };
+
+    // Door: absolute, clamped under the band it is cut into.
+    let (door_w, door_h) = canonical.door_size;
+    let door_headroom = match style {
+        BuildingStyle::Townhouse => storey_h - 0.3,
+        BuildingStyle::Tenement => storey_h - 0.3,
+        _ => eaves_height - plinth_height - 0.25,
+    };
+    let door_h = door_h.min(door_headroom.max(0.3));
+    let door_w = door_w.min(half_depth * 0.8).min(half_width * 0.8);
+
+    StyleParams {
+        half_width,
+        half_depth,
+        eaves_height,
+        ridge_height,
+        plinth_height,
+        windows_per_side,
+        window_size: (window_w, window_h),
+        door_size: (door_w, door_h),
+    }
+}
+
 fn bake_intact(
     style: BuildingStyle,
     seed: u64,
@@ -365,15 +456,27 @@ fn bake_cottage(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedB
     let leaf_depth = params.half_depth - 0.1;
     let (window_w, window_h) = params.window_size;
     let half_w = window_w * 0.5;
-    let sill = params.plinth_height + 0.55;
-    let head = sill + window_h;
-    // The street leaf splits around the doorway; the back leaf runs full length.
+    let sill = (params.plinth_height + 0.55).min(params.eaves_height);
+    let head = (sill + window_h).min(params.eaves_height);
+    // The street leaf splits around the doorway; the back leaf runs full length. Window
+    // counts follow the run's LENGTH at the facade's rhythm (Immersja A1.2): a longer izba
+    // earns more windows, the windows themselves never grow.
     let (door_w, door_h) = params.door_size;
     let door_half = door_w * 0.5;
     let door_z = rng.signed() * leaf_depth * 0.3;
+    let per_run = |len: f32| {
+        ((params.windows_per_side as f32 * len / (leaf_depth * 2.0)).round() as u32)
+            .max(params.windows_per_side.min(1))
+    };
     for (side, runs) in [
-        (-1.0_f32, [(-leaf_depth, leaf_depth, 2_u32), (0.0, 0.0, 0)]),
-        (1.0, [(-leaf_depth, door_z - door_half, 1), (door_z + door_half, leaf_depth, 1)]),
+        (-1.0_f32, [(-leaf_depth, leaf_depth, params.windows_per_side), (0.0, 0.0, 0)]),
+        (
+            1.0,
+            [
+                (-leaf_depth, door_z - door_half, per_run(door_z - door_half + leaf_depth)),
+                (door_z + door_half, leaf_depth, per_run(leaf_depth - door_z - door_half)),
+            ],
+        ),
     ] {
         for &(run_lo, run_hi, windows) in &runs {
             if run_hi - run_lo < 0.3 {
@@ -460,8 +563,8 @@ fn bake_barn(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuil
     let face = params.half_width - 0.1;
     let leaf_depth = params.half_depth - 0.1;
     let (window_w, window_h) = params.window_size;
-    let sill = params.plinth_height + 1.8;
-    let head = sill + window_h;
+    let sill = (params.plinth_height + 1.8).min(params.eaves_height);
+    let head = (sill + window_h).min(params.eaves_height);
     for side in [-1.0_f32, 1.0] {
         rural_wall_run(
             &mut walls,
@@ -476,7 +579,7 @@ fn bake_barn(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuil
             params.eaves_height,
             sill,
             head,
-            1,
+            params.windows_per_side,
             window_w * 0.5,
             WorldMaterial::Timber,
             WorldMaterial::PlankDoor,
@@ -594,13 +697,18 @@ fn bake_townhouse(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Bake
     for side in [-1.0_f32, 1.0] {
         for storey in 0..STOREYS {
             let floor = params.plinth_height + storey_h * storey as f32;
-            let sill = floor + 0.8;
-            let head = sill + window_h;
+            let sill = (floor + 0.8).min(floor + storey_h);
+            let head = (sill + window_h).min(floor + storey_h);
             if side > 0.0 && storey == 0 {
-                // The street ground floor splits around the doorway: one window per run.
+                // The street ground floor splits around the doorway: each run carries its
+                // length's share of the facade rhythm (Immersja A1.2).
                 for &(run_lo, run_hi) in
                     &[(-leaf_depth, door_z - door_half), (door_z + door_half, leaf_depth)]
                 {
+                    let share = ((params.windows_per_side as f32 * (run_hi - run_lo)
+                        / (leaf_depth * 2.0))
+                        .round() as u32)
+                        .max(params.windows_per_side.min(1));
                     rural_wall_run(
                         &mut walls,
                         &mut wall_indices,
@@ -614,7 +722,7 @@ fn bake_townhouse(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Bake
                         floor + storey_h,
                         sill,
                         head,
-                        1,
+                        share,
                         half_w,
                         WorldMaterial::PlinthStone,
                         WorldMaterial::WindowGlass,
@@ -696,7 +804,11 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     let mut rng = Rng(seed ^ 0xC44C_0000);
     let mut walls = Vec::new();
     let mut wall_indices = Vec::new();
-    let nave_ridge = params.eaves_height + 2.2;
+    // The additive silhouette constants are CLAMPED for sized bakes (Immersja A1.2): a
+    // church squeezed into a shed-sized box keeps its whole silhouette inside the box
+    // instead of pushing the bell floor underground. The canonical box never touches any
+    // of these clamps, so the canonical golden is bit-identical.
+    let nave_ridge = (params.eaves_height + 2.2).min(params.ridge_height);
     push_box(
         &mut walls,
         &mut wall_indices,
@@ -708,13 +820,14 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     let leaf_depth = params.half_depth - 0.1;
     // The tower: square shaft at the -Z end, rising past the nave ridge to the bell floor.
     let tower_half = face * 0.62;
-    let tower_top = params.ridge_height - 2.4;
+    let tower_top =
+        (params.ridge_height - 2.4).max(params.eaves_height).min(params.ridge_height - 0.2);
     let tower_z = -leaf_depth + tower_half;
     let tower_front = tower_z - tower_half; // the -Z face of the tower
     let nave_lo = tower_z + tower_half; // the nave's side leaves start at the tower
     // The shaft is solid only UP TO the bell floor — above it the corner piers carry the
     // cap band and the faces are true openings.
-    let bell_lo = tower_top - 1.9;
+    let bell_lo = (tower_top - 1.9).max(params.plinth_height);
     push_box(
         &mut walls,
         &mut wall_indices,
@@ -725,8 +838,8 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     // The nave's side leaves: tall stone-framed windows in true openings, from the tower
     // face to the east gable.
     let (window_w, window_h) = params.window_size;
-    let sill = params.plinth_height + 0.9;
-    let head = sill + window_h;
+    let sill = (params.plinth_height + 0.9).min(params.eaves_height);
+    let head = (sill + window_h).min(params.eaves_height);
     for side in [-1.0_f32, 1.0] {
         rural_wall_run(
             &mut walls,
@@ -929,8 +1042,8 @@ fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
     for side in [-1.0_f32, 1.0] {
         for storey in 0..STOREYS {
             let floor = params.plinth_height + storey_h * storey as f32;
-            let sill = floor + 0.85;
-            let head = sill + window_h;
+            let sill = (floor + 0.85).min(floor + storey_h);
+            let head = (sill + window_h).min(floor + storey_h);
             let slots: Vec<(f32, f32)> = (0..params.windows_per_side)
                 .map(|slot| {
                     let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
@@ -1090,8 +1203,8 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
     let leaf_depth = params.half_depth - 0.1;
     let (window_w, window_h) = params.window_size;
     let half_w = window_w * 0.5;
-    let sill = params.eaves_height - window_h - 1.1;
-    let head = sill + window_h;
+    let sill = (params.eaves_height - window_h - 1.1).max(params.plinth_height);
+    let head = (sill + window_h).min(params.eaves_height);
     // Both long walls: the working apron below the sills, the stone lintel band above the
     // heads, leaf piers between the bays — then full-height pilaster strips standing proud
     // over every pier, the brick order of a real hall.
@@ -1234,24 +1347,31 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
         Vec3::Z,
         WorldMaterial::PlankDoor,
     );
+    // Worker door + canopy: absolute joinery clamped into the box for sized bakes
+    // (Immersja A1.2) — the canonical span never touches the clamps.
+    let worker_h = 1.05_f32.min((params.eaves_height - params.plinth_height) * 0.5);
     push_box(
         &mut walls,
         &mut wall_indices,
-        Vec3::new(face + 0.03, params.plinth_height + 1.05, -params.half_depth * 0.72),
-        Vec3::new(0.05, 1.05, 0.55),
+        Vec3::new(face + 0.03, params.plinth_height + worker_h, -params.half_depth * 0.72),
+        Vec3::new(0.05, worker_h, 0.55_f32.min(params.half_depth * 0.25)),
         WorldMaterial::PlankDoor,
     );
     push_box(
         &mut walls,
         &mut wall_indices,
-        Vec3::new(face + 0.04, params.plinth_height + 2.2, -params.half_depth * 0.72),
-        Vec3::new(0.05, 0.06, 0.75),
+        Vec3::new(
+            face + 0.04,
+            (params.plinth_height + 2.2).min(params.eaves_height - 0.06),
+            -params.half_depth * 0.72,
+        ),
+        Vec3::new(0.05, 0.06, 0.75_f32.min(params.half_depth * 0.27)),
         WorldMaterial::PlinthStone,
     );
 
     // The roof story: the main gable stops short of the ridge cap, the glazed clerestory
     // band rides the ridge line with a steel-sash rhythm, and a flat slab caps it.
-    let gable_top = params.ridge_height - 1.0;
+    let gable_top = (params.ridge_height - 1.0).max(params.eaves_height);
     let mut roof = Vec::new();
     let mut roof_indices = Vec::new();
     push_gable(
@@ -1262,11 +1382,16 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
         params.eaves_height,
         gable_top,
     );
-    let clerestory_half = Vec3::new(1.9, 0.45, params.half_depth * 0.72);
+    let clerestory_half =
+        Vec3::new(1.9_f32.min(params.half_width * 0.9), 0.45, params.half_depth * 0.72);
     push_box(
         &mut walls,
         &mut wall_indices,
-        Vec3::new(0.0, gable_top - 0.1 + clerestory_half.y, 0.0),
+        Vec3::new(
+            0.0,
+            (gable_top - 0.1 + clerestory_half.y).min(params.ridge_height - clerestory_half.y),
+            0.0,
+        ),
         clerestory_half,
         WorldMaterial::WindowGlass,
     );
@@ -1282,8 +1407,16 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
                 [
                     Vec3::new(pane_x, gable_top - 0.06, z - 0.035),
                     Vec3::new(pane_x, gable_top - 0.06, z + 0.035),
-                    Vec3::new(pane_x, gable_top - 0.18 + clerestory_half.y * 2.0, z + 0.035),
-                    Vec3::new(pane_x, gable_top - 0.18 + clerestory_half.y * 2.0, z - 0.035),
+                    Vec3::new(
+                        pane_x,
+                        (gable_top - 0.18 + clerestory_half.y * 2.0).min(params.ridge_height),
+                        z + 0.035,
+                    ),
+                    Vec3::new(
+                        pane_x,
+                        (gable_top - 0.18 + clerestory_half.y * 2.0).min(params.ridge_height),
+                        z - 0.035,
+                    ),
                 ],
                 Vec3::X * side,
                 WorldMaterial::PlankDoor,
@@ -1293,8 +1426,16 @@ fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> B
     push_box(
         &mut roof,
         &mut roof_indices,
-        Vec3::new(0.0, gable_top - 0.1 + clerestory_half.y * 2.0 + 0.09, 0.0),
-        Vec3::new(clerestory_half.x + 0.25, 0.1, clerestory_half.z + 0.25),
+        Vec3::new(
+            0.0,
+            (gable_top - 0.1 + clerestory_half.y * 2.0 + 0.09).min(params.ridge_height - 0.1),
+            0.0,
+        ),
+        Vec3::new(
+            (clerestory_half.x + 0.25).min(params.half_width),
+            0.1,
+            (clerestory_half.z + 0.25).min(params.half_depth),
+        ),
         WorldMaterial::Roof,
     );
     BakedBuilding {
@@ -1373,10 +1514,13 @@ fn bake_rubble(
     let mut wall_indices = Vec::new();
     let slabs = 7 + (rng.next() % 4) as u32;
     for _ in 0..slabs {
+        // Sized bakes (Immersja A1.2) can hand this a box SMALLER than a slab's old floor
+        // size — clamp every slab into the box; the canonical footprints never hit the
+        // clamps, so the canonical goldens are untouched.
         let half = Vec3::new(
-            0.5 + rng.unit() * params.half_width * 0.45,
+            (0.5 + rng.unit() * params.half_width * 0.45).min(params.half_width * 0.92),
             (0.18 + rng.unit() * 0.5 * ceiling).min(ceiling * 0.5),
-            0.5 + rng.unit() * params.half_depth * 0.45,
+            (0.5 + rng.unit() * params.half_depth * 0.45).min(params.half_depth * 0.92),
         );
         let center = Vec3::new(
             rng.signed() * (params.half_width - half.x).max(0.0),
@@ -1389,7 +1533,11 @@ fn bake_rubble(
     let mut roof = Vec::new();
     let mut roof_indices = Vec::new();
     for _ in 0..3 {
-        let half = Vec3::new(0.4 + rng.unit() * 0.9, 0.05, 0.5 + rng.unit() * 1.2);
+        let half = Vec3::new(
+            (0.4 + rng.unit() * 0.9).min(params.half_width * 0.92),
+            0.05,
+            (0.5 + rng.unit() * 1.2).min(params.half_depth * 0.92),
+        );
         let center = Vec3::new(
             rng.signed() * (params.half_width - half.x).max(0.0),
             (ceiling * (0.4 + rng.unit() * 0.5)).clamp(half.y, ceiling - half.y),
@@ -1996,6 +2144,95 @@ mod tests {
             assert!(
                 params.plinth_height + params.door_size.1 < params.eaves_height,
                 "{style:?}: the door head must stay under the eaves"
+            );
+        }
+    }
+
+    /// Immersja A1.2, the wave's promise locked three ways: (1) baked AT SIZE, every vertex
+    /// of every style, form and target box still lives inside that box — the honesty
+    /// contract without the stretch that used to buy it; (2) the bake is deterministic per
+    /// (style, seed, target); (3) a longer wall earns MORE windows while the window itself
+    /// never grows, and the door never grows either — the eye's absolute yardsticks hold.
+    #[test]
+    fn sized_bakes_stay_honest_and_tile_openings_by_count() {
+        let targets = [
+            Vec3::new(1.4, 1.1, 1.8),  // a shed barely worth a door
+            Vec3::new(3.4, 2.3, 4.6),  // canonical-ish village mass
+            Vec3::new(5.5, 5.5, 8.0),  // an Ostrogorsk tenement box (pre-rotated)
+            Vec3::new(6.0, 9.5, 6.0),  // the elevator head house
+            Vec3::new(9.0, 6.0, 14.0), // the factory hall span (pre-rotated)
+            Vec3::new(0.9, 1.6, 7.0),  // a sliver: long, thin, low
+        ];
+        for style in BuildingStyle::ALL {
+            for &target in &targets {
+                for form in [StructureForm::Intact, StructureForm::Rubble { height_frac: 0.3 }] {
+                    let building = bake_building_sized(style, 11, form, target);
+                    let again = bake_building_sized(style, 11, form, target);
+                    assert_eq!(
+                        building.deterministic_hash(),
+                        again.deterministic_hash(),
+                        "{style:?} {form:?} {target:?}: one building per (style, seed, target)"
+                    );
+                    let ceiling_frac = match form {
+                        StructureForm::Intact => 1.0,
+                        StructureForm::Rubble { height_frac } => height_frac,
+                    };
+                    let full_height = target.y * 2.0;
+                    for mesh in [&building.walls, &building.roof] {
+                        for vertex in mesh.vertices() {
+                            let p = vertex.position;
+                            assert!(
+                                p.x.abs() <= target.x + 1.0e-4 && p.z.abs() <= target.z + 1.0e-4,
+                                "{style:?} {form:?} {target:?}: vertex outside the box at {p:?}"
+                            );
+                            assert!(
+                                p.y >= -1.0e-4 && p.y <= full_height * ceiling_frac + 1.0e-4,
+                                "{style:?} {form:?} {target:?}: vertex above the ceiling at {p:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // The tiling law, on the params the bake consumes: double the wall, same window,
+        // same door, more windows.
+        for style in [BuildingStyle::Tenement, BuildingStyle::Cottage, BuildingStyle::FactoryHall] {
+            let narrow = sized_params(style, Vec3::new(4.6, 6.0, 6.0));
+            let wide = sized_params(style, Vec3::new(4.6, 6.0, 12.0));
+            assert_eq!(
+                narrow.window_size, wide.window_size,
+                "{style:?}: the window must NOT grow with the wall"
+            );
+            assert_eq!(
+                narrow.door_size, wide.door_size,
+                "{style:?}: the door must NOT grow with the wall"
+            );
+            assert!(
+                wide.windows_per_side > narrow.windows_per_side,
+                "{style:?}: the longer wall must earn more windows ({} vs {})",
+                wide.windows_per_side,
+                narrow.windows_per_side
+            );
+        }
+    }
+
+    /// The frame-budget fence for the sized path: the biggest half-extents actually
+    /// authored on the four maps (pre-rotated as the scene bakes them). A style that
+    /// outgrows its ceiling must bring a new frame measurement, not a bigger number.
+    #[test]
+    fn the_largest_authored_boxes_stay_inside_their_triangle_ceilings() {
+        for (style, target, ceiling) in [
+            (BuildingStyle::FactoryHall, Vec3::new(9.0, 6.0, 14.0), 2_600_usize),
+            (BuildingStyle::Tenement, Vec3::new(5.5, 5.5, 8.0), 2_600),
+            (BuildingStyle::Tenement, Vec3::new(6.0, 9.5, 6.0), 2_600),
+            (BuildingStyle::Church, Vec3::new(6.5, 7.0, 5.0), 1_000),
+        ] {
+            let tris =
+                bake_building_sized(style, 0, StructureForm::Intact, target).triangle_count();
+            assert!(
+                tris <= ceiling,
+                "{style:?} at {target:?} bakes {tris} tris over its {ceiling} ceiling"
             );
         }
     }
