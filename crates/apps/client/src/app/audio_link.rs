@@ -61,6 +61,10 @@ impl ClientApp {
         // The squall's patter belongs to the battlefield's weather, never the hangar roof.
         let rain_level = if in_garage { 0.0 } else { self.weather_frame.rain_intensity };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
+        // The clatter's timbre follows what the tracks actually ride (Immersja C2); the
+        // hangar floor is concrete, but a parked engine is off so Soil is a harmless default.
+        let track_surface =
+            if in_garage { audio::TrackSurface::Soil } else { self.player_track_surface() };
         let player_burning = !in_garage && self.player_engine_burning();
         let turret_slew = if in_garage { 0.0 } else { self.player_turret_slew_norm() };
         let scoped = !in_garage && self.camera_controller.mode() == crate::BattleCameraMode::Sniper;
@@ -87,6 +91,7 @@ impl ClientApp {
             engine.set_hangar_bed(hangar_level, radio_pan, radio_gain);
             engine.set_rain_level(rain_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
+            engine.set_track_surface(track_surface);
             engine.set_player_fire(player_burning);
             engine.set_turret_slew(turret_slew);
             engine.set_scope_muffle(scoped);
@@ -214,6 +219,16 @@ impl ClientApp {
             .is_some_and(|tank| (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0)
     }
 
+    /// What the player's tracks are riding this frame (Immersja C2), translated into the
+    /// audio crate's own vocabulary. A ROAD answers first — `material_at` collapses Cobble
+    /// and Ballast into the Rock channel, so a granite street must be read from the road
+    /// list itself — and only a road actually UNDER the tracks counts (the blend is full
+    /// over the core and feathers to 0 at the edge; half-strength is the curb line).
+    fn player_track_surface(&self) -> audio::TrackSurface {
+        let position = self.predictor.position();
+        track_surface_at(&self.battlefield, &self.ground, position.x, position.z)
+    }
+
     /// The powerplant knobs for the engine bed: RPM follows the faster of actual ground speed
     /// (fraction of the vehicle's top speed) and throttle demand, and the LOAD is the
     /// predictor's honest strain (Immersja C1) — a tank crawling uphill at full power
@@ -242,6 +257,29 @@ impl ClientApp {
         // up a grade at full pedal reports more work than the same pedal cruising on flat.
         let load = self.predictor.drive_strain(throttle);
         (rpm_norm, load, speed_mps, alive)
+    }
+}
+
+/// The ground-truth surface under a world point, in the audio crate's vocabulary (Immersja
+/// C2). Free-standing so the lock can ask it about an authored street without driving there.
+fn track_surface_at(
+    battlefield: &terrain::BattlefieldMap,
+    ground: &terrain::GroundClassifier,
+    x: f32,
+    z: f32,
+) -> audio::TrackSurface {
+    if let Some((blend, surface)) = terrain::strongest_road_at(&battlefield.roads, x, z)
+        && blend > 0.5
+    {
+        return match surface {
+            terrain::RoadSurface::Cobble => audio::TrackSurface::Cobble,
+            terrain::RoadSurface::Ballast => audio::TrackSurface::Ballast,
+            terrain::RoadSurface::Dirt => audio::TrackSurface::Soil,
+        };
+    }
+    match ground.material_at(&battlefield.heightmap, x, z) {
+        terrain::GroundMaterial::Rock => audio::TrackSurface::Rock,
+        _ => audio::TrackSurface::Soil,
     }
 }
 
@@ -339,6 +377,37 @@ mod tests {
         // strain reads as a full stall dig — the old raw-throttle number, now for a reason.
         assert!(load > 0.9, "the stall dig is full strain, got {load}");
         assert!(rpm_norm > 0.7, "the governor answers the pedal, not just the speedometer");
+    }
+
+    /// Immersja C2: the surface the clatter reports is the surface the map authored. The
+    /// cobbled street must come from the ROAD list (the ground classifier collapses Cobble
+    /// into its Rock channel), and open grass must stay the reference Soil.
+    #[test]
+    fn the_tracks_report_the_street_they_actually_ride() {
+        let app = deployed_app();
+        let cobbled = app
+            .battlefield
+            .roads
+            .iter()
+            .find(|road| road.surface == terrain::RoadSurface::Cobble)
+            .expect("the deployed map authors a cobbled street");
+        let mid = cobbled.points[cobbled.points.len() / 2];
+        assert_eq!(
+            super::track_surface_at(&app.battlefield, &app.ground, mid[0], mid[1]),
+            audio::TrackSurface::Cobble,
+            "a granite street must be read from the road list, not the ground splat"
+        );
+
+        // A point far from every road: the reference field sound.
+        let open = (0..200)
+            .map(|i| [i as f32 * 4.9 + 3.0, 41.0])
+            .find(|p| terrain::road_blend_at(&app.battlefield.roads, p[0], p[1]) == 0.0)
+            .expect("the map keeps open ground");
+        let surface = super::track_surface_at(&app.battlefield, &app.ground, open[0], open[1]);
+        assert!(
+            surface == audio::TrackSurface::Soil || surface == audio::TrackSurface::Rock,
+            "open ground speaks the ground splat's language, got {surface:?}"
+        );
     }
 
     #[test]

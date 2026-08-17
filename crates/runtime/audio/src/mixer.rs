@@ -86,6 +86,11 @@ impl AudioEngine {
         self.engine_bed.set_state(rpm_norm, load, speed_mps, running);
     }
 
+    /// What the player's tracks are riding (Immersja C2) — see [`EngineVoice::set_track_surface`].
+    pub fn set_track_surface(&mut self, surface: crate::TrackSurface) {
+        self.engine_bed.set_track_surface(surface);
+    }
+
     /// The player's own engine compartment is on fire: a crackle at the ear, no spatialization
     /// (the deck is meters away). Spools in/out like the engine bed.
     pub fn set_player_fire(&mut self, burning: bool) {

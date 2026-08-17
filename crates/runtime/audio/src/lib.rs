@@ -25,4 +25,5 @@ pub use events::AudioEvent;
 pub use mixer::AudioEngine;
 pub use remote::RemoteEngineState;
 pub use spatial::Listener;
+pub use voices::engine::TrackSurface;
 pub use voices::impact::GroundKind;
