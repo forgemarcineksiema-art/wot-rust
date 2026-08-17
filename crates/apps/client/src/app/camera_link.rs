@@ -66,6 +66,7 @@ impl ClientApp {
         if let Some((spring_pitch, heave_m)) = self.presentation.sprung_attitude(tank_id) {
             subject = subject.with_sprung_attitude(spring_pitch - hull_pitch_rad, heave_m);
         }
+        subject = subject.with_ride_shake(self.ride_shake_m());
         let environment = BattleCameraEnvironment::with_obstacles(
             &self.battlefield.heightmap,
             self.live_cover.camera_obstacles(),
@@ -112,6 +113,32 @@ impl ClientApp {
             },
             ..Default::default()
         }
+    }
+
+    /// The ride-tremor amplitude for the presented TPP rig (Immersja B2): terrain roughness
+    /// at the hull with the SLOPE component removed (a smooth grade is not a bumpy road),
+    /// scaled by speed — a standing tank never trembles, which also retires the tremor for
+    /// free when `freeze_motion()` zeroes the predicted speed. Presentation-only: nothing
+    /// here feeds back into the sim.
+    pub(super) fn ride_shake_m(&self) -> f32 {
+        let speed_frac = (self.predictor.speed_mps().abs() / 10.0).min(1.0);
+        if speed_frac <= 0.0 {
+            return 0.0;
+        }
+        let position = self.predictor.position();
+        let Some(contact) = physics::sample_tank_terrain_contact(
+            &self.battlefield.heightmap,
+            position,
+            self.predictor.yaw(),
+            3.0,
+            self.live_cover.rubble(),
+            Some(&self.ground),
+        ) else {
+            return 0.0;
+        };
+        let slope = contact.forward_slope.abs().max(contact.side_slope.abs());
+        let bumpiness = (contact.roughness - slope).max(0.0);
+        (bumpiness * speed_frac * 0.08).min(0.035)
     }
 
     pub(super) fn camera_subject_from_tank(&self, tank: TankSnapshot) -> CameraSubject {

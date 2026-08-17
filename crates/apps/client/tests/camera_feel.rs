@@ -440,3 +440,89 @@ fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do()
         "the sniper eye stays rigid through the springs"
     );
 }
+
+/// Immersja B2, first promise: the shot's rock reaches the presented camera THROUGH the
+/// spring — the chain B1 built carries it for free. The hull's fire impulse rocks the
+/// presentation spring; the spring's residual is exactly what the presented rig rides.
+#[test]
+fn the_shots_rock_reaches_the_presented_camera_through_the_spring() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let level = engine::AttitudeSample { terrain_pitch_rad: 0.0, terrain_roll_rad: 0.0 };
+    let still =
+        engine::TankMotion { forward_speed_mps: 0.0, accel_long_mps2: 0.0, yaw_rate_rad_s: 0.0 };
+    let mut attitude = engine::HullAttitude::default();
+    for _ in 0..240 {
+        attitude.step([0.0, 0.0, 0.0], still, level, 1.0, 1.0 / 60.0);
+    }
+    let settled = attitude.pitch_rad;
+    attitude.fire_impulse(0.0); // over the bow: the nose answers in pitch
+    for _ in 0..5 {
+        attitude.step([0.0, 0.0, 0.0], still, level, 1.0, 1.0 / 60.0);
+    }
+    let residual = attitude.pitch_rad - settled;
+    assert!(residual.abs() > 5.0e-4, "the shot must rock the spring, got {residual}");
+
+    let position = [20.0, 0.0, 20.0];
+    let calm = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    let rocked = calm.with_sprung_attitude(residual, attitude.heave_m);
+    let mut calm_rig = BattleCameraController::new(BattleCameraSettings::default());
+    calm_rig.set_mode(BattleCameraMode::ThirdPerson);
+    let mut rocked_rig = BattleCameraController::new(BattleCameraSettings::default());
+    rocked_rig.set_mode(BattleCameraMode::ThirdPerson);
+    assert_ne!(
+        calm_rig.present(&calm, &environment, 1.0 / 60.0),
+        rocked_rig.present(&rocked, &environment, 1.0 / 60.0),
+        "the presented rig must answer the shot's rock"
+    );
+}
+
+/// Immersja B2, second promise: a rough ride shivers the presented rig, a standing tank's
+/// camera is bit-stable, an absurd amplitude stays inside the hard cap, and the sniper
+/// never trembles at all. No RNG — the same input sequence renders the same frames.
+#[test]
+fn a_rough_ride_shivers_the_rig_and_a_standing_tank_never_does() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let calm = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    let rough = calm.with_ride_shake(0.03);
+
+    let spread = |subject: &CameraSubject| {
+        let mut rig = BattleCameraController::new(BattleCameraSettings::default());
+        rig.set_mode(BattleCameraMode::ThirdPerson);
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        for _ in 0..48 {
+            let eye_y = rig.present(subject, &environment, 1.0 / 60.0).eye[1];
+            lo = lo.min(eye_y);
+            hi = hi.max(eye_y);
+        }
+        hi - lo
+    };
+    assert!(spread(&rough) > 0.02, "the rough ride must visibly shiver, got {}", spread(&rough));
+    assert!(spread(&calm) < 1.0e-6, "a standing tank's rig is bit-stable");
+    assert!(
+        spread(&calm.with_ride_shake(5.0)) <= 0.101,
+        "an absurd amplitude stays inside the 0.05 m cap"
+    );
+
+    // Determinism: the same sequence renders the same frames, bit for bit.
+    let run = |subject: &CameraSubject| {
+        let mut rig = BattleCameraController::new(BattleCameraSettings::default());
+        rig.set_mode(BattleCameraMode::ThirdPerson);
+        (0..16).map(|_| rig.present(subject, &environment, 1.0 / 60.0).eye).collect::<Vec<_>>()
+    };
+    assert_eq!(run(&rough), run(&rough), "no RNG in presentation");
+
+    // Sniper: the tremor never reaches the optics.
+    let mut sniper_a = BattleCameraController::new(BattleCameraSettings::default());
+    sniper_a.set_mode(BattleCameraMode::Sniper);
+    let mut sniper_b = BattleCameraController::new(BattleCameraSettings::default());
+    sniper_b.set_mode(BattleCameraMode::Sniper);
+    assert_eq!(
+        sniper_a.present(&calm, &environment, 1.0 / 60.0),
+        sniper_b.present(&rough, &environment, 1.0 / 60.0),
+        "the sniper never trembles"
+    );
+}

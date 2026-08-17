@@ -85,6 +85,11 @@ pub struct CameraSubject {
     /// logical camera and the sniper ignore them entirely.
     pub sprung_dive_rad: f32,
     pub sprung_heave_m: f32,
+    /// Presentation-only ride tremor amplitude (Immersja B2): what the suspension could not
+    /// swallow — the client computes it from terrain roughness × speed (slope subtracted,
+    /// so a smooth grade never trembles), and it dies with the speed, which also makes it
+    /// freeze-safe for free. Presented TPP only; zero for the logical camera and sniper.
+    pub ride_shake_m: f32,
 }
 
 impl CameraSubject {
@@ -103,6 +108,7 @@ impl CameraSubject {
             desired_pitch_rad: gun_pitch_rad,
             sprung_dive_rad: 0.0,
             sprung_heave_m: 0.0,
+            ride_shake_m: 0.0,
         }
     }
 
@@ -110,6 +116,12 @@ impl CameraSubject {
     pub fn with_sprung_attitude(mut self, dive_rad: f32, heave_m: f32) -> Self {
         self.sprung_dive_rad = dive_rad;
         self.sprung_heave_m = heave_m;
+        self
+    }
+
+    /// Attach the ride-tremor amplitude for the presented TPP camera (Immersja B2).
+    pub fn with_ride_shake(mut self, shake_m: f32) -> Self {
+        self.ride_shake_m = shake_m;
         self
     }
 

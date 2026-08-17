@@ -110,6 +110,7 @@ mod tests {
             desired_pitch_rad,
             sprung_dive_rad: 0.0,
             sprung_heave_m: 0.0,
+            ride_shake_m: 0.0,
         }
     }
 
