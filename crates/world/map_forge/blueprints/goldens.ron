@@ -36,8 +36,17 @@
     // every other cover entry stand untouched; the scene_build szpaler bake (undergrowth,
     // staggered boles, undulating crown) fills the new volume and stays inside it, proven by
     // `tree_line_boxes_contain_the_trees_they_host` and the all-maps cover-visuals lock.
-    ("bystra_valley", "8823049281b1443a"),
-    ("orliny_pereval", "c3363477b2635837"),
-    ("ostrogorsk", "d611b9d57e80de5e"),
-    ("prokhorovka_hill_252_2", "cf14583c8f3eec40"),
+    // Re-blessed 2026-08-16 (Immersja A2.1 — instance variety), ALL FOUR MAPS: a planted
+    // row is a row of PLANTS now — Row/Fixed scenery jitters its scale ±12 % per mirrored
+    // pair (seeded from the canonical position) and every instance grows its OWN yaw (a
+    // lamppost's arm stays over its road within ±10°), and a scatter's mirror twin poses
+    // with its own yaw instead of the old -yaw reflection that stamped one forest twice.
+    // FAIRNESS UNTOUCHED: a pair SHARES its scale (an Oak's TreeTrunk cover box is scaled
+    // by the instance, so the twins' boxes stay identical), positions and every cover
+    // entry stand exactly where they were, and playability/symmetry reports held
+    // un-relaxed. Dressing only — locked by tests/scenery_variety.rs.
+    ("bystra_valley", "bcd5bae3232d1211"),
+    ("orliny_pereval", "0c31d6c2c19441be"),
+    ("ostrogorsk", "1358bf95e090df94"),
+    ("prokhorovka_hill_252_2", "21c90d326dde89a9"),
 ]

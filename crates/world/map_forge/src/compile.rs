@@ -338,8 +338,12 @@ fn expand_scenery(
     out
 }
 
-/// A planted/fixed instance plus its northern twin — mirrors position and yaw across the
-/// axis, grounded on the heightmap.
+/// A planted/fixed instance plus its northern twin — mirrors position across the axis,
+/// grounded on the heightmap. A row is a row of PLANTS, not stamped clones (Immersja A2.1):
+/// each pair jitters the authored scale ±12 % (seeded from the canonical position and
+/// SHARED by the twins — an Oak's trunk becomes a cover box scaled by the instance, and
+/// fairness demands identical twins), and each instance grows its own yaw — a lamppost's
+/// arm stays over the road within a few degrees, everything else swings freely.
 #[allow(clippy::too_many_arguments)]
 fn push_mirrored(
     out: &mut Vec<SceneryInstance>,
@@ -351,7 +355,13 @@ fn push_mirrored(
     scale: f32,
     axis_z: f32,
 ) {
-    for (zz, yaw) in [(z, yaw_rad), (axis_z * 2.0 - z, -yaw_rad)] {
+    let scale = scale * (0.88 + terrain::position_unit(x, z, 0x5CEA) * 0.24);
+    for (zz, base_yaw) in [(z, yaw_rad), (axis_z * 2.0 - z, -yaw_rad)] {
+        let own = terrain::position_unit(x, zz, 0x0A17);
+        let yaw = match kind {
+            terrain::SceneryKind::Lamppost => base_yaw + (own - 0.5) * 0.35,
+            _ => own * std::f32::consts::TAU,
+        };
         if let Some(ground) = heightmap.sample_height(x, zz) {
             out.push(SceneryInstance { kind, position: [x, ground, zz], yaw_rad: yaw, scale });
         }

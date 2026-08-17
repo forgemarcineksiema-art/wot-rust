@@ -49,7 +49,7 @@ pub use rubble::{
 };
 pub use scenery::{
     ScatterRegion, SceneryInstance, SceneryKind, covers_containing, inside_any_cover,
-    scatter_mirrored,
+    position_unit, scatter_mirrored,
 };
 pub use sculpt::{band_mask, lerp, polyline_distance, smoothstep01};
 pub use water::WaterBody;
