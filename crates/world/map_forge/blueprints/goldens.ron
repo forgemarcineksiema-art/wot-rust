@@ -45,8 +45,16 @@
     // by the instance, so the twins' boxes stay identical), positions and every cover
     // entry stand exactly where they were, and playability/symmetry reports held
     // un-relaxed. Dressing only — locked by tests/scenery_variety.rs.
-    ("bystra_valley", "bcd5bae3232d1211"),
-    ("orliny_pereval", "0c31d6c2c19441be"),
-    ("ostrogorsk", "1358bf95e090df94"),
+    // Re-blessed 2026-08-17 (Immersja A2.2 — the town grid cast house by house), THREE
+    // maps (Prokhorovka has no TownGrid and its hash is UNCHANGED — the proof of scope):
+    // every grid cell now picks its mould (wide / narrow / their blend) and stretches its
+    // own body — footprint ±10 %, height ±6 % (the height feeds the rubble-sightline
+    // band, so it moves less) — seeded from the canonical cell, so the mirror twins stay
+    // box-for-box IDENTICAL and the symmetry report holds un-relaxed. 48 Ostrogorsk
+    // tenements stop being two silhouettes on a checkerboard. Census counts, positions,
+    // playability BFS: untouched/green. Locked by tests/scenery_variety.rs.
+    ("bystra_valley", "debc868a549aa709"),
+    ("orliny_pereval", "4125d5a760c33962"),
+    ("ostrogorsk", "283d0baf6c4d4462"),
     ("prokhorovka_hill_252_2", "21c90d326dde89a9"),
 ]

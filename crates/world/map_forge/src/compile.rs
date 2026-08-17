@@ -195,10 +195,36 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                 wide_half_m,
                 narrow_half_m,
             } => {
+                // Immersja A2.2: a town is cast house by house, not stamped from two
+                // moulds on a checkerboard. Each cell picks its mould (wide / narrow /
+                // their blend) and jitters its extents — footprint ±10 %, height ±6 %
+                // (the height feeds the rubble-sightline gameplay band, so it moves
+                // less) — all seeded from the CANONICAL cell (column x, row offset),
+                // which both mirror twins share. The two halves therefore stay
+                // box-for-box identical: the variety is per house, the fairness per
+                // pair, exactly like the scenery wave before it.
                 for (column, &x) in columns_x_m.iter().enumerate() {
                     for (row, &row_offset) in row_offsets_m.iter().enumerate() {
-                        let half =
-                            if (column + row) % 2 == 0 { wide_half_m } else { narrow_half_m };
+                        let pick = terrain::position_unit(x, row_offset, 0x7061);
+                        let base = if pick < 0.34 {
+                            *wide_half_m
+                        } else if pick < 0.67 {
+                            *narrow_half_m
+                        } else {
+                            [
+                                (wide_half_m[0] + narrow_half_m[0]) * 0.5,
+                                (wide_half_m[1] + narrow_half_m[1]) * 0.5,
+                                (wide_half_m[2] + narrow_half_m[2]) * 0.5,
+                            ]
+                        };
+                        let stretch = |axis: u64, lo: f32, hi: f32| {
+                            lo + terrain::position_unit(x, row_offset, axis) * (hi - lo)
+                        };
+                        let half = [
+                            base[0] * stretch(0x7062, 0.9, 1.1),
+                            base[1] * stretch(0x7063, 0.94, 1.06),
+                            base[2] * stretch(0x7064, 0.9, 1.1),
+                        ];
                         for (side, sign) in [("south", -1.0_f32), ("north", 1.0_f32)] {
                             out.push(grounded_cover(
                                 heightmap,
@@ -206,7 +232,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                                 &format!("{name_prefix} (column {column}, row {row}, {side})"),
                                 *kind,
                                 [x, axis_z + sign * row_offset],
-                                *half,
+                                half,
                             ));
                         }
                     }
