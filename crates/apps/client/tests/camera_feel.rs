@@ -526,3 +526,49 @@ fn a_rough_ride_shivers_the_rig_and_a_standing_tank_never_does() {
         "the sniper never trembles"
     );
 }
+
+/// Immersja B3, the freeze law made a gate: excite EVERY feel channel at once — follow
+/// spring displacement, own-shot kick, damage shudder, landing slam, sprung dive/heave,
+/// ride tremor — then freeze the inputs the way `freeze_motion()` leaves them (zero speed,
+/// zero residuals, zero amplitude, no new impulses) and the presented camera must settle
+/// to BIT-stability. A future feel channel with unretired state fails this by construction:
+/// register your retirement or you do not ship (docs/battle-camera-policy.md).
+#[test]
+fn every_feel_channel_retires_when_motion_freezes() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let excited = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0)
+        .with_sprung_attitude(-0.03, -0.12)
+        .with_ride_shake(0.03);
+
+    let mut rig = BattleCameraController::new(BattleCameraSettings::default());
+    rig.set_mode(BattleCameraMode::ThirdPerson);
+    // Every impulse channel at once, over a few frames of fast driving.
+    for _ in 0..10 {
+        rig.advance(position, 12.0, 1.0 / 60.0);
+        rig.present(&excited, &environment, 1.0 / 60.0);
+    }
+    rig.fire_kick(0.0);
+    rig.damage_shudder(glam::Vec3::new(1.0, 0.0, -1.0), 0.8);
+    rig.impact_kick(5.0);
+    rig.present(&excited, &environment, 1.0 / 60.0);
+
+    // The freeze: what the world looks like after freeze_motion() — the predictor's speed
+    // and accel are zero, so the spring residuals, tremor amplitude and FOV boost inputs
+    // all arrive as zero; no further impulses fire.
+    let frozen = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    for _ in 0..600 {
+        rig.advance(position, 0.0, 1.0 / 60.0);
+        rig.present(&frozen, &environment, 1.0 / 60.0);
+    }
+    let a = {
+        rig.advance(position, 0.0, 1.0 / 60.0);
+        rig.present(&frozen, &environment, 1.0 / 60.0)
+    };
+    let b = {
+        rig.advance(position, 0.0, 1.0 / 60.0);
+        rig.present(&frozen, &environment, 1.0 / 60.0)
+    };
+    assert_eq!(a, b, "a frozen world must carry a bit-stable presented camera");
+}
