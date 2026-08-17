@@ -32,6 +32,13 @@ const SPRUNG_HEAVE_FRAC: f32 = 0.5;
 /// input may nod the view, never throw it.
 const SPRUNG_DIVE_CAP_RAD: f32 = 0.02;
 const SPRUNG_HEAVE_CAP_M: f32 = 0.2;
+/// Ride tremor (Immersja B2): the two beat rates of the vertical shiver (deliberately
+/// inharmonic so it never reads as a tone), and the hard amplitude cap — a tremor shivers
+/// the view, it never throws it. No RNG anywhere: the phase is a plain accumulator, so the
+/// presented camera stays a deterministic function of its input sequence.
+const SHAKE_BEAT_A_HZ: f32 = 11.0;
+const SHAKE_BEAT_B_HZ: f32 = 29.7;
+const SHAKE_CAP_M: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(super) struct PresentedCamera {
@@ -41,6 +48,8 @@ pub(super) struct PresentedCamera {
     blend: Option<(Camera, BattleCameraMode, f32)>,
     /// Smoothed third-person boom length (meters).
     boom_m: Option<f32>,
+    /// Ride-tremor clock (Immersja B2): a plain accumulator, deterministic per frame sequence.
+    shake_phase: f32,
 }
 
 impl BattleCameraController {
@@ -59,6 +68,7 @@ impl BattleCameraController {
         if self.mode() == BattleCameraMode::ThirdPerson {
             camera = self.presented.smooth_boom(camera, dt);
             camera = ride_sprung_hull(camera, subject);
+            camera = self.presented.ride_tremor(camera, subject.ride_shake_m, dt);
         } else {
             self.presented.boom_m = None;
         }
@@ -109,6 +119,26 @@ impl BattleCameraController {
 }
 
 impl PresentedCamera {
+    /// The ride tremor (Immersja B2): what the suspension could not swallow shivers the
+    /// whole rig vertically — two inharmonic beats, amplitude handed in by the client
+    /// (roughness × speed, slope removed), hard-capped. The phase clock only advances
+    /// while there IS a tremor, so a standing tank's presented camera stays bit-stable.
+    fn ride_tremor(&mut self, camera: Camera, amplitude_m: f32, dt: f32) -> Camera {
+        let amplitude = amplitude_m.clamp(0.0, SHAKE_CAP_M);
+        if amplitude <= 0.0 {
+            return camera;
+        }
+        self.shake_phase = (self.shake_phase + dt).rem_euclid(60.0);
+        let t = self.shake_phase * std::f32::consts::TAU;
+        let shiver = (t * SHAKE_BEAT_A_HZ).sin() * 0.65 + (t * SHAKE_BEAT_B_HZ + 1.3).sin() * 0.35;
+        let lift = Vec3::Y * (amplitude * shiver);
+        Camera {
+            eye: (Vec3::from_array(camera.eye) + lift).to_array(),
+            target: (Vec3::from_array(camera.target) + lift).to_array(),
+            ..camera
+        }
+    }
+
     /// Shorten instantly (a clipping camera is worse than a popping one), recover smoothly.
     fn smooth_boom(&mut self, camera: Camera, dt: f32) -> Camera {
         let target = Vec3::from_array(camera.target);
