@@ -13,6 +13,35 @@ const FIRING_HZ_MAX: f32 = 200.0;
 /// Track link pitch of the reference vehicle (T-54): one link passes the sprocket every 0.137 m.
 const LINK_PITCH_M: f32 = 0.137;
 
+/// What the tracks are actually riding (Immersja C2) — the audio crate's OWN vocabulary;
+/// the client translates the terrain's ground/road answer into it, the DSP stays
+/// terrain-ignorant. Each surface names how the clatter speaks: its level, how much of
+/// its top end survives, and how hard the link-rate knock reads through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TrackSurface {
+    /// Field soil / grass: the reference clatter (exactly the pre-C2 sound).
+    #[default]
+    Soil,
+    /// Natural rock crest: harder, brighter.
+    Rock,
+    /// Railway ballast: a crunchy, slightly brighter bed.
+    Ballast,
+    /// A granite street: loud, bright, and the stones knock at the link rate.
+    Cobble,
+}
+
+impl TrackSurface {
+    /// `(level multiplier, brightness multiplier, knock depth)` for the clatter chain.
+    fn voice(self) -> (f32, f32, f32) {
+        match self {
+            TrackSurface::Soil => (1.0, 1.0, 0.0),
+            TrackSurface::Rock => (1.15, 1.3, 0.15),
+            TrackSurface::Ballast => (1.25, 1.15, 0.3),
+            TrackSurface::Cobble => (1.4, 1.5, 0.6),
+        }
+    }
+}
+
 pub struct EngineVoice {
     sample_rate_hz: f32,
     /// Smoothed control values — the game thread sets targets, the audio rate glides to them so
@@ -33,6 +62,12 @@ pub struct EngineVoice {
     /// top and damps the squeal — the same run sounds heavier in a squall.
     target_wetness: f32,
     wetness: f32,
+    /// Surface voice (Immersja C2), glided like every other control so crossing a curb
+    /// crossfades the clatter instead of stepping it: level ×, brightness ×, knock 0..1.
+    target_surface: (f32, f32, f32),
+    surface_level: f32,
+    surface_bright: f32,
+    surface_knock: f32,
     squeal_phase: f32,
     noise: Noise,
     exhaust_lp: OnePoleLowPass,
@@ -58,6 +93,10 @@ impl EngineVoice {
             track_phase: 0.0,
             target_wetness: 0.0,
             wetness: 0.0,
+            target_surface: TrackSurface::Soil.voice(),
+            surface_level: 1.0,
+            surface_bright: 1.0,
+            surface_knock: 0.0,
             squeal_phase: 0.0,
             noise: Noise::new(seed),
             exhaust_lp: OnePoleLowPass::new(700.0, sample_rate_hz),
@@ -71,6 +110,12 @@ impl EngineVoice {
     /// clatter's brightness and the metal-on-metal squeal.
     pub fn set_ground_wetness(&mut self, wetness: f32) {
         self.target_wetness = wetness.clamp(0.0, 1.0);
+    }
+
+    /// What the tracks are riding (Immersja C2): the clatter's timbre follows the street.
+    /// Glided internally — crossing a curb crossfades, never steps.
+    pub fn set_track_surface(&mut self, surface: TrackSurface) {
+        self.target_surface = surface.voice();
     }
 
     /// Per-frame control update from the game thread. `rpm_norm` 0..1 spans idle..governed,
@@ -123,13 +168,24 @@ impl EngineVoice {
             // fading in above a slow walk. The ground answers (D8): wet soil swallows the top
             // of the clatter and some of its level — the same run reads heavier in a squall.
             self.wetness += (self.target_wetness - self.wetness) * glide;
+            self.surface_level += (self.target_surface.0 - self.surface_level) * glide;
+            self.surface_bright += (self.target_surface.1 - self.surface_bright) * glide;
+            self.surface_knock += (self.target_surface.2 - self.surface_knock) * glide;
             let link_hz = self.speed_mps / LINK_PITCH_M;
             self.track_phase += std::f32::consts::TAU * link_hz / self.sample_rate_hz;
-            let track_level =
-                (self.speed_mps / 8.0).clamp(0.0, 1.0) * 0.3 * (1.0 - 0.35 * self.wetness);
-            let modulation = 0.6 + 0.4 * self.track_phase.sin().powi(2);
-            self.track_ground_lp
-                .set_cutoff(6_000.0.lerp(1_600.0, self.wetness), self.sample_rate_hz);
+            let track_level = (self.speed_mps / 8.0).clamp(0.0, 1.0)
+                * 0.3
+                * (1.0 - 0.35 * self.wetness)
+                * self.surface_level;
+            // Cobble knocks at the link rate: the knock deepens the AM floor, so stones
+            // read as a rhythm, not just a louder hiss. Soil keeps the original 0.6/0.4.
+            let modulation_floor = 0.6 * (1.0 - 0.7 * self.surface_knock);
+            let modulation =
+                modulation_floor + (1.0 - modulation_floor) * self.track_phase.sin().powi(2);
+            self.track_ground_lp.set_cutoff(
+                (6_000.0 * self.surface_bright).lerp(1_600.0, self.wetness),
+                self.sample_rate_hz,
+            );
             let clatter = self.track_hp.process(self.noise.signed());
             let tracks = self.track_ground_lp.process(clatter) * track_level * modulation;
 
@@ -259,6 +315,33 @@ mod tests {
             moving_zcr > parked_zcr,
             "tracks must brighten the moving tank: {moving_zcr} vs {parked_zcr}"
         );
+    }
+
+    /// Immersja C2's audible promise: the same drive over a granite street is louder and
+    /// brighter than over field soil — the surface is the only thing that changed. And the
+    /// default surface IS the old sound: a Soil run matches the pre-C2 clatter contract
+    /// (the wet-ground A/B above keeps passing untouched on the same defaults).
+    #[test]
+    fn cobble_rings_louder_and_brighter_than_soil_under_the_same_drive() {
+        let run = |surface: TrackSurface| {
+            let mut engine = EngineVoice::new(SR, 5);
+            engine.set_state(0.6, 0.3, 9.0, true);
+            engine.set_track_surface(surface);
+            let out = render(&mut engine, 2.0);
+            out[SR as usize..].to_vec()
+        };
+        let soil = run(TrackSurface::Soil);
+        let cobble = run(TrackSurface::Cobble);
+        // The engine body swamps plain RMS (same reason the wet-ground lock reads the
+        // spectrum): the clatter lives in the top end, so brightness is the witness —
+        // and the level multiplier rides the same glided chain the brightness proves.
+        assert!(
+            zero_crossing_rate_hz(&cobble, SR) > zero_crossing_rate_hz(&soil, SR) * 1.08,
+            "stones must ring brighter than soil: {} vs {}",
+            zero_crossing_rate_hz(&cobble, SR),
+            zero_crossing_rate_hz(&soil, SR)
+        );
+        assert!(rms(&cobble) > rms(&soil), "and never quieter: {} vs {}", rms(&cobble), rms(&soil));
     }
 
     /// Immersja C1's audible promise, DSP side: the same rpm under MORE load is louder
