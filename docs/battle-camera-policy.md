@@ -65,3 +65,43 @@ snapshots. The client keeps a separate desired aim yaw/pitch for local camera
 feel and reticle feedback, then commands turret and gun toward the ballistic
 solution for the desired sight point. The actual shell path remains driven by
 the predicted/authoritative turret yaw and gun pitch.
+
+## The Feel Layer (Immersja B1-B3)
+
+The camera is a body, not a tripod — but only the PRESENTED camera. Two cameras
+exist by law (`quality/tests/camera_rules.rs`): the LOGICAL camera
+(`render_camera`) that aiming and sight-solving read, and the PRESENTED camera
+(`present()`) that reaches the renderer. Every feel channel lives strictly in
+the presented layer; the logical camera's output is bit-identical with every
+feel input loaded, and the sniper never moves for any of them — aiming
+tolerates no theatrics.
+
+The channel inventory, with its caps:
+
+- **Follow spring** (`smoothing.rs`): critically damped anchor, ~0.13 s lag,
+  leashed to 0.6 m so it trails but never loses the hull.
+- **Speed FOV**: +2.5 deg at 14 m/s, driven by tick-domain rigid-body speed,
+  never by presented-position differences.
+- **Own-shot kick**: anchor velocity impulse, 0.9 m/s back + 0.5 m/s down.
+- **Damage shudder / landing slam**: event-driven anchor impulses.
+- **Sprung-hull ride** (B1): the presented TPP takes 35 % of the hull spring's
+  dynamic dive residual (spring minus authoritative attitude — a steady slope
+  contributes nothing) and 50 % of its heave; hard caps 0.02 rad / 0.2 m. The
+  shot's rock arrives through this same chain: the hull's fire impulse rocks
+  the spring, the residual rides into the rig.
+- **Ride tremor** (B2): terrain roughness with the slope component removed,
+  times speed, as two inharmonic vertical beats; hard cap 0.05 m. A standing
+  tank never trembles.
+
+Three laws bind every present and future channel:
+
+1. **The sniper is bit-rigid.** Any channel that moves the sniper eye is priced
+   by the reticle-seam ratchet (30k placements per map) before it ships.
+2. **No RNG in presentation.** Every channel is a deterministic function of its
+   input sequence — phase accumulators and springs, never dice.
+3. **Feel dies with the freeze.** Every channel's inputs must retire through
+   `predict.rs::freeze_motion()` (zeroed speed, accel, impulses) so a terminal
+   world never carries a living camera. The lock
+   `every_feel_channel_retires_when_motion_freezes` excites every channel at
+   once and asserts the presented camera settles to bit-stability — a future
+   channel with unretired state fails it by construction.
