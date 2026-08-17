@@ -61,6 +61,49 @@ fn a_row_of_lampposts_is_cast_one_by_one_and_the_arms_stay_on_the_road() {
     }
 }
 
+/// Immersja A2.2: the town grid is cast house by house. Two moulds on a checkerboard gave
+/// 48 tenements exactly two silhouettes; now every cell picks and stretches its own body —
+/// while the mirror twins stay box-for-box identical, because cover IS gameplay and the
+/// two halves must play the same map.
+#[test]
+fn the_town_grid_is_cast_house_by_house_and_its_mirror_stays_fair() {
+    let map = battlefield(MapId::Ostrogorsk);
+    let grid: Vec<_> =
+        map.static_cover.iter().filter(|c| c.id.starts_with("ostrogorsk_tenement_c")).collect();
+    assert!(grid.len() >= 40, "the grid keeps its tenements, got {}", grid.len());
+
+    let mut footprints: Vec<[u32; 3]> = grid
+        .iter()
+        .map(|c| {
+            [
+                c.half_extents_m[0].to_bits(),
+                c.half_extents_m[1].to_bits(),
+                c.half_extents_m[2].to_bits(),
+            ]
+        })
+        .collect();
+    footprints.sort_unstable();
+    footprints.dedup();
+    assert!(
+        footprints.len() >= 8,
+        "two moulds gave exactly 2 silhouettes; a town needs many, got {}",
+        footprints.len()
+    );
+
+    for south in grid.iter().filter(|c| c.id.ends_with("_south")) {
+        let stem = south.id.trim_end_matches("_south");
+        let north = grid
+            .iter()
+            .find(|c| c.id.trim_end_matches("_north") == stem && c.id.ends_with("_north"))
+            .unwrap_or_else(|| panic!("{stem}: every house has its mirror twin"));
+        assert_eq!(
+            south.half_extents_m.map(f32::to_bits),
+            north.half_extents_m.map(f32::to_bits),
+            "{stem}: cover is gameplay — twins must be box-for-box identical"
+        );
+    }
+}
+
 /// Scattered oaks: the mirrored twin keeps the pair's scale (the trunk cover box under it
 /// is scaled by the instance — the two halves must play identically) but grows its own
 /// yaw — the old `-yaw` reflection that stamped one forest twice is retired.
