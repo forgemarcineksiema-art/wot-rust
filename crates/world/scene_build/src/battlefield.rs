@@ -1366,7 +1366,7 @@ fn terrain_scene_mesh_full(
 /// toward the haze. See [`append_border_apron`].
 const APRON_NEAR_OUT_M: f32 = 240.0;
 const APRON_NEAR_CELL_M: f32 = 12.0;
-const APRON_FAR_OUT_M: f32 = 1500.0;
+pub(crate) const APRON_FAR_OUT_M: f32 = 1500.0;
 const APRON_FAR_CELL_M: f32 = 48.0;
 /// Seam overlap depth: a finer surface's territory is entered a little below it, so any
 /// T-junction between the grids shows ground behind it, never a slit of sky (the backdrop

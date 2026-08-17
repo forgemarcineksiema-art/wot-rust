@@ -36,7 +36,11 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
     // The ring plants only trees today, so the stone never comes up — passed anyway so a ring
     // that ever scatters rock is made of the same stone as the map it encloses.
     let stone = crate::clutter::StoneTone::of_map(battlefield);
-    for _ in 0..180 {
+    // 450 (Immersja A3.2, was 180): 180 trees on a ~5.6 km perimeter read as a hedge with
+    // gaps, not a treeline. These are the painted-frustum FAR bakes (~tens of triangles
+    // each) — the budget lock below prices the whole ring, and it stays a fraction of one
+    // playfield oak.
+    for _ in 0..450 {
         let hx = backdrop_hash(&mut seed);
         let hz = backdrop_hash(&mut seed);
         let side = backdrop_hash(&mut seed);
@@ -157,6 +161,24 @@ mod tests {
 
     fn cached_river(map: &terrain::BattlefieldMap) -> bool {
         map_forge::cached_blueprint_by_id(&map.id).is_some_and(|bp| bp.river.is_some())
+    }
+
+    /// Immersja A3.2: the far plane must REACH the world it is shown. The border apron
+    /// continues the ground `APRON_FAR_OUT_M` past the red line, and the farthest a
+    /// camera can stand from that rim is the map's own long side away — computed here
+    /// from the real constants, so neither number can drift past the other in prose.
+    #[test]
+    fn the_far_plane_reaches_the_aprons_outer_rim_on_every_map() {
+        let far = renderer_api::CameraProjectionPolicy::webgpu_default().far_plane_m();
+        for id in MapId::SHIPPED.iter().copied() {
+            let map = map_forge::battlefield(id);
+            let extent = map.heightmap.extent_m();
+            let reach = crate::battlefield::APRON_FAR_OUT_M + extent[0].max(extent[1]);
+            assert!(
+                far >= reach,
+                "{id:?}: the far plane ({far} m) clips the apron's rim ({reach} m)"
+            );
+        }
     }
 
     #[test]
