@@ -162,7 +162,8 @@ MapBlueprint(
             name: "Ostrogorsk church",
             kind: FarmBuilding,
             at: (Fixed(250.0), Fixed(500.0)),
-            half_extents_m: (5.0, 7.0, 6.5),
+            half_extents_m: (5.0, 14.0, 6.5), // Immersja A4.1: 14 -> 28 m over the square
+
         ),
         // Mirrored factory compounds on the deep-west flank (PR-12): masonry halls behind
         // breachable stone-wall yards with an east gate — the FlankRoute anchors.
@@ -171,14 +172,16 @@ MapBlueprint(
             name: "factory hall (south)",
             kind: CityBuilding,
             at: (Fixed(140.0), Fixed(350.0)),
-            half_extents_m: (14.0, 6.0, 9.0),
+            half_extents_m: (22.0, 6.0, 9.0), // Immersja A4.1: a 44 m working span
+
         ),
         Cover(
             id: "ostrogorsk_factory_north",
             name: "factory hall (north)",
             kind: CityBuilding,
             at: (Fixed(140.0), Fixed(650.0)),
-            half_extents_m: (14.0, 6.0, 9.0),
+            half_extents_m: (22.0, 6.0, 9.0), // Immersja A4.1: a 44 m working span
+
         ),
         Cover(
             id: "factory_yard_wall_e1_south",
@@ -464,28 +467,32 @@ MapBlueprint(
             name: "grain elevator (south)",
             kind: FarmBuilding,
             at: (Fixed(915.0), Fixed(230.0)),
-            half_extents_m: (6.0, 9.5, 6.0),
+            half_extents_m: (6.0, 13.0, 6.0), // Immersja A4.1: head house 19 -> 26 m
+
         ),
         Cover(
             id: "elevator_north",
             name: "grain elevator (north)",
             kind: FarmBuilding,
             at: (Fixed(915.0), Fixed(770.0)),
-            half_extents_m: (6.0, 9.5, 6.0),
+            half_extents_m: (6.0, 13.0, 6.0), // Immersja A4.1: head house 19 -> 26 m
+
         ),
         Cover(
             id: "elevator_silo_south",
             name: "elevator silo tower (south)",
             kind: RailCover,
             at: (Fixed(929.0), Fixed(245.0)),
-            half_extents_m: (2.2, 5.5, 2.2),
+            half_extents_m: (2.2, 9.0, 2.2), // Immersja A4.1: silo towers 11 -> 18 m
+
         ),
         Cover(
             id: "elevator_silo_north",
             name: "elevator silo tower (north)",
             kind: RailCover,
             at: (Fixed(929.0), Fixed(755.0)),
-            half_extents_m: (2.2, 5.5, 2.2),
+            half_extents_m: (2.2, 9.0, 2.2), // Immersja A4.1: silo towers 11 -> 18 m
+
         ),
         Cover(
             id: "elevator_shed_south",
