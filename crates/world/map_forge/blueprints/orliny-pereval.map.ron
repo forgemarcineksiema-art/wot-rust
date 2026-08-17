@@ -16,11 +16,13 @@ MapBlueprint(
         min_height_m: 0.2,
     ),
     symmetry: Some(MirrorZ),
+    // Immersja A3.1: a mountain PASS was ringed by 60 m mounds — the range rises to
+    // 130 m so the peaks finally look down on the crests the map fights over.
     horizon: Some(HorizonSpec(
-        hills_base_m: 60.0,
-        swell: (12.0, 0.006, 0.005, 2.3),
-        x_roll: (7.0, 0.01),
-        z_roll: (5.0, 0.009),
+        hills_base_m: 130.0,
+        swell: (24.0, 0.006, 0.005, 2.3),
+        x_roll: (13.0, 0.01),
+        z_roll: (10.0, 0.009),
         closure_start_m: 20.0,
         closure_span_m: 260.0,
         river_gap_half_m: 0.0,

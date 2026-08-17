@@ -16,11 +16,13 @@ MapBlueprint(
         min_height_m: 0.2,
     ),
     symmetry: Some(MirrorZ),
+    // Immersja A3.1: the city sits in country that used to be a curb — the enclosing
+    // ridge rises 24 -> 58 m so the far streets end against LAND, not against sky.
     horizon: Some(HorizonSpec(
-        hills_base_m: 24.0,
-        swell: (5.5, 0.008, 0.006, 1.8),
-        x_roll: (3.5, 0.012),
-        z_roll: (3.0, 0.01),
+        hills_base_m: 58.0,
+        swell: (11.0, 0.008, 0.006, 1.8),
+        x_roll: (7.0, 0.012),
+        z_roll: (6.0, 0.01),
         closure_start_m: 30.0,
         closure_span_m: 280.0,
         river_gap_half_m: 0.0,

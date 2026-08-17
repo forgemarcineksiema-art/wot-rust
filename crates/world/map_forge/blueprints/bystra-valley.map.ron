@@ -25,11 +25,13 @@ MapBlueprint(
         wiggle_wave_m: 70.0,
         corridor_half_width_m: 31.0,
     )),
+    // Immersja A3.1: the valley's enclosure rises from a berm (27 m) to real hills — a
+    // river valley is CARVED, and the eye must read the mass it was carved from.
     horizon: Some(HorizonSpec(
-        hills_base_m: 27.0,
-        swell: (6.5, 0.0085, 0.006, 1.7),
-        x_roll: (4.0, 0.013),
-        z_roll: (3.0, 0.011),
+        hills_base_m: 65.0,
+        swell: (13.0, 0.0085, 0.006, 1.7),
+        x_roll: (8.0, 0.013),
+        z_roll: (6.0, 0.011),
         closure_start_m: 30.0,
         closure_span_m: 280.0,
         river_gap_half_m: 34.0,
