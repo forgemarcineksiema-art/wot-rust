@@ -85,6 +85,19 @@ fn unit(state: &mut u64) -> f32 {
     (scatter_mix64(state) >> 40) as f32 / ((1u64 << 24) - 1) as f32
 }
 
+/// Deterministic 0..1 from a world position (Immersja A2.1): an instance's OWN cosmetic
+/// identity, stable across recompiles and independent of any rng stream — so giving a
+/// mirrored twin its own yaw, or a planted row per-item variety, never reshuffles anything
+/// else on the map. `salt` separates independent channels (yaw vs scale).
+pub fn position_unit(x: f32, z: f32, salt: u64) -> f32 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64 ^ salt;
+    for bits in [x.to_bits(), z.to_bits()] {
+        hash ^= u64::from(bits);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    ((hash >> 40) & 0x00ff_ffff) as f32 / 16_777_216.0
+}
+
 /// A rectangular scatter region on the SOUTHERN half (z ≤ half axis); every accepted point is
 /// emitted together with its northern mirror twin.
 #[derive(Debug, Clone, Copy)]
@@ -127,10 +140,14 @@ pub fn scatter_mirrored(
             continue;
         };
         out.push(SceneryInstance { kind, position: [x, ground, z], yaw_rad: yaw, scale });
+        // The twin is its own plant, not a reflection (Immersja A2.1): it keeps the pair's
+        // SCALE (an Oak's trunk becomes a cover box scaled by the instance — fairness
+        // demands identical twins) but grows its own yaw from its own position, so the
+        // mirrored halves stop reading as one forest stamped twice.
         out.push(SceneryInstance {
             kind,
             position: [x, mirrored_ground, mirrored_z],
-            yaw_rad: -yaw,
+            yaw_rad: position_unit(x, mirrored_z, 0x0A17) * std::f32::consts::TAU,
             scale,
         });
         placed += 1;
