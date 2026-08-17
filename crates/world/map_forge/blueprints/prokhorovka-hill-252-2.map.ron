@@ -18,6 +18,20 @@ MapBlueprint(
     ),
     symmetry: Some(MirrorZ),
     river: None,
+    // Immersja A3.1: the steppe finally has a horizon — until now this was the ONLY map
+    // whose world ended at the apron. A steppe's enclosure is a LINE, not mountains:
+    // a low distant rise (+14 m over the 8 m floor) opening farther out than the other
+    // maps, with long slow swells. The tree ring stands on it (scene_build::backdrop).
+    horizon: Some(HorizonSpec(
+        hills_base_m: 22.0,
+        swell: (5.0, 0.007, 0.005, 1.2),
+        x_roll: (3.5, 0.009),
+        z_roll: (3.0, 0.008),
+        closure_start_m: 40.0,
+        closure_span_m: 320.0,
+        river_gap_half_m: 0.0,
+        river_gap_falloff_m: 1.0,
+    )),
     terrain: TerrainProgram(
         base: Constant(8.0),
         ops: [

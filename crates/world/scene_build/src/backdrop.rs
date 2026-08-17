@@ -132,14 +132,31 @@ mod tests {
 
     use super::*;
 
+    /// RENEGOTIATED (Immersja A3.1): the old lock (`only_the_authored_map_gets_a_skirt`)
+    /// protected the days when Prokhorovka authored no horizon and its world honestly
+    /// ended at the apron. Every shipped map declares its horizon form now, so the law
+    /// flips: EVERY map grows its distant tree ring — and only a map with a river sends
+    /// water past the border.
     #[test]
-    fn only_the_authored_map_gets_a_skirt() {
-        let (vertices, indices) =
-            backdrop_scene_mesh(&map_forge::battlefield(MapId::ProkhorovkaHill252_2));
-        assert!(vertices.is_empty() && indices.is_empty());
-        let (water_vertices, _) =
-            backdrop_water_mesh(&map_forge::battlefield(MapId::ProkhorovkaHill252_2));
-        assert!(water_vertices.is_empty());
+    fn every_map_grows_its_tree_ring_and_only_rivers_flow_past_the_border() {
+        for id in MapId::SHIPPED.iter().copied() {
+            let map = map_forge::battlefield(id);
+            let (vertices, indices) = backdrop_scene_mesh(&map);
+            assert!(
+                !vertices.is_empty() && !indices.is_empty(),
+                "{id:?}: every horizon carries its tree ring"
+            );
+            let (water_vertices, _) = backdrop_water_mesh(&map);
+            assert_eq!(
+                map.water.is_some() && cached_river(&map),
+                !water_vertices.is_empty(),
+                "{id:?}: water past the border needs a river, and a river demands it"
+            );
+        }
+    }
+
+    fn cached_river(map: &terrain::BattlefieldMap) -> bool {
+        map_forge::cached_blueprint_by_id(&map.id).is_some_and(|bp| bp.river.is_some())
     }
 
     #[test]
