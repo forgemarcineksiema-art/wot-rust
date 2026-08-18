@@ -173,6 +173,42 @@ impl ShellSpec {
         (self.mass_kg - self.filler_kg).max(0.0)
     }
 
+    /// Whether this round penetrates by BITING — the family the glance band, the ricochet
+    /// overmatch escape and perforation continuation apply to.
+    pub fn is_kinetic(self) -> bool {
+        matches!(
+            self.penetrator,
+            crate::Penetrator::FullBoreSharp
+                | crate::Penetrator::FullBoreBlunt
+                | crate::Penetrator::TungstenCore
+        )
+    }
+
+    /// How many degrees of obliquity the round's nose turns into the plate before the LOS steel
+    /// is measured (B4: the terminal table moves onto the SHELL, values mapped 1:1 from the old
+    /// per-class constants — `FullBoreBlunt` deliberately equals `FullBoreSharp` until B5 gives
+    /// the Soviet APBC family its own pair).
+    pub fn normalization_deg(self) -> f32 {
+        match self.penetrator {
+            crate::Penetrator::FullBoreSharp | crate::Penetrator::FullBoreBlunt => 5.0,
+            crate::Penetrator::TungstenCore => 2.0,
+            crate::Penetrator::ShapedCharge | crate::Penetrator::BlastCase => 0.0,
+        }
+    }
+
+    /// The angle of incidence past which this round skids instead of biting; `None` never
+    /// ricochets (a blast case bursts on whatever it touches). The kinetic overmatch escape
+    /// stays the armor model's business (`armor::resolve`), not the shell's.
+    pub fn ricochet_angle_deg(self) -> Option<f32> {
+        match self.penetrator {
+            crate::Penetrator::FullBoreSharp
+            | crate::Penetrator::FullBoreBlunt
+            | crate::Penetrator::TungstenCore => Some(70.0),
+            crate::Penetrator::ShapedCharge => Some(85.0),
+            crate::Penetrator::BlastCase => None,
+        }
+    }
+
     /// Kinetic energy at an impact speed, kJ (½mv²) — real mass, not a caliber estimate.
     /// Returns 0.0 for a legacy `mass_kg == 0.0` spec; consumers keep their class fallback.
     pub fn impact_energy_kj(self, speed_mps: f32) -> f32 {
@@ -343,7 +379,36 @@ const fn default_max_dispersion_mrad() -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ShellType, VehicleKind};
+    use crate::{Penetrator, ShellType, VehicleKind};
+
+    /// The terminal table, locked per penetrator (B4): the constants moved from the armor
+    /// model onto the shell, so the lock moves with them. B5 may CHANGE a row deliberately —
+    /// this test is where that change becomes a diff instead of a drift.
+    #[test]
+    fn the_terminal_table_is_locked_per_penetrator() {
+        let spec_with = |penetrator| {
+            crate::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320).with_penetrator(penetrator)
+        };
+        let mut rows = 0;
+        for penetrator in Penetrator::ALL {
+            let spec = spec_with(penetrator);
+            let expected = match penetrator {
+                Penetrator::FullBoreSharp => (5.0, Some(70.0), true),
+                // B4 maps blunt to sharp on purpose; B5 gives the APBC family its own pair.
+                Penetrator::FullBoreBlunt => (5.0, Some(70.0), true),
+                Penetrator::TungstenCore => (2.0, Some(70.0), true),
+                Penetrator::ShapedCharge => (0.0, Some(85.0), false),
+                Penetrator::BlastCase => (0.0, None, false),
+            };
+            assert_eq!(
+                (spec.normalization_deg(), spec.ricochet_angle_deg(), spec.is_kinetic()),
+                expected,
+                "{penetrator:?}: the terminal row moved without a deliberate diff"
+            );
+            rows += 1;
+        }
+        assert_eq!(rows, 5, "every penetrator owns a locked row");
+    }
 
     #[test]
     fn the_d10_family_loads_its_authored_heat_and_it_ignores_range() {

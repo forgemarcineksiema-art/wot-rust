@@ -256,12 +256,9 @@ pub(super) fn effective_facet_thickness_mm(facet: ArmorFacet, impact_angle_degre
 }
 
 fn normalized_impact_angle(shell: &ShellSpec, impact_angle_degrees: f32) -> f32 {
-    let normalization = match shell.shell_type {
-        ShellType::ArmorPiercing => 5.0,
-        ShellType::Apcr => 2.0,
-        ShellType::Heat | ShellType::HighExplosive => 0.0,
-    };
-    (impact_angle_degrees.abs() - normalization).max(0.0)
+    // B4: the nose's normalization is the SHELL's property (`ShellSpec::normalization_deg`),
+    // keyed on its penetrator — the armor model stops guessing it from the ammo class.
+    (impact_angle_degrees.abs() - shell.normalization_deg()).max(0.0)
 }
 
 /// The fraction of its penetration a kinetic round keeps at this angle of incidence.
@@ -270,27 +267,34 @@ fn normalized_impact_angle(shell: &ShellSpec, impact_angle_degrees: f32) -> f32 
 /// `1 - GLANCE_MAX_LOSS` at the bounce angle. HEAT and HE are untouched: a shaped charge does not
 /// work by biting, and its obliquity limit is its own (85 degrees), while HE bursts on contact.
 fn kinetic_bite_fraction(shell: &ShellSpec, impact_angle_degrees: f32) -> f32 {
-    if !matches!(shell.shell_type, ShellType::ArmorPiercing | ShellType::Apcr) {
+    if !shell.is_kinetic() {
         return 1.0;
     }
     let angle = impact_angle_degrees.abs();
     if angle <= GLANCE_BAND_START_DEGREES {
         return 1.0;
     }
-    let span = RICOCHET_ANGLE_DEGREES - GLANCE_BAND_START_DEGREES;
+    // The band ends where THIS round bounces (B4: `ShellSpec::ricochet_angle_deg`) — a shell
+    // that skids later pays its full glance cost later too. Every kinetic round carries an
+    // angle; the fallback is unreachable and keeps the old constant for form.
+    let bounce = shell.ricochet_angle_deg().unwrap_or(RICOCHET_ANGLE_DEGREES);
+    let span = (bounce - GLANCE_BAND_START_DEGREES).max(1.0);
     let through_band = ((angle - GLANCE_BAND_START_DEGREES) / span).clamp(0.0, 1.0);
     1.0 - GLANCE_MAX_LOSS * through_band
 }
 
 fn ricochets(shell: &ShellSpec, facet: &ArmorFacet, impact_angle_degrees: f32) -> bool {
-    match shell.shell_type {
-        ShellType::ArmorPiercing | ShellType::Apcr => {
-            impact_angle_degrees > RICOCHET_ANGLE_DEGREES
-                && shell.caliber_mm <= facet.nominal_thickness_mm * OVERMATCH_CALIBER_RATIO
-        }
-        ShellType::Heat => impact_angle_degrees > 85.0,
-        ShellType::HighExplosive => false,
+    // B4: the bounce angle is the SHELL's (`ShellSpec::ricochet_angle_deg`); what stays the
+    // armor model's business is the kinetic OVERMATCH escape — a caliber three times the plate
+    // does not skid however steep the plate is.
+    let Some(bounce) = shell.ricochet_angle_deg() else {
+        return false;
+    };
+    if !shell.is_kinetic() {
+        return impact_angle_degrees > bounce;
     }
+    impact_angle_degrees > bounce
+        && shell.caliber_mm <= facet.nominal_thickness_mm * OVERMATCH_CALIBER_RATIO
 }
 
 fn shell_damage_hp(shell: &ShellSpec, penetrated: bool, ricocheted: bool) -> u32 {
