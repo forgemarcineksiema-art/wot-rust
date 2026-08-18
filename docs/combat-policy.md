@@ -216,16 +216,24 @@ projectiles pass through that opening only when their complete swept-body radius
 rim. The internal shell segment intersects the authored module volumes in distance order and
 can damage more than one module before its residual penetration is exhausted; no
 frontal-zone shortcut substitutes for that geometry.
-Non-penetrating AP/APCR or HEAT hits emit a bounce `DamageEvent` with zero damage
-and no module. HE surface hits emit non-penetrating damage and can throw tracks.
+Non-penetrating AP/APCR or HEAT hits emit a bounce `DamageEvent` with zero hull damage — but a
+round that FAILED by less than the back-face margin (12% of the effective steel, clamped 5–35 mm,
+`shell_spalls_on_nonpen` in `crates/runtime/sim/src/combat.rs`) breaks fragments off the plate's
+inner face: a deterministic three-ray cone around the inward plate normal, starting on the inner
+face, whose first contact — crew station or module — takes the fragment. At most ONE crewman is
+wounded per spalling shell, module scratches ride the one-wound-per-slot rule at half the
+post-penetration spall rate, and the hull pool is NEVER touched. A true ricochet never spalls
+(the energy skids away), and HE keeps its own non-penetration identity instead (the 18% surface
+chip plus splash). HE surface hits emit non-penetrating damage and can throw tracks.
 
 A kinetic AP/APCR perforation no longer destroys the projectile automatically. The struck LOS
 steel is removed from its penetration budget, velocity falls with the square root of the remaining
 energy fraction, and the shell exits forward while the just-perforated hull is ignored for the exit
 step. It can then hit another aligned vehicle with the residual penetration. HE detonates on its
 first surface and HEAT resolves its shaped-charge jet there; neither continues as a second flying
-projectile. Blueprint vehicles additionally resolve their authored internal modules and permanent
-plate channels; crew rays, fluids and free-flying spall fragments remain future layers.
+projectile. Blueprint vehicles additionally resolve their authored internal modules, crew stations (v46) and
+permanent plate channels, plus the back-face spall cone above; fluids and free-flying spall
+fragments that leave the hull remain future layers.
 
 ## Ramming
 
