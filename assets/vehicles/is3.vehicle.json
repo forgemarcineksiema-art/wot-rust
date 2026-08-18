@@ -66,7 +66,8 @@
       "muzzle_velocity_mps": 795.0,
       "penetration_mm_at_100m": 175.0,
       "damage_hp": 390,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "Br471B"
     },
     "special_shell": null,
     "he_shell": {
@@ -75,7 +76,8 @@
       "muzzle_velocity_mps": 800.0,
       "penetration_mm_at_100m": 41.0,
       "damage_hp": 510,
-      "explosive_radius_m": 2.4
+      "explosive_radius_m": 2.4,
+      "round": "Of471"
     }
   },
   "ammo": {

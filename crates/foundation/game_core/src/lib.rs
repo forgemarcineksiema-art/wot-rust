@@ -1,4 +1,5 @@
 mod ammo;
+mod ammo_catalog;
 mod armor;
 mod armor_breach;
 mod contact_footprint;
@@ -24,6 +25,7 @@ mod weapon;
 mod weather;
 
 pub use ammo::{AmmoLoadout, MAX_AMMO_SLOTS, default_ammo_capacity};
+pub use ammo_catalog::RoundId;
 pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
     PenetrationResult, TaggedPlane, VehicleArmorVolumes, VolumeInterval, WeakspotFrame,
