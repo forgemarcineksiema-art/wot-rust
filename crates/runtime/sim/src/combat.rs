@@ -153,7 +153,7 @@ pub(crate) fn apply_shell_impact(
     // The plate HELD — but a round that came within the back-face margin of beating it stresses
     // the inner face to failure, and the fragments that come off are INSIDE (see
     // `apply_backface_spall`). A wreck's plate spalls nobody: the fight in that hull is over.
-    if target.hit_points > 0 && shell_spalls_on_nonpen(shell.shell.shell_type, &penetration) {
+    if target.hit_points > 0 && shell_spalls_on_nonpen(&shell.shell, &penetration) {
         let spall = apply_backface_spall(
             target,
             shell,
@@ -608,8 +608,21 @@ const BACKFACE_SPALL_MARGIN_MAX_MM: f32 = 35.0;
 /// what comes off its inner face carries a fraction of what a round loose inside would throw.
 const BACKFACE_SPALL_SCALE: f32 = 0.5;
 
-fn backface_spall_margin_mm(effective_armor_mm: f32) -> f32 {
-    (effective_armor_mm * BACKFACE_SPALL_MARGIN_FRACTION)
+/// The sectional density the margin's mass term scales against: the authored full-bore fleet's
+/// mean at B2 time, kg/cm².
+const SPALL_MARGIN_SD_REFERENCE: f32 = 0.147;
+
+fn backface_spall_margin_mm(shell: &game_core::ShellSpec, effective_armor_mm: f32) -> f32 {
+    // A heavier shell slamming the same plate stresses its back face harder (A4, with the B2
+    // mass data): the margin scales with sectional density around the fleet's full-bore mean,
+    // bounded so a concrete round widens or narrows its band without ever leaving it. A
+    // massless synthetic spec keeps the plain fraction.
+    let mass_factor = if shell.mass_kg > 0.0 {
+        (shell.sectional_density_kg_cm2() / SPALL_MARGIN_SD_REFERENCE).clamp(0.8, 1.25)
+    } else {
+        1.0
+    };
+    (effective_armor_mm * BACKFACE_SPALL_MARGIN_FRACTION * mass_factor)
         .clamp(BACKFACE_SPALL_MARGIN_MIN_MM, BACKFACE_SPALL_MARGIN_MAX_MM)
 }
 
@@ -621,14 +634,14 @@ fn backface_spall_margin_mm(effective_armor_mm: f32) -> f32 {
 /// nearly every HE hit and is a separate future mechanic). A failed HEAT jet inside the margin
 /// behaves like the kinetic case: its penetration deficit is computed the same way.
 pub(crate) fn shell_spalls_on_nonpen(
-    shell_type: ShellType,
+    shell: &game_core::ShellSpec,
     penetration: &PenetrationResult,
 ) -> bool {
     !penetration.penetrated
         && !penetration.ricocheted
-        && shell_type != ShellType::HighExplosive
+        && shell.shell_type != ShellType::HighExplosive
         && penetration.remaining_penetration_mm
-            > -backface_spall_margin_mm(penetration.effective_armor_mm)
+            > -backface_spall_margin_mm(shell, penetration.effective_armor_mm)
 }
 
 /// What a near-penetration's back-face fragments did inside the hull.
@@ -1180,19 +1193,30 @@ mod tests {
             module_damage_hp: 0,
             glance_loss: 0.0,
         };
-        // 133 mm effective → a 15.96 mm band: −8 is a near-penetration, −30 a shrugged-off hit.
-        assert!(shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-8.0, 133.0, false)));
-        assert!(!shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-30.0, 133.0, false)));
+        let ap = game_core::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320);
+        let heat = game_core::ShellSpec::heat(100.0, 900.0, 280.0, 320);
+        let he = game_core::ShellSpec::high_explosive(100.0, 900.0, 33.0, 320, 2.0);
+        // 133 mm effective → a 15.96 mm band (massless synthetic spec, plain fraction): −8 is a
+        // near-penetration, −30 a shrugged-off hit.
+        assert!(shell_spalls_on_nonpen(&ap, &nonpen(-8.0, 133.0, false)));
+        assert!(!shell_spalls_on_nonpen(&ap, &nonpen(-30.0, 133.0, false)));
         assert!(
-            !shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-8.0, 133.0, true)),
+            !shell_spalls_on_nonpen(&ap, &nonpen(-8.0, 133.0, true)),
             "the same deficit on a RICOCHET spalls nothing — a skid is safe"
         );
         // A thick plate's band is wider in absolute steel, up to the clamp: −30 against 300 mm
         // effective is still a close call (12% of 300, clamped to 35 mm).
-        assert!(shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-30.0, 300.0, false)));
+        assert!(shell_spalls_on_nonpen(&ap, &nonpen(-30.0, 300.0, false)));
         // HEAT inside the margin behaves like the kinetic case; HE never spalls.
-        assert!(shell_spalls_on_nonpen(ShellType::Heat, &nonpen(-8.0, 133.0, false)));
-        assert!(!shell_spalls_on_nonpen(ShellType::HighExplosive, &nonpen(-8.0, 133.0, false)));
+        assert!(shell_spalls_on_nonpen(&heat, &nonpen(-8.0, 133.0, false)));
+        assert!(!shell_spalls_on_nonpen(&he, &nonpen(-8.0, 133.0, false)));
+        // The mass term (A4): a 28.3 kg Pzgr 43 slamming the plate stresses its back face
+        // wider than a 6.8 kg Pzgr 39/42 would — same steel, different hammer.
+        assert!(
+            backface_spall_margin_mm(&game_core::RoundId::Pzgr43.spec(), 133.0)
+                > backface_spall_margin_mm(&game_core::RoundId::Pzgr39_42.spec(), 133.0),
+            "the heavy shell's close call reaches further"
+        );
     }
 }
 

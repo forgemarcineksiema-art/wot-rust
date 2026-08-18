@@ -200,7 +200,12 @@ plate's normal, keeps flying slower and blunted
 and the next surface it finds resolves it for good — the
 classic turret-roof skip into an engine deck is a real outcome. One skip per
 shell, ever. The reticle preview intentionally stops at the first impact; the
-skip is a server-side continuation.
+skip is a server-side continuation. The exception is the brittle tungsten
+core (`Penetrator::TungstenCore` — APCR and APDS): past the bounce angle it
+SHATTERS on the outer face and dies there, no deflection and no continued
+flight (`sim/src/shell_step.rs`) — the "gold" round's doctrine cost is that
+it never gets the skip. The full outcome taxonomy a player learns:
+penetration / bounce / shatter / near-penetration rattle.
 
 Penetrating hits subtract hull hit points and then resolve internal damage. Blueprint vehicles
 with an authored `DamageLayout` intersect the complete through-flight with physical module volumes;
