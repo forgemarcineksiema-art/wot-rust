@@ -1,7 +1,7 @@
 use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
     ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
-    TankId, TrackSide, resolve_penetration_at_distance_on_zone_scaled,
+    ShellType, TankId, TrackSide, resolve_penetration_at_distance_on_zone_scaled,
     resolve_penetration_through_screens,
 };
 use glam::Vec3;
@@ -145,10 +145,28 @@ pub(crate) fn apply_shell_impact(
         zone,
         local_hit,
     );
-    let module = internal.first_module;
-    let damaged_modules_mask = internal.damaged_modules_mask;
-    let damaged_components_mask = internal.damaged_components_mask;
+    let mut module = internal.first_module;
+    let mut damaged_modules_mask = internal.damaged_modules_mask;
+    let mut damaged_components_mask = internal.damaged_components_mask;
+    let mut crew_hits_mask = internal.crew_hits_mask;
     let residual_after_modules_mm = internal.residual_mm;
+    // The plate HELD — but a round that came within the back-face margin of beating it stresses
+    // the inner face to failure, and the fragments that come off are INSIDE (see
+    // `apply_backface_spall`). A wreck's plate spalls nobody: the fight in that hull is over.
+    if target.hit_points > 0 && shell_spalls_on_nonpen(shell.shell.shell_type, &penetration) {
+        let spall = apply_backface_spall(
+            target,
+            shell,
+            penetration.effective_armor_mm,
+            zone,
+            local_hit,
+            plate_normal,
+        );
+        module = module.or(spall.first_module);
+        damaged_modules_mask |= spall.damaged_modules_mask;
+        damaged_components_mask |= spall.damaged_components_mask;
+        crew_hits_mask |= spall.crew_hits_mask;
+    }
     let destroyed_modules_mask = target.modules.destroyed_mask() & !before_destroyed;
     // How hard this shell bit the track band: a clean, near-normal AP round throws it outright; an
     // oblique or ricocheting hit only degrades it; an HE burst chips it (see `track_hit_damage`).
@@ -342,7 +360,7 @@ pub(crate) fn apply_shell_impact(
         occurred_tick: 0,
         shell_id: Some(shell.id),
         target_destroyed: target_was_alive && target.hit_points == 0,
-        crew_hits_mask: internal.crew_hits_mask,
+        crew_hits_mask,
     };
     (event, exit)
 }
@@ -569,6 +587,142 @@ fn apply_internal_module_path(
 
 fn component_bit(id: game_core::DamageComponentId) -> u32 {
     1_u32.checked_shl(u32::from(id.0.saturating_sub(1))).unwrap_or(0)
+}
+
+/// How close (as a fraction of the struck plate's effective steel) a FAILED round must have come
+/// to beating the plate for its inner face to shed fragments. A thick plate hit hard has a wider
+/// absolute "close call" band than a thin roof — the margin scales with the steel that held —
+/// and the clamp keeps the band honest at the extremes.
+///
+/// TUNED AGAINST MEASURED BATTLES, same law as [`FIRE_ENERGY_MM`]: the instrument is
+/// `battle_host/tests/battle_statistics.rs`; re-run its sweep before moving this number. Spall
+/// must play AT THE MARGIN (near-penetrations), not on every bounce — the frequency-relief pass
+/// (#597) must not be reinflated by this mechanic.
+const BACKFACE_SPALL_MARGIN_FRACTION: f32 = 0.12;
+const BACKFACE_SPALL_MARGIN_MIN_MM: f32 = 5.0;
+const BACKFACE_SPALL_MARGIN_MAX_MM: f32 = 35.0;
+
+/// Back-face fragments SCRATCH at half the rate of post-penetration spall: the plate held, so
+/// what comes off its inner face carries a fraction of what a round loose inside would throw.
+const BACKFACE_SPALL_SCALE: f32 = 0.5;
+
+fn backface_spall_margin_mm(effective_armor_mm: f32) -> f32 {
+    (effective_armor_mm * BACKFACE_SPALL_MARGIN_FRACTION)
+        .clamp(BACKFACE_SPALL_MARGIN_MIN_MM, BACKFACE_SPALL_MARGIN_MAX_MM)
+}
+
+/// Whether a round that FAILED to penetrate still breaks fragments off the plate's inner face.
+///
+/// The readable rule: a bounce is safe; a dull thud that ALMOST went through rattles the crew.
+/// A true ricochet never spalls — the energy skids away with the shell — and HE keeps its own
+/// non-penetration identity (the 18% surface chip plus splash; blast-shock spall would fire on
+/// nearly every HE hit and is a separate future mechanic). A failed HEAT jet inside the margin
+/// behaves like the kinetic case: its penetration deficit is computed the same way.
+pub(crate) fn shell_spalls_on_nonpen(
+    shell_type: ShellType,
+    penetration: &PenetrationResult,
+) -> bool {
+    !penetration.penetrated
+        && !penetration.ricocheted
+        && shell_type != ShellType::HighExplosive
+        && penetration.remaining_penetration_mm
+            > -backface_spall_margin_mm(penetration.effective_armor_mm)
+}
+
+/// What a near-penetration's back-face fragments did inside the hull.
+struct BackfaceSpall {
+    first_module: Option<ModuleSlot>,
+    damaged_modules_mask: u8,
+    damaged_components_mask: u32,
+    crew_hits_mask: u8,
+}
+
+/// Fragments off the INNER face of a plate that held.
+///
+/// The cone is the plate's, not the shell's: fragments eject around the inward plate normal, so
+/// an oblique near-penetration rattles the crew BEHIND the plate, not whoever stands down-range
+/// of the shell's line. Rays are crew-OPAQUE — the first thing a fragment meets, a man or a
+/// module, takes it — but at most ONE crewman is wounded per spalling shell (the per-shot half
+/// of the frequency-relief promise, extended to spall): later fragments stopped by a body do
+/// nothing further. The hull pool is never touched — "my armor held" stays true on the HP bar.
+fn apply_backface_spall(
+    target: &mut TankState,
+    shell: &ShellState,
+    effective_armor_mm: f32,
+    zone: ArmorZone,
+    local_hit: Vec3,
+    world_plate_normal: Vec3,
+) -> BackfaceSpall {
+    let mut result = BackfaceSpall {
+        first_module: None,
+        damaged_modules_mask: 0,
+        damaged_components_mask: 0,
+        crew_hits_mask: 0,
+    };
+    if target.spec.damage_layout.is_empty() {
+        return result;
+    }
+    let basis_t = target.hull_pose().basis().transpose();
+    let local_direction = basis_t * shell.velocity_mps.normalize_or_zero();
+    let local_inward = (basis_t * -world_plate_normal).normalize_or_zero();
+    // The cone starts on the plate's INNER face: the LOS steel the round failed to beat,
+    // walked through along its own path.
+    let origin = local_hit + local_direction * (effective_armor_mm / 1000.0 + 0.01);
+    let turret_pivot =
+        target.spec.mounts.turret_ring.translation - Vec3::Y * target.spec.hitbox.center_y_m;
+    let mut slot_wounds = [0_u32; game_core::MODULE_SLOT_COUNT];
+    let mut crew_knocked = false;
+    for (ray_index, spall_direction) in
+        deterministic_spall_directions(local_inward, shell.id.0 ^ zone as u64)
+            .into_iter()
+            .enumerate()
+    {
+        let Some(hit) = target
+            .spec
+            .damage_layout
+            .intersections_with_turret_pose(
+                true,
+                origin + spall_direction * 0.015,
+                origin + spall_direction * 3.5,
+                target.turret_yaw_rad,
+                turret_pivot,
+            )
+            .into_iter()
+            .next()
+        else {
+            continue;
+        };
+        if let Some(role) = hit.kind.crew_role() {
+            if !crew_knocked {
+                crew_knocked = true;
+                result.crew_hits_mask |= role.mask_bit();
+                target.crew.knock(role);
+            }
+            continue;
+        }
+        // Same falloff ladder as post-penetration spall, at half rate and with no min-1 chip:
+        // fragments finish a wounded module, they do not open new wounds everywhere.
+        let falloff = [0.10_f32, 0.07, 0.05][ray_index];
+        let damage =
+            (shell.shell.damage_hp as f32 * falloff * BACKFACE_SPALL_SCALE * hit.vulnerability)
+                .round() as u32;
+        if damage > 0 {
+            result.first_module.get_or_insert(hit.slot);
+            result.damaged_modules_mask |= hit.slot.destroyed_mask_bit();
+            result.damaged_components_mask |= component_bit(hit.component_id);
+            let wound = &mut slot_wounds[hit.slot.wire_index()];
+            *wound = (*wound).max(damage);
+        }
+    }
+    // The one-wound-per-slot rule holds for back-face fragments exactly as it does for the
+    // direct channel: a slot takes its WORST single scratch, applied once.
+    for slot in game_core::ModuleSlot::ALL {
+        let wound = slot_wounds[slot.wire_index()];
+        if wound > 0 {
+            target.modules.damage(slot, wound);
+        }
+    }
+    result
 }
 
 fn deterministic_spall_directions(direction: Vec3, seed: u64) -> [Vec3; 3] {
@@ -1007,6 +1161,36 @@ mod tests {
         );
         assert!(event.penetrated);
         assert!(!tanks[0].armor_breaches.breaches().is_empty());
+    }
+
+    /// The trigger's clause the integration harness cannot aim cleanly: a TRUE ricochet never
+    /// spalls, however small the deficit — the energy skids away with the shell. The margin
+    /// edges ride along: inside the band spalls, outside it does not, and the band scales with
+    /// the steel that held. (The behavioral half lives in `tests/backface_spall.rs`.)
+    #[test]
+    fn a_true_ricochet_never_spalls_and_the_margin_band_holds() {
+        let nonpen = |remaining_mm: f32, effective_mm: f32, ricocheted: bool| PenetrationResult {
+            penetrated: false,
+            ricocheted,
+            effective_armor_mm: effective_mm,
+            remaining_penetration_mm: remaining_mm,
+            damage_hp: 0,
+            module_damage_hp: 0,
+            glance_loss: 0.0,
+        };
+        // 133 mm effective → a 15.96 mm band: −8 is a near-penetration, −30 a shrugged-off hit.
+        assert!(shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-8.0, 133.0, false)));
+        assert!(!shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-30.0, 133.0, false)));
+        assert!(
+            !shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-8.0, 133.0, true)),
+            "the same deficit on a RICOCHET spalls nothing — a skid is safe"
+        );
+        // A thick plate's band is wider in absolute steel, up to the clamp: −30 against 300 mm
+        // effective is still a close call (12% of 300, clamped to 35 mm).
+        assert!(shell_spalls_on_nonpen(ShellType::ArmorPiercing, &nonpen(-30.0, 300.0, false)));
+        // HEAT inside the margin behaves like the kinetic case; HE never spalls.
+        assert!(shell_spalls_on_nonpen(ShellType::Heat, &nonpen(-8.0, 133.0, false)));
+        assert!(!shell_spalls_on_nonpen(ShellType::HighExplosive, &nonpen(-8.0, 133.0, false)));
     }
 }
 
