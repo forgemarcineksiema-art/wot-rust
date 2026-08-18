@@ -66,7 +66,8 @@
       "muzzle_velocity_mps": 792.0,
       "penetration_mm_at_100m": 145.0,
       "damage_hp": 200,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "Br365K"
     },
     "special_shell": {
       "shell_type": "Apcr",
@@ -74,7 +75,8 @@
       "muzzle_velocity_mps": 1050.0,
       "penetration_mm_at_100m": 170.0,
       "damage_hp": 170,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "Br365P"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -82,7 +84,8 @@
       "muzzle_velocity_mps": 793.0,
       "penetration_mm_at_100m": 28.0,
       "damage_hp": 300,
-      "explosive_radius_m": 1.6
+      "explosive_radius_m": 1.6,
+      "round": "O365K"
     }
   },
   "ammo": {

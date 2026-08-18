@@ -2,7 +2,7 @@ use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
-use crate::{GunSpec, ShellSpec};
+use crate::{GunSpec, RoundId};
 
 pub(crate) fn tiger_i_loadout() -> VehicleModules {
     VehicleModules {
@@ -140,15 +140,12 @@ pub(crate) fn gun_kwk36() -> GunModule {
             // The production Tiger turret: -8 of depression, +16 of elevation (some sources +15).
             depression_deg: 8.0,
             elevation_deg: 16.0,
-            shell: ShellSpec::armor_piercing(88.0, 773.0, 165.0, 360),
-            // Pzgr 40 APCR: the round existed and its 100 m figure did not survive into any
-            // table this project could source (`docs/ammunition.md` GAP), so velocity and
-            // penetration here are a BALANCE decision sitting between the KwK 36's own AP and the
-            // KwK 43's sourced 40/43. Sprgr Patr L/4.5 is sourced: 9.4 kg, 750 m/s, 0.870 kg of
-            // filler — the SAME shell the KwK 43 fires, which is why their HE damage matches and
-            // their AP damage does not.
-            special_shell: Some(ShellSpec::apcr(88.0, 930.0, 217.0, 320)),
-            he_shell: Some(ShellSpec::high_explosive(88.0, 750.0, 29.0, 300, 1.6)),
+            // The Sprgr L/4.5 is the SAME `RoundId` the KwK 43 fires — which is why their HE
+            // damage matches and their AP damage does not. Sourcing and GAP notes live with the
+            // numbers in `RoundId::spec`.
+            shell: RoundId::Pzgr39.spec(),
+            special_shell: Some(RoundId::Pzgr40.spec()),
+            he_shell: Some(RoundId::SprgrL45.spec()),
         },
         mass_kg: 2_200.0,
         hit_points: 150,
@@ -169,13 +166,11 @@ pub(crate) fn gun_kwk43() -> GunModule {
             // The Serienturm: -8 / +15.
             depression_deg: 8.0,
             elevation_deg: 15.0,
-            shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
-            // Pzgr 40/43 APCR at its sourced 1,130 m/s; the 100 m penetration is a balance
-            // decision (the tables found start at 500 m). HE is the shared L/4.5 shell — same
-            // 300 HP as the Tiger I's, because it is the same shell, which the old multiplier
-            // could never say.
-            special_shell: Some(ShellSpec::apcr(88.0, 1_130.0, 237.0, 330)),
-            he_shell: Some(ShellSpec::high_explosive(88.0, 750.0, 29.0, 300, 1.6)),
+            // HE is the shared L/4.5 `RoundId` — same 300 HP as the Tiger I's, because it is
+            // the same shell, which the old multiplier could never say.
+            shell: RoundId::Pzgr39_43.spec(),
+            special_shell: Some(RoundId::Pzgr40_43.spec()),
+            he_shell: Some(RoundId::SprgrL45.spec()),
         },
         mass_kg: 2_300.0,
         hit_points: 150,

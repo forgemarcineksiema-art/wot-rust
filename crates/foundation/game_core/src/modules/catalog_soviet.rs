@@ -2,7 +2,7 @@ use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
-use crate::{GunSpec, ShellSpec};
+use crate::{GunSpec, RoundId};
 
 pub(crate) fn t54_loadout() -> VehicleModules {
     VehicleModules {
@@ -113,16 +113,12 @@ pub(crate) fn gun_zis_s53() -> GunModule {
             // The T-34-85 turret: -5 / +22. Soviet depression pays for the low silhouette.
             depression_deg: 5.0,
             elevation_deg: 22.0,
-            shell: ShellSpec::armor_piercing(85.0, 792.0, 145.0, 200),
-            // O-365K, fully sourced: 9.54 kg at 793 m/s with 0.741 kg of TNT. The old
-            // derivation flew it at 554 — thirty per cent slow, because Soviet tank HE was a
-            // FULL-CHARGE round, not a reduced one. 300 HP is the anchor the other guns' HE is
-            // scaled against by filler mass (cube-root blast scaling), which is why the 88 with a
-            // near-identical shell lands on the same number.
-            // BR-365P APCR, 4.95 kg of tungsten at a sourced 1,050 m/s (the catalog carried
-            // 1,030 before this research pass).
-            special_shell: Some(ShellSpec::apcr(85.0, 1_050.0, 170.0, 170)),
-            he_shell: Some(ShellSpec::high_explosive(85.0, 793.0, 28.0, 300, 1.6)),
+            // The concrete rounds live in `RoundId::spec` (ammo_catalog.rs) — the ONE authoring
+            // point. The research notes (O-365K as the fleet's HE anchor, the BR-365P's sourced
+            // 1,050 m/s) moved there with the numbers.
+            shell: RoundId::Br365K.spec(),
+            special_shell: Some(RoundId::Br365P.spec()),
+            he_shell: Some(RoundId::O365K.spec()),
         },
         mass_kg: 1_700.0,
         hit_points: 140,
@@ -190,14 +186,11 @@ pub(crate) fn gun_d25t() -> GunModule {
             // nose-on, which is exactly what its armour layout wants anyway.
             depression_deg: 3.0,
             elevation_deg: 20.0,
-            shell: ShellSpec::armor_piercing(122.0, 795.0, 175.0, 390),
-            // NO SPECIAL ROUND: the D-25T fielded no tungsten shell, so two slots. OF-471 is
-            // 25.53 kg with 3.605 kg of TNT (sourced); the ~800 m/s is convention rather than a
-            // sourced figure and is marked GAP in the dossier. 510 HP is the 85 mm anchor scaled
-            // by the cube root of filler mass — the physical driver of blast, not the AP alpha,
-            // which used to give this gun and the 88 IDENTICAL high explosive.
+            shell: RoundId::Br471B.spec(),
+            // NO SPECIAL ROUND: the D-25T fielded no tungsten shell, so two slots. The OF-471's
+            // sourcing notes live with its numbers in `RoundId::spec`.
             special_shell: None,
-            he_shell: Some(ShellSpec::high_explosive(122.0, 800.0, 41.0, 510, 2.4)),
+            he_shell: Some(RoundId::Of471.spec()),
         },
         mass_kg: 2_600.0,
         hit_points: 160,
@@ -249,17 +242,11 @@ pub(crate) fn gun_d10t() -> GunModule {
             // ridge like a Centurion, and now it cannot in the game either.
             depression_deg: 5.0,
             elevation_deg: 18.0,
-            shell: ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320),
-            // The D-10 family's fielded chemical round: penetration that ignores range, paid for
-            // with the HEAT weaknesses the armour model enforces (spaced screens kill the jet,
-            // extreme obliquity sheds it).
-            // OF-412, fully sourced: 15.8 kg at 900 m/s with 2.16 kg of TNT. Note the
-            // velocity — the HE round leaves this muzzle FASTER than its own AP (895), and the
-            // derivation flew it at 626. Flight time and drop are what a player leads with.
-            // BK-5 HEAT: 280 mm flat with range, and a spaced screen kills the jet. Authored
-            // long before this pass and unchanged by it.
-            special_shell: Some(ShellSpec::heat(100.0, 900.0, 280.0, 320)),
-            he_shell: Some(ShellSpec::high_explosive(100.0, 900.0, 33.0, 430, 2.0)),
+            // BR-412 stock; BK-5 HEAT and OF-412 HE are the D-10 FAMILY's rounds — the D-10T2S
+            // loads the same two, expressed by sharing the same `RoundId`s below.
+            shell: RoundId::Br412.spec(),
+            special_shell: Some(RoundId::Bk5.spec()),
+            he_shell: Some(RoundId::Of412.spec()),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
@@ -284,14 +271,12 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             // ridge like a Centurion, and now it cannot in the game either.
             depression_deg: 5.0,
             elevation_deg: 18.0,
-            // Sidegrade vs the D-10T: faster, flatter, more penetration, but lower per-shot alpha
-            // (320 -> 300) — a DPM/accuracy gun rather than a strict upgrade.
-            shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 300),
-            // The same BK-5 the D-10T loads — one physical round for the whole gun family.
-            // Same shell as the D-10T; the stabiliser does not change the ammunition.
-            // The same BK-5 the D-10T fires.
-            special_shell: Some(ShellSpec::heat(100.0, 900.0, 280.0, 320)),
-            he_shell: Some(ShellSpec::high_explosive(100.0, 900.0, 33.0, 430, 2.0)),
+            // BR-412D: the sidegrade stock round (more penetration, less alpha than BR-412).
+            // BK-5 and OF-412 are the SAME rounds the D-10T loads — one physical shell for the
+            // whole gun family, which the shared `RoundId` now states instead of a comment.
+            shell: RoundId::Br412D.spec(),
+            special_shell: Some(RoundId::Bk5.spec()),
+            he_shell: Some(RoundId::Of412.spec()),
         },
         mass_kg: 2_300.0,
         hit_points: 150,

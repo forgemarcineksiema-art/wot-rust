@@ -66,7 +66,8 @@
       "muzzle_velocity_mps": 1020.0,
       "penetration_mm_at_100m": 230.0,
       "damage_hp": 240,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "TwentyPdrApcbc"
     },
     "special_shell": {
       "shell_type": "Apcr",
@@ -74,7 +75,8 @@
       "muzzle_velocity_mps": 1465.0,
       "penetration_mm_at_100m": 300.0,
       "damage_hp": 220,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "TwentyPdrApds"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -82,7 +84,8 @@
       "muzzle_velocity_mps": 850.0,
       "penetration_mm_at_100m": 28.0,
       "damage_hp": 290,
-      "explosive_radius_m": 1.6
+      "explosive_radius_m": 1.6,
+      "round": "TwentyPdrHe"
     }
   },
   "ammo": {

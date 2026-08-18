@@ -29,6 +29,7 @@ const IDENTITY_ENUMS: &[&str] = &[
     "ModuleSlot",
     "Nation",
     "RoadSurface",
+    "RoundId",
     "SceneryKind",
     "ShellType",
     "StaticCoverKind",

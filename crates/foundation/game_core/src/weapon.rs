@@ -29,6 +29,11 @@ pub struct ShellSpec {
     pub damage_hp: u32,
     #[serde(default)]
     pub explosive_radius_m: f32,
+    /// The CONCRETE round this spec describes ([`crate::RoundId`]) — `None` only for synthetic
+    /// test shells and legacy fixtures. Every fielded gun's slots carry `Some`, locked by
+    /// `tests/ammo_identity.rs`.
+    #[serde(default)]
+    pub round: Option<crate::RoundId>,
 }
 
 impl ShellSpec {
@@ -53,6 +58,7 @@ impl ShellSpec {
             penetration_mm_at_100m,
             damage_hp,
             explosive_radius_m: 0.0,
+            round: None,
         }
     }
 
@@ -69,6 +75,7 @@ impl ShellSpec {
             penetration_mm_at_100m,
             damage_hp,
             explosive_radius_m: 0.0,
+            round: None,
         }
     }
 
@@ -85,6 +92,7 @@ impl ShellSpec {
             penetration_mm_at_100m,
             damage_hp,
             explosive_radius_m: 0.0,
+            round: None,
         }
     }
 
@@ -102,7 +110,15 @@ impl ShellSpec {
             penetration_mm_at_100m,
             damage_hp,
             explosive_radius_m,
+            round: None,
         }
+    }
+
+    /// Stamp the concrete identity on a spec — the catalog's half of the promise that
+    /// [`crate::RoundId::spec`] is the ONE authoring point for shell data.
+    pub fn with_round(mut self, round: crate::RoundId) -> Self {
+        self.round = Some(round);
+        self
     }
 
     /// Linear aerodynamic drag, in speed lost per second of flight. With `dv/dt = -c·v` a shell

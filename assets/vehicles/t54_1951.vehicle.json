@@ -70,7 +70,8 @@
       "muzzle_velocity_mps": 895.0,
       "penetration_mm_at_100m": 185.0,
       "damage_hp": 320,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "Br412"
     },
     "special_shell": {
       "shell_type": "Heat",
@@ -78,7 +79,8 @@
       "muzzle_velocity_mps": 900.0,
       "penetration_mm_at_100m": 280.0,
       "damage_hp": 320,
-      "explosive_radius_m": 0.0
+      "explosive_radius_m": 0.0,
+      "round": "Bk5"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -86,7 +88,8 @@
       "muzzle_velocity_mps": 900.0,
       "penetration_mm_at_100m": 33.0,
       "damage_hp": 430,
-      "explosive_radius_m": 2.0
+      "explosive_radius_m": 2.0,
+      "round": "Of412"
     }
   },
   "ammo": {
