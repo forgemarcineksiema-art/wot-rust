@@ -1,6 +1,6 @@
 //! Residual projectile lives after an armor contact: one ricochet or kinetic through-flight.
 
-use game_core::{ShellType, TankId};
+use game_core::TankId;
 use glam::Vec3;
 
 use crate::ShellState;
@@ -32,8 +32,9 @@ pub(crate) struct ShellExit {
 /// HE never got inside in the first place — but both still blow an exit hole, which is why this
 /// is a separate question from [`ShellExit`] existing at all.
 pub(crate) fn kinetic_penetration_continues(shell: &ShellState, exit: &ShellExit) -> bool {
-    matches!(shell.shell.shell_type, ShellType::ArmorPiercing | ShellType::Apcr)
-        && exit.residual_penetration_mm >= MIN_CONTINUATION_PENETRATION_MM
+    // B4: "kinetic" is the SHELL's terminal identity (`ShellSpec::is_kinetic`, penetrator-keyed),
+    // not an ammo-class guess.
+    shell.shell.is_kinetic() && exit.residual_penetration_mm >= MIN_CONTINUATION_PENETRATION_MM
 }
 
 /// Carry a perforating kinetic round out through the hole it just opened, with the armour budget
