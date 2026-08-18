@@ -43,15 +43,13 @@ fn every_slot_names_its_round_and_matches_the_catalog() {
 /// the whole D-10 family loads the same BK-5 and OF-412.
 #[test]
 fn shared_rounds_are_the_same_identity_not_equal_numbers() {
-    let by_gun: HashMap<String, Vec<RoundId>> = every_fielded_shell()
-        .into_iter()
-        .fold(HashMap::new(), |mut map, (gun, shell)| {
+    let by_gun: HashMap<String, Vec<RoundId>> =
+        every_fielded_shell().into_iter().fold(HashMap::new(), |mut map, (gun, shell)| {
             map.entry(gun).or_default().extend(shell.round);
             map
         });
-    let fires = |gun: &str, round: RoundId| {
-        by_gun.get(gun).is_some_and(|rounds| rounds.contains(&round))
-    };
+    let fires =
+        |gun: &str, round: RoundId| by_gun.get(gun).is_some_and(|rounds| rounds.contains(&round));
     for gun in ["8.8 cm KwK 36 L/56", "8.8 cm KwK 43 L/71", "8.8 cm Pak 43/3 L/71"] {
         assert!(fires(gun, RoundId::SprgrL45), "{gun} fires the shared Sprgr L/4.5");
     }

@@ -67,7 +67,10 @@
       "penetration_mm_at_100m": 223.0,
       "damage_hp": 530,
       "explosive_radius_m": 0.0,
-      "round": "Pzgr43"
+      "round": "Pzgr43",
+      "mass_kg": 28.3,
+      "filler_kg": 0.55,
+      "penetrator": "FullBoreSharp"
     },
     "special_shell": null,
     "he_shell": {
@@ -77,7 +80,10 @@
       "penetration_mm_at_100m": 43.0,
       "damage_hp": 520,
       "explosive_radius_m": 2.2,
-      "round": "SprgrPak80"
+      "round": "SprgrPak80",
+      "mass_kg": 28.0,
+      "filler_kg": 3.86,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

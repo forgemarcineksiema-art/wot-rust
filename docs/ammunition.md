@@ -142,6 +142,16 @@ Fictional test vehicle. No research applies; whatever it fires is a design decis
 Six holes across twelve guns. Each is a row that says GAP rather than a number somebody invented,
 which is the whole point of doing this pass before touching `ammo_options()`.
 
+**AUTHORED into `ShellSpec` 2026-08-18 (Amunicja 3.0 B2).** Every round now carries `mass_kg`,
+`filler_kg` and a `Penetrator` (`game_core/src/ammo_catalog.rs`), and each GAP fill is a stated
+decision in the catalog comment beside it. The rule for the unsourced HE fillers: they are
+**back-derived from the authored damage through the anchor law** (O-365K 0.741 kg → 300 HP,
+cube-root), so the filler column and the damage column cannot disagree — locked executable by
+`game_core/tests/ammo_data.rs::high_explosive_damage_follows_its_filler_through_the_anchor_law`.
+Mass decisions: BK-5 ~12.2 kg, 20-pdr AP 9.07 kg (the gun's NAME is the shot's mass), APDS
+sub-projectile ~4.5 kg, 20-pdr HE ~9.0 kg; APHE bursters mirrored where the family's sibling is
+sourced (Pzgr 39 ← 39/43's 59 g; 12.8 cm Pzgr 43 at 0.55 kg by the 88's proportion).
+
 ## Gun arcs — mount elevation limits (researched 2026-08-02)
 
 The same rubric as the rounds. Until this pass, **every gun in the catalog but the T-54's ran the

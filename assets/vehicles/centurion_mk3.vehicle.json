@@ -67,7 +67,10 @@
       "penetration_mm_at_100m": 230.0,
       "damage_hp": 240,
       "explosive_radius_m": 0.0,
-      "round": "TwentyPdrApcbc"
+      "round": "TwentyPdrApcbc",
+      "mass_kg": 9.07,
+      "filler_kg": 0.0,
+      "penetrator": "FullBoreSharp"
     },
     "special_shell": {
       "shell_type": "Apcr",
@@ -76,7 +79,10 @@
       "penetration_mm_at_100m": 300.0,
       "damage_hp": 220,
       "explosive_radius_m": 0.0,
-      "round": "TwentyPdrApds"
+      "round": "TwentyPdrApds",
+      "mass_kg": 4.5,
+      "filler_kg": 0.0,
+      "penetrator": "TungstenCore"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -85,7 +91,10 @@
       "penetration_mm_at_100m": 28.0,
       "damage_hp": 290,
       "explosive_radius_m": 1.6,
-      "round": "TwentyPdrHe"
+      "round": "TwentyPdrHe",
+      "mass_kg": 9.0,
+      "filler_kg": 0.669,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

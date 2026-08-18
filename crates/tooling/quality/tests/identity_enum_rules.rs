@@ -28,6 +28,7 @@ const IDENTITY_ENUMS: &[&str] = &[
     "MaterialRole",
     "ModuleSlot",
     "Nation",
+    "Penetrator",
     "RoadSurface",
     "RoundId",
     "SceneryKind",

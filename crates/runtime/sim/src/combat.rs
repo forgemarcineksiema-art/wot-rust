@@ -223,6 +223,7 @@ pub(crate) fn apply_shell_impact(
                     impact_speed_mps: shell.velocity_mps.length(),
                     effective_armor_mm: penetration.effective_armor_mm,
                     residual_penetration_mm: penetration.remaining_penetration_mm,
+                    projectile_mass_kg: shell.shell.mass_kg,
                 },
             );
             // Replication replays exactly what the authoritative set was GIVEN, in this order —
@@ -264,6 +265,7 @@ pub(crate) fn apply_shell_impact(
                         impact_speed_mps: shell.velocity_mps.length() * speed_scale,
                         effective_armor_mm: required_mm,
                         residual_penetration_mm: residual_after_modules_mm - required_mm,
+                        projectile_mass_kg: shell.shell.mass_kg,
                     },
                 );
                 breaches_out.push(crate::event_stamp::ArmorBreachRecord {
