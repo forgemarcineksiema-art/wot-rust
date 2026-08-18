@@ -552,11 +552,19 @@ fn queue_personal_combat_events(
 ) {
     let Some(tank) = client.tank else { return };
     for event in damage_events {
-        if (event.source == tank || event.target == tank)
-            && client.events.enqueue(CombatEvent::Damage(*event)).is_err()
-        {
-            client.event_overflowed = true;
-            return;
+        if event.source == tank || event.target == tank {
+            let mut event = *event;
+            // The reliable lane is personal, so the snapshot filter never sees it — the same
+            // concealment must hold here: a bounce tells the SHOOTER nothing about whom its
+            // back-face fragments wounded (`snapshot_filter::conceal_nonpen_crew_intel`). Only
+            // the target reads the crew mask of a non-penetration.
+            if !event.penetrated && event.target != tank {
+                event.crew_hits_mask = 0;
+            }
+            if client.events.enqueue(CombatEvent::Damage(event)).is_err() {
+                client.event_overflowed = true;
+                return;
+            }
         }
     }
     for impact in shell_impacts {
