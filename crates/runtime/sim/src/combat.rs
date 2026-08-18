@@ -363,7 +363,20 @@ struct InternalPath {
 }
 
 /// Residual penetration (mm) a round must still hold at a component to throw fragments off it.
-const SPALL_ENERGY_MM: f32 = 8.0;
+///
+/// RAISED 8 → 40 in the frequency-relief pass (measured, `battle_statistics`): at 8 mm nearly
+/// every penetration threw cones, and the min-1 chips kept the whole module panel amber. Forty
+/// means the round still had real energy at the component it fragmented on.
+const SPALL_ENERGY_MM: f32 = 40.0;
+
+/// Direct-path component damage scale.
+///
+/// TUNED AGAINST THE MEASURED BASELINE (pomiar A, `battle_statistics` sweep): at 1.0 a touched
+/// module nearly always died — 7.5 module destructions per battle, engine and rack taking 52 of
+/// 60, because one shell's full alpha (≈320) lands on a 240-hp module pool. At this scale the
+/// first hit WOUNDS (module runs at its damage floor) and it takes a second hit, or spall on an
+/// already-wounded pool, to destroy — which is what "a destroyed module is an event" means.
+const MODULE_WOUND_SCALE: f32 = 0.45;
 
 /// Residual penetration (mm) a round must hold to LIGHT what it just crossed.
 ///
@@ -373,11 +386,13 @@ const SPALL_ENERGY_MM: f32 = 8.0;
 /// most of its energy — the flank shot that walks in clean, not the frontal round that spent itself
 /// on the glacis first.
 ///
-/// TUNED AGAINST A MEASURED BATTLE, not intuition. Ignitions in one 7-minute 7v7 (Bystra, seed 7):
-/// 8 at the shared spall threshold, 5 at 60 mm, **2 at 100 mm**, 0 at 140 mm. Two is one fire per
-/// team per battle — rare enough to be an event, common enough to exist. Re-measure with the same
-/// seed before moving this number.
-const FIRE_ENERGY_MM: f32 = 100.0;
+/// TUNED AGAINST MEASURED BATTLES, not intuition — the instrument is
+/// `battle_host/tests/battle_statistics.rs`, re-run its sweep before moving this number. History:
+/// first tuned on one 7-minute 7v7 (Bystra, seed 7: 8 ignitions at the spall threshold, 5 at
+/// 60 mm, 2 at 100 mm, 0 at 140 mm) and pinned at 100. The 8-seed sweep then showed the tail that
+/// one seed could not: 0–4 fires per battle, mean 1.4, two seeds over the "one per team" line.
+/// Raised to 140 for the frequency-relief pass — the sweep's numbers live in the harness test.
+const FIRE_ENERGY_MM: f32 = 140.0;
 
 fn apply_internal_module_path(
     target: &mut TankState,
@@ -426,18 +441,36 @@ fn apply_internal_module_path(
     let mut energetic_component_mask = 0_u32;
     let mut energetic_slot_mask = 0_u8;
     let mut spall_sources = Vec::new();
+    // The energy the round ENTERED the interior with: every later component's bite scales by how
+    // much of it is left, so the first thing the shell meets takes the wound and the third thing
+    // down the line takes a scratch — one penetration, one wound, usually (frequency-relief
+    // pass; the old 0.25 floor guaranteed every crossed component a quarter-alpha bite, which is
+    // how single shells gutted three modules at once).
+    let entry_residual_mm = residual_mm.max(1.0);
+    // One shell cuts ONE wound channel per slot: a centreline pass crosses the fuel tanks, the
+    // engine block and the transmission — three components, all slot Engine — and summing a
+    // near-full bite for each is how the measured baseline killed a healthy engine slot on
+    // nearly every penetration. The slot takes its WORST single component hit, not the sum.
+    let mut slot_wounds = [0_u32; game_core::MODULE_SLOT_COUNT];
     for hit in hits {
         let resistance_mm = hit.material.resistance_mm(hit.path_length_m);
         if residual_mm < resistance_mm * 0.35 {
             break;
         }
-        first.get_or_insert(hit.slot);
-        mask |= hit.slot.destroyed_mask_bit();
-        component_mask |= component_bit(hit.component_id);
-        let energy_fraction = (residual_mm / (residual_mm + resistance_mm)).clamp(0.25, 1.0);
+        let energy_fraction = (residual_mm / entry_residual_mm).clamp(0.0, 1.0)
+            * (residual_mm / (residual_mm + resistance_mm));
         let damage =
-            ((base_damage_hp as f32 * energy_fraction * hit.vulnerability).round() as u32).max(1);
-        target.modules.damage(hit.slot, damage);
+            (base_damage_hp as f32 * MODULE_WOUND_SCALE * energy_fraction * hit.vulnerability)
+                .round() as u32;
+        // A computed zero is a brush, not a wound: no damage, no mask bit, no attribution — the
+        // event must not paint a module the shell did not meaningfully touch.
+        if damage > 0 {
+            first.get_or_insert(hit.slot);
+            mask |= hit.slot.destroyed_mask_bit();
+            component_mask |= component_bit(hit.component_id);
+            let wound = &mut slot_wounds[hit.slot.wire_index()];
+            *wound = (*wound).max(damage);
+        }
         residual_mm = (residual_mm - resistance_mm).max(0.0);
         if residual_mm > FIRE_ENERGY_MM {
             // Enough energy left here to LIGHT it, not merely to chip it (see `InternalPath`).
@@ -471,13 +504,28 @@ fn apply_internal_module_path(
             else {
                 continue;
             };
-            component_mask |= component_bit(hit.component_id);
-            mask |= hit.slot.destroyed_mask_bit();
-            first.get_or_insert(hit.slot);
-            let falloff = [0.22_f32, 0.16, 0.12][ray_index];
-            let damage =
-                ((base_damage_hp as f32 * falloff * hit.vulnerability).round() as u32).max(1);
-            target.modules.damage(hit.slot, damage);
+            // Halved falloffs and no min-1 chip (frequency-relief pass): fragments SCRATCH what
+            // they reach — they finish a wounded module, they do not open new wounds everywhere.
+            let falloff = [0.10_f32, 0.07, 0.05][ray_index];
+            let damage = (base_damage_hp as f32 * falloff * hit.vulnerability).round() as u32;
+            if damage > 0 {
+                component_mask |= component_bit(hit.component_id);
+                mask |= hit.slot.destroyed_mask_bit();
+                first.get_or_insert(hit.slot);
+                let wound = &mut slot_wounds[hit.slot.wire_index()];
+                *wound = (*wound).max(damage);
+            }
+        }
+    }
+    // The one-wound-per-slot rule, spall included: everything this shell did to a slot — the
+    // direct channel and the fragments off it — is ONE wound, priced by the worst single hit.
+    // This is the per-shot half of the frequency-relief promise ("a destroyed module is an
+    // event"): no slot with a pool above the worst possible single wound can be destroyed from
+    // healthy by one shell.
+    for slot in game_core::ModuleSlot::ALL {
+        let wound = slot_wounds[slot.wire_index()];
+        if wound > 0 {
+            target.modules.damage(slot, wound);
         }
     }
     InternalPath {

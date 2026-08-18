@@ -30,7 +30,7 @@ pub(crate) fn apply_track_damage_for_hit(
             Some(degrade_side(target, side, chunk))
         }
         _ if shell_type == ShellType::HighExplosive && !penetrated => {
-            Some(degrade_both(target, chunk))
+            Some(degrade_both(target, chunk, hit_local_x))
         }
         _ if module == Some(ModuleSlot::Suspension) => {
             let side = if hit_local_x < 0.0 { TrackSide::Left } else { TrackSide::Right };
@@ -60,11 +60,20 @@ fn degrade_side(target: &mut TankState, side: TrackSide, chunk: u8) -> TrackHit 
     TrackHit { side, broke: !was_broken && target.tracks.is_broken(side) }
 }
 
-/// Chip both bands; report the side that newly broke (else the left) as the callout's subject.
-fn degrade_both(target: &mut TankState, chunk: u8) -> TrackHit {
-    let left = degrade_side(target, TrackSide::Left, chunk);
-    let right = degrade_side(target, TrackSide::Right, chunk);
-    if right.broke && !left.broke { right } else { left }
+/// An HE burst against the hull takes the running gear across it — but not EVENLY: the band the
+/// blast went off beside eats the full `chunk`, and the far band, screened by the whole hull,
+/// takes half (frequency-relief pass: the old symmetric bite double-threw tracks, and a burst
+/// cannot hit what the hull is in the way of as hard as what it is next to). Reports the side
+/// that newly broke (else the near side) as the callout's subject.
+fn degrade_both(target: &mut TankState, chunk: u8, hit_local_x: f32) -> TrackHit {
+    let (near, far) = if hit_local_x < 0.0 {
+        (TrackSide::Left, TrackSide::Right)
+    } else {
+        (TrackSide::Right, TrackSide::Left)
+    };
+    let near_hit = degrade_side(target, near, chunk);
+    let far_hit = degrade_side(target, far, chunk / 2);
+    if far_hit.broke && !near_hit.broke { far_hit } else { near_hit }
 }
 
 pub(crate) fn impacted_module(

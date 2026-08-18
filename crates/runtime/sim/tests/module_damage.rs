@@ -230,25 +230,25 @@ fn fire_command() -> TankCommand {
 
 /// Ignition is EARNED, and this is the rule that earns it.
 ///
-/// A fire needs hot fragments in something flammable, so it asks for spall-level energy at the
-/// component — the same threshold that throws the spall cones — and not for mere contact. What
-/// that buys is the case below: a round that gets in and WRECKS the engine outright without
-/// carrying enough left to light it.
+/// A fire needs hot fragments in something flammable, so it asks for fire-level energy at the
+/// component (`FIRE_ENERGY_MM`) — well above what merely gets inside. What that buys is the case
+/// below: a round that gets in and FINISHES the engine without carrying enough left to light it.
 ///
-/// Before this gate, any penetrating engine kill lit the deck. A T-54's engine dies to a single
-/// hit, so every centreline penetration was a guaranteed fire and the fire meant nothing. The two
-/// shots here differ only in muzzle penetration; both destroy the engine, and only the energetic
-/// one burns.
+/// Before this gate, any penetrating engine kill lit the deck and the fire meant nothing. Since
+/// the frequency-relief pass a single round no longer destroys a HEALTHY engine at all (see
+/// `a_single_penetration_wounds_a_healthy_module_it_does_not_destroy_it`), so this scenario
+/// starts from an engine already fighting at 40 hp — the second-hit case. The two shots differ
+/// only in muzzle penetration; both finish the engine, and only the energetic one burns.
 ///
-/// Note what the tuned threshold implies, and why it is the point: a round needs ~300 mm of muzzle
+/// Note what the tuned threshold implies, and why it is the point: a round needs ~360 mm of muzzle
 /// penetration to light this engine THROUGH THE GLACIS, and the era's real guns carry 175-200. So a
 /// frontal hit essentially never starts a fire — fires are what the flank and the rear cost you.
 #[test]
 fn wrecking_an_engine_is_not_the_same_as_lighting_it() {
     let spent = engine_kill_shot(260.0);
-    let energetic = engine_kill_shot(340.0);
+    let energetic = engine_kill_shot(380.0);
 
-    assert_eq!(spent.engine_hp, 0, "the spent round still wrecks the engine outright");
+    assert_eq!(spent.engine_hp, 0, "the spent round still finishes the wounded engine");
     assert_eq!(energetic.engine_hp, 0, "so does the energetic one");
     assert!(
         !spent.engine_fire,
@@ -257,13 +257,38 @@ fn wrecking_an_engine_is_not_the_same_as_lighting_it() {
     assert!(energetic.engine_fire, "a round with fragments to spare lights the deck");
 }
 
+/// The frequency-relief promise itself (user verdict 2026-08-18: "obecnie nie da się grać"):
+/// one penetration WOUNDS a healthy module, it does not destroy it. The same energetic
+/// centreline shot that finishes a wounded engine above leaves a healthy one alive and
+/// degraded — running at its damage floor, repairable, but running. `MODULE_WOUND_SCALE`
+/// carries this promise; the battle-level reading is locked by
+/// `battle_host/tests/battle_statistics.rs`.
+#[test]
+fn a_single_penetration_wounds_a_healthy_module_it_does_not_destroy_it() {
+    let fresh = engine_shot_with(380.0, None);
+    assert!(fresh.engine_hp > 0, "a healthy engine survives even an energetic single penetration");
+    assert!(
+        fresh.engine_hp < fresh.engine_full_hp,
+        "but it does not shrug it off either — the hit is a real wound"
+    );
+    assert!(!fresh.engine_fire, "an engine that survived the hit is not burning");
+}
+
 struct EngineKill {
     engine_hp: u32,
+    engine_full_hp: u32,
     engine_fire: bool,
 }
 
-/// One centreline glacis penetration into the engine bay at the given muzzle penetration.
+/// One centreline glacis penetration into an engine already worn down to 40 hp — the
+/// second-hit case a single round can actually finish since the frequency-relief pass.
 fn engine_kill_shot(penetration_mm_at_100m: f32) -> EngineKill {
+    engine_shot_with(penetration_mm_at_100m, Some(40))
+}
+
+/// One centreline glacis penetration into the engine bay at the given muzzle penetration,
+/// against an engine pre-worn down to `engine_worn_to_hp` (or healthy for `None`).
+fn engine_shot_with(penetration_mm_at_100m: f32, engine_worn_to_hp: Option<u32>) -> EngineKill {
     let mut state = SimulationState::new();
     // The D-10T2S: with the facet smear retired (#428) the stock D-10T's 185 mm meets an
     // honest 174 mm glacis and penetrates with single-digit residual — not enough to walk the
@@ -279,7 +304,15 @@ fn engine_kill_shot(penetration_mm_at_100m: f32) -> EngineKill {
     let shooter =
         state.spawn_tank(TeamId(1), loadout.assemble(game_core::VehicleKind::T54_1951), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
-    state.tank_mut(target).expect("target").yaw_rad = PI;
+    let engine_full_hp;
+    {
+        let target = state.tank_mut(target).expect("target");
+        target.yaw_rad = PI;
+        engine_full_hp = target.modules.hit_points(ModuleSlot::Engine);
+        if let Some(worn_to) = engine_worn_to_hp {
+            target.modules.damage(ModuleSlot::Engine, engine_full_hp.saturating_sub(worn_to));
+        }
+    }
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.gun_pitch_rad = -0.010;
@@ -293,6 +326,7 @@ fn engine_kill_shot(penetration_mm_at_100m: f32) -> EngineKill {
     let tank = state.tank(target).expect("target");
     EngineKill {
         engine_hp: tank.modules.hit_points(ModuleSlot::Engine),
+        engine_full_hp,
         engine_fire: tank.engine_fire,
     }
 }
