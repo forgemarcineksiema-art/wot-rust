@@ -39,6 +39,9 @@ pub(crate) struct DamageLogEntry {
     pub track: Option<(TrackSide, bool)>,
     /// The other party (target when dealt, attacker when taken), if still known.
     pub other_vehicle: Option<VehicleKind>,
+    /// Crewmen this shell knocked out (`CrewRole::ALL` bit order, v46) — the shooter's one-shot
+    /// callout, and the taken-side confirmation of who just went down.
+    pub crew_hits_mask: u8,
     pub age_s: f32,
 }
 
@@ -83,6 +86,7 @@ impl DamageLog {
                 module: event.module,
                 track,
                 other_vehicle,
+                crew_hits_mask: event.crew_hits_mask,
                 age_s: 0.0,
             });
         }
@@ -162,6 +166,22 @@ pub(crate) fn push_damage_log(
             };
             crate::hud::font::push_text(vertices, tag, x, y, LOG_TEXT_SIZE, aspect, color);
             x += 0.022;
+        }
+        // A crew hit rides its row as the role's letter — "G" for the gunner the shell took out.
+        // One letter per man; a multi-station pass earns each its mark.
+        for role in game_core::CrewRole::ALL {
+            if entry.crew_hits_mask & role.mask_bit() != 0 {
+                crate::hud::font::push_text(
+                    vertices,
+                    crate::hud::crew_panel::role_letter(role),
+                    x,
+                    y,
+                    LOG_TEXT_SIZE,
+                    aspect,
+                    crate::hud::crew_panel::CREW_DOWN,
+                );
+                x += 0.022;
+            }
         }
         if let Some(kind) = entry.other_vehicle {
             crate::hud::font::push_text(
@@ -284,6 +304,7 @@ mod tests {
                 module: Some(game_core::ModuleSlot::Engine),
                 track: None,
                 other_vehicle: Some(VehicleKind::IS3),
+                crew_hits_mask: 0,
                 age_s: 0.0,
             },
             DamageLogEntry {
@@ -292,6 +313,7 @@ mod tests {
                 module: None,
                 track: None,
                 other_vehicle: Some(VehicleKind::TigerI),
+                crew_hits_mask: 0,
                 age_s: 0.0,
             },
         ];

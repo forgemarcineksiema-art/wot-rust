@@ -201,6 +201,27 @@ fn every_component_sits_inside_the_armour_that_protects_it() {
     );
 }
 
+/// Every hull carries its crew (v46): at least the driver and the three tower men, seated as
+/// stations a shell can cross. A role with no station is legitimately unhittable (the T-54 has
+/// no radio operator; the plan decides) — but a hull with FEWER than four is a hull whose men
+/// cannot be wounded, which "każdy załogant może zostać uszkodzony" forbids.
+#[test]
+fn every_hull_seats_a_woundable_crew() {
+    let mut offenders = Vec::new();
+    for kind in VehicleKind::PLAYABLE {
+        let layout = DamageLayout::for_vehicle(kind);
+        let stations = layout.components().iter().filter(|c| c.kind.crew_role().is_some()).count();
+        if stations < 4 {
+            offenders.push(format!("{kind:?}: {stations} crew stations"));
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "hulls whose crew cannot be wounded:\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
 /// The anatomy that separates the two schools, stated as a promise rather than left in prose.
 ///
 /// A German hull drives from the bow, so its gearbox is ahead of the turret ring and a bow

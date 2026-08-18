@@ -649,6 +649,7 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             incoming_hits: Vec::new(),
             ammo: None,
             modules: None,
+            crew: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,

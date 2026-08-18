@@ -10,8 +10,8 @@
 //! shot that does find the engine bay has a large target.
 
 use super::authoring::{
-    DriveEnd, HullEnvelope, TurretFit, final_drive_pair, flank_fuel_pair, hull_component, obb,
-    suspension_pair, turret_group,
+    CrewPlan, DriveEnd, HullEnvelope, TurretFit, crew_stations_from_plan, final_drive_pair,
+    flank_fuel_pair, hull_component, obb, suspension_pair, turret_group,
 };
 use super::{DamageComponentKind as K, DamageLayout, DamageMaterial as M};
 use crate::ModuleSlot;
@@ -26,6 +26,12 @@ pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
     components.extend(flank_fuel_pair(env, [8, 9], [0.20, 0.32, 0.46], 0.34));
     components.extend(final_drive_pair(env, [12, 13], DriveEnd::Rear, 0.23));
     components.extend(suspension_pair(env, [14, 15], 0.19));
+    // Four men, British layout: driver alone in the hull, three in the turret.
+    components.extend(crew_stations_from_plan(
+        env,
+        18,
+        CrewPlan { driver_x_sign: 1.0, bow_radio_operator: false, gunner_x_sign: 1.0 },
+    ));
     DamageLayout { components }
 }
 

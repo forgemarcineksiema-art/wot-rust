@@ -545,6 +545,131 @@
         "priority": 20,
         "requires_penetration": false,
         "vulnerability": 0.8
+      },
+      {
+        "id": 18,
+        "frame": "Hull",
+        "kind": "DriverStation",
+        "slot": "Engine",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.583,
+              -0.7,
+              2.8558202
+            ],
+            "b": [
+              0.583,
+              -0.13999999,
+              2.6758204
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 19,
+        "frame": "Hull",
+        "kind": "RadioOperatorStation",
+        "slot": "Engine",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              -0.583,
+              -0.7,
+              2.8558202
+            ],
+            "b": [
+              -0.583,
+              -0.13999999,
+              2.6758204
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 20,
+        "frame": "Turret",
+        "kind": "GunnerStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.44642586,
+              0.36000004,
+              0.28
+            ],
+            "b": [
+              0.44642586,
+              0.76000005,
+              0.2
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 21,
+        "frame": "Turret",
+        "kind": "CommanderStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.44642586,
+              0.38000005,
+              -0.24
+            ],
+            "b": [
+              0.44642586,
+              0.76000005,
+              -0.32
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 22,
+        "frame": "Turret",
+        "kind": "LoaderStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              -0.44642586,
+              0.36000004,
+              0.04
+            ],
+            "b": [
+              -0.44642586,
+              0.76000005,
+              -0.06
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
       }
     ]
   },

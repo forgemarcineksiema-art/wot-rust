@@ -27,6 +27,7 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod scope_overlay;
 pub use ui_kit::theme;
+pub(crate) mod crew_panel;
 pub(crate) mod track_callout;
 
 pub(crate) use health::health_color;
@@ -72,6 +73,9 @@ pub struct BattleHudModel {
     /// The player's own module-condition row under the health bar (`hud/module_panel.rs`); `None`
     /// before the first snapshot, then always present so a knocked-out gun is never a mystery.
     pub modules: Option<module_panel::ModulePanelModel>,
+    /// The crew row under the module panel (`hud/crew_panel.rs`, v46): who is down, the first-aid
+    /// countdown, who came back scarred. `None` before the first snapshot.
+    pub crew: Option<crew_panel::CrewPanelModel>,
     pub minimap: Option<minimap::MinimapModel>,
     pub battle_outcome: Option<BattleHudOutcome>,
     /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
@@ -109,6 +113,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             incoming_hits: Vec::new(),
             ammo: None,
             modules: None,
+            crew: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
@@ -147,6 +152,7 @@ pub(crate) fn build_hud_with_reticle(
             incoming_hits: Vec::new(),
             ammo: None,
             modules: None,
+            crew: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
@@ -233,6 +239,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     }
     if let Some(modules) = &model.modules {
         module_panel::push_module_panel(&mut vertices, modules, aspect);
+    }
+    if let Some(crew) = &model.crew {
+        crew_panel::push_crew_panel(&mut vertices, crew, aspect);
     }
     if let Some(map) = &model.minimap {
         minimap::push_minimap(&mut vertices, map, aspect);
