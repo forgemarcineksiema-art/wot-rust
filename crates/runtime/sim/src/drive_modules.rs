@@ -103,14 +103,22 @@ impl DriveModuleStatus {
     /// Build from live module HP (in `ModuleSlot::ALL` wire order) plus the spec's full pools —
     /// the one construction shared by the server projection and the client predictor, so both
     /// always drive identical hulls.
+    /// `driver_effectiveness` is the crew-vitals read for the driver's station (1.0 whole; see
+    /// `game_core::CrewVitals`) — a parameter, not a global, so a missed call site is a compile
+    /// error instead of a silent server/predictor desync.
     pub fn from_module_hp(
         tracks: TrackDriveStatus,
         live: [u32; game_core::MODULE_SLOT_COUNT],
         spec: &TankSpec,
+        driver_effectiveness: f32,
     ) -> Self {
         let live_hp = |slot: ModuleSlot| live[slot.wire_index()];
         let full_hp = |slot: ModuleSlot| spec.module_health.hit_points(slot);
         let gun_full = full_hp(ModuleSlot::Gun).max(1) as f32;
+        // A covered driver's station drives at a penalty on BOTH throttle and turn — someone
+        // else is on the sticks — but never to zero: the floors below the module fractions
+        // still hold, and crew state multiplies them rather than replacing them.
+        let driver = driver_effectiveness.clamp(0.0, 1.0).max(0.35);
         Self {
             tracks,
             engine_ok: live_hp(ModuleSlot::Engine) > 0,
@@ -119,20 +127,21 @@ impl DriveModuleStatus {
             engine_power_fraction: game_core::engine_power_fraction(
                 live_hp(ModuleSlot::Engine),
                 full_hp(ModuleSlot::Engine),
-            ),
+            ) * driver,
             suspension_agility: game_core::suspension_agility_fraction(
                 live_hp(ModuleSlot::Suspension),
                 full_hp(ModuleSlot::Suspension),
-            ),
+            ) * driver,
         }
     }
 
-    /// Every module at full health.
+    /// Every module at full health, the crew whole.
     pub fn healthy(spec: &TankSpec) -> Self {
         Self::from_module_hp(
             TrackDriveStatus::healthy(),
             spec.module_health.hit_points_by_slot(),
             spec,
+            1.0,
         )
     }
 }

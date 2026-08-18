@@ -22,7 +22,54 @@ pub(super) fn layout() -> DamageLayout {
     let mut components = turret_components();
     components.extend(hull_components());
     components.extend(suspension_components());
+    components.extend(crew_stations());
     DamageLayout { components }
+}
+
+/// The four men of a T-54 (no bow gunner since the T-54's clean glacis): driver in the bow on
+/// the LEFT — the right of the bow is the 20-round rack (#5) — and the classic Soviet 100 mm
+/// tower: gunner forward-left of the breech, commander behind him under the cupola, loader on
+/// the right. The fifth roster role (radio operator) has no station on this hull: a role
+/// without a station is simply unhittable, and `CrewVitals` still tracks all five.
+fn crew_stations() -> Vec<DamageComponent> {
+    use super::authoring::crew_station;
+    vec![
+        // Seated at the tillers, torso from the hull floor to under the foredeck (0.39): the
+        // capsule leans forward the way a driver does, and its top clears the glacis interior.
+        // POSITIVE x — the driver's side of this frame (the bow rack #5 holds the other side;
+        // see `the_drivers_side_of_the_hull_carries_no_ammunition`).
+        crew_station(
+            17,
+            ArmorFrame::Hull,
+            K::DriverStation,
+            [0.55, -0.55, 1.50],
+            [0.55, 0.08, 1.32],
+        ),
+        crew_station(
+            18,
+            ArmorFrame::Turret,
+            K::GunnerStation,
+            [0.48, 0.00, 0.30],
+            [0.48, 0.42, 0.22],
+        ),
+        // Behind the gunner, under the cupola's side of the dome — kept clear of the bustle
+        // clips (#6, z −0.67..−0.43).
+        crew_station(
+            19,
+            ArmorFrame::Turret,
+            K::CommanderStation,
+            [0.45, 0.02, -0.22],
+            [0.45, 0.45, -0.30],
+        ),
+        // The loader works the rack side of the tower, opposite the gunner.
+        crew_station(
+            20,
+            ArmorFrame::Turret,
+            K::LoaderStation,
+            [-0.48, 0.00, 0.05],
+            [-0.48, 0.42, -0.05],
+        ),
+    ]
 }
 
 fn turret_components() -> Vec<DamageComponent> {

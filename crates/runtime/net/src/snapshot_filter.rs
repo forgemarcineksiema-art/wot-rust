@@ -14,9 +14,15 @@ impl Snapshot {
         observer_masks: &[sim::ObserverMask],
         viewer_index: usize,
     ) -> Self {
+        // Team intel needs BOTH the set and the man: a destroyed radio module carries nothing,
+        // and neither does a working set with its operator slumped over it (crew-damage, v46).
+        // A WEAKENED operator keeps the net — the gate is binary, and no double penalty stacks
+        // on top of the hardware one.
         let viewer_radio_ok =
             self.tanks.iter().find(|tank| tank.tank_id == viewer_tank).is_some_and(|tank| {
                 tank.destroyed_modules_mask & game_core::ModuleSlot::Radio.destroyed_mask_bit() == 0
+                    && tank.crew_unconscious_mask & game_core::CrewRole::RadioOperator.mask_bit()
+                        == 0
             });
         // The viewer's bit has to exist before it can be tested. `1 << viewer_index` on an index
         // past the mask's width is an overflow, and the third place this cap used to live
@@ -47,6 +53,7 @@ impl Snapshot {
         let mut visible_tanks = self.visible_tanks_for(viewer_tank, viewer_team, &admits);
         quantize_distant_enemy_hp(&mut visible_tanks, viewer_tank, viewer_team);
         conceal_enemy_rack_fuze(&mut visible_tanks, viewer_team);
+        conceal_enemy_crew_state(&mut visible_tanks, viewer_team);
         let visible_ids = visible_tanks.iter().map(|tank| tank.tank_id).collect::<Vec<_>>();
 
         // A shell's OWNER is intel; the shell is not (v44). The tracer, the dirt of a near-miss
@@ -184,6 +191,19 @@ fn conceal_enemy_rack_fuze(tanks: &mut [TankSnapshot], viewer_team: TeamId) {
     for tank in tanks.iter_mut() {
         if tank.team != viewer_team {
             tank.rack_fire_remaining_s = None;
+        }
+    }
+}
+
+/// Crew wounds are interior state exactly like the rack fuze (v46): the crew and their team
+/// read who is down and how long the bandage needs; an enemy sees a whole crew. The shooter's
+/// knowledge is the one-shot `DamageEvent::crew_hits_mask` callout at the moment of the hit.
+fn conceal_enemy_crew_state(tanks: &mut [TankSnapshot], viewer_team: TeamId) {
+    for tank in tanks.iter_mut() {
+        if tank.team != viewer_team {
+            tank.crew_unconscious_mask = 0;
+            tank.crew_weakened_mask = 0;
+            tank.crew_down_remaining_s = Default::default();
         }
     }
 }

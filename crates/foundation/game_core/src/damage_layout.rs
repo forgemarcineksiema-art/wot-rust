@@ -35,6 +35,31 @@ pub enum DamageComponentKind {
     Transmission,
     FinalDrive,
     Suspension,
+    // Crew stations (appended 2026-08-18, crew-damage foundation; serde discriminants are asset
+    // identity — append, never reorder). A station is where a crewman SITS: a penetration
+    // crossing it with knock-level energy takes the man out of the fight (`sim::combat`), it
+    // damages no machinery and throws no fragments. Five unit variants rather than one kind with
+    // a role field, so stations ride every existing pipe (ids, masks, dedup) unchanged.
+    CommanderStation,
+    GunnerStation,
+    DriverStation,
+    LoaderStation,
+    RadioOperatorStation,
+}
+
+impl DamageComponentKind {
+    /// The crew role seated at this component, `None` for machinery. The single dispatch point
+    /// the internal path uses to split "wound the module" from "knock the man".
+    pub fn crew_role(self) -> Option<crate::CrewRole> {
+        match self {
+            DamageComponentKind::CommanderStation => Some(crate::CrewRole::Commander),
+            DamageComponentKind::GunnerStation => Some(crate::CrewRole::Gunner),
+            DamageComponentKind::DriverStation => Some(crate::CrewRole::Driver),
+            DamageComponentKind::LoaderStation => Some(crate::CrewRole::Loader),
+            DamageComponentKind::RadioOperatorStation => Some(crate::CrewRole::RadioOperator),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +70,9 @@ pub enum DamageMaterial {
     Electronics,
     Driveline,
     SuspensionSteel,
+    /// A seated crewman (appended 2026-08-18): a body barely slows a shell, and it neither
+    /// fragments nor burns — the material exists so a station costs the round almost nothing.
+    Crew,
 }
 
 impl DamageMaterial {
@@ -56,6 +84,7 @@ impl DamageMaterial {
             Self::Electronics => (2.0, 10.0),
             Self::Driveline => (12.0, 40.0),
             Self::SuspensionSteel => (10.0, 34.0),
+            Self::Crew => (2.0, 6.0),
         };
         base + path_length_m.max(0.0) * per_meter
     }

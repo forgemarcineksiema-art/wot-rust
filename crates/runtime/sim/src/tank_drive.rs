@@ -272,7 +272,12 @@ pub(crate) fn tank_drive_modules(tank: &TankState) -> DriveModuleStatus {
     } else {
         TrackDriveStatus::broken()
     };
-    DriveModuleStatus::from_module_hp(tracks, tank.modules.hit_points_by_slot(), &tank.spec)
+    DriveModuleStatus::from_module_hp(
+        tracks,
+        tank.modules.hit_points_by_slot(),
+        &tank.spec,
+        tank.crew.effectiveness(game_core::CrewRole::Driver),
+    )
 }
 
 /// PHASE 1 for one tank: advance its drive without moving it, and write the new velocity and

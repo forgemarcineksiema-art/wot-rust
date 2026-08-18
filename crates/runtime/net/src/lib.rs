@@ -123,7 +123,11 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// every snapshot; the client counts down locally against the `server_tick` it already tracks.
 /// Before it, a remote HUD hid the battle timer because it knew the current tick but not the
 /// deadline. Appended field — a wire break by layout.
-pub const PROTOCOL_VERSION: u16 = 45;
+/// v46: crew battle wounds (crew-damage foundation) — `TankSnapshot` gains the two crew masks
+/// and the first-aid countdowns (team-private, see `snapshot_filter::conceal_enemy_crew_state`),
+/// `DamageEvent` gains `crew_hits_mask` (the shooter's one-shot callout). All appends with
+/// `serde(default)`; older fixtures load with a whole crew.
+pub const PROTOCOL_VERSION: u16 = 46;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -241,6 +245,18 @@ pub struct TankSnapshot {
     /// (`snapshot_filter::conceal_enemy_rack_fuze`).
     #[serde(default)]
     pub rack_fire_remaining_s: Option<f32>,
+    /// v46: crewmen currently DOWN (bit `i` in `CrewRole::ALL` order). PRIVATE state like the
+    /// rack fuze: the owner and their team read it; enemies see a whole crew (the shooter's
+    /// knowledge is the one-shot `DamageEvent::crew_hits_mask` callout, not an ongoing readout).
+    #[serde(default)]
+    pub crew_unconscious_mask: u8,
+    /// v46: crewmen back from first aid but scarred for the battle. Same privacy as above.
+    #[serde(default)]
+    pub crew_weakened_mask: u8,
+    /// v46: seconds of first aid left per role (`CrewRole::ALL` order), `None` when not down —
+    /// the HUD countdown, and the predictor's seed for ticking the bandage between snapshots.
+    #[serde(default)]
+    pub crew_down_remaining_s: [Option<f32>; game_core::CREW_ROLE_COUNT],
 }
 
 impl TankSnapshot {
@@ -287,6 +303,9 @@ impl From<&TankState> for TankSnapshot {
             rack_fire_remaining_s: tank
                 .rack_fire
                 .then(|| (sim::RACK_COOKOFF_S - tank.rack_fire_s).max(0.0)),
+            crew_unconscious_mask: tank.crew.unconscious_mask(),
+            crew_weakened_mask: tank.crew.weakened_mask(),
+            crew_down_remaining_s: tank.crew.down_remaining_s(),
         }
     }
 }

@@ -32,6 +32,8 @@ pub struct BattleStats {
     pub rack_ignitions: u32,
     /// Rack cook-offs that resolved as detonations.
     pub cookoff_detonations: u32,
+    /// Crewmen knocked out (popcount of each event's `crew_hits_mask`, v46).
+    pub crew_hits: u32,
     /// Ticks actually simulated (a battle can end before the budget).
     pub ticks: u64,
 }
@@ -50,7 +52,7 @@ impl BattleStats {
     pub fn table_row(&self, seed: u64) -> String {
         format!(
             "seed {seed}: pens {} wounds {} (per-pen {:.2}) destr {:?} (total {}) throws {} \
-             fires {} rack-fuzes {} cookoffs {} ticks {}",
+             fires {} rack-fuzes {} cookoffs {} crew-hits {} ticks {}",
             self.penetrations,
             self.module_wounds,
             self.wounds_per_penetration(),
@@ -60,6 +62,7 @@ impl BattleStats {
             self.fires,
             self.rack_ignitions,
             self.cookoff_detonations,
+            self.crew_hits,
             self.ticks,
         )
     }
@@ -109,6 +112,7 @@ pub fn run_measured_battle(
             if event.cause == DamageCause::AmmoRack {
                 stats.cookoff_detonations += 1;
             }
+            stats.crew_hits += event.crew_hits_mask.count_ones();
         }
 
         if client_tick % 15 == 0 {

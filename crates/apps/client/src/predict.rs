@@ -22,6 +22,9 @@ pub struct LocalPredictor {
     module_hit_points: [u32; MODULE_SLOT_COUNT],
     destroyed_modules_mask: u8,
     tracks: TrackHealth,
+    /// Crew battle wounds, reconciled from snapshots and ticked between them (v46) — the
+    /// predictor must drive and settle the sight with the same wounded hands the server does.
+    crew: game_core::CrewVitals,
     /// The ammo slot the player believes is loaded: set optimistically on the 1/2/3 keys so the
     /// reticle's ballistics answer the same frame, reconciled from snapshots.
     selected_ammo: u8,
@@ -57,6 +60,7 @@ impl LocalPredictor {
             hit_points: spec.hit_points,
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            crew: game_core::CrewVitals::default(),
             tracks: TrackHealth::healthy(),
             selected_ammo: spec.ammo.initial_selected,
             pending_landing_impact_mps: 0.0,
@@ -147,25 +151,35 @@ impl LocalPredictor {
         ground: Option<&terrain::GroundClassifier>,
         dt: f32,
     ) {
-        // Mirror the server: dispersion recovers every tick, even for a dead hull.
+        // Mirror the server: dispersion recovers every tick, even for a dead hull — with the
+        // same wounded gunner's hands the authority settles with (crew-damage, v46).
         let gun_damage_fraction = self.module_damage_fraction(ModuleSlot::Gun);
+        let gunner = self.crew.effectiveness(game_core::CrewRole::Gunner);
         recover_dispersion(
             &mut self.drive.aim_dispersion_mrad,
             &self.spec,
             gun_damage_fraction,
-            dt,
+            dt * gunner,
         );
         if self.hit_points == 0 {
             self.drive.kinematic.velocity = Vec3::ZERO;
             self.drive.kinematic.yaw_rate_rad_s = 0.0;
             return;
         }
+        // First aid ticks between snapshots exactly as the server ticks it, so the drive
+        // penalty lifts the same tick on both sides instead of jumping at snapshot cadence.
+        self.crew.step_first_aid(dt);
         let tracks = if self.module_destroyed(ModuleSlot::Suspension) {
             TrackDriveStatus::broken()
         } else {
             TrackDriveStatus::from_track_health(&self.tracks)
         };
-        let modules = DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
+        let modules = DriveModuleStatus::from_module_hp(
+            tracks,
+            self.module_hit_points,
+            &self.spec,
+            self.crew.effectiveness(game_core::CrewRole::Driver),
+        );
         let footprint = self.spec.contact_footprint();
         let world = TankDriveWorld {
             heightmap: Some(heightmap),

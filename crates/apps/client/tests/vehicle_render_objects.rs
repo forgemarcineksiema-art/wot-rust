@@ -50,6 +50,9 @@ fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
             engine_fire: false,
             fuel_fire: false,
             rack_fire_remaining_s: None,
+            crew_unconscious_mask: 0,
+            crew_weakened_mask: 0,
+            crew_down_remaining_s: Default::default(),
         };
 
         let (dynamic_vertices, _) = tank_scene_mesh(&snapshot);
@@ -110,6 +113,9 @@ fn t54_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -234,6 +240,9 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -279,6 +288,9 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     };
 
     let green = [0.30, 0.40, 0.28];
@@ -335,6 +347,9 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     };
     let base = [0.30, 0.40, 0.28];
     let healthy = tank_render_objects(&mut catalog, &snapshot, base);

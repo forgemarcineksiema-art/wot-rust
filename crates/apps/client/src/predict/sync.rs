@@ -55,6 +55,11 @@ impl LocalPredictor {
         self.module_hit_points = authoritative.module_hit_points;
         self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
         self.tracks = game_core::TrackHealth::from_hp_pair(authoritative.track_hp);
+        self.crew = game_core::CrewVitals::from_wire(
+            authoritative.crew_unconscious_mask,
+            authoritative.crew_weakened_mask,
+            authoritative.crew_down_remaining_s,
+        );
         self.selected_ammo = authoritative.selected_ammo;
         if let Some(motion) = motion {
             self.drive.kinematic.velocity = Vec3::from_array(motion.velocity_mps);

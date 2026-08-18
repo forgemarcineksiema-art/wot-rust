@@ -70,5 +70,8 @@ fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     }
 }

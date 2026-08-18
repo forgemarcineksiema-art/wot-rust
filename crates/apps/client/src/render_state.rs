@@ -125,6 +125,9 @@ impl InterpolatedBattleState {
                 engine_fire: tank.engine_fire,
                 fuel_fire: tank.fuel_fire,
                 rack_fire_remaining_s: tank.rack_fire_remaining_s,
+                crew_unconscious_mask: tank.crew_unconscious_mask,
+                crew_weakened_mask: tank.crew_weakened_mask,
+                crew_down_remaining_s: tank.crew_down_remaining_s,
             },
             None => tank.clone(),
         }

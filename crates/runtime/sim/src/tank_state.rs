@@ -24,6 +24,11 @@ pub struct TankState {
     /// Who lit the rack — the detonation is their kill, ten seconds late.
     #[serde(default)]
     pub rack_fire_source: Option<game_core::TankId>,
+    /// Battle wounds of the five-man roster (crew-damage foundation, protocol v46): who is down,
+    /// who is back but scarred. Stepped beside module field repair; `serde(default)` keeps
+    /// pre-crew fixtures loading with a whole crew.
+    #[serde(default)]
+    pub crew: game_core::CrewVitals,
     pub position: Vec3,
     pub yaw_rad: f32,
     pub turret_yaw_rad: f32,
@@ -138,7 +143,11 @@ impl TankState {
     pub fn full_reload_seconds(&self) -> f32 {
         let full = self.spec.module_health.hit_points(game_core::ModuleSlot::Gun);
         let live = self.modules.hit_points(game_core::ModuleSlot::Gun);
-        self.spec.gun.reload_seconds * game_core::gun_reload_multiplier(live, full)
+        // The loader's hands are part of the gun: a covered station loads at half pace, a
+        // scarred loader at 85% — multiplied with the wounded-breech penalty, not instead of it.
+        let loader =
+            game_core::crew_time_multiplier(self.crew.effectiveness(game_core::CrewRole::Loader));
+        self.spec.gun.reload_seconds * game_core::gun_reload_multiplier(live, full) * loader
     }
 
     /// Where the next shell leaves the barrel: the mount chain pivoted about trunnion and ring,
