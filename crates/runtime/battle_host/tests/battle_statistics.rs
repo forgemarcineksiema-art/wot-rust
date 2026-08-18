@@ -51,5 +51,20 @@ fn seeded_battles_stay_inside_the_damage_frequency_bands() {
             "seed {seed}: {} crew hits — a knocked-out crewman must stay an event",
             stats.crew_hits,
         );
+        // Back-face spall (Amunicja 3.0 A1): the near-penetration mechanic must stay a MINORITY
+        // wound source. With the margin pinned at 12% the 8-seed sweep measured total crew hits
+        // mean 3.75 against the v46 baseline's 3.5 (max unchanged at 8) — roughly two spall
+        // knocks across eight battles, i.e. at most one rattled crewman per battle and change.
+        // The dial is `BACKFACE_SPALL_MARGIN_FRACTION` in `sim/src/combat.rs`.
+        assert!(
+            stats.spall_crew_hits <= 3,
+            "seed {seed}: {} spall crew hits — a close call must stay a close call, not weather",
+            stats.spall_crew_hits,
+        );
+        assert!(
+            stats.spall_module_wounds <= 4,
+            "seed {seed}: {} spall module wounds — fragments scratch, they do not gut interiors",
+            stats.spall_module_wounds,
+        );
     }
 }

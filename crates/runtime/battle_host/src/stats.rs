@@ -32,8 +32,15 @@ pub struct BattleStats {
     pub rack_ignitions: u32,
     /// Rack cook-offs that resolved as detonations.
     pub cookoff_detonations: u32,
-    /// Crewmen knocked out (popcount of each event's `crew_hits_mask`, v46).
+    /// Crewmen knocked out (popcount of each event's `crew_hits_mask`, v46). Includes the
+    /// back-face spall knocks below — this is the TOTAL the crew-frequency band polices.
     pub crew_hits: u32,
+    /// Crewmen knocked out by back-face spall alone: crew hits on NON-penetrating shell events
+    /// (the only way a non-penetration wounds a man). Spall must stay a minority wound source —
+    /// its own band lives beside the total's in `tests/battle_statistics.rs`.
+    pub spall_crew_hits: u32,
+    /// Modules scratched by back-face spall: module masks on non-penetrating shell events.
+    pub spall_module_wounds: u32,
     /// Ticks actually simulated (a battle can end before the budget).
     pub ticks: u64,
 }
@@ -52,7 +59,7 @@ impl BattleStats {
     pub fn table_row(&self, seed: u64) -> String {
         format!(
             "seed {seed}: pens {} wounds {} (per-pen {:.2}) destr {:?} (total {}) throws {} \
-             fires {} rack-fuzes {} cookoffs {} crew-hits {} ticks {}",
+             fires {} rack-fuzes {} cookoffs {} crew-hits {} (spall {}) spall-wounds {} ticks {}",
             self.penetrations,
             self.module_wounds,
             self.wounds_per_penetration(),
@@ -63,6 +70,8 @@ impl BattleStats {
             self.rack_ignitions,
             self.cookoff_detonations,
             self.crew_hits,
+            self.spall_crew_hits,
+            self.spall_module_wounds,
             self.ticks,
         )
     }
@@ -100,6 +109,15 @@ pub fn run_measured_battle(
             if event.cause == DamageCause::Shell && event.penetrated {
                 stats.penetrations += 1;
                 stats.module_wounds += event.damaged_modules_mask.count_ones();
+            } else if event.cause == DamageCause::Shell {
+                // A non-penetrating shell wounds a man only through back-face spall, so the
+                // crew mask here IS the spall count. Modules need the suspension bit masked
+                // off first: the exposed running gear takes non-penetrating pokes on its own
+                // (`requires_penetration: false`), spall or no spall.
+                stats.spall_crew_hits += event.crew_hits_mask.count_ones();
+                let interior_mask = event.damaged_modules_mask
+                    & !game_core::ModuleSlot::Suspension.destroyed_mask_bit();
+                stats.spall_module_wounds += interior_mask.count_ones();
             }
             for (index, slot_count) in stats.module_destructions.iter_mut().enumerate() {
                 if event.destroyed_modules_mask & (1 << index) != 0 {
