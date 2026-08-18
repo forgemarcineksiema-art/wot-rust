@@ -91,7 +91,15 @@ pub(crate) fn step_shells(
                 for record in carved {
                     events.push_armor_breach(record.tank, record.breach);
                 }
-                let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
+                // A tungsten core is BRITTLE: past the bounce angle it does not skid — it
+                // SHATTERS on the outer face and dies there (Amunicja 3.0 A4, user decision
+                // 2026-08-18). The doctrine cost of the light fast round: it never gets the
+                // one-skip grace full-bore AP keeps. Outer face only — no interior effect, and
+                // the FX flag rides the batched v47 wire bump, not this branch.
+                let shattered = event.ricocheted
+                    && shells[index].shell.penetrator == game_core::Penetrator::TungstenCore;
+                let ricochet_continues =
+                    event.ricocheted && !shattered && !shells[index].ricocheted_once;
                 // The round flies on only through a hole the armour model actually opened.
                 let exit = exit.filter(|exit| kinetic_penetration_continues(&shells[index], exit));
                 let direct_target = event.target;

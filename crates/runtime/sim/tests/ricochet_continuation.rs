@@ -68,3 +68,45 @@ fn a_glance_off_the_side_keeps_the_shell_flying_blunted() {
     }
     assert!(state.shells().is_empty(), "a ricocheted shell still dies for good");
 }
+
+/// The brittle-core rule (Amunicja 3.0 A4): where full-bore AP skips, a tungsten core SHATTERS
+/// — same graze, same plate, but the round dies on the outer face with no deflection and no
+/// continued flight. The taxonomy the player learns: penetration / bounce / shatter / near-pen
+/// rattle, and the "gold" round's doctrine cost is that it never gets the skip.
+#[test]
+fn apcr_on_a_steep_plate_shatters_instead_of_skipping() {
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    // The exact geometry of the AP glance above — only the projectile differs: a synthetic
+    // 100 mm tungsten core, so the ricochet decision lands identically.
+    let tilt = 0.25_f32;
+    let hitbox = TankSpec::t54_1951().hitbox;
+    let target_x = -(hitbox.half_width_m * tilt.cos()) + 0.06;
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(target_x, -0.2, 40.0));
+    state.tank_mut(target).expect("target").yaw_rad = PI + tilt;
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.gun_pitch_rad = -0.018;
+        shooter.spec.gun.shell = game_core::ShellSpec::apcr(100.0, 895.0, 170.0, 170);
+    }
+    let step = FixedTimestep::from_hz(60);
+
+    state.apply_commands(&[(shooter, fire_command())], step);
+    let mut first_event = None;
+    for _ in 0..240 {
+        if let Some(event) = state.damage_events().first() {
+            first_event = Some(*event);
+            break;
+        }
+        state.apply_commands(&[], step);
+    }
+
+    let event = first_event.expect("the graze connects with the target");
+    assert!(event.ricocheted, "the ricochet DECISION is unchanged — only what follows differs");
+    assert!(!event.penetrated);
+    assert_eq!(event.damage_hp, 0);
+    assert!(
+        state.shells().is_empty(),
+        "a shattered round never flies on: the core died on the plate it failed to skid off"
+    );
+}
