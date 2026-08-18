@@ -19,6 +19,13 @@ impl ShellType {
         [ShellType::ArmorPiercing, ShellType::Apcr, ShellType::Heat, ShellType::HighExplosive];
 }
 
+/// Full-bore drag form factor, calibrated so the fleet's ten full-bore rounds MEAN ≈ 0.09
+/// (the old AP constant): `0.09 / mean(1/SD)` over the authored catalog at B3 time.
+const FULL_BORE_DRAG_FORM: f32 = 0.0130;
+/// Tungsten-core form factor, same calibration against the old 0.21: light cores bleed speed,
+/// and the two lightest (BR-365P, 20-pdr APDS) ride the band's ceiling by design.
+const CORE_DRAG_FORM: f32 = 0.0167;
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ShellSpec {
     #[serde(default)]
@@ -175,14 +182,40 @@ impl ShellSpec {
     /// Linear aerodynamic drag, in speed lost per second of flight. With `dv/dt = -c·v` a shell
     /// loses speed LINEARLY with distance (`v(s) = v0 − c·s`), so the flight integration
     /// ([`crate::math::integrate_shell_step`]), the HUD's penetration readout, and the server's
-    /// impact math all agree in closed form. Full-bore AP holds its speed, light APCR cores
-    /// bleed it fast, and the slow chemical rounds fly like bricks but never cared about speed.
+    /// impact math all agree in closed form.
+    ///
+    /// Since Amunicja 3.0 B3 a kinetic round's drag comes from its OWN body: a per-class form
+    /// factor over the sectional density (mass per bore area) — a heavy 12.8 cm shell carries
+    /// its speed, a light tungsten core sheds it. The form factors are calibrated so the fleet's
+    /// class MEANS land on the old constants (AP ≈ 0.09, APCR ≈ 0.21), and the class band clamp
+    /// keeps every round readable as its class: a concrete shell may fly a little flatter or
+    /// bleed a little faster, it may not impersonate another class. Chemical rounds keep the
+    /// flat class constant (they never cared about speed), and a legacy `mass_kg == 0.0` spec
+    /// keeps the old constants exactly — synthetic test shells and old fixtures do not move.
     pub fn drag_per_s(self) -> f32 {
-        match self.shell_type {
-            ShellType::ArmorPiercing => 0.09,
-            ShellType::Apcr => 0.21,
-            ShellType::Heat | ShellType::HighExplosive => 0.05,
+        if self.mass_kg <= 0.0 {
+            return match self.shell_type {
+                ShellType::ArmorPiercing => 0.09,
+                ShellType::Apcr => 0.21,
+                ShellType::Heat | ShellType::HighExplosive => 0.05,
+            };
         }
+        match self.penetrator {
+            crate::Penetrator::FullBoreSharp | crate::Penetrator::FullBoreBlunt => {
+                (FULL_BORE_DRAG_FORM / self.sectional_density_kg_cm2()).clamp(0.07, 0.12)
+            }
+            crate::Penetrator::TungstenCore => {
+                (CORE_DRAG_FORM / self.sectional_density_kg_cm2()).clamp(0.17, 0.24)
+            }
+            crate::Penetrator::ShapedCharge | crate::Penetrator::BlastCase => 0.05,
+        }
+    }
+
+    /// Mass per unit bore area, kg/cm² — the ballistic "carry" of the projectile. Meaningful
+    /// only for `mass_kg > 0.0` specs; [`Self::drag_per_s`] guards the legacy case.
+    pub fn sectional_density_kg_cm2(self) -> f32 {
+        let bore_cm = (self.caliber_mm * 0.1).max(0.1);
+        self.mass_kg / (bore_cm * bore_cm)
     }
 
     /// Impact speed after `distance_m` of flight — the closed form of the linear-drag flight.

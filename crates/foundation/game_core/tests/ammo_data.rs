@@ -131,6 +131,49 @@ fn high_explosive_damage_follows_its_filler_through_the_anchor_law() {
     assert_eq!(priced, 8, "every HE round in the catalog must be priced by the law");
 }
 
+/// Drag comes from the round's own body (B3): heavier same-class shells carry their speed,
+/// light tungsten cores shed it, every round stays inside its class band (readability), and a
+/// legacy massless spec keeps the old class constants EXACTLY — synthetic shells do not move.
+#[test]
+fn drag_follows_the_rounds_own_body_inside_its_class_band() {
+    let drag = |round: RoundId| round.spec().drag_per_s();
+    // The heavy 12.8 cm carries; the light 7.5 cm bleeds — same full-bore class.
+    assert!(
+        drag(RoundId::Pzgr43) < drag(RoundId::Pzgr39_42),
+        "a 28.3 kg shell must hold its speed better than a 6.8 kg one: {} vs {}",
+        drag(RoundId::Pzgr43),
+        drag(RoundId::Pzgr39_42)
+    );
+    // A core sheds speed faster than the full-bore round beside it in the same rack.
+    assert!(
+        drag(RoundId::Pzgr40_43) > drag(RoundId::Pzgr39_43),
+        "the tungsten core bleeds harder than the gun's own APCBC"
+    );
+    // Class bands: a concrete shell may fly flatter or bleed faster, it may not impersonate
+    // another class.
+    let mut banded = 0;
+    for round in RoundId::ALL {
+        let spec = round.spec();
+        let band = match spec.penetrator {
+            Penetrator::FullBoreSharp | Penetrator::FullBoreBlunt => 0.07..=0.12,
+            Penetrator::TungstenCore => 0.17..=0.24,
+            Penetrator::ShapedCharge | Penetrator::BlastCase => 0.05..=0.05,
+        };
+        assert!(
+            band.contains(&spec.drag_per_s()),
+            "{}: drag {} left its class band {band:?}",
+            round.designation(),
+            spec.drag_per_s()
+        );
+        banded += 1;
+    }
+    assert_eq!(banded, 25, "every cataloged round must sit in a band");
+    // The legacy fallback: a massless synthetic spec keeps the pre-B3 constants verbatim.
+    assert_eq!(game_core::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320).drag_per_s(), 0.09);
+    assert_eq!(game_core::ShellSpec::apcr(100.0, 1_000.0, 250.0, 300).drag_per_s(), 0.21);
+    assert_eq!(game_core::ShellSpec::heat(100.0, 900.0, 280.0, 320).drag_per_s(), 0.05);
+}
+
 /// The muzzle-energy order the fleet's feel is built on: the 12.8 cm Pzgr 43 slams hardest of
 /// every kinetic round — with real masses, that is now a computable fact instead of lore.
 #[test]
