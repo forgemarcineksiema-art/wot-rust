@@ -71,9 +71,10 @@ impl DamageLog {
             };
             let track = event.track_hit.map(|hit| (hit.side, hit.broke));
             // A pure bounce stays out — the arcs and confirm ticks carry those. But a track hit
-            // earns a row even at 0 HP: it is exactly the "your track is gone" event the log used
-            // to swallow.
-            if event.damage_hp == 0 && track.is_none() {
+            // earns a row even at 0 HP (the "your track is gone" event the log used to swallow),
+            // and so does a back-face spall wound: "the gunner is down and the shot never got
+            // in" is exactly the row the crew letters exist for.
+            if event.damage_hp == 0 && track.is_none() && event.crew_hits_mask == 0 {
                 continue;
             }
             let other_id =
@@ -266,6 +267,21 @@ mod tests {
         assert_eq!(rows[0].other_vehicle, Some(VehicleKind::IS3));
         assert_eq!(rows[1].direction, LogDirection::Dealt);
         assert_eq!(rows[1].other_vehicle, Some(VehicleKind::IS3));
+    }
+
+    #[test]
+    fn a_zero_damage_spall_still_earns_a_log_row_for_the_wounded_crewman() {
+        let mut log = DamageLog::default();
+        let tanks = [tank(1, VehicleKind::T54_1951), tank(2, VehicleKind::IS3)];
+        // A back-face spall wound: the plate held (0 HP, no penetration), the gunner did not.
+        let mut spall = event(2, 1, 0);
+        spall.crew_hits_mask = game_core::CrewRole::Gunner.mask_bit();
+        log.ingest(&[spall], TankId(1), &tanks);
+
+        let rows = log.visible();
+        assert_eq!(rows.len(), 1, "\"the gunner is down and the shot never got in\" is a row");
+        assert_eq!(rows[0].crew_hits_mask, game_core::CrewRole::Gunner.mask_bit());
+        assert_eq!(rows[0].damage_hp, 0, "and the armor's HP story stays a bounce");
     }
 
     #[test]

@@ -85,6 +85,10 @@ impl Snapshot {
                         || (visible_ids.contains(&event.source)
                             && visible_ids.contains(&event.target))
                 })
+                .map(|mut event| {
+                    conceal_nonpen_crew_intel(&mut event, viewer_team, &self.tanks);
+                    event
+                })
                 .collect(),
             // Impacts ride through as world events; their owner is anonymized like the shell's.
             shell_impacts: self
@@ -205,5 +209,24 @@ fn conceal_enemy_crew_state(tanks: &mut [TankSnapshot], viewer_team: TeamId) {
             tank.crew_weakened_mask = 0;
             tank.crew_down_remaining_s = Default::default();
         }
+    }
+}
+
+/// The v46 crew callout is the shooter's knowledge only for a PENETRATION — the shooter saw the
+/// hole. A bounce gives no honest channel to what its back-face fragments did inside (Amunicja
+/// 3.0, user decision 2026-08-18), so on non-penetrating events the crew mask reaches only the
+/// target's own team; everyone else reads a plain bounce. What never reaches the wire cannot be
+/// read out of it.
+fn conceal_nonpen_crew_intel(
+    event: &mut game_core::DamageEvent,
+    viewer_team: TeamId,
+    tanks: &[TankSnapshot],
+) {
+    if event.penetrated || event.crew_hits_mask == 0 {
+        return;
+    }
+    let target_team = tanks.iter().find(|tank| tank.tank_id == event.target).map(|tank| tank.team);
+    if target_team != Some(viewer_team) {
+        event.crew_hits_mask = 0;
     }
 }

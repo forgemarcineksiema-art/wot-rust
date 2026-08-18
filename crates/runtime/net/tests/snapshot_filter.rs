@@ -150,6 +150,60 @@ fn snapshot_filter_keeps_detached_turret_wrecks_the_viewer_can_see() {
     assert_eq!(filtered.detached_turrets, vec![TankId(5), TankId(6)]);
 }
 
+/// A bounce gives the shooter no honest channel to what its back-face fragments did inside
+/// (Amunicja 3.0 A3): on a NON-penetrating event the crew mask reaches only the target's own
+/// team. The v46 penetration callout is untouched — the shooter saw the hole.
+#[test]
+fn a_bounce_does_not_tell_the_shooter_whom_it_wounded() {
+    let mut spall = event(1, 2); // shooter team 1, target team 2, both visible
+    spall.penetrated = false;
+    spall.crew_hits_mask = game_core::CrewRole::Gunner.mask_bit();
+    let mut pen = event(1, 2);
+    pen.penetrated = true;
+    pen.crew_hits_mask = game_core::CrewRole::Loader.mask_bit();
+
+    let snapshot = Snapshot {
+        server_tick: 31,
+        tanks: vec![
+            tank(1, 1, 1_000, TeamId(1).spotting_bit() | TeamId(2).spotting_bit()),
+            tank(2, 2, 900, TeamId(1).spotting_bit() | TeamId(2).spotting_bit()),
+            tank(3, 2, 900, TeamId(1).spotting_bit() | TeamId(2).spotting_bit()),
+        ],
+        shells: Vec::new(),
+        damage_events: vec![spall, pen],
+        shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
+        cover_states: Vec::new(),
+        craters: Vec::new(),
+        cover_scars: Vec::new(),
+        shots_fired: Vec::new(),
+    };
+
+    let shooter_view = snapshot.filtered_for_viewer(TankId(1));
+    assert_eq!(
+        shooter_view.damage_events[0].crew_hits_mask, 0,
+        "the bounce's spall wound is the target crew's own business"
+    );
+    assert_eq!(
+        shooter_view.damage_events[1].crew_hits_mask,
+        game_core::CrewRole::Loader.mask_bit(),
+        "the penetration callout stays — the shooter saw the hole"
+    );
+
+    let target_view = snapshot.filtered_for_viewer(TankId(2));
+    assert_eq!(
+        target_view.damage_events[0].crew_hits_mask,
+        game_core::CrewRole::Gunner.mask_bit(),
+        "the victim reads exactly who went down"
+    );
+    let target_teammate_view = snapshot.filtered_for_viewer(TankId(3));
+    assert_eq!(
+        target_teammate_view.damage_events[0].crew_hits_mask,
+        game_core::CrewRole::Gunner.mask_bit(),
+        "crew state is team intel, spall wounds included"
+    );
+}
+
 /// Crew wounds are interior state exactly like the rack fuze (v46): the team reads who is down
 /// and the bandage countdown; an enemy sees a whole crew, and a downed RADIO OPERATOR silences
 /// the viewer's own team intel the same way a destroyed radio module does.

@@ -17,8 +17,26 @@ struct HitFeedback {
     damage_hp: u32,
     penetrated: bool,
     ricocheted: bool,
+    /// A non-penetration that FAILED by less than the back-face margin — derived from the
+    /// pen-vs-armor numbers the shooter already owns (mirror of `shell_spalls_on_nonpen` in the
+    /// sim), never from the target's concealed crew state.
+    near_pen: bool,
     module: Option<ModuleSlot>,
     age: f32,
+}
+
+/// The shooter-side mirror of the sim's back-face margin: within 12% of the effective steel
+/// (clamped 5–35 mm) of getting in. Same constants as `sim/src/combat.rs` — a divergence here
+/// makes the HUD lie about what the sim rewards.
+fn near_penetration(event: &DamageEvent) -> bool {
+    if event.penetrated
+        || event.ricocheted
+        || event.shell_type == game_core::ShellType::HighExplosive
+    {
+        return false;
+    }
+    let margin_mm = (event.effective_armor_mm * 0.12).clamp(5.0, 35.0);
+    event.shell_penetration_mm > event.effective_armor_mm - margin_mm
 }
 
 #[derive(Debug, Default)]
@@ -33,6 +51,7 @@ impl HitIndicator {
             damage_hp: e.damage_hp,
             penetrated: e.penetrated,
             ricocheted: e.ricocheted,
+            near_pen: near_penetration(e),
             module: e.module,
             age: 0.0,
         }));
@@ -68,7 +87,7 @@ impl HitIndicator {
                 continue;
             }
 
-            let dmg_color = color_for(entry.penetrated, entry.ricocheted);
+            let dmg_color = color_for(entry.penetrated, entry.ricocheted, entry.near_pen);
             let num_digits = crate::hud::number::digit_count(entry.damage_hp.min(9_999));
             let num_h = 0.065;
             let num_w = num_digits as f32 * num_h * 0.6;
@@ -84,7 +103,15 @@ impl HitIndicator {
 
             let mcx = clip[0] - num_w * 0.5 - 0.012;
             let mcy = clip[1] + 0.02;
-            push_marker(&mut verts, [mcx, mcy], entry.penetrated, entry.ricocheted, alpha, aspect);
+            push_marker(
+                &mut verts,
+                [mcx, mcy],
+                entry.penetrated,
+                entry.ricocheted,
+                entry.near_pen,
+                alpha,
+                aspect,
+            );
 
             // Damage number + result glyph + module icon and NOTHING more: the mm duel
             // (pen vs armor bar and both numbers) drowned the read in a fight — the color
