@@ -43,8 +43,9 @@ fn seeded_battles_stay_inside_the_damage_frequency_bands() {
             "seed {seed}: {} track throws — tracking is a tactic, not weather",
             stats.track_throws,
         );
-        // Crew hits (v46): the sweep measured 0-7 per battle (mean 2.9) with the T-54's four
-        // stations authored; re-measure when the rest of the fleet gets its stations.
+        // Crew hits (v46): with the WHOLE fleet's stations authored the sweep measured 0-8 per
+        // battle (mean 3.5) — a knocked-out crewman roughly twice a battle per team, and the
+        // max landing on the one bloodbath seed. The dial is `CREW_KNOCK_ENERGY_MM`.
         assert!(
             stats.crew_hits <= 8,
             "seed {seed}: {} crew hits — a knocked-out crewman must stay an event",

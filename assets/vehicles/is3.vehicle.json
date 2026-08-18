@@ -512,6 +512,106 @@
         "priority": 20,
         "requires_penetration": false,
         "vulnerability": 0.8
+      },
+      {
+        "id": 18,
+        "frame": "Hull",
+        "kind": "DriverStation",
+        "slot": "Engine",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.0,
+              -0.44,
+              2.2357125
+            ],
+            "b": [
+              0.0,
+              0.120000005,
+              2.0557127
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 20,
+        "frame": "Turret",
+        "kind": "GunnerStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.36566406,
+              0.42,
+              0.28
+            ],
+            "b": [
+              0.36566406,
+              0.56000024,
+              0.2
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 21,
+        "frame": "Turret",
+        "kind": "CommanderStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              0.36566406,
+              0.44,
+              -0.24
+            ],
+            "b": [
+              0.36566406,
+              0.56000024,
+              -0.32
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 22,
+        "frame": "Turret",
+        "kind": "LoaderStation",
+        "slot": "Turret",
+        "material": "Crew",
+        "shape": {
+          "Capsule": {
+            "a": [
+              -0.36566406,
+              0.42,
+              0.04
+            ],
+            "b": [
+              -0.36566406,
+              0.56000024,
+              -0.06
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 10,
+        "requires_penetration": true,
+        "vulnerability": 1.0
       }
     ]
   },

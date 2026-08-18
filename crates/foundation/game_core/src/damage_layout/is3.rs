@@ -11,8 +11,8 @@
 //! model can tell them apart.
 
 use super::authoring::{
-    DriveEnd, HullEnvelope, TurretFit, final_drive_pair, flank_fuel_pair, hull_component, obb,
-    suspension_pair, turret_group,
+    CrewPlan, DriveEnd, HullEnvelope, TurretFit, crew_stations_from_plan, final_drive_pair,
+    flank_fuel_pair, hull_component, obb, suspension_pair, turret_group,
 };
 use super::{DamageComponentKind as K, DamageLayout, DamageMaterial as M};
 use crate::ModuleSlot;
@@ -27,6 +27,13 @@ pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
     components.extend(flank_fuel_pair(env, [8, 9], [0.22, 0.34, 0.50], 0.3));
     components.extend(final_drive_pair(env, [12, 13], DriveEnd::Rear, 0.24));
     components.extend(suspension_pair(env, [14, 15], 0.18));
+    // Four men: the driver on the pike's centreline (the IS-3 seats him alone in the nose),
+    // three in the flattened dome.
+    components.extend(crew_stations_from_plan(
+        env,
+        18,
+        CrewPlan { driver_x_sign: 0.0, bow_radio_operator: false, gunner_x_sign: 1.0 },
+    ));
     DamageLayout { components }
 }
 

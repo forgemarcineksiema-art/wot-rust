@@ -68,6 +68,8 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                     .iter()
                     .copied()
                     .find(|kind| *kind != VehicleKind::BENCHMARK),
+                // The staged dealt row also shows a gunner knock — the "G" callout.
+                crew_hits_mask: game_core::CrewRole::Gunner.mask_bit(),
                 age_s: 0.5,
             },
             DamageLogEntry {
@@ -80,6 +82,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                     .copied()
                     .filter(|kind| *kind != VehicleKind::BENCHMARK)
                     .nth(1),
+                crew_hits_mask: 0,
                 age_s: 1.5,
             },
         ],
@@ -108,6 +111,17 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
             [400, 300, 300, 60, 225, 60],
             [400, 300, 300, 150, 225, 60],
             game_core::ModuleCondition::Destroyed,
+        )),
+        // A downed loader mid-bandage and a scarred driver, so the staged frame shows the crew
+        // row's three states at once.
+        crew: Some(crate::hud::crew_panel::CrewPanelModel::new(
+            game_core::CrewRole::Loader.mask_bit(),
+            game_core::CrewRole::Driver.mask_bit(),
+            {
+                let mut down = [None; game_core::CREW_ROLE_COUNT];
+                down[game_core::CrewRole::Loader.wire_index()] = Some(9.0);
+                down
+            },
         )),
         minimap: Some(demo_minimap()),
         battle_outcome: None,

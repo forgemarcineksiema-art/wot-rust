@@ -329,6 +329,92 @@ pub fn crew_station(
     }
 }
 
+/// Where a hull's crew sits — the per-vehicle facts, everything else derived from the envelope.
+#[derive(Debug, Clone, Copy)]
+pub struct CrewPlan {
+    /// Which side of the bow the driver sits (+1.0 / −1.0 in this frame).
+    pub driver_x_sign: f32,
+    /// A bow radio-operator / hull-gunner station beside the driver (T-34, the German hulls).
+    /// Hulls without one (T-54, IS-3, Centurion) leave the role unhittable.
+    pub bow_radio_operator: bool,
+    /// Which side of the gun the gunner works, with the commander seated behind him; the loader
+    /// takes the other side.
+    pub gunner_x_sign: f32,
+}
+
+/// The crew's stations, ids `first_id..`: driver (and the bow radio operator where the plan has
+/// one) in the hull frame, gunner/commander/loader in the turret frame — every position derived
+/// from the envelope's anchors so a re-measured hull moves its men with it. Fixed casemates use
+/// the same turret frame at zero traverse.
+pub fn crew_stations_from_plan(
+    env: &HullEnvelope,
+    first_id: u16,
+    plan: CrewPlan,
+) -> Vec<DamageComponent> {
+    let mut stations = Vec::new();
+    // A seated man in the bow: hips a hand over the floor, shoulders under the foredeck, the
+    // torso leaning back with the glacis. The station line sits back from the bow interior at
+    // shoulder height so the capsule stays inside the leaning plate.
+    let hips_y = env.floor_y + 0.32;
+    let shoulders_y = (env.floor_y + 0.88).min(env.deck_y - 0.26);
+    let bow_z = env.bow_limit_at(shoulders_y) - 0.42;
+    let driver_x = plan.driver_x_sign * (env.tub_half_width * 0.55).min(0.60);
+    stations.push(crew_station(
+        first_id,
+        ArmorFrame::Hull,
+        DamageComponentKind::DriverStation,
+        [driver_x, hips_y, bow_z + 0.10],
+        [driver_x, shoulders_y, bow_z - 0.08],
+    ));
+    if plan.bow_radio_operator {
+        let x = -driver_x;
+        stations.push(crew_station(
+            first_id + 1,
+            ArmorFrame::Hull,
+            DamageComponentKind::RadioOperatorStation,
+            [x, hips_y, bow_z + 0.10],
+            [x, shoulders_y, bow_z - 0.08],
+        ));
+    }
+    // The tower crew: torsos from just over the ring to under the casting's taper, seated at
+    // the widest band the casting still allows plus a margin for the capsule's radius.
+    let seat_y = env.ring_y + 0.02;
+    // Seat width from the casting's WIDE band (just over the ring), then hunch the shoulders
+    // down until the casting still covers them where the capsule tops out (shoulders + radius).
+    // A tall dome (T-54) keeps the full sitting height; a flat one (IS-3) seats its men lower —
+    // which is exactly what the real flattened turrets forced on their crews.
+    let side_x = (env.casting_half_span_at(env.ring_y + 0.24) - 0.44).clamp(0.24, 0.60);
+    let mut shoulder_y = (env.ring_y + 0.44).min(env.roof_y - 0.22);
+    while shoulder_y > env.ring_y + 0.18
+        && env.casting_half_span_at(shoulder_y + 0.22) < side_x + 0.28
+    {
+        shoulder_y -= 0.02;
+    }
+    let gunner_x = plan.gunner_x_sign * side_x;
+    stations.push(crew_station(
+        first_id + 2,
+        ArmorFrame::Turret,
+        DamageComponentKind::GunnerStation,
+        [gunner_x, seat_y, 0.28],
+        [gunner_x, shoulder_y, 0.20],
+    ));
+    stations.push(crew_station(
+        first_id + 3,
+        ArmorFrame::Turret,
+        DamageComponentKind::CommanderStation,
+        [gunner_x, seat_y + 0.02, -0.24],
+        [gunner_x, shoulder_y, -0.32],
+    ));
+    stations.push(crew_station(
+        first_id + 4,
+        ArmorFrame::Turret,
+        DamageComponentKind::LoaderStation,
+        [-gunner_x, seat_y, 0.04],
+        [-gunner_x, shoulder_y, -0.06],
+    ));
+    stations
+}
+
 pub fn obb(center: [f32; 3], half_extents: [f32; 3], yaw_rad: f32) -> DamageShape {
     DamageShape::Obb {
         center: Vec3::from_array(center),

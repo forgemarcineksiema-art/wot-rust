@@ -11,7 +11,8 @@
 //! of it — the hull below is the same front-drive German architecture as the Tigers.
 
 use super::authoring::{
-    HullEnvelope, TurretFit, final_drive_pair, obb, suspension_pair, turret_component, turret_group,
+    CrewPlan, HullEnvelope, TurretFit, crew_stations_from_plan, final_drive_pair, obb,
+    suspension_pair, turret_component, turret_group,
 };
 use super::german;
 use super::{DamageComponent, DamageComponentKind as K, DamageLayout, DamageMaterial as M};
@@ -27,6 +28,15 @@ pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
     components.extend(german::engine_bay_fuel(env, [8, 9]));
     components.extend(final_drive_pair(env, [12, 13], german::DRIVE, 0.26));
     components.extend(suspension_pair(env, [14, 15], 0.20));
+    // The casemate stations ride the same zero-traverse turret frame as the gun: gunner and
+    // commander to one side of the 12.8 cm, loader on the other, WORKING BESIDE the wall racks
+    // — which is exactly why a superstructure penetration here hurts. Driver and radio operator
+    // flank the bow gearbox like every German hull.
+    components.extend(crew_stations_from_plan(
+        env,
+        18,
+        CrewPlan { driver_x_sign: 1.0, bow_radio_operator: true, gunner_x_sign: 1.0 },
+    ));
     DamageLayout { components }
 }
 

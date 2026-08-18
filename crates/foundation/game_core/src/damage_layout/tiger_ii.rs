@@ -6,7 +6,10 @@
 //! predecessor.
 
 use super::DamageLayout;
-use super::authoring::{HullEnvelope, TurretFit, final_drive_pair, suspension_pair, turret_group};
+use super::authoring::{
+    CrewPlan, HullEnvelope, TurretFit, crew_stations_from_plan, final_drive_pair, suspension_pair,
+    turret_group,
+};
 use super::german;
 
 pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
@@ -20,5 +23,11 @@ pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
     components.extend(german::engine_bay_fuel(env, [8, 9]));
     components.extend(final_drive_pair(env, [12, 13], german::DRIVE, 0.26));
     components.extend(suspension_pair(env, [14, 15], 0.20));
+    // Five men, German layout: driver and radio operator flank the bow gearbox, three in the turret.
+    components.extend(crew_stations_from_plan(
+        env,
+        18,
+        CrewPlan { driver_x_sign: 1.0, bow_radio_operator: true, gunner_x_sign: 1.0 },
+    ));
     DamageLayout { components }
 }

@@ -11,8 +11,8 @@
 //!     that this hull's sides are its worst face.
 
 use super::authoring::{
-    DriveEnd, HullEnvelope, TurretFit, final_drive_pair, hull_component, obb, suspension_pair,
-    turret_group,
+    CrewPlan, DriveEnd, HullEnvelope, TurretFit, crew_stations_from_plan, final_drive_pair,
+    hull_component, obb, suspension_pair, turret_group,
 };
 use super::{DamageComponentKind as K, DamageLayout, DamageMaterial as M};
 use crate::ModuleSlot;
@@ -26,6 +26,14 @@ pub(super) fn layout(env: &HullEnvelope) -> DamageLayout {
     components.extend(hull_components(env));
     components.extend(final_drive_pair(env, [12, 13], DriveEnd::Rear, 0.22));
     components.extend(suspension_pair(env, [14, 15], 0.18));
+    // Five men: driver and the bow radio-operator/hull-gunner up front (the famous MG port in
+    // the glacis is HIS), the 85 mm tower's three behind them — beside the sponson fuel, which
+    // is the whole story of this hull's flank.
+    components.extend(crew_stations_from_plan(
+        env,
+        18,
+        CrewPlan { driver_x_sign: 1.0, bow_radio_operator: true, gunner_x_sign: 1.0 },
+    ));
     DamageLayout { components }
 }
 
