@@ -314,6 +314,9 @@ fn render_garage_preview_png() {
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -398,6 +401,9 @@ fn snapshot_for_vehicle(
             engine_fire: false,
             fuel_fire: false,
             rack_fire_remaining_s: None,
+            crew_unconscious_mask: 0,
+            crew_weakened_mask: 0,
+            crew_down_remaining_s: Default::default(),
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

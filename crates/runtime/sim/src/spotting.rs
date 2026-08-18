@@ -314,7 +314,11 @@ pub fn compute_spotted_masks(
                 continue;
             }
             let eye = observer_eye(observer);
-            let range = observer.spec.view_range_m() * spotting_range_factor(target, tick);
+            // The commander IS the eyes: his station covered or scarred shortens what the crew
+            // picks out (crew-damage, v46) — a multiplier on range, never a blindfold.
+            let commander = observer.crew.effectiveness(game_core::CrewRole::Commander);
+            let range =
+                observer.spec.view_range_m() * spotting_range_factor(target, tick) * commander;
             if eye.distance(target.position) > range {
                 continue;
             }
@@ -360,8 +364,11 @@ pub fn compute_observer_masks(
             }
             let eye = observer_eye(observer);
             // The SAME concealment rule as the team recompute: personal eyes obey what the crew
-            // could actually pick out, or the two kinds of sight drift apart.
-            let range = observer.spec.view_range_m() * spotting_range_factor(target, tick);
+            // could actually pick out, or the two kinds of sight drift apart — the commander's
+            // state included.
+            let commander = observer.crew.effectiveness(game_core::CrewRole::Commander);
+            let range =
+                observer.spec.view_range_m() * spotting_range_factor(target, tick) * commander;
             if eye.distance(target.position) > range {
                 continue;
             }

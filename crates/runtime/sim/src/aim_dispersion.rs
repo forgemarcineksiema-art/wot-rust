@@ -53,7 +53,10 @@ pub(crate) fn gun_damage_fraction(tank: &TankState) -> f32 {
 
 pub(crate) fn recover_aim_dispersion(tank: &mut TankState, dt: f32) {
     let fraction = gun_damage_fraction(tank);
-    recover_dispersion(&mut tank.aim_dispersion_mrad, &tank.spec, fraction, dt);
+    // The gunner's hands settle the sight: a covered station settles at half pace, a scarred
+    // gunner at 85% — the reticle takes longer to close, the shot geometry itself is untouched.
+    let gunner = tank.crew.effectiveness(game_core::CrewRole::Gunner);
+    recover_dispersion(&mut tank.aim_dispersion_mrad, &tank.spec, fraction, dt * gunner);
 }
 
 pub(crate) fn apply_shot_bloom(tank: &mut TankState) {

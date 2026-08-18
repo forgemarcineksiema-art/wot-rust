@@ -559,6 +559,7 @@ pub(crate) mod test_support {
             rack_fire: false,
             rack_fire_s: 0.0,
             rack_fire_source: None,
+            crew: game_core::CrewVitals::default(),
             position,
             yaw_rad: 0.0,
             turret_yaw_rad: 0.0,

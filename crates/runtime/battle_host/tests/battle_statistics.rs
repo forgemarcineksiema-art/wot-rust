@@ -43,5 +43,12 @@ fn seeded_battles_stay_inside_the_damage_frequency_bands() {
             "seed {seed}: {} track throws — tracking is a tactic, not weather",
             stats.track_throws,
         );
+        // Crew hits (v46): the sweep measured 0-7 per battle (mean 2.9) with the T-54's four
+        // stations authored; re-measure when the rest of the fleet gets its stations.
+        assert!(
+            stats.crew_hits <= 8,
+            "seed {seed}: {} crew hits — a knocked-out crewman must stay an event",
+            stats.crew_hits,
+        );
     }
 }

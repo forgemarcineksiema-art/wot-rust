@@ -31,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 46);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -45,7 +45,7 @@ fn vehicle_selection_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 46);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -57,7 +57,7 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 46);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -108,7 +108,7 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 46);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -127,7 +127,7 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 45);
+    assert_eq!(PROTOCOL_VERSION, 46);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
@@ -162,6 +162,9 @@ pub fn tank_snapshot_message() -> Snapshot {
             engine_fire: false,
             fuel_fire: true,
             rack_fire_remaining_s: None,
+            crew_unconscious_mask: 0,
+            crew_weakened_mask: 0,
+            crew_down_remaining_s: Default::default(),
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
@@ -314,6 +317,9 @@ pub fn combat_snapshot_message() -> Snapshot {
             engine_fire: false,
             fuel_fire: false,
             rack_fire_remaining_s: None,
+            crew_unconscious_mask: 0,
+            crew_weakened_mask: 0,
+            crew_down_remaining_s: Default::default(),
         }],
         shells: vec![ShellSnapshot {
             shell_id: game_core::ShellId::from_shot(TankId(7), 3),

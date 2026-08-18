@@ -294,6 +294,41 @@ pub fn component(
     }
 }
 
+/// A crew STATION: the seated man as a capsule, torso `a` (hips) to `b` (shoulders).
+///
+/// Stations are the crew-damage foundation's hit volumes: crossing one with knock-level energy
+/// takes the man out (`sim::combat`), and nothing else about the component is ever read — the
+/// `slot` is the frame's natural slot only because the struct requires one (the crew branch in
+/// the internal path returns before any slot use). Low priority so dedup and ordering never
+/// displace machinery; `vulnerability` is unused on the crew path and pinned at 1.0.
+pub fn crew_station(
+    id: u16,
+    frame: ArmorFrame,
+    kind: DamageComponentKind,
+    a: [f32; 3],
+    b: [f32; 3],
+) -> DamageComponent {
+    debug_assert!(kind.crew_role().is_some(), "a crew station must carry a station kind");
+    DamageComponent {
+        id: DamageComponentId(id),
+        frame,
+        kind,
+        slot: match frame {
+            ArmorFrame::Hull => ModuleSlot::Engine,
+            _ => ModuleSlot::Turret,
+        },
+        material: DamageMaterial::Crew,
+        shape: DamageShape::Capsule {
+            a: Vec3::from_array(a),
+            b: Vec3::from_array(b),
+            radius: 0.20,
+        },
+        priority: 10,
+        requires_penetration: true,
+        vulnerability: 1.0,
+    }
+}
+
 pub fn obb(center: [f32; 3], half_extents: [f32; 3], yaw_rad: f32) -> DamageShape {
     DamageShape::Obb {
         center: Vec3::from_array(center),

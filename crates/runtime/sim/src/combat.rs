@@ -342,6 +342,7 @@ pub(crate) fn apply_shell_impact(
         occurred_tick: 0,
         shell_id: Some(shell.id),
         target_destroyed: target_was_alive && target.hit_points == 0,
+        crew_hits_mask: internal.crew_hits_mask,
     };
     (event, exit)
 }
@@ -359,6 +360,8 @@ struct InternalPath {
     damaged_components_mask: u32,
     energetic_components_mask: u32,
     energetic_slots_mask: u8,
+    /// Crew stations crossed with knock-level energy, `CrewRole::ALL` bit order.
+    crew_hits_mask: u8,
     residual_mm: f32,
 }
 
@@ -394,6 +397,14 @@ const MODULE_WOUND_SCALE: f32 = 0.45;
 /// Raised to 140 for the frequency-relief pass — the sweep's numbers live in the harness test.
 const FIRE_ENERGY_MM: f32 = 140.0;
 
+/// Residual penetration (mm) a round must still hold at a crew STATION to knock the man out.
+///
+/// Low on purpose — a body offers no protection, and any round still a projectile at the seat
+/// takes the man out of the fight — but not zero: a round on its last few millimetres of energy
+/// dribbles past. The one tuning dial for crew-hit frequency; the battle-level band lives in
+/// `battle_host/tests/battle_statistics.rs`.
+const CREW_KNOCK_ENERGY_MM: f32 = 10.0;
+
 fn apply_internal_module_path(
     target: &mut TankState,
     shell: &ShellState,
@@ -418,6 +429,7 @@ fn apply_internal_module_path(
             damaged_components_mask: 0,
             energetic_components_mask: 0,
             energetic_slots_mask: 0,
+            crew_hits_mask: 0,
             residual_mm,
         };
     }
@@ -452,10 +464,24 @@ fn apply_internal_module_path(
     // near-full bite for each is how the measured baseline killed a healthy engine slot on
     // nearly every penetration. The slot takes its WORST single component hit, not the sum.
     let mut slot_wounds = [0_u32; game_core::MODULE_SLOT_COUNT];
+    let mut crew_hits_mask = 0_u8;
     for hit in hits {
         let resistance_mm = hit.material.resistance_mm(hit.path_length_m);
         if residual_mm < resistance_mm * 0.35 {
             break;
+        }
+        // A crew STATION is a man, not machinery: crossing it with knock-level energy takes him
+        // out of the fight and nothing else — no module damage, no masks, no spall source, no
+        // fire energy off a body. A spent round dribbling past a seat knocks nobody. The knock
+        // is deterministic (threshold on the shell's residual energy, same doctrine as
+        // `FIRE_ENERGY_MM`), and the station's small resistance still costs the round its due.
+        if let Some(role) = hit.kind.crew_role() {
+            if residual_mm >= CREW_KNOCK_ENERGY_MM {
+                crew_hits_mask |= role.mask_bit();
+                target.crew.knock(role);
+            }
+            residual_mm = (residual_mm - resistance_mm).max(0.0);
+            continue;
         }
         let energy_fraction = (residual_mm / entry_residual_mm).clamp(0.0, 1.0)
             * (residual_mm / (residual_mm + resistance_mm));
@@ -500,7 +526,9 @@ fn apply_internal_module_path(
                     turret_pivot,
                 )
                 .into_iter()
-                .find(|hit| hit.component_id != source_id)
+                // Fragments do not knock men out: crew stations are transparent to spall, so
+                // one shell wounds at most the crewmen whose stations its own path crossed.
+                .find(|hit| hit.component_id != source_id && hit.kind.crew_role().is_none())
             else {
                 continue;
             };
@@ -534,6 +562,7 @@ fn apply_internal_module_path(
         damaged_components_mask: component_mask,
         energetic_components_mask: energetic_component_mask,
         energetic_slots_mask: energetic_slot_mask,
+        crew_hits_mask,
         residual_mm,
     }
 }

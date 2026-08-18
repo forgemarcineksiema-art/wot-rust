@@ -27,7 +27,10 @@ fn internal_path_hits_t54_modules_nearest_first() {
         Vec3::new(-0.65, 0.2, 3.2),
         Vec3::new(-0.65, 0.2, -3.2),
     );
-    let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();
+    // Crew stations ride the same intersection pipe (v46) but are the man, not machinery —
+    // the machinery sequence this test locks reads past them.
+    let kinds: Vec<_> =
+        hits.iter().map(|hit| hit.kind).filter(|kind| kind.crew_role().is_none()).collect();
     assert_eq!(
         kinds,
         vec![
@@ -36,6 +39,8 @@ fn internal_path_hits_t54_modules_nearest_first() {
             DamageComponentKind::Transmission,
         ]
     );
+    // This run passes down the loader's flank: it must meet HIS station on the way.
+    assert!(hits.iter().any(|hit| hit.kind == DamageComponentKind::LoaderStation));
     assert!(hits.iter().all(|hit| hit.path_length_m > 0.0));
     assert!(hits.windows(2).all(|pair| pair[0].distance_t <= pair[1].distance_t));
 }
@@ -50,7 +55,10 @@ fn the_drivers_side_of_the_hull_carries_no_ammunition() {
         Vec3::new(0.6, 0.2, -3.2),
     );
     assert!(hits.iter().all(|hit| hit.kind != DamageComponentKind::AmmunitionRack));
-    let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();
+    // The machinery this side carries is unchanged; the men who sit here (driver in the bow,
+    // gunner and commander in the tower) now stand in the path as stations (v46).
+    let kinds: Vec<_> =
+        hits.iter().map(|hit| hit.kind).filter(|kind| kind.crew_role().is_none()).collect();
     assert_eq!(
         kinds,
         vec![
@@ -60,6 +68,7 @@ fn the_drivers_side_of_the_hull_carries_no_ammunition() {
             DamageComponentKind::Transmission,
         ]
     );
+    assert!(hits.iter().any(|hit| hit.kind == DamageComponentKind::DriverStation));
 }
 
 #[test]

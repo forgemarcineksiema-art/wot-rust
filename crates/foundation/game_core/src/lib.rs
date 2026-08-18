@@ -3,6 +3,7 @@ mod armor;
 mod armor_breach;
 mod contact_footprint;
 mod crew;
+mod crew_vitals;
 mod damage;
 mod damage_layout;
 mod hull_plan;
@@ -40,6 +41,10 @@ pub use armor_breach::{
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
+pub use crew_vitals::{
+    CREW_COVERED_EFFECTIVENESS, CREW_FIRST_AID_S, CREW_ROLE_COUNT, CREW_WEAKENED_EFFECTIVENESS,
+    CrewMemberState, CrewVitals, crew_time_multiplier,
+};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, ShotFired, TrackHit};
 pub use damage_layout::authoring::HullEnvelope;
 pub use damage_layout::{

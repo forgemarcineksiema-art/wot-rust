@@ -198,4 +198,9 @@ pub struct DamageEvent {
     /// True only on the event that transitioned this target from alive to dead.
     #[serde(default)]
     pub target_destroyed: bool,
+    /// Crew stations this shell's internal path crossed with knock-level energy (protocol v46),
+    /// bit `i` in `CrewRole::ALL` order. The shooter's one-shot callout — the ongoing state
+    /// (who is down, the first-aid countdown) rides the tank snapshot, team-only.
+    #[serde(default)]
+    pub crew_hits_mask: u8,
 }

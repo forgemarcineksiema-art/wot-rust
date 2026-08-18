@@ -346,6 +346,11 @@ impl SimulationState {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
             recover_aim_dispersion(tank, dt);
             crate::repair::step_crew_repair(tank, dt);
+            // First aid runs beside field repair, and only while the hull lives — a dead tank
+            // bandages nobody. Same doctrine as the fires: deterministic, clock-driven.
+            if tank.hit_points > 0 {
+                tank.crew.step_first_aid(dt);
+            }
         }
         // Release buffered fire clicks the tick their reload completes — one attempt, then the
         // intent drops (if the gun died in the meantime, nothing fires and nothing lingers).

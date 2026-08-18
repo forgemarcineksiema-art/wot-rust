@@ -150,6 +150,58 @@ fn snapshot_filter_keeps_detached_turret_wrecks_the_viewer_can_see() {
     assert_eq!(filtered.detached_turrets, vec![TankId(5), TankId(6)]);
 }
 
+/// Crew wounds are interior state exactly like the rack fuze (v46): the team reads who is down
+/// and the bandage countdown; an enemy sees a whole crew, and a downed RADIO OPERATOR silences
+/// the viewer's own team intel the same way a destroyed radio module does.
+#[test]
+fn crew_state_is_team_private_and_a_downed_operator_silences_the_net() {
+    let mut wounded_teammate = tank(2, 1, 900, TeamId(1).spotting_bit());
+    wounded_teammate.crew_unconscious_mask = game_core::CrewRole::Gunner.mask_bit();
+    wounded_teammate.crew_weakened_mask = game_core::CrewRole::Driver.mask_bit();
+    wounded_teammate.crew_down_remaining_s[game_core::CrewRole::Gunner.wire_index()] = Some(9.5);
+    let mut wounded_enemy = tank(5, 2, 900, u8::MAX);
+    wounded_enemy.crew_unconscious_mask = game_core::CrewRole::Loader.mask_bit();
+    wounded_enemy.crew_down_remaining_s[game_core::CrewRole::Loader.wire_index()] = Some(3.0);
+
+    let snapshot = Snapshot {
+        server_tick: 30,
+        tanks: vec![tank(1, 1, 1_000, TeamId(1).spotting_bit()), wounded_teammate, wounded_enemy],
+        shells: Vec::new(),
+        damage_events: Vec::new(),
+        shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
+        cover_states: Vec::new(),
+        craters: Vec::new(),
+        cover_scars: Vec::new(),
+        shots_fired: Vec::new(),
+    };
+
+    let filtered = snapshot.filtered_for_viewer(TankId(1));
+    let teammate = filtered.tanks.iter().find(|t| t.tank_id == TankId(2)).expect("teammate");
+    assert_eq!(teammate.crew_unconscious_mask, game_core::CrewRole::Gunner.mask_bit());
+    assert_eq!(teammate.crew_weakened_mask, game_core::CrewRole::Driver.mask_bit());
+    assert_eq!(
+        teammate.crew_down_remaining_s[game_core::CrewRole::Gunner.wire_index()],
+        Some(9.5),
+        "the team reads the bandage countdown"
+    );
+    let enemy = filtered.tanks.iter().find(|t| t.tank_id == TankId(5)).expect("enemy");
+    assert_eq!(enemy.crew_unconscious_mask, 0, "an enemy crew reads whole");
+    assert_eq!(enemy.crew_weakened_mask, 0);
+    assert!(enemy.crew_down_remaining_s.iter().all(Option::is_none));
+
+    // The radio net needs the man as much as the set: with the viewer's own operator down,
+    // team-shared spotting collapses to the crew's own eyes (here: nothing), exactly like a
+    // destroyed radio module. The spotted-by-team enemy vanishes from the filtered view.
+    let mut deaf_viewer = snapshot.clone();
+    deaf_viewer.tanks[0].crew_unconscious_mask = game_core::CrewRole::RadioOperator.mask_bit();
+    let deaf = deaf_viewer.filtered_for_viewer_with_observers(TankId(1), &[], 0);
+    assert!(
+        deaf.tanks.iter().all(|t| t.tank_id != TankId(5)),
+        "a downed radio operator carries no team intel"
+    );
+}
+
 fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankSnapshot {
     let spec = VehicleKind::T54_1951.spec();
     TankSnapshot {
@@ -178,6 +230,9 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
         engine_fire: false,
         fuel_fire: false,
         rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
     }
 }
 
