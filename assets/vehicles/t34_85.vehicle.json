@@ -67,7 +67,10 @@
       "penetration_mm_at_100m": 145.0,
       "damage_hp": 200,
       "explosive_radius_m": 0.0,
-      "round": "Br365K"
+      "round": "Br365K",
+      "mass_kg": 9.2,
+      "filler_kg": 0.16,
+      "penetrator": "FullBoreBlunt"
     },
     "special_shell": {
       "shell_type": "Apcr",
@@ -76,7 +79,10 @@
       "penetration_mm_at_100m": 170.0,
       "damage_hp": 170,
       "explosive_radius_m": 0.0,
-      "round": "Br365P"
+      "round": "Br365P",
+      "mass_kg": 4.95,
+      "filler_kg": 0.0,
+      "penetrator": "TungstenCore"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -85,7 +91,10 @@
       "penetration_mm_at_100m": 28.0,
       "damage_hp": 300,
       "explosive_radius_m": 1.6,
-      "round": "O365K"
+      "round": "O365K",
+      "mass_kg": 9.54,
+      "filler_kg": 0.741,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

@@ -71,7 +71,10 @@
       "penetration_mm_at_100m": 185.0,
       "damage_hp": 320,
       "explosive_radius_m": 0.0,
-      "round": "Br412"
+      "round": "Br412",
+      "mass_kg": 15.7,
+      "filler_kg": 0.6,
+      "penetrator": "FullBoreBlunt"
     },
     "special_shell": {
       "shell_type": "Heat",
@@ -80,7 +83,10 @@
       "penetration_mm_at_100m": 280.0,
       "damage_hp": 320,
       "explosive_radius_m": 0.0,
-      "round": "Bk5"
+      "round": "Bk5",
+      "mass_kg": 12.2,
+      "filler_kg": 0.0,
+      "penetrator": "ShapedCharge"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -89,7 +95,10 @@
       "penetration_mm_at_100m": 33.0,
       "damage_hp": 430,
       "explosive_radius_m": 2.0,
-      "round": "Of412"
+      "round": "Of412",
+      "mass_kg": 15.8,
+      "filler_kg": 2.16,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

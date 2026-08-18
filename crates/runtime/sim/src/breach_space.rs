@@ -83,6 +83,9 @@ pub(crate) struct BreachImpact {
     pub impact_speed_mps: f32,
     pub effective_armor_mm: f32,
     pub residual_penetration_mm: f32,
+    /// The projectile's REAL mass (`ShellSpec::mass_kg`, Amunicja 3.0 B2). `0.0` = unspecified
+    /// (synthetic test impacts): the energy falls back to the caliber estimate below.
+    pub projectile_mass_kg: f32,
 }
 
 pub(crate) fn make_breach(tank: &TankState, impact: BreachImpact) -> ArmorBreach {
@@ -141,11 +144,17 @@ pub(crate) fn make_breach(tank: &TankState, impact: BreachImpact) -> ArmorBreach
             shell_type: impact.shell_type,
             created_tick: impact.created_tick,
             impact_angle_degrees: impact.impact_angle_degrees,
-            impact_energy_kj: estimated_impact_energy_kj(
-                impact.shell_type,
-                projectile_diameter_m,
-                impact.impact_speed_mps,
-            ),
+            impact_energy_kj: if impact.projectile_mass_kg > 0.0 {
+                // Real mass, real energy: ½mv². The caliber estimate below survives only for
+                // impacts that carry no authored mass.
+                0.0005 * impact.projectile_mass_kg * impact.impact_speed_mps.powi(2)
+            } else {
+                estimated_impact_energy_kj(
+                    impact.shell_type,
+                    projectile_diameter_m,
+                    impact.impact_speed_mps,
+                )
+            },
             projectile_diameter_m,
             residual_penetration_mm: impact.residual_penetration_mm,
         },
@@ -294,6 +303,8 @@ fn inner_scale(shell_type: ShellType) -> f32 {
     }
 }
 
+/// The pre-B2 caliber fabrication, kept ONLY as the fallback for mass-less synthetic impacts —
+/// every cataloged round now carries its real `mass_kg` and never reaches this.
 fn estimated_impact_energy_kj(shell_type: ShellType, caliber_m: f32, speed_mps: f32) -> f32 {
     let mass_scale = match shell_type {
         ShellType::ArmorPiercing => 0.65,
@@ -336,6 +347,7 @@ mod tests {
                 impact_speed_mps: 800.0,
                 effective_armor_mm: 100.0,
                 residual_penetration_mm: 40.0,
+                projectile_mass_kg: 0.0,
             },
         )
     }
@@ -439,6 +451,7 @@ mod tests {
                     impact_speed_mps: 800.0,
                     effective_armor_mm: 60.0,
                     residual_penetration_mm: 90.0,
+                    projectile_mass_kg: 0.0,
                 },
             );
             assert_eq!(

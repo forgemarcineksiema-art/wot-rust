@@ -67,7 +67,10 @@
       "penetration_mm_at_100m": 138.0,
       "damage_hp": 240,
       "explosive_radius_m": 0.0,
-      "round": "Pzgr39_42"
+      "round": "Pzgr39_42",
+      "mass_kg": 6.8,
+      "filler_kg": 0.018,
+      "penetrator": "FullBoreSharp"
     },
     "special_shell": {
       "shell_type": "Apcr",
@@ -76,7 +79,10 @@
       "penetration_mm_at_100m": 194.0,
       "damage_hp": 200,
       "explosive_radius_m": 0.0,
-      "round": "Pzgr40_42"
+      "round": "Pzgr40_42",
+      "mass_kg": 4.75,
+      "filler_kg": 0.0,
+      "penetrator": "TungstenCore"
     },
     "he_shell": {
       "shell_type": "HighExplosive",
@@ -85,7 +91,10 @@
       "penetration_mm_at_100m": 25.0,
       "damage_hp": 250,
       "explosive_radius_m": 1.4,
-      "round": "Sprgr42"
+      "round": "Sprgr42",
+      "mass_kg": 5.74,
+      "filler_kg": 0.429,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

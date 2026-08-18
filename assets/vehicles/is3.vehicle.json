@@ -67,7 +67,10 @@
       "penetration_mm_at_100m": 175.0,
       "damage_hp": 390,
       "explosive_radius_m": 0.0,
-      "round": "Br471B"
+      "round": "Br471B",
+      "mass_kg": 25.0,
+      "filler_kg": 0.156,
+      "penetrator": "FullBoreBlunt"
     },
     "special_shell": null,
     "he_shell": {
@@ -77,7 +80,10 @@
       "penetration_mm_at_100m": 41.0,
       "damage_hp": 510,
       "explosive_radius_m": 2.4,
-      "round": "Of471"
+      "round": "Of471",
+      "mass_kg": 25.53,
+      "filler_kg": 3.605,
+      "penetrator": "BlastCase"
     }
   },
   "ammo": {

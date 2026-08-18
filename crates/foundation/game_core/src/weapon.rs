@@ -34,6 +34,20 @@ pub struct ShellSpec {
     /// `tests/ammo_identity.rs`.
     #[serde(default)]
     pub round: Option<crate::RoundId>,
+    /// Projectile mass as fired, kg (the dossier's mass column). `0.0` = legacy/unspecified —
+    /// consumers must fall back to their class behavior, never divide by it.
+    #[serde(default)]
+    pub mass_kg: f32,
+    /// Bursting-charge mass, kg; `0.0` = solid shot (or an unsourced charge, stated in the
+    /// catalog). Drives HE pricing (the O-365K anchor law), future APHE behavior, and spall
+    /// severity.
+    #[serde(default)]
+    pub filler_kg: f32,
+    /// What does the penetrating ([`crate::Penetrator`]): the terminal-ballistics identity the
+    /// armor model will key on. Constructors set the class default; the catalog overrides where
+    /// the real round differed (the Soviet blunt-nosed APBC family).
+    #[serde(default)]
+    pub penetrator: crate::Penetrator,
 }
 
 impl ShellSpec {
@@ -59,6 +73,9 @@ impl ShellSpec {
             damage_hp,
             explosive_radius_m: 0.0,
             round: None,
+            mass_kg: 0.0,
+            filler_kg: 0.0,
+            penetrator: crate::Penetrator::FullBoreSharp,
         }
     }
 
@@ -76,6 +93,9 @@ impl ShellSpec {
             damage_hp,
             explosive_radius_m: 0.0,
             round: None,
+            mass_kg: 0.0,
+            filler_kg: 0.0,
+            penetrator: crate::Penetrator::TungstenCore,
         }
     }
 
@@ -93,6 +113,9 @@ impl ShellSpec {
             damage_hp,
             explosive_radius_m: 0.0,
             round: None,
+            mass_kg: 0.0,
+            filler_kg: 0.0,
+            penetrator: crate::Penetrator::ShapedCharge,
         }
     }
 
@@ -111,6 +134,9 @@ impl ShellSpec {
             damage_hp,
             explosive_radius_m,
             round: None,
+            mass_kg: 0.0,
+            filler_kg: 0.0,
+            penetrator: crate::Penetrator::BlastCase,
         }
     }
 
@@ -119,6 +145,31 @@ impl ShellSpec {
     pub fn with_round(mut self, round: crate::RoundId) -> Self {
         self.round = Some(round);
         self
+    }
+
+    /// Author the projectile's physical data (catalog use): mass as fired and bursting charge.
+    pub fn with_projectile(mut self, mass_kg: f32, filler_kg: f32) -> Self {
+        self.mass_kg = mass_kg;
+        self.filler_kg = filler_kg;
+        self
+    }
+
+    /// Override the class-default penetrator (catalog use) — the Soviet APBC family is blunt
+    /// where the constructor's plain-AP default is sharp.
+    pub fn with_penetrator(mut self, penetrator: crate::Penetrator) -> Self {
+        self.penetrator = penetrator;
+        self
+    }
+
+    /// The steel around the burster: what any future fragmentation model throws.
+    pub fn casing_mass_kg(self) -> f32 {
+        (self.mass_kg - self.filler_kg).max(0.0)
+    }
+
+    /// Kinetic energy at an impact speed, kJ (½mv²) — real mass, not a caliber estimate.
+    /// Returns 0.0 for a legacy `mass_kg == 0.0` spec; consumers keep their class fallback.
+    pub fn impact_energy_kj(self, speed_mps: f32) -> f32 {
+        0.0005 * self.mass_kg * speed_mps * speed_mps
     }
 
     /// Linear aerodynamic drag, in speed lost per second of flight. With `dv/dt = -c·v` a shell
