@@ -171,12 +171,14 @@ pub fn track_hit_damage(
     if shell_type == ShellType::HighExplosive && !penetrated {
         return TRACK_HE_DAMAGE as u8;
     }
-    // Kinetic: the caliber sets the raw bite (a 100 mm class round throws a full pool head-on —
-    // the headroom keeps a clean hit above MAX out to ~25° before obliquity drops it into the
-    // damage-only band), obliquity sheds it (the band skids the round aside), and a ricochet
-    // barely scores it.
-    const TRACK_AP_BITE: f32 = 1.2;
-    let angle_factor = impact_angle_deg.to_radians().cos().clamp(0.0, 1.0).powf(1.5);
+    // Kinetic: the caliber sets the raw bite (a 100 mm class round throws a full pool only when
+    // it lands nearly NORMAL — out to ~9°. The one-hit throw stays a real tactic, but it now has
+    // to be earned with a clean shot: the old 1.2 bite kept a 100 mm hit above MAX out to ~25°,
+    // and measured battles threw tracks about twice as often as the design wants), obliquity
+    // sheds it harder than before (exponent 1.5 → 2.2 — the band skids the round aside), and a
+    // ricochet barely scores it. Frequency-relief pass; re-measure with `battle_statistics`.
+    const TRACK_AP_BITE: f32 = 1.05;
+    let angle_factor = impact_angle_deg.to_radians().cos().clamp(0.0, 1.0).powf(2.2);
     let ricochet_factor = if ricocheted { 0.35 } else { 1.0 };
     let raw = caliber_mm * TRACK_AP_BITE * angle_factor * ricochet_factor;
     raw.clamp(0.0, TRACK_HP_MAX as f32) as u8

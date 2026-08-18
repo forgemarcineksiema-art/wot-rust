@@ -12,6 +12,7 @@ pub mod remote;
 pub(crate) mod remote_events;
 mod remote_input;
 mod setup;
+pub mod stats;
 
 pub use battle::{
     BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
