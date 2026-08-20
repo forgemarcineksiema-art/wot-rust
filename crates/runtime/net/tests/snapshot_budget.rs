@@ -129,6 +129,7 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
                 caliber_mm: 88.0,
                 drag_per_s: 0.09,
                 age_seconds: 0.35,
+                round: Some(game_core::RoundId::Pzgr39),
             })
             .collect(),
         damage_events: vec![game_core::DamageEvent::default(); 6],

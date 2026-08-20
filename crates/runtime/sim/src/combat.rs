@@ -363,6 +363,11 @@ pub(crate) fn apply_shell_impact(
         shell_id: Some(shell.id),
         target_destroyed: target_was_alive && target.hit_points == 0,
         crew_hits_mask,
+        // v47: the concrete round's identity, and the brittle core's death on the plate —
+        // `shell_step` routes on `shattered`, the client draws its own mark from it.
+        round: shell.shell.round,
+        shattered: penetration.ricocheted
+            && shell.shell.penetrator == game_core::Penetrator::TungstenCore,
     };
     (event, exit)
 }

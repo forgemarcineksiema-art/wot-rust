@@ -203,4 +203,15 @@ pub struct DamageEvent {
     /// (who is down, the first-aid countdown) rides the tank snapshot, team-only.
     #[serde(default)]
     pub crew_hits_mask: u8,
+    /// The CONCRETE round that dealt this event (protocol v47, Amunicja 3.0): the HUD names
+    /// WHICH shell bounced ("BR-412D"), not which class. `None` for causes with no shell and
+    /// for legacy fixtures.
+    #[serde(default)]
+    pub round: Option<crate::RoundId>,
+    /// A brittle tungsten core that died on the plate it failed to skid off (protocol v47):
+    /// true only on the ricochet outcome of a `Penetrator::TungstenCore` round. The client's
+    /// shatter mark is distinct from the ricochet gouge; the sim routed on this predicate
+    /// since A4 — the wire finally carries it.
+    #[serde(default)]
+    pub shattered: bool,
 }

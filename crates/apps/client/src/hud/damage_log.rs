@@ -42,6 +42,9 @@ pub(crate) struct DamageLogEntry {
     /// Crewmen this shell knocked out (`CrewRole::ALL` bit order, v46) — the shooter's one-shot
     /// callout, and the taken-side confirmation of who just went down.
     pub crew_hits_mask: u8,
+    /// The concrete round behind this row (v47): the log says "BR-412D", not "an AP shell".
+    /// `None` on legacy events and shell-less causes — the row simply carries no name.
+    pub round: Option<game_core::RoundId>,
     pub age_s: f32,
 }
 
@@ -88,6 +91,7 @@ impl DamageLog {
                 track,
                 other_vehicle,
                 crew_hits_mask: event.crew_hits_mask,
+                round: event.round,
                 age_s: 0.0,
             });
         }
@@ -194,6 +198,22 @@ pub(crate) fn push_damage_log(
                 aspect,
                 color,
             );
+            x += crate::hud::font::text_width(kind.short_name(), LOG_TEXT_SIZE, aspect) + 0.008;
+        }
+        // The named round (v47): the honest word after the vehicle — "IS3 BR-412D" — dimmer
+        // than the row so the number and the vehicle stay the read.
+        if let Some(round) = entry.round {
+            let mut dim = color;
+            dim[3] *= 0.7;
+            crate::hud::font::push_text(
+                vertices,
+                round.designation(),
+                x,
+                y,
+                LOG_TEXT_SIZE,
+                aspect,
+                dim,
+            );
         }
     }
 }
@@ -270,6 +290,20 @@ mod tests {
     }
 
     #[test]
+    fn the_log_names_the_round_that_hit() {
+        let mut log = DamageLog::default();
+        let tanks = [tank(1, VehicleKind::T54_1951), tank(2, VehicleKind::IS3)];
+        let mut named = event(2, 1, 390);
+        named.round = Some(game_core::RoundId::Br471B);
+        log.ingest(&[named], TankId(1), &tanks);
+        assert_eq!(
+            log.visible()[0].round,
+            Some(game_core::RoundId::Br471B),
+            "the row carries WHICH round hit (v47) — \"BR-471B\", not \"an AP shell\""
+        );
+    }
+
+    #[test]
     fn a_zero_damage_spall_still_earns_a_log_row_for_the_wounded_crewman() {
         let mut log = DamageLog::default();
         let tanks = [tank(1, VehicleKind::T54_1951), tank(2, VehicleKind::IS3)];
@@ -321,6 +355,7 @@ mod tests {
                 track: None,
                 other_vehicle: Some(VehicleKind::IS3),
                 crew_hits_mask: 0,
+                round: None,
                 age_s: 0.0,
             },
             DamageLogEntry {
@@ -330,6 +365,7 @@ mod tests {
                 track: None,
                 other_vehicle: Some(VehicleKind::TigerI),
                 crew_hits_mask: 0,
+                round: None,
                 age_s: 0.0,
             },
         ];

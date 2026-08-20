@@ -5,7 +5,7 @@ use renderer_api::HudVertex;
 mod draw;
 
 use crate::hud::reticle::world_to_clip_xy;
-use draw::{color_for, fade, push_marker, push_module_icon};
+use draw::{MarkerOutcome, color_for, fade, push_marker, push_module_icon};
 
 const FEEDBACK_TTL: f32 = 2.5;
 const FADE_DURATION: f32 = 0.8;
@@ -21,6 +21,9 @@ struct HitFeedback {
     /// pen-vs-armor numbers the shooter already owns (mirror of `shell_spalls_on_nonpen` in the
     /// sim), never from the target's concealed crew state.
     near_pen: bool,
+    /// The brittle core's death on the plate (wire v47): the shooter's mark says the round
+    /// SHATTERED — stop feeding tungsten to that angle — where a plain ricochet says "it skipped".
+    shattered: bool,
     module: Option<ModuleSlot>,
     age: f32,
 }
@@ -52,6 +55,7 @@ impl HitIndicator {
             penetrated: e.penetrated,
             ricocheted: e.ricocheted,
             near_pen: near_penetration(e),
+            shattered: e.shattered,
             module: e.module,
             age: 0.0,
         }));
@@ -87,7 +91,13 @@ impl HitIndicator {
                 continue;
             }
 
-            let dmg_color = color_for(entry.penetrated, entry.ricocheted, entry.near_pen);
+            let outcome = MarkerOutcome {
+                pen: entry.penetrated,
+                ric: entry.ricocheted,
+                near_pen: entry.near_pen,
+                shattered: entry.shattered,
+            };
+            let dmg_color = color_for(outcome);
             let num_digits = crate::hud::number::digit_count(entry.damage_hp.min(9_999));
             let num_h = 0.065;
             let num_w = num_digits as f32 * num_h * 0.6;
@@ -103,15 +113,7 @@ impl HitIndicator {
 
             let mcx = clip[0] - num_w * 0.5 - 0.012;
             let mcy = clip[1] + 0.02;
-            push_marker(
-                &mut verts,
-                [mcx, mcy],
-                entry.penetrated,
-                entry.ricocheted,
-                entry.near_pen,
-                alpha,
-                aspect,
-            );
+            push_marker(&mut verts, [mcx, mcy], outcome, alpha, aspect);
 
             // Damage number + result glyph + module icon and NOTHING more: the mm duel
             // (pen vs armor bar and both numbers) drowned the read in a fight — the color

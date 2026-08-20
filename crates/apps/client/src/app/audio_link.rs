@@ -507,6 +507,7 @@ mod tests {
                 caliber_mm: 100.0,
                 drag_per_s: 0.0,
                 age_seconds: 0.1,
+                round: None,
             };
 
         // Tick one: four shells south of the listener. Tick two: all have crossed north —
