@@ -38,10 +38,11 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD,
   frame-time p50/p95/p99 measurement backing the one-look budget.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (**wire v46** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  snapshots (**wire v47** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
   who has not spotted the shooter v44, the battle clock on the wire v45, crew battle wounds
-  team-private v46), replay regression,
+  team-private v46, concrete-round identity and the tungsten shatter flag v47), replay
+  regression,
   bots with routes/fire discipline, 7v7
   mode. Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal

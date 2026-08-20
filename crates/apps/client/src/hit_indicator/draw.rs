@@ -15,12 +15,22 @@ pub(super) fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
     [c[0], c[1], c[2], (c[3] * a).clamp(0.0, 1.0)]
 }
 
-pub(super) fn color_for(pen: bool, ric: bool, near_pen: bool) -> [f32; 4] {
-    if pen {
+/// The one-glyph outcome taxonomy the marker draws: penetration / bounce / shatter /
+/// near-penetration rattle.
+#[derive(Clone, Copy)]
+pub(super) struct MarkerOutcome {
+    pub pen: bool,
+    pub ric: bool,
+    pub near_pen: bool,
+    pub shattered: bool,
+}
+
+pub(super) fn color_for(outcome: MarkerOutcome) -> [f32; 4] {
+    if outcome.pen {
         GRN
-    } else if ric {
+    } else if outcome.ric {
         RED
-    } else if near_pen {
+    } else if outcome.near_pen {
         ORN
     } else {
         YLW
@@ -30,21 +40,25 @@ pub(super) fn color_for(pen: bool, ric: bool, near_pen: bool) -> [f32; 4] {
 pub(super) fn push_marker(
     verts: &mut Vec<HudVertex>,
     c: [f32; 2],
-    pen: bool,
-    ric: bool,
-    near_pen: bool,
+    outcome: MarkerOutcome,
     a: f32,
     asp: f32,
 ) {
     let h: [f32; 2] = [0.005 / asp, 0.005];
-    if pen {
+    if outcome.pen {
         push_quad(verts, c, h, fade(GRN, a));
-    } else if ric {
+    } else if outcome.shattered {
+        // The core DIED on the plate (v47): a red cross, not the skip's bar — "that angle eats
+        // tungsten" is a different lesson than "it skipped somewhere".
+        let o = 0.0012;
+        push_quad(verts, c, [h[0], o], fade(RED, a));
+        push_quad(verts, c, [o / asp, h[1]], fade(RED, a));
+    } else if outcome.ric {
         push_quad(verts, c, [0.004 / asp, h[1]], fade(RED, a));
     } else {
         // The non-pen cross; a near-penetration heats it orange — that was CLOSE, same spot
         // again — from numbers the shooter already owns, never from concealed intel.
-        let tint = if near_pen { ORN } else { YLW };
+        let tint = if outcome.near_pen { ORN } else { YLW };
         let o = 0.001;
         push_quad(verts, c, [h[0], o], fade(tint, a));
         push_quad(verts, c, [o / asp, h[1]], fade(tint, a));

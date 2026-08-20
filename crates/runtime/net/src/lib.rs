@@ -127,7 +127,15 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// and the first-aid countdowns (team-private, see `snapshot_filter::conceal_enemy_crew_state`),
 /// `DamageEvent` gains `crew_hits_mask` (the shooter's one-shot callout). All appends with
 /// `serde(default)`; older fixtures load with a whole crew.
-pub const PROTOCOL_VERSION: u16 = 46;
+///
+/// v47: concrete-round identity on the wire (Amunicja 3.0). `ShellSnapshot` and `DamageEvent`
+/// gain `round: Option<RoundId>` — the id, never the spec: `shell_type`/`caliber_mm`/
+/// `drag_per_s` stay explicit so the client never guesses flight from a catalog that could
+/// skew, and the HUD names WHICH round hit ("BR-412D"), not which class. `DamageEvent` also
+/// gains `shattered` — the brittle tungsten core's death on the plate (A4), which the sim has
+/// routed on since then and FX can finally read. All appends with `serde(default)`; a legacy
+/// fixture decodes with `round: None` and the client degrades to the type glyph.
+pub const PROTOCOL_VERSION: u16 = 47;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -326,6 +334,10 @@ pub struct ShellSnapshot {
     pub caliber_mm: f32,
     pub drag_per_s: f32,
     pub age_seconds: f32,
+    /// The concrete round in flight (protocol v47) — identity for presentation only; flight
+    /// stays keyed on the explicit `drag_per_s`/`caliber_mm` above, never on a catalog lookup.
+    #[serde(default)]
+    pub round: Option<game_core::RoundId>,
 }
 
 impl From<&sim::ShellState> for ShellSnapshot {
@@ -341,6 +353,7 @@ impl From<&sim::ShellState> for ShellSnapshot {
             caliber_mm: shell.shell.caliber_mm,
             drag_per_s: shell.shell.drag_per_s(),
             age_seconds: shell.age_seconds,
+            round: shell.shell.round,
         }
     }
 }

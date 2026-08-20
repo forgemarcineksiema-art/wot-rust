@@ -47,6 +47,13 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             if i == selected { SLOT_SELECTED } else { SLOT },
         );
         push_icon(v, ammo_icon(shell.shell_type), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, ICON);
+        // The slot names WHICH round it chambers (v47): "BR-412D", the round's own designation,
+        // not a class label. A legacy shell with no identity shows nothing — the icon carries it.
+        if let Some(round) = shell.round {
+            let name = round.designation();
+            let w = text_width(name, 0.016, aspect);
+            push_text(v, name, c[0] - w / 2.0, c[1] - 0.002, 0.016, aspect, TEXT_DIM);
+        }
 
         // The count row: "−  N  +". The zones are real controls (they hit-test before the slot),
         // so they read as such — bright glyphs flanking the dimmer count.

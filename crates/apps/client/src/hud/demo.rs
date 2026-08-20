@@ -68,8 +68,10 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                     .iter()
                     .copied()
                     .find(|kind| *kind != VehicleKind::BENCHMARK),
-                // The staged dealt row also shows a gunner knock — the "G" callout.
+                // The staged dealt row also shows a gunner knock — the "G" callout — and the
+                // named round (v47).
                 crew_hits_mask: game_core::CrewRole::Gunner.mask_bit(),
+                round: Some(game_core::RoundId::Pzgr39_42),
                 age_s: 0.5,
             },
             DamageLogEntry {
@@ -83,6 +85,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                     .filter(|kind| *kind != VehicleKind::BENCHMARK)
                     .nth(1),
                 crew_hits_mask: 0,
+                round: Some(game_core::RoundId::Of471),
                 age_s: 1.5,
             },
         ],
