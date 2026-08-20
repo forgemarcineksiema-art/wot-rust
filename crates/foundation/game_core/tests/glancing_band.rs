@@ -62,6 +62,46 @@ fn a_near_glance_is_a_weak_hit_rather_than_a_coin_flip() {
     assert!(shot(71.0).ricocheted, "and 71° is past it");
 }
 
+/// The blunt-nose identity (Amunicja 3.0 B5): the Soviet APBC was BUILT for sloped plate. With
+/// the same penetration column, the blunt round turns more of the slope into the armor (8° vs
+/// 5°) and digs in three degrees past the sharp nose's bounce — so there is an angle where the
+/// Pzgr-style round skids and the BR-style round opens the plate. Concrete shells now fight
+/// differently, not just carry different numbers.
+#[test]
+fn the_blunt_nose_fights_the_slope_where_the_sharp_one_skids() {
+    let sharp = ap();
+    let blunt = ap().with_penetrator(game_core::Penetrator::FullBoreBlunt);
+    let hull = VehicleKind::T34_85.spec().hull;
+    let at = |shell: &ShellSpec, angle: f32| {
+        resolve_penetration_at_distance(shell, &hull, ArmorFacing::HullRear, angle, 100.0)
+    };
+
+    // 71.5° sits between the two bounce angles: the sharp nose skids, the blunt one bites in
+    // and — with its deeper normalization — still opens the 45 mm plate.
+    let sharp_shot = at(&sharp, 71.5);
+    let blunt_shot = at(&blunt, 71.5);
+    assert!(sharp_shot.ricocheted, "past 70° the sharp nose is gone");
+    assert!(!blunt_shot.ricocheted, "the blunt nose is still digging at 71.5°");
+    assert!(blunt_shot.penetrated, "and it opens the plate: {blunt_shot:?}");
+
+    // Inside the band both bite, but the blunt round arrives with more left: it turned more of
+    // the slope away before the LOS steel was measured.
+    let sharp_oblique = at(&sharp, 65.0);
+    let blunt_oblique = at(&blunt, 65.0);
+    assert!(
+        blunt_oblique.remaining_penetration_mm > sharp_oblique.remaining_penetration_mm,
+        "same column, different noses: blunt {} vs sharp {} mm left",
+        blunt_oblique.remaining_penetration_mm,
+        sharp_oblique.remaining_penetration_mm
+    );
+    // And square on there is nothing to normalize: the noses are equals.
+    assert_eq!(
+        at(&sharp, 0.0).remaining_penetration_mm,
+        at(&blunt, 0.0).remaining_penetration_mm,
+        "the identity is about SLOPE, not a flat bonus"
+    );
+}
+
 /// A shaped charge does not bite, so it does not skid: its obliquity limit is its own.
 #[test]
 fn heat_and_high_explosive_are_untouched_by_the_band() {
