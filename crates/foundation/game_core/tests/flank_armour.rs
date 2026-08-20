@@ -83,10 +83,13 @@ fn a_bigger_gun_demands_a_steeper_angle_from_the_same_hull() {
     assert!(!through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 65.0));
     // The 20-pounder is the gun angling answers WORST — it needs a steeper presentation than the
     // 100 before it stops. The claim is the ORDERING, not a threshold: the glancing band moved
-    // every absolute number down when it landed, and an assertion pinned to one degree would have
-    // read as a regression instead of as the band working.
-    assert!(through_the_flank("84 mm 20-pounder Type A", VehicleKind::T54_1951, 60.0));
-    assert!(!through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 60.0));
+    // every absolute number down when it landed, and B5 (the blunt APBC nose) moved the
+    // BR-412's stopping angle from 60° to 62° — both times an assertion pinned to one degree
+    // would have read as a regression instead of as an identity working. The ordering is
+    // asserted at 63°, inside the window where the blunt 100 is already turned away and the
+    // 20-pounder is still coming through (it stops at 64°).
+    assert!(through_the_flank("84 mm 20-pounder Type A", VehicleKind::T54_1951, 63.0));
+    assert!(!through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 63.0));
 }
 
 /// EVERY vehicle carries a mantlet, and it is thicker than the turret face around it.

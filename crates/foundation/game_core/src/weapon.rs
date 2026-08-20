@@ -185,25 +185,26 @@ impl ShellSpec {
     }
 
     /// How many degrees of obliquity the round's nose turns into the plate before the LOS steel
-    /// is measured (B4: the terminal table moves onto the SHELL, values mapped 1:1 from the old
-    /// per-class constants — `FullBoreBlunt` deliberately equals `FullBoreSharp` until B5 gives
-    /// the Soviet APBC family its own pair).
+    /// is measured. B5 gave the Soviet APBC family its own row: the blunt nose was BUILT for
+    /// sloped plate — it turns 8° into the armor where the sharp APCBC turns 5° — which is why
+    /// the BR-412 fights a glacis differently than a Pzgr 39 with the same penetration column.
     pub fn normalization_deg(self) -> f32 {
         match self.penetrator {
-            crate::Penetrator::FullBoreSharp | crate::Penetrator::FullBoreBlunt => 5.0,
+            crate::Penetrator::FullBoreSharp => 5.0,
+            crate::Penetrator::FullBoreBlunt => 8.0,
             crate::Penetrator::TungstenCore => 2.0,
             crate::Penetrator::ShapedCharge | crate::Penetrator::BlastCase => 0.0,
         }
     }
 
     /// The angle of incidence past which this round skids instead of biting; `None` never
-    /// ricochets (a blast case bursts on whatever it touches). The kinetic overmatch escape
-    /// stays the armor model's business (`armor::resolve`), not the shell's.
+    /// ricochets (a blast case bursts on whatever it touches). The blunt APBC digs in three
+    /// degrees longer than the sharp nose (B5). The kinetic overmatch escape stays the armor
+    /// model's business (`armor::resolve`), not the shell's.
     pub fn ricochet_angle_deg(self) -> Option<f32> {
         match self.penetrator {
-            crate::Penetrator::FullBoreSharp
-            | crate::Penetrator::FullBoreBlunt
-            | crate::Penetrator::TungstenCore => Some(70.0),
+            crate::Penetrator::FullBoreSharp | crate::Penetrator::TungstenCore => Some(70.0),
+            crate::Penetrator::FullBoreBlunt => Some(73.0),
             crate::Penetrator::ShapedCharge => Some(85.0),
             crate::Penetrator::BlastCase => None,
         }
@@ -394,8 +395,9 @@ mod tests {
             let spec = spec_with(penetrator);
             let expected = match penetrator {
                 Penetrator::FullBoreSharp => (5.0, Some(70.0), true),
-                // B4 maps blunt to sharp on purpose; B5 gives the APBC family its own pair.
-                Penetrator::FullBoreBlunt => (5.0, Some(70.0), true),
+                // B5's deliberate diff: the blunt APBC nose turns 8° into the slope and digs
+                // in to 73° — the Soviet sloped-armor round finally fights like one.
+                Penetrator::FullBoreBlunt => (8.0, Some(73.0), true),
                 Penetrator::TungstenCore => (2.0, Some(70.0), true),
                 Penetrator::ShapedCharge => (0.0, Some(85.0), false),
                 Penetrator::BlastCase => (0.0, None, false),
