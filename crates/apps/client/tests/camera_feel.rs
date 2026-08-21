@@ -374,11 +374,13 @@ fn the_boom_snaps_shorter_at_a_wall_and_recovers_smoothly_past_it() {
     assert!((final_boom - open_boom).abs() < 0.05, "the boom fully recovers");
 }
 
-/// Immersja B1: the presented TPP rig rides a fraction of the sprung hull — a brake dive
-/// dips the VIEW the way it dips the tank, heave lowers the whole rig — while the LOGICAL
-/// camera is bit-identical with the springs loaded (aiming never reads them), the sniper
-/// never moves at all, and defensive caps mean a runaway spring can nod the view but never
-/// throw it.
+/// Immersja B1, renegotiated with the vertical-suspension wave: the presented TPP rig rides
+/// a fraction of the sprung hull's dynamic DIVE — a brake dive dips the VIEW the way it dips
+/// the tank — while the HEAVE channel is retired: the follow anchor's own soft vertical
+/// spring is the camera's suspension now, and stacking a second, differently phased vertical
+/// filter on top re-added the bounce the anchor removes. The LOGICAL camera stays
+/// bit-identical with the springs loaded (aiming never reads them), the sniper never moves,
+/// and the dive cap means a runaway spring can nod the view but never throw it.
 #[test]
 fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do() {
     let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
@@ -412,15 +414,19 @@ fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do()
         dir_of(&presented_dive).y < dir_of(&presented_calm).y - 1.0e-4,
         "the brake dive visibly dips the presented view"
     );
-    let expected_heave = -0.12 * 0.5;
+    // The heave channel is RETIRED: the sprung heave must not shift the presented rig at all
+    // — the vertical ride lives in the follow anchor's own soft spring (locked separately by
+    // `a_bump_train_reaches_the_presented_eye_attenuated`), and a second vertical filter here
+    // would beat against it.
     assert!(
-        (presented_dive.eye[1] - (presented_calm.eye[1] + expected_heave)).abs() < 1.0e-3,
-        "heave lowers the rig by its fraction, got {} vs {}",
+        (presented_dive.eye[1] - presented_calm.eye[1]).abs() < 1.0e-4,
+        "heave must not shift the presented rig any more, got {} vs {}",
         presented_dive.eye[1],
         presented_calm.eye[1]
     );
 
-    // Caps: an absurd spring input nods the view inside the caps, never throws it.
+    // Caps: an absurd spring input nods the view inside the dive cap, never throws it — and
+    // its heave still moves nothing.
     let mut absurd_rig = BattleCameraController::new(BattleCameraSettings::default());
     absurd_rig.set_mode(BattleCameraMode::ThirdPerson);
     let presented_absurd =
@@ -428,8 +434,8 @@ fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do()
     let tilt = dir_of(&presented_absurd).angle_between(dir_of(&presented_calm));
     assert!(tilt <= 0.021, "view tilt stays inside the 0.02 rad cap, got {tilt}");
     assert!(
-        (presented_absurd.eye[1] - presented_calm.eye[1]).abs() <= 0.201,
-        "rig drop stays inside the 0.2 m cap"
+        (presented_absurd.eye[1] - presented_calm.eye[1]).abs() < 1.0e-4,
+        "an absurd heave still moves nothing"
     );
 
     // Sniper: bit-identical with the springs loaded — aiming tolerates no theatrics.
@@ -719,4 +725,82 @@ fn the_ride_tremor_shivers_instead_of_strobing_frame_to_frame() {
         "the tremor strobes: {:.0}% of consecutive frame deltas flip sign",
         fraction * 100.0
     );
+}
+
+/// The vertical-suspension lock: the hull's terrain-snapped Y is a bump train, and the follow
+/// anchor's soft vertical spring is the camera's suspension. A 2 Hz, +/-15 cm vertical
+/// oscillation of the hull (a 5 m heightfield ridden at combat speed) may reach the presented
+/// eye at no more than 45% of its amplitude — the old isotropic omega-16 anchor passed 62%,
+/// the omega-7 vertical passes ~24%.
+#[test]
+fn a_bump_train_reaches_the_presented_eye_attenuated() {
+    let environment = BattleCameraEnvironment::empty();
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let dt = 1.0 / 60.0;
+    let amplitude = 0.15_f32;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+    for frame in 0..360 {
+        let t = frame as f32 * dt;
+        let y = amplitude * (std::f32::consts::TAU * 2.0 * t).sin();
+        camera.advance([0.0, y, 0.0], 8.0, dt);
+        let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, y, 0.0], 0.0, 0.0), 0.0);
+        let shot = camera.render_camera(&subject, &environment);
+        // Skip the first second: the spring's start-up transient is not the steady ride.
+        if frame >= 60 {
+            min_y = min_y.min(shot.eye[1]);
+            max_y = max_y.max(shot.eye[1]);
+        }
+    }
+    let eye_amplitude = (max_y - min_y) / 2.0;
+    assert!(
+        eye_amplitude <= amplitude * 0.45,
+        "a 2 Hz bump train reached the eye at {:.0}% of the hull amplitude",
+        eye_amplitude / amplitude * 100.0
+    );
+}
+
+/// The split leash settles gently: a fast descent pins the soft vertical spring to its
+/// 0.35 m leash, and while the position is pinned the damping term self-limits the
+/// integrator's velocity to omega * leash / 2 (~1.2 m/s) - so when the hull stops, the
+/// anchor settles onto its rest FROM ABOVE, without diving past it and without a rebound.
+/// (A velocity-matching clamp was tried and REFUSED: handing the anchor the descent's full
+/// 6 m/s produced a 9 cm undershoot at the stop.)
+#[test]
+fn a_leash_ride_settles_without_a_windup_kick() {
+    let environment = BattleCameraEnvironment::empty();
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let dt = 1.0 / 60.0;
+    // Seed level, then descend at 6 m/s for a second (the vertical leash pins), then stop.
+    camera.advance([0.0, 0.0, 0.0], 8.0, dt);
+    let mut y = 0.0_f32;
+    for _ in 0..60 {
+        y -= 6.0 * dt;
+        camera.advance([0.0, y, 0.0], 8.0, dt);
+    }
+    let subject_y = y;
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, subject_y, 0.0], 0.0, 0.0), 0.0);
+    let mut lowest = f32::MAX;
+    let mut trace = Vec::new();
+    for _ in 0..180 {
+        camera.advance([0.0, subject_y, 0.0], 8.0, dt);
+        let eye_y = camera.render_camera(&subject, &environment).eye[1];
+        lowest = lowest.min(eye_y);
+        trace.push(eye_y);
+    }
+    let final_y = *trace.last().expect("trace filled");
+    // No dive below the rest on the way down...
+    assert!(
+        final_y - lowest <= 0.02,
+        "the anchor dove {:.3} m past its rest after the leash released",
+        final_y - lowest
+    );
+    // ...and no rebound back above it either: after the lowest point the eye only rises
+    // toward the rest, never past it.
+    let lowest_at = trace.iter().position(|&v| v == lowest).expect("lowest is in the trace");
+    let overshoot =
+        trace[lowest_at..].iter().fold(0.0_f32, |worst, &v| worst.max(v - final_y - 1.0e-4));
+    assert!(overshoot <= 0.02, "the anchor rebounded {overshoot:.3} m past its rest");
 }

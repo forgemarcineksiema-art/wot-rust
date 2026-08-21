@@ -20,18 +20,18 @@ use super::{BattleCameraEnvironment, BattleCameraMode, CameraSubject};
 const MODE_BLEND_S: f32 = 0.14;
 /// Boom length recovery rate (m/s) once a camera obstacle clears.
 const BOOM_RECOVER_MPS: f32 = 14.0;
-/// Fractions of the sprung hull's dynamic dive/heave the presented TPP camera rides
-/// (Immersja B1). Deliberately well under 1: the hull SHOWS the motion, the camera only
-/// corroborates it — a camera that matched the hull would read as a bobblehead. No new
-/// state lives here: both inputs are already spring-filtered upstream (`engine::attitude`)
-/// and already retire through the predictor's freeze, so the presented camera stays a pure
-/// function of frozen-safe inputs.
+/// Fraction of the sprung hull's dynamic dive the presented TPP camera rides (Immersja B1).
+/// Deliberately well under 1: the hull SHOWS the motion, the camera only corroborates it — a
+/// camera that matched the hull would read as a bobblehead. No new state lives here: the
+/// input is already spring-filtered upstream (`engine::attitude`) and already retires through
+/// the predictor's freeze, so the presented camera stays a pure function of frozen-safe
+/// inputs. The HEAVE half of B1 is retired: the follow anchor's own soft vertical spring
+/// (smoothing.rs, omega 7) is the camera's suspension now — stacking a second, differently
+/// phased vertical filter on top of it re-added the very bounce the anchor removes.
 const SPRUNG_DIVE_FRAC: f32 = 0.35;
-const SPRUNG_HEAVE_FRAC: f32 = 0.5;
-/// Defensive caps, independent of the upstream spring caps (0.035 rad / 0.30 m): a runaway
-/// input may nod the view, never throw it.
+/// Defensive cap, independent of the upstream spring cap (0.035 rad): a runaway input may
+/// nod the view, never throw it.
 const SPRUNG_DIVE_CAP_RAD: f32 = 0.02;
-const SPRUNG_HEAVE_CAP_M: f32 = 0.2;
 /// Ride tremor (Immersja B2): the two beat rates of the vertical shiver (deliberately
 /// inharmonic so it never reads as a tone), and the hard amplitude cap — a tremor shivers
 /// the view, it never throws it. No RNG anywhere: the phase is a plain accumulator, so the
@@ -211,25 +211,24 @@ impl PresentedCamera {
     }
 }
 
-/// The presented TPP rig rides a fraction of the sprung hull (Immersja B1): heave lifts the
-/// whole rig, the dynamic dive/squat tilts the view about the camera's right axis — braking
-/// dips the nose of the VIEW the way it dips the nose of the TANK. Presented layer only:
-/// the logical camera (aiming) and the sniper never pass through here.
+/// The presented TPP rig rides a fraction of the sprung hull's dynamic dive (Immersja B1):
+/// braking dips the nose of the VIEW the way it dips the nose of the TANK, tilting about the
+/// camera's right axis. Presented layer only: the logical camera (aiming) and the sniper
+/// never pass through here. Vertical ride lives in the follow anchor's own soft spring, not
+/// here (see `SPRUNG_DIVE_FRAC` for why the heave channel retired).
 fn ride_sprung_hull(camera: Camera, subject: &CameraSubject) -> Camera {
     let dive = (subject.sprung_dive_rad * SPRUNG_DIVE_FRAC)
         .clamp(-SPRUNG_DIVE_CAP_RAD, SPRUNG_DIVE_CAP_RAD);
-    let heave =
-        (subject.sprung_heave_m * SPRUNG_HEAVE_FRAC).clamp(-SPRUNG_HEAVE_CAP_M, SPRUNG_HEAVE_CAP_M);
-    if dive == 0.0 && heave == 0.0 {
+    if dive == 0.0 {
         return camera;
     }
-    let eye = Vec3::from_array(camera.eye) + Vec3::Y * heave;
-    let target = Vec3::from_array(camera.target) + Vec3::Y * heave;
+    let eye = Vec3::from_array(camera.eye);
+    let target = Vec3::from_array(camera.target);
     let dir = target - eye;
     let right = dir.cross(Vec3::Y).normalize_or_zero();
     if right == Vec3::ZERO {
-        // Looking straight along the vertical axis: no stable right axis, keep the heave only.
-        return Camera { eye: eye.to_array(), target: target.to_array(), ..camera };
+        // Looking straight along the vertical axis: no stable right axis to tilt about.
+        return camera;
     }
     let tilted = glam::Quat::from_axis_angle(right, dive) * dir;
     Camera { eye: eye.to_array(), target: (eye + tilted).to_array(), ..camera }
