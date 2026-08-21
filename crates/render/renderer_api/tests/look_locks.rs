@@ -233,6 +233,58 @@ fn every_outdoor_look_carries_aerial_perspective_into_the_horizon() {
     }
 }
 
+/// RULE 3, the temperature floor: on a day that HAS a sun, the sun is a SUN — decisively
+/// warm, never the near-white tube the battle key once was ([1.28, 1.14, 0.90], R/B 1.42,
+/// which is what "the light looks artificial" turned out to be). The dawn look aims its key
+/// through mist and the lids have no sun at all, so the floor names the clear days — the
+/// same trio the hill-haze lock names.
+#[test]
+fn the_clear_day_sun_is_a_sun_not_a_tube() {
+    let clear_days = [
+        ("battlefield_default", SceneLighting::battlefield_default()),
+        ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("prokhorovka_golden_evening", SceneLighting::prokhorovka_golden_evening()),
+    ];
+    for (name, l) in clear_days {
+        let key = warmth(l.key_rgb);
+        assert!(
+            key >= 1.5,
+            "{name}: a clear-day key must be decisively warm (R/B >= 1.5), got {key:.3}"
+        );
+    }
+}
+
+/// RULE 1, the flat-light ceiling: ambient + fill + rim is the light every surface receives
+/// WITHOUT earning it — no shadow, no shape, no direction the eye can read. Too much of it
+/// and the picture goes uniformly lit ("artificial fill", D4's missing dark mass). Dawn mist
+/// and the overcast lids are flat ON PURPOSE — their air is the look — so the ceiling names
+/// the clear days, where shade must stay shade.
+///
+/// The ceiling is a RATCHET, not a target: 0.58 records what the trimmed stack achieves today
+/// (the battle profile shipped at 0.60; a harder cut was measured and REFUSED — it pushed the
+/// backlit subject's form under its readability floor, because a shaded flank lives on exactly
+/// this light). It burns DOWN as W3 gives the vehicles light of their own to read by.
+#[test]
+fn the_unshadowed_fill_stack_stays_under_the_ceiling() {
+    let clear_days = [
+        ("battlefield_default", SceneLighting::battlefield_default()),
+        ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("prokhorovka_golden_evening", SceneLighting::prokhorovka_golden_evening()),
+    ];
+    for (name, l) in clear_days {
+        let stack = [
+            l.ambient_rgb[0] + l.fill_rgb[0] + l.rim_rgb[0],
+            l.ambient_rgb[1] + l.fill_rgb[1] + l.rim_rgb[1],
+            l.ambient_rgb[2] + l.fill_rgb[2] + l.rim_rgb[2],
+        ];
+        let lum = luminance(stack);
+        assert!(
+            lum <= 0.58,
+            "{name}: the unshadowed ambient+fill+rim stack floods the frame: {lum:.3} > 0.58"
+        );
+    }
+}
+
 /// RULE 4, the scatter side: looked at toward the sun the air WARMS, it never BRIGHTENS.
 /// The sun-haze blend (the far end of `fog_sun_scatter`) once ran `horizon*0.4 + key*0.8` —
 /// 1.2x energy, an over-white HDR colour that graded brighter than the sky itself, so the

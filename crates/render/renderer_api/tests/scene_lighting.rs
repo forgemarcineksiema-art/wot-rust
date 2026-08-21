@@ -57,8 +57,21 @@ fn ambient_blend_grounds_up_faces_to_sky_and_down_faces_to_ground() {
     let up = hemi_ambient(&l, 1.0);
     let down = hemi_ambient(&l, -1.0);
     let flat = hemi_ambient(&l, 0.0);
-    assert_eq!(up, l.ambient_rgb, "a fully up-facing surface takes the sky ambient");
-    assert_eq!(down, l.ground_ambient_rgb, "a fully down-facing surface takes the ground bounce");
+    // Approximate, not bit-exact: the blend is `g + (s - g) * t`, and at t = 1 float rounding
+    // may reconstruct `s` a ULP off (0.10 + (0.24 - 0.10) = 0.23999998). The shader computes
+    // the same expression, so the tolerance IS the mirror's precision, not a loosened model.
+    for c in 0..3 {
+        assert!(
+            (up[c] - l.ambient_rgb[c]).abs() < 1.0e-6,
+            "a fully up-facing surface takes the sky ambient: {up:?} vs {:?}",
+            l.ambient_rgb
+        );
+        assert!(
+            (down[c] - l.ground_ambient_rgb[c]).abs() < 1.0e-6,
+            "a fully down-facing surface takes the ground bounce: {down:?} vs {:?}",
+            l.ground_ambient_rgb
+        );
+    }
     // A horizontal-facing surface sits between the two hemispheres.
     assert!(luminance(down) < luminance(flat) && luminance(flat) < luminance(up));
 }

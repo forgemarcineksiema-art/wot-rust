@@ -152,35 +152,39 @@ a wave moves a number. Luminance is display-linear, so `dark < 0.25` is roughly 
 on screen". `band` is the top 15% of rows minus the bottom 40% — sky-band minus near-field on an
 outdoor frame, and meaningless indoors.
 
-Re-measured in full 2026-08-21, twice in one day: first the standalone re-bless after 28
+Re-measured in full 2026-08-21, three times in one day: the standalone re-bless after 28
 frames of content drift (#610 — the opt-in GPU gate had been red on master since the
 T-54/tension/ammo waves), then the W1 air pass (energy-conserving sun-haze, darker horizon,
-fog that reaches the hills). The air pass alone moved the bright plane down 4–12 points on
-every outdoor map (`bystra_clear_afternoon` 44.7% → 36.5%, `orliny_pine_belt` 46.2% → 34.3%,
-`bystra_town_lane` 40.9% → 32.7%) — the "washed-out white distance" measurably left the set.
+fog that reaches the hills), then the W1 light pass (warm keys R/B ≥ 1.5, trimmed flat-light
+stack, exposure 1.1 → 1.05/1.0). Together they moved the clear days from milk toward the
+policy: `bystra_clear_afternoon` bright 44.7% → 33.3% and **dark 3.6% → 17.0%** (first
+outdoor clear-day frame AT the 0.08 dark target), `orliny_clear_afternoon` dark 5.2% → 13.0%,
+`orliny_pine_belt` bright 46.2% → 27.1%, `bystra_town_lane` bright 40.9% → 26.8%. The light
+pass was tuned against the backlit-subject locks: a harder fill/rim cut and exposure 1.0
+were each measured and REFUSED (subject median 0.049 / form 0.0069 vs floors 0.060 / 0.0070).
 
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `prokhorovka_clear_afternoon` | 0.8% | 56.3% | 42.9% | 0.379 | 0.542 | 0.865 | 0.486 | 0.301 | 0.0085 | +0.273 |
+| `prokhorovka_clear_afternoon` | 1.0% | 58.3% | 40.7% | 0.345 | 0.519 | 0.851 | 0.506 | 0.345 | 0.0083 | +0.289 |
 | `prokhorovka_golden_evening` | 40.9% | 25.1% | 34.0% | 0.121 | 0.416 | 0.704 | 0.583 | 0.364 | 0.0087 | +0.393 |
 | `prokhorovka_overcast` | 0.7% | 50.3% | 49.0% | 0.352 | 0.511 | 0.720 | 0.368 | 0.183 | 0.0063 | +0.283 |
 | `prokhorovka_evening_midfield` | 40.1% | 25.0% | 34.9% | 0.093 | 0.314 | 0.717 | 0.624 | 0.387 | 0.0089 | +0.410 |
-| `prokhorovka_grass_midfield` | 2.0% | 52.9% | 45.1% | 0.390 | 0.565 | 0.863 | 0.472 | 0.285 | 0.0078 | +0.223 |
-| `prokhorovka_contact_backlit` | 20.5% | 56.0% | 23.5% | 0.050 | 0.476 | 0.830 | 0.780 | 0.377 | 0.0077 | +0.331 |
+| `prokhorovka_grass_midfield` | 2.1% | 53.9% | 44.0% | 0.354 | 0.530 | 0.843 | 0.489 | 0.329 | 0.0077 | +0.240 |
+| `prokhorovka_contact_backlit` | 21.8% | 55.2% | 23.0% | 0.040 | 0.440 | 0.811 | 0.771 | 0.419 | 0.0074 | +0.352 |
 | `prokhorovka_evening_contact` | 48.8% | 26.4% | 24.8% | 0.073 | 0.255 | 0.701 | 0.628 | 0.448 | 0.0090 | +0.393 |
-| `bystra_clear_afternoon` | 3.5% | 60.0% | 36.5% | 0.264 | 0.440 | 0.773 | 0.508 | 0.297 | 0.0107 | +0.372 |
+| `bystra_clear_afternoon` | 17.0% | 49.7% | 33.3% | 0.201 | 0.385 | 0.726 | 0.526 | 0.343 | 0.0102 | +0.386 |
 | `bystra_rain` | 1.4% | 57.2% | 41.5% | 0.292 | 0.422 | 0.689 | 0.397 | 0.198 | 0.0064 | +0.329 |
 | `bystra_dawn_fog` | 27.4% | 30.0% | 42.6% | 0.177 | 0.336 | 0.779 | 0.601 | 0.216 | 0.0094 | +0.472 |
-| `bystra_town_lane` | 12.6% | 54.7% | 32.7% | 0.106 | 0.422 | 0.767 | 0.661 | 0.317 | 0.0089 | +0.316 |
-| `orliny_clear_afternoon` | 3.4% | 59.0% | 37.7% | 0.268 | 0.414 | 0.819 | 0.551 | 0.283 | 0.0109 | +0.414 |
+| `bystra_town_lane` | 20.4% | 52.9% | 26.8% | 0.069 | 0.351 | 0.712 | 0.643 | 0.364 | 0.0084 | +0.336 |
+| `orliny_clear_afternoon` | 13.0% | 53.8% | 33.3% | 0.206 | 0.343 | 0.781 | 0.575 | 0.343 | 0.0104 | +0.454 |
 | `orliny_golden_evening` | 47.6% | 17.1% | 35.2% | 0.123 | 0.260 | 0.806 | 0.683 | 0.329 | 0.0112 | +0.563 |
 | `orliny_overcast` | 1.0% | 55.7% | 43.3% | 0.331 | 0.418 | 0.721 | 0.389 | 0.189 | 0.0063 | +0.314 |
-| `orliny_pine_belt` | 3.8% | 61.9% | 34.3% | 0.269 | 0.422 | 0.771 | 0.503 | 0.289 | 0.0102 | +0.296 |
-| `ostrogorsk_clear_afternoon` | 2.0% | 55.1% | 42.9% | 0.351 | 0.539 | 0.847 | 0.497 | 0.232 | 0.0104 | +0.281 |
+| `orliny_pine_belt` | 14.1% | 58.8% | 27.1% | 0.205 | 0.354 | 0.718 | 0.513 | 0.337 | 0.0097 | +0.324 |
+| `ostrogorsk_clear_afternoon` | 2.4% | 58.4% | 39.3% | 0.318 | 0.505 | 0.833 | 0.516 | 0.276 | 0.0102 | +0.299 |
 | `ostrogorsk_golden_evening` | 38.8% | 23.9% | 37.3% | 0.113 | 0.298 | 0.799 | 0.686 | 0.325 | 0.0101 | +0.530 |
 | `ostrogorsk_overcast` | 4.7% | 51.9% | 43.4% | 0.271 | 0.444 | 0.721 | 0.449 | 0.129 | 0.0072 | +0.288 |
 | `ostrogorsk_rain` | 4.2% | 52.6% | 43.2% | 0.275 | 0.411 | 0.683 | 0.408 | 0.134 | 0.0064 | +0.294 |
-| `ostrogorsk_canyon` | 5.4% | 67.2% | 27.4% | 0.240 | 0.472 | 0.863 | 0.623 | 0.210 | 0.0084 | +0.269 |
+| `ostrogorsk_canyon` | 7.3% | 66.6% | 26.1% | 0.214 | 0.435 | 0.849 | 0.635 | 0.235 | 0.0081 | +0.286 |
 | `garage_hero` | 72.3% | 23.6% | 4.1% | 0.030 | 0.163 | 0.574 | 0.544 | 0.228 | 0.0076 | −0.134 |
 | `garage_screen` | 75.4% | 20.7% | 3.9% | 0.064 | 0.140 | 0.566 | 0.502 | 0.189 | 0.0105 | −0.091 |
 | `garage_tech_tree` | 78.4% | 19.8% | 1.8% | 0.063 | 0.128 | 0.495 | 0.432 | 0.191 | 0.0064 | −0.101 |
@@ -244,21 +248,31 @@ is a frame that clears its FLOOR (so it cannot get worse) but has not reached it
 list is W1's and W4's work order.**
 
 ```
+(refreshed 2026-08-21 after the W1 air + light passes)
 prokhorovka_clear_afternoon: dark plane 0.010, target 0.080 (short by 0.070, W1)
-prokhorovka_clear_afternoon: spread     0.437, target 0.450 (short by 0.013, W1)
-prokhorovka_overcast:        dark plane 0.009, target 0.080 (short by 0.071, W1)
-prokhorovka_overcast:        spread     0.348, target 0.450 (short by 0.102, W1)
-bystra_clear_afternoon:      dark plane 0.046, target 0.080 (short by 0.034, W1)
-bystra_rain:                 dark plane 0.074, target 0.080 (short by 0.006, W1)
-orliny_clear_afternoon:      dark plane 0.036, target 0.080 (short by 0.044, W1)
-orliny_overcast:             dark plane 0.021, target 0.080 (short by 0.059, W1)
-orliny_overcast:             spread     0.393, target 0.450 (short by 0.057, W1)
-orliny_pine_belt:            dark plane 0.062, target 0.080 (short by 0.018, W1)
-ostrogorsk_clear_afternoon:  dark plane 0.044, target 0.080 (short by 0.036, W1)
-ostrogorsk_overcast:         dark plane 0.077, target 0.080 (short by 0.003, W1)
-ostrogorsk_rain:             dark plane 0.075, target 0.080 (short by 0.005, W1)
-ostrogorsk_canyon:           dark plane 0.048, target 0.080 (short by 0.032, W1)
+prokhorovka_overcast:        dark plane 0.007, target 0.080 (short by 0.073, W1)
+prokhorovka_overcast:        spread     0.368, target 0.450 (short by 0.082, W1)
+prokhorovka_grass_midfield:  dark plane 0.021, target 0.080 (short by 0.059, W1)
+bystra_rain:                 dark plane 0.014, target 0.080 (short by 0.066, W1)
+bystra_rain:                 spread     0.397, target 0.450 (short by 0.053, W1)
+orliny_overcast:             dark plane 0.010, target 0.080 (short by 0.070, W1)
+orliny_overcast:             spread     0.389, target 0.450 (short by 0.061, W1)
+ostrogorsk_clear_afternoon:  dark plane 0.024, target 0.080 (short by 0.056, W1)
+ostrogorsk_overcast:         dark plane 0.047, target 0.080 (short by 0.033, W1)
+ostrogorsk_overcast:         spread     0.449, target 0.450 (short by 0.001, W1)
+ostrogorsk_rain:             dark plane 0.042, target 0.080 (short by 0.038, W1)
+ostrogorsk_rain:             spread     0.408, target 0.450 (short by 0.042, W1)
+ostrogorsk_canyon:           dark plane 0.073, target 0.080 (short by 0.007, W1)
 ```
+
+The 2026-08-21 light pass retired four whole frames from this list — `bystra_clear_afternoon`
+(dark 0.170 — the first clear day AT target), `orliny_clear_afternoon` (0.130),
+`orliny_pine_belt` (0.141) and `bystra_town_lane` — and moved every remaining clear-day line
+closer. What is left is concentrated where the CONTENT is flat: Prokhorovka's empty steppe
+(no shade-casting mass in frame) and the overcast/rain lids, whose flat light is authored.
+The steppe's missing dark mass is a content question (a cloud-shade pattern only reads where
+something anchors it), not another exposure notch — a harder cut was measured and refused
+against the backlit-subject readability locks.
 
 **Which frames are absent is the point.** Every golden-evening frame, the tank-at-contact frame,
 the grass band, the dawn fog and the town lane are already at target on every metric. The debt is
