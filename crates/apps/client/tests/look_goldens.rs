@@ -215,6 +215,12 @@ struct FrameStats {
     /// Mean per-pixel saturation (max−min over max). A chroma regression measure, NOT rule 2's
     /// albedo bound — see `no_recorded_frame_runs_away_with_chroma`.
     saturation: f32,
+    /// Share of pixels at or above 0.97 linear luma — effectively pure white on screen. The sun
+    /// disc's hot core is allowed to live here; a washed-out sky band or a blown field is not.
+    /// This is the direct pixel-side regression lock on "the picture went white" (D3): the
+    /// disc/halo multipliers are shader constants no CPU mirror can see, so the ceiling reads
+    /// the recorded photograph instead.
+    near_white: f32,
     /// Mean absolute luminance step between horizontally adjacent pixels. Detail, not noise:
     /// a flat wash tends to zero, a shimmering surface runs high.
     local_contrast: f32,
@@ -250,7 +256,7 @@ fn frame_stats_of(pixels: &[u8], width: usize, height: usize) -> FrameStats {
 }
 
 fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
-    let (mut dark, mut mid, mut bright) = (0u32, 0u32, 0u32);
+    let (mut dark, mut mid, mut bright, mut near_white) = (0u32, 0u32, 0u32, 0u32);
     let (mut sum_r, mut sum_b, mut sum_sat) = (0.0f64, 0.0f64, 0.0f64);
     let mut lumas = Vec::with_capacity(width * height);
 
@@ -265,6 +271,9 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
             mid += 1;
         } else {
             bright += 1;
+        }
+        if luma >= 0.97 {
+            near_white += 1;
         }
         sum_r += r as f64;
         sum_b += b as f64;
@@ -312,6 +321,7 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
         p95,
         spread: p95 - p05,
         saturation: (sum_sat / n as f64) as f32,
+        near_white: near_white as f32 / n,
         local_contrast: (contrast_sum / contrast_count.max(1) as f64) as f32,
         band_separation,
     }
@@ -423,6 +433,17 @@ fn recorded_goldens_hold_the_value_structure() {
                  failed on the pixels, whatever the profile says",
                 view.name,
                 stats.band_separation
+            );
+            // D3's regression stop, read off the photograph: at most 1.5% of an outdoor frame
+            // may sit at effectively pure white (>= 0.97 linear luma). The sun disc's hot core
+            // fits comfortably (~0.1% of a 960x540 frame); a milky sky band, a blown cloud
+            // deck or a washed field does not. The disc/halo multipliers live in sky.wgsl where
+            // no CPU mirror reaches — this ceiling is what keeps them honest.
+            assert!(
+                stats.near_white <= 0.015,
+                "{}: {:.2}% of the frame is pure white — the picture is washing out (D3)",
+                view.name,
+                stats.near_white * 100.0
             );
             // Rule 1's other half: the planes must be far APART, not merely present. A wash can
             // straddle two thresholds and still read as one flat surface.

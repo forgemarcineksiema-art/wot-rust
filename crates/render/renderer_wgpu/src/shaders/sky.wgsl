@@ -186,10 +186,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         color = mix(color, sheet_col, sheet * sheet_opacity);
     }
 
-    // Horizon treatment: a pale distance band where the air thickens against the ground line,
-    // so the dome never meets the terrain as a clean gradient cut (rule 4 — one atmosphere).
+    // Horizon treatment: a distance band where the air thickens against the ground line, so the
+    // dome never meets the terrain as a clean gradient cut (rule 4 — one atmosphere). The band
+    // is the FOG COLOUR, exactly: the old `* 1.06` super-horizon lift painted a strip 6%
+    // brighter than the very haze the distant ground fades toward — extra milk in the one band
+    // a hull-height camera always contains (D3's second half).
     let horizon_band = (1.0 - smoothstep(0.0, 0.12, dir.y)) * smoothstep(-0.05, 0.0, dir.y);
-    color = mix(color, camera.sky_horizon_rgb * 1.06, horizon_band * 0.3);
+    color = mix(color, camera.sky_horizon_rgb, horizon_band * 0.22);
 
     // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. The
     // profile's sun_softness fattens and softens the disc (a hazy day has a milky sun) — its own
@@ -201,8 +204,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // the air below the clouds still glows faintly around a hidden sun.
     let hazy = clamp(camera.haze_params.w, 0.0, 1.0);
     let sun_cover = cloud * camera.cloud_params.z;
-    let disc = pow(d, mix(900.0, 350.0, hazy)) * mix(6.0, 3.5, hazy);
-    let halo = pow(d, mix(9.0, 6.0, hazy)) * mix(0.20, 0.30, hazy);
+    // The disc multiplier is how much of the disc survives ACES as PURE flat white: at the old
+    // x6.0 the whole core clipped to 1/1/1 — a white hole, not a sun. x3.0 still tops the curve
+    // (a hot core the size of the true disc) while the skirt keeps the key's colour, so the sun
+    // reads golden. The halo is wide-angle scatter: the old pow-9 lobe reached ~26 degrees at a
+    // fifth of key strength — a whitish wash over a quarter of the played sky band. Tighter and
+    // halved on clear days; a hazy day still fattens it (that IS the milky-sun look, authored).
+    let disc = pow(d, mix(900.0, 350.0, hazy)) * mix(3.0, 2.2, hazy);
+    let halo = pow(d, mix(14.0, 7.0, hazy)) * mix(0.10, 0.22, hazy);
     color += camera.key_rgb * (disc * (1.0 - sun_cover) + halo * (1.0 - 0.7 * sun_cover)) * above;
 
     // Linear HDR out: the sun disc stays hot past 1.0 so the post pass (and later bloom)

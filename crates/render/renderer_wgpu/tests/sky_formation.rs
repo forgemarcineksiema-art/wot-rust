@@ -53,14 +53,15 @@ fn an_overcast_lid_occludes_the_sun_disc() {
     };
 
     // The camera looks straight at a mid-sky sun (elevation ~27° — well inside the cloud band)
-    // under a rain-grade grey key. The old additive disc still saturated the frame straight
-    // through a full lid (only the key's weakness kept it subtle); occluded, the brightest
-    // thing under the lid is the lit cloud face, a long way below the naked disc. A HOT key's
-    // lid frame is legitimately bright (sunlit cloud tops), so the grey key is the scenario
-    // where the two outcomes separate cleanly.
+    // under the battle profile's own hot key. Since the disc multiplier fell 6.0 -> 3.0 (the
+    // D3 close: the flat-white plateau was most of "the sun is whitish"), a WEAK grey key no
+    // longer clips at all — correctly: a rain-grade sun has no white core. The scenario that
+    // separates the two outcomes is therefore the hot key: its naked disc still clips a real
+    // core, while under a full lid even that key's brightest legitimate surface (the lit cloud
+    // face, ~0.94 sRGB after the grade) stays below saturation — any additive disc energy
+    // leaking through the lid would clip there and fail the zero-count assert.
     let mut lighting = SceneLighting::battlefield_default();
     lighting.key_direction = [0.0, 0.5, -1.0];
-    lighting.key_rgb = [0.5, 0.53, 0.58];
     lighting.cloud_coverage_bias = 1.0;
     let eye = [0.0, 2.0, 0.0];
     let at = [0.0, 7.0, -10.0];
