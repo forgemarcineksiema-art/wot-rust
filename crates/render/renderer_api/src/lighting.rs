@@ -210,16 +210,23 @@ impl SceneLighting {
             // A touch deeper and cooler than before, so the cast shadows the world now throws read as
             // real shade instead of a flooded mid-grey. Still well above the ground bounce (the
             // hemispheric-ambient invariant) and above the fog floor (a target at 400 m stays read).
-            ambient_rgb: [0.16, 0.19, 0.26],
-            ground_ambient_rgb: [0.14, 0.13, 0.10],
+            // Trimmed, but gently: the backlit-contact lock (subject median >= its recorded
+            // floor) is the counterweight — a shaded flank lives on ambient + fill alone, so
+            // the flat-light cut comes mostly out of the RIM, not out of what the hull reads by.
+            ambient_rgb: [0.15, 0.18, 0.24],
+            ground_ambient_rgb: [0.15, 0.14, 0.11],
             key_direction: [0.62, 0.52, 0.34],
-            // A hotter, warmer sun: with a deeper ambient the sunlit decks now separate from the
-            // shaded flanks, and the ACES curve rolls the extra punch off the top rather than clipping.
-            key_rgb: [1.28, 1.14, 0.90],
+            // A SUN, not a tube: the old [1.28, 1.14, 0.90] sat at R/B 1.42 — the whitest key in
+            // the whole set (the golden evening runs 2.40), and it is what "the sun looks
+            // artificial" was. Same energy, the blue pulled down: R/B 1.65, locked ≥ 1.5 for
+            // every clear day by the_clear_day_sun_is_a_sun_not_a_tube.
+            key_rgb: [1.32, 1.08, 0.80],
             fill_direction: [-0.5, 0.62, -0.28],
             fill_rgb: [0.16, 0.19, 0.25],
             rim_direction: [-0.42, 0.4, -0.88],
-            rim_rgb: [0.20, 0.23, 0.30],
+            // Trimmed a step, not slashed: the rim is what keeps a backlit silhouette's internal
+            // form (its lock caught the harder cut at 0.0069 vs the 0.0070 floor).
+            rim_rgb: [0.18, 0.21, 0.27],
             // A clear-day sky: a deeper, more saturated blue overhead easing to a hazy blue-grey at
             // the horizon (less milky than before, so white cloud reads against it). The horizon
             // doubles as the fog colour, so distant hills still melt into the same haze.
@@ -233,11 +240,10 @@ impl SceneLighting {
             // floating full-lit above a milky band (D3's washed-out horizon).
             fog_density: 0.00022,
             fog_height_falloff: 0.008,
-            // First-pass image formation (the proper per-map taste pass is a later phase): a
-            // touch of extra exposure so the sunlit field glows, a real black point so cast
-            // shadows finally reach black, and slightly more contrast than the old hardcoded
-            // 1.10 now that the blacks anchor it.
-            exposure: 1.1,
+            // Honest exposure: the old flat 1.1 push is halved, not zeroed — 1.0 passed the
+            // value bands but compressed the backlit subject's local contrast under its
+            // recorded floor (the readability locks are the counterweight to every darkening).
+            exposure: 1.05,
             black_point: 0.03,
             saturation: 1.18,
             contrast: 1.15,
@@ -269,14 +275,16 @@ impl SceneLighting {
     /// blue-shadowed ambient, the lightest haze of the three variants.
     pub fn bystra_clear_afternoon() -> Self {
         Self {
-            ambient_rgb: [0.19, 0.22, 0.28],
+            ambient_rgb: [0.16, 0.18, 0.23],
             ground_ambient_rgb: [0.17, 0.14, 0.10],
             key_direction: [-0.62, 0.34, 0.18],
-            key_rgb: [1.18, 0.94, 0.66],
+            // Deeper into the golden band (R/B 1.79 -> 1.97): a low western sun over farmland
+            // is amber, and the trimmed blue is most of what "the light looks artificial" was.
+            key_rgb: [1.18, 0.92, 0.60],
             fill_direction: [0.55, 0.60, -0.30],
-            fill_rgb: [0.16, 0.19, 0.26],
+            fill_rgb: [0.14, 0.17, 0.24],
             rim_direction: [0.45, 0.38, 0.85],
-            rim_rgb: [0.22, 0.22, 0.26],
+            rim_rgb: [0.18, 0.19, 0.23],
             sky_zenith_rgb: [0.20, 0.33, 0.55],
             // A full stop down from the old [0.78, 0.72, 0.62]: the horizon IS the colour every
             // distant surface fades toward, and at graded luma 0.77 it was ~3x brighter than the
@@ -288,9 +296,10 @@ impl SceneLighting {
             // instead of floating full-lit above it. 400 m floor fade 13% — fairness margin wide.
             fog_density: 0.0003,
             fog_height_falloff: 0.007,
-            // Golden afternoon: warm light wants saturation and glow, gentle blacks.
-            exposure: 1.1,
-            black_point: 0.025,
+            // Golden afternoon: warm light wants saturation, honest exposure and real blacks —
+            // the old 1.1 push is what floated the darkest twentieth into mid-grey (D4).
+            exposure: 1.0,
+            black_point: 0.03,
             saturation: 1.22,
             contrast: 1.12,
             // Golden afternoon: a few more banks than the battle noon, drifting cloud shade on
