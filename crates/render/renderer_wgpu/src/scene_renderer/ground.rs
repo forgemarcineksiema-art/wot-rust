@@ -171,38 +171,82 @@ impl GroundResources {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
         Self { pipeline, bind_group_layout, sampler, binding: None }
     }
 }
 
+/// Full mip-chain depth for a square texture: log2(size) + 1. The splat and macro maps shipped
+/// for months at `mip_level_count: 1` while a terrain shader comment claimed the far field
+/// "rides a mipmapped texture … gains no shimmer" — the far ground was aliasing raw texels,
+/// speckling bright between grass and straw. The chain makes the claim true.
+fn mip_level_count(size: u32) -> u32 {
+    32 - size.max(1).leading_zeros()
+}
+
+/// One box-filter mip step: average each 2x2 block (odd edges clamp). Plain and CPU-side on
+/// purpose — the maps upload once per battlefield, and a box average preserves what the two
+/// consumers need: splat weight sums stay normalized, and the packed macro normal renormalizes
+/// in the shader anyway.
+fn downsample_rgba8(bytes: &[u8], size: u32) -> Vec<u8> {
+    let next = (size / 2).max(1);
+    let mut out = Vec::with_capacity((next * next * 4) as usize);
+    let texel = |x: u32, y: u32, c: u32| -> u32 {
+        let x = x.min(size - 1);
+        let y = y.min(size - 1);
+        bytes[((y * size + x) * 4 + c) as usize] as u32
+    };
+    for y in 0..next {
+        for x in 0..next {
+            for c in 0..4 {
+                let sum = texel(x * 2, y * 2, c)
+                    + texel(x * 2 + 1, y * 2, c)
+                    + texel(x * 2, y * 2 + 1, c)
+                    + texel(x * 2 + 1, y * 2 + 1, c);
+                out.push(((sum + 2) / 4) as u8);
+            }
+        }
+    }
+    out
+}
+
 fn upload_rgba8(ctx: &GpuContext, label: &str, size: u32, bytes: &[u8]) -> wgpu::TextureView {
+    let mip_count = mip_level_count(size);
     let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size: wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 1 },
-        mip_level_count: 1,
+        mip_level_count: mip_count,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    ctx.queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        bytes,
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(size * 4),
-            rows_per_image: Some(size),
-        },
-        wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 1 },
-    );
+    let mut level_bytes = bytes.to_vec();
+    let mut level_size = size;
+    for level in 0..mip_count {
+        if level > 0 {
+            level_bytes = downsample_rgba8(&level_bytes, level_size);
+            level_size = (level_size / 2).max(1);
+        }
+        ctx.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: level,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &level_bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(level_size * 4),
+                rows_per_image: Some(level_size),
+            },
+            wgpu::Extent3d { width: level_size, height: level_size, depth_or_array_layers: 1 },
+        );
+    }
     texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
@@ -327,5 +371,53 @@ impl SceneRenderer {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{downsample_rgba8, mip_level_count};
+
+    /// The lock for D3's structural cousin: the ground maps upload a FULL mip chain, so the
+    /// far field filters instead of aliasing bright between grass and straw texels. If the
+    /// chain math regresses to a single level, this fails before any golden does.
+    #[test]
+    fn the_ground_maps_carry_a_full_mip_chain() {
+        assert_eq!(mip_level_count(1024), 11);
+        assert_eq!(mip_level_count(512), 10);
+        assert_eq!(mip_level_count(2), 2);
+        assert_eq!(mip_level_count(1), 1);
+        // The chain walks down to exactly 1x1: sizes halve (floor), never stall above 1.
+        let mut size = 1024u32;
+        for _ in 1..mip_level_count(1024) {
+            size = (size / 2).max(1);
+        }
+        assert_eq!(size, 1);
+    }
+
+    #[test]
+    fn a_mip_step_is_a_2x2_box_average() {
+        // One 2x2 texture, four distinct texels per channel: the single output texel is their
+        // rounded mean.
+        #[rustfmt::skip]
+        let bytes = vec![
+            10, 0, 100, 255,   20, 0, 100, 255,
+            30, 0, 100, 255,  100, 0, 100, 255,
+        ];
+        let out = downsample_rgba8(&bytes, 2);
+        assert_eq!(out, vec![40, 0, 100, 255]);
+    }
+
+    #[test]
+    fn a_mip_step_keeps_splat_weights_normalized() {
+        // Splat texels are weights summing to 255 across RGBA. A box average is linear, so the
+        // sum survives every level within rounding — the shader's renormalization never has to
+        // fight the chain.
+        let texels: [[u8; 4]; 4] =
+            [[255, 0, 0, 0], [0, 255, 0, 0], [128, 127, 0, 0], [0, 64, 64, 127]];
+        let bytes: Vec<u8> = texels.iter().flatten().copied().collect();
+        let out = downsample_rgba8(&bytes, 2);
+        let sum: u32 = out.iter().map(|&c| c as u32).sum();
+        assert!((253..=257).contains(&sum), "weight sum drifted: {sum}");
     }
 }
