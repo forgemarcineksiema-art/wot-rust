@@ -119,10 +119,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     }
 
     // The baked macro normal (~1 m relief) leaned into by the profile's strength; the detail
-    // octaves then bend it further exactly like the scene pass.
+    // octaves then bend it further exactly like the scene pass. The lean fades to ZERO at the
+    // authored splat's edge: the apron mesh runs 1500 m past the border on the same pipeline,
+    // and the clamped edge texel used to be stretched over all of it — the backdrop hills had
+    // their shading normal pulled 65% toward one flat sample and lit like flat ground (the
+    // form-less bright band at the horizon). Outside the map the geometry speaks for itself.
     let packed = textureSample(macro_normal_map, ground_sampler, uv);
     let macro_n = normalize(packed.xyz * 2.0 - vec3<f32>(1.0));
-    let base_n = normalize(mix(geometric_n, macro_n, materials.params.z));
+    let inside_splat = smoothstep(0.0, 0.02, uv.x) * (1.0 - smoothstep(0.98, 1.0, uv.x))
+        * smoothstep(0.0, 0.02, uv.y) * (1.0 - smoothstep(0.98, 1.0, uv.y));
+    let base_n = normalize(mix(geometric_n, macro_n, materials.params.z * inside_splat));
 
     let wet = clamp(camera.time_params.z, 0.0, 1.0);
     let fill = clamp(camera.weather_params.z, 0.0, 1.0);
