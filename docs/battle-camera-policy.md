@@ -93,17 +93,30 @@ tolerates no theatrics.
 
 The channel inventory, with its caps:
 
-- **Follow spring** (`smoothing.rs`): critically damped anchor, ~0.13 s lag,
-  leashed to 0.6 m so it trails but never loses the hull.
+- **Follow spring** (`smoothing.rs`): critically damped anchor, per axis group —
+  omega 16 horizontally (~0.13 s lag; losing the hull sideways is losing the
+  game) and omega 7 vertically (the hull's Y is a rigid snap onto a 5 m
+  heightfield; the soft vertical IS the camera's suspension — it passes ~24% of
+  a 2 Hz bump train where the old isotropic omega 16 passed 62%, locked by
+  `a_bump_train_reaches_the_presented_eye_attenuated`). Leashed per group too —
+  0.6 m horizontal, 0.35 m vertical — so braking lag cannot eat the vertical
+  budget; a pinned leash self-limits the spring's velocity through its damping
+  (omega * leash / 2), so releases settle instead of kicking
+  (`a_leash_ride_settles_without_a_windup_kick`).
 - **Speed FOV**: +2.5 deg at 14 m/s, driven by tick-domain rigid-body speed,
   never by presented-position differences.
 - **Own-shot kick**: anchor velocity impulse, 0.9 m/s back + 0.5 m/s down.
 - **Damage shudder / landing slam**: event-driven anchor impulses.
-- **Sprung-hull ride** (B1): the presented TPP takes 35 % of the hull spring's
-  dynamic dive residual (spring minus authoritative attitude — a steady slope
-  contributes nothing) and 50 % of its heave; hard caps 0.02 rad / 0.2 m. The
-  shot's rock arrives through this same chain: the hull's fire impulse rocks
-  the spring, the residual rides into the rig.
+- **Sprung-hull ride** (B1, renegotiated): the presented TPP takes 35 % of the
+  hull spring's dynamic dive residual (spring minus authoritative attitude — a
+  steady slope contributes nothing); hard cap 0.02 rad. The shot's rock arrives
+  through this same chain: the hull's fire impulse rocks the spring, the
+  residual rides into the rig. The HEAVE half is retired — the anchor's soft
+  vertical spring carries the ride, and stacking a second, differently phased
+  vertical filter on top re-added the bounce it removes. The residual is read
+  the same frame the presentation spring steps (the presentation world syncs
+  BEFORE the camera presents): a one-frame-stale residual is a derivative of
+  hull pitch, spiking exactly on the bump it was meant to soften.
 - **Ride tremor** (B2): terrain roughness with the slope component removed,
   times speed, as two inharmonic vertical beats; hard cap 0.05 m. A standing
   tank never trembles. Both beats sit well under the 60 FPS display's 30 Hz

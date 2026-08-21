@@ -19,8 +19,16 @@ pub(super) struct CameraSmoothing {
     pub(super) fov_boost_deg: f32,
 }
 
-/// Follow-spring natural frequency (rad/s): omega 16 with critical damping is a ~0.13 s lag.
+/// Follow-spring natural frequency (rad/s) for the HORIZONTAL axes: omega 16 with critical
+/// damping is a ~0.13 s lag — tight, because losing the hull sideways is losing the game.
 const FOLLOW_OMEGA: f32 = 16.0;
+/// Vertical follow frequency (rad/s), deliberately much softer. The hull's Y is a rigid snap
+/// onto the support envelope of a 5 m heightfield — piecewise-linear with a velocity kink at
+/// every cell edge — and at omega 16 the anchor passed 62% of a 2 Hz bump train straight into
+/// the frame (both eye and target ride the anchor, so a hull bounce translated the WHOLE
+/// image). Omega 7 passes ~24% at 2 Hz and ~11% at 3 Hz: the camera finally has the sprung
+/// suspension the rendered hull already had, and real elevation changes still settle in ~0.4 s.
+const FOLLOW_OMEGA_Y: f32 = 7.0;
 /// Full-speed FOV widening (degrees) — the subtle "world opens up" cue at top speed.
 const SPEED_FOV_BOOST_DEG: f32 = 2.5;
 /// Speed (m/s) at which the FOV boost saturates.
@@ -28,9 +36,18 @@ const SPEED_FOV_AT_MPS: f32 = 14.0;
 /// Blend rate (1/s) easing the FOV toward its speed target. Slow on purpose: a fast blend reads
 /// as a zoom lurch on every W/S tap instead of the world gradually opening up.
 const FOV_BLEND_PER_S: f32 = 1.6;
-/// Hardest the anchor may trail the hull (meters). A spring lag reads as weight; beyond this it
-/// reads as the camera losing the tank — hard stops and spawn teleports clamp here.
+/// Hardest the anchor may trail the hull HORIZONTALLY (meters). A spring lag reads as weight;
+/// beyond this it reads as the camera losing the tank — hard stops and spawn teleports clamp
+/// here. Split from the vertical leash: the two used to share one 3D budget, so horizontal
+/// lag under braking ate the whole allowance and the vertical channel clamped rigid exactly
+/// when a bump needed it most.
 const MAX_ANCHOR_LAG_M: f32 = 0.6;
+/// Hardest the anchor may trail the hull VERTICALLY (meters). The soft vertical spring rides
+/// this leash on any long slope (steady lag is 2v/omega — ~0.9 m at a 3 m/s climb), and
+/// riding it is smooth by construction: while the position is pinned, the damping term caps
+/// the integrator's velocity at omega * leash / 2 ≈ 1.2 m/s, so a release settles gently
+/// from above instead of arriving with the descent's full speed.
+const MAX_ANCHOR_LAG_Y_M: f32 = 0.35;
 /// Sniper vertical damper frequency (rad/s): ~50 ms — soaks the per-frame jolt of a rut at 3
 /// degrees of FOV without ever reading as float.
 const SNIPER_Y_OMEGA: f32 = 45.0;
@@ -148,15 +165,32 @@ impl BattleCameraController {
             return;
         }
         let anchor = s.anchor.unwrap_or(target);
-        // Critically damped spring: the rig trails acceleration, not steady cruise.
-        let accel =
-            FOLLOW_OMEGA * FOLLOW_OMEGA * (target - anchor) - 2.0 * FOLLOW_OMEGA * s.anchor_vel;
+        // Critically damped springs, per axis group: tight horizontally (the camera must never
+        // lose the hull sideways), soft vertically (the hull's terrain-snapped Y is the bump
+        // train — the vertical channel is the camera's suspension).
+        let delta = target - anchor;
+        let accel = Vec3::new(
+            FOLLOW_OMEGA * FOLLOW_OMEGA * delta.x - 2.0 * FOLLOW_OMEGA * s.anchor_vel.x,
+            FOLLOW_OMEGA_Y * FOLLOW_OMEGA_Y * delta.y - 2.0 * FOLLOW_OMEGA_Y * s.anchor_vel.y,
+            FOLLOW_OMEGA * FOLLOW_OMEGA * delta.z - 2.0 * FOLLOW_OMEGA * s.anchor_vel.z,
+        );
         s.anchor_vel += accel * dt;
         let mut next = anchor + s.anchor_vel * dt;
-        // The spring may trail, never lose: clamp the total lag (hard stop, spawn teleport).
+        // The spring may trail, never lose: clamp the lag PER AXIS GROUP (hard stop, spawn
+        // teleport, a long slope pinning the soft vertical). The two groups used to share one
+        // 3D budget, so horizontal lag under braking ate the allowance and the vertical
+        // channel arrived at a bump already pinned rigid. The velocity is deliberately left
+        // to the spring: while a position is pinned, the damping term self-limits it to
+        // omega * leash / 2, so a release settles instead of kicking.
         let offset = next - target;
-        if offset.length() > MAX_ANCHOR_LAG_M {
-            next = target + offset.normalize() * MAX_ANCHOR_LAG_M;
+        let horizontal = glam::Vec2::new(offset.x, offset.z);
+        if horizontal.length() > MAX_ANCHOR_LAG_M {
+            let held = horizontal.normalize() * MAX_ANCHOR_LAG_M;
+            next.x = target.x + held.x;
+            next.z = target.z + held.y;
+        }
+        if offset.y.abs() > MAX_ANCHOR_LAG_Y_M {
+            next.y = target.y + offset.y.signum() * MAX_ANCHOR_LAG_Y_M;
         }
         s.anchor = Some(next);
         let fov_target = SPEED_FOV_BOOST_DEG * (s.speed_mps / SPEED_FOV_AT_MPS).clamp(0.0, 1.0);

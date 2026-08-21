@@ -485,6 +485,13 @@ impl ClientApp {
         if landing_impact > 0.0 {
             self.camera_controller.impact_kick(landing_impact);
         }
+        // Project the interpolated (+ locally predicted) tanks into the persistent presentation
+        // world BEFORE the camera reads it: the presented rig's sprung-dive residual is the
+        // presentation spring minus THIS frame's authoritative pitch, and stepping the spring
+        // after the camera made the residual a one-frame-stale difference — a term that spiked
+        // exactly when the hull pitch changed fastest (a bump), which is a camera nod nobody
+        // authored. The scene and HUD read the same list below.
+        let presentation_tanks = self.project_render_tanks(alpha);
         if let Some(local) = self.interpolated_local_tank(alpha) {
             // Speed comes from the predictor's rigid body (tick domain), not from differencing
             // presented positions against the render clock — that difference is jitter.
@@ -501,9 +508,6 @@ impl ClientApp {
             projection.near_plane_m(),
             projection.far_plane_m(),
         );
-        // Project the interpolated (+ locally predicted) tanks into the persistent presentation
-        // world, then drive the scene and HUD from the ECS — not from the snapshot vec directly.
-        let presentation_tanks = self.project_render_tanks(alpha);
         self.tick_motion_fx(&presentation_tanks, frame_dt);
         let enemy_bars = crate::hud::health_bar::enemy_health_bars(
             &presentation_tanks,
