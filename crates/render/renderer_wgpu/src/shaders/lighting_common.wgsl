@@ -105,12 +105,16 @@ fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
         1.0 - exp(-max(distance, 0.0) * (density * height_term + valley)), 0.0, 1.0);
     // Sun-directional scatter, colour only: a broad lobe for the general sun-side warmth plus
     // a tight second lobe that makes the air GLOW right around the low sun (forward
-    // scattering) — the fog AMOUNT above is untouched by either.
+    // scattering) — the fog AMOUNT above is untouched by either. The blend weights sum to 1.0
+    // on purpose: scatter WARMS the haze toward the key, it never makes the air BRIGHTER than
+    // the sky it belongs to (the old 0.4/0.8 pair produced an over-white HDR haze — the whole
+    // sun-side distance graded to milk). CPU-mirrored by SceneLighting::fog_sun_haze_reference
+    // and locked in look_locks.
     let toward_sun =
         max(dot(to_fragment / max(distance, 1.0e-4), normalize(camera.key_direction)), 0.0);
     let sun_amount =
         (pow(toward_sun, 8.0) * 0.75 + pow(toward_sun, 64.0) * 0.55) * camera.sky_params.y;
-    let sun_haze = camera.sky_horizon_rgb * 0.4 + camera.key_rgb * 0.8;
+    let sun_haze = camera.sky_horizon_rgb * 0.55 + camera.key_rgb * 0.45;
     let haze = mix(camera.sky_horizon_rgb, sun_haze, min(sun_amount, 1.0));
     return mix(color, haze, fog);
 }

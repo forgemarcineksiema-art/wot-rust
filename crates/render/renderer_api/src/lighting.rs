@@ -163,6 +163,20 @@ impl SceneLighting {
         f.clamp(0.0, 1.0)
     }
 
+    /// The colour distant air fades toward when looked at STRAIGHT toward the sun — the far end
+    /// of the sun-directional scatter blend. The CPU mirror of the shaders' `sun_haze` term in
+    /// `apply_fog` (lighting_common.wgsl), kept in exact lockstep so the haze colour is testable
+    /// without a GPU. The 0.55/0.45 weights sum to one: scatter warms the air toward the key,
+    /// it never ADDS energy — the sun-side haze may be warmer than the horizon, never brighter
+    /// than the sky (locked in look_locks).
+    pub fn fog_sun_haze_reference(&self) -> [f32; 3] {
+        [
+            self.sky_horizon_rgb[0] * 0.55 + self.key_rgb[0] * 0.45,
+            self.sky_horizon_rgb[1] * 0.55 + self.key_rgb[1] * 0.45,
+            self.sky_horizon_rgb[2] * 0.55 + self.key_rgb[2] * 0.45,
+        ]
+    }
+
     /// The full display transform for one linear HDR colour: exposure → ACES-lite curve → black
     /// point pull → saturation → contrast. The CPU mirror of the shaders' `aces_curve` +
     /// `display_grade` (lighting_common.wgsl), kept in exact lockstep so the image formation is
@@ -210,12 +224,15 @@ impl SceneLighting {
             // the horizon (less milky than before, so white cloud reads against it). The horizon
             // doubles as the fog colour, so distant hills still melt into the same haze.
             sky_zenith_rgb: [0.15, 0.32, 0.62],
-            sky_horizon_rgb: [0.58, 0.70, 0.82],
-            // Very light haze, tuned so enemy vehicles stay crisply readable at combat range:
-            // ~4% fade at 300 m, ~6% at 500 m, only ~10-15% out past 1 km where the far terrain
-            // melts into the horizon. Aerial perspective for depth, never for hiding targets.
-            fog_density: 0.00013,
-            fog_height_falloff: 0.02,
+            sky_horizon_rgb: [0.55, 0.63, 0.74],
+            // Light haze, tuned so enemy vehicles stay crisply readable at combat range (~8% fade
+            // at 400 m on the floor — the 0.35 fairness bound has wide margin) while the far
+            // field genuinely melts: ~17% at 1.5 km even on the 65-90 m backdrop hills. The
+            // gentle height falloff is deliberate — the OLD 0.02 exempted the hills from the air
+            // entirely (4-10% fog), which left the brightest, never-shadowed geometry in frame
+            // floating full-lit above a milky band (D3's washed-out horizon).
+            fog_density: 0.00022,
+            fog_height_falloff: 0.008,
             // First-pass image formation (the proper per-map taste pass is a later phase): a
             // touch of extra exposure so the sunlit field glows, a real black point so cast
             // shadows finally reach black, and slightly more contrast than the old hardcoded
@@ -261,9 +278,16 @@ impl SceneLighting {
             rim_direction: [0.45, 0.38, 0.85],
             rim_rgb: [0.22, 0.22, 0.26],
             sky_zenith_rgb: [0.20, 0.33, 0.55],
-            sky_horizon_rgb: [0.78, 0.72, 0.62],
-            fog_density: 0.00015,
-            fog_height_falloff: 0.02,
+            // A full stop down from the old [0.78, 0.72, 0.62]: the horizon IS the colour every
+            // distant surface fades toward, and at graded luma 0.77 it was ~3x brighter than the
+            // lit grass it replaced — the user-verdict "białawy" far field. Same warm-grey hue,
+            // graded luma ~0.69, still comfortably above the 0.60 bright-band floor.
+            sky_horizon_rgb: [0.64, 0.60, 0.51],
+            // Doubled density + gentler falloff: the air now reaches the valley's enclosing
+            // hills (~23% at 1.5 km / 75 m, was ~5%) so the far ridge melts DOWN into the haze
+            // instead of floating full-lit above it. 400 m floor fade 13% — fairness margin wide.
+            fog_density: 0.0003,
+            fog_height_falloff: 0.007,
             // Golden afternoon: warm light wants saturation and glow, gentle blacks.
             exposure: 1.1,
             black_point: 0.025,
@@ -276,7 +300,7 @@ impl SceneLighting {
             cloud_opacity: 0.9,
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
-            fog_sun_scatter: 0.65,
+            fog_sun_scatter: 0.45,
             sun_softness: 0.1,
             valley_haze_density: 5e-05,
             valley_haze_height_m: 8.0,
@@ -402,8 +426,10 @@ impl SceneLighting {
             rim_rgb: [0.24, 0.20, 0.20],
             sky_zenith_rgb: [0.15, 0.23, 0.46],
             sky_horizon_rgb: [0.86, 0.66, 0.46],
-            fog_density: 0.00018,
-            fog_height_falloff: 0.02,
+            // Slightly denser, much gentler falloff (0.02 -> 0.008): the evening haze reaches
+            // the ridge line too, so the raking-light frames keep their depth planes at range.
+            fog_density: 0.00025,
+            fog_height_falloff: 0.008,
             exposure: 1.1,
             black_point: 0.035,
             saturation: 1.25,
