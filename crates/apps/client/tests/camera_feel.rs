@@ -575,3 +575,148 @@ fn every_feel_channel_retires_when_motion_freezes() {
     };
     assert_eq!(a, b, "a frozen world must carry a bit-stable presented camera");
 }
+
+/// A square heightmap from a closure, 1 m cells — fine enough that a creeping subject sweeps
+/// the boom cut through many fractional positions.
+fn heightmap_from(size: usize, height_at: impl Fn(f32, f32) -> f32) -> HeightMap {
+    let mut samples = Vec::with_capacity(size * size);
+    for z in 0..size {
+        for x in 0..size {
+            samples.push(height_at(x as f32, z as f32));
+        }
+    }
+    HeightMap::new(size, size, 1.0, samples).expect("test heightmap dimensions are fixed")
+}
+
+/// The boom's terrain cut is a CONTINUOUS function of the pose. The coarse 32-step march used
+/// to return the raw step fraction — boom/32 = 0.375 m at the default 12 m — so a subject
+/// creeping past a ridge dolly-popped the eye in 37 cm steps. With the bisection refine, a
+/// 5 cm subject step may move the eye only a commensurate distance.
+#[test]
+fn the_boom_cut_slides_continuously_past_a_ridge() {
+    // A ridge across the boom's path: tall enough to cut into the default pitch-0.42 boom,
+    // narrow enough that the cut fraction changes with every subject step.
+    let map = heightmap_from(200, |_, z| {
+        let d = (z - 88.0) / 6.0;
+        9.0 * (-d * d).exp()
+    });
+    let environment = BattleCameraEnvironment::with_terrain(&map);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+
+    // Creep the subject away from the ridge (+Z, the boom trailing over it) in 2 cm steps,
+    // inside a window where the ridge keeps the boom cut the WHOLE time. Engage/release are
+    // legitimately discontinuous events (the obstacle clearance subtracts 0.35 m at the first
+    // contact by design); what must be continuous is the cut SLIDING between them — the
+    // quantized march moved it in boom/32 = 0.375 m steps.
+    let mut previous: Option<[f32; 3]> = None;
+    let mut max_step = 0.0_f32;
+    let mut max_boom = 0.0_f32;
+    for i in 0..200 {
+        let z = 95.0 + i as f32 * 0.01;
+        let subject = CameraSubject::from_snapshot(tank_snapshot([100.0, 0.0, z], 0.0, 0.0), 0.0);
+        let shot = camera.render_camera(&subject, &environment);
+        let boom = {
+            let dx = shot.eye[0] - shot.target[0];
+            let dy = shot.eye[1] - shot.target[1];
+            let dz = shot.eye[2] - shot.target[2];
+            (dx * dx + dy * dy + dz * dz).sqrt()
+        };
+        max_boom = max_boom.max(boom);
+        if let Some(last) = previous {
+            let step = ((shot.eye[0] - last[0]).powi(2)
+                + (shot.eye[1] - last[1]).powi(2)
+                + (shot.eye[2] - last[2]).powi(2))
+            .sqrt();
+            max_step = max_step.max(step);
+        }
+        previous = Some(shot.eye);
+    }
+    // The boom must stay cut across the whole sweep, or the bound below locks nothing.
+    assert!(max_boom < 11.5, "the boom escaped the ridge (max {max_boom:.2}) — fixture broke");
+    assert!(
+        max_step < 0.15,
+        "a 1 cm subject step popped the eye {max_step:.3} m — the boom cut is quantized again"
+    );
+}
+
+/// The presented eye's terrain-clearance lift releases at a bounded rate. It still RISES
+/// instantly (the eye never renders from under the ground), but when the ground falls away
+/// the old instant release dropped an eye-only lift in one frame — and an eye-only drop
+/// rotates the entire view. Locked: with the ground vanishing from under a lifted eye, no
+/// presented frame descends faster than the release rate.
+#[test]
+fn a_passed_ridge_releases_the_clearance_lift_smoothly() {
+    // A 3 m shelf under the eye's path, flat ground everywhere else. At pitch -0.25 the raw
+    // eye sits ~0.2 m BELOW the target plane, so over the shelf the clearance lift carries it.
+    let map = heightmap_from(200, |x, _| if (60.0..80.0).contains(&x) { 3.0 } else { 0.0 });
+    let environment = BattleCameraEnvironment::with_terrain(&map);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    camera.set_pitch(-0.25);
+
+    let dt = 1.0 / 60.0;
+    let mut previous_eye_y: Option<f32> = None;
+    let mut biggest_drop = 0.0_f32;
+    let mut saw_lift = false;
+    // Subject drives +X with the view along +X, the eye trailing ~11 m behind across the
+    // shelf's falling edge. 0.2 m per frame = 12 m/s: fast enough that the ground under the
+    // eye falls its full 3 m within a couple of frames.
+    for i in 0..150 {
+        let x = 75.0 + i as f32 * 0.2;
+        let subject = CameraSubject::from_snapshot(tank_snapshot([x, 0.0, 100.0], 0.0, 0.0), 0.0)
+            .with_view_yaw(std::f32::consts::FRAC_PI_2);
+        let shot = camera.present(&subject, &environment, dt);
+        if let Some(last) = previous_eye_y {
+            biggest_drop = biggest_drop.max(last - shot.eye[1]);
+        }
+        if shot.eye[1] > 2.0 {
+            saw_lift = true;
+        }
+        previous_eye_y = Some(shot.eye[1]);
+    }
+    assert!(saw_lift, "the shelf never lifted the eye — fixture broke");
+    // One frame may descend by at most the lift release plus the boom recovery's vertical
+    // component (the shelf also cut the boom; its recovery slides the eye down the -0.25
+    // pitch line at 14 m/s). The OLD instant release dropped the full ~3 m shelf in under
+    // five frames (~0.6 m per frame) — this bound separates the two by 4x.
+    assert!(
+        biggest_drop <= 3.0 * dt + 14.0 * dt * 0.25 + 0.02,
+        "the clearance lift dropped {biggest_drop:.3} m in one frame — the release snapped"
+    );
+}
+
+/// The ride tremor renders as a shiver, not as a per-frame alternation. The second beat
+/// shipped at 29.7 Hz — 1% under the 60 FPS Nyquist rate — so consecutive frames flipped
+/// sign almost every frame (an up/down strobe with a slow envelope). Locked on behaviour:
+/// across 240 presented frames of a full-amplitude tremor, the vertical delta may alternate
+/// sign in at most 70% of consecutive pairs.
+#[test]
+fn the_ride_tremor_shivers_instead_of_strobing_frame_to_frame() {
+    let environment = BattleCameraEnvironment::empty();
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0)
+        .with_ride_shake(0.035);
+
+    let dt = 1.0 / 60.0;
+    let mut deltas = Vec::new();
+    let mut previous: Option<f32> = None;
+    for _ in 0..240 {
+        let shot = camera.present(&subject, &environment, dt);
+        if let Some(last) = previous {
+            deltas.push(shot.eye[1] - last);
+        }
+        previous = Some(shot.eye[1]);
+    }
+    let alternations = deltas
+        .windows(2)
+        .filter(|pair| pair[0].signum() != pair[1].signum() && pair[0] != 0.0 && pair[1] != 0.0)
+        .count();
+    let fraction = alternations as f32 / (deltas.len() - 1) as f32;
+    assert!(
+        fraction < 0.7,
+        "the tremor strobes: {:.0}% of consecutive frame deltas flip sign",
+        fraction * 100.0
+    );
+}

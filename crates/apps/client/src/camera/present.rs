@@ -36,9 +36,20 @@ const SPRUNG_HEAVE_CAP_M: f32 = 0.2;
 /// inharmonic so it never reads as a tone), and the hard amplitude cap — a tremor shivers
 /// the view, it never throws it. No RNG anywhere: the phase is a plain accumulator, so the
 /// presented camera stays a deterministic function of its input sequence.
+/// Both beats sit WELL below the 30 Hz Nyquist rate of a 60 FPS display. The second beat
+/// shipped at 29.7 Hz — sampled barely twice per cycle, it rendered as an alternating
+/// up/down per frame with a slow amplitude envelope (and aliased into wobble below 60 FPS):
+/// the "camera vibrates on rough ground" complaint was mostly this, not the terrain. 8.3 Hz
+/// keeps the pair inharmonic (no common tone with 11) and leaves ~7 samples per cycle.
 const SHAKE_BEAT_A_HZ: f32 = 11.0;
-const SHAKE_BEAT_B_HZ: f32 = 29.7;
+const SHAKE_BEAT_B_HZ: f32 = 8.3;
 const SHAKE_CAP_M: f32 = 0.05;
+/// How fast the terrain-clearance lift lets go once the ground falls away (m/s). The lift
+/// RISES instantly — the eye never renders from under the terrain — but the release used to
+/// be instant too, and an eye-only drop rotates the whole view (the target stays on the
+/// tank): a passed crest snapped the sight down in one frame. 3 m/s over a 12 m boom is a
+/// gentle ~14 deg/s recovery.
+const CLEARANCE_RELEASE_MPS: f32 = 3.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(super) struct PresentedCamera {
@@ -50,6 +61,9 @@ pub(super) struct PresentedCamera {
     boom_m: Option<f32>,
     /// Ride-tremor clock (Immersja B2): a plain accumulator, deterministic per frame sequence.
     shake_phase: f32,
+    /// The live terrain-clearance lift on the presented eye (meters): raised instantly by the
+    /// ground, released at [`CLEARANCE_RELEASE_MPS`] once the ground falls away.
+    clearance_lift_m: f32,
 }
 
 impl BattleCameraController {
@@ -63,14 +77,28 @@ impl BattleCameraController {
     ) -> Camera {
         let dt = dt.clamp(0.0, 0.1);
         self.tick_death_orbit(dt);
-        let mut camera = self.render_camera(subject, environment);
 
+        let mut camera;
         if self.mode() == BattleCameraMode::ThirdPerson {
+            // The presented TPP starts from the UNCLAMPED pose and applies the terrain
+            // clearance LAST, as its own state: the boom rescale and the feel shifts no longer
+            // push a already-lifted eye back under the ground, and the lift can release
+            // smoothly. The logical camera (aiming) keeps the hard clamp inside
+            // `render_camera`, bit-identical to before.
+            camera = self.third_person_camera_unclamped(subject, environment);
             camera = self.presented.smooth_boom(camera, dt);
             camera = ride_sprung_hull(camera, subject);
             camera = self.presented.ride_tremor(camera, subject.ride_shake_m, dt);
+            camera = self.presented.settle_terrain_clearance(
+                camera,
+                environment,
+                self.settings().terrain_clearance_m,
+                dt,
+            );
         } else {
+            camera = self.render_camera(subject, environment);
             self.presented.boom_m = None;
+            self.presented.clearance_lift_m = 0.0;
         }
 
         let mode = self.mode();
@@ -137,6 +165,32 @@ impl PresentedCamera {
             target: (Vec3::from_array(camera.target) + lift).to_array(),
             ..camera
         }
+    }
+
+    /// The presented eye-over-terrain clearance, applied LAST so it sees the eye every other
+    /// stage produced. The lift itself is the state: `needed` (how far under `ground +
+    /// clearance` the raw eye sits) raises it instantly — the eye never renders from under the
+    /// terrain — and once the ground falls away it releases at a bounded rate instead of
+    /// dropping (and rotating) the whole view in one frame. Plain driving is untouched: with
+    /// the eye clear of the ground `needed` is 0 and the lift decays to 0.
+    fn settle_terrain_clearance(
+        &mut self,
+        camera: Camera,
+        environment: &BattleCameraEnvironment<'_>,
+        clearance_m: f32,
+        dt: f32,
+    ) -> Camera {
+        let eye = Vec3::from_array(camera.eye);
+        let needed = environment
+            .terrain
+            .and_then(|terrain| terrain.sample_height(eye.x, eye.z))
+            .map_or(0.0, |ground| (ground + clearance_m - eye.y).max(0.0));
+        let released = self.clearance_lift_m - CLEARANCE_RELEASE_MPS * dt;
+        self.clearance_lift_m = needed.max(released).max(0.0);
+        if self.clearance_lift_m <= 0.0 {
+            return camera;
+        }
+        Camera { eye: (eye + Vec3::Y * self.clearance_lift_m).to_array(), ..camera }
     }
 
     /// Shorten instantly (a clipping camera is worse than a popping one), recover smoothly.
