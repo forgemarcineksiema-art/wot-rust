@@ -180,6 +180,25 @@ impl BattleCameraController {
         subject: &CameraSubject,
         environment: &BattleCameraEnvironment<'_>,
     ) -> Camera {
+        let camera = self.third_person_camera_unclamped(subject, environment);
+        let eye = collision::apply_terrain_clearance(
+            Vec3::from_array(camera.eye),
+            environment,
+            self.settings.terrain_clearance_m,
+        );
+        Camera { eye: eye.to_array(), ..camera }
+    }
+
+    /// The third-person pose BEFORE the hard eye-over-terrain clamp. The presented path starts
+    /// here and owns the clearance lift as per-frame state (instant up, rate-limited release) —
+    /// applying the hard clamp first would bake an unknowable lift into the eye and the release
+    /// could never be smoothed. The logical camera ([`Self::render_camera`]) keeps the hard
+    /// clamp exactly as before.
+    pub(super) fn third_person_camera_unclamped(
+        &self,
+        subject: &CameraSubject,
+        environment: &BattleCameraEnvironment<'_>,
+    ) -> Camera {
         // The rig follows the SMOOTHED anchor, not the raw hull: heightmap steps and hard stops
         // reach the eye as an eased settle instead of a 1:1 jolt.
         let tank = self.smoothing.anchor.unwrap_or(subject.position_vec());
@@ -204,14 +223,9 @@ impl BattleCameraController {
             self.settings.obstacle_clearance_m,
             self.settings.terrain_clearance_m,
         );
-        let eye = collision::apply_terrain_clearance(
-            collided_eye,
-            environment,
-            self.settings.terrain_clearance_m,
-        );
 
         Camera {
-            eye: eye.to_array(),
+            eye: collided_eye.to_array(),
             target: target.to_array(),
             vertical_fov_degrees: self.settings.third_person_fov_degrees
                 + self.smoothing.fov_boost_deg,

@@ -66,7 +66,23 @@ fn terrain_occlusion_t(
         let point = target + segment * (step as f32 / TERRAIN_STEPS as f32);
         if blocked(point) {
             if was_clear {
-                return (step - 1) as f32 / TERRAIN_STEPS as f32;
+                // Refine the clear->blocked crossing by bisection instead of returning the raw
+                // step fraction. The coarse march quantized the cut to boom/32 — 0.375 m at the
+                // default 12 m boom — so a camera sweeping a crest DOLLY-POPPED in 37 cm steps
+                // (each frame the first blocked index moved by one). Five halvings put the cut
+                // within ~1 cm of the true crossing, so the boom length is a continuous
+                // function of the pose again and the pop is gone.
+                let mut clear_t = (step - 1) as f32 / TERRAIN_STEPS as f32;
+                let mut blocked_t = step as f32 / TERRAIN_STEPS as f32;
+                for _ in 0..5 {
+                    let mid = 0.5 * (clear_t + blocked_t);
+                    if blocked(target + segment * mid) {
+                        blocked_t = mid;
+                    } else {
+                        clear_t = mid;
+                    }
+                }
+                return clear_t;
             }
         } else {
             was_clear = true;

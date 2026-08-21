@@ -60,6 +60,21 @@ heightmap. Third-person boom collision checks static cover collision through
 camera obstacles. Runtime battlefield maps feed their `static_cover` bounds into
 the same obstacle list used by tests.
 
+Continuity discipline (the anti-jump rules, locked in `camera_feel.rs`):
+
+- **The boom's terrain cut is continuous.** The 32-step march refines its
+  clear→blocked crossing by bisection, so the cut slides instead of stepping in
+  boom/32 = 0.375 m quanta (`the_boom_cut_slides_continuously_past_a_ridge`).
+  Engage/release remain honest discontinuous events; only the slide is smooth.
+- **The clearance lift releases at a bounded rate.** The LOGICAL camera keeps
+  the hard eye-over-terrain clamp. The PRESENTED camera owns the lift as state:
+  it rises instantly (the eye never renders from under the ground) and lets go
+  at 3 m/s once the ground falls away — an instant release moved only the eye,
+  which ROTATES the whole view in one frame
+  (`a_passed_ridge_releases_the_clearance_lift_smoothly`). It is applied LAST,
+  after the boom smoothing and the feel shifts, so no later stage can push the
+  eye back under the ground it just cleared.
+
 Gun pitch is authoritative simulation/server state and is carried in tank
 snapshots. The client keeps a separate desired aim yaw/pitch for local camera
 feel and reticle feedback, then commands turret and gun toward the ballistic
@@ -91,7 +106,10 @@ The channel inventory, with its caps:
   the spring, the residual rides into the rig.
 - **Ride tremor** (B2): terrain roughness with the slope component removed,
   times speed, as two inharmonic vertical beats; hard cap 0.05 m. A standing
-  tank never trembles.
+  tank never trembles. Both beats sit well under the 60 FPS display's 30 Hz
+  Nyquist rate (11 + 8.3 Hz) — the second beat shipped at 29.7 Hz and rendered
+  as a per-frame up/down strobe rather than a shiver, locked out by
+  `the_ride_tremor_shivers_instead_of_strobing_frame_to_frame`.
 
 Three laws bind every present and future channel:
 
