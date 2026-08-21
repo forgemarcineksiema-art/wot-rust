@@ -233,6 +233,61 @@ fn every_outdoor_look_carries_aerial_perspective_into_the_horizon() {
     }
 }
 
+/// RULE 4, the scatter side: looked at toward the sun the air WARMS, it never BRIGHTENS.
+/// The sun-haze blend (the far end of `fog_sun_scatter`) once ran `horizon*0.4 + key*0.8` —
+/// 1.2x energy, an over-white HDR colour that graded brighter than the sky itself, so the
+/// whole sun-side distance read as milk (D3's "washed-out white terrain"). The lock: the
+/// haze colour stays at or below unit luminance in HDR, grades below the sky's own bright
+/// band ceiling, and on the clear-sky looks is at least as warm as the horizon it tints.
+#[test]
+fn the_sun_haze_warms_the_air_but_never_outshines_it() {
+    for (name, l) in outdoor_profiles() {
+        let haze = l.fog_sun_haze_reference();
+        let hdr_luma = luminance(haze);
+        assert!(
+            hdr_luma <= 1.0,
+            "{name}: the sun-side haze must not carry over unit energy, got {hdr_luma:.3}"
+        );
+        let graded = luminance(l.grade_reference(haze));
+        assert!(
+            graded <= 0.90,
+            "{name}: the sun-side haze grades into the white-out zone: {graded:.3}"
+        );
+        // Overcast lids have a key cooler than their horizon by design; the warmth clause
+        // belongs to the days that HAVE a sun to scatter.
+        if !is_overcast_lid(&l) {
+            assert!(
+                warmth(haze) >= warmth(l.sky_horizon_rgb),
+                "{name}: scatter must warm the haze, not cool it: haze {:.3} vs horizon {:.3}",
+                warmth(haze),
+                warmth(l.sky_horizon_rgb)
+            );
+        }
+    }
+}
+
+/// RULE 4, the reach side: aerial perspective must reach the BACKDROP HILLS, not just the
+/// valley floor. The old 0.02 height falloff exempted the 65-90 m enclosing ridges from the
+/// air entirely (4-10% fog at 1.5 km) — the brightest, never-shadowed geometry in frame
+/// floated full-lit above a milky band. On every clear-sky day the far ridge melts into the
+/// same atmosphere as the floor. (Dawn mist and the squalls pool ON PURPOSE — their height
+/// shaping is the look — so the lock names the clear days.)
+#[test]
+fn aerial_perspective_reaches_the_hills() {
+    let clear_days = [
+        ("battlefield_default", SceneLighting::battlefield_default()),
+        ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("prokhorovka_golden_evening", SceneLighting::prokhorovka_golden_evening()),
+    ];
+    for (name, l) in clear_days {
+        let ridge = l.fog_factor(1500.0, 75.0);
+        assert!(
+            ridge >= 0.12,
+            "{name}: a 75 m ridge at 1.5 km must sit in real air, got {ridge:.3}"
+        );
+    }
+}
+
 /// RULE 6 (light is the only bling): bloom is a small, energy-proportional composite and the
 /// vignette never reads as a lens. Every profile - outdoor and garage alike - stays inside the
 /// bible's ceilings; a dream-sequence bloom or a tunnel vignette is a locked-out accident.

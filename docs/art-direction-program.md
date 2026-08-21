@@ -73,7 +73,7 @@ it closes.
 |---|---|---|---|
 | ~~D1~~ | ~~Locks computed from the profile, not the picture; dark-plane floor is 0.1% of pixels~~ — **CLOSED (W0)**: the FLOOR/TARGET mechanism below replaced the symbolic floor — `look_goldens.rs:273-277` asserts `OUTDOOR_DARK_FLOOR = 0.008`, reports `OUTDOOR_DARK_TARGET = 0.08`, and holds `OUTDOOR_SPREAD_FLOOR = 0.34`, all measured on the golden pixels | `look_goldens.rs:273-277` | W0 |
 | ~~D2~~ | ~~Review set covers 1 map of 4, contains no vehicle, shoots from 14 m, and has no garage entry~~ — **CLOSED (W0)**: `review_views_for` covers all four `REVIEWED_MAPS`, `hangar_review_views()` adds the garage, the vantage is locked by `no_review_camera_sits_above_the_players_own_eye` and a vehicle-in-frame range assert | `review_views.rs:371,399-403` | W0 |
-| D3 | The milky sky is **structural**, not a tuning error. Clouds live in `smoothstep(0.04, 0.32, dir.y)`; the bottom is forced to `sky_horizon_rgb * 1.06`. A hull-height camera sees `dir.y ≈ 0..0.2`, so the authored zenith `[0.15, 0.32, 0.62]` **never appears in play** and the visible band is the fog colour, which must be pale by construction | `sky.wgsl:150,188` | W1 |
+| D3 | The milky sky is **structural**, not a tuning error. Clouds live in `smoothstep(0.04, 0.32, dir.y)`; the bottom is forced to `sky_horizon_rgb * 1.06`. A hull-height camera sees `dir.y ≈ 0..0.2`, so the authored zenith `[0.15, 0.32, 0.62]` **never appears in play** and the visible band is the fog colour, which must be pale by construction. *Half-closed by the 2026-08-21 air pass: the fog colour itself stopped being pale-by-construction — the sun-haze blend is energy-conserving (0.55/0.45, locked ≤ 1.0 HDR luminance by `the_sun_haze_warms_the_air_but_never_outshines_it`), the horizons darkened (Bystra 0.78→0.64 R), and the fog reaches the backdrop hills (falloff 0.02→0.007/0.008, locked by `aerial_perspective_reaches_the_hills`). What remains of D3 is the sky pass itself: the `*1.06` horizon-band lift and the disc/halo multipliers* | `sky.wgsl:150,188` | W1 |
 | D4 | No dark mass: the field is uniformly sunlit, and cloud shadows run at 0.25–0.3 strength over a very large scale | `lighting.rs` profiles | W1 |
 | ~~D5~~ | ~~**Every** battle tree is pinned to `TreeLod::Mid`~~ — **CLOSED (Świat 2.0 F0)**: the battlefield oak draws through the instanced LOD ladder (`scene_build::tree_lod`) with Near/Mid/Impostor rungs from `world_forge::tree`; height locks stay in `tree.rs`. Other species still bake Mid into statics — their counts are small enough not to need the ladder | `tree_lod.rs`, `tree.rs` | W2 |
 | ~~D6~~ | ~~Three content kinds still render as a bare cuboid in Cover 2.0 scope: `TreeLine`, `RailCover`, and `SceneryKind::Rock`~~ — **CLOSED (Świat 2.0, 2026-08-07)**: `TreeLine` wears a szpaler and `RailCover` a revetment (PR 5 + 7, `b064287`); `SceneryKind::Rock` is now baked by `world_forge::rock` (PR 8a) — a displaced, cut-and-sunk erratic with its frost spall, wearing the new `surface_role::ROCK_FACE` and **the stone of the map it stands on** instead of one hardcoded grey on all four. `Wreck` stays a footprint box by decision (out of Świat 2.0, 2026-08-07), which is what this row's "three kinds" already excluded | `battlefield.rs`, `rock.rs`, `clutter.rs` | W2 |
@@ -152,42 +152,43 @@ a wave moves a number. Luminance is display-linear, so `dark < 0.25` is roughly 
 on screen". `band` is the top 15% of rows minus the bottom 40% — sky-band minus near-field on an
 outdoor frame, and meaningless indoors.
 
-Re-measured in full 2026-08-14 (the goldens re-bless after the T-54 repair + track-tension
-waves #563–#570): the table now matches the committed set row for row — several battlefield
-rows had quietly outlived their frames (`prokhorovka_evening_midfield` was carried at 26.6%
-dark while its committed golden measured 40.8%), and `prokhorovka_contact_backlit` was never
-in the table at all.
+Re-measured in full 2026-08-21, twice in one day: first the standalone re-bless after 28
+frames of content drift (#610 — the opt-in GPU gate had been red on master since the
+T-54/tension/ammo waves), then the W1 air pass (energy-conserving sun-haze, darker horizon,
+fog that reaches the hills). The air pass alone moved the bright plane down 4–12 points on
+every outdoor map (`bystra_clear_afternoon` 44.7% → 36.5%, `orliny_pine_belt` 46.2% → 34.3%,
+`bystra_town_lane` 40.9% → 32.7%) — the "washed-out white distance" measurably left the set.
 
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `prokhorovka_clear_afternoon` | 0.7% | 54.0% | 45.3% | 0.379 | 0.555 | 0.865 | 0.486 | 0.303 | 0.0082 | +0.279 |
-| `prokhorovka_golden_evening` | 41.7% | 23.9% | 34.4% | 0.117 | 0.425 | 0.704 | 0.587 | 0.364 | 0.0085 | +0.395 |
-| `prokhorovka_overcast` | 0.7% | 49.9% | 49.5% | 0.353 | 0.553 | 0.720 | 0.367 | 0.182 | 0.0061 | +0.283 |
-| `prokhorovka_evening_midfield` | 40.8% | 24.0% | 35.2% | 0.091 | 0.311 | 0.717 | 0.627 | 0.387 | 0.0087 | +0.412 |
-| `prokhorovka_grass_midfield` | 1.9% | 52.9% | 45.1% | 0.388 | 0.565 | 0.863 | 0.474 | 0.286 | 0.0078 | +0.229 |
-| `prokhorovka_contact_backlit` | 20.5% | 55.8% | 23.7% | 0.050 | 0.476 | 0.830 | 0.781 | 0.379 | 0.0077 | +0.336 |
-| `prokhorovka_evening_contact` | 49.5% | 25.7% | 24.8% | 0.071 | 0.252 | 0.701 | 0.630 | 0.449 | 0.0090 | +0.394 |
-| `bystra_clear_afternoon` | 3.6% | 51.7% | 44.7% | 0.264 | 0.476 | 0.777 | 0.514 | 0.281 | 0.0100 | +0.377 |
-| `bystra_rain` | 1.3% | 54.0% | 44.7% | 0.292 | 0.428 | 0.689 | 0.397 | 0.197 | 0.0058 | +0.329 |
-| `bystra_dawn_fog` | 25.0% | 28.4% | 46.7% | 0.183 | 0.510 | 0.779 | 0.596 | 0.204 | 0.0083 | +0.472 |
-| `bystra_town_lane` | 12.1% | 47.0% | 40.9% | 0.104 | 0.425 | 0.769 | 0.665 | 0.299 | 0.0082 | +0.329 |
-| `orliny_clear_afternoon` | 5.2% | 53.8% | 41.0% | 0.248 | 0.412 | 0.819 | 0.572 | 0.281 | 0.0108 | +0.422 |
-| `orliny_golden_evening` | 49.0% | 15.3% | 35.7% | 0.108 | 0.255 | 0.806 | 0.698 | 0.329 | 0.0107 | +0.566 |
-| `orliny_overcast` | 0.9% | 55.3% | 43.8% | 0.332 | 0.419 | 0.721 | 0.388 | 0.188 | 0.0061 | +0.314 |
-| `orliny_pine_belt` | 4.0% | 49.8% | 46.2% | 0.265 | 0.577 | 0.776 | 0.511 | 0.268 | 0.0096 | +0.313 |
-| `ostrogorsk_clear_afternoon` | 2.5% | 51.2% | 46.4% | 0.360 | 0.549 | 0.847 | 0.487 | 0.231 | 0.0094 | +0.283 |
-| `ostrogorsk_golden_evening` | 39.2% | 21.5% | 39.2% | 0.107 | 0.297 | 0.799 | 0.692 | 0.318 | 0.0093 | +0.532 |
-| `ostrogorsk_overcast` | 4.7% | 50.0% | 45.4% | 0.277 | 0.445 | 0.721 | 0.444 | 0.126 | 0.0065 | +0.288 |
-| `ostrogorsk_rain` | 4.3% | 51.0% | 44.7% | 0.275 | 0.411 | 0.683 | 0.408 | 0.133 | 0.0060 | +0.294 |
-| `ostrogorsk_canyon` | 6.0% | 63.4% | 30.6% | 0.233 | 0.475 | 0.863 | 0.630 | 0.210 | 0.0076 | +0.277 |
-| `garage_hero` | 72.3% | 23.6% | 4.2% | 0.030 | 0.162 | 0.574 | 0.544 | 0.228 | 0.0074 | −0.133 |
-| `garage_screen` | 75.4% | 20.7% | 4.0% | 0.064 | 0.140 | 0.567 | 0.503 | 0.189 | 0.0105 | −0.091 |
-| `garage_tech_tree` | 78.3% | 19.8% | 1.9% | 0.063 | 0.127 | 0.495 | 0.432 | 0.190 | 0.0063 | −0.101 |
-| `garage_option_list` | 76.7% | 19.3% | 4.0% | 0.064 | 0.138 | 0.568 | 0.504 | 0.190 | 0.0107 | −0.075 |
-| `garage_susp_close` | 86.4% | 13.6% | 0.0% | 0.050 | 0.125 | 0.317 | 0.267 | 0.405 | 0.0058 | +0.069 |
-| `garage_hero_tiger2` | 67.4% | 29.9% | 2.6% | 0.028 | 0.176 | 0.523 | 0.495 | 0.238 | 0.0068 | −0.183 |
-| `garage_hero_jagdtiger` | 64.2% | 33.3% | 2.5% | 0.027 | 0.184 | 0.520 | 0.492 | 0.237 | 0.0071 | −0.239 |
-| `garage_inspector` | 68.0% | 26.4% | 5.7% | 0.030 | 0.171 | 0.607 | 0.577 | 0.255 | 0.0070 | −0.161 |
+| `prokhorovka_clear_afternoon` | 0.8% | 56.3% | 42.9% | 0.379 | 0.542 | 0.865 | 0.486 | 0.301 | 0.0085 | +0.273 |
+| `prokhorovka_golden_evening` | 40.9% | 25.1% | 34.0% | 0.121 | 0.416 | 0.704 | 0.583 | 0.364 | 0.0087 | +0.393 |
+| `prokhorovka_overcast` | 0.7% | 50.3% | 49.0% | 0.352 | 0.511 | 0.720 | 0.368 | 0.183 | 0.0063 | +0.283 |
+| `prokhorovka_evening_midfield` | 40.1% | 25.0% | 34.9% | 0.093 | 0.314 | 0.717 | 0.624 | 0.387 | 0.0089 | +0.410 |
+| `prokhorovka_grass_midfield` | 2.0% | 52.9% | 45.1% | 0.390 | 0.565 | 0.863 | 0.472 | 0.285 | 0.0078 | +0.223 |
+| `prokhorovka_contact_backlit` | 20.5% | 56.0% | 23.5% | 0.050 | 0.476 | 0.830 | 0.780 | 0.377 | 0.0077 | +0.331 |
+| `prokhorovka_evening_contact` | 48.8% | 26.4% | 24.8% | 0.073 | 0.255 | 0.701 | 0.628 | 0.448 | 0.0090 | +0.393 |
+| `bystra_clear_afternoon` | 3.5% | 60.0% | 36.5% | 0.264 | 0.440 | 0.773 | 0.508 | 0.297 | 0.0107 | +0.372 |
+| `bystra_rain` | 1.4% | 57.2% | 41.5% | 0.292 | 0.422 | 0.689 | 0.397 | 0.198 | 0.0064 | +0.329 |
+| `bystra_dawn_fog` | 27.4% | 30.0% | 42.6% | 0.177 | 0.336 | 0.779 | 0.601 | 0.216 | 0.0094 | +0.472 |
+| `bystra_town_lane` | 12.6% | 54.7% | 32.7% | 0.106 | 0.422 | 0.767 | 0.661 | 0.317 | 0.0089 | +0.316 |
+| `orliny_clear_afternoon` | 3.4% | 59.0% | 37.7% | 0.268 | 0.414 | 0.819 | 0.551 | 0.283 | 0.0109 | +0.414 |
+| `orliny_golden_evening` | 47.6% | 17.1% | 35.2% | 0.123 | 0.260 | 0.806 | 0.683 | 0.329 | 0.0112 | +0.563 |
+| `orliny_overcast` | 1.0% | 55.7% | 43.3% | 0.331 | 0.418 | 0.721 | 0.389 | 0.189 | 0.0063 | +0.314 |
+| `orliny_pine_belt` | 3.8% | 61.9% | 34.3% | 0.269 | 0.422 | 0.771 | 0.503 | 0.289 | 0.0102 | +0.296 |
+| `ostrogorsk_clear_afternoon` | 2.0% | 55.1% | 42.9% | 0.351 | 0.539 | 0.847 | 0.497 | 0.232 | 0.0104 | +0.281 |
+| `ostrogorsk_golden_evening` | 38.8% | 23.9% | 37.3% | 0.113 | 0.298 | 0.799 | 0.686 | 0.325 | 0.0101 | +0.530 |
+| `ostrogorsk_overcast` | 4.7% | 51.9% | 43.4% | 0.271 | 0.444 | 0.721 | 0.449 | 0.129 | 0.0072 | +0.288 |
+| `ostrogorsk_rain` | 4.2% | 52.6% | 43.2% | 0.275 | 0.411 | 0.683 | 0.408 | 0.134 | 0.0064 | +0.294 |
+| `ostrogorsk_canyon` | 5.4% | 67.2% | 27.4% | 0.240 | 0.472 | 0.863 | 0.623 | 0.210 | 0.0084 | +0.269 |
+| `garage_hero` | 72.3% | 23.6% | 4.1% | 0.030 | 0.163 | 0.574 | 0.544 | 0.228 | 0.0076 | −0.134 |
+| `garage_screen` | 75.4% | 20.7% | 3.9% | 0.064 | 0.140 | 0.566 | 0.502 | 0.189 | 0.0105 | −0.091 |
+| `garage_tech_tree` | 78.4% | 19.8% | 1.8% | 0.063 | 0.128 | 0.495 | 0.432 | 0.191 | 0.0064 | −0.101 |
+| `garage_option_list` | 76.7% | 19.3% | 3.9% | 0.064 | 0.138 | 0.566 | 0.502 | 0.190 | 0.0107 | −0.076 |
+| `garage_susp_close` | 86.4% | 13.6% | 0.0% | 0.050 | 0.125 | 0.317 | 0.267 | 0.405 | 0.0059 | +0.069 |
+| `garage_hero_tiger2` | 67.4% | 30.0% | 2.6% | 0.028 | 0.177 | 0.522 | 0.494 | 0.238 | 0.0070 | −0.184 |
+| `garage_hero_jagdtiger` | 64.1% | 33.4% | 2.5% | 0.027 | 0.184 | 0.520 | 0.492 | 0.238 | 0.0073 | −0.239 |
+| `garage_inspector` | 67.9% | 26.5% | 5.7% | 0.030 | 0.171 | 0.607 | 0.577 | 0.256 | 0.0073 | −0.161 |
 
 ### What the baseline says
 
