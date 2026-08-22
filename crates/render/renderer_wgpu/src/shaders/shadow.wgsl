@@ -99,8 +99,13 @@ fn cutout_caster_world(input: VsInCutout) -> vec4<f32> {
     if (input.sway > 0.0) {
         let root = model[3].xyz;
         let model_scale = length(model[1].xyz);
-        let offset =
-            meadow_wind_offset(world.xz, root.xz, input.sway * model_scale, camera.time_params.x);
+        let offset = foliage_wind_offset(
+            world.xz,
+            root.xz,
+            input.sway * model_scale,
+            camera.time_params.x,
+            input.uv,
+        );
         world = vec4<f32>(world.xyz + offset, world.w);
     }
     return world;

@@ -115,10 +115,13 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     );
 
     // Wind displacement is mesh-local, scaled into world metres, and dies with the tuft.
+    // Since Drzewa 3.0 PR11 the scene pass sways through `foliage_wind_offset` (the shared
+    // gust field plus the uv-gated leaf flutter); the invariant is unchanged — the wind
+    // reads the SCALED, faded lane.
     assert!(source.contains("let model_scale = length(model[1].xyz);"));
     assert!(source.contains("let scaled_sway = input.sway * model_scale * stand;"));
     assert!(
-        source.contains("meadow_wind_offset(world.xz, root.xz, scaled_sway"),
+        source.contains("foliage_wind_offset(world.xz, root.xz, scaled_sway"),
         "the wind reads the SCALED, faded lane — raw sway would turn a small faded tuft \
          into a long wind-blown needle"
     );

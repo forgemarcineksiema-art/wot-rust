@@ -119,6 +119,39 @@ fn meadow_crush_at(root_xz: vec2<f32>) -> vec3<f32> {
 /// QUADRATIC in the deflection (the chord of a bent blade of that length). A blade lies down
 /// under a gust instead of skating downwind, which is the whole difference between grass and
 /// a flag.
+// L3 leaf flutter amplitude, metres (Drzewa 3.0 PR11): a card's high-frequency shimmer on
+// top of the gust field. Far under any card's size, so a fluttering cluster warps, never
+// teleports.
+const FOLIAGE_FLUTTER_M: f32 = 0.03;
+
+// The foliage wind: the shared gust field PLUS the leaf flutter, gated on the UV lane —
+// leaf cards are the only sway-carrying geometry with nonzero uv, so grass pays nothing and
+// stays bit-identical. BOTH the scene color pass and the shadow cutout casters route through
+// THIS function (locked by a source test): a fluttering canopy's shadow flutters with it.
+fn foliage_wind_offset(
+    world_xz: vec2<f32>,
+    root_xz: vec2<f32>,
+    reach: f32,
+    t: f32,
+    uv: vec2<f32>,
+) -> vec3<f32> {
+    var offset = meadow_wind_offset(world_xz, root_xz, reach, t);
+    if (uv.x + uv.y > 0.0 && reach > 0.0) {
+        // Phase from the atlas slot and the root: two cards on one tree disagree, the same
+        // card on two trees disagrees, and every corner of one card agrees (uv varies per
+        // corner — close enough in phase that the quad shears by millimetres, which is the
+        // shimmer, not a tear).
+        let phase = dot(uv, vec2<f32>(127.1, 311.7)) + dot(root_xz, vec2<f32>(0.73, 1.17));
+        let strength = FOLIAGE_FLUTTER_M * min(reach / 0.3, 1.0);
+        offset += vec3<f32>(
+            sin(t * 6.7 + phase),
+            0.35 * sin(t * 8.9 + phase * 1.7),
+            cos(t * 5.3 + phase),
+        ) * strength;
+    }
+    return offset;
+}
+
 fn meadow_wind_offset(world_xz: vec2<f32>, root_xz: vec2<f32>, reach: f32, t: f32) -> vec3<f32> {
     if (reach <= 0.0) {
         return vec3<f32>(0.0);

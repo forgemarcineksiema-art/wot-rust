@@ -105,7 +105,7 @@ fn vs_main(input: VsIn) -> VsOut {
         // could still move by the full-size displacement and flash as a long needle.
         let scaled_sway = input.sway * model_scale * stand;
         let offset =
-            meadow_wind_offset(world.xz, root.xz, scaled_sway, camera.time_params.x);
+            foliage_wind_offset(world.xz, root.xz, scaled_sway, camera.time_params.x, input.uv);
         world = vec4<f32>(world.xyz + offset, world.w);
     }
     out.clip = camera.view_proj * world;
