@@ -95,21 +95,33 @@ The channel inventory, with its caps:
 
 - **Follow spring** (`smoothing.rs`): critically damped anchor, per axis group —
   omega 16 horizontally (~0.13 s lag; losing the hull sideways is losing the
-  game) and omega 7 vertically (the hull's Y is a rigid snap onto a 5 m
-  heightfield; the soft vertical IS the camera's suspension — it passes ~24% of
-  a 2 Hz bump train where the old isotropic omega 16 passed 62%, locked by
-  `a_bump_train_reaches_the_presented_eye_attenuated`). Leashed per group too —
-  0.6 m horizontal, 0.35 m vertical — so braking lag cannot eat the vertical
-  budget; a pinned leash self-limits the spring's velocity through its damping
+  game) and omega 9 vertically with a SHORT 0.05 m leash. The vertical channel
+  obeys the hill law (player verdict 2026-08-22): **a hill is signal the player
+  steers by, not noise for the suspension to eat.** The spring filters only the
+  cm-scale velocity kinks of the 5 m heightfield snap (~34% of a 2 Hz small
+  train passes, vs 62% at the old isotropic omega 16); anything larger than the
+  leash is terrain and is tracked — the eye may never separate from the hull
+  vertically by more than 0.05 m (~0.5% of the frame height at the default
+  boom), and half a second after a slope flattens the ride is over. The first
+  tune (omega 7, 0.35 m leash) floated the frame through 0.7 m at every crest
+  and was retired as a spring ride; the player then cut the leash to 0.10 and
+  again to 0.05 the same day. Locked by
+  `a_hill_ride_never_floats_the_frame_beyond_the_short_leash` and
+  `a_bump_train_reaches_the_presented_eye_attenuated`; horizontal leash stays
+  0.6 m; a pinned leash self-limits the spring's velocity through its damping
   (omega * leash / 2), so releases settle instead of kicking
   (`a_leash_ride_settles_without_a_windup_kick`).
 - **Speed FOV**: +2.5 deg at 14 m/s, driven by tick-domain rigid-body speed,
   never by presented-position differences.
 - **Own-shot kick**: anchor velocity impulse, 0.9 m/s back + 0.5 m/s down.
-- **Damage shudder / landing slam**: event-driven anchor impulses.
-- **Sprung-hull ride** (B1, renegotiated): the presented TPP takes 35 % of the
-  hull spring's dynamic dive residual (spring minus authoritative attitude — a
-  steady slope contributes nothing); hard cap 0.02 rad. The shot's rock arrives
+- **Damage shudder / landing slam**: event-driven anchor impulses; a landing
+  may inject at most 1.5 m/s (3.0 stacked a second dip onto every crest).
+- **Sprung-hull ride** (B1, renegotiated twice): the presented TPP takes 35 %
+  of the hull spring's dynamic dive residual (spring minus authoritative
+  attitude — a steady slope contributes nothing); hard cap 0.008 rad. The cap
+  is a gameplay bound, not just a runaway guard: the residual spikes exactly on
+  hill entry/exit, and the old 0.02 rad cap tilted the screen-centre crosshair
+  1.15 deg off the logical aim on every slope transition. The shot's rock arrives
   through this same chain: the hull's fire impulse rocks the spring, the
   residual rides into the rig. The HEAVE half is retired — the anchor's soft
   vertical spring carries the ride, and stacking a second, differently phased
@@ -124,8 +136,13 @@ The channel inventory, with its caps:
   as a per-frame up/down strobe rather than a shiver, locked out by
   `the_ride_tremor_shivers_instead_of_strobing_frame_to_frame`.
 
-Three laws bind every present and future channel:
+Four laws bind every present and future channel:
 
+0. **Immersion is never designed against gameplay.** Every feel channel carries
+   a hard cap sized so the channel can corroborate the tank's motion but can
+   never move the frame or the sight in a way the player must fight (player
+   verdict 2026-08-22, the hill ride). A channel that needs a big cap to be
+   felt does not ship.
 1. **The sniper is bit-rigid.** Any channel that moves the sniper eye is priced
    by the reticle-seam ratchet (30k placements per map) before it ships.
 2. **No RNG in presentation.** Every channel is a deterministic function of its

@@ -26,12 +26,16 @@ const BOOM_RECOVER_MPS: f32 = 14.0;
 /// input is already spring-filtered upstream (`engine::attitude`) and already retires through
 /// the predictor's freeze, so the presented camera stays a pure function of frozen-safe
 /// inputs. The HEAVE half of B1 is retired: the follow anchor's own soft vertical spring
-/// (smoothing.rs, omega 7) is the camera's suspension now — stacking a second, differently
+/// (smoothing.rs) is the camera's suspension now — stacking a second, differently
 /// phased vertical filter on top of it re-added the very bounce the anchor removes.
 const SPRUNG_DIVE_FRAC: f32 = 0.35;
-/// Defensive cap, independent of the upstream spring cap (0.035 rad): a runaway input may
-/// nod the view, never throw it.
-const SPRUNG_DIVE_CAP_RAD: f32 = 0.02;
+/// Hard cap on the dive's view tilt, independent of the upstream spring cap (0.035 rad). This
+/// is a GAMEPLAY bound, not just a runaway guard: the residual spikes on every hill entry/exit
+/// (the hull pitch changes fastest exactly there), and at the old 0.02 rad every slope
+/// transition tilted the view 1.15 deg — the screen-centre crosshair visibly left the logical
+/// aim (~2 m at 100 m) while the player was lining up a shot. 0.008 rad keeps the brake-dive
+/// nod (its typical residual x 0.35 sits under the cap) and bounds a hill to 0.46 deg.
+const SPRUNG_DIVE_CAP_RAD: f32 = 0.008;
 /// Ride tremor (Immersja B2): the two beat rates of the vertical shiver (deliberately
 /// inharmonic so it never reads as a tone), and the hard amplitude cap — a tremor shivers
 /// the view, it never throws it. No RNG anywhere: the phase is a plain accumulator, so the

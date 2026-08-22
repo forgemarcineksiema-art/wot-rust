@@ -22,13 +22,15 @@ pub(super) struct CameraSmoothing {
 /// Follow-spring natural frequency (rad/s) for the HORIZONTAL axes: omega 16 with critical
 /// damping is a ~0.13 s lag — tight, because losing the hull sideways is losing the game.
 const FOLLOW_OMEGA: f32 = 16.0;
-/// Vertical follow frequency (rad/s), deliberately much softer. The hull's Y is a rigid snap
-/// onto the support envelope of a 5 m heightfield — piecewise-linear with a velocity kink at
-/// every cell edge — and at omega 16 the anchor passed 62% of a 2 Hz bump train straight into
-/// the frame (both eye and target ride the anchor, so a hull bounce translated the WHOLE
-/// image). Omega 7 passes ~24% at 2 Hz and ~11% at 3 Hz: the camera finally has the sprung
-/// suspension the rendered hull already had, and real elevation changes still settle in ~0.4 s.
-const FOLLOW_OMEGA_Y: f32 = 7.0;
+/// Vertical follow frequency (rad/s), softer than the horizontal but only moderately so. The
+/// hull's Y is a rigid snap onto the support envelope of a 5 m heightfield — piecewise-linear
+/// with a velocity kink at every cell edge — and at omega 16 the anchor passed 62% of a 2 Hz
+/// bump train straight into the frame (both eye and target ride the anchor, so a hull bounce
+/// translated the WHOLE image). Omega 7 was the first shot and read as a SPRING RIDE on every
+/// hill (player verdict 2026-08-22: irritating); omega 9 still passes only ~34% of a 2 Hz bump
+/// train while the release from a pinned leash settles under half a second. A hill is signal
+/// the player steers by, not noise — the true float bound lives in the short vertical leash.
+const FOLLOW_OMEGA_Y: f32 = 9.0;
 /// Full-speed FOV widening (degrees) — the subtle "world opens up" cue at top speed.
 const SPEED_FOV_BOOST_DEG: f32 = 2.5;
 /// Speed (m/s) at which the FOV boost saturates.
@@ -42,12 +44,17 @@ const FOV_BLEND_PER_S: f32 = 1.6;
 /// lag under braking ate the whole allowance and the vertical channel clamped rigid exactly
 /// when a bump needed it most.
 const MAX_ANCHOR_LAG_M: f32 = 0.6;
-/// Hardest the anchor may trail the hull VERTICALLY (meters). The soft vertical spring rides
-/// this leash on any long slope (steady lag is 2v/omega — ~0.9 m at a 3 m/s climb), and
-/// riding it is smooth by construction: while the position is pinned, the damping term caps
-/// the integrator's velocity at omega * leash / 2 ≈ 1.2 m/s, so a release settles gently
-/// from above instead of arriving with the descent's full speed.
-const MAX_ANCHOR_LAG_Y_M: f32 = 0.35;
+/// Hardest the anchor may trail the hull VERTICALLY (meters). This is the GAMEPLAY bound of
+/// the whole vertical channel: at the default 12 m boom and 48 deg FOV, 0.05 m is ~0.5% of
+/// the frame height — the ceiling of what any vertical feel may ever do to the framing. The
+/// 0.35 m leash shipped with the omega-7 spring let a crest float the frame through 0.7 m of
+/// relative excursion (player verdict 2026-08-22: a spring ride on every hill); the player
+/// then ordered the first re-cut, 0.10, shortened again to 0.05 the same day. The soft spring
+/// still eats the cm-scale heightfield kinks inside this leash, rides pinned on any real
+/// slope, and riding it is smooth by construction: while the position is pinned, the damping
+/// term caps the integrator's velocity at omega * leash / 2 ≈ 0.23 m/s, so a release settles
+/// gently from above instead of kicking.
+const MAX_ANCHOR_LAG_Y_M: f32 = 0.05;
 /// Sniper vertical damper frequency (rad/s): ~50 ms — soaks the per-frame jolt of a rut at 3
 /// degrees of FOV without ever reading as float.
 const SNIPER_Y_OMEGA: f32 = 45.0;
@@ -55,8 +62,10 @@ const SNIPER_Y_OMEGA: f32 = 45.0;
 const SNIPER_Y_MAX_M: f32 = 0.12;
 /// Downward anchor velocity injected per m/s of absorbed landing speed.
 const KICK_PER_IMPACT_MPS: f32 = 0.22;
-/// Hardest camera kick a single landing can inject (m/s of anchor velocity).
-const MAX_KICK_MPS: f32 = 3.0;
+/// Hardest camera kick a single landing can inject (m/s of anchor velocity). The 0.05 m leash
+/// bounds the dip regardless; 1.5 m/s keeps the pinned beat short — 3.0 kept the anchor pinned
+/// for an extra beat right after a crest, stacking bounce on the hill float.
+const MAX_KICK_MPS: f32 = 1.5;
 /// Anchor velocity of the player's own shot: rearward along the aim (the rig absorbs a share of
 /// the recoil) plus a smaller settle-down component. One firm nudge, not a screen shake.
 const FIRE_KICK_BACK_MPS: f32 = 0.9;
