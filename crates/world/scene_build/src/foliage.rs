@@ -113,7 +113,7 @@ pub(crate) fn push_baked_tree(
         canopy_color,
         |local| base + rotation * (local * scale),
         |direction| rotation * direction,
-        |_| 0.0,
+        |_, _| 0.0,
     );
 }
 
@@ -122,7 +122,9 @@ pub(crate) fn push_baked_tree(
 /// route. Each card is 8 vertices / 4 triangles: dual winding with a normal ring per face,
 /// or a card seen from behind lights only by the transmission lobe and reads as a black
 /// cutout. `place` maps a tree-local position into the output space, `rotate` maps a
-/// direction, `sway` answers per-corner wind allowance (the statics bake passes zero).
+/// direction, `sway` answers per-corner wind allowance given `(corner, card_center)` — the
+/// card center is what a per-CARD wind decision (the L2 branch jitter) keys off, so all
+/// eight vertices of one card agree and the quad never shears (the statics bake passes zero).
 pub(crate) fn push_leaf_cards(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -130,7 +132,7 @@ pub(crate) fn push_leaf_cards(
     (color, gloss): ([f32; 3], f32),
     place: impl Fn(Vec3) -> Vec3,
     rotate: impl Fn(Vec3) -> Vec3,
-    sway: impl Fn(Vec3) -> f32,
+    sway: impl Fn(Vec3, Vec3) -> f32,
 ) {
     for card in &tree.leaves {
         let rect = world_forge::tree::leaf_atlas::atlas_rect(card.slot);
@@ -154,7 +156,7 @@ pub(crate) fn push_leaf_cards(
                     )
                     .with_surface(renderer_api::surface_role::FOLIAGE)
                     .with_uv(uv)
-                    .with_sway(sway(local)),
+                    .with_sway(sway(local, card.center)),
                 );
             }
         }

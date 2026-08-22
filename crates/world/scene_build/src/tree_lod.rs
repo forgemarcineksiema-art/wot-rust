@@ -172,9 +172,30 @@ pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
         canopy_color,
         |local| local,
         |direction| direction,
-        |local| if windy { sway_allowance(local.to_array(), height, true) } else { 0.0 },
+        // L2 of the wind hierarchy (PR11): every card's allowance carries its own baked
+        // ±15% jitter, keyed off the card center so the quad never shears — a crown is many
+        // branches answering one gust a beat apart, not a sheet.
+        |local, center| {
+            if windy {
+                sway_allowance(local.to_array(), height, true) * card_wind_jitter(center)
+            } else {
+                0.0
+            }
+        },
     );
     MeshAsset::new(vertices, indices)
+}
+
+/// The per-card wind personality: a deterministic ±15% on the sway allowance, hashed from
+/// the card's center. Pure function — the same card always answers the wind the same way.
+pub(crate) fn card_wind_jitter(center: Vec3) -> f32 {
+    let mut hash = u64::from(center.x.to_bits())
+        ^ (u64::from(center.y.to_bits()) << 21)
+        ^ (u64::from(center.z.to_bits()) << 42);
+    hash ^= hash >> 33;
+    hash = hash.wrapping_mul(0xFF51_AFD7_ED55_8CCD);
+    hash ^= hash >> 33;
+    0.85 + 0.30 * ((hash >> 40) as f32 / (1u64 << 24) as f32)
 }
 
 /// The TRUE impostor (Drzewa 3.0 PR10): two crossed vertical quads sampling the pre-splatted
@@ -497,6 +518,32 @@ mod tests {
         assert_eq!(cards(TreeLod::Impostor), 2, "the impostor is two crossed quads");
         let impostor_tris = tree_mesh_asset(TreeLod::Impostor).index_count() / 3;
         assert!(impostor_tris <= 16, "the impostor stays trivial: {impostor_tris} tris");
+    }
+
+    /// L2 of the wind hierarchy (PR11): the per-card jitter is a pure deterministic function
+    /// inside its authored band, and it actually VARIES — a crown answering a gust in
+    /// lockstep is a sheet, not a tree.
+    #[test]
+    fn every_card_carries_its_own_wind_personality() {
+        let mut seen = std::collections::BTreeSet::new();
+        for index in 0..40 {
+            let center = Vec3::new(index as f32 * 0.73, 8.0 + index as f32 * 0.31, -1.2);
+            let jitter = card_wind_jitter(center);
+            assert!((0.85..=1.15).contains(&jitter), "jitter left its band: {jitter}");
+            assert_eq!(jitter, card_wind_jitter(center), "a card's personality is stable");
+            seen.insert(jitter.to_bits());
+        }
+        assert!(seen.len() >= 30, "the crown must disagree with itself: {} values", seen.len());
+        // And the shipped Near mesh carries the spread: not every card peaks at the same
+        // allowance.
+        let mesh = tree_mesh_asset(TreeLod::Near);
+        let sways: std::collections::BTreeSet<u32> = mesh
+            .vertices()
+            .iter()
+            .filter(|vertex| vertex.uv != [0.0, 0.0] && vertex.sway > 0.0)
+            .map(|vertex| vertex.sway.to_bits())
+            .collect();
+        assert!(sways.len() >= 40, "card sway values collapsed: {}", sways.len());
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of
