@@ -12,6 +12,7 @@
 //! without any material-enum churn.
 
 mod bark;
+pub mod leaf_atlas;
 pub mod skeleton;
 
 use glam::Vec3;

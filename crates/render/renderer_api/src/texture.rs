@@ -186,6 +186,12 @@ fn preserve_cutout_coverage(rgba: &mut [u8], base_coverage: f32) {
     }
     let scale = ALPHA_CUTOUT as f32 / threshold as f32;
     for texel in rgba.chunks_exact_mut(4) {
+        // A fully solid texel stays fully solid: a downscale (threshold above the cutout)
+        // must never erode saturated interiors — the reserved white slot's no-op contract
+        // rides on 255 staying 255 through every level.
+        if texel[3] == 255 {
+            continue;
+        }
         texel[3] = (texel[3] as f32 * scale).round().min(255.0) as u8;
     }
 }

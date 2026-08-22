@@ -7,6 +7,7 @@ pub mod backdrop;
 pub mod battlefield;
 pub mod clutter;
 pub mod foliage;
+pub mod foliage_atlas_paint;
 pub mod grass;
 pub mod grass_cards;
 pub mod hangar;

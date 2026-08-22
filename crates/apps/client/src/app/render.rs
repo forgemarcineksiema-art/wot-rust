@@ -392,6 +392,12 @@ impl ClientApp {
         for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
             renderer.register_mesh(handle, &mesh);
         }
+        // The procedural leaf atlas (Drzewa 3.0 PR5): replaces the renderer's 1x1 white no-op.
+        // Slot 0 keeps uv (0,0) opaque white, so until geometry carries nonzero UVs this is
+        // pixel-identical — the leaf cards (PR6) are what starts sampling the real slots.
+        let (foliage_color, foliage_normal) =
+            scene_build::foliage_atlas_paint::foliage_atlas_chains();
+        renderer.set_foliage_atlas(&foliage_color, Some(&foliage_normal));
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
