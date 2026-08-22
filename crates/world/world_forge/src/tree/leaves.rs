@@ -30,11 +30,25 @@ pub struct LeafCard {
     pub shade: f32,
 }
 
-/// Cards per anchor at the Close rung. Mid keeps every [`MID_KEEP_EVERY`]-th CARD, scaled by
+/// CLUSTERS per anchor at the Close rung — and every cluster is a CROSS-PAIR: two
+/// perpendicular quads sharing one center, slot and shade (the user's verdict, 2026-08-22:
+/// a single fixed quad reads as a levitating paper dash the moment the camera catches it
+/// edge-on; a cross reads as foliage from every angle, which is also how the impostor
+/// already works). Mid keeps every [`MID_KEEP_EVERY`]-th CLUSTER, scaled by
 /// `sqrt(MID_KEEP_EVERY)` so the crown's covered AREA survives the thinning — a rung swap
 /// thins the deck, never balds the tree.
-const CARDS_PER_ANCHOR: u32 = 3;
-const MID_KEEP_EVERY: usize = 3;
+const CLUSTERS_PER_ANCHOR: u32 = 2;
+const MID_KEEP_EVERY: usize = 2;
+
+/// How far off its twig a cluster's center sits, as a fraction of its half-extent. The
+/// levitation fix: 0.35 pushed whole clusters visibly clear of their wood; a cluster now
+/// HUGS the twig and the cross-pair supplies the volume the offset used to fake.
+const CLUSTER_OFFSET: f32 = 0.12;
+
+/// Anchors in the top of the crown pull their clusters inward by this much (horizontally —
+/// the tip height is the ladder's invariant and stays untouched): the topmost twigs are the
+/// loneliest, and a single cluster hanging off one of them reads as a detached leaf.
+const TOP_STRAY_PULL: f32 = 0.35;
 
 /// How much of the crown's radial depth the shade lane spans: rim cards at 1.0, core cards
 /// down to this floor. The heir of the centroid-normal trick — locked by the shade-mass test.
@@ -82,10 +96,14 @@ pub(crate) fn grow_cards(
     let slots = leaf_atlas::species_slots(species);
 
     // The FULL deck grows first, always — Mid then filters and rescales it. One growth path
-    // means the rungs share every card-level decision by construction.
-    let mut cards = Vec::new();
+    // means the rungs share every card-level decision by construction. Clusters are grown as
+    // PAIRS (the two quads of one cross), so the Mid thinning drops crosses whole and never
+    // strands half a cluster.
+    let crown_top = anchors.iter().map(|anchor| anchor.position.y).fold(f32::MIN, f32::max);
+    let crown_base = anchors.iter().map(|anchor| anchor.position.y).fold(f32::MAX, f32::min);
+    let mut clusters: Vec<[LeafCard; 2]> = Vec::new();
     for (anchor_index, anchor) in anchors.iter().enumerate() {
-        for burst in 0..CARDS_PER_ANCHOR {
+        for burst in 0..CLUSTERS_PER_ANCHOR {
             let mut rng = Rng(seed
                 ^ 0xCA4D_0000
                 ^ ((anchor_index as u64) << 20)
@@ -127,9 +145,16 @@ pub(crate) fn grow_cards(
             // Wide size variance on purpose: a canopy of same-size quads reads as confetti;
             // mixed clusters read as growth.
             let half = card_half_extent_m(species) * (0.72 + 0.56 * rng.unit());
-            // The cluster sits a little OFF its twig along the facing, so cards ring the wood
-            // instead of slicing through it.
-            let mut center = anchor.position + normal * half * 0.35;
+            // The cluster HUGS its twig (the levitation fix) instead of floating off it.
+            let mut center = anchor.position + normal * half * CLUSTER_OFFSET;
+            // The topmost twigs pull their clusters inward, horizontally only — a lone
+            // cluster on the crown's highest sprig read as a detached leaf, and the tip
+            // height must not move (the ladder's invariant).
+            let crown_span = (crown_top - crown_base).max(0.01);
+            if (anchor.position.y - crown_base) / crown_span > 0.85 {
+                center.x += (centroid.x - center.x) * TOP_STRAY_PULL;
+                center.z += (centroid.z - center.z) * TOP_STRAY_PULL;
+            }
             // No card digs into the soil: a low tuft may kiss the ground (25 cm of embed
             // reads as growth), never bury a metre of its mask under the terrain.
             let dip = center.y - (half * up_scale + half * right_scale);
@@ -137,49 +162,69 @@ pub(crate) fn grow_cards(
                 center.y += -0.25 - dip;
             }
             let depth01 = (anchor.position.distance(centroid) / max_reach).clamp(0.0, 1.0);
-            cards.push(LeafCard {
-                center,
-                half_right: spun_right * half * right_scale,
-                half_up: spun_up * half * up_scale,
-                normal,
-                slot: slots[(rng.next() % 2) as usize],
-                shade: core_shade(species) + (rim_shade(species) - core_shade(species)) * depth01,
-            });
+            let slot = slots[(rng.next() % 2) as usize];
+            let shade = core_shade(species) + (rim_shade(species) - core_shade(species)) * depth01;
+            // The cross-pair: quad A faces the cluster's growth; quad B stands in the
+            // perpendicular plane (the old facing becomes its span, the old right its
+            // facing), sharing center, mask, shade and — downstream — the wind personality
+            // keyed off the shared center. From any angle at least one quad shows its face.
+            clusters.push([
+                LeafCard {
+                    center,
+                    half_right: spun_right * half * right_scale,
+                    half_up: spun_up * half * up_scale,
+                    normal,
+                    slot,
+                    shade,
+                },
+                LeafCard {
+                    center,
+                    half_right: normal * half * right_scale,
+                    half_up: spun_up * half * up_scale,
+                    normal: spun_right,
+                    slot,
+                    shade,
+                },
+            ]);
         }
     }
     if lod == TreeLod::Mid {
-        thin_for_mid(&mut cards);
+        thin_for_mid(&mut clusters);
     }
-    cards
+    clusters.into_iter().flatten().collect()
 }
 
-/// Mid keeps every [`MID_KEEP_EVERY`]-th card of the SAME deck, each survivor scaled by
+/// Mid keeps every [`MID_KEEP_EVERY`]-th CLUSTER of the SAME deck (crosses stay whole — a
+/// stranded half-cluster would bring the edge-on dash right back), each survivor scaled by
 /// `sqrt(keep)` so the covered area survives — except where that growth would raise the
 /// crown's tip: the tip is the ladder's invariant (a rung swap moves triangles, never
-/// metres), so a top card only grows into the headroom the Close deck actually had.
-fn thin_for_mid(cards: &mut Vec<LeafCard>) {
+/// metres), so a top cluster only grows into the headroom the Close deck actually had.
+fn thin_for_mid(clusters: &mut Vec<[LeafCard; 2]>) {
     let card_top = |card: &LeafCard| card.center.y + card.half_right.y.abs() + card.half_up.y.abs();
-    let close_tip = cards.iter().map(card_top).fold(0.0_f32, f32::max);
-    // The card that DEFINES the tip always survives the thinning — without it the Mid crown
-    // is shorter than Close by whatever the tallest dropped card carried.
-    let tip_index = cards
+    let cluster_top = |cluster: &[LeafCard; 2]| card_top(&cluster[0]).max(card_top(&cluster[1]));
+    let close_tip = clusters.iter().map(cluster_top).fold(0.0_f32, f32::max);
+    // The cluster that DEFINES the tip always survives the thinning — without it the Mid
+    // crown is shorter than Close by whatever the tallest dropped cluster carried.
+    let tip_index = clusters
         .iter()
         .enumerate()
-        .max_by(|a, b| card_top(a.1).total_cmp(&card_top(b.1)))
+        .max_by(|a, b| cluster_top(a.1).total_cmp(&cluster_top(b.1)))
         .map(|(index, _)| index);
     let scale = (MID_KEEP_EVERY as f32).sqrt();
     let mut ordinal = 0usize;
-    cards.retain(|_| {
+    clusters.retain(|_| {
         let keep = ordinal.is_multiple_of(MID_KEEP_EVERY) || Some(ordinal) == tip_index;
         ordinal += 1;
         keep
     });
-    for card in cards.iter_mut() {
-        let span = card.half_right.y.abs() + card.half_up.y.abs();
-        let headroom = (close_tip - card.center.y).max(span);
-        let fit = (headroom / span).clamp(1.0, scale);
-        card.half_right *= fit;
-        card.half_up *= fit;
+    for cluster in clusters.iter_mut() {
+        for card in cluster.iter_mut() {
+            let span = card.half_right.y.abs() + card.half_up.y.abs();
+            let headroom = (close_tip - card.center.y).max(span);
+            let fit = (headroom / span).clamp(1.0, scale);
+            card.half_right *= fit;
+            card.half_up *= fit;
+        }
     }
 }
 
@@ -214,12 +259,19 @@ mod tests {
         let close = oak_cards(TreeLod::Close);
         let mid = oak_cards(TreeLod::Mid);
         assert_eq!(close, oak_cards(TreeLod::Close), "cards bake deterministic");
-        let expected = close.len().div_ceil(MID_KEEP_EVERY);
         assert!(
-            mid.len() == expected || mid.len() == expected + 1,
-            "Mid keeps every {MID_KEEP_EVERY}th card plus the tip card: {} of {}",
-            mid.len(),
-            close.len()
+            close.len().is_multiple_of(2) && mid.len().is_multiple_of(2),
+            "the deck is whole cross-pairs: {} close, {} mid",
+            close.len(),
+            mid.len()
+        );
+        let close_clusters = close.len() / 2;
+        let expected = close_clusters.div_ceil(MID_KEEP_EVERY);
+        let mid_clusters = mid.len() / 2;
+        assert!(
+            mid_clusters == expected || mid_clusters == expected + 1,
+            "Mid keeps every {MID_KEEP_EVERY}th cluster plus the tip cluster: {mid_clusters} of \
+             {close_clusters}"
         );
         let area = |cards: &[LeafCard]| -> f32 {
             cards.iter().map(|c| c.half_right.length() * c.half_up.length() * 4.0).sum()

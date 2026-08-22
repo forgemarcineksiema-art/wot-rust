@@ -17,13 +17,15 @@ use crate::shape::merge_meshes;
 
 /// Mesh the bark for one LOD rung.
 ///
-/// Close carries the whole skeleton — trunk, limbs and twigs, because the twigs now carry the
-/// card canopy (PR6) and a card needs its wood. Mid keeps the trunk alone at half the
-/// stations and a coarser tolerance: past 55 m the limbs live inside the card mass anyway.
+/// Close carries the whole skeleton — trunk, limbs and twigs, because the twigs carry the
+/// card canopy (PR6) and a card needs its wood. Mid keeps trunk AND limbs at half the
+/// stations and a coarser tolerance (the user's verdict, 2026-08-22: a bare pole with cards
+/// at 60 m was a different tree from the one at 50 m — the 55 m swap must move triangles,
+/// never the tree's ANATOMY); only the twigs stay inside the card mass past the band.
 pub(crate) fn mesh_bark(skeleton: &TreeSkeleton, lod: TreeLod) -> GeometryMesh {
     let (max_level, tolerance_scale, station_stride) = match lod {
         TreeLod::Close => (2, 1.0, 1),
-        TreeLod::Mid => (0, 4.0, 2),
+        TreeLod::Mid => (1, 4.0, 2),
     };
     let mut bark: Option<GeometryMesh> = None;
     for branch in &skeleton.branches {
@@ -46,11 +48,12 @@ pub(crate) fn mesh_bark(skeleton: &TreeSkeleton, lod: TreeLod) -> GeometryMesh {
         // schedule.
         let tolerance = SILHOUETTE_TOLERANCE_M * tolerance_scale * (1 << branch.level) as f32;
         // The law's MIN_SEGMENTS floor (8) is written for parts that must READ round; a
-        // finger-thin card-covered stick among hundreds of alpha shapes is not one of them,
-        // and eight sides on each would spend ~700 tris on wood nobody sees. Twigs (level 2+)
-        // and any branch under 6 cm (a bush's whole level 1) take a hand-typed 4, with this
-        // justification — boles and real limbs stay under the honest law.
-        let sides = if branch.level >= 2 || branch.base().radius_m < 0.06 {
+        // card-covered stick among hundreds of alpha shapes is not one of them, and eight
+        // sides on each would spend ~700 tris on wood nobody sees. Twigs (level 2+) and any
+        // branch under 12 cm — a bush's fan, a pine's frond branch, a poplar's shoot, every
+        // one of them wearing its card mass — take a hand-typed 4, with this justification;
+        // boles and real limbs stay under the honest law.
+        let sides = if branch.level >= 2 || branch.base().radius_m < 0.12 {
             4
         } else {
             segments_for_radius(branch.base().radius_m, tolerance)
@@ -122,23 +125,35 @@ mod tests {
         );
     }
 
-    /// The rung swap moves triangles, never metres: both rungs mesh the SAME skeleton, so the
-    /// bark tips agree exactly — the invariant the whole ladder is built on, now structural.
+    /// The rung swap moves triangles, never metres OR anatomy: both rungs mesh the SAME
+    /// skeleton, Mid carries the limbs (the 55 m swap must not amputate the tree), and the
+    /// Mid bark tip agrees with the highest station Mid actually meshes (levels 0–1).
     #[test]
-    fn both_rungs_share_the_skeleton_tip() {
+    fn both_rungs_share_the_skeleton_and_mid_keeps_the_limbs() {
         for seed in [0_u64, 7, 42] {
             let skeleton = oak_skeleton(seed);
             let tip =
                 |mesh: &GeometryMesh| mesh.bounds().map(|bounds| bounds.max.y).unwrap_or_default();
-            let close_trunk_tip = skeleton
-                .branches_of_level(0)
+            let mid_levels_tip = skeleton
+                .branches
+                .iter()
+                .filter(|branch| branch.level <= 1)
                 .map(|branch| branch.tip().position.y)
                 .fold(0.0_f32, f32::max);
             let mid = mesh_bark(&skeleton, TreeLod::Mid);
             assert!(
-                (tip(&mid) - close_trunk_tip).abs() < 0.05,
-                "seed {seed}: the Mid bark tip drifted from the skeleton: {} vs {close_trunk_tip}",
+                (tip(&mid) - mid_levels_tip).abs() < 0.05,
+                "seed {seed}: the Mid bark tip drifted from the skeleton: {} vs {mid_levels_tip}",
                 tip(&mid)
+            );
+            // The anatomy check: Mid's triangle count is far past a lone bole's — the limbs
+            // are IN the mesh, not amputated at the band.
+            let close = mesh_bark(&skeleton, TreeLod::Close);
+            assert!(
+                mid.triangle_count() > 250 && mid.triangle_count() < close.triangle_count(),
+                "seed {seed}: Mid carries limbs yet stays the cheaper rung: {} vs {}",
+                mid.triangle_count(),
+                close.triangle_count()
             );
         }
     }

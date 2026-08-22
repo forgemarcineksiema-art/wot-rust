@@ -415,8 +415,12 @@ impl BakedTree {
 /// Mid bake is the bole alone — past 55 m the limbs live inside the card mass). The floor
 /// refuses a species silently degenerating into a stick figure; the ceilings refuse silent
 /// growth. The frame verdict stays the flora_frame_probe's two views.
-pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_500;
-pub const TREE_LOD1_MAX_TRIS: usize = 160;
+/// Re-measured after the user's quality verdict (2026-08-22, cross-pair clusters + limbs at
+/// Mid): Close spans 388 (bush) to 1,838 (oak — the 12 cm thin-stick rule slimmed the card-
+/// covered wood everywhere); Mid spans 124 to 976 (a dense pine keeps its whole whorl fan,
+/// because the 55 m swap must never amputate the tree's anatomy).
+pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_000;
+pub const TREE_LOD1_MAX_TRIS: usize = 1_100;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
@@ -426,26 +430,31 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // is the card deck (~200 cluster cards on the twig anchors, shade lane carrying the
     // one-mass law), the bark meshes the whole skeleton including twigs, and the limbs grew
     // upright so the card crown clears the 15 m mature floor the spheres used to clear.
-    (TreeSpecies::Oak, 0xf7cd_1555_8cf2_d40a),
+    // The whole table re-blessed 2026-08-22 with the USER'S QUALITY VERDICT: cross-pair
+    // clusters (every card is two perpendicular quads — no more edge-on paper dashes),
+    // clusters hugging their twigs (the levitation fix), top strays pulled into the mass,
+    // and Mid keeping the LIMBS plus every second cluster — the 55 m swap moves triangles,
+    // never the tree's anatomy.
+    (TreeSpecies::Oak, 0x8eca_e573_70b3_9bf7),
     // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
     // grown to 19.6 m, the Column envelope, hard up-tropism.
-    (TreeSpecies::Poplar, 0x648f_3acf_c08b_0dd7),
+    (TreeSpecies::Poplar, 0x9acd_70d3_da17_7373),
     // Willow re-blessed 2026-08-22 (Drzewa 3.0 PR8): the sweep showcase — rising limbs arced
     // over by negative tropism, level-2 curtains falling hard, elongated hanging cards.
-    (TreeSpecies::Willow, 0x3bd9_5bc2_c5e0_8597),
+    (TreeSpecies::Willow, 0xae22_ee7e_22cb_cd4f),
     // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
     // opening into a low orchard dome with heavy down-angles.
-    (TreeSpecies::FruitTree, 0xafb7_554f_d1e9_4fa6),
+    (TreeSpecies::FruitTree, 0x9b11_9cd6_cad9_2904),
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8): a one-level skeleton stub fanning wide
     // into dense small cards; still honestly concealing nothing.
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8, final): dense one-level skeleton, deep
     // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
     // its middle, and the steppe's rule-1 dark plane rides on that.
-    (TreeSpecies::Bush, 0x7c52_62a8_5061_b527),
+    (TreeSpecies::Bush, 0x45ff_6ebb_6ae2_8cd7),
     // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
     // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
     // fronds on cards. The lobes died with this bless.
-    (TreeSpecies::Pine, 0x9ff1_aeab_8506_2f84),
+    (TreeSpecies::Pine, 0x5bc9_8ae3_7911_cc9f),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —

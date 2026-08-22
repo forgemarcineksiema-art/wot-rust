@@ -434,9 +434,11 @@ mod baked_tree_tests {
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
         // A migrated species' statics instance is Mid bark PLUS its thinned card deck at
-        // 4 tris a card — raised DELIBERATELY with the waves (Drzewa 3.0 PR7-9). The fill
-        // verdict stays the flora_frame_probe's; this catches silent geometric growth.
-        const MIGRATED_STATICS_MAX_TRIS: usize = 700;
+        // 4 tris a card — re-raised with the user's quality verdict (2026-08-22: Mid keeps
+        // the LIMBS and every second cross-pair cluster; measured worst: pine 976 bark +
+        // 242 cards × 4 = 1,944). The fill verdict stays the flora_frame_probe's; this
+        // catches silent geometric growth.
+        const MIGRATED_STATICS_MAX_TRIS: usize = 2_100;
         // The bush bakes at CLOSE (its Mid deck vanished at 200 m and took the steppe's dark
         // plane with it), so its ceiling is its own: full card deck + 4-sided stick bark.
         const BUSH_STATICS_MAX_TRIS: usize = 1_000;
