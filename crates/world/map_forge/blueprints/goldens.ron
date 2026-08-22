@@ -53,8 +53,16 @@
     // box-for-box IDENTICAL and the symmetry report holds un-relaxed. 48 Ostrogorsk
     // tenements stop being two silhouettes on a checkerboard. Census counts, positions,
     // playability BFS: untouched/green. Locked by tests/scenery_variety.rs.
-    ("bystra_valley", "debc868a549aa709"),
+    // Re-blessed 2026-08-17 (Immersja A4.1 — landmarks & verticals), TWO maps (Orliny and
+    // Prokhorovka author no landmark raises — hashes UNCHANGED, the proof of scope): the
+    // Kamienna church 13 -> 27 m, the windmill 6 -> 15 m, the Ostrogorsk church 14 -> 28 m,
+    // the elevator head house 19 -> 26 m, its silo towers 11 -> 18 m, and the factory halls
+    // stretch to a real 44 m working span. Taller cover IS a bigger LOS blocker — this is
+    // the program's only GAMEPLAY-shaping wave, shipped behind the user's eye verdict with
+    // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
+    // symmetry and the rubble-sightline band all held un-relaxed.
+    ("bystra_valley", "3ce01cebb176a709"),
     ("orliny_pereval", "4125d5a760c33962"),
-    ("ostrogorsk", "283d0baf6c4d4462"),
+    ("ostrogorsk", "7484947f2f854462"),
     ("prokhorovka_hill_252_2", "21c90d326dde89a9"),
 ]

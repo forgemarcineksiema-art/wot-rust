@@ -210,7 +210,8 @@ MapBlueprint(
             name: "Kamienna church",
             kind: FarmBuilding,
             at: (Fixed(698.0), Fixed(500.0)),
-            half_extents_m: (7.0, 6.5, 9.0),
+            // Immersja A4.1: 13 -> 27 m — a village church's spire OWNS its valley.
+            half_extents_m: (7.0, 13.5, 9.0),
         ),
         Cover(
             id: "bystra_mill_south",
@@ -245,7 +246,8 @@ MapBlueprint(
             name: "the windmill",
             kind: FarmBuilding,
             at: (Fixed(250.0), Fixed(500.0)),
-            half_extents_m: (3.2, 3.0, 3.2),
+            // Immersja A4.1: 6 -> 15 m — a working mill tower, not a dovecote.
+            half_extents_m: (3.2, 7.5, 3.2),
         ),
         Cover(
             id: "bridge_parapet_south",

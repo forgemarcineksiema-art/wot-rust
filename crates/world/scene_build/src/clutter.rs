@@ -163,9 +163,10 @@ pub fn push_scenery_instance_far(
         SceneryKind::Lamppost => {
             // Cast iron (urban-map PR-11): the tapering column, the short arm reaching over
             // the roadway along the instance yaw, and the warm glass head under it.
-            push_frustum(vertices, indices, base, 0.09 * s, 0.055 * s, 4.0 * s, IRON);
+            // Immersja A4.1: 4 m read as a garden lantern; a street column is 6.5 m.
+            push_frustum(vertices, indices, base, 0.09 * s, 0.055 * s, 6.5 * s, IRON);
             let reach = Vec3::new(yaw.sin(), 0.0, yaw.cos());
-            let arm_root = base + Vec3::Y * 4.0 * s;
+            let arm_root = base + Vec3::Y * 6.5 * s;
             let start = vertices.len();
             push_oriented_box(
                 vertices,
