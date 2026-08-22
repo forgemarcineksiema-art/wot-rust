@@ -319,6 +319,11 @@ FX, no HUD**. Roughly 0.55 ms is left for everything a real battle adds on top.
 > Worst view median **10.036 ms** — ~6.6 ms of real headroom under the 16.667 ms line, not
 > 0.55 ms. This is THE baseline every Drzewa 3.0 PR quotes; the acceptance bar for the program
 > is ≤ 16.0 ms in both views.
+>
+> **Program close-out (Drzewa 3.0 complete, #620–#631):** with the full homegrown-SpeedTree
+> stack live — skeletons, card canopies over the procedural atlas, the true impostor, the
+> three-level wind — the worst view lands at **11.2 ms**: the whole realistic-tree program
+> cost ~1.2 ms of the 6.6 ms headroom and the acceptance bar holds with 5.4 ms to spare.
 
 **Refused at this cost — and then bought back by making it cheap.** The knob and these numbers
 shipped so the next person asking "why is the steppe flat?" would find the measurement instead

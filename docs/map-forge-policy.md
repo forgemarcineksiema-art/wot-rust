@@ -202,13 +202,17 @@ not history):
    Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR
    description (one look: a dropped frame is a game bug, not a player problem).
 10. **Flora is procedural-only** (Świat 2.0 decision, 2026-08-06: „Florę CC0 usuwamy").
-    No imported meshes, no glTF/`.flora.*` pipeline, no license provenance to police — the
-    whole vegetation vocabulary is the `world_forge::tree` species table plus the grass
-    cards. The battlefield tree is the procedural **oak**: it draws through the instanced
-    LOD ladder (`scene_build::tree_lod`) and its trunk is a gameplay solid (`TreeTrunk`
-    cover derived in `map_forge`). The retired `FloraTree` / `FloraPine` / `FloraBush`
-    kinds keep their wire identity (append-only enum) but are **never authored** — the
-    `flora_integration` test locks that.
+    No imported meshes, no glTF/`.flora.*` pipeline, no license provenance to police — down
+    to the last texel: even the leaf masks are baked from SDF composition
+    (`world_forge::tree::leaf_atlas`). Since Drzewa 3.0 (2026-08-22) a species is a
+    **growth program**: a Weber–Penn-style skeleton table (`tree::skeleton`) grown once as
+    pure data, bark swept under the roundness law, and a cluster-card canopy cutting the
+    procedural atlas — the LOD rungs and the impostor only FILTER that one growth. The
+    battlefield tree is the procedural **oak**: it draws through the instanced LOD ladder
+    (`scene_build::tree_lod`, true crossed-quad impostor past 150 m) and its trunk is a
+    gameplay solid (`TreeTrunk` cover derived in `map_forge`). The retired `FloraTree` /
+    `FloraPine` / `FloraBush` kinds keep their wire identity (append-only enum) but are
+    **never authored** — the `flora_integration` test locks that.
 
 ## The Editor
 

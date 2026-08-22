@@ -406,16 +406,17 @@ impl BakedTree {
     }
 }
 
-/// LOD0/LOD1 budgets: the full close tree and the mid-distance one. LOD2 stays the existing
-/// painted frustum stack in `foliage.rs` — at 300 m it reads perfectly and costs nothing.
+/// LOD0/LOD1 MESH budgets (bark + occlusion hull; the card decks have their own counts in
+/// the consumers). The backdrop ring keeps the painted frusta in `foliage.rs` — at
+/// kilometres they read identically and cost almost nothing.
 ///
-/// The ceiling was 1,200 through the lobed era. Widened DELIBERATELY for the migration
-/// (Drzewa 3.0 PR4): a bole under the roundness law spends ~370 tris where the hand-typed
-/// 7-sided prism spent 84, and the measured cost of the whole scatter is the probe's
-/// (baseline 2026-08-22: worst view 10.036 ms of a 16.667 budget, ~26 oaks). PR12 narrows
-/// this back around the final card-canopy numbers.
-pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 180..=2_600;
-pub const TREE_LOD1_MAX_TRIS: usize = 260;
+/// Narrowed to the migration's FINAL numbers (Drzewa 3.0 PR12), measured across seeds
+/// 0/1/7/42/100: Close spans 388 (bush) to 2,298 (a dense pine); Mid spans 36 to 136 (a
+/// Mid bake is the bole alone — past 55 m the limbs live inside the card mass). The floor
+/// refuses a species silently degenerating into a stick figure; the ceilings refuse silent
+/// growth. The frame verdict stays the flora_frame_probe's two views.
+pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_500;
+pub const TREE_LOD1_MAX_TRIS: usize = 160;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
