@@ -72,9 +72,13 @@ pub(crate) fn push_baked_tree(
             let normal = (rotation * vertex.normal).normalize_or_zero();
             // The painterly gradient: crown tops toward the light, undersides into shade.
             let shade = if lit_by_sky { 0.82 + 0.18 * normal.y.max(0.0) } else { 1.0 };
-            // The trunk wears bark (Materia Świata 3); the canopy keeps its painterly fill.
+            // The trunk wears bark (Materia Świata 3); the canopy is FOLIAGE — the same role
+            // the instanced oak carries in `tree_lod`, so a shelterbelt poplar and the
+            // battlefield oak answer the sun with the same wrapped-diffuse + transmission
+            // model. It rode LEGACY from before the role existed, which kept the whole foliage
+            // lighting path dead on every statics-baked tree (Drzewa 3.0 PR1).
             let role = if lit_by_sky {
-                renderer_api::surface_role::LEGACY
+                renderer_api::surface_role::FOLIAGE
             } else {
                 renderer_api::surface_role::BARK
             };
@@ -259,13 +263,24 @@ mod baked_tree_tests {
             vertices_c.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
             "two poplars at different spots are different individuals"
         );
-        // Materia Świata 3: the trunk wears bark down the surface lane, the canopy does not.
+        // Materia Świata 3 + Drzewa 3.0 PR1: the trunk wears bark down the surface lane, the
+        // canopy wears FOLIAGE — the statics bake and the instanced ladder must answer the sun
+        // with the same lighting model, and nothing may slide back to LEGACY.
         let barked = vertices_a
             .iter()
             .filter(|v| (v.surface - renderer_api::surface_role::BARK).abs() < 0.01)
             .count();
+        let leafed = vertices_a
+            .iter()
+            .filter(|v| (v.surface - renderer_api::surface_role::FOLIAGE).abs() < 0.01)
+            .count();
         assert!(barked > 0, "the trunk names its bark");
-        assert!(barked < vertices_a.len(), "the canopy keeps its painterly fill");
+        assert!(leafed > 0, "the canopy names its foliage");
+        assert_eq!(
+            barked + leafed,
+            vertices_a.len(),
+            "a baked tree is bark and foliage, nothing rides LEGACY"
+        );
     }
 
     /// The backdrop ring keeps the cheap painted frusta — thousands of instances at kilometers.
