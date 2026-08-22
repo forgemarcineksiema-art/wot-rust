@@ -56,7 +56,7 @@ pub use scene::{
 };
 pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_projection};
 pub use terrain_material::{TERRAIN_LAYERS, TerrainGroundMaps, TerrainLayer, TerrainMaterialSet};
-pub use texture::{Rgba8MipChain, Rgba8MipLevel};
+pub use texture::{ALPHA_CUTOUT, MipMode, Rgba8MipChain, Rgba8MipLevel};
 pub use vehicle::{
     ArmorApertureRender, ArmorDamageInstance, MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex,
     generate_tangents,
