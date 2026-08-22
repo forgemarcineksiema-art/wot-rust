@@ -305,6 +305,21 @@ The release-gate probe is the one that decides, and it lands at **96.7% of the 1
 Its own gate prints PASS — and PASS is misleading here, because that probe draws **no vehicles, no
 FX, no HUD**. Roughly 0.55 ms is left for everything a real battle adds on top.
 
+> **2026-08-22 correction (Drzewa 3.0 PR1).** The table above was captured while the instrument
+> still rendered at 4× MSAA (`render_sample_count.rs` documents the divergence); the probe now
+> measures the shipped 1× picture, and the fiscal picture is different. Re-measured baseline on
+> the same MX330, Vulkan, 1080p @ 1× — `flora_frame_probe` now runs TWO gated views, and each
+> leaves `target/flora_frame_<view>.png` so the number stands behind a reviewable frame:
+>
+> | view | baseline (no oaks) | full flora | oak delta |
+> |---|---|---|---|
+> | lineup (scatter at range) | 9.050 ms | **10.036 ms** | +0.986 ms |
+> | under-crown (Near canopy fills the frame) | 6.829 ms | **9.481 ms** | +2.652 ms |
+>
+> Worst view median **10.036 ms** — ~6.6 ms of real headroom under the 16.667 ms line, not
+> 0.55 ms. This is THE baseline every Drzewa 3.0 PR quotes; the acceptance bar for the program
+> is ≤ 16.0 ms in both views.
+
 **Refused at this cost — and then bought back by making it cheap.** The knob and these numbers
 shipped so the next person asking "why is the steppe flat?" would find the measurement instead
 of repeating it; the next person did. The section's own opening was the answer:
