@@ -1,9 +1,17 @@
-//! Trees 2.0 (Inna Liga B2): the end of the frustum-stack tree. A species is a PARAMETER SET,
-//! not a model — two levels of deterministic branching (never L-systems; overkill for a
-//! battlefield read), a tapered trunk with limbs, and a crown of 2–4 FBM-displaced icosphere
-//! lobes whose normals are bent away from the crown centroid: the classic painterly trick that
-//! lights a canopy as one soft mass instead of a triangle salad. Trunk and canopy come back as
-//! separate meshes so the consumer colors them without any material-enum churn.
+//! Trees 3.0 (Drzewa 3.0): the species stays a PARAMETER SET, not a model — that law survives
+//! every generation of this module. What changed is what the parameters describe. Trees 2.0
+//! wrote "never L-systems" and meant it about UNBOUNDED grammar recursion; that stays banned.
+//! Its successor is [`skeleton`]: a bounded Weber–Penn-style parametric recursion (2–3 authored
+//! levels, counts in the table, budgets analytic) grown ONCE as pure data, which every LOD rung
+//! only filters — the SpeedTree ancestor, homegrown, procedural-only per map-forge policy #10.
+//!
+//! The lobed painterly crown below (FBM icospheres, normals bent from the crown centroid) is
+//! the LIVE bake while species migrate one wave at a time; its purpose — a canopy lit as one
+//! soft mass, never a triangle salad — transplants into the card shade lane and outlives the
+//! lobes themselves. Trunk and canopy come back as separate meshes so the consumer colors them
+//! without any material-enum churn.
+
+pub mod skeleton;
 
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
