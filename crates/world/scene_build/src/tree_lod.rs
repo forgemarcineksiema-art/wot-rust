@@ -158,60 +158,19 @@ pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
         }
         indices.extend(mesh.indices().iter().map(|index| index + start));
     }
-    // The card canopy (Drzewa 3.0 PR6): each cluster card becomes one quad with DUAL winding
-    // (4 vertices, 4 triangles) — backface culling stays on and never eats the far side, and
-    // FOLIAGE's derivative normals do not care which face won. Color is the authored canopy
-    // tone times the card's shade lane (the one-mass law); the atlas mask cuts the shape and
-    // the dome page curves the lighting.
-    let (color, gloss) = canopy_color;
-    for card in &tree.leaves {
-        let rect = world_forge::tree::leaf_atlas::atlas_rect(card.slot);
-        let start = vertices.len() as u32;
-        // The cluster stem sits at -half_up (v1, the bottom of the slot).
-        let corners = [
-            (card.center - card.half_right - card.half_up, [rect[0], rect[3]]),
-            (card.center + card.half_right - card.half_up, [rect[2], rect[3]]),
-            (card.center + card.half_right + card.half_up, [rect[2], rect[1]]),
-            (card.center - card.half_right + card.half_up, [rect[0], rect[1]]),
-        ];
-        // Two vertex rings, one per face: the far side carries the NEGATED normal, or a card
-        // seen from behind lights only by the transmission lobe and reads as a black cutout.
-        // 8 vertices, still 4 triangles.
-        for face_normal in [card.normal, -card.normal] {
-            for (position, uv) in corners {
-                vertices.push(
-                    renderer_api::SceneVertex::surfaced(
-                        position.to_array(),
-                        face_normal.to_array(),
-                        [color[0] * card.shade, color[1] * card.shade, color[2] * card.shade],
-                        gloss,
-                    )
-                    .with_surface(renderer_api::surface_role::FOLIAGE)
-                    .with_uv(uv)
-                    .with_sway(if windy {
-                        sway_allowance(position.to_array(), height, true)
-                    } else {
-                        0.0
-                    }),
-                );
-            }
-        }
-        indices.extend_from_slice(&[
-            start,
-            start + 1,
-            start + 2,
-            start,
-            start + 2,
-            start + 3,
-            // The far side, wound the other way, on its own normal ring.
-            start + 4,
-            start + 6,
-            start + 5,
-            start + 4,
-            start + 7,
-            start + 6,
-        ]);
-    }
+    // The card canopy (Drzewa 3.0 PR6): the shared expansion in `foliage::push_leaf_cards` —
+    // one code path for the instanced ladder and the statics bake, so a card can never render
+    // differently by route. Here the tree stays in local space and the Near rung opts into
+    // the cantilever wind.
+    crate::foliage::push_leaf_cards(
+        &mut vertices,
+        &mut indices,
+        &tree,
+        canopy_color,
+        |local| local,
+        |direction| direction,
+        |local| if windy { sway_allowance(local.to_array(), height, true) } else { 0.0 },
+    );
     MeshAsset::new(vertices, indices)
 }
 

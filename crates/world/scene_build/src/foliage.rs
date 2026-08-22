@@ -94,6 +94,77 @@ pub(crate) fn push_baked_tree(
         }
         indices.extend(mesh.indices().iter().map(|index| index + start));
     }
+    // The card canopy of a migrated species (Drzewa 3.0 PR7): same expansion the instanced
+    // ladder uses, placed by this instance's transform. Statics carry no sway — the chunked
+    // buffer is the far representation, and wind is a near-rung luxury.
+    push_leaf_cards(
+        vertices,
+        indices,
+        &tree,
+        canopy_color,
+        |local| base + rotation * (local * scale),
+        |direction| rotation * direction,
+        |_| 0.0,
+    );
+}
+
+/// Expand a baked tree's card deck into `SceneVertex` quads — ONE expansion for both paths
+/// (the instanced ladder and the statics bake), so a card can never render differently by
+/// route. Each card is 8 vertices / 4 triangles: dual winding with a normal ring per face,
+/// or a card seen from behind lights only by the transmission lobe and reads as a black
+/// cutout. `place` maps a tree-local position into the output space, `rotate` maps a
+/// direction, `sway` answers per-corner wind allowance (the statics bake passes zero).
+pub(crate) fn push_leaf_cards(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    tree: &world_forge::tree::BakedTree,
+    (color, gloss): ([f32; 3], f32),
+    place: impl Fn(Vec3) -> Vec3,
+    rotate: impl Fn(Vec3) -> Vec3,
+    sway: impl Fn(Vec3) -> f32,
+) {
+    for card in &tree.leaves {
+        let rect = world_forge::tree::leaf_atlas::atlas_rect(card.slot);
+        let start = vertices.len() as u32;
+        // The cluster stem sits at -half_up (v1, the bottom of the slot).
+        let corners = [
+            (card.center - card.half_right - card.half_up, [rect[0], rect[3]]),
+            (card.center + card.half_right - card.half_up, [rect[2], rect[3]]),
+            (card.center + card.half_right + card.half_up, [rect[2], rect[1]]),
+            (card.center - card.half_right + card.half_up, [rect[0], rect[1]]),
+        ];
+        for face_normal in [card.normal, -card.normal] {
+            let normal = rotate(face_normal).normalize_or_zero();
+            for (local, uv) in corners {
+                vertices.push(
+                    SceneVertex::surfaced(
+                        place(local).to_array(),
+                        normal.to_array(),
+                        [color[0] * card.shade, color[1] * card.shade, color[2] * card.shade],
+                        gloss,
+                    )
+                    .with_surface(renderer_api::surface_role::FOLIAGE)
+                    .with_uv(uv)
+                    .with_sway(sway(local)),
+                );
+            }
+        }
+        indices.extend_from_slice(&[
+            start,
+            start + 1,
+            start + 2,
+            start,
+            start + 2,
+            start + 3,
+            // The far side, wound the other way, on its own normal ring.
+            start + 4,
+            start + 6,
+            start + 5,
+            start + 4,
+            start + 7,
+            start + 6,
+        ]);
+    }
 }
 
 /// The species canopy tone, shared by the statics bake and the instanced LOD ladder
@@ -348,10 +419,15 @@ mod baked_tree_tests {
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
         let tree_ceiling = world_forge::tree::TREE_LOD1_MAX_TRIS;
+        // A migrated species' statics instance is Mid bark PLUS its thinned card deck at
+        // 4 tris a card — raised DELIBERATELY with the wave (Drzewa 3.0 PR7, measured:
+        // poplar 548). The fill verdict stays the flora_frame_probe's; this catches silent
+        // geometric growth. Legacy species hold the old lobed ceiling until their wave.
+        const MIGRATED_STATICS_MAX_TRIS: usize = 700;
         for (kind, ceiling) in [
-            (SceneryKind::Poplar, tree_ceiling),
+            (SceneryKind::Poplar, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::Willow, tree_ceiling),
-            (SceneryKind::FruitTree, tree_ceiling),
+            (SceneryKind::FruitTree, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::Bush, tree_ceiling),
             (SceneryKind::Pine, tree_ceiling),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.

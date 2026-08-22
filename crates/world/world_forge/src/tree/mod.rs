@@ -109,11 +109,101 @@ impl TreeSpecies {
                 ],
                 envelope: ShapeEnvelope::Dome,
             }),
-            TreeSpecies::Poplar
-            | TreeSpecies::Willow
-            | TreeSpecies::FruitTree
-            | TreeSpecies::Bush
-            | TreeSpecies::Pine => None,
+            // Wave 1 (PR7): the Lombardy poplar — one bole running the FULL height (the
+            // lobed stack faked 21.9 m; the skeleton's trunk honestly grows it), short
+            // steeply-rising branches all the way up, hard positive tropism, the Column
+            // envelope keeping every reach tight. The mature floor is 19 m.
+            TreeSpecies::Poplar => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 19.6,
+                    radius_m: 0.37,
+                    taper: 0.30,
+                    flare: 1.25,
+                    stations: 8,
+                    lean: 0.05,
+                },
+                crown_begin_frac: 0.22,
+                levels: vec![
+                    BranchLevelParams {
+                        count: 10,
+                        count_variance: 2,
+                        along_range: (0.22, 0.97),
+                        length_ratio: 0.26,
+                        length_variance: 0.22,
+                        radius_ratio: 0.30,
+                        taper: 0.35,
+                        down_angle_rad: 0.55,
+                        down_angle_variance_rad: 0.15,
+                        curve_rad: 0.25,
+                        curve_variance_rad: 0.12,
+                        tropism: 0.30,
+                        stations: 4,
+                    },
+                    BranchLevelParams {
+                        count: 4,
+                        count_variance: 1,
+                        along_range: (0.3, 0.95),
+                        length_ratio: 0.5,
+                        length_variance: 0.25,
+                        radius_ratio: 0.45,
+                        taper: 0.3,
+                        down_angle_rad: 0.55,
+                        down_angle_variance_rad: 0.2,
+                        curve_rad: 0.25,
+                        curve_variance_rad: 0.15,
+                        tropism: 0.12,
+                        stations: 3,
+                    },
+                ],
+                envelope: ShapeEnvelope::Column,
+            }),
+            // Wave 1 (PR7): the orchard fruit tree — a short bole opening into a low, wide
+            // dome; heavy down-angles and a whisper of droop, the way a laden apple grows.
+            TreeSpecies::FruitTree => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 2.1,
+                    radius_m: 0.18,
+                    taper: 0.5,
+                    flare: 1.3,
+                    stations: 5,
+                    lean: 0.12,
+                },
+                crown_begin_frac: 0.45,
+                levels: vec![
+                    BranchLevelParams {
+                        count: 4,
+                        count_variance: 1,
+                        along_range: (0.5, 0.95),
+                        length_ratio: 0.85,
+                        length_variance: 0.2,
+                        radius_ratio: 0.42,
+                        taper: 0.35,
+                        down_angle_rad: 0.95,
+                        down_angle_variance_rad: 0.2,
+                        curve_rad: 0.45,
+                        curve_variance_rad: 0.2,
+                        tropism: -0.02,
+                        stations: 4,
+                    },
+                    BranchLevelParams {
+                        count: 5,
+                        count_variance: 2,
+                        along_range: (0.3, 0.95),
+                        length_ratio: 0.5,
+                        length_variance: 0.25,
+                        radius_ratio: 0.45,
+                        taper: 0.3,
+                        down_angle_rad: 0.8,
+                        down_angle_variance_rad: 0.25,
+                        curve_rad: 0.35,
+                        curve_variance_rad: 0.2,
+                        tropism: -0.04,
+                        stations: 3,
+                    },
+                ],
+                envelope: ShapeEnvelope::Dome,
+            }),
+            TreeSpecies::Willow | TreeSpecies::Bush | TreeSpecies::Pine => None,
         }
     }
 
@@ -331,9 +421,13 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // one-mass law), the bark meshes the whole skeleton including twigs, and the limbs grew
     // upright so the card crown clears the 15 m mature floor the spheres used to clear.
     (TreeSpecies::Oak, 0xf7cd_1555_8cf2_d40a),
-    (TreeSpecies::Poplar, 0xabdc_14c3_7b65_6976),
+    // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
+    // grown to 19.6 m, the Column envelope, hard up-tropism.
+    (TreeSpecies::Poplar, 0xf7ff_cf98_86f7_e353),
     (TreeSpecies::Willow, 0xe919_48a3_f6cf_487d),
-    (TreeSpecies::FruitTree, 0xbca2_9510_33bc_79f2),
+    // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
+    // opening into a low orchard dome with heavy down-angles.
+    (TreeSpecies::FruitTree, 0x514a_0361_ea03_cf4a),
     (TreeSpecies::Bush, 0x9706_2456_e825_0149),
     (TreeSpecies::Pine, 0x3b7d_1202_48cc_dc4d),
 ];
