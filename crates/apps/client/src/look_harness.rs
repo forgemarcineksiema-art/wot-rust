@@ -172,6 +172,11 @@ pub fn render_review_views_with_fov(
     for (handle, mesh) in crate::grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
+    // The procedural leaf atlas rides the SAME entry the battle uses (Drzewa 3.0 PR5) — the
+    // harness header documents how the review path once lost the atlas bind and locked white
+    // trees; wiring it here keeps the goldens honest about what the player sees.
+    let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
+    renderer.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
