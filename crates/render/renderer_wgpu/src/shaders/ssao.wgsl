@@ -43,6 +43,14 @@ fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(1.0);
     }
     let lin = linear_depth(d);
+    // Interiors take a sparser spiral (Hala v4 P3): eight taps instead of twelve, at the
+    // UNCHANGED radius — the footprint is the room's ambient shade mass, tuned by eye at the
+    // #554 relight, and a first cut that halved it visibly lightened the corners the mood
+    // lives in, so the radius stays and only the sample count pays. The 3x3 blur was already
+    // smearing twelve-tap noise; it smears eight-tap noise the same way. Interior = the same
+    // fog test every interior branch keys on (fog_params.x <= 0); outdoors the count is the
+    // shipped constant and the math is bit-exact.
+    let taps = select(TAPS, 8, camera.fog_params.x <= 0.0);
     // World radius projected to pixels at this depth; clamped so the spiral neither vanishes in
     // the distance nor spans the whole screen up close.
     let radius_px = clamp(
@@ -53,9 +61,9 @@ fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     // Interleaved gradient noise rotates the spiral per pixel, trading banding for blurable noise.
     let noise = fract(52.9829189 * fract(dot(frag.xy, vec2<f32>(0.06711056, 0.00583715))));
     var occlusion = 0.0;
-    for (var i = 0; i < TAPS; i = i + 1) {
+    for (var i = 0; i < taps; i = i + 1) {
         let angle = (f32(i) + noise) * 2.39996; // golden angle
-        let reach = radius_px * sqrt((f32(i) + 0.5) / f32(TAPS));
+        let reach = radius_px * sqrt((f32(i) + 0.5) / f32(taps));
         let offset = vec2<f32>(cos(angle), sin(angle)) * reach;
         let tap = clamp(pix + vec2<i32>(offset), vec2<i32>(0), dims - vec2<i32>(1));
         let sample_lin = linear_depth(textureLoad(prepass_depth, tap, 0));
@@ -65,7 +73,7 @@ fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         occlusion += clamp((closer_by - BIAS_M) / 0.08, 0.0, 1.0)
             * clamp(1.0 - (closer_by - BIAS_M) / RANGE_M, 0.0, 1.0);
     }
-    let ao = 1.0 - strength * 0.85 * (occlusion / f32(TAPS));
+    let ao = 1.0 - strength * 0.85 * (occlusion / f32(taps));
     return vec4<f32>(clamp(ao, 0.0, 1.0));
 }
 
