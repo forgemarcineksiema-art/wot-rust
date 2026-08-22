@@ -431,11 +431,9 @@ mod baked_tree_tests {
             );
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
-        let tree_ceiling = world_forge::tree::TREE_LOD1_MAX_TRIS;
         // A migrated species' statics instance is Mid bark PLUS its thinned card deck at
-        // 4 tris a card — raised DELIBERATELY with the wave (Drzewa 3.0 PR7, measured:
-        // poplar 548). The fill verdict stays the flora_frame_probe's; this catches silent
-        // geometric growth. Legacy species hold the old lobed ceiling until their wave.
+        // 4 tris a card — raised DELIBERATELY with the waves (Drzewa 3.0 PR7-9). The fill
+        // verdict stays the flora_frame_probe's; this catches silent geometric growth.
         const MIGRATED_STATICS_MAX_TRIS: usize = 700;
         // The bush bakes at CLOSE (its Mid deck vanished at 200 m and took the steppe's dark
         // plane with it), so its ceiling is its own: full card deck + 4-sided stick bark.
@@ -445,7 +443,7 @@ mod baked_tree_tests {
             (SceneryKind::Willow, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::FruitTree, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::Bush, BUSH_STATICS_MAX_TRIS),
-            (SceneryKind::Pine, tree_ceiling),
+            (SceneryKind::Pine, MIGRATED_STATICS_MAX_TRIS),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.
             (SceneryKind::Rock, 108),
             // The masonry spill, raised from the old 60 with its construction: a 7-sided mass,
