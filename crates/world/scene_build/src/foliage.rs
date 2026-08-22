@@ -59,7 +59,16 @@ pub(crate) fn push_baked_tree(
     let base = Vec3::from_array(instance.position);
     let seed =
         instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
-    let tree = world_forge::tree::bake_tree_lod(species, seed, world_forge::tree::TreeLod::Mid);
+    // The bush bakes at CLOSE: its whole body is card mass, and the Mid thinning that a tall
+    // tree hides inside its silhouette makes a knee-high tuft nearly vanish at 200 m — the
+    // steppe's dark value plane (rule 1) rode on exactly those tufts. A bush is a tenth of a
+    // tree's triangles; full price is the honest price.
+    let lod = if species == world_forge::tree::TreeSpecies::Bush {
+        world_forge::tree::TreeLod::Close
+    } else {
+        world_forge::tree::TreeLod::Mid
+    };
+    let tree = world_forge::tree::bake_tree_lod(species, seed, lod);
     let rotation = Mat3::from_rotation_y(instance.yaw_rad);
     let scale = instance.scale;
     let canopy_color = canopy_color_for_species(species);
@@ -175,7 +184,7 @@ pub(crate) fn canopy_color_for_species(species: world_forge::tree::TreeSpecies) 
         world_forge::tree::TreeSpecies::Poplar => CANOPY,
         world_forge::tree::TreeSpecies::Willow => CANOPY_PALE,
         world_forge::tree::TreeSpecies::FruitTree => CANOPY_PALE,
-        world_forge::tree::TreeSpecies::Bush => CANOPY_DARK,
+        world_forge::tree::TreeSpecies::Bush => CANOPY_SCRUB,
         world_forge::tree::TreeSpecies::Pine => CANOPY_PINE,
     }
 }
@@ -252,6 +261,10 @@ pub(crate) const TRUNK_TONE: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
 const TRUNK: ([f32; 3], f32) = TRUNK_TONE;
 const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
+/// Scrub foliage (hawthorn, elder) genuinely runs darker than a broadleaf crown — and the
+/// steppe's overcast dark plane (rule 1) rides on these tufts now that they are cards with
+/// lit rims instead of solid occluded blobs.
+const CANOPY_SCRUB: ([f32; 3], f32) = ([0.09, 0.20, 0.09], 0.05);
 const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
 const CANOPY_PINE: ([f32; 3], f32) = ([0.10, 0.22, 0.13], 0.05);
 
@@ -424,11 +437,14 @@ mod baked_tree_tests {
         // poplar 548). The fill verdict stays the flora_frame_probe's; this catches silent
         // geometric growth. Legacy species hold the old lobed ceiling until their wave.
         const MIGRATED_STATICS_MAX_TRIS: usize = 700;
+        // The bush bakes at CLOSE (its Mid deck vanished at 200 m and took the steppe's dark
+        // plane with it), so its ceiling is its own: full card deck + 4-sided stick bark.
+        const BUSH_STATICS_MAX_TRIS: usize = 1_000;
         for (kind, ceiling) in [
             (SceneryKind::Poplar, MIGRATED_STATICS_MAX_TRIS),
-            (SceneryKind::Willow, tree_ceiling),
+            (SceneryKind::Willow, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::FruitTree, MIGRATED_STATICS_MAX_TRIS),
-            (SceneryKind::Bush, tree_ceiling),
+            (SceneryKind::Bush, BUSH_STATICS_MAX_TRIS),
             (SceneryKind::Pine, tree_ceiling),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.
             (SceneryKind::Rock, 108),

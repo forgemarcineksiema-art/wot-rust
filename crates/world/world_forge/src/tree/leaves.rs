@@ -40,6 +40,26 @@ const MID_KEEP_EVERY: usize = 3;
 /// down to this floor. The heir of the centroid-normal trick — locked by the shade-mass test.
 const CORE_SHADE: f32 = 0.68;
 
+/// The bush goes DEEPER: the steppe's overcast value structure leans on bushes for its dark
+/// plane (rule 1), and the wrapped-diffuse foliage model floors how dark a card can light —
+/// the lobed blob's occluded underside must come back through the shade lane instead.
+fn core_shade(species: TreeSpecies) -> f32 {
+    match species {
+        TreeSpecies::Bush => 0.38,
+        _ => CORE_SHADE,
+    }
+}
+
+/// The rim end of the shade span. A tree crown's rim catches full light; scrub is matte and
+/// light-eating to its very edge — its rim cap sits under the tree's, which is what keeps a
+/// card tuft as dark on the steppe as the solid blob it replaced.
+fn rim_shade(species: TreeSpecies) -> f32 {
+    match species {
+        TreeSpecies::Bush => 0.72,
+        _ => 1.0,
+    }
+}
+
 /// Grow the card canopy for one rung. Deterministic per (skeleton, seed): every card draws
 /// from a seed hashed off its anchor ordinal, so no card's look depends on its neighbours.
 pub(crate) fn grow_cards(
@@ -83,29 +103,47 @@ pub(crate) fn grow_cards(
                 normal = (normal * 0.35 + Vec3::Y * 0.65).normalize_or_zero();
             }
             // The card plane: `up` leans along world-up projected into the plane (the cluster
-            // stem hangs from the twig), `right` completes the frame.
+            // stem hangs from the twig), `right` completes the frame. The willow OVERRIDES
+            // the roll: its cards are CURTAINS — strongly elongated down their hang, pinned
+            // vertical, root at the top of the slot — a weeping crown is streamers, never
+            // confetti.
+            let (right_scale, up_scale, hangs) = match species {
+                TreeSpecies::Willow => (0.5, 2.1, true),
+                _ => (1.0, 0.92, false),
+            };
             let reference = if normal.y.abs() > 0.9 { Vec3::X } else { Vec3::Y };
-            let right = normal.cross(reference).normalize_or_zero();
-            let up = right.cross(normal);
-            let roll = rng.unit() * std::f32::consts::TAU;
-            let (sin, cos) = roll.sin_cos();
-            let spun_right = right * cos + up * sin;
-            let spun_up = up * cos - right * sin;
+            let (spun_right, spun_up) = if hangs {
+                let up = (Vec3::Y - normal * normal.y).normalize_or_zero();
+                let up = if up.length_squared() < 0.5 { Vec3::Y } else { up };
+                (up.cross(normal).normalize_or_zero(), up)
+            } else {
+                let right = normal.cross(reference).normalize_or_zero();
+                let up = right.cross(normal);
+                let roll = rng.unit() * std::f32::consts::TAU;
+                let (sin, cos) = roll.sin_cos();
+                (right * cos + up * sin, up * cos - right * sin)
+            };
 
             // Wide size variance on purpose: a canopy of same-size quads reads as confetti;
             // mixed clusters read as growth.
             let half = card_half_extent_m(species) * (0.72 + 0.56 * rng.unit());
             // The cluster sits a little OFF its twig along the facing, so cards ring the wood
             // instead of slicing through it.
-            let center = anchor.position + normal * half * 0.35;
+            let mut center = anchor.position + normal * half * 0.35;
+            // No card digs into the soil: a low tuft may kiss the ground (25 cm of embed
+            // reads as growth), never bury a metre of its mask under the terrain.
+            let dip = center.y - (half * up_scale + half * right_scale);
+            if dip < -0.25 {
+                center.y += -0.25 - dip;
+            }
             let depth01 = (anchor.position.distance(centroid) / max_reach).clamp(0.0, 1.0);
             cards.push(LeafCard {
                 center,
-                half_right: spun_right * half,
-                half_up: spun_up * half * 0.92,
+                half_right: spun_right * half * right_scale,
+                half_up: spun_up * half * up_scale,
                 normal,
                 slot: slots[(rng.next() % 2) as usize],
-                shade: CORE_SHADE + (1.0 - CORE_SHADE) * depth01,
+                shade: core_shade(species) + (rim_shade(species) - core_shade(species)) * depth01,
             });
         }
     }
@@ -152,7 +190,9 @@ fn card_half_extent_m(species: TreeSpecies) -> f32 {
         TreeSpecies::Poplar => 0.48,
         TreeSpecies::Willow => 0.55,
         TreeSpecies::FruitTree => 0.38,
-        TreeSpecies::Bush => 0.34,
+        // Big enough that the tuft keeps the DARK MASS the lobed blob gave the steppe's
+        // value structure (rule 1's dark plane rides partly on bushes in the overcast frames).
+        TreeSpecies::Bush => 0.46,
         TreeSpecies::Pine => 0.52,
     }
 }
