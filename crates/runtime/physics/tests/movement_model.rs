@@ -329,6 +329,85 @@ fn reverse_steering_mirrors_forward_steering() {
     );
 }
 
+/// The counter-throttle turn (player verdict 2026-08-22): reversing, then W+D — the tank used
+/// to kick visibly LEFT for the whole braking phase (steer sense followed the travel direction)
+/// and only then unwind into the commanded right turn, eating reaction time. A tracked hull's
+/// yaw is its belt difference and the belts do what the driver commands: from the first tick of
+/// W+D the yaw may only go toward the commanded side — not a single tick the wrong way — even
+/// while the hull is still sliding backward. Locked in both mirror images.
+#[test]
+fn a_counter_throttle_turn_never_kicks_toward_the_stale_travel() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let dt = 1.0 / 60.0;
+
+    // Reversing at speed, then forward+right (W+D). The forward tick count covers the whole
+    // braking phase and the sign flip of the travel direction.
+    let mut hull = TankKinematicState::default();
+    let reverse = TankControlInput { throttle: -1.0, steer: 0.0, brake: 0.0 };
+    for _ in 0..240 {
+        step_custom_tank_controller_on_contact(
+            &mut hull,
+            reverse,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+    }
+    assert!(hull.forward_speed() < -3.0, "fixture: the hull must be reversing at speed");
+    let turn_in = TankControlInput { throttle: 1.0, steer: 1.0, brake: 0.0 };
+    let mut crossed_forward = false;
+    for _ in 0..240 {
+        step_custom_tank_controller_on_contact(
+            &mut hull,
+            turn_in,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+        assert!(
+            hull.yaw_rad >= -1.0e-6,
+            "W+D out of a reverse kicked the hull the WRONG way: yaw {} at speed {}",
+            hull.yaw_rad,
+            hull.forward_speed()
+        );
+        crossed_forward |= hull.forward_speed() > 0.0;
+    }
+    assert!(crossed_forward, "fixture: the hull must have crossed into forward drive");
+    assert!(hull.yaw_rad > 0.05, "the commanded right turn must actually develop");
+
+    // Mirror image: driving forward, then S+D — the yaw may only go toward the reverse-mirrored
+    // command (negative), never a tick toward the stale forward travel.
+    let mut mirror = TankKinematicState::default();
+    let forward = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    for _ in 0..240 {
+        step_custom_tank_controller_on_contact(
+            &mut mirror,
+            forward,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+    }
+    assert!(mirror.forward_speed() > 3.0, "fixture: the hull must be driving at speed");
+    let back_out = TankControlInput { throttle: -1.0, steer: 1.0, brake: 0.0 };
+    for _ in 0..240 {
+        step_custom_tank_controller_on_contact(
+            &mut mirror,
+            back_out,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+        assert!(
+            mirror.yaw_rad <= 1.0e-6,
+            "S+D out of a forward drive kicked the hull the WRONG way: yaw {} at speed {}",
+            mirror.yaw_rad,
+            mirror.forward_speed()
+        );
+    }
+    assert!(mirror.yaw_rad < -0.05, "the mirrored turn must actually develop");
+}
+
 #[test]
 fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());

@@ -109,10 +109,20 @@ pub fn advance_hull_drive(
     // The finite `yaw_accel_rad_s2` ramp is the rotational inertia: the hull no longer snaps to a
     // new yaw the instant the key is tapped, and releasing steer lets the rotation coast down.
     let forward_speed = state.forward_speed();
-    let steering_direction = if forward_speed.abs() > 0.01 {
-        forward_speed.signum()
-    } else if throttle.abs() > 0.01 {
+    // The steer sense follows the COMMANDED drive first, and the hull's travel only when
+    // coasting. A tracked hull's yaw is its belt difference, and the belts do what the driver
+    // commands — with W+D held the nose swings right the instant the command lands, even while
+    // the hull is still sliding backward out of a reverse. The old priority (travel direction
+    // first) made every reverse->forward turn kick the WRONG way for the whole braking phase
+    // and then unwind through the yaw-rate ramp (player verdict 2026-08-22: unintuitive, eats
+    // reaction time). Steering while REVERSING still mirrors, exactly as before: there the
+    // commanded drive itself is backward (`reverse_steering_mirrors_forward_steering`).
+    let steering_direction = if throttle.abs() > 0.01 {
         throttle.signum()
+    } else if forward_speed.abs() > 0.01 {
+        // No throttle: the belts are dragged by the hull's own motion, so the steer sense
+        // follows the travel (a coasting hull steers like it drives).
+        forward_speed.signum()
     } else {
         // Stationary with no throttle: a steer input still pivots the hull in place (neutral
         // steer / counter-rotating tracks), decoupled from the throttle.
