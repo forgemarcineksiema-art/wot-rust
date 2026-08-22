@@ -203,7 +203,90 @@ impl TreeSpecies {
                 ],
                 envelope: ShapeEnvelope::Dome,
             }),
-            TreeSpecies::Willow | TreeSpecies::Bush | TreeSpecies::Pine => None,
+            // Wave 2 (PR8): the weeping willow — the sweep kernel's showcase. Long limbs
+            // launch RISING (down 0.55 off the bole), then the negative tropism arcs them
+            // over into the weep; the level-2 curtains launch off the limbs and fall hard.
+            // The riverside willow is a TALL tree (the 12 m mature floor): the drama is the
+            // fall, not a squat.
+            TreeSpecies::Willow => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 10.4,
+                    radius_m: 0.46,
+                    taper: 0.45,
+                    flare: 1.4,
+                    stations: 6,
+                    lean: 0.12,
+                },
+                crown_begin_frac: 0.45,
+                levels: vec![
+                    BranchLevelParams {
+                        count: 6,
+                        count_variance: 1,
+                        along_range: (0.5, 0.95),
+                        length_ratio: 0.75,
+                        length_variance: 0.2,
+                        radius_ratio: 0.36,
+                        taper: 0.3,
+                        down_angle_rad: 0.55,
+                        down_angle_variance_rad: 0.2,
+                        curve_rad: 0.7,
+                        curve_variance_rad: 0.2,
+                        tropism: -0.16,
+                        stations: 5,
+                    },
+                    BranchLevelParams {
+                        count: 6,
+                        count_variance: 2,
+                        along_range: (0.35, 1.0),
+                        length_ratio: 0.55,
+                        length_variance: 0.25,
+                        radius_ratio: 0.4,
+                        taper: 0.25,
+                        down_angle_rad: 1.25,
+                        down_angle_variance_rad: 0.2,
+                        curve_rad: 0.3,
+                        curve_variance_rad: 0.15,
+                        tropism: -0.38,
+                        stations: 4,
+                    },
+                ],
+                envelope: ShapeEnvelope::Weeping,
+            }),
+            // Wave 2 (PR8): the bush — a one-level skeleton: a hand-high stub fanning wide
+            // into dense small cards. Still knee-to-chest scenery that HONESTLY conceals
+            // nothing (its cover box does not exist).
+            TreeSpecies::Bush => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 0.45,
+                    radius_m: 0.10,
+                    taper: 0.6,
+                    flare: 1.2,
+                    stations: 3,
+                    lean: 0.15,
+                },
+                crown_begin_frac: 0.1,
+                // Dense on purpose: the steppe's overcast value structure leans on bushes
+                // for its dark plane (rule 1), and an airy tuft bleaches the whole frame.
+                levels: vec![BranchLevelParams {
+                    count: 12,
+                    count_variance: 2,
+                    along_range: (0.15, 0.9),
+                    // The lobed blob stood ~2.6-3 m across and the steppe's read was sized
+                    // to it — the skeleton tuft matches that footprint, not a garden shrub's.
+                    length_ratio: 2.3,
+                    length_variance: 0.3,
+                    radius_ratio: 0.5,
+                    taper: 0.35,
+                    down_angle_rad: 1.1,
+                    down_angle_variance_rad: 0.3,
+                    curve_rad: 0.35,
+                    curve_variance_rad: 0.2,
+                    tropism: 0.08,
+                    stations: 4,
+                }],
+                envelope: ShapeEnvelope::Dome,
+            }),
+            TreeSpecies::Pine => None,
         }
     }
 
@@ -423,12 +506,19 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     (TreeSpecies::Oak, 0xf7cd_1555_8cf2_d40a),
     // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
     // grown to 19.6 m, the Column envelope, hard up-tropism.
-    (TreeSpecies::Poplar, 0xf7ff_cf98_86f7_e353),
-    (TreeSpecies::Willow, 0xe919_48a3_f6cf_487d),
+    (TreeSpecies::Poplar, 0x648f_3acf_c08b_0dd7),
+    // Willow re-blessed 2026-08-22 (Drzewa 3.0 PR8): the sweep showcase — rising limbs arced
+    // over by negative tropism, level-2 curtains falling hard, elongated hanging cards.
+    (TreeSpecies::Willow, 0x3bd9_5bc2_c5e0_8597),
     // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
     // opening into a low orchard dome with heavy down-angles.
-    (TreeSpecies::FruitTree, 0x514a_0361_ea03_cf4a),
-    (TreeSpecies::Bush, 0x9706_2456_e825_0149),
+    (TreeSpecies::FruitTree, 0xafb7_554f_d1e9_4fa6),
+    // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8): a one-level skeleton stub fanning wide
+    // into dense small cards; still honestly concealing nothing.
+    // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8, final): dense one-level skeleton, deep
+    // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
+    // its middle, and the steppe's rule-1 dark plane rides on that.
+    (TreeSpecies::Bush, 0x7c52_62a8_5061_b527),
     (TreeSpecies::Pine, 0x3b7d_1202_48cc_dc4d),
 ];
 
@@ -454,7 +544,7 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         return BakedTree {
             species,
             trunk: bark::mesh_bark(&skeleton, lod),
-            canopy: GeometryMesh::new(Vec::new(), Vec::new()),
+            canopy: occlusion_hull(species),
             leaves: leaves::grow_cards(&skeleton, species, seed, lod),
         };
     }
@@ -575,6 +665,33 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         }
     }
     tree
+}
+
+/// The interior occlusion hull of a migrated species — the SpeedTree move for optically
+/// OPAQUE growth: a card deck is all silhouette and gaps, but a dense shrub shows no daylight
+/// through its middle. A small dark mass inside the tuft gives distance rendering the
+/// occluded core the cards cannot (the steppe's rule-1 dark plane rides on it); up close the
+/// cards fully dress it. Tall trees keep an empty hull — their crowns honestly show sky.
+fn occlusion_hull(species: TreeSpecies) -> GeometryMesh {
+    match species {
+        TreeSpecies::Bush => {
+            let (positions, indices) = icosphere(0);
+            let vertices = positions
+                .iter()
+                .map(|unit| {
+                    let scaled = Vec3::new(unit.x * 1.62, 0.82 + unit.y * 0.86, unit.z * 1.62);
+                    GeometryVertex::new(
+                        scaled,
+                        *unit,
+                        WorldMaterial::Canopy.carrier(),
+                        SmoothingGroup(1),
+                    )
+                })
+                .collect();
+            GeometryMesh::new(vertices, indices)
+        }
+        _ => GeometryMesh::new(Vec::new(), Vec::new()),
+    }
 }
 
 fn canopy_tip(tree: &BakedTree) -> f32 {
@@ -717,12 +834,13 @@ mod tests {
         assert!((ha - hb).abs() / ha.max(hb) < 0.3, "oaks stay oak-sized: {ha} vs {hb}");
     }
 
-    /// The painterly one-mass law on the LEGACY lobed species (the willow, until its wave
-    /// migrates it). The oak's cards carry the law's heir in their shade lane — locked in
+    /// The painterly one-mass law on the LAST legacy lobed species (the pine, until wave 3
+    /// migrates it and this test dies with the lobes). The migrated crowns carry the law's
+    /// heir in their card shade lane — locked in
     /// `leaves::tests::the_crown_core_shades_darker_than_the_rim`.
     #[test]
     fn canopy_normals_point_away_from_the_crown_centroid() {
-        let tree = bake_tree(TreeSpecies::Willow, 0);
+        let tree = bake_tree(TreeSpecies::Pine, 0);
         let centroid =
             tree.canopy.vertices().iter().map(|vertex| vertex.position).sum::<glam::Vec3>()
                 / tree.canopy.vertex_count().max(1) as f32;

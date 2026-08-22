@@ -46,10 +46,11 @@ pub(crate) fn mesh_bark(skeleton: &TreeSkeleton, lod: TreeLod) -> GeometryMesh {
         // schedule.
         let tolerance = SILHOUETTE_TOLERANCE_M * tolerance_scale * (1 << branch.level) as f32;
         // The law's MIN_SEGMENTS floor (8) is written for parts that must READ round; a
-        // 4 cm twig is one card-covered stick among two hundred alpha shapes, and eight
-        // sides on each would spend ~700 tris on wood nobody sees. Hand-typed 4, with this
-        // justification — the trunk and limbs stay under the honest law.
-        let sides = if branch.level >= 2 {
+        // finger-thin card-covered stick among hundreds of alpha shapes is not one of them,
+        // and eight sides on each would spend ~700 tris on wood nobody sees. Twigs (level 2+)
+        // and any branch under 6 cm (a bush's whole level 1) take a hand-typed 4, with this
+        // justification — boles and real limbs stay under the honest law.
+        let sides = if branch.level >= 2 || branch.base().radius_m < 0.06 {
             4
         } else {
             segments_for_radius(branch.base().radius_m, tolerance)

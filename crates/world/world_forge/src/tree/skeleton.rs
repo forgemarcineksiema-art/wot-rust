@@ -537,6 +537,41 @@ mod tests {
         }
     }
 
+    /// Wave 2 (PR8): the weep is a construction — every willow curtain ENDS below where it
+    /// began (the negative tropism arcs it over and down), and the crown's skirt reaches
+    /// wide of the bole.
+    #[test]
+    fn the_willow_curtains_fall_and_its_skirt_spreads() {
+        let willow = super::super::TreeSpecies::Willow.architecture().expect("wave 2");
+        for seed in 0..4 {
+            let skeleton = grow(&willow, seed);
+            let mut curtains = 0;
+            let mut falling = 0;
+            for branch in skeleton.branches_of_level(2) {
+                curtains += 1;
+                falling += u32::from(branch.tip().position.y < branch.base().position.y);
+            }
+            assert!(curtains >= 12, "seed {seed}: a willow hangs real curtains: {curtains}");
+            assert!(
+                falling * 10 >= curtains * 8,
+                "seed {seed}: the weep must fall: {falling}/{curtains} curtains descend"
+            );
+            let skirt = skeleton
+                .branches_of_level(1)
+                .map(|branch| {
+                    let tip = branch.tip().position;
+                    (tip.x * tip.x + tip.z * tip.z).sqrt()
+                })
+                .fold(0.0_f32, f32::max);
+            // A mature riverside willow spreads 10–16+ m across; the band admits that and
+            // still refuses a squat (under 5 m across) or a monster (over 17 m).
+            assert!(
+                (2.5..=8.5).contains(&skirt),
+                "seed {seed}: the skirt reaches wide of the bole: {skirt} m"
+            );
+        }
+    }
+
     /// The stability contract behind per-branch hashed seeds: pruning one limb's entropy draw
     /// cannot exist, because a sibling's seed never depends on how much its neighbours drew.
     #[test]
