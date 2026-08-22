@@ -5,11 +5,10 @@
 //! levels, counts in the table, budgets analytic) grown ONCE as pure data, which every LOD rung
 //! only filters — the SpeedTree ancestor, homegrown, procedural-only per map-forge policy #10.
 //!
-//! The lobed painterly crown below (FBM icospheres, normals bent from the crown centroid) is
-//! the LIVE bake while species migrate one wave at a time; its purpose — a canopy lit as one
-//! soft mass, never a triangle salad — transplants into the card shade lane and outlives the
-//! lobes themselves. Trunk and canopy come back as separate meshes so the consumer colors them
-//! without any material-enum churn.
+//! The lobed painterly crown is GONE (wave 3 closed the migration): its purpose — a canopy
+//! lit as one soft mass, never a triangle salad — lives on in the card shade lane, exactly as
+//! planned when the trick was invented. Bark, occlusion hull and the card deck come back as
+//! separate parts so the consumer colors them without any material-enum churn.
 
 mod bark;
 pub mod leaf_atlas;
@@ -20,7 +19,7 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
 
 use crate::WorldMaterial;
-use crate::shape::{Rng, icosphere, merge_meshes};
+use crate::shape::icosphere;
 
 /// The authored species. Numbers live in [`TreeSpecies::params`] — one table, review-gated by
 /// the goldens below.
@@ -286,114 +285,54 @@ impl TreeSpecies {
                 }],
                 envelope: ShapeEnvelope::Dome,
             }),
-            TreeSpecies::Pine => None,
+            // Wave 3 (PR9), the last migrant: the pine — a monopodial pole running the full
+            // height, dense near-horizontal branches all the way up the crown, and the Cone
+            // envelope shortening them toward the leader: the cone is the CONSTRUCTION, as it
+            // always was. Needle-frond cards ride the branches. The mature floor is 18 m.
+            TreeSpecies::Pine => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 20.0,
+                    radius_m: 0.47,
+                    taper: 0.20,
+                    flare: 1.3,
+                    stations: 8,
+                    lean: 0.04,
+                },
+                crown_begin_frac: 0.30,
+                levels: vec![BranchLevelParams {
+                    count: 26,
+                    count_variance: 4,
+                    along_range: (0.30, 0.98),
+                    length_ratio: 0.16,
+                    length_variance: 0.25,
+                    radius_ratio: 0.22,
+                    taper: 0.3,
+                    down_angle_rad: 1.35,
+                    down_angle_variance_rad: 0.15,
+                    curve_rad: 0.15,
+                    curve_variance_rad: 0.1,
+                    tropism: -0.04,
+                    // Six stations: a pine branch offers twice the frond anchors of a
+                    // broadleaf twig — the needle mass lives ON the branches, and a sparse
+                    // deck reads as a dead pole, not a conifer.
+                    stations: 6,
+                }],
+                envelope: ShapeEnvelope::Cone,
+            }),
         }
     }
 
+    /// The gameplay anatomy the fells and stumps are sized from — mirrors each species'
+    /// [`Self::architecture`] trunk. (The lobed era carried a 13-field visual table here;
+    /// the skeleton owns all of that now, and only the gameplay numbers remain.)
     fn params(self) -> SpeciesParams {
         match self {
-            // Broad, muscular: a tall trunk, heavy limbs, a wide 4-lobe crown. Scaled to a
-            // real mature oak (~17-18 m) — the whole species k=2.0 over its first draft, trunk
-            // radius by k^0.6 so a taller tree reads correctly SLENDER, not a fat stump.
-            TreeSpecies::Oak => SpeciesParams {
-                trunk_height: 9.2,
-                trunk_radius: 0.52,
-                taper: 0.55,
-                limbs: 4,
-                limb_length: 4.4,
-                limb_pitch: 0.9,
-                lobes: 4,
-                lobe_radius: 4.6,
-                crown_height: 11.8,
-                crown_spread: 3.4,
-                fbm_amplitude: 0.34,
-                crown_stack_height: 0.0,
-                crown_tip_frac: 1.0,
-            },
-            // A column: minimal limbs, stacked narrow lobes. A Lombardy poplar reaches ~22 m
-            // and stays slim — k=2.4 on height, the spread barely grows.
-            TreeSpecies::Poplar => SpeciesParams {
-                trunk_height: 15.6,
-                trunk_radius: 0.37,
-                taper: 0.45,
-                limbs: 2,
-                limb_length: 2.2,
-                limb_pitch: 1.25,
-                lobes: 3,
-                lobe_radius: 3.2,
-                crown_height: 17.8,
-                crown_spread: 1.1,
-                fbm_amplitude: 0.22,
-                crown_stack_height: 0.0,
-                crown_tip_frac: 1.0,
-            },
-            // Weeping: a short trunk, long drooping limbs, a low wide crown. ~15 m riverside
-            // willow — k=2.0, the wide skirt scales with it.
-            TreeSpecies::Willow => SpeciesParams {
-                trunk_height: 6.4,
-                trunk_radius: 0.46,
-                taper: 0.6,
-                limbs: 5,
-                limb_length: 5.2,
-                limb_pitch: 0.35,
-                lobes: 3,
-                lobe_radius: 5.0,
-                crown_height: 8.2,
-                crown_spread: 3.8,
-                fbm_amplitude: 0.42,
-                crown_stack_height: 0.0,
-                crown_tip_frac: 1.0,
-            },
-            // Orchard scale: short and round.
-            TreeSpecies::FruitTree => SpeciesParams {
-                trunk_height: 2.2,
-                trunk_radius: 0.18,
-                taper: 0.55,
-                limbs: 3,
-                limb_length: 1.2,
-                limb_pitch: 0.8,
-                lobes: 2,
-                lobe_radius: 1.5,
-                crown_height: 3.1,
-                crown_spread: 0.8,
-                fbm_amplitude: 0.30,
-                crown_stack_height: 0.0,
-                crown_tip_frac: 1.0,
-            },
-            // No trunk to speak of: the honest concealment bush stays a soft blob cluster.
-            TreeSpecies::Bush => SpeciesParams {
-                trunk_height: 0.5,
-                trunk_radius: 0.10,
-                taper: 0.7,
-                limbs: 0,
-                limb_length: 0.0,
-                limb_pitch: 0.0,
-                lobes: 3,
-                lobe_radius: 1.1,
-                crown_height: 1.1,
-                crown_spread: 0.9,
-                fbm_amplitude: 0.38,
-                crown_stack_height: 0.0,
-                crown_tip_frac: 1.0,
-            },
-            // The conifer: a bare lower trunk, then lobes STACKED up the axis with radii
-            // tapering toward a tip — a cone by construction, not by scatter luck. A mature
-            // pine is ~20-22 m; k=2.7, and the cone stays narrow (spread barely moves).
-            TreeSpecies::Pine => SpeciesParams {
-                trunk_height: 19.4,
-                trunk_radius: 0.47,
-                taper: 0.4,
-                limbs: 0,
-                limb_length: 0.0,
-                limb_pitch: 0.0,
-                lobes: 6,
-                lobe_radius: 4.0,
-                crown_height: 6.5,
-                crown_spread: 0.3,
-                fbm_amplitude: 0.22,
-                crown_stack_height: 12.4,
-                crown_tip_frac: 0.32,
-            },
+            TreeSpecies::Oak => SpeciesParams { trunk_height: 9.2, trunk_radius: 0.52 },
+            TreeSpecies::Poplar => SpeciesParams { trunk_height: 19.6, trunk_radius: 0.37 },
+            TreeSpecies::Willow => SpeciesParams { trunk_height: 10.4, trunk_radius: 0.46 },
+            TreeSpecies::FruitTree => SpeciesParams { trunk_height: 2.1, trunk_radius: 0.18 },
+            TreeSpecies::Bush => SpeciesParams { trunk_height: 0.45, trunk_radius: 0.10 },
+            TreeSpecies::Pine => SpeciesParams { trunk_height: 20.0, trunk_radius: 0.47 },
         }
     }
 }
@@ -401,28 +340,11 @@ impl TreeSpecies {
 struct SpeciesParams {
     trunk_height: f32,
     trunk_radius: f32,
-    /// Top radius as a fraction of the base radius.
-    taper: f32,
-    limbs: u32,
-    limb_length: f32,
-    /// Radians above horizontal the limbs reach.
-    limb_pitch: f32,
-    lobes: u32,
-    lobe_radius: f32,
-    crown_height: f32,
-    /// How far lobe centers scatter from the crown axis.
-    crown_spread: f32,
-    fbm_amplitude: f32,
-    /// When positive, the crown becomes a STACK: lobes climb this span up the axis from
-    /// `crown_height` instead of scattering around it — the conifer silhouette.
-    crown_stack_height: f32,
-    /// Stacked crowns only: the top lobe's radius as a fraction of `lobe_radius`.
-    crown_tip_frac: f32,
 }
 
-/// A baked tree: trunk (bark) and canopy meshes, plus the card canopy (Drzewa 3.0) — a
-/// migrated species carries its crown as [`leaves::LeafCard`] data and an EMPTY canopy mesh;
-/// a legacy species carries lobes and an empty card list. The consumer colors each.
+/// A baked tree: bark, the interior occlusion hull (where the species keeps one), and the
+/// card canopy — every species rides the skeleton now (Drzewa 3.0, complete with wave 3).
+/// The consumer colors each part.
 #[derive(Debug, Clone)]
 pub struct BakedTree {
     pub species: TreeSpecies,
@@ -519,7 +441,10 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
     // its middle, and the steppe's rule-1 dark plane rides on that.
     (TreeSpecies::Bush, 0x7c52_62a8_5061_b527),
-    (TreeSpecies::Pine, 0x3b7d_1202_48cc_dc4d),
+    // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
+    // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
+    // fronds on cards. The lobes died with this bless.
+    (TreeSpecies::Pine, 0x9ff1_aeab_8506_2f84),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —
@@ -535,136 +460,20 @@ pub enum TreeLod {
 }
 
 pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree {
-    // The migrated path (Drzewa 3.0): the skeleton grows ONCE, the rung meshes its bark and
-    // deals its card deck — no lobes, no entropy burn (every branch and card draws from
-    // hashed seeds, so Close/Mid share identity by construction). The lobed body below is
-    // the legacy path, scaffolding that dies with the last species wave.
-    if let Some(architecture) = species.architecture() {
-        let skeleton = skeleton::grow(&architecture, seed);
-        return BakedTree {
-            species,
-            trunk: bark::mesh_bark(&skeleton, lod),
-            canopy: occlusion_hull(species),
-            leaves: leaves::grow_cards(&skeleton, species, seed, lod),
-        };
-    }
-
-    let params = species.params();
-    let mut rng = Rng(seed ^ 0x7EE5_0000 ^ species as u64);
-    let (trunk_sides, lobe_subdiv) = match lod {
-        TreeLod::Close => (7, 1),
-        TreeLod::Mid => (5, 0),
-    };
-
-    let trunk = {
-        // Legacy lobed-era bark: a tapered tube with a slight deterministic lean.
-        let lean = Vec3::new(rng.signed() * 0.10, 0.0, rng.signed() * 0.10);
-        let mut trunk = tapered_tube(
-            Vec3::ZERO,
-            Vec3::new(
-                lean.x * params.trunk_height,
-                params.trunk_height,
-                lean.z * params.trunk_height,
-            ),
-            params.trunk_radius,
-            params.trunk_radius * params.taper,
-            trunk_sides,
-        );
-        // Limbs: level-one branches reaching from the upper trunk toward the crown.
-        // Mid burns the same RNG draws Close spends on limbs so the crown identity — and the
-        // canopy tip — stay shared across LOD rungs. Without the burn, Mid's first lobe would
-        // consume a limb's entropy and the tree would silently shrink as the camera backed off.
-        for limb in 0..params.limbs {
-            let heading = rng.unit() * std::f32::consts::TAU
-                + limb as f32 / params.limbs.max(1) as f32 * std::f32::consts::TAU;
-            let pitch = params.limb_pitch + rng.signed() * 0.15;
-            let start = Vec3::new(0.0, params.trunk_height * (0.55 + rng.unit() * 0.25), 0.0);
-            let direction =
-                Vec3::new(heading.cos() * pitch.cos(), pitch.sin(), heading.sin() * pitch.cos());
-            let end = start + direction * (params.limb_length * (0.8 + rng.unit() * 0.4));
-            if lod == TreeLod::Close {
-                let limb_mesh = tapered_tube(
-                    start,
-                    end,
-                    params.trunk_radius * 0.42,
-                    params.trunk_radius * 0.16,
-                    5,
-                );
-                trunk = merge_meshes(trunk, limb_mesh);
-            }
-        }
-        trunk
-    };
-
-    // Crown: FBM-displaced icosphere lobes; normals bent from the CROWN centroid afterwards.
-    let mut canopy_vertices: Vec<GeometryVertex> = Vec::new();
-    let mut canopy_indices: Vec<u32> = Vec::new();
-    let mut lobe_centers = Vec::new();
-    for lobe in 0..params.lobes {
-        let (center, radius) = if params.crown_stack_height > 0.0 {
-            // Stacked (conifer) crown: lobe `t` of the way up the stack, radius tapering to
-            // the tip fraction — the cone is the construction, the FBM only roughs its skirt.
-            let t = lobe as f32 / (params.lobes - 1).max(1) as f32;
-            let center = Vec3::new(
-                rng.signed() * params.crown_spread,
-                params.crown_height + t * params.crown_stack_height,
-                rng.signed() * params.crown_spread,
-            );
-            let taper = 1.0 - (1.0 - params.crown_tip_frac) * t;
-            (center, params.lobe_radius * taper * (0.85 + rng.unit() * 0.3))
-        } else {
-            let angle = lobe as f32 / params.lobes as f32 * std::f32::consts::TAU + rng.unit();
-            let scatter = if params.lobes == 1 { 0.0 } else { params.crown_spread };
-            let center = Vec3::new(
-                angle.cos() * scatter * (0.6 + rng.unit() * 0.4),
-                params.crown_height + rng.signed() * 0.35 * params.lobe_radius,
-                angle.sin() * scatter * (0.6 + rng.unit() * 0.4),
-            );
-            (center, params.lobe_radius * (0.75 + rng.unit() * 0.4))
-        };
-        lobe_centers.push(center);
-        let phase = rng.next() as u32 as f32 * 1.0e-6;
-        let base = canopy_vertices.len() as u32;
-        let (positions, indices) = icosphere(lobe_subdiv);
-        for unit in &positions {
-            let wobble = 1.0
-                + params.fbm_amplitude
-                    * (0.6 * (unit.x * 3.1 + unit.y * 5.3 + phase).sin()
-                        + 0.4 * (unit.z * 7.7 - unit.y * 2.9 + phase * 1.7).sin());
-            canopy_vertices.push(GeometryVertex::new(
-                center + *unit * radius * wobble,
-                *unit,
-                WorldMaterial::Canopy.carrier(),
-                SmoothingGroup(1),
-            ));
-        }
-        canopy_indices.extend(indices.iter().map(|index| index + base));
-    }
-    // The painterly trick: light the canopy as ONE mass — every normal points away from the
-    // crown centroid, so lobes shade like a single soft volume, not intersecting balls.
-    let centroid = lobe_centers.iter().copied().sum::<Vec3>() / lobe_centers.len().max(1) as f32;
-    for vertex in &mut canopy_vertices {
-        vertex.normal = (vertex.position - centroid).normalize_or_zero();
-    }
-
-    let mut tree = BakedTree {
+    // ONE path (Drzewa 3.0, complete): the skeleton grows ONCE, the rung meshes its bark and
+    // deals its card deck. No entropy burn, no Mid tip-lift — every branch and card draws
+    // from hashed seeds off one skeleton, so the rungs share identity by construction. The
+    // lobed generator, its 13-field visual table, `tapered_tube` and the burn discipline all
+    // died with wave 3 (PR9), exactly as scheduled.
+    let architecture =
+        species.architecture().expect("every species migrated to the skeleton in wave 3");
+    let skeleton = skeleton::grow(&architecture, seed);
+    BakedTree {
         species,
-        trunk,
-        canopy: GeometryMesh::new(canopy_vertices, canopy_indices),
-        leaves: Vec::new(),
-    };
-    // LOD must not shrink the silhouette (Świat 2.0 PR1): Mid's coarser lobes undershoot the
-    // FBM peaks Close reaches. Lift Mid onto Close's tip so a rung swap moves triangles, never
-    // metres. Close is baked once here as the reference — Mid is the shipping far rung, so
-    // paying Close's cost at Mid bake time is the price of an honest ladder.
-    if lod == TreeLod::Mid {
-        let close_tip = canopy_tip(&bake_tree_lod(species, seed, TreeLod::Close));
-        let mid_tip = canopy_tip(&tree);
-        if mid_tip > 0.01 && close_tip > mid_tip * 1.002 {
-            tree = scale_tree_y(tree, close_tip / mid_tip);
-        }
+        trunk: bark::mesh_bark(&skeleton, lod),
+        canopy: occlusion_hull(species),
+        leaves: leaves::grow_cards(&skeleton, species, seed, lod),
     }
-    tree
 }
 
 /// The interior occlusion hull of a migrated species — the SpeedTree move for optically
@@ -692,70 +501,6 @@ fn occlusion_hull(species: TreeSpecies) -> GeometryMesh {
         }
         _ => GeometryMesh::new(Vec::new(), Vec::new()),
     }
-}
-
-fn canopy_tip(tree: &BakedTree) -> f32 {
-    tree.canopy.bounds().map(|bounds| bounds.max.y).unwrap_or(0.0)
-}
-
-/// Uniform Y scale around the ground plane — keeps the butt planted and lifts the tip.
-fn scale_tree_y(tree: BakedTree, scale: f32) -> BakedTree {
-    let scale_mesh = |mesh: GeometryMesh| {
-        let vertices: Vec<GeometryVertex> = mesh
-            .vertices()
-            .iter()
-            .map(|vertex| {
-                let mut scaled = *vertex;
-                scaled.position.y *= scale;
-                scaled
-            })
-            .collect();
-        GeometryMesh::new(vertices, mesh.indices().to_vec())
-    };
-    // Legacy-only: the migrated path never lifts (its rungs share one skeleton), so the empty
-    // card deck passes through untouched.
-    BakedTree {
-        species: tree.species,
-        trunk: scale_mesh(tree.trunk),
-        canopy: scale_mesh(tree.canopy),
-        leaves: tree.leaves,
-    }
-}
-
-/// A tapered open tube from `a` to `b` (no caps: the base sits in the ground, the tip inside
-/// the canopy). Flat side facets — bark reads hard-edged at battle range.
-fn tapered_tube(a: Vec3, b: Vec3, radius_a: f32, radius_b: f32, sides: u32) -> GeometryMesh {
-    let axis = (b - a).normalize_or_zero();
-    let reference = if axis.y.abs() > 0.9 { Vec3::X } else { Vec3::Y };
-    let u = axis.cross(reference).normalize_or_zero();
-    let v = axis.cross(u);
-    let mut vertices = Vec::new();
-    let mut indices = Vec::new();
-    for side in 0..sides {
-        let a0 = side as f32 / sides as f32 * std::f32::consts::TAU;
-        let a1 = (side + 1) as f32 / sides as f32 * std::f32::consts::TAU;
-        let mid = (a0 + a1) * 0.5;
-        let normal = u * mid.cos() + v * mid.sin();
-        let ring = |angle: f32, radius: f32, origin: Vec3| {
-            origin + (u * angle.cos() + v * angle.sin()) * radius
-        };
-        let base = vertices.len() as u32;
-        for corner in [
-            ring(a0, radius_a, a),
-            ring(a1, radius_a, a),
-            ring(a1, radius_b, b),
-            ring(a0, radius_b, b),
-        ] {
-            vertices.push(GeometryVertex::new(
-                corner,
-                normal,
-                WorldMaterial::Bark.carrier(),
-                SmoothingGroup::hard_edges(),
-            ));
-        }
-        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
-    }
-    GeometryMesh::new(vertices, indices)
 }
 
 #[cfg(test)]
@@ -834,28 +579,31 @@ mod tests {
         assert!((ha - hb).abs() / ha.max(hb) < 0.3, "oaks stay oak-sized: {ha} vs {hb}");
     }
 
-    /// The painterly one-mass law on the LAST legacy lobed species (the pine, until wave 3
-    /// migrates it and this test dies with the lobes). The migrated crowns carry the law's
-    /// heir in their card shade lane — locked in
-    /// `leaves::tests::the_crown_core_shades_darker_than_the_rim`.
+    // `canopy_normals_point_away_from_the_crown_centroid` died here with the lobes (wave 3):
+    // the painterly one-mass law it locked lives on in the card shade lane, and its heir is
+    // `leaves::tests::the_crown_core_shades_darker_than_the_rim`.
+
+    /// Wave 3: the pine's cone is a construction — branch reach shrinks with height above
+    /// the crown base, so the silhouette tapers to the leader by table, not luck.
     #[test]
-    fn canopy_normals_point_away_from_the_crown_centroid() {
-        let tree = bake_tree(TreeSpecies::Pine, 0);
-        let centroid =
-            tree.canopy.vertices().iter().map(|vertex| vertex.position).sum::<glam::Vec3>()
-                / tree.canopy.vertex_count().max(1) as f32;
-        let aligned = tree
-            .canopy
-            .vertices()
-            .iter()
-            .filter(|vertex| {
-                (vertex.position - centroid).normalize_or_zero().dot(vertex.normal) > 0.5
-            })
-            .count();
-        assert!(
-            aligned * 10 >= tree.canopy.vertex_count() * 9,
-            "the painterly one-mass normal trick must hold: {aligned}/{}",
-            tree.canopy.vertex_count()
-        );
+    fn the_pine_cone_tapers_toward_its_leader() {
+        for seed in 0..4 {
+            let skeleton = skeleton::grow(&TreeSpecies::Pine.architecture().expect("wave 3"), seed);
+            let mut branches: Vec<(f32, f32)> = skeleton
+                .branches_of_level(1)
+                .map(|branch| (branch.base().position.y, branch.length_m()))
+                .collect();
+            branches.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let third = branches.len() / 3;
+            let lower: f32 =
+                branches[..third].iter().map(|(_, len)| len).sum::<f32>() / third as f32;
+            let upper: f32 =
+                branches[branches.len() - third..].iter().map(|(_, len)| len).sum::<f32>()
+                    / third as f32;
+            assert!(
+                lower > upper * 1.6,
+                "seed {seed}: the cone must taper: lower {lower:.2} vs upper {upper:.2}"
+            );
+        }
     }
 }
