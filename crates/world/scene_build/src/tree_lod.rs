@@ -53,7 +53,7 @@ const TRUNK_SINK_M: f32 = 0.35;
 /// matrix (yaw/scale), and the canopy's deterministic limb/lobe phases come from the species
 /// bake; the ladder ships one representative individual per rung so every copy on the map
 /// shares the silhouette the species table promises.
-const RUNG_SEED: u64 = 0xDAB_0001;
+pub(crate) const RUNG_SEED: u64 = 0xDAB_0001;
 
 /// The rendered canopy tip of one instanced battle tree, metres above the instance's map
 /// position: the rung mesh's tip at the instance scale, minus the trunk sink. The number a
@@ -112,6 +112,9 @@ pub fn select_lod(distance_m: f32, previous: Option<TreeLod>) -> TreeLod {
 /// statics bake uses (`foliage::push_baked_tree` — painterly crown shading, bark surface lane
 /// on the trunk), so the instanced path and the baked path agree while both exist.
 pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
+    if lod == TreeLod::Impostor {
+        return impostor_mesh_asset();
+    }
     let bake_lod = match lod {
         TreeLod::Near => BakeLod::Close,
         TreeLod::Mid | TreeLod::Impostor => BakeLod::Mid,
@@ -171,6 +174,60 @@ pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
         |direction| direction,
         |local| if windy { sway_allowance(local.to_array(), height, true) } else { 0.0 },
     );
+    MeshAsset::new(vertices, indices)
+}
+
+/// The TRUE impostor (Drzewa 3.0 PR10): two crossed vertical quads sampling the pre-splatted
+/// sprite strip in the foliage atlas — 8 triangles where the fake used to resubmit Mid's
+/// whole bake. The sprite stores albedo·shade (no baked sun) and the quads ride the FOLIAGE
+/// role, so a 150 m oak is lit live by the same model as its cards; the quad extents come
+/// from the SAME window constants the splat used, so silhouette agreement is shared math,
+/// not tuning. Vertex color stays white — the sprite already carries the tree's own tones.
+fn impostor_mesh_asset() -> MeshAsset {
+    let window = crate::foliage_atlas_paint::battle_tree_impostor_window();
+    let (_, gloss) = crate::foliage::canopy_color_for_species(BATTLE_TREE);
+    let mut vertices: Vec<renderer_api::SceneVertex> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    for which in 0..2u32 {
+        let (right, facing) = if which == 0 { (Vec3::X, Vec3::Z) } else { (Vec3::Z, -Vec3::X) };
+        let rect = world_forge::tree::leaf_atlas::impostor_rect(which);
+        let corners = [
+            (right * -window.half_width_m + Vec3::Y * window.bottom_m, [rect[0], rect[3]]),
+            (right * window.half_width_m + Vec3::Y * window.bottom_m, [rect[2], rect[3]]),
+            (right * window.half_width_m + Vec3::Y * window.top_m, [rect[2], rect[1]]),
+            (right * -window.half_width_m + Vec3::Y * window.top_m, [rect[0], rect[1]]),
+        ];
+        let start = vertices.len() as u32;
+        for face_normal in [facing, -facing] {
+            for (position, uv) in corners {
+                vertices.push(
+                    renderer_api::SceneVertex::surfaced(
+                        position.to_array(),
+                        face_normal.to_array(),
+                        [1.0, 1.0, 1.0],
+                        gloss,
+                    )
+                    .with_surface(renderer_api::surface_role::FOLIAGE)
+                    .with_uv(uv)
+                    .with_sway(0.0),
+                );
+            }
+        }
+        indices.extend_from_slice(&[
+            start,
+            start + 1,
+            start + 2,
+            start,
+            start + 2,
+            start + 3,
+            start + 4,
+            start + 6,
+            start + 5,
+            start + 4,
+            start + 7,
+            start + 6,
+        ]);
+    }
     MeshAsset::new(vertices, indices)
 }
 
@@ -349,6 +406,13 @@ mod tests {
             (near_tip - mid_tip).abs() < 0.05,
             "Near tip {near_tip} vs Mid tip {mid_tip} — a swap must not resize the oak"
         );
+        // PR10: the crossed-quad impostor joins the invariant — its top edge is the shared
+        // window constant, which is the baked tip by construction.
+        let impostor_tip = tip(&tree_mesh_asset(TreeLod::Impostor));
+        assert!(
+            (near_tip - impostor_tip).abs() < 0.05,
+            "Near tip {near_tip} vs impostor top {impostor_tip}"
+        );
         assert!(near_tip > 15.0, "the battlefield oak stays mature: {near_tip}");
     }
 
@@ -429,7 +493,10 @@ mod tests {
         let mid = cards(TreeLod::Mid);
         assert!((120..=260).contains(&near), "Near deck: {near} cards");
         assert!((40..=90).contains(&mid), "Mid deck: {mid} cards");
-        assert_eq!(cards(TreeLod::Impostor), mid, "the impostor shares Mid's bake until PR10");
+        // The TRUE impostor (PR10): exactly two crossed sprite quads, nothing else.
+        assert_eq!(cards(TreeLod::Impostor), 2, "the impostor is two crossed quads");
+        let impostor_tris = tree_mesh_asset(TreeLod::Impostor).index_count() / 3;
+        assert!(impostor_tris <= 16, "the impostor stays trivial: {impostor_tris} tris");
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of

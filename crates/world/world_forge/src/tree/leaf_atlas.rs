@@ -1,7 +1,8 @@
 //! The procedural leaf atlas (Drzewa 3.0 PR5): every mask a leaf card will ever cut is BAKED
 //! here on the CPU, deterministically, from 2-D SDF composition — no imported texture may
 //! exist under map-forge policy #10, and none is needed. One page of color·alpha and one page
-//! of tangent-space dome normals, 512², a 4×4 grid of 128 px slots.
+//! of tangent-space dome normals, 1024×512: a 4×4 grid of 128 px leaf slots on the left, the
+//! battlefield-tree impostor strip on the right (splatted by the paint side, PR10).
 //!
 //! Slot 0 is LOAD-BEARING WHITE: every procedural vertex in the world carries uv (0,0), and
 //! the moment this atlas replaces the renderer's 1×1 white no-op texel, texel (0,0) must stay
@@ -17,20 +18,44 @@ use glam::Vec2;
 use super::TreeSpecies;
 use crate::shape::Rng;
 
-/// Atlas page edge, texels.
-pub const ATLAS_SIZE: u32 = 512;
-/// Slots per page edge.
+/// Atlas page width, texels: the leaf-slot grid fills the LEFT 512, the impostor strip the
+/// RIGHT 512 (Drzewa 3.0 PR10 — one binding serves both).
+pub const ATLAS_WIDTH: u32 = 1_024;
+/// Atlas page height, texels.
+pub const ATLAS_HEIGHT: u32 = 512;
+/// Slots per grid edge (the left half).
 pub const ATLAS_GRID: u32 = 4;
 /// One slot's edge, texels.
-pub const SLOT_SIZE: u32 = ATLAS_SIZE / ATLAS_GRID;
+pub const SLOT_SIZE: u32 = ATLAS_HEIGHT / ATLAS_GRID;
 /// UV inset from a slot's edge so bilinear + aniso-8 sampling never reads the neighbour.
 const SLOT_MARGIN_PX: f32 = 6.0;
+
+/// One impostor sprite's region, texels: two azimuths side by side in the right strip.
+pub const IMPOSTOR_SPRITE_W: u32 = 256;
+pub const IMPOSTOR_SPRITE_H: u32 = 512;
+
+/// Where azimuth `which` (0 or 1 — 0° and 90°) of the battlefield-tree impostor lives, as
+/// texel origin. The paint side splats the sprite here; the crossed quads sample it.
+pub fn impostor_origin(which: u32) -> (u32, u32) {
+    (ATLAS_HEIGHT + which.min(1) * IMPOSTOR_SPRITE_W, 0)
+}
+
+/// The impostor sampling rectangle as `[u0, v0, u1, v1]`, inset by the bleed margin.
+pub fn impostor_rect(which: u32) -> [f32; 4] {
+    let (x, y) = impostor_origin(which);
+    [
+        (x as f32 + SLOT_MARGIN_PX) / ATLAS_WIDTH as f32,
+        (y as f32 + SLOT_MARGIN_PX) / ATLAS_HEIGHT as f32,
+        ((x + IMPOSTOR_SPRITE_W) as f32 - SLOT_MARGIN_PX) / ATLAS_WIDTH as f32,
+        ((y + IMPOSTOR_SPRITE_H) as f32 - SLOT_MARGIN_PX) / ATLAS_HEIGHT as f32,
+    ]
+}
 
 /// The reserved no-op slot: opaque white, the whole world's uv (0,0).
 pub const SLOT_WHITE: u8 = 0;
 
 /// The review gate for the atlas bytes (bless deliberately; covers BOTH pages).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0xdde8_8e53_2332_9199;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0x8350_1d6a_56be_9999;
 
 /// The two authored mask variants a species owns (cards mix them per anchor).
 pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
@@ -48,12 +73,12 @@ pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
 pub fn atlas_rect(slot: u8) -> [f32; 4] {
     let x = (slot as u32 % ATLAS_GRID) * SLOT_SIZE;
     let y = (slot as u32 / ATLAS_GRID) * SLOT_SIZE;
-    let size = ATLAS_SIZE as f32;
+    let (width, height) = (ATLAS_WIDTH as f32, ATLAS_HEIGHT as f32);
     [
-        (x as f32 + SLOT_MARGIN_PX) / size,
-        (y as f32 + SLOT_MARGIN_PX) / size,
-        ((x + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / size,
-        ((y + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / size,
+        (x as f32 + SLOT_MARGIN_PX) / width,
+        (y as f32 + SLOT_MARGIN_PX) / height,
+        ((x + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / width,
+        ((y + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / height,
     ]
 }
 
@@ -61,7 +86,8 @@ pub fn atlas_rect(slot: u8) -> [f32; 4] {
 /// is the tangent-space dome page (flat texels encode (128, 128, 255)).
 #[derive(Debug, Clone)]
 pub struct LeafAtlasImage {
-    pub size: u32,
+    pub width: u32,
+    pub height: u32,
     pub rgba: Vec<u8>,
     pub normal: Vec<u8>,
 }
@@ -79,7 +105,7 @@ impl LeafAtlasImage {
 /// Bake the whole atlas. No inputs: the atlas is a single shared asset, one per build, and
 /// its identity is the golden hash above.
 pub fn bake_leaf_atlas() -> LeafAtlasImage {
-    let texels = (ATLAS_SIZE * ATLAS_SIZE) as usize;
+    let texels = (ATLAS_WIDTH * ATLAS_HEIGHT) as usize;
     let mut rgba = vec![0u8; texels * 4];
     let mut normal = Vec::with_capacity(texels * 4);
     for _ in 0..texels {
@@ -92,7 +118,7 @@ pub fn bake_leaf_atlas() -> LeafAtlasImage {
             paint_cluster(&mut rgba, &mut normal, slot, species, variant as u64);
         }
     }
-    LeafAtlasImage { size: ATLAS_SIZE, rgba, normal }
+    LeafAtlasImage { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, rgba, normal }
 }
 
 fn slot_origin(slot: u8) -> (u32, u32) {
@@ -103,7 +129,7 @@ fn paint_solid_white(rgba: &mut [u8], slot: u8) {
     let (x0, y0) = slot_origin(slot);
     for y in y0..y0 + SLOT_SIZE {
         for x in x0..x0 + SLOT_SIZE {
-            let i = ((y * ATLAS_SIZE + x) * 4) as usize;
+            let i = ((y * ATLAS_WIDTH + x) * 4) as usize;
             rgba[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
         }
     }
@@ -311,7 +337,7 @@ fn paint_cluster(rgba: &mut [u8], normal: &mut [u8], slot: u8, species: TreeSpec
             };
             let color = leaf_color(t, vein, jitter);
             let alpha = (coverage * 255.0) as u8;
-            let i = (((y0 + py) * ATLAS_SIZE + (x0 + px)) * 4) as usize;
+            let i = (((y0 + py) * ATLAS_WIDTH + (x0 + px)) * 4) as usize;
             // Painter's order: a later (nearer) stamp simply overwrites — clusters read as
             // one pressed spray, exactly like the pressed-leaf reference they imitate.
             if alpha >= rgba[i + 3] {
@@ -362,7 +388,7 @@ mod tests {
         let mut covered = 0u32;
         for y in y0..y0 + SLOT_SIZE {
             for x in x0..x0 + SLOT_SIZE {
-                let a = image.rgba[((y * ATLAS_SIZE + x) * 4 + 3) as usize];
+                let a = image.rgba[((y * ATLAS_WIDTH + x) * 4 + 3) as usize];
                 covered += u32::from(a >= 128);
             }
         }
@@ -391,7 +417,7 @@ mod tests {
         let (x0, y0) = slot_origin(SLOT_WHITE);
         for y in y0..y0 + SLOT_SIZE {
             for x in x0..x0 + SLOT_SIZE {
-                let i = ((y * ATLAS_SIZE + x) * 4) as usize;
+                let i = ((y * ATLAS_WIDTH + x) * 4) as usize;
                 assert_eq!(
                     &image.rgba[i..i + 4],
                     &[255, 255, 255, 255],
@@ -427,7 +453,7 @@ mod tests {
                 let (x0, y0) = slot_origin(slot);
                 for y in y0..y0 + SLOT_SIZE {
                     for x in x0..x0 + SLOT_SIZE {
-                        let a = image.rgba[((y * ATLAS_SIZE + x) * 4 + 3) as usize];
+                        let a = image.rgba[((y * ATLAS_WIDTH + x) * 4 + 3) as usize];
                         total += 1;
                         crisp += u32::from(!(64..=192).contains(&a));
                     }
@@ -448,7 +474,7 @@ mod tests {
             let mut bits = Vec::with_capacity((SLOT_SIZE * SLOT_SIZE) as usize);
             for y in y0..y0 + SLOT_SIZE {
                 for x in x0..x0 + SLOT_SIZE {
-                    bits.push(image.rgba[((y * ATLAS_SIZE + x) * 4 + 3) as usize] >= 128);
+                    bits.push(image.rgba[((y * ATLAS_WIDTH + x) * 4 + 3) as usize] >= 128);
                 }
             }
             bits
@@ -493,7 +519,7 @@ mod tests {
                         (x0, y0 + edge),
                         (x0 + SLOT_SIZE - 1, y0 + edge),
                     ] {
-                        let a = image.rgba[((y * ATLAS_SIZE + x) * 4 + 3) as usize];
+                        let a = image.rgba[((y * ATLAS_WIDTH + x) * 4 + 3) as usize];
                         assert_eq!(a, 0, "slot {slot} painted into its bleed margin at ({x}, {y})");
                     }
                 }
@@ -512,10 +538,10 @@ mod tests {
             .filter(|texel| texel[0] == 128 && texel[1] == 128 && texel[2] == 255)
             .count();
         assert!(
-            flat * 100 >= (ATLAS_SIZE * ATLAS_SIZE) as usize * 50,
+            flat * 100 >= (ATLAS_WIDTH * ATLAS_HEIGHT) as usize * 50,
             "most of the page is flat (unpainted): {flat}"
         );
-        assert!(flat < (ATLAS_SIZE * ATLAS_SIZE) as usize, "painted texels carry dome normals");
+        assert!(flat < (ATLAS_WIDTH * ATLAS_HEIGHT) as usize, "painted texels carry dome normals");
         for slot in 0..(ATLAS_GRID * ATLAS_GRID) as u8 {
             let [u0, v0, u1, v1] = atlas_rect(slot);
             assert!(u0 < u1 && v0 < v1);
