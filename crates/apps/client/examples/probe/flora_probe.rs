@@ -29,15 +29,18 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     battlefield.scenery = vec![
         // Front row: the battlefield oak (instanced LOD) — the tree that carries a trunk box.
-        plant(SceneryKind::Oak, 490.0, 492.0),
+        plant(SceneryKind::Oak, 486.0, 490.0),
         // The retired imported kinds: they draw nothing, on purpose.
-        plant(SceneryKind::FloraTree, 500.0, 492.0),
-        plant(SceneryKind::FloraPine, 510.0, 492.0),
-        // Back row: the statics-bake species.
-        plant(SceneryKind::Poplar, 486.0, 512.0),
-        plant(SceneryKind::Pine, 496.0, 512.0),
-        plant(SceneryKind::Bush, 506.0, 512.0),
-        plant(SceneryKind::Willow, 516.0, 512.0),
+        plant(SceneryKind::FloraTree, 498.0, 490.0),
+        plant(SceneryKind::FloraPine, 508.0, 490.0),
+        // Back row: EVERY statics-bake species, spread wide enough that none hides behind
+        // the front row — the lineup is the accept/reject frame, and a species it cannot
+        // show is a species nobody reviewed (the fruit tree was missing entirely).
+        plant(SceneryKind::Poplar, 464.0, 516.0),
+        plant(SceneryKind::Pine, 476.0, 516.0),
+        plant(SceneryKind::Willow, 492.0, 516.0),
+        plant(SceneryKind::FruitTree, 505.0, 512.0),
+        plant(SceneryKind::Bush, 515.0, 510.0),
     ];
 
     let ((ground_v, ground_i), (statics_v, statics_i)) =
@@ -57,8 +60,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 
-    let eye = [498.0, ground(498.0, 452.0) + 4.0, 452.0];
-    let look = [499.0, ground(499.0, 500.0) + 9.0, 500.0];
+    // High enough that the mid-field rise cannot hide the short species (fruit, bush).
+    let eye = [498.0, ground(498.0, 452.0) + 8.0, 452.0];
+    let look = [499.0, ground(499.0, 500.0) + 7.0, 500.0];
     renderer.shadow_focus = Some(look);
     // The battlefield oak draws from the instanced LOD ladder, not the statics bake — the
     // look gate submits it the way the battle frame does, at the rung this camera distance
