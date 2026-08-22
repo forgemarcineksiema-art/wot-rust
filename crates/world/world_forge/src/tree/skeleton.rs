@@ -369,53 +369,11 @@ fn offer_anchors(architecture: &TreeArchitecture, branches: &[Branch]) -> Vec<Le
 mod tests {
     use super::*;
 
-    /// The draft oak table PR4 will wire into the bake: a working fixture for every structural
-    /// lock below, and the first entry of the future species tables.
+    /// The oak's REAL growth program (`TreeSpecies::Oak.architecture()`) — the locks below run
+    /// against the same table the bake consumes, so a species tweak re-answers to them
+    /// immediately instead of to a drifting test copy.
     fn draft_oak() -> TreeArchitecture {
-        TreeArchitecture {
-            trunk: TrunkParams {
-                height_m: 9.2,
-                radius_m: 0.52,
-                taper: 0.55,
-                flare: 1.35,
-                stations: 7,
-                lean: 0.10,
-            },
-            crown_begin_frac: 0.5,
-            levels: vec![
-                BranchLevelParams {
-                    count: 5,
-                    count_variance: 1,
-                    along_range: (0.55, 0.95),
-                    length_ratio: 0.62,
-                    length_variance: 0.18,
-                    radius_ratio: 0.38,
-                    taper: 0.35,
-                    down_angle_rad: 0.85,
-                    down_angle_variance_rad: 0.18,
-                    curve_rad: 0.5,
-                    curve_variance_rad: 0.2,
-                    tropism: 0.04,
-                    stations: 5,
-                },
-                BranchLevelParams {
-                    count: 7,
-                    count_variance: 2,
-                    along_range: (0.3, 0.95),
-                    length_ratio: 0.45,
-                    length_variance: 0.25,
-                    radius_ratio: 0.42,
-                    taper: 0.3,
-                    down_angle_rad: 0.75,
-                    down_angle_variance_rad: 0.25,
-                    curve_rad: 0.4,
-                    curve_variance_rad: 0.25,
-                    tropism: -0.02,
-                    stations: 3,
-                },
-            ],
-            envelope: ShapeEnvelope::Dome,
-        }
+        super::super::TreeSpecies::Oak.architecture().expect("the oak is branched")
     }
 
     #[test]
