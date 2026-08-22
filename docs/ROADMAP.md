@@ -37,6 +37,13 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   water, grass, battle FX, fully procedural buildings/trees — no imported flora),
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD,
   frame-time p50/p95/p99 measurement backing the one-look budget.
+  **Drzewa 3.0 (2026-08-22, #620–#631): the homegrown SpeedTree** — every species grows a
+  Weber–Penn-style skeleton (pure data, LOD rungs filter one growth), bark swept under the
+  roundness law, cluster-card canopies cutting a wholly procedural SDF leaf atlas
+  (coverage-preserving mips), a true crossed-quad impostor splatted from the same bake, and
+  a three-level wind hierarchy (trunk cantilever / baked branch jitter / uv-gated leaf
+  flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
+  11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill).
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
   snapshots (**wire v47** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
