@@ -61,11 +61,9 @@ const RUNG_SEED: u64 = 0xDAB_0001;
 /// Test-only: the honesty lock `tree_line_boxes_contain_the_trees_they_host` is its caller.
 #[cfg(test)]
 pub(crate) fn battle_tree_rendered_top_m(scale: f32) -> f32 {
-    let tip = world_forge::tree::bake_tree_lod(BATTLE_TREE, RUNG_SEED, BakeLod::Close)
-        .canopy
-        .bounds()
-        .map(|bounds| bounds.max.y)
-        .unwrap_or(0.0);
+    // `tip()` covers every crown representation — lobes then, the card deck now (PR6): the
+    // TreeLine box must tower over whatever actually draws.
+    let tip = world_forge::tree::bake_tree_lod(BATTLE_TREE, RUNG_SEED, BakeLod::Close).tip();
     tip * scale - TRUNK_SINK_M
 }
 
@@ -119,7 +117,7 @@ pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
         TreeLod::Mid | TreeLod::Impostor => BakeLod::Mid,
     };
     let tree = world_forge::tree::bake_tree_lod(BATTLE_TREE, RUNG_SEED, bake_lod);
-    let height = tree.canopy.bounds().map(|bounds| bounds.max.y).unwrap_or(1.0).max(0.01);
+    let height = tree.tip().max(0.01);
     // Wind is a NEAR-rung luxury. The gust field is per-vertex noise, and past the near band
     // a 28 cm sway is under a pixel — the coarser rungs carry sway 0, so the shader's
     // `sway > 0` branch skips them entirely and the cost lands only on the handful of trees
@@ -159,6 +157,60 @@ pub fn tree_mesh_asset(lod: TreeLod) -> MeshAsset {
             );
         }
         indices.extend(mesh.indices().iter().map(|index| index + start));
+    }
+    // The card canopy (Drzewa 3.0 PR6): each cluster card becomes one quad with DUAL winding
+    // (4 vertices, 4 triangles) — backface culling stays on and never eats the far side, and
+    // FOLIAGE's derivative normals do not care which face won. Color is the authored canopy
+    // tone times the card's shade lane (the one-mass law); the atlas mask cuts the shape and
+    // the dome page curves the lighting.
+    let (color, gloss) = canopy_color;
+    for card in &tree.leaves {
+        let rect = world_forge::tree::leaf_atlas::atlas_rect(card.slot);
+        let start = vertices.len() as u32;
+        // The cluster stem sits at -half_up (v1, the bottom of the slot).
+        let corners = [
+            (card.center - card.half_right - card.half_up, [rect[0], rect[3]]),
+            (card.center + card.half_right - card.half_up, [rect[2], rect[3]]),
+            (card.center + card.half_right + card.half_up, [rect[2], rect[1]]),
+            (card.center - card.half_right + card.half_up, [rect[0], rect[1]]),
+        ];
+        // Two vertex rings, one per face: the far side carries the NEGATED normal, or a card
+        // seen from behind lights only by the transmission lobe and reads as a black cutout.
+        // 8 vertices, still 4 triangles.
+        for face_normal in [card.normal, -card.normal] {
+            for (position, uv) in corners {
+                vertices.push(
+                    renderer_api::SceneVertex::surfaced(
+                        position.to_array(),
+                        face_normal.to_array(),
+                        [color[0] * card.shade, color[1] * card.shade, color[2] * card.shade],
+                        gloss,
+                    )
+                    .with_surface(renderer_api::surface_role::FOLIAGE)
+                    .with_uv(uv)
+                    .with_sway(if windy {
+                        sway_allowance(position.to_array(), height, true)
+                    } else {
+                        0.0
+                    }),
+                );
+            }
+        }
+        indices.extend_from_slice(&[
+            start,
+            start + 1,
+            start + 2,
+            start,
+            start + 2,
+            start + 3,
+            // The far side, wound the other way, on its own normal ring.
+            start + 4,
+            start + 6,
+            start + 5,
+            start + 4,
+            start + 7,
+            start + 6,
+        ]);
     }
     MeshAsset::new(vertices, indices)
 }
@@ -311,9 +363,14 @@ mod tests {
         };
         assert!(tris(TREE_NEAR_MESH) > tris(TREE_MID_MESH));
         assert!(tris(TREE_MID_MESH) >= tris(TREE_IMPOSTOR_MESH));
+        // The Near rung is bark (the species mesh budget) PLUS the card deck at 4 tris a
+        // card. Ceiling re-set with PR6's composition (measured 2,980 = ~1,900 bark +
+        // ~270 cards); the MX330 verdict is the flora_frame_probe's two views, not this
+        // number — this only catches silent geometric growth.
+        const NEAR_RUNG_MAX_TRIS: usize = 3_100;
         assert!(
-            tris(TREE_NEAR_MESH) <= world_forge::tree::TREE_LOD0_TRIS.end() + 200,
-            "the near rung stays in the species budget: {}",
+            tris(TREE_NEAR_MESH) <= NEAR_RUNG_MAX_TRIS,
+            "the near rung outgrew its ceiling: {}",
             tris(TREE_NEAR_MESH)
         );
     }
@@ -397,6 +454,23 @@ mod tests {
                 "{far:?} must not pay for wind nobody can see"
             );
         }
+    }
+
+    /// The fill budget (Drzewa 3.0): card COUNT is the axis that prices the under-crown view
+    /// on the MX330 — three depth passes sample the atlas per fragment. The ceilings are the
+    /// program's plan numbers; the floors keep a thinned deck from balding into glitter.
+    #[test]
+    fn the_card_deck_stays_inside_its_fill_budget() {
+        let cards = |lod: TreeLod| {
+            // 8 vertices a card: two normal rings, one per face.
+            tree_mesh_asset(lod).vertices().iter().filter(|vertex| vertex.uv != [0.0, 0.0]).count()
+                / 8
+        };
+        let near = cards(TreeLod::Near);
+        let mid = cards(TreeLod::Mid);
+        assert!((120..=260).contains(&near), "Near deck: {near} cards");
+        assert!((40..=90).contains(&mid), "Mid deck: {mid} cards");
+        assert_eq!(cards(TreeLod::Impostor), mid, "the impostor shares Mid's bake until PR10");
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of

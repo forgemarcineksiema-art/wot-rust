@@ -30,7 +30,7 @@ const SLOT_MARGIN_PX: f32 = 6.0;
 pub const SLOT_WHITE: u8 = 0;
 
 /// The review gate for the atlas bytes (bless deliberately; covers BOTH pages).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0x3b8a_6dec_6113_764a;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0xdde8_8e53_2332_9199;
 
 /// The two authored mask variants a species owns (cards mix them per anchor).
 pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
@@ -141,8 +141,10 @@ fn stamp_distance(stamp: &Stamp, species: TreeSpecies, p: Vec2) -> (f32, f32) {
 fn half_width(species: TreeSpecies, t: f32) -> f32 {
     let bell = (std::f32::consts::PI * t).sin();
     match species {
-        // Lobed: a broad bell with 4–5 lobes rippling the boundary.
-        TreeSpecies::Oak => 0.26 * bell.max(0.12) * (1.0 + 0.24 * (t * 14.5).sin()),
+        // Lobed: a bell with 4–5 lobes rippling the boundary — NARROW enough that a spray of
+        // blades keeps sky between them; a cluster whose blades merge into a pancake turns
+        // every card into a green rectangle up close.
+        TreeSpecies::Oak => 0.22 * bell.max(0.12) * (1.0 + 0.30 * (t * 14.5).sin()),
         // Deltoid with a fine sawtooth serration, tapering to the drip tip.
         TreeSpecies::Poplar => 0.34 * (1.0 - t).powf(1.05) * (1.0 + 0.07 * (t * 62.0).sin()),
         // Lanceolate, aspect well past 3 — the streamer the curtain cards need.
@@ -204,6 +206,7 @@ fn paint_cluster(rgba: &mut [u8], normal: &mut [u8], slot: u8, species: TreeSpec
     let spread_gain = match species {
         TreeSpecies::Poplar => 0.6,
         TreeSpecies::Bush => 1.5,
+        TreeSpecies::Oak => 1.3,
         _ => 1.0,
     };
 
@@ -213,10 +216,12 @@ fn paint_cluster(rgba: &mut [u8], normal: &mut [u8], slot: u8, species: TreeSpec
     // the cluster reads as the species before a single boundary lobe does.
     let stamps: Vec<(Stamp, f32)> = {
         let (count, len_base) = match species {
-            TreeSpecies::Oak => (3 + (rng.next() % 2) as u32, 0.42),
+            // Oak blades stay clear of the slot edges: a mask that fills its tile turns every
+            // card into a green RECTANGLE up close — the silhouette IS the product.
+            TreeSpecies::Oak => (5 + (rng.next() % 2) as u32, 0.34),
             TreeSpecies::Poplar => (6 + (rng.next() % 2) as u32, 0.24),
             TreeSpecies::Willow => (10, 0.34),
-            TreeSpecies::FruitTree => (5, 0.31),
+            TreeSpecies::FruitTree => (6, 0.28),
             TreeSpecies::Bush => (8 + (rng.next() % 2) as u32, 0.26),
             TreeSpecies::Pine => (0, 0.0),
         };
