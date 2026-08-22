@@ -401,10 +401,10 @@ mod tests {
         assert!(tris(TREE_NEAR_MESH) > tris(TREE_MID_MESH));
         assert!(tris(TREE_MID_MESH) >= tris(TREE_IMPOSTOR_MESH));
         // The Near rung is bark (the species mesh budget) PLUS the card deck at 4 tris a
-        // card. Ceiling re-set with PR6's composition (measured 2,980 = ~1,900 bark +
-        // ~270 cards); the MX330 verdict is the flora_frame_probe's two views, not this
-        // number — this only catches silent geometric growth.
-        const NEAR_RUNG_MAX_TRIS: usize = 3_100;
+        // card. Ceiling re-set with the cross-pair rework (measured: 1,838 bark + 328 cards
+        // × 4 = 3,150 at the widest seed); the MX330 verdict is the flora_frame_probe's two
+        // views, not this number — this only catches silent geometric growth.
+        const NEAR_RUNG_MAX_TRIS: usize = 3_400;
         assert!(
             tris(TREE_NEAR_MESH) <= NEAR_RUNG_MAX_TRIS,
             "the near rung outgrew its ceiling: {}",
@@ -510,10 +510,13 @@ mod tests {
             tree_mesh_asset(lod).vertices().iter().filter(|vertex| vertex.uv != [0.0, 0.0]).count()
                 / 8
         };
+        // Re-banded with the cross-pair clusters (user verdict 2026-08-22): every cluster
+        // is two quads now, and Mid keeps every second CLUSTER — the far oak stopped being
+        // a bare pole with confetti.
         let near = cards(TreeLod::Near);
         let mid = cards(TreeLod::Mid);
-        assert!((120..=260).contains(&near), "Near deck: {near} cards");
-        assert!((40..=90).contains(&mid), "Mid deck: {mid} cards");
+        assert!((240..=400).contains(&near), "Near deck: {near} cards");
+        assert!((120..=200).contains(&mid), "Mid deck: {mid} cards");
         // The TRUE impostor (PR10): exactly two crossed sprite quads, nothing else.
         assert_eq!(cards(TreeLod::Impostor), 2, "the impostor is two crossed quads");
         let impostor_tris = tree_mesh_asset(TreeLod::Impostor).index_count() / 3;

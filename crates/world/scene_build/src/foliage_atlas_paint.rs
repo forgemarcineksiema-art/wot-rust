@@ -148,6 +148,16 @@ fn splat_battle_tree_impostor(image: &mut LeafAtlasImage) {
             image.rgba[index + 1] = linear_to_srgb(rgb[1]);
             image.rgba[index + 2] = linear_to_srgb(rgb[2]);
             image.rgba[index + 3] = image.rgba[index + 3].max(alpha);
+            // The sprite's dome normal (user verdict 2026-08-22): a flat-lit portrait next
+            // to volume-lit cards was half the 150 m pop. The whole sprite borrows a gentle
+            // sphere-cap around its own center, exactly like a leaf slot does — the FOLIAGE
+            // path then shades the far oak as a mass, not a billboard.
+            let nx = ((px / IMPOSTOR_SPRITE_W as f32) * 2.0 - 1.0) * 0.55;
+            let ny = (1.0 - (py / IMPOSTOR_SPRITE_H as f32) * 2.0) * 0.55;
+            let nz = (1.0 - nx * nx - ny * ny).max(0.05).sqrt();
+            image.normal[index] = ((nx * 0.5 + 0.5) * 255.0) as u8;
+            image.normal[index + 1] = ((ny * 0.5 + 0.5) * 255.0) as u8;
+            image.normal[index + 2] = ((nz * 0.5 + 0.5) * 255.0) as u8;
         };
 
         for (_, primitive) in primitives {
@@ -328,11 +338,13 @@ mod tests {
             );
             assert!(crisp * 100 >= total * 92, "azimuth {which}: the sprite rim went foggy");
             // The tip lands near the inset margin row (6 px). The slack above the margin is
-            // the tip card's own mask inset — a cluster mask never reaches its slot corner,
-            // and the LIVE card render has exactly the same gap between quad top and cutout,
-            // so the sprite and the mesh agree about where the crown visually ends.
+            // the tip cluster's own mask inset — a cluster mask never reaches its quad
+            // corner, and since the cross-pair rework the geometric tip also carries quad
+            // B's diagonal — and the LIVE card render has exactly the same gap between quad
+            // top and cutout, so the sprite and the mesh agree about where the crown
+            // visually ends.
             assert!(
-                (3..=16).contains(&top_row),
+                (3..=28).contains(&top_row),
                 "azimuth {which}: the sprite tip drifted to row {top_row}"
             );
         }
