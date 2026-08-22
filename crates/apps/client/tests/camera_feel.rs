@@ -426,13 +426,15 @@ fn the_presented_tpp_rides_the_sprung_hull_and_the_logical_and_sniper_never_do()
     );
 
     // Caps: an absurd spring input nods the view inside the dive cap, never throws it — and
-    // its heave still moves nothing.
+    // its heave still moves nothing. The cap is a GAMEPLAY bound (player verdict 2026-08-22):
+    // the residual spikes on every hill entry/exit, and at the old 0.02 rad every slope
+    // transition tilted the screen-centre crosshair 1.15 deg off the logical aim.
     let mut absurd_rig = BattleCameraController::new(BattleCameraSettings::default());
     absurd_rig.set_mode(BattleCameraMode::ThirdPerson);
     let presented_absurd =
         absurd_rig.present(&calm.with_sprung_attitude(-10.0, -10.0), &environment, 1.0 / 60.0);
     let tilt = dir_of(&presented_absurd).angle_between(dir_of(&presented_calm));
-    assert!(tilt <= 0.021, "view tilt stays inside the 0.02 rad cap, got {tilt}");
+    assert!(tilt <= 0.0085, "view tilt stays inside the 0.008 rad cap, got {tilt}");
     assert!(
         (presented_absurd.eye[1] - presented_calm.eye[1]).abs() < 1.0e-4,
         "an absurd heave still moves nothing"
@@ -727,18 +729,23 @@ fn the_ride_tremor_shivers_instead_of_strobing_frame_to_frame() {
     );
 }
 
-/// The vertical-suspension lock: the hull's terrain-snapped Y is a bump train, and the follow
-/// anchor's soft vertical spring is the camera's suspension. A 2 Hz, +/-15 cm vertical
-/// oscillation of the hull (a 5 m heightfield ridden at combat speed) may reach the presented
-/// eye at no more than 45% of its amplitude — the old isotropic omega-16 anchor passed 62%,
-/// the omega-7 vertical passes ~24%.
+/// The vertical-suspension lock, renegotiated with the hill verdict (2026-08-22): the hull's
+/// terrain-snapped Y carries cm-scale velocity kinks off the 5 m heightfield — that NOISE the
+/// soft spring still eats. A 2 Hz, +/-3 cm train (inside the leash, so the pure spring answers)
+/// may reach the presented eye at no more than 45% of its amplitude — omega 9 passes ~34%,
+/// the old isotropic omega-16 anchor passed 62%. Anything LARGER than the leash is terrain,
+/// not noise: a +/-15 cm train is deliberately TRACKED (the leash drags the eye with the
+/// hull), and its promise is the absolute one — the eye never separates from the hull by more
+/// than the 0.05 m leash, so the frame can never bounce harder than ~0.5% of its height.
 #[test]
 fn a_bump_train_reaches_the_presented_eye_attenuated() {
     let environment = BattleCameraEnvironment::empty();
+    let dt = 1.0 / 60.0;
+
+    // Small train (noise): pure spring attenuation.
+    let amplitude = 0.03_f32;
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
-    let dt = 1.0 / 60.0;
-    let amplitude = 0.15_f32;
     let mut min_y = f32::MAX;
     let mut max_y = f32::MIN;
     for frame in 0..360 {
@@ -759,11 +766,87 @@ fn a_bump_train_reaches_the_presented_eye_attenuated() {
         "a 2 Hz bump train reached the eye at {:.0}% of the hull amplitude",
         eye_amplitude / amplitude * 100.0
     );
+
+    // Large train (terrain): the eye may never leave the hull by more than the leash.
+    let mut tracked = BattleCameraController::new(BattleCameraSettings::default());
+    tracked.set_mode(BattleCameraMode::ThirdPerson);
+    let rest_offset = {
+        for _ in 0..120 {
+            tracked.advance([0.0, 0.0, 0.0], 8.0, dt);
+        }
+        let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0);
+        tracked.render_camera(&subject, &environment).eye[1]
+    };
+    let mut max_separation = 0.0_f32;
+    for frame in 0..360 {
+        let t = frame as f32 * dt;
+        let y = 0.15 * (std::f32::consts::TAU * 2.0 * t).sin();
+        tracked.advance([0.0, y, 0.0], 8.0, dt);
+        let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, y, 0.0], 0.0, 0.0), 0.0);
+        let eye_y = tracked.render_camera(&subject, &environment).eye[1];
+        max_separation = max_separation.max((eye_y - y - rest_offset).abs());
+    }
+    assert!(
+        max_separation <= 0.055,
+        "a large train separated the eye {max_separation:.3} m from the hull — past the leash"
+    );
+}
+
+/// THE hill lock (player verdict 2026-08-22: "the camera must never irritate or fight the
+/// player"): a hill is signal the player steers by, not noise for the suspension to eat. Over
+/// a whole climb-crest-descend ride the presented-path eye may never leave the rigid 1:1
+/// reference by more than the short vertical leash (0.05 m — about 0.5% of the frame height
+/// at the default boom), and half a second after the ground flattens the ride is over: the eye
+/// sits on its rest. The retired tune (omega 7, 0.35 m leash) floated the frame through
+/// 0.7 m of relative excursion at every crest and failed both bounds.
+#[test]
+fn a_hill_ride_never_floats_the_frame_beyond_the_short_leash() {
+    let environment = BattleCameraEnvironment::empty();
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let dt = 1.0 / 60.0;
+
+    // Settle flat, and take the rigid reference: eye height minus hull height at rest.
+    for _ in 0..120 {
+        camera.advance([0.0, 0.0, 0.0], 8.0, dt);
+    }
+    let eye_y_at = |camera: &BattleCameraController, y: f32| {
+        let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, y, 0.0], 0.0, 0.0), 0.0);
+        camera.render_camera(&subject, &environment).eye[1]
+    };
+    let rest_offset = eye_y_at(&camera, 0.0);
+
+    // A steep 4 m hill ridden at combat speed: one second up, one second down (peak vertical
+    // rate ~6.3 m/s), then flat. The whole profile is smooth — this is terrain, not a bump.
+    let hill_y = |t: f32| {
+        let s = (std::f32::consts::PI * (t - 1.0) / 2.0).sin();
+        4.0 * s * s
+    };
+    let mut max_float = 0.0_f32;
+    for frame in 60..180 {
+        let y = hill_y(frame as f32 * dt);
+        camera.advance([0.0, y, 0.0], 8.0, dt);
+        max_float = max_float.max((eye_y_at(&camera, y) - y - rest_offset).abs());
+    }
+    assert!(
+        max_float <= 0.055,
+        "the hill floated the frame {max_float:.3} m off the hull — beyond the vertical leash"
+    );
+
+    // Half a second after the ground flattens, the ride is OVER: no lingering spring settle.
+    for _ in 0..30 {
+        camera.advance([0.0, 0.0, 0.0], 8.0, dt);
+    }
+    let residue = (eye_y_at(&camera, 0.0) - rest_offset).abs();
+    assert!(
+        residue <= 0.02,
+        "the eye still hangs {residue:.3} m off its rest half a second past the hill"
+    );
 }
 
 /// The split leash settles gently: a fast descent pins the soft vertical spring to its
-/// 0.35 m leash, and while the position is pinned the damping term self-limits the
-/// integrator's velocity to omega * leash / 2 (~1.2 m/s) - so when the hull stops, the
+/// 0.05 m leash, and while the position is pinned the damping term self-limits the
+/// integrator's velocity to omega * leash / 2 (~0.23 m/s) - so when the hull stops, the
 /// anchor settles onto its rest FROM ABOVE, without diving past it and without a rebound.
 /// (A velocity-matching clamp was tried and REFUSED: handing the anchor the descent's full
 /// 6 m/s produced a 9 cm undershoot at the stop.)
