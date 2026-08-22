@@ -6,9 +6,11 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+game_core.workspace = true
 glam.workspace = true
 ron.workspace = true
 serde.workspace = true
+sweep.workspace = true
 thiserror.workspace = true
 vehicle_geometry.workspace = true
 

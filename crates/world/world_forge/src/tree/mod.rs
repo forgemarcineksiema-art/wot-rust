@@ -11,6 +11,7 @@
 //! lobes themselves. Trunk and canopy come back as separate meshes so the consumer colors them
 //! without any material-enum churn.
 
+mod bark;
 pub mod skeleton;
 
 use glam::Vec3;
@@ -49,6 +50,66 @@ impl TreeSpecies {
     /// Authored trunk height (ground to first crown mass), metres.
     pub fn trunk_height(self) -> f32 {
         self.params().trunk_height
+    }
+
+    /// The growth program for a species that has migrated to the skeleton (Drzewa 3.0).
+    /// `None` = the legacy lobed bake still owns it; the scaffold dies with the last wave.
+    pub fn architecture(self) -> Option<skeleton::TreeArchitecture> {
+        use skeleton::{BranchLevelParams, ShapeEnvelope, TrunkParams};
+        match self {
+            // The first migrant: the battlefield oak, whose numbers mirror its params table —
+            // trunk 9.2 m / r 0.52, a 5±1-limb dome. Twig counts are authored for the card
+            // canopy (PR6); the bark meshes levels 0–1 only until then.
+            TreeSpecies::Oak => Some(skeleton::TreeArchitecture {
+                trunk: TrunkParams {
+                    height_m: 9.2,
+                    radius_m: 0.52,
+                    taper: 0.55,
+                    flare: 1.35,
+                    stations: 7,
+                    lean: 0.10,
+                },
+                crown_begin_frac: 0.5,
+                levels: vec![
+                    BranchLevelParams {
+                        count: 5,
+                        count_variance: 1,
+                        along_range: (0.55, 0.95),
+                        length_ratio: 0.62,
+                        length_variance: 0.18,
+                        radius_ratio: 0.38,
+                        taper: 0.35,
+                        down_angle_rad: 0.85,
+                        down_angle_variance_rad: 0.18,
+                        curve_rad: 0.5,
+                        curve_variance_rad: 0.2,
+                        tropism: 0.04,
+                        stations: 5,
+                    },
+                    BranchLevelParams {
+                        count: 7,
+                        count_variance: 2,
+                        along_range: (0.3, 0.95),
+                        length_ratio: 0.45,
+                        length_variance: 0.25,
+                        radius_ratio: 0.42,
+                        taper: 0.3,
+                        down_angle_rad: 0.75,
+                        down_angle_variance_rad: 0.25,
+                        curve_rad: 0.4,
+                        curve_variance_rad: 0.25,
+                        tropism: -0.02,
+                        stations: 3,
+                    },
+                ],
+                envelope: ShapeEnvelope::Dome,
+            }),
+            TreeSpecies::Poplar
+            | TreeSpecies::Willow
+            | TreeSpecies::FruitTree
+            | TreeSpecies::Bush
+            | TreeSpecies::Pine => None,
+        }
     }
 
     fn params(self) -> SpeciesParams {
@@ -213,14 +274,23 @@ impl BakedTree {
 
 /// LOD0/LOD1 budgets: the full close tree and the mid-distance one. LOD2 stays the existing
 /// painted frustum stack in `foliage.rs` — at 300 m it reads perfectly and costs nothing.
-pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 180..=1_200;
+///
+/// The ceiling was 1,200 through the lobed era. Widened DELIBERATELY for the migration
+/// (Drzewa 3.0 PR4): a bole under the roundness law spends ~370 tris where the hand-typed
+/// 7-sided prism spent 84, and the measured cost of the whole scatter is the probe's
+/// (baseline 2026-08-22: worst view 10.036 ms of a 16.667 budget, ~26 oaks). PR12 narrows
+/// this back around the final card-canopy numbers.
+pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 180..=2_600;
 pub const TREE_LOD1_MAX_TRIS: usize = 260;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // Blessed 2026-08-03 with the trees-to-scale pass (Oak 17.6 m, Poplar 21.9, Willow 14.5,
     // Pine 20.4 — realistic mature heights; FruitTree/Bush unchanged).
-    (TreeSpecies::Oak, 0x2edc_517d_b880_a3e3),
+    // Oak re-blessed 2026-08-22 (Drzewa 3.0 PR4): trunk and limbs are the swept skeleton —
+    // a round bole under the roundness law with root flare and lean, curved limbs on the
+    // phyllotactic spiral. The lobed canopy rides on top until the cards land (PR6).
+    (TreeSpecies::Oak, 0x0648_54e9_7f94_4018),
     (TreeSpecies::Poplar, 0xabdc_14c3_7b65_6976),
     (TreeSpecies::Willow, 0xe919_48a3_f6cf_487d),
     (TreeSpecies::FruitTree, 0xbca2_9510_33bc_79f2),
@@ -248,33 +318,51 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         TreeLod::Mid => (5, 0),
     };
 
-    // Trunk: a tapered tube with a slight deterministic lean.
-    let lean = Vec3::new(rng.signed() * 0.10, 0.0, rng.signed() * 0.10);
-    let mut trunk = tapered_tube(
-        Vec3::ZERO,
-        Vec3::new(lean.x * params.trunk_height, params.trunk_height, lean.z * params.trunk_height),
-        params.trunk_radius,
-        params.trunk_radius * params.taper,
-        trunk_sides,
-    );
-    // Limbs: level-one branches reaching from the upper trunk toward the crown.
-    // Mid burns the same RNG draws Close spends on limbs so the crown identity — and the
-    // canopy tip — stay shared across LOD rungs. Without the burn, Mid's first lobe would
-    // consume a limb's entropy and the tree would silently shrink as the camera backed off.
-    for limb in 0..params.limbs {
-        let heading = rng.unit() * std::f32::consts::TAU
-            + limb as f32 / params.limbs.max(1) as f32 * std::f32::consts::TAU;
-        let pitch = params.limb_pitch + rng.signed() * 0.15;
-        let start = Vec3::new(0.0, params.trunk_height * (0.55 + rng.unit() * 0.25), 0.0);
-        let direction =
-            Vec3::new(heading.cos() * pitch.cos(), pitch.sin(), heading.sin() * pitch.cos());
-        let end = start + direction * (params.limb_length * (0.8 + rng.unit() * 0.4));
-        if lod == TreeLod::Close {
-            let limb_mesh =
-                tapered_tube(start, end, params.trunk_radius * 0.42, params.trunk_radius * 0.16, 5);
-            trunk = merge_meshes(trunk, limb_mesh);
+    let trunk = if let Some(architecture) = species.architecture() {
+        // The migrated path (Drzewa 3.0): trunk and limbs are the skeleton, swept round under
+        // the roundness law. All of their entropy lives in the skeleton's hashed per-branch
+        // seeds, so the shared stream below is untouched and Close/Mid canopies align by
+        // construction — this path needs no entropy burn, and the burn dies with the lobes.
+        bark::mesh_bark(&skeleton::grow(&architecture, seed), lod)
+    } else {
+        // Legacy lobed-era bark: a tapered tube with a slight deterministic lean.
+        let lean = Vec3::new(rng.signed() * 0.10, 0.0, rng.signed() * 0.10);
+        let mut trunk = tapered_tube(
+            Vec3::ZERO,
+            Vec3::new(
+                lean.x * params.trunk_height,
+                params.trunk_height,
+                lean.z * params.trunk_height,
+            ),
+            params.trunk_radius,
+            params.trunk_radius * params.taper,
+            trunk_sides,
+        );
+        // Limbs: level-one branches reaching from the upper trunk toward the crown.
+        // Mid burns the same RNG draws Close spends on limbs so the crown identity — and the
+        // canopy tip — stay shared across LOD rungs. Without the burn, Mid's first lobe would
+        // consume a limb's entropy and the tree would silently shrink as the camera backed off.
+        for limb in 0..params.limbs {
+            let heading = rng.unit() * std::f32::consts::TAU
+                + limb as f32 / params.limbs.max(1) as f32 * std::f32::consts::TAU;
+            let pitch = params.limb_pitch + rng.signed() * 0.15;
+            let start = Vec3::new(0.0, params.trunk_height * (0.55 + rng.unit() * 0.25), 0.0);
+            let direction =
+                Vec3::new(heading.cos() * pitch.cos(), pitch.sin(), heading.sin() * pitch.cos());
+            let end = start + direction * (params.limb_length * (0.8 + rng.unit() * 0.4));
+            if lod == TreeLod::Close {
+                let limb_mesh = tapered_tube(
+                    start,
+                    end,
+                    params.trunk_radius * 0.42,
+                    params.trunk_radius * 0.16,
+                    5,
+                );
+                trunk = merge_meshes(trunk, limb_mesh);
+            }
         }
-    }
+        trunk
+    };
 
     // Crown: FBM-displaced icosphere lobes; normals bent from the CROWN centroid afterwards.
     let mut canopy_vertices: Vec<GeometryVertex> = Vec::new();
