@@ -13,6 +13,7 @@
 
 mod bark;
 pub mod leaf_atlas;
+pub mod leaves;
 pub mod skeleton;
 
 use glam::Vec3;
@@ -72,19 +73,22 @@ impl TreeSpecies {
                 },
                 crown_begin_frac: 0.5,
                 levels: vec![
+                    // Limbs reach UP as much as out (down angle 0.62 rad off the vertical
+                    // bole, positive tropism): the card crown they carry must top 15 m — the
+                    // mature-height floor the lobed canopy used to clear with its spheres.
                     BranchLevelParams {
                         count: 5,
                         count_variance: 1,
                         along_range: (0.55, 0.95),
-                        length_ratio: 0.62,
+                        length_ratio: 0.78,
                         length_variance: 0.18,
                         radius_ratio: 0.38,
                         taper: 0.35,
-                        down_angle_rad: 0.85,
+                        down_angle_rad: 0.50,
                         down_angle_variance_rad: 0.18,
                         curve_rad: 0.5,
                         curve_variance_rad: 0.2,
-                        tropism: 0.04,
+                        tropism: 0.14,
                         stations: 5,
                     },
                     BranchLevelParams {
@@ -243,17 +247,36 @@ struct SpeciesParams {
     crown_tip_frac: f32,
 }
 
-/// A baked tree: trunk (bark) and canopy, separate meshes so the scene builder colors each.
+/// A baked tree: trunk (bark) and canopy meshes, plus the card canopy (Drzewa 3.0) — a
+/// migrated species carries its crown as [`leaves::LeafCard`] data and an EMPTY canopy mesh;
+/// a legacy species carries lobes and an empty card list. The consumer colors each.
 #[derive(Debug, Clone)]
 pub struct BakedTree {
     pub species: TreeSpecies,
     pub trunk: GeometryMesh,
     pub canopy: GeometryMesh,
+    pub leaves: Vec<leaves::LeafCard>,
 }
 
 impl BakedTree {
     pub fn triangle_count(&self) -> usize {
         self.trunk.triangle_count() + self.canopy.triangle_count()
+    }
+
+    /// The rendered tip, metres: the highest point of ANY representation — bark, lobes or the
+    /// card deck. This is the number the TreeLine honesty locks and the LOD tip invariant
+    /// measure; a crown of cards that outgrew its mesh bounds must still be contained.
+    pub fn tip(&self) -> f32 {
+        let mesh_tip = [&self.trunk, &self.canopy]
+            .into_iter()
+            .filter_map(|mesh| mesh.bounds().map(|bounds| bounds.max.y))
+            .fold(0.0_f32, f32::max);
+        let card_tip = self
+            .leaves
+            .iter()
+            .map(|card| card.center.y + card.half_right.y.abs() + card.half_up.y.abs())
+            .fold(0.0_f32, f32::max);
+        mesh_tip.max(card_tip)
     }
 
     pub fn deterministic_hash(&self) -> u64 {
@@ -268,6 +291,21 @@ impl BakedTree {
             for index in mesh.indices() {
                 super::fnv(&mut hash, u64::from(*index));
             }
+        }
+        // The card deck is silhouette too: a card that moves is a tree that changed.
+        for card in &self.leaves {
+            for value in card
+                .center
+                .to_array()
+                .into_iter()
+                .chain(card.half_right.to_array())
+                .chain(card.half_up.to_array())
+                .chain(card.normal.to_array())
+                .chain([card.shade])
+            {
+                super::fnv(&mut hash, u64::from(value.to_bits()));
+            }
+            super::fnv(&mut hash, u64::from(card.slot));
         }
         hash
     }
@@ -288,10 +326,11 @@ pub const TREE_LOD1_MAX_TRIS: usize = 260;
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // Blessed 2026-08-03 with the trees-to-scale pass (Oak 17.6 m, Poplar 21.9, Willow 14.5,
     // Pine 20.4 — realistic mature heights; FruitTree/Bush unchanged).
-    // Oak re-blessed 2026-08-22 (Drzewa 3.0 PR4): trunk and limbs are the swept skeleton —
-    // a round bole under the roundness law with root flare and lean, curved limbs on the
-    // phyllotactic spiral. The lobed canopy rides on top until the cards land (PR6).
-    (TreeSpecies::Oak, 0x0648_54e9_7f94_4018),
+    // Oak re-blessed 2026-08-22 (Drzewa 3.0 PR6): the lobes are DEAD for the oak — the crown
+    // is the card deck (~200 cluster cards on the twig anchors, shade lane carrying the
+    // one-mass law), the bark meshes the whole skeleton including twigs, and the limbs grew
+    // upright so the card crown clears the 15 m mature floor the spheres used to clear.
+    (TreeSpecies::Oak, 0xf7cd_1555_8cf2_d40a),
     (TreeSpecies::Poplar, 0xabdc_14c3_7b65_6976),
     (TreeSpecies::Willow, 0xe919_48a3_f6cf_487d),
     (TreeSpecies::FruitTree, 0xbca2_9510_33bc_79f2),
@@ -312,6 +351,20 @@ pub enum TreeLod {
 }
 
 pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree {
+    // The migrated path (Drzewa 3.0): the skeleton grows ONCE, the rung meshes its bark and
+    // deals its card deck — no lobes, no entropy burn (every branch and card draws from
+    // hashed seeds, so Close/Mid share identity by construction). The lobed body below is
+    // the legacy path, scaffolding that dies with the last species wave.
+    if let Some(architecture) = species.architecture() {
+        let skeleton = skeleton::grow(&architecture, seed);
+        return BakedTree {
+            species,
+            trunk: bark::mesh_bark(&skeleton, lod),
+            canopy: GeometryMesh::new(Vec::new(), Vec::new()),
+            leaves: leaves::grow_cards(&skeleton, species, seed, lod),
+        };
+    }
+
     let params = species.params();
     let mut rng = Rng(seed ^ 0x7EE5_0000 ^ species as u64);
     let (trunk_sides, lobe_subdiv) = match lod {
@@ -319,13 +372,7 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         TreeLod::Mid => (5, 0),
     };
 
-    let trunk = if let Some(architecture) = species.architecture() {
-        // The migrated path (Drzewa 3.0): trunk and limbs are the skeleton, swept round under
-        // the roundness law. All of their entropy lives in the skeleton's hashed per-branch
-        // seeds, so the shared stream below is untouched and Close/Mid canopies align by
-        // construction — this path needs no entropy burn, and the burn dies with the lobes.
-        bark::mesh_bark(&skeleton::grow(&architecture, seed), lod)
-    } else {
+    let trunk = {
         // Legacy lobed-era bark: a tapered tube with a slight deterministic lean.
         let lean = Vec3::new(rng.signed() * 0.10, 0.0, rng.signed() * 0.10);
         let mut trunk = tapered_tube(
@@ -416,8 +463,12 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
         vertex.normal = (vertex.position - centroid).normalize_or_zero();
     }
 
-    let mut tree =
-        BakedTree { species, trunk, canopy: GeometryMesh::new(canopy_vertices, canopy_indices) };
+    let mut tree = BakedTree {
+        species,
+        trunk,
+        canopy: GeometryMesh::new(canopy_vertices, canopy_indices),
+        leaves: Vec::new(),
+    };
     // LOD must not shrink the silhouette (Świat 2.0 PR1): Mid's coarser lobes undershoot the
     // FBM peaks Close reaches. Lift Mid onto Close's tip so a rung swap moves triangles, never
     // metres. Close is baked once here as the reference — Mid is the shipping far rung, so
@@ -450,10 +501,13 @@ fn scale_tree_y(tree: BakedTree, scale: f32) -> BakedTree {
             .collect();
         GeometryMesh::new(vertices, mesh.indices().to_vec())
     };
+    // Legacy-only: the migrated path never lifts (its rungs share one skeleton), so the empty
+    // card deck passes through untouched.
     BakedTree {
         species: tree.species,
         trunk: scale_mesh(tree.trunk),
         canopy: scale_mesh(tree.canopy),
+        leaves: tree.leaves,
     }
 }
 
@@ -528,9 +582,9 @@ mod tests {
     /// 8.6 m, Pine 7.5). One number per species, comfortably below the blessed heights.
     #[test]
     fn the_canopy_reaches_a_realistic_mature_height() {
-        let top = |species| {
-            bake_tree(species, 0).canopy.bounds().map(|bounds| bounds.max.y).unwrap_or_default()
-        };
+        // `tip()` covers both crown representations: lobes for the legacy species, the card
+        // deck for the migrated ones.
+        let top = |species| bake_tree(species, 0).tip();
         assert!(top(TreeSpecies::Oak) > 15.0, "oak: {}", top(TreeSpecies::Oak));
         assert!(top(TreeSpecies::Poplar) > 19.0, "poplar: {}", top(TreeSpecies::Poplar));
         assert!(top(TreeSpecies::Willow) > 12.0, "willow: {}", top(TreeSpecies::Willow));
@@ -545,8 +599,8 @@ mod tests {
             for seed in [0_u64, 1, 7, 42] {
                 let close = bake_tree_lod(species, seed, TreeLod::Close);
                 let mid = bake_tree_lod(species, seed, TreeLod::Mid);
-                let close_tip = canopy_tip(&close);
-                let mid_tip = canopy_tip(&mid);
+                let close_tip = close.tip();
+                let mid_tip = mid.tip();
                 assert!(
                     (mid_tip - close_tip).abs() < 0.05,
                     "{species:?} seed {seed}: Mid tip {mid_tip} vs Close tip {close_tip}"
@@ -565,15 +619,16 @@ mod tests {
         let b = bake_tree(TreeSpecies::Oak, 2);
         assert_ne!(a.deterministic_hash(), b.deterministic_hash(), "no two oaks alike");
         // Family: both stay inside the LOD0 budget and within ~30% height of each other.
-        let height =
-            |tree: &BakedTree| tree.canopy.bounds().map(|bounds| bounds.max.y).unwrap_or_default();
-        let (ha, hb) = (height(&a), height(&b));
+        let (ha, hb) = (a.tip(), b.tip());
         assert!((ha - hb).abs() / ha.max(hb) < 0.3, "oaks stay oak-sized: {ha} vs {hb}");
     }
 
+    /// The painterly one-mass law on the LEGACY lobed species (the willow, until its wave
+    /// migrates it). The oak's cards carry the law's heir in their shade lane — locked in
+    /// `leaves::tests::the_crown_core_shades_darker_than_the_rim`.
     #[test]
     fn canopy_normals_point_away_from_the_crown_centroid() {
-        let tree = bake_tree(TreeSpecies::Oak, 0);
+        let tree = bake_tree(TreeSpecies::Willow, 0);
         let centroid =
             tree.canopy.vertices().iter().map(|vertex| vertex.position).sum::<glam::Vec3>()
                 / tree.canopy.vertex_count().max(1) as f32;

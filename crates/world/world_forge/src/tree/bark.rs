@@ -17,13 +17,12 @@ use crate::shape::merge_meshes;
 
 /// Mesh the bark for one LOD rung.
 ///
-/// Close carries trunk + limbs (levels 0–1); the twigs stay unmeshed until the leaf cards
-/// arrive (PR6) — naked twig tubes poking through the lobed canopy would read as wire, and
-/// their sides are card-scale detail. Mid keeps the trunk alone at half the stations and a
-/// coarser tolerance: exactly the silhouette the legacy rung carried, still under the law.
+/// Close carries the whole skeleton — trunk, limbs and twigs, because the twigs now carry the
+/// card canopy (PR6) and a card needs its wood. Mid keeps the trunk alone at half the
+/// stations and a coarser tolerance: past 55 m the limbs live inside the card mass anyway.
 pub(crate) fn mesh_bark(skeleton: &TreeSkeleton, lod: TreeLod) -> GeometryMesh {
     let (max_level, tolerance_scale, station_stride) = match lod {
-        TreeLod::Close => (1, 1.0, 1),
+        TreeLod::Close => (2, 1.0, 1),
         TreeLod::Mid => (0, 4.0, 2),
     };
     let mut bark: Option<GeometryMesh> = None;
@@ -46,7 +45,15 @@ pub(crate) fn mesh_bark(skeleton: &TreeSkeleton, lod: TreeLod) -> GeometryMesh {
         // rung's own scale coarsens Mid. Radius still decides — the author only picks the
         // schedule.
         let tolerance = SILHOUETTE_TOLERANCE_M * tolerance_scale * (1 << branch.level) as f32;
-        let sides = segments_for_radius(branch.base().radius_m, tolerance);
+        // The law's MIN_SEGMENTS floor (8) is written for parts that must READ round; a
+        // 4 cm twig is one card-covered stick among two hundred alpha shapes, and eight
+        // sides on each would spend ~700 tris on wood nobody sees. Hand-typed 4, with this
+        // justification — the trunk and limbs stay under the honest law.
+        let sides = if branch.level >= 2 {
+            4
+        } else {
+            segments_for_radius(branch.base().radius_m, tolerance)
+        };
         let section = SweepSection {
             points: (0..sides)
                 .map(|side| {

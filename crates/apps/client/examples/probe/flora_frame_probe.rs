@@ -62,6 +62,11 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
         flora.register_mesh(&ctx, handle, &mesh);
     }
+    // The leaf atlas rides on BOTH renderers, exactly as the battle binds it — the baseline
+    // must not win its A/B by skipping a bind the real frame always pays.
+    let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
+    baseline.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
+    flora.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
 
     let ground = |x: f32, z: f32| full.heightmap.sample_height(x, z).unwrap_or(0.0);
     // The under-crown worst case: nose against a battlefield oak, the Near-rung crown filling
