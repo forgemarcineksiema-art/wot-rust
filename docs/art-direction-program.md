@@ -163,6 +163,13 @@ outdoor clear-day frame AT the 0.08 dark target), `orliny_clear_afternoon` dark 
 pass was tuned against the backlit-subject locks: a harder fill/rim cut and exposure 1.0
 were each measured and REFUSED (subject median 0.049 / form 0.0069 vs floors 0.060 / 0.0070).
 
+Re-blessed 2026-08-22 (17 frames) after two user-merged look changes landed without their
+PNGs: the SSAO diet #578 (all 8 garage frames, 52-73% of pixels at max delta 34-35/255 — the
+room's corners lighten a touch) and the landmark rise #596 (Bystra x4 / Ostrogorsk x5 skyline
+silhouettes at 0.2-0.5%, plus `bystra_town_lane` at 14.1% — the 27 m church now anchors the
+lane and adds real shade mass: dark 20.4% -> 25.3%, toward the W1 target, not away). All value
+locks held without relaxation; Prokhorovka and Orliny frames byte-identical.
+
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `prokhorovka_clear_afternoon` | 1.0% | 62.4% | 36.7% | 0.345 | 0.516 | 0.849 | 0.504 | 0.355 | 0.0083 | +0.255 |
@@ -172,27 +179,27 @@ were each measured and REFUSED (subject median 0.049 / form 0.0069 vs floors 0.0
 | `prokhorovka_grass_midfield` | 2.1% | 56.7% | 41.1% | 0.355 | 0.530 | 0.841 | 0.487 | 0.341 | 0.0077 | +0.231 |
 | `prokhorovka_contact_backlit` | 21.8% | 57.7% | 20.5% | 0.040 | 0.440 | 0.810 | 0.770 | 0.424 | 0.0074 | +0.351 |
 | `prokhorovka_evening_contact` | 48.7% | 26.4% | 24.8% | 0.073 | 0.255 | 0.700 | 0.628 | 0.448 | 0.0090 | +0.393 |
-| `bystra_clear_afternoon` | 17.0% | 49.7% | 33.3% | 0.201 | 0.381 | 0.726 | 0.526 | 0.344 | 0.0102 | +0.386 |
-| `bystra_rain` | 1.4% | 57.2% | 41.4% | 0.292 | 0.422 | 0.689 | 0.397 | 0.198 | 0.0064 | +0.329 |
-| `bystra_dawn_fog` | 27.7% | 29.7% | 42.6% | 0.177 | 0.334 | 0.763 | 0.586 | 0.217 | 0.0093 | +0.451 |
-| `bystra_town_lane` | 20.4% | 52.9% | 26.8% | 0.069 | 0.350 | 0.712 | 0.643 | 0.365 | 0.0084 | +0.336 |
+| `bystra_clear_afternoon` | 17.1% | 49.7% | 33.2% | 0.200 | 0.381 | 0.726 | 0.526 | 0.344 | 0.0102 | +0.386 |
+| `bystra_rain` | 1.4% | 57.2% | 41.3% | 0.292 | 0.420 | 0.689 | 0.397 | 0.198 | 0.0064 | +0.329 |
+| `bystra_dawn_fog` | 27.8% | 29.8% | 42.4% | 0.177 | 0.334 | 0.763 | 0.586 | 0.217 | 0.0093 | +0.451 |
+| `bystra_town_lane` | 25.3% | 49.9% | 24.8% | 0.067 | 0.330 | 0.710 | 0.643 | 0.366 | 0.0084 | +0.326 |
 | `orliny_clear_afternoon` | 13.0% | 54.3% | 32.7% | 0.206 | 0.342 | 0.781 | 0.575 | 0.344 | 0.0104 | +0.453 |
 | `orliny_golden_evening` | 47.8% | 17.2% | 35.0% | 0.123 | 0.259 | 0.806 | 0.683 | 0.329 | 0.0112 | +0.562 |
 | `orliny_overcast` | 1.0% | 55.7% | 43.3% | 0.331 | 0.417 | 0.721 | 0.389 | 0.189 | 0.0063 | +0.314 |
 | `orliny_pine_belt` | 14.1% | 58.8% | 27.1% | 0.205 | 0.384 | 0.718 | 0.513 | 0.342 | 0.0094 | +0.324 |
-| `ostrogorsk_clear_afternoon` | 2.4% | 62.5% | 35.2% | 0.317 | 0.505 | 0.833 | 0.516 | 0.281 | 0.0101 | +0.298 |
-| `ostrogorsk_golden_evening` | 38.8% | 24.7% | 36.5% | 0.113 | 0.297 | 0.799 | 0.686 | 0.325 | 0.0101 | +0.530 |
-| `ostrogorsk_overcast` | 4.7% | 51.9% | 43.4% | 0.271 | 0.444 | 0.721 | 0.449 | 0.129 | 0.0072 | +0.288 |
-| `ostrogorsk_rain` | 4.2% | 52.8% | 43.0% | 0.275 | 0.411 | 0.683 | 0.408 | 0.134 | 0.0064 | +0.294 |
-| `ostrogorsk_canyon` | 7.3% | 69.3% | 23.5% | 0.214 | 0.435 | 0.842 | 0.629 | 0.241 | 0.0081 | +0.255 |
-| `garage_hero` | 72.3% | 23.6% | 4.1% | 0.030 | 0.163 | 0.574 | 0.544 | 0.228 | 0.0076 | −0.134 |
-| `garage_screen` | 75.4% | 20.7% | 3.9% | 0.064 | 0.140 | 0.566 | 0.502 | 0.189 | 0.0105 | −0.091 |
-| `garage_tech_tree` | 78.4% | 19.8% | 1.8% | 0.063 | 0.128 | 0.495 | 0.432 | 0.191 | 0.0064 | −0.101 |
-| `garage_option_list` | 76.7% | 19.3% | 3.9% | 0.064 | 0.138 | 0.566 | 0.502 | 0.190 | 0.0107 | −0.076 |
-| `garage_susp_close` | 86.4% | 13.6% | 0.0% | 0.050 | 0.125 | 0.317 | 0.267 | 0.405 | 0.0059 | +0.069 |
-| `garage_hero_tiger2` | 67.4% | 30.0% | 2.6% | 0.028 | 0.177 | 0.522 | 0.494 | 0.238 | 0.0070 | −0.184 |
-| `garage_hero_jagdtiger` | 64.1% | 33.4% | 2.5% | 0.027 | 0.184 | 0.520 | 0.492 | 0.238 | 0.0073 | −0.239 |
-| `garage_inspector` | 67.9% | 26.5% | 5.7% | 0.030 | 0.171 | 0.607 | 0.577 | 0.256 | 0.0073 | −0.161 |
+| `ostrogorsk_clear_afternoon` | 2.4% | 62.4% | 35.2% | 0.316 | 0.505 | 0.833 | 0.517 | 0.281 | 0.0103 | +0.298 |
+| `ostrogorsk_golden_evening` | 38.8% | 24.7% | 36.5% | 0.113 | 0.297 | 0.799 | 0.686 | 0.325 | 0.0102 | +0.530 |
+| `ostrogorsk_overcast` | 4.7% | 51.9% | 43.4% | 0.271 | 0.444 | 0.721 | 0.450 | 0.129 | 0.0073 | +0.288 |
+| `ostrogorsk_rain` | 4.3% | 52.8% | 43.0% | 0.275 | 0.411 | 0.683 | 0.408 | 0.134 | 0.0065 | +0.294 |
+| `ostrogorsk_canyon` | 7.4% | 69.3% | 23.3% | 0.210 | 0.435 | 0.842 | 0.632 | 0.242 | 0.0081 | +0.255 |
+| `garage_hero` | 72.8% | 23.1% | 4.1% | 0.030 | 0.162 | 0.573 | 0.543 | 0.229 | 0.0076 | −0.134 |
+| `garage_screen` | 75.7% | 20.4% | 3.9% | 0.063 | 0.140 | 0.565 | 0.502 | 0.190 | 0.0105 | −0.089 |
+| `garage_tech_tree` | 78.9% | 19.3% | 1.8% | 0.063 | 0.127 | 0.494 | 0.431 | 0.191 | 0.0064 | −0.101 |
+| `garage_option_list` | 77.0% | 19.1% | 3.9% | 0.063 | 0.138 | 0.566 | 0.503 | 0.191 | 0.0107 | −0.075 |
+| `garage_susp_close` | 86.0% | 14.0% | 0.0% | 0.050 | 0.123 | 0.317 | 0.267 | 0.405 | 0.0059 | +0.069 |
+| `garage_hero_tiger2` | 67.6% | 29.8% | 2.6% | 0.028 | 0.175 | 0.522 | 0.494 | 0.239 | 0.0070 | −0.182 |
+| `garage_hero_jagdtiger` | 64.3% | 33.2% | 2.4% | 0.027 | 0.184 | 0.518 | 0.491 | 0.238 | 0.0073 | −0.239 |
+| `garage_inspector` | 68.4% | 26.0% | 5.6% | 0.030 | 0.171 | 0.607 | 0.577 | 0.256 | 0.0073 | −0.160 |
 
 ### What the baseline says
 
