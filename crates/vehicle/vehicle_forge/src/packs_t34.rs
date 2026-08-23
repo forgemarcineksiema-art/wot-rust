@@ -30,13 +30,19 @@ pub fn t34_85_reference_pack() -> ReferencePack {
                 "Technical and visual reference for dimensions, armament, and family cues.",
             ),
         ],
-        // TODO(W2-t34-85): zaciśnij tolerancje przy dossier (start = stare wspólne).
+        // Tolerances tightened 2026-08-23 around the measured bake (Studio report: deltas
+        // 0.007 / 0.032 / 0.030 / 0.024 / 0.002) — ~3x the measured delta with a 0.03 floor,
+        // so they hold LOD headroom while catching a proportion drifting into the wrong tank.
+        // The one exception: hull-height/length measures 0.302 against the 0.270 target (the
+        // dossier is still the self-labelled unresearched stub), so its band is a ratchet
+        // around today's bake, not an endorsement — reconciling target vs body belongs to the
+        // dossier pass.
         silhouette_ratios(
-            (2.05, 0.18),
-            (0.27, 0.06),
-            (0.74, 0.14),
-            (0.55, 0.25),
-            (0.33, 0.16),
+            (2.05, 0.03),
+            (0.27, 0.05),
+            (0.74, 0.09),
+            (0.55, 0.08),
+            (0.33, 0.03),
             [
                 "A medium's plan: 6.10 m hull over a full 3.00 m beam.",
                 "Low hull for its length — the 1.56 m roof under the tall dome.",
