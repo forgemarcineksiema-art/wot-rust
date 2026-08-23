@@ -292,7 +292,7 @@ mod tests {
     #[test]
     // The constant IS the subject: the kill-switch state is a shipping decision, and this
     // lock makes flipping it a deliberate, test-visible act (camera.rs precedent).
-    #[allow(clippy::assertions_on_constants)]
+    #[expect(clippy::assertions_on_constants)]
     fn the_mechanic_keeps_out_of_the_heros_light() {
         assert!(MECHANIC_ENABLED, "K2 ships behind its decision gate; flip deliberately");
         for step in 0..240 {

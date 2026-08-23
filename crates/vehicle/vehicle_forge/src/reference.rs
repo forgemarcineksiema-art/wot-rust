@@ -271,7 +271,6 @@ pub struct ReferencePack {
 }
 
 impl ReferencePack {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         family_slug: impl Into<String>,
         display_name: impl Into<String>,

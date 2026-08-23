@@ -83,7 +83,6 @@ pub fn step_tank_on_world(
 /// see `track_contact`) instead of the centre probe; slopes and traction still read the probe
 /// cross. The returned [`GroundStep`] says whether the hull ended the tick carried by the ground
 /// and how hard a landing it absorbed.
-#[allow(clippy::too_many_arguments)]
 pub fn step_tank_on_world_with_tanks(
     state: &mut TankKinematicState,
     input: TankControlInput,
@@ -112,7 +111,6 @@ pub struct TankStepContact {
 /// PHASE 1 of a tick: sample the ground, decide the hull's velocity and heading — and do not move
 /// it. Pair with [`settle_tank_on_world`]; between the two a caller with a whole roster in hand
 /// can solve hull-to-hull contacts, which is the only place that solve does any good.
-#[allow(clippy::too_many_arguments)]
 pub fn advance_tank_on_world(
     state: &mut TankKinematicState,
     input: TankControlInput,
@@ -168,7 +166,6 @@ pub fn advance_tank_on_world(
 }
 
 /// PHASE 3 of a tick: spend the velocity the hull ended up with and resolve it against the world.
-#[allow(clippy::too_many_arguments)]
 pub fn settle_tank_on_world(
     state: &mut TankKinematicState,
     settings: &TankControllerSettings,

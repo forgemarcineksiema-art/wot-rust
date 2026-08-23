@@ -226,7 +226,7 @@ pub(crate) fn build_gun_with_mantlet_scale(
     builder.build()
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn oval_mantlet_mesh(
     origin: Vec3,
     radius: f32,

@@ -15,7 +15,7 @@ const DRIVE_DIRECTION_EPS_MPS: f32 = 0.05;
 /// Resolve one grounded tick's forces into a new world-frame velocity. `v_f`/`v_r` are the hull's
 /// forward/right speeds (world velocity decomposed into the current heading), `yaw_rate` drives the
 /// skid-steer scrub. Returns `Vec3::ZERO` when the static hold locks the hull.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn resolve_ground_velocity(
     mut v_f: f32,
     mut v_r: f32,

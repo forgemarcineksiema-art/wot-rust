@@ -109,7 +109,7 @@ pub struct ScatterRegion {
 /// Scatter `pairs` mirrored instance pairs of `kind` inside `region`, rejecting points the
 /// `exclude` rule refuses (bounded attempts, so a mostly-excluded region under-fills rather
 /// than spinning). Mirroring: `z → axis*2 − z`, `yaw → −yaw`.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn scatter_mirrored(
     seed: u64,
     kind: SceneryKind,

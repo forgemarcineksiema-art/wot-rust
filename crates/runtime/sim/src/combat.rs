@@ -91,7 +91,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn apply_shell_impact(
     shell: &ShellState,
     tanks: &mut [TankState],
@@ -372,7 +372,6 @@ pub(crate) fn apply_shell_impact(
     (event, exit)
 }
 
-#[allow(clippy::too_many_arguments)]
 /// What the shell did once it was inside the hull.
 ///
 /// `energetic_*` is the part that decides FIRES. A round only lights something when it still

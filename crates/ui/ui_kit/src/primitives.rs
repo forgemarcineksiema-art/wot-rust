@@ -101,7 +101,7 @@ pub fn push_segment(
 /// after the squash. Offsetting afterwards makes the normal's x component survive the viewport's
 /// own x scale: the line came out `aspect` times heavier at the left and right of every ring
 /// than at its top and bottom — 1.5 px against 0.9 px at 16:9, on every circle the HUD draws.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn push_arc(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],

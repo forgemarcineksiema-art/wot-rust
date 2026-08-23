@@ -33,7 +33,6 @@ pub fn resolve_cover_collision(
     Vec3::new(previous.x, attempted.y, previous.z)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn resolve_cover_collision_with_velocity(
     previous: Vec3,
     attempted: Vec3,

@@ -181,7 +181,7 @@ fn set_crater_view_grass(
         .set_render_frame(ctx, &renderer_api::RenderFrame { objects: grass, ..Default::default() });
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn shoot(
     ctx: &GpuContext,
     target: &OffscreenTarget,

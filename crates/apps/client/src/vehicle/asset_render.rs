@@ -112,7 +112,7 @@ pub fn tank_vehicle_render_objects_at_rest(
 
 /// As [`tank_vehicle_render_objects_with_tracks`], with the sprung-hull attitude
 /// `[pitch, roll, heave]` from the presentation world folded into the hull frame.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn tank_vehicle_render_objects_posed(
     catalog: &mut VehicleAssetCatalog,
     snapshot: &TankSnapshot,

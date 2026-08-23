@@ -493,7 +493,7 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
     set
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn render_scene(
     ctx: &GpuContext,
     target: &OffscreenTarget,
@@ -514,7 +514,7 @@ fn render_scene(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn draw_vehicle(
     ctx: &GpuContext,
     target: &OffscreenTarget,

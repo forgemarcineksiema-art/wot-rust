@@ -341,7 +341,7 @@ fn bake_intact(
 /// A doorway cut through a facade leaf: the leaf is built as two pierced runs flanking the
 /// opening, and this fills the gap — the recessed door leaf, its lintel and the wall above.
 /// `run_lo`/`run_hi` are the z bounds of the opening in leaf-local coordinates.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_doorway(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
@@ -390,7 +390,7 @@ fn push_doorway(
 
 /// One pierced run of a rural long wall: `windows` slots between `run_lo` and `run_hi`
 /// (absolute facade z), jittered inside their bays so no two cottages share a facade.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn rural_wall_run(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
@@ -1695,7 +1695,7 @@ fn push_pierced_wall(
 /// sill ledge standing proud of the face. All inside the recess the leaf leaves in the
 /// footprint. `glazing` fills the opening (glass in the house, a plank shutter in the barn),
 /// `trim` dresses it (dressed stone in the town, sawn timber in the village).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_window(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,

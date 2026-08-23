@@ -259,7 +259,6 @@ pub(crate) fn push_scenery_tree_far(
 // Each material is (color, gloss): bark is matte, leaf canopies carry the faint waxy sheen
 // that answers a wet sky without ever reading as plastic.
 pub(crate) const TRUNK_TONE: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
-#[allow(clippy::upper_case_acronyms)]
 const TRUNK: ([f32; 3], f32) = TRUNK_TONE;
 const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);

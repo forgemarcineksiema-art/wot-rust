@@ -2127,7 +2127,7 @@ mod tests {
     /// sunk into it. Locking the constant is the point (the camera lock does the same), so
     /// the constant-assertion lint is deliberately silenced.
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[expect(clippy::assertions_on_constants)]
     fn the_station_is_a_flush_ring_not_a_podium() {
         let (vertices, _) = hangar_scene_mesh();
         let assembly: Vec<&SceneVertex> = vertices
@@ -2253,7 +2253,7 @@ mod tests {
     /// Locking constants is the point (the same deliberate silence as
     /// `the_hero_framing_is_the_roomy_cathedral_shot`).
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[expect(clippy::assertions_on_constants)]
     fn the_light_serves_the_tank() {
         assert!(
             HANGAR_SHADOW_SOFTNESS >= 8.0,

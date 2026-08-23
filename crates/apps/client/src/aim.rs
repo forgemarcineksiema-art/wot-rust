@@ -115,7 +115,7 @@ pub(crate) struct SightPoint {
 /// shell grazed it, and the crosshair sat on a tank at 327 m while the round died on masonry at
 /// 120 m. With the shell's own body the sweep stops ON that roof — the readout says 120 M and the
 /// player is visibly aiming at a barn, which is a picture that explains itself.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
     cover: &[StaticCoverObject],

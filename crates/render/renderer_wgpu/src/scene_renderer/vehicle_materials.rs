@@ -94,7 +94,7 @@ fn layer_maps(
     layers.iter().map(|m| pick(m).clone()).collect()
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn build_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
