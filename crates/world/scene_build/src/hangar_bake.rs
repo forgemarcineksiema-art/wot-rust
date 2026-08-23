@@ -63,8 +63,8 @@ fn earns_bake_resolution(vertices: &[SceneVertex], tri: &[u32]) -> bool {
     let normal = (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero();
     let probe = centre + normal * 0.08;
     // The hall interior, DERIVED from the hangar's own constants with a slab's thickness of
-    // forgiveness — this used to hard-code the old square hall (18.1/12.65), and a hall that
-    // outgrew the literals would have silently stopped subdividing its far walls.
+    // forgiveness — never hard-code the extents: a hall that outgrows the literals silently
+    // stops subdividing its far walls.
     probe.x.abs() < crate::hangar::HALF_X + 0.1
         && probe.z.abs() < crate::hangar::HALF_Z + 0.1
         && probe.y > -0.05
@@ -789,9 +789,9 @@ mod tests {
     /// golden harness to lock frames rendered from it — and with the gather now spread over
     /// worker lanes it is also what proves the split did not move a value.
     ///
-    /// It builds through the UNCACHED path on purpose. It used to call `hangar_scene_mesh()`
-    /// twice, which returns two clones of one `OnceLock`, so it compared a value with itself
-    /// and would have passed against a bake seeded from the clock.
+    /// It builds through the UNCACHED path on purpose: `hangar_scene_mesh()` returns two
+    /// clones of one `OnceLock`, so calling it twice compares a value with itself and would
+    /// pass against a bake seeded from the clock.
     #[test]
     fn the_bake_is_deterministic() {
         let (a, _, probe_a, cube_a) =
@@ -863,8 +863,8 @@ mod tests {
     }
 
     /// The point of the whole bake: light lands where the room says it should. The roof plane
-    /// around the high-bay lamps carries their spill (the panes that used to anchor this lock
-    /// are gone — readable-light correction — so the lamps ARE the room's emitters now), and
+    /// around the high-bay lamps carries their spill (the lamps ARE the room's emitters —
+    /// there are no glowing panes), and
     /// the floor — lit by the skylight sun — returns light onto the hall at all.
     #[test]
     fn light_spills_where_the_room_emits() {

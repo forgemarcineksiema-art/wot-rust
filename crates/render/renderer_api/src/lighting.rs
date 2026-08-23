@@ -80,11 +80,10 @@ pub struct SceneLighting {
     /// (`(c - black) / (1 - black)`), undoing the ACES-lite lifted near-blacks so shade reads as
     /// shade. 0 is neutral; profiles stay within `[0, 0.08]`.
     pub black_point: f32,
-    /// Display saturation around per-pixel luma; 1.0 is neutral. Replaces the old constant 1.18
-    /// hardcoded in four shaders — the grade is profile data now.
+    /// Display saturation around per-pixel luma; 1.0 is neutral. The grade is profile data —
+    /// never a constant hardcoded per shader.
     pub saturation: f32,
-    /// Display contrast S-curve slope around mid grey; 1.0 is neutral. Replaces the old
-    /// hardcoded 1.10.
+    /// Display contrast S-curve slope around mid grey; 1.0 is neutral.
     pub contrast: f32,
     /// Cloud coverage bias, added to the sky FBM before the coverage threshold: 0 is the clear-day
     /// baseline, positive values thicken the banks (≥ ~0.3 reads as an overcast lid), negative
@@ -659,14 +658,11 @@ impl SceneLighting {
             // the reflected ray's up fraction, so in the hangar `zenith` is what a horizontal
             // surface sees overhead and `horizon` is what a vertical one sees across the bay.
             //
-            // They used to be a dim outdoor gradient (0.12 -> 0.17) carried over from the
-            // studio preset under a comment saying they only existed to keep the uniform
-            // well-formed. They are not decoration: the turntable deck, the rails and every
-            // painted panel on the hero mirror them. The hall's roof openings show
-            // `hangar::INTERIOR_BACKGROUND` — 1.30/1.38/1.55 — so the old numbers had the tank
-            // reflecting a sky SEVEN TO TEN TIMES darker than the daylight visible above it,
-            // and had the gradient upside down: dimmer overhead than sideways, which is true
-            // outdoors and false under a glazed roof.
+            // They are not decoration: the turntable deck, the rails and every painted panel
+            // on the hero mirror them. The hall's roof openings show
+            // `hangar::INTERIOR_BACKGROUND` — 1.30/1.38/1.55 — so the reflected sky must match
+            // the daylight visible above it, and the gradient must be BRIGHTER overhead than
+            // sideways: true under a glazed roof, the reverse of outdoors.
             //
             // Both are derived from the room rather than dialled. Overhead: the shed glazing
             // bands open 30.7% of the roof plane (`hangar::skylight_open_fraction`, computed

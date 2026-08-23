@@ -456,7 +456,7 @@ mod tests {
     }
 
     /// Authored counts hold as a band, per level: the table plus its variance, never a runaway
-    /// recursion (the thing the old header's "never L-systems" honestly banned).
+    /// recursion — authored tables, not L-systems.
     #[test]
     fn branch_counts_stay_inside_the_authored_bands() {
         let oak = draft_oak();

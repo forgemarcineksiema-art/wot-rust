@@ -109,16 +109,16 @@ pub const HERO_ORBIT_YAW: f32 = 0.42;
 /// the lens was pointed under every one of them. At 0.13 the frame reaches roughly 9 deg above
 /// the eye and the shed daylight over the nave comes into shot.
 pub const HERO_ORBIT_PITCH: f32 = 0.13;
-/// One metre longer than the old square hall's 14 m: the long axis has the room for it, and the
-/// extra metre buys the frame the first roof truss over the hull.
+/// The long axis has the room for it, and the fifteenth metre buys the frame the first roof
+/// truss over the hull.
 pub const HERO_ORBIT_DISTANCE: f32 = 15.0;
 /// The heading the hero is PARKED at, which only means anything against [`HERO_ORBIT_YAW`]: the
 /// camera orbits to a bearing, the tank sits at a heading, and the angle between them is the shot.
 ///
-/// It used to equal `HERO_ORBIT_YAW` exactly. A tank whose heading matches the camera's bearing
-/// faces the lens dead-on, so the hero shot was a head-on elevation with the gun barrel bisecting
-/// the hull and hiding the glacis behind it — the one angle at which a T-54 and a Centurion are
-/// hardest to tell apart. Offset by ~0.65 rad it reads as the three-quarter the comment beside it
+/// Never let it equal `HERO_ORBIT_YAW`: a tank whose heading matches the camera's bearing
+/// faces the lens dead-on, so the hero shot becomes a head-on elevation with the gun barrel
+/// bisecting the hull and hiding the glacis behind it — the one angle at which a T-54 and a
+/// Centurion are hardest to tell apart. Offset by ~0.65 rad it reads as the three-quarter the comment beside it
 /// always claimed: front, flank and the length of the running gear in one silhouette.
 pub const HERO_PARK_YAW: f32 = HERO_ORBIT_YAW + 0.65;
 /// A long lens: the hangar is a studio, and a studio does not read at a battle FOV.
@@ -130,10 +130,9 @@ pub const HERO_FOV_DEGREES: f32 = 32.0;
 ///
 /// It lives here because four callers need the same answer — the live client
 /// (`garage_render::ensure_scene`), the review view set (`review_views::hangar_review_views`)
-/// and both hangar probes. It used to be four copies of a literal, and the moment the roof
-/// gained real openings the game moved to daylight while the goldens and the probes kept the
-/// old near-black: the locked picture stopped being the played picture, which is the one thing
-/// a review artifact may never do.
+/// and both hangar probes. Four callers, ONE source: the moment they drift apart the locked
+/// picture stops being the played picture, which is the one thing a review artifact may
+/// never do.
 pub const INTERIOR_BACKGROUND: (f64, f64, f64) = (1.30, 1.38, 1.55);
 
 /// [`INTERIOR_BACKGROUND`] per daylight (H1): the day outside is what the variant IS, so the
@@ -731,8 +730,8 @@ impl HangarLight {
 /// `position.y` at that height.
 ///
 /// **This blocks until the hall exists**, which is why [`prewarm`] is called at startup: the
-/// build is seconds of work, and the first caller used to be `ensure_scene`, inside the frame
-/// that opens the garage.
+/// build is seconds of work, and inside the frame that opens the garage those seconds are a
+/// hitch — never call it there.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     hangar_scene_mesh_for(HangarLight::Day)
 }
@@ -945,8 +944,8 @@ fn hangar_geometry(furnished: bool) -> (Vec<SceneVertex>, Vec<u32>) {
     }
 
     // DEEP roof trusses: real frames under the shed decks — parallel chords a metre apart,
-    // verticals and falling diagonals between them — not the 0.24 m laths the old flat roof
-    // hung. Two frames per tooth, on the deck run where the envelope leaves them headroom;
+    // verticals and falling diagonals between them.
+    // Two frames per tooth, on the deck run where the envelope leaves them headroom;
     // they read as dark structure against the glazing daylight behind them.
     for start in SHED_STARTS {
         for local in [3.25_f32, 6.0] {
@@ -1048,7 +1047,7 @@ fn hangar_geometry(furnished: bool) -> (Vec<SceneVertex>, Vec<u32>) {
     push_cylinder(&mut v, &mut i, Vec3::ZERO, 0.9, TURNTABLE_TOP_M + 0.004, 24, TURNTABLE_HUB);
     // Machined deck steel: the glossiest ground plane in the hall, so the worklight pools and
     // the hero's contact shadow both read on it. Deck, seams and hub are one plate assembly and
-    // take one finish — they used to take three hand-typed gloss values and no material at all.
+    // take one finish.
     finish(&mut v[deck_start..], Finish { gloss: 0.35, ..Finish::MACHINED_STEEL });
 
     // The floor drain beside the drive lane: a recessed near-black strip under a steel
@@ -1438,11 +1437,9 @@ fn rotated_slab(
     );
 }
 
-// `slab_finished` used to live here: a `slab` that also stamped a bare gloss number. It is gone
-// on purpose. Setting a sheen without naming the material is what left every vertex in this hall
-// carrying `surface_role::LEGACY` while a handful of them carried a finish — a wall that
-// reflected like steel and was shaded like nothing. `Finish` + `finish` replace it, and the two
-// lanes travel together.
+// Never stamp a sheen without naming the material: that is what leaves a vertex carrying
+// `surface_role::LEGACY` while wearing a finish — a wall that reflects like steel and is shaded
+// like nothing. `Finish` + `finish` are the one path, and the two lanes travel together.
 
 /// What a hall surface is MADE OF, as the two lanes that decide how it answers light: which
 /// procedural treatment dresses its albedo (`surface`) and how sharp its specular is (`gloss`).
@@ -2662,10 +2659,9 @@ mod tests {
     }
 
     /// Every hot lamp face hangs where the `garage_hero` light rig says a light is: the pools
-    /// and the housings are twins, or the room reads as haunted. NO exceptions any more — the
-    /// glowing "frosted panes" that used to be excused from the pairing are gone (a flat HDR
-    /// slab is not a window; readable-light correction, 2026-08-05), so every emissive vertex
-    /// in the hall below the skylights is a worklamp face with a housing and a rig pool.
+    /// and the housings are twins, or the room reads as haunted. NO exceptions — a flat HDR
+    /// slab is not a window, so every emissive vertex in the hall below the skylights is a
+    /// worklamp face with a housing and a rig pool.
     #[test]
     fn lamp_faces_run_hot_and_hang_from_housings() {
         let (vertices, _) = hangar_scene_mesh();
@@ -2755,10 +2751,8 @@ mod tests {
         );
     }
 
-    /// The hall's SIZE budget. It used to be the whole of what this file measured, under a
-    /// comment claiming "the hall re-bakes on every garage entry" — which was false (the
-    /// `OnceLock` bakes once) and, worse, pointed the budget at a proxy: vertex count is not
-    /// what the player waits for. The cost is measured next door, in
+    /// The hall's SIZE budget — a ceiling, not the cost: vertex count is not what the player
+    /// waits for (the `OnceLock` bakes once). The COST is measured next door, in
     /// `the_hall_is_built_off_the_thread_that_asks_for_it` and `the_cold_bake_is_measured`.
     #[test]
     fn the_hangar_stays_inside_its_size_budget() {
