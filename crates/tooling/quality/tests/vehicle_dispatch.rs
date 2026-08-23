@@ -19,17 +19,8 @@ use quality::workspace::{
     crate_src_dirs, is_test_module_file, repo_relative, rust_files, workspace_root,
 };
 
-/// Files allowed to name specific vehicles, with the reason and the wave that burns the entry.
+/// Files allowed to name specific vehicles, with the reason and what burns the entry.
 const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[
-    // BURNED (W4 F4): the client's `vehicle/display.rs` short-name table became
-    // `VehicleKind::short_name()` in `game_core`, beside `display_name()` — a new vehicle
-    // states both names in one file or fails the exhaustive match.
-    // BURNED (W4 F3): `asset_catalog.rs`'s `if kind != T54_1951` became the data question the
-    // render path already asked — `vehicle_has_cut_truth`, which reads whether the blueprint
-    // carries the visual-detail block.
-    // BURNED (W4 F4b): the recipe registry and the budgets/goldens table moved to
-    // `crates/vehicle/vehicle_recipes` — content in the content layer, where the dispatch
-    // rule's zone already allows it. `vehicle_geometry` is a pure kernel again.
     (
         "crates/world/scene_build/src/review_views.rs",
         "The review scenes park specific vehicles for the look harness — presentation content \

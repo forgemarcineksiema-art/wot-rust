@@ -1,5 +1,5 @@
-// Doc-existence test removed by decision (battle-first, 2026-08-01): the gate holds rules about
-// code. The boundary doctrine lives at `docs/simulation-render-separation.md`, cited here.
+// The gate holds rules about code. The boundary doctrine lives at
+// `docs/simulation-render-separation.md`, cited here.
 use quality::is_test_module_file;
 use quality::{rust_files, workspace_root};
 use std::fs;

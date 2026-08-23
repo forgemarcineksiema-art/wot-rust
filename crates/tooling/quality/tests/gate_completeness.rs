@@ -43,8 +43,8 @@ const ENV_GATE_ALLOWLIST: &[(&str, &str, &str)] = &[
         "Re-records the wire fixtures rather than skipping. Sharper than the others and worth \
          reading twice: `wire_fixture` writes the file and then reads it back in the same call, so \
          with this set EVERY protocol snapshot passes by construction. Set it for one deliberate \
-         protocol bump, then rerun with it UNSET — that second run is the whole test. (A third \
-         spelling for one idea: WOT_UPDATE_GOLDENS, WOT_UPDATE_GOLDENS, REGEN_WIRE_FIXTURES.)",
+         protocol bump, then rerun with it UNSET — that second run is the whole test. (One \
+         re-record idea, two spellings: WOT_UPDATE_GOLDENS twice above, REGEN_WIRE_FIXTURES here.)",
     ),
 ];
 

@@ -1,7 +1,6 @@
 use quality::duplication::duplicated_free_functions;
 
-/// Complements the per-file line limit: that rule keeps modules small, this one keeps the same
-/// helper from being pasted into several crates to stay under it. New cross-`src` duplicates must
+/// Keeps the same helper from being pasted into several crates. New cross-`src` duplicates must
 /// move into a shared module (e.g. `game_core::math`) or earn a justified allowlist entry.
 #[test]
 fn free_functions_are_not_duplicated_across_src_modules() {

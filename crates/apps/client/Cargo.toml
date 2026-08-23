@@ -36,7 +36,5 @@ world_forge.workspace = true
 vehicle_geometry.workspace = true
 winit.workspace = true
 
-[dev-dependencies]
-
 [lints]
 workspace = true

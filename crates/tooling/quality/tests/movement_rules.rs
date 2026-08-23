@@ -1,5 +1,5 @@
-// Doc phrase-grep test removed by decision (battle-first, 2026-08-01): the gate holds rules
-// about code. The movement policy lives at `docs/vehicle-movement-policy.md`, cited here.
+// The gate holds rules about code. The movement policy lives at `docs/vehicle-movement-policy.md`,
+// cited here.
 use quality::workspace_root;
 use std::fs;
 

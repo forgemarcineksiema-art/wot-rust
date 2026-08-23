@@ -1,5 +1,5 @@
-// Doc-existence and phrase-grep tests removed by decision (battle-first, 2026-08-01): the gate
-// holds rules about code. The camera policy lives at `docs/battle-camera-policy.md`, cited here.
+// The gate holds rules about code. The camera policy lives at `docs/battle-camera-policy.md`,
+// cited here.
 use quality::workspace_root;
 use std::fs;
 
