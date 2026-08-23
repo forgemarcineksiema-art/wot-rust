@@ -86,9 +86,9 @@ pub fn tier_roman(tier: u8) -> &'static str {
 /// bincode, so new vehicles must be *appended* — never reordered or removed — or existing
 /// snapshots would decode to the wrong vehicle.
 ///
-/// Variants intentionally mirror the snake-case `TankSpec` constructors and asset slugs
-/// (`t54_1951`, `tiger_i_ausf_e`, ...), so `non_camel_case_types` is allowed for this one type.
-#[allow(non_camel_case_types)]
+/// Variant names mirror the `TankSpec` constructors and asset slugs (`t54_1951`,
+/// `tiger_i_ausf_e`, ...) in their uppercase form; today's all-caps segments satisfy
+/// `non_camel_case_types` on their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum VehicleKind {
     #[default]

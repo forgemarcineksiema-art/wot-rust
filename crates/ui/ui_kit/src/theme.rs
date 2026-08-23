@@ -101,7 +101,7 @@ mod tests {
     /// and the accent is warmer than it is bright (amber, not white-hot). Locking constants is
     /// the point here, so the constant-assertion lint is deliberately silenced.
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[expect(clippy::assertions_on_constants)]
     fn panels_stay_dark_and_markings_stay_bright() {
         let luma = |c: [f32; 4]| 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
         assert!(luma(color::PANEL) < 0.15, "panel must read as dark graphite");

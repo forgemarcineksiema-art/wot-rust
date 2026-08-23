@@ -253,7 +253,7 @@ mod tests {
     /// genuinely reachable there — a MAX_DISTANCE the clamp never grants would be a lie.
     /// Locking constants is the point, so the constant-assertion lint is deliberately silenced.
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[expect(clippy::assertions_on_constants)]
     fn the_hero_framing_is_the_roomy_cathedral_shot() {
         assert!(HERO_ORBIT_DISTANCE >= 14.0 - 1.0e-4, "hero boom stays roomy");
         assert!(MAX_DISTANCE >= 17.0 - 1.0e-4, "full pull-back stays available");

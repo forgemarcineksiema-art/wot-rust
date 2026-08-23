@@ -370,7 +370,7 @@ fn expand_scenery(
 /// SHARED by the twins — an Oak's trunk becomes a cover box scaled by the instance, and
 /// fairness demands identical twins), and each instance grows its own yaw — a lamppost's
 /// arm stays over the road within a few degrees, everything else swings freely.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_mirrored(
     out: &mut Vec<SceneryInstance>,
     heightmap: &HeightMap,

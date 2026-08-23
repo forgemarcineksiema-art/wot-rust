@@ -52,7 +52,7 @@ impl GearMeshHandles {
 /// Emit one render object per moving running-gear part, instanced from the cached unit meshes and
 /// placed in the world by `hull_transform * placement`. `left_m`/`right_m` are the per-side track
 /// distances; at `0.0` the gear sits at its rest pose (used by static/offscreen consumers).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn gear_render_objects(
     tank_id: TankId,
     handles: GearMeshHandles,
@@ -72,7 +72,6 @@ pub(crate) fn gear_render_objects(
 /// The same, from placements the caller already has. The battle path keeps them in a per-tank
 /// cache (`gear_cache.rs`) because most frames do not move them; this half is the only part that
 /// has to run either way.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn gear_objects_from(
     tank_id: TankId,
     handles: GearMeshHandles,

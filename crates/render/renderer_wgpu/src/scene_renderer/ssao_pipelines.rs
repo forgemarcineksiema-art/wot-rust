@@ -75,7 +75,7 @@ const PREPASS_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_att
 /// A depth-only camera prepass pipeline over a position-first vertex layout of the given stride
 /// (the vehicle and scene formats both lead with `position`). The scene variant reads the UV
 /// lane and cuts foliage to its alpha mask; the vehicle variant keeps the plain path.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn build_prepass_pipeline(
     device: &wgpu::Device,
     shader: &wgpu::ShaderModule,

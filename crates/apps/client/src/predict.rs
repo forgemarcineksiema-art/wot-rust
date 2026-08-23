@@ -118,7 +118,7 @@ impl LocalPredictor {
     }
 
     /// Advance one fixed tick with the same input being sent to the server.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn step(
         &mut self,
         command: TankCommand,
@@ -140,7 +140,7 @@ impl LocalPredictor {
             (self.drive.kinematic.forward_speed() - speed_before) / dt.max(1.0e-6);
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn step_drive(
         &mut self,
         command: TankCommand,

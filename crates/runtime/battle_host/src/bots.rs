@@ -175,7 +175,7 @@ impl BotRoster {
     /// destroyed objects omitted) — the same slice every authoritative consumer uses. Bots must
     /// never raycast the raw authored cover: a bot would keep "hiding" behind a building the
     /// battle has already flattened, and would refuse to fire through the hole it just made.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(crate) fn commands(
         &mut self,
         tick: u64,
@@ -251,7 +251,7 @@ fn note_incoming_fire(agent: &mut BotAgent, tank: &TankState, damage_events: &[D
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn bot_command_for_tank(
     agent: &mut BotAgent,
     tick: u64,

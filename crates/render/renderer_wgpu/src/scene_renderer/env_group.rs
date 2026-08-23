@@ -68,7 +68,7 @@ pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupL
 }
 
 /// The full group-2 entries in binding order.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn build_environment_bind_group(
     device: &wgpu::Device,
     shadow_bgl: &wgpu::BindGroupLayout,

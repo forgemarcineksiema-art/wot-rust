@@ -119,7 +119,7 @@ pub fn push_icon(
     push_glyph_quad(vertices, left_x, left_x + width, top_y, top_y - size, u0, v0, u1, v1, color);
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_glyph_quad(
     vertices: &mut Vec<HudVertex>,
     x0: f32,

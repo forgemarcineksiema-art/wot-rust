@@ -75,7 +75,6 @@ pub fn grounded_cover(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn grounded_feature(
     heightmap: &HeightMap,
     kind: MapFeatureKind,

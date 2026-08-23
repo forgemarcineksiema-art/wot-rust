@@ -110,7 +110,7 @@ fn tank_segment_hit(
 /// frame) and the turret volume (turret frame, rotated about the ring axis) IS the struck
 /// plate. Its normal carries the real slope, its zone comes from the plane (or a weakspot
 /// patch riding on it — the mantlet ball), and both ride the full hull attitude.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn armor_volume_hit(
     start: Vec3,
     end: Vec3,

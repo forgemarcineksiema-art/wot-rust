@@ -163,7 +163,7 @@ fn f32_to_f16_bits(value: f32) -> u16 {
 }
 
 impl ShadowResources {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -400,7 +400,7 @@ impl ShadowResources {
 /// depth. `vertex_stride` selects the caster format (scene vs vehicle); both lead with `position`,
 /// so the one vertex shader serves both. Single-sampled (the shadow map is 1x), camera uniform at
 /// group 0.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn build_shadow_pipeline(
     device: &wgpu::Device,
     camera_bgl: &wgpu::BindGroupLayout,

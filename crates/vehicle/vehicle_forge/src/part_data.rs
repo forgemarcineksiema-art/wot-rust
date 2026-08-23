@@ -17,7 +17,6 @@ use vehicle_geometry::{MaterialRole, MeshBounds};
 use crate::part_graph::{ForgePart, ForgePartKind, PartAnchor, part};
 
 /// Build a coarse part graph from baked submesh bounds plus the reference running-gear count.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn geometry_derived_parts(
     wheel_count: usize,
     traverses: bool,

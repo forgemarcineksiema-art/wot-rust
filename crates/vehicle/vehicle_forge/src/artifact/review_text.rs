@@ -60,7 +60,7 @@ fn glyph(ch: char) -> [u8; 7] {
 /// Draw `text` at pixel (`x`, `y`) (top-left of the first glyph) into an RGBA buffer, at an
 /// integer `scale` (1 = 5x7 px glyphs). Clips at the buffer edges. The argument list mirrors
 /// the raster helpers' (buffer + dimensions + placement) — a struct would only rename it.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(super) fn draw_text(
     pixels: &mut [u8],
     width: u32,

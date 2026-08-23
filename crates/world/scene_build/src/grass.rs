@@ -271,7 +271,7 @@ pub fn grass_tuft_mesh() -> MeshAsset {
 }
 
 /// One five-vertex blade station run: root pair, mid pair, pointed tip, both faces wound.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_blade(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,

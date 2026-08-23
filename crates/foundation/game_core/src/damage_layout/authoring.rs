@@ -270,7 +270,7 @@ pub fn turret_component(
     component(id, ArmorFrame::Turret, kind, slot, material, shape, priority, vulnerability)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn component(
     id: u16,
     frame: ArmorFrame,

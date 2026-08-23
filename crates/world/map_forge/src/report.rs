@@ -1141,7 +1141,7 @@ const NAMED_BLOCKERS: usize = 3;
 /// map, nearest to `position` first, because the author is usually looking for the thing they just
 /// put down. Empty when the pocket is closed by water or terrain rather than by anything placed:
 /// naming nothing is the honest answer there, not naming the closest innocent building.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn walls_around(
     target: usize,
     position: [f32; 3],

@@ -296,7 +296,7 @@ const FAR_TUFT_SHADE: f32 = 0.86;
 /// rather than by a notch cut into a slab; the tallest blade is exactly the near tuft's
 /// tallest at this candidate's scale, so height continuity across the hand-off survives.
 /// The sway lane carries height-over-root for the shader's collapse AND the wind.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn push_far_tuft(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
