@@ -212,13 +212,12 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
       bitwy przy globalnym reorderze (+0,8 na delcie floty) okazał się W GRANICACH szumu
       między przebiegami — flaga wybrana dla bitowej zamrożoności bitwy; rozstrzygnięcie
       globalnego reorderu wymaga A/B bitwy w JEDNEJ rotacji (follow-up, nieblokujący)
-- [WSTRZYMANE — OKO USERA] P3: dieta SSAO garażu. Zmierzone DWA warianty (cap promienia
-      24 px; oraz same tapy 12→8 przy pełnym promieniu) — oba przestrajają masę cienia
-      pokoju widocznie (52–76% pikseli garażu, delta do 34/255; narożniki i pas pod galerią
-      jaśnieją). Zamki wartości TRZYMAJĄ (6/6), ale ten cień strojił user okiem przy relighcie
-      #554 — metryka to nie werdykt looku. Kandydat (łagodniejszy wariant) czeka w draft
-      PR #578 bez blessu goldenów; zysk ~0,3–0,5 ms GPU z łańcucha 1,26. Werdykt „nie" →
-      wpis „odrzucone okiem" i koniec tematu
+- [x] P3: dieta SSAO garażu. Zmierzone DWA warianty (cap promienia 24 px; oraz same tapy
+      12→8 przy pełnym promieniu) — oba przestrajają masę cienia pokoju widocznie (52–76%
+      pikseli garażu, delta do 34/255; narożniki i pas pod galerią jaśnieją). Zamki wartości
+      TRZYMAŁY (6/6); łagodniejszy wariant WSZEDŁ (#578, merge na rozkaz usera), goldeny
+      garażu re-blessowane w #619; zysk szacowany ~0,3–0,5 ms GPU z łańcucha 1,26 — bramka
+      P7 NIE była mierzona ponownie po #578, więc zysk pozostaje szacunkiem, nie protokołem
 - [x] P4: jądro półcienia 8 → 6 tapów (zewnętrzny krzyż zostaje, wewnętrzny krzyż → para
       pod 45°; rotacja per piksel = reguła anty-tkaninowa bez zmian; promień 9 texeli i zamek
       ≥8 nietknięte). Przegląd okiem hero + susp_close: nierozróżnialne; goldeny garażu
@@ -239,8 +238,9 @@ dojść później) · zmiana silnika / realtime GI / opcje jakości dla gracza.
 - [x] P7: bramka F2-GO ZAPISANA 2026-08-15 — **NO-GO na dziś.** Stan po diecie P2+P4+P5
       (rotacje interleaved, MX330): 1× GPU-instrument ~17,2 ms (wall−fence 18,0–20,7 —
       dwie miary się rozjeżdżają o ~3 ms, obie protokołowane) vs budżet 16,67; kandydat
-      @4× GPU ~20,2 → **luka ~3,5 ms**. Dostępne dźwignie: P3 za okiem usera (~0,4)
-      i P6b prepass @4× (projekt powyżej). F2 POZOSTAJE ZAPARKOWANE z ceną — one-look
+      @4× GPU ~20,2 → **luka ~3,5 ms**. Dostępna dźwignia: P6b prepass @4× (projekt
+      powyżej; P3 wydane w #578 po tym pomiarze, ~0,3–0,5 już w kieszeni 1×, bez
+      ponownego protokołu). F2 POZOSTAJE ZAPARKOWANE z ceną — one-look
       zabrania i klatki pod 60 FPS, i opcji jakości; wraca po P6b albo po decyzji
 - [ ] P8: F2 4×MSAA per-scene + parytet goldenów (G9) — za bramką P7 (dziś NO-GO)
 - [ ] P9: decyzja D2 pomiarem — automatycznie odroczona razem z F2 (bramka D2 liczy od @4×)

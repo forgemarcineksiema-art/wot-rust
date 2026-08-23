@@ -84,7 +84,8 @@ move), and the app-to-app allowlist is empty.
 
 - `client`: `winit` desktop application — input, local/remote battle flow through
   `battle_host`, prediction/interpolation, renderer and HUD composition.
-- `server`: a thin headless binary shell over `battle_host` (a ~115-line `main.rs`).
+- `server`: a headless binary shell over `battle_host` (a ~400-line `main.rs`: args, socket
+  loop, session wiring).
 - `editor`: the map editor — a blueprint authoring shell on the game's own render path
   (viewport via `scene_build` + `renderer_wgpu`, panels via `ui_kit`); sculpt brushes,
   structural op stamps, object/road/water/gameplay tools, the contract report with

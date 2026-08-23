@@ -4,7 +4,10 @@ Artykuł-primer dla właściciela projektu: jak działa multiplayer w grach akcj
 JUŻ jest w tym repo, jakie decyzje otwiera program W1 i co rekomendować. Doktryny
 wykonawcze pozostają po angielsku; to jest tekst do rozumienia, nie do maszyn.
 
-> **STATUS (2026-07-25).** Ten primer powstał PRZED pierwszą falą W1, więc części §3, §6, §7
+> **STATUS (2026-07-25) — PRIMER HISTORYCZNY.** Pisany przy v36–v38; wire ma dziś v48, a
+> aktualny rejestr braków i plan fal mieszka w `multiplayer-production-program.md`. Jako opis
+> POJĘĆ tekst pozostaje ważny; jako opis stanu — nie.
+> Ten primer powstał PRZED pierwszą falą W1, więc części §3, §6, §7
 > i §8 opisują rzeczy, które już weszły (protokół v36-v38, PR #300). Co jest zrobione:
 > koperta `SnapshotDelivery` z ACK wejść i autorytatywnym ruchem kadłuba do rekoncyliacji
 > predykcji; `session_id` w każdej wiadomości, więc szybki reconnect na tym samym gnieździe

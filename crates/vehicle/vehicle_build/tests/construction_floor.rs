@@ -2,8 +2,8 @@
 //!
 //! Every other budget in this workspace is a ceiling derived from what a thing already costs, so
 //! it can stop a regression and can never ask for more. This asks. It is the third floor after
-//! the material law and `material_floor.rs`, and the one the 2026-08-08 geometry audit
-//! (`docs/geometry-pipeline-audit-2026-08-08.md`) named as carrying the most weight.
+//! the material law and `material_floor.rs`, and the one the 2026-08-08 geometry audit (retired
+//! to git history; doctrine in `docs/vehicle-geometry-policy.md`) named as carrying the most weight.
 //!
 //! **The verdict is per SEMANTICS, never by threshold — and getting that wrong first is how this
 //! file learned it.** `upper_hull` presents six planes and that is CORRECT: a rolled hull *is* six

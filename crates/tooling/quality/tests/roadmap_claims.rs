@@ -7,7 +7,7 @@
 //!
 //! The fix is not to correct the number; it is to make the correction permanent. Each countable
 //! claim carries a short anchor, and this gate reads both sides of it. Prose stays prose — only
-//! the three numbers a stranger would quote back at us are pinned.
+//! the numbers a stranger would quote back at us are pinned.
 
 use std::fs;
 
@@ -22,6 +22,8 @@ enum Owner {
 }
 
 struct Claim {
+    /// The document making the claim, repo-relative.
+    doc: &'static str,
     /// The literal in the doc immediately before the number it claims.
     anchor: &'static str,
     /// The file that owns the fact, repo-relative.
@@ -31,10 +33,9 @@ struct Claim {
     why: &'static str,
 }
 
-const DOC: &str = "docs/ROADMAP.md";
-
 const CLAIMS: &[Claim] = &[
     Claim {
+        doc: "docs/ROADMAP.md",
         anchor: "**wire v",
         source: "crates/runtime/net/src/lib.rs",
         owner: Owner::NumberAfter("pub const PROTOCOL_VERSION: u16 = "),
@@ -42,6 +43,18 @@ const CLAIMS: &[Claim] = &[
               one sends them looking for a wire that no longer exists",
     },
     Claim {
+        // The same fact claimed in a second doc rotted five versions deep (43 against 48)
+        // before anyone noticed — the exact failure the header describes, in the one doc
+        // that TEACHES the protocol-bump procedure.
+        doc: "docs/testing-and-regression.md",
+        anchor: "`PROTOCOL_VERSION = ",
+        source: "crates/runtime/net/src/lib.rs",
+        owner: Owner::NumberAfter("pub const PROTOCOL_VERSION: u16 = "),
+        why: "the doc that walks a reader through a protocol bump must quote the wire that \
+              exists, or the walkthrough calibrates them against a ghost",
+    },
+    Claim {
+        doc: "docs/ROADMAP.md",
         anchor: "**Fleet**: ",
         source: "crates/foundation/game_core/src/vehicle_kind.rs",
         owner: Owner::NumberAfter("pub const PLAYABLE: [VehicleKind; "),
@@ -49,6 +62,7 @@ const CLAIMS: &[Claim] = &[
               memory of when it was last counted",
     },
     Claim {
+        doc: "docs/ROADMAP.md",
         anchor: "**Maps**: ",
         source: "crates/foundation/terrain/src/map_id.rs",
         owner: Owner::EntriesIn {
@@ -61,20 +75,21 @@ const CLAIMS: &[Claim] = &[
 ];
 
 #[test]
-fn the_roadmap_quotes_the_numbers_the_code_owns() {
+fn the_docs_quote_the_numbers_the_code_owns() {
     let root = workspace_root();
-    let doc = fs::read_to_string(root.join(DOC)).expect("the roadmap should be readable");
     let mut offenders = Vec::new();
 
     for claim in CLAIMS {
+        let doc = fs::read_to_string(root.join(claim.doc))
+            .unwrap_or_else(|_| panic!("{} should be readable", claim.doc));
         let source = fs::read_to_string(root.join(claim.source))
             .unwrap_or_else(|_| panic!("{} should be readable", claim.source));
 
         let Some(claimed) = number_after(&doc, claim.anchor) else {
             offenders.push(format!(
-                "{DOC}: no number follows `{}` — the anchor this gate reads is gone, so the \
+                "{}: no number follows `{}` — the anchor this gate reads is gone, so the \
                  claim it protected is unchecked again",
-                claim.anchor,
+                claim.doc, claim.anchor,
             ));
             continue;
         };
@@ -93,15 +108,15 @@ fn the_roadmap_quotes_the_numbers_the_code_owns() {
 
         if claimed != owned {
             offenders.push(format!(
-                "{DOC} claims `{}{claimed}` but {} owns {owned} — {}",
-                claim.anchor, claim.source, claim.why,
+                "{} claims `{}{claimed}` but {} owns {owned} — {}",
+                claim.doc, claim.anchor, claim.source, claim.why,
             ));
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "the whole-picture doc is quoting numbers the code has moved past:\n  {}",
+        "a gated doc is quoting numbers the code has moved past:\n  {}",
         offenders.join("\n  "),
     );
 }
@@ -109,16 +124,17 @@ fn the_roadmap_quotes_the_numbers_the_code_owns() {
 #[test]
 fn every_anchor_appears_once_so_no_second_copy_can_drift() {
     let root = workspace_root();
-    let doc = fs::read_to_string(root.join(DOC)).expect("the roadmap should be readable");
     let mut offenders = Vec::new();
 
     for claim in CLAIMS {
+        let doc = fs::read_to_string(root.join(claim.doc))
+            .unwrap_or_else(|_| panic!("{} should be readable", claim.doc));
         let hits = doc.matches(claim.anchor).count();
         if hits != 1 {
             offenders.push(format!(
-                "`{}` appears {hits} times in {DOC} — a checked claim needs exactly one home, \
+                "`{}` appears {hits} times in {} — a checked claim needs exactly one home, \
                  or the copies disagree and the gate still passes",
-                claim.anchor,
+                claim.anchor, claim.doc,
             ));
         }
     }

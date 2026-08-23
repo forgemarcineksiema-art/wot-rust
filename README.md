@@ -12,7 +12,7 @@ authoritative server.
 tests, the local verify gate, one-look budgets, append-only enums) — then
 **`docs/ROADMAP.md`** for the whole picture: systems inventory, the honest gap list toward
 release, and where the center of gravity should go next. Individual program docs
-(battle-first, destruction, art direction…) are execution details under `docs/`.
+(art direction, multiplayer production, contact & tracks…) are execution details under `docs/`.
 
 ## What exists today
 
@@ -49,7 +49,6 @@ Review/QA artifacts:
 cargo run -p client --release --example probe -- perf_capture      # the one-look FPS numbers
 cargo run -p client --example probe -- flora_probe                 # the procedural species lineup
 cargo run -p client --example probe -- ostrogorsk_views            # city review renders
-cargo run -p tools -- generate-map --map ostrogorsk --output assets/maps/ostrogorsk.terrain.json
 ```
 
 The repo pins a dated nightly (`rust-toolchain.toml`) for reproducible builds and stable
