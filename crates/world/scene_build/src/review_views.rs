@@ -332,7 +332,8 @@ fn declared_looks(map: MapId) -> Vec<WeatherVariant> {
     }
 }
 
-fn map_key(map: MapId) -> &'static str {
+/// The short per-map key the review render paths and the look goldens agree on.
+pub fn map_key(map: MapId) -> &'static str {
     match map {
         MapId::ProkhorovkaHill252_2 => "prokhorovka",
         MapId::BystraValley => "bystra",

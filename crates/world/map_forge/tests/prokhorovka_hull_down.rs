@@ -1,6 +1,9 @@
 use map_forge::battlefield;
 use terrain::{HeightMap, MapId};
 
+mod common;
+use common::{blockage, clearance};
+
 /// A tank hull-down on the eastern hill must mask its hull behind the crest while its turret
 /// fires over it, seen from an attacker pushing the centre. Scans the reverse shelf for such a
 /// spot so the test locks the *existence* of a usable hull-down line, not one tuned point.
@@ -86,36 +89,4 @@ fn hill_has_a_crest_with_a_reverse_slope() {
 
 fn ground(hm: &HeightMap, x: f32, z: f32) -> (f32, f32, f32) {
     (x, hm.sample_height(x, z).expect("inside map"), z)
-}
-
-/// Largest amount the terrain rises above the straight sightline (> 0 means it is masked).
-fn blockage(hm: &HeightMap, from: (f32, f32, f32), to: (f32, f32, f32)) -> f32 {
-    let mut worst = f32::NEG_INFINITY;
-    let steps = 120;
-    for i in 0..=steps {
-        let t = i as f32 / steps as f32;
-        let x = from.0 + (to.0 - from.0) * t;
-        let z = from.2 + (to.2 - from.2) * t;
-        let line_y = from.1 + (to.1 - from.1) * t;
-        if let Some(g) = hm.sample_height(x, z) {
-            worst = worst.max(g - line_y);
-        }
-    }
-    worst
-}
-
-/// Smallest gap the sightline keeps above the terrain (> 0 everywhere means it is visible).
-fn clearance(hm: &HeightMap, from: (f32, f32, f32), to: (f32, f32, f32)) -> f32 {
-    let mut worst = f32::INFINITY;
-    let steps = 120;
-    for i in 0..=steps {
-        let t = i as f32 / steps as f32;
-        let x = from.0 + (to.0 - from.0) * t;
-        let z = from.2 + (to.2 - from.2) * t;
-        let line_y = from.1 + (to.1 - from.1) * t;
-        if let Some(g) = hm.sample_height(x, z) {
-            worst = worst.min(line_y - g);
-        }
-    }
-    worst
 }

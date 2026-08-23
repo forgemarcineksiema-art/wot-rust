@@ -5,7 +5,7 @@ use glam::Vec3;
 use sim::{FixedTimestep, SimulationState, TankCommand};
 
 mod common;
-use common::pitch_at_t54_bustle;
+use common::{fire_command, pitch_at_t54_bustle, run_until_shell_resolved};
 
 #[test]
 fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
@@ -204,25 +204,8 @@ fn spawned_tank_uses_module_health_from_assembled_loadout() {
     assert_eq!(module_hp(&state, tank, ModuleSlot::Gun), 1);
 }
 
-/// Pitch that puts a rear shot through the T-54 bustle clips (`damage_layout/t54.rs`).
-fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
-    let step = FixedTimestep::from_hz(60);
-    state.apply_commands(&[(shooter, fire_command())], step);
-    for _ in 0..30 {
-        state.apply_commands(&[], step);
-        if !state.damage_events().is_empty() {
-            return;
-        }
-    }
-    panic!("shell should resolve against target");
-}
-
 fn module_hp(state: &SimulationState, tank: TankId, slot: ModuleSlot) -> u32 {
     state.tank(tank).expect("tank").modules.hit_points(slot)
-}
-
-fn fire_command() -> TankCommand {
-    TankCommand { fire: true, ..TankCommand::idle() }
 }
 
 /// Ignition is EARNED, and this is the rule that earns it.

@@ -5,25 +5,12 @@
 //! and for the T-54 that is the legacy recipe, not the hybrid mesh the game actually draws. The
 //! shipped meshes are gated by `vehicle_forge/tests/shipped_cost.rs`.
 
+mod common;
+use common::{bake_all, submesh_bounds};
+
 use game_core::{HitboxProfile, VehicleKind};
-use vehicle_geometry::{BakedVehicle, MeshBounds, SubmeshKind};
+use vehicle_geometry::SubmeshKind;
 use vehicle_recipes::{GOLDEN_BAKE_HASHES, VEHICLE_BUDGETS, bake_vehicle};
-
-fn bake_all() -> Vec<BakedVehicle> {
-    VehicleKind::ALL
-        .into_iter()
-        .map(|kind| bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}")))
-        .collect()
-}
-
-fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> MeshBounds {
-    vehicle
-        .submesh(kind)
-        .unwrap_or_else(|| panic!("{:?} missing {kind:?} submesh", vehicle.kind()))
-        .mesh
-        .bounds()
-        .unwrap_or_else(|| panic!("{:?} {kind:?} submesh has no bounds", vehicle.kind()))
-}
 
 #[test]
 fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {

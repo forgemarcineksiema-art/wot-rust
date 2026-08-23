@@ -19,11 +19,10 @@ use quality::workspace::{crate_src_dirs, repo_relative, rust_files, workspace_ro
 /// Neither style is wrong — `foo/mod.rs` and `foo.rs` beside `foo/` both compile and both read
 /// fine. Using BOTH inside one crate is the cost: a reader looking for a module has to know which
 /// convention that particular module happened to be born under, and every new module re-opens the
-/// question. Five crates mix today; four do not.
+/// question. Four crates mix today; five do not.
 const MIXED_MODULE_STYLE_ALLOWLIST: &[(&str, &str)] = &[
     ("crates/apps/client", "5 mod.rs against 5 sibling files"),
     ("crates/foundation/game_core", "2 mod.rs against 3 sibling files"),
-    ("crates/kernels/vehicle_geometry", "2 mod.rs against 2 sibling files"),
     ("crates/runtime/sim", "1 mod.rs against 1 sibling file"),
     ("crates/vehicle/vehicle_forge", "1 mod.rs against 2 sibling files"),
 ];

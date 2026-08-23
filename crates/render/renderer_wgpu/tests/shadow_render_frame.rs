@@ -2,6 +2,9 @@
 //! a ground receiver darkens a patch of that ground, and disabling shadows (`strength = 0`, the
 //! capability fallback) is a true no-op. Runs on the headless adapter; skips if none is available.
 
+mod common;
+use common::{identity, luma_255};
+
 use game_core::TankId;
 use renderer_api::{
     MaterialHandle, MeshHandle, RenderFrame, RenderObject, SceneLighting, SceneVertex,
@@ -59,14 +62,6 @@ fn scene_occluder() -> (Vec<SceneVertex>, Vec<u32>) {
     scene_occluder_at(0.0)
 }
 
-fn luma(p: &[u8]) -> f32 {
-    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
-}
-
-fn identity() -> [[f32; 4]; 4] {
-    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
-}
-
 #[test]
 fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
     let Some(ctx) = headless() else {
@@ -117,12 +112,12 @@ fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
     let darkened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(a) - luma(b) > 18.0)
+        .filter(|(a, b)| luma_255(a) - luma_255(b) > 18.0)
         .count();
     let brightened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(b) - luma(a) > 18.0)
+        .filter(|(a, b)| luma_255(b) - luma_255(a) > 18.0)
         .count();
 
     assert!(
@@ -171,12 +166,12 @@ fn the_static_world_casts_a_shadow_with_no_vehicles_present() {
     let darkened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(a) - luma(b) > 18.0)
+        .filter(|(a, b)| luma_255(a) - luma_255(b) > 18.0)
         .count();
     let brightened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(b) - luma(a) > 18.0)
+        .filter(|(a, b)| luma_255(b) - luma_255(a) > 18.0)
         .count();
 
     assert!(
@@ -234,12 +229,12 @@ fn the_far_cascade_darkens_ground_200m_past_the_shadow_focus() {
     let darkened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(a) - luma(b) > 18.0)
+        .filter(|(a, b)| luma_255(a) - luma_255(b) > 18.0)
         .count();
     let brightened = lit
         .chunks_exact(4)
         .zip(shadowed.chunks_exact(4))
-        .filter(|(a, b)| luma(b) - luma(a) > 18.0)
+        .filter(|(a, b)| luma_255(b) - luma_255(a) > 18.0)
         .count();
 
     assert!(
@@ -346,7 +341,7 @@ fn the_pcf_kernel_is_centred_on_the_fragment() {
         for y in 0..SIZE as usize {
             for x in 0..SIZE as usize {
                 let p = (y * SIZE as usize + x) * 4;
-                let drop = (luma(&lit[p..p + 4]) - luma(&shadowed[p..p + 4])) as f64;
+                let drop = (luma_255(&lit[p..p + 4]) - luma_255(&shadowed[p..p + 4])) as f64;
                 if drop > 3.0 {
                     weighted += drop * y as f64;
                     total += drop;
@@ -382,7 +377,7 @@ fn the_pcf_kernel_is_centred_on_the_fragment() {
         let size = SIZE as usize;
         let drop_at = |x: usize, y: usize| -> f32 {
             let p = (y * size + x) * 4;
-            luma(&lit[p..p + 4]) - luma(&shadowed[p..p + 4])
+            luma_255(&lit[p..p + 4]) - luma_255(&shadowed[p..p + 4])
         };
         let max_drop = (0..size * size).map(|i| drop_at(i % size, i / size)).fold(0.0f32, f32::max);
         assert!(max_drop > 30.0, "the scene must cast a strong shadow, got drop {max_drop}");

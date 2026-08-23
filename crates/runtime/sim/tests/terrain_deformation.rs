@@ -6,13 +6,12 @@
 use game_core::{TankSpec, TeamId};
 use glam::Vec3;
 use sim::{FixedTimestep, MAX_CRATERS, SimulationState, TankCommand, record_high_explosive_burst};
+
+mod common;
+use common::flat_field;
 use terrain::HeightMap;
 
 const HE_SLOT: u8 = 2;
-
-fn flat_field() -> HeightMap {
-    HeightMap::flat(96, 96, 4.0, 0.0).expect("flat terrain")
-}
 
 /// Fire the shooter's currently selected round into the dirt ahead and run the battle until the
 /// shell has died.

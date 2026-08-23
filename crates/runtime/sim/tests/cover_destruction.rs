@@ -7,13 +7,12 @@ use std::f32::consts::PI;
 use game_core::{TankId, TankSpec, TeamId};
 use glam::Vec3;
 use sim::{CoverPhase, FixedTimestep, SimulationState, TankCommand};
+
+mod common;
+use common::flat_field;
 use terrain::{HeightMap, StaticCoverKind, StaticCoverObject};
 
 const HE_SLOT: u8 = 2;
-
-fn flat_field() -> HeightMap {
-    HeightMap::flat(96, 96, 4.0, 0.0).expect("flat terrain")
-}
 
 fn cover(id: &str, kind: StaticCoverKind, center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
     StaticCoverObject { id: id.into(), name: id.into(), kind, center, half_extents_m: half }

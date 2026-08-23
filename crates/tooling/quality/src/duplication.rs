@@ -125,28 +125,19 @@ pub fn duplicate_offenders(
 /// which is often just two crates calling a local fixture `hull`. This one forgives shared CODE,
 /// which is a much stronger claim and needs a much better excuse.
 pub const IDENTICAL_BODY_ALLOWLIST: &[&str] = &[
-    // Pre-existing copy-paste surfaced when this gate reached beyond `src`. Every entry is a test
-    // fixture that wants a `tests/common/mod.rs` in its own crate — mechanical, but a different
-    // diff from the rule that found them. Burn this list down; do not add to it.
-    "assert_hull_down_line",
-    "bake_all",
-    "blockage",
-    "clearance",
-    "flat_field",
-    "identity",
+    // The 2026-08-23 burn hoisted seventeen entries into `tests/common` modules (or a shared
+    // home: `game_core::math::srgb_to_linear`, `review_views::map_key`) and split the helpers
+    // that shared a name while doing different things (`run_until_shells_clear`, `luma_255`).
+    // These two remain, each with the reason it cannot take the same route:
+    //
+    // The T-54 LOD fixture is duplicated between `vehicle_build`'s `tests/quality.rs` and
+    // `examples/assemble.rs` — an example cannot see `tests/common`, and a test fixture is not
+    // lib API. Burns if the example ever composes the bake differently.
     "lod_asset",
-    "luma",
-    "map_key",
-    "max_grade",
-    "run_until_shell_resolved",
+    // Same-shaped convenience over two DIFFERENT per-module `snapshot_at` fixtures in
+    // `client/src/predict/{tests,interpolation_tests}.rs`; one shared body would silently
+    // couple fixtures that are meant to diverge. Burns if the fixtures themselves unify.
     "snapshot_with_aim",
-    "srgb_to_linear",
-    "submesh_bounds",
-    "t54",
-    "t54_object_count",
-    "tank_snapshot",
-    "total_luma",
-    "turret",
 ];
 
 /// The same function, character for character, in more than one file.
@@ -159,6 +150,19 @@ pub const IDENTICAL_BODY_ALLOWLIST: &[&str] = &[
 /// re-wrapping a comment does not hide a copy. Functions under 60 characters of body are ignored —
 /// a one-line getter that happens to match is not a maintenance hazard.
 pub fn identical_function_bodies() -> Vec<String> {
+    duplicate_offenders(&identical_body_map(), IDENTICAL_BODY_ALLOWLIST, &workspace_root())
+}
+
+/// Names that still have at least two byte-identical bodies somewhere in the tree — the live
+/// facts [`IDENTICAL_BODY_ALLOWLIST`] is allowed to describe. An entry outside this set is
+/// stale: the duplication it forgave is gone.
+pub fn names_with_identical_bodies() -> BTreeSet<String> {
+    identical_body_map().into_keys().collect()
+}
+
+/// Every function name mapped to the files holding an identical copy (only names where some
+/// normalized body appears in more than one file).
+fn identical_body_map() -> BTreeMap<String, BTreeSet<PathBuf>> {
     let root = workspace_root();
     let mut bodies: BTreeMap<(String, String), BTreeSet<PathBuf>> = BTreeMap::new();
 
@@ -175,7 +179,7 @@ pub fn identical_function_bodies() -> Vec<String> {
     for ((name, _), files) in bodies.into_iter().filter(|(_, files)| files.len() > 1) {
         offenders.entry(name).or_default().extend(files);
     }
-    duplicate_offenders(&offenders, IDENTICAL_BODY_ALLOWLIST, &root)
+    offenders
 }
 
 /// `src`, `tests`, `examples` and `benches` of every workspace crate.

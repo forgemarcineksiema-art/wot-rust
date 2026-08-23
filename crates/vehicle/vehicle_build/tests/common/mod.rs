@@ -4,8 +4,10 @@
 //! what the turret containment lock must judge. Two copies of that predicate would let a new
 //! material role join one list and not the other, and the part carrying it would answer to
 //! neither test.
+#![allow(dead_code)]
 
-use vehicle_geometry::MaterialRole;
+use vehicle_build::t54_description;
+use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
 
 /// Roles that are only ever seen through a breach.
 ///
@@ -16,4 +18,9 @@ pub fn is_interior(role: MaterialRole) -> bool {
         role,
         MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition
     )
+}
+
+/// The benchmark turret, built and cloned out of the bake.
+pub fn turret() -> GeometryMesh {
+    t54_description().build().submesh(SubmeshKind::Turret).expect("turret").mesh.clone()
 }

@@ -1,3 +1,6 @@
+mod common;
+use common::identity;
+
 use game_core::TankId;
 use renderer_api::{
     MaterialHandle, MeshAsset, MeshHandle, RenderFrame, RenderObject, SceneVertex,
@@ -67,8 +70,4 @@ fn scene_renderer_draws_registered_mesh_from_render_frame_transform() {
 
     let pixels = target.read_rgba8(&ctx).expect("readback");
     assert!(pixels.chunks_exact(4).any(|p| p[0] > 120 && p[1] < 120 && p[2] < 120));
-}
-
-fn identity() -> [[f32; 4]; 4] {
-    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
 }

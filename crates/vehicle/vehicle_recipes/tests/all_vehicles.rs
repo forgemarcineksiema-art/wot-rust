@@ -2,28 +2,14 @@
 //! visually distinct geometry. Cost and rigging gates (hashes, mounts, budgets) live in
 //! `vehicle_budgets.rs`; legacy T-55A compatibility detail lives in `vehicle_recipe.rs`.
 
-use game_core::{HitboxProfile, VehicleKind};
+mod common;
+use common::{bake_all, submesh_bounds};
+
+use game_core::HitboxProfile;
 use vehicle_geometry::{
-    BakedVehicle, GearPart, MaterialRole, MeshBounds, RunningGearKinematics, SubmeshKind,
+    BakedVehicle, GearPart, MaterialRole, RunningGearKinematics, SubmeshKind,
     running_gear_placements,
 };
-use vehicle_recipes::bake_vehicle;
-
-fn bake_all() -> Vec<BakedVehicle> {
-    VehicleKind::ALL
-        .into_iter()
-        .map(|kind| bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}")))
-        .collect()
-}
-
-fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> MeshBounds {
-    vehicle
-        .submesh(kind)
-        .unwrap_or_else(|| panic!("{:?} missing {kind:?} submesh", vehicle.kind()))
-        .mesh
-        .bounds()
-        .unwrap_or_else(|| panic!("{:?} {kind:?} submesh has no bounds", vehicle.kind()))
-}
 
 #[test]
 fn every_vehicle_bakes_finite_indexed_geometry() {

@@ -1,3 +1,6 @@
+mod common;
+use common::{identity, luma_255};
+
 use game_core::TankId;
 use renderer_api::{
     ArmorApertureRender, ArmorDamageInstance, MaterialHandle, MeshHandle, RenderFrame,
@@ -76,7 +79,7 @@ fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
     }]);
     let center = (32 * 64 + 32) * 4;
     assert!(
-        luma(&whole[center..center + 4]) - luma(&cut[center..center + 4]) > 10.0
+        luma_255(&whole[center..center + 4]) - luma_255(&cut[center..center + 4]) > 10.0
             || whole[center..center + 4] != cut[center..center + 4],
         "the aperture must reveal the background at the triangle center"
     );
@@ -151,10 +154,10 @@ fn a_scorch_only_aperture_darkens_without_opening_the_mesh() {
         "a scorch-only aperture must not open like a cut one"
     );
     assert!(
-        luma(&whole[center..center + 4]) - luma(&scorched[center..center + 4]) > 8.0,
+        luma_255(&whole[center..center + 4]) - luma_255(&scorched[center..center + 4]) > 8.0,
         "the scorch must read visibly darker than pristine steel: {} vs {}",
-        luma(&whole[center..center + 4]),
-        luma(&scorched[center..center + 4])
+        luma_255(&whole[center..center + 4]),
+        luma_255(&scorched[center..center + 4])
     );
 }
 
@@ -259,12 +262,12 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
     let darkened = fallback
         .chunks_exact(4)
         .zip(uploaded.chunks_exact(4))
-        .filter(|(a, b)| luma(a) - luma(b) > 30.0)
+        .filter(|(a, b)| luma_255(a) - luma_255(b) > 30.0)
         .count();
     let brightened = fallback
         .chunks_exact(4)
         .zip(uploaded.chunks_exact(4))
-        .filter(|(a, b)| luma(b) - luma(a) > 30.0)
+        .filter(|(a, b)| luma_255(b) - luma_255(a) > 30.0)
         .count();
     assert!(darkened > 150, "uploaded dark albedo must darken the triangle ({darkened} px)");
     assert_eq!(brightened, 0, "uploaded dark albedo must never brighten ({brightened} px)");
@@ -333,10 +336,6 @@ fn mapped_triangle(mapping: u32) -> VehicleMeshAsset {
     )
 }
 
-fn luma(p: &[u8]) -> f32 {
-    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
-}
-
 /// Five identical dark-albedo role layers, so whichever `material_id` the mesh uses samples a near
 /// black albedo and the triangle visibly darkens.
 fn dark_albedo_families() -> VehicleMaterialFamilies {
@@ -369,8 +368,4 @@ fn vehicle_triangle() -> VehicleMeshAsset {
         ],
         vec![0, 1, 2],
     )
-}
-
-fn identity() -> [[f32; 4]; 4] {
-    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
 }

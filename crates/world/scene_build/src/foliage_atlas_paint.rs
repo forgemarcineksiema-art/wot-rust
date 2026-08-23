@@ -9,6 +9,7 @@
 //! pixel-identical until geometry starts carrying nonzero UVs (the look goldens are the
 //! regression proof — byte-exact WITHOUT a re-record).
 
+use game_core::math::srgb_to_linear;
 use glam::Vec3;
 use renderer_api::{MipMode, Rgba8MipChain, Rgba8MipLevel};
 use world_forge::tree::leaf_atlas::{
@@ -66,11 +67,6 @@ pub fn foliage_atlas_chains() -> (Rgba8MipChain, Rgba8MipChain) {
         MipMode::Box,
     );
     (color, normal)
-}
-
-fn srgb_to_linear(byte: u8) -> f32 {
-    let c = byte as f32 / 255.0;
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
 fn linear_to_srgb(linear: f32) -> u8 {

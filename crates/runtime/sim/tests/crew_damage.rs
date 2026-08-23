@@ -15,6 +15,9 @@ use game_core::{
 use glam::Vec3;
 use sim::{FixedTimestep, SimulationState, TankCommand};
 
+mod common;
+use common::run_until_shells_clear;
+
 /// One flank shot at the T-54 tower, aimed down the gunner's station line. Returns the state
 /// after resolution for whatever the test wants to read.
 fn tower_flank_shot(penetration_mm_at_100m: f32, z_offset: f32) -> (SimulationState, TankId) {
@@ -33,7 +36,7 @@ fn tower_flank_shot(penetration_mm_at_100m: f32, z_offset: f32) -> (SimulationSt
         shooter.spec.gun.dispersion_mrad = 0.0;
         shooter.spec.gun.shell.penetration_mm_at_100m = penetration_mm_at_100m;
     }
-    run_until_shell_resolved(&mut state, shooter);
+    run_until_shells_clear(&mut state, shooter);
     (state, target)
 }
 
@@ -132,17 +135,4 @@ fn a_dead_hull_bandages_nobody() {
         ),
         "a wreck's crew does not recover"
     );
-}
-
-fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
-    let dt = FixedTimestep::from_hz(60);
-    state.apply_commands(&[(shooter, TankCommand { fire: true, ..TankCommand::idle() })], dt);
-    assert_eq!(state.shells().len(), 1, "the shot must leave the barrel");
-    for _ in 0..600 {
-        state.apply_commands(&[], dt);
-        if state.shells().is_empty() {
-            return;
-        }
-    }
-    panic!("shell should resolve against the target");
 }
