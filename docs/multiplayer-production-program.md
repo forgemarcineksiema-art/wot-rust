@@ -1,7 +1,8 @@
-# Multiplayer Production — the road from v43 to a Steam battle
+# Multiplayer Production — the road to a Steam battle
 
-**Status: register measured 2026-08-03; program proposed, wave order awaiting the user's
-sign-off.** The release target is confirmed: multiplayer on Steam, and the release decision
+**Status: register measured 2026-08-03 at wire v43 (v48 today — the five bumps since, v44
+spotting privacy through v48 roster identity, closed no register block); program proposed,
+wave order awaiting the user's sign-off.** The release target is confirmed: multiplayer on Steam, and the release decision
 itself is a QUALITY verdict. This document is the networking half of that verdict: what a
 production battle between humans still lacks, with evidence, and in what order it gets built.
 

@@ -94,7 +94,7 @@ Locked by `crates/world/map_forge/tests/orliny_pereval.rs`:
 - `the_summits_are_the_roof_of_the_map` — Oryol crowns the map; the massif carries real
   vertical drama (> 60 m).
 
-And in `crates/apps/server/tests/orliny_battle.rs`:
+And in `crates/runtime/battle_host/tests/orliny_battle.rs`:
 
 - `the_bots_march_on_the_pass_instead_of_grinding_the_wall` — the wall has no bot probe the
   way water does, so this locks that after 30 s of battle most of the fleet has left its

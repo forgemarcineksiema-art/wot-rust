@@ -1,7 +1,7 @@
 # IS-3
 
-The Soviet heavy of the early Cold War era and the archetype of the pike nose. It anchors the
-era's heavy role opposite the T-54/T-55 mediums: half again their weight, a 122 mm gun that
+The Soviet heavy of the early Cold War and the archetype of the pike nose. It anchors the
+tier-IX heavy role opposite the T-54 mediums: half again their weight, a 122 mm gun that
 trades everything horizontal (reload, handling, shell speed) for vertical alpha, and armor that
 is GEOMETRY first — the bow and the turret both defeat shells by shape, not by raw millimeters.
 

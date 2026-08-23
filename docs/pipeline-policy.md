@@ -2,8 +2,9 @@
 
 > **STATUS (2026-08-03): built, not wired.** `renderer_wgpu::PipelineRegistry` with `prewarm()` /
 > `require_for_draw()` exists and is tested, but no production code calls it — a grep for
-> `prewarm|require_for_draw` hits only `pipeline_registry.rs`, its tests, and the dead-path
-> `renderer.rs`. The shipping `SceneRenderer` creates its pipelines directly
+> `require_for_draw` hits only `pipeline_registry.rs`, its tests, and the dead-path
+> `renderer.rs` (a `prewarm` grep now also hits the unrelated `scene_build::hangar` bake
+> warm-up). The shipping `SceneRenderer` creates its pipelines directly
 > (`create_render_pipeline` sites across the fx/rain/scene/sky/vehicle/water/bloom/ground/post/
 > shadow/SSAO modules). This document is the contract those call sites adopt when they are wired
 > behind the registry; it does not describe today's renderer.

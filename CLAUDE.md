@@ -6,8 +6,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 ## Non-negotiable rules
 - **Every change lands with a locking test.** Gameplay promises live in tests, not comments.
 - **Merge gate = local `scripts/verify.ps1`** (fmt + clippy `-D warnings` + full workspace
-  tests). CI billing is blocked; there is no other gate. Long runs: stage fmt/clippy/test
-  separately (a cold full run exceeds 10 min).
+  tests). CI billing is blocked; there is no other gate (`.github/workflows/ci.yml` stays
+  dormant on purpose — `architecture_rules.rs` requires the file). Long runs: stage
+  fmt/clippy/test separately, or `scripts/verify-quick.ps1` for the inner loop (no
+  examples/benches — full verify before pushing; a cold full run exceeds 10 min).
 - **One look policy**: min spec MX330 @ 60 FPS, no quality options. Frame drops are a game
   bug. Budgets are raised per-item with a measurement, never fleet-wide.
 - **Honesty doctrine**: what blocks the shell blocks the eye; collision boxes ARE the visual

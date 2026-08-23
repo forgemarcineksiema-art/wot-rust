@@ -1,6 +1,7 @@
 # Ammunition — reference dossier
 
-Research pass for Battle First 2.3 ("author the ammunition"), 2026-08-02. Same rubric as
+Research pass "author the ammunition" (2026-08-02; the program doc it served is retired —
+this dossier stays as the source record). Same rubric as
 `docs/vehicles/*.md`: every row carries a source, and **confidence** is how much the sources agree
 (high = multiple independent, medium = single good source, low = derived or estimated).
 
@@ -125,13 +126,9 @@ The APDS is already authored in the catalog. Its own source note is worth keepin
 APCBC rounds "were rarely used" — the discarding-sabot round was the gun's normal load, which is
 the opposite of the usual stock/special relationship and a genuine identity for this vehicle.
 
-## 120 mm Prototype
-
-Fictional test vehicle. No research applies; whatever it fires is a design decision, not a source.
-
 ---
 
-## What is still missing before authoring
+## What was still missing before authoring (each hole settled below)
 
 - **HE filler** for the 7.5 cm Sprgr 42, the 12.8 cm Sprgr and the 20-pdr HE.
 - **HE muzzle velocity** for the 12.8 cm and the 20-pdr; the 122 mm OF-471 is ~800 m/s by
@@ -169,7 +166,6 @@ flattened the fleet's most tank-like axis of identity.
 | 8.8 cm Pak 43/3 / Jagdtiger casemate | −7.5° | +15° | **derived**: the same casemate mount class | low |
 | 7.5 cm KwK 42 / Schmalturm | −8° | +20° | tanks-encyclopedia, ftr (KwK 44/1 in Schmalturm: +20/−8) | medium |
 | 84 mm 20-pdr / Centurion turret | **−10°** | +18° | en-wiki 20-pdr (Mk 5: +18/−10; +20 also cited) | medium |
-| 120 mm Prototype | −8° | +20.1° | fictional — keeps the old fleet default as its own decision | — |
 
 The identity this table restores: the IS-3 at −3° cannot fight from a ridge the way a Centurion
 at −10° lives on one — the pike-nosed brawler against the Western ridgeline turret. Locked by

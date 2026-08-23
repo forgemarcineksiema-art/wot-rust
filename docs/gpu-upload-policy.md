@@ -1,7 +1,7 @@
 # GPU Upload Policy
 
-> **STATUS (2026-08-03): built, not wired.** The five upload systems below exist only in
-> `renderer_wgpu/src/{upload_buffers,texture_upload,readback_queue,render_frame_batch}.rs` and
+> **STATUS (2026-08-03): built, not wired.** The upload systems below exist only in
+> `renderer_wgpu/src/{upload_buffers,texture_upload,readback_queue}.rs` and
 > `tests/upload_system.rs`; no production frame flows through them. The shipping renderer uploads
 > through `Queue::write_buffer` in `scene_renderer/{resources,draw,armor_damage}.rs` — the exact
 > call the first rule below forbids. This document is the contract those paths adopt when the

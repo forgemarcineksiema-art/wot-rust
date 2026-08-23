@@ -128,10 +128,11 @@ roughly half the real tank's part count.** One authored axle produces one visibl
 the belt onto the fleet's 0.22 m fallback spacing against a real 130 mm pitch.
 
 The belt half is closed: the blueprint now authors `link_count: Some(96)` and the anchor is
-Locked. **It cost nearly all the running-gear headroom** — the Tiger draws 38,736 of the 40,000
+Locked. **It cost nearly all the running-gear headroom** — the Tiger draws 38,736 of the 40,500
 allowed near-tier gear triangles and 228 of 260 instances. Closing the wheel half on top of that
 does not fit inside today's budget, so it has to arrive with the waste it pays for, not as a
-budget raise (`GEAR_BUDGETS`, `docs/one-look-policy` — a budget rises per item WITH a measurement).
+budget raise (`GEAR_BUDGETS`; the one-look rule in `CLAUDE.md` — a budget rises per item WITH a
+measurement).
 
 ### Previously closed (model-logic pass, 2026-07-26)
 

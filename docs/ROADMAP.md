@@ -59,12 +59,15 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   ordered retransmit/ACK lane with exactly-once presentation instead of depending on snapshot loss.
 
 **PARTIAL** (works, known debt):
-- World close-range quality and authoring power: Cover 2.0, camera/horizon,
-  District/Scatter 2.0 — flora is already procedural-only (F0 landed).
+- World close-range quality and authoring power: Cover 2.0, District/Scatter 2.0 — flora is
+  already procedural-only (F0 landed). Immersja (14 PRs, closed 2026-08-22: opening-scale
+  absolutes, town de-clone, horizon/backdrop rise, the camera riding the hull with recoil and
+  tremor, engine-strain audio, the landmark rise #596) left only its optional tail (C3, A4.2).
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
-- Map rotation & per-map bot battle tests (only Orliny has one).
+- Map rotation & per-map bot battle tests (Bystra, Orliny and Ostrogorsk have one;
+  Prokhorovka does not, and there is no seeded rotation).
 - Human playtesting: the maps have never met a second human.
 
 **MISSING toward release** (the honest gap list; dates and thresholds are no longer written
@@ -98,6 +101,7 @@ The open picture work is `docs/art-direction-program.md`, and it is on the marke
 critical path, because a store page is made of frames. One standing verdict outlived its
 documents: the world reads too small. The garage's rebuild verdict was answered by Hala 3.0
 (PR #536–#557, closed 2026-08-10); what the room still owes is itemized in
-`docs/hala-4-program/plan.md` — the frame runs ~3 ms over the MX330 budget (which gates
-4x MSAA and the deck reflection), and the product shell around the garage (battle results,
+`docs/hala-4-program/plan.md` — at the shipped 1× the garage frame is ~0.5 ms over the MX330
+budget after the P2+P4+P5 diet (the 4× MSAA candidate stays parked ~3.5 ms short, with the
+deck reflection behind it), and the product shell around the garage (battle results,
 settings, PL glyphs) does not exist yet.

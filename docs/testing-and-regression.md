@@ -31,13 +31,19 @@ When changing protocol encoding intentionally:
 5. Remove that variable and rerun the same test clean.
 6. Document the compatibility impact before merging.
 
-Current compatibility note: the transport frame carries `PROTOCOL_VERSION = 43`
-(`crates/runtime/net/src/lib.rs:113`); a peer with a different version fails the frame before
-payload decode. Recent versions: v39 moves persistent armor perforations off the world
-snapshot onto the reliable event lane; v40 appends `ArmorZone::HullDeck`; v41 replicates guns
-fired this tick as `ShotFired` events; v42 adds the ammo-rack cook-off damage cause; v43
-replicates a lit rack's fuze countdown (`TankSnapshot::rack_fire_remaining_s`, concealed
-from enemies by the snapshot filter). Earlier: v38 added the per-session reliable
+Current compatibility note: the transport frame carries `PROTOCOL_VERSION = 48`
+(`crates/runtime/net/src/lib.rs`; this number is gate-locked against that constant by
+`crates/tooling/quality/tests/roadmap_claims.rs`); a peer with a different version fails the
+frame before payload decode. Recent versions: v44 withholds a third-party projectile's owner
+from a viewer who has not spotted the shooter (`owner: Option<TankId>` — a type break); v45
+puts the battle clock on the wire (`StartBattle.time_limit_tick`); v46 adds team-private crew
+battle wounds (crew masks + first-aid countdowns); v47 carries concrete-round identity
+(`round: Option<RoundId>`) and the tungsten `shattered` flag; v48 deletes the test-only
+`PrototypeMedium`, shifting every `VehicleKind` wire discriminant (the same class of break as
+v33). Earlier: v43 replicates a lit rack's fuze countdown (concealed from enemies by the
+snapshot filter); v42 adds the ammo-rack cook-off damage cause; v41 replicates guns fired
+this tick as `ShotFired` events; v40 appends `ArmorZone::HullDeck`; v39 moves persistent
+armor perforations onto the reliable event lane; v38 added the per-session reliable
 personal-combat lane and authoritative event identity/tick/shell/lethal truth; v37
 introduced session ids, lightweight input ACKs and snapshot-aligned prediction replay; v16
 introduced LOS spotting masks. Older notable payload breaks include v12 adding `team` to

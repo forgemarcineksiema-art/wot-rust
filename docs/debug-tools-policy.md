@@ -9,7 +9,8 @@ renderer, and tools can expose state without ad hoc one-off code.
 > water_pipeline,fx_pipeline,rain_pipeline}.rs` plus
 > `scene_renderer/{ground,shadow,bloom,post}.rs` and friends). The one no-op left is the
 > dead `impl RenderBackend for WgpuRenderer` (`renderer_wgpu/src/renderer.rs:97`) — an
-> unused compatibility layer, registered as defect D4, not the shipping path.
+> unused compatibility layer (the same built-not-wired class `docs/pipeline-policy.md`
+> records), not the shipping path.
 
 ## What exists today
 
