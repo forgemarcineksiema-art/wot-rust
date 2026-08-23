@@ -46,7 +46,7 @@ fn every_vehicle_renders_a_shoe_the_size_a_shoe_is() {
         checked += 1;
         assert!(
             (MIN_PITCH_M..=MAX_PITCH_M).contains(&pitch),
-            "{kind:?}: renders a {:.0} mm shoe. Era track runs {:.0}-{:.0} mm; anything outside \
+            "{kind:?}: renders a {:.0} mm shoe. Period track runs {:.0}-{:.0} mm; anything outside \
              that is a chain, not a belt.",
             pitch * 1000.0,
             MIN_PITCH_M * 1000.0,
