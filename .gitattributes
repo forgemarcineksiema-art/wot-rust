@@ -1,0 +1,10 @@
+# The index is LF-normalized; text=auto keeps it that way whatever tool writes the
+# working tree (system core.autocrlf=true checkouts stay CRLF — the gates are CRLF-aware,
+# so no eol override).
+* text=auto
+
+# Golden frames and fonts are bytes, never line-converted.
+*.png binary
+*.ttf binary
+# Wire fixtures are byte payloads with no line structure; keep re-records conversion-free.
+*.hex -text

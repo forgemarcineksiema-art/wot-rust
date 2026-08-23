@@ -4,6 +4,8 @@
 .agents/
 .codex/
 .claude/settings.local.json
+.claude/jobs/
+.claude/scheduled_tasks.lock
 **/*.rs.bk
 *.pdb
 *.ilk
