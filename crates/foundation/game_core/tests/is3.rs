@@ -52,7 +52,7 @@ fn is3_is_blueprint_born_with_pike_armor_volumes() {
 
 #[test]
 fn the_d25t_cannot_open_the_is3_pike_head_on_but_the_d10_side_falls() {
-    // Era-internal sanity: the heavy's own 122 mm bounces off a squarely-faced pike (the
+    // Tier-internal sanity: the heavy's own 122 mm bounces off a squarely-faced pike (the
     // compound ~64° true angle beats 175 mm of penetration), while the 90 mm tub side behind
     // the tracks stays honest against the mediums' 100 mm guns.
     let is3 = VehicleKind::IS3.spec();

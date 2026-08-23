@@ -27,7 +27,7 @@ fn every_gun_authors_its_high_explosive_round() {
             checked += 1;
         }
     }
-    assert!(checked >= 12, "every gun in the fleet must be examined, saw {checked}");
+    assert!(checked >= 11, "every gun in the fleet must be examined, saw {checked}");
 }
 
 /// A gun carries the rounds it fielded — the slot count is a property of the weapon.
@@ -37,9 +37,7 @@ fn every_gun_authors_its_high_explosive_round() {
 /// and that is the gun's identity rather than a gap in the data.
 #[test]
 fn a_gun_that_fielded_no_second_round_carries_two_slots() {
-    // The fictional prototype is NOT here: everything about an invented vehicle is invented, and
-    // it stays three-slot because it is the fleet's general test tank. What the fallback did wrong
-    // was handing REAL guns rounds they never fired.
+    // What the fallback did wrong was handing REAL guns rounds they never fired.
     let two_slot = ["12.8 cm Pak 80 L/55", "122 mm D-25T"];
     let mut seen = 0;
     for kind in VehicleKind::ALL {

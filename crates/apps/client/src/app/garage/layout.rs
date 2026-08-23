@@ -232,57 +232,60 @@ pub(super) fn ammo_icon(shell_type: game_core::ShellType) -> crate::hud::icons::
     crate::hud::icons::HudIcon::for_shell(shell_type)
 }
 
-// Tech tree view: ERA is the primary axis — the design's three eras replace tier spread, and the
-// tree is where that axis is explained. Three horizontal era bands read chronologically top to
-// bottom (Era I 1939-42 → Era III 1946-55); each band holds its playable vehicles as a row of
-// nodes tagged with their nation. Era I is deliberately drawn EMPTY — the reserved roadmap
-// bracket says "this axis grows" louder than hiding it would.
+// Tech tree: nation groups, line columns, tier rows (higher tier higher). Only PLAYABLE
+// vehicles get a node — no reserved empty bands, no ghost predecessors.
 pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, 0.30];
 pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.82, 0.36];
-/// Left edge where each band's era label + years print.
-pub(super) const TREE_ERA_LABEL_X: f32 = -0.76;
-// The node row's usable band: left edge clear of the era-label column, right edge inside the
-// panel (air before its chamfer). A band with few nodes keeps the roomy default node width —
-// the numbers below reproduce the old fixed layout exactly for up to four nodes — while a
-// crowded band derives a narrower node and pitch from its OWN count, so the last node sits
-// inside the panel by construction. The 5-vehicle Era II row used to print its fifth node
-// centred at x 0.90: past the panel edge (0.82) and clipped by the screen.
-const TREE_ROW_LEFT: f32 = -0.48;
-const TREE_ROW_RIGHT: f32 = 0.78;
-const TREE_NODE_GAP: f32 = 0.03;
-const TREE_NODE_MAX_HALF_X: f32 = 0.14;
-const TREE_NODE_HALF_Y: f32 = 0.052;
-
-/// Number of playable vehicles in `era`'s band.
-pub(super) fn tree_band_len(era: game_core::Era) -> usize {
-    era.playable().count()
-}
-
-/// Node half-extents in `era`'s band — every node in a band shares one size, derived from the
-/// band's population so the whole row always fits the panel.
-pub(super) fn tree_node_half(era: game_core::Era) -> [f32; 2] {
-    let count = tree_band_len(era).max(1) as f32;
-    let width = ((TREE_ROW_RIGHT - TREE_ROW_LEFT - (count - 1.0) * TREE_NODE_GAP) / count)
-        .min(2.0 * TREE_NODE_MAX_HALF_X);
-    [width / 2.0, TREE_NODE_HALF_Y]
-}
 pub(super) const TREE_CLOSE_CENTER: [f32; 2] = [0.86, 0.80];
 pub(super) const TREE_CLOSE_HALF: [f32; 2] = [0.06, 0.04];
+const TREE_COL_LEFT: f32 = -0.70;
+const TREE_COL_RIGHT: f32 = 0.72;
+const TREE_TIER_TOP: f32 = 0.40;
+const TREE_TIER_PITCH: f32 = 0.155;
+const TREE_NODE_HALF_Y: f32 = 0.052;
+const TREE_HIGHEST_TIER: u8 = 9;
+pub(super) const TREE_NATION_LABEL_Y: f32 = 0.58;
+pub(super) const TREE_LINE_LABEL_Y: f32 = 0.515;
 
-/// The band centre-line y for an era (chronological, oldest on top).
-pub(super) fn tree_era_y(era: game_core::Era) -> f32 {
-    match era {
-        game_core::Era::EarlyWar => 0.52,
-        game_core::Era::LateWar => 0.30,
-        game_core::Era::ColdWar => 0.08,
+/// Occupied (nation, class) columns, nation-major then class-major. Empty lines are skipped.
+pub(super) fn tree_columns() -> Vec<(game_core::Nation, game_core::VehicleClass)> {
+    let mut cols = Vec::new();
+    for nation in game_core::Nation::ALL {
+        for class in game_core::VehicleClass::ALL {
+            if game_core::VehicleKind::PLAYABLE
+                .iter()
+                .any(|kind| kind.nation() == nation && kind.class() == class)
+            {
+                cols.push((nation, class));
+            }
+        }
     }
+    cols
 }
 
-/// Centre of the `col`-th vehicle node in `era`'s band.
-pub(super) fn tree_node_center(era: game_core::Era, col: usize) -> [f32; 2] {
-    let half_x = tree_node_half(era)[0];
-    let pitch = 2.0 * half_x + TREE_NODE_GAP;
-    [TREE_ROW_LEFT + half_x + col as f32 * pitch, tree_era_y(era)]
+pub(super) fn tree_tier_y(tier: u8) -> f32 {
+    TREE_TIER_TOP - f32::from(TREE_HIGHEST_TIER.saturating_sub(tier)) * TREE_TIER_PITCH
+}
+
+pub(super) fn tree_col_x(col: usize) -> f32 {
+    let n = tree_columns().len().max(1) as f32;
+    let pitch = (TREE_COL_RIGHT - TREE_COL_LEFT) / n;
+    TREE_COL_LEFT + pitch * (col as f32 + 0.5)
+}
+
+pub(super) fn tree_node_half() -> [f32; 2] {
+    let n = tree_columns().len().max(1) as f32;
+    let pitch = (TREE_COL_RIGHT - TREE_COL_LEFT) / n;
+    [(pitch * 0.40).min(0.10), TREE_NODE_HALF_Y]
+}
+
+pub(super) fn tree_node_center(kind: game_core::VehicleKind) -> [f32; 2] {
+    let cols = tree_columns();
+    let col = cols
+        .iter()
+        .position(|&(nation, class)| nation == kind.nation() && class == kind.class())
+        .expect("playable vehicle owns a tree column");
+    [tree_col_x(col), tree_tier_y(kind.tier())]
 }
 
 #[cfg(test)]
@@ -314,32 +317,22 @@ mod tests {
 
     #[test]
     fn every_tree_node_of_the_live_fleet_stays_inside_the_panel() {
-        // The defect this locks: the 5-vehicle Era II band printed its fifth node past the
-        // panel and the screen. Node size and pitch now derive from each band's population,
-        // so this holds for the CURRENT fleet by construction — and keeps holding as W2/W4
-        // content lands more vehicles per era.
-        for era in game_core::Era::ALL {
-            let half = tree_node_half(era);
-            for col in 0..tree_band_len(era) {
-                let center = tree_node_center(era, col);
-                assert!(
-                    center[0] - half[0] >= TREE_PANEL_CENTER[0] - TREE_PANEL_HALF[0],
-                    "{era:?} col {col} leaks off the panel's left edge"
-                );
-                assert!(
-                    center[0] + half[0] <= TREE_PANEL_CENTER[0] + TREE_PANEL_HALF[0],
-                    "{era:?} col {col} leaks off the panel's right edge"
-                );
-            }
-            // Neighbours never overlap: the pitch always exceeds one node's width.
-            if tree_band_len(era) >= 2 {
-                let gap = tree_node_center(era, 1)[0] - tree_node_center(era, 0)[0];
-                assert!(gap >= 2.0 * half[0] + 0.01, "{era:?} nodes overlap");
-            }
-            // A roomy band keeps the roomy node — no needless shrink below five vehicles.
-            if tree_band_len(era) <= 4 {
-                assert_eq!(half[0], 0.14, "{era:?} shrank a band that fits");
-            }
+        let half = tree_node_half();
+        for kind in game_core::VehicleKind::PLAYABLE {
+            let center = tree_node_center(kind);
+            assert!(
+                center[0] - half[0] >= TREE_PANEL_CENTER[0] - TREE_PANEL_HALF[0],
+                "{kind:?} leaks off the panel's left edge"
+            );
+            assert!(
+                center[0] + half[0] <= TREE_PANEL_CENTER[0] + TREE_PANEL_HALF[0],
+                "{kind:?} leaks off the panel's right edge"
+            );
+        }
+        let cols = tree_columns();
+        if cols.len() >= 2 {
+            let gap = tree_col_x(1) - tree_col_x(0);
+            assert!(gap >= 2.0 * half[0] + 0.01, "line columns overlap");
         }
     }
 

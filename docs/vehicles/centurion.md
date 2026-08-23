@@ -6,7 +6,7 @@
 
 The British universal tank of the early Cold War, in its 1948-52 Mk 3 form with the 84 mm
 Ordnance QF 20-pounder. The Centurion opens the game's third nation (`Nation::Britain`) and
-fights in Era III against the T-54/T-55/IS-3 park.
+sits at tier VIII on the British medium line.
 
 ## Blueprint-born (2026-07)
 
@@ -55,7 +55,7 @@ visible mesh, locked by `centurion_benchmark.rs` from day one.
 ## Gameplay shape
 
 The gunnery trade: the Centurion gives up alpha and pace for the best gun handling and optics
-in Era III.
+at tier VIII.
 
 - ~49 t, 480 kW Rolls-Royce Meteor (petrol — higher fire chance than the diesels): 34.6 km/h
   flat out. Position with intent; you will not out-run a T-54.

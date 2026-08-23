@@ -144,9 +144,7 @@ fn rounded_axis_values(
         .collect()
 }
 
-/// Every playable vehicle animates its running gear — blueprint tanks from their blueprint's
-/// track, the German fleet from the authored legacy-track table. Only the test-only prototype
-/// medium keeps fused static gear.
+/// Every playable vehicle animates its running gear from its blueprint track.
 #[test]
 fn every_playable_vehicle_has_animated_gear() {
     for kind in VehicleKind::PLAYABLE {
@@ -156,12 +154,9 @@ fn every_playable_vehicle_has_animated_gear() {
         assert!(kin.link_count() >= 40, "{kind:?} belt reads as a segmented band");
         assert!(kin.wheel_radius > 0.2 && kin.wheel_radius < 0.6, "{kind:?} sane wheel");
     }
-    assert!(RunningGearKinematics::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
-/// The legacy hand-authored track table is gone with the last legacy vehicle: every animated
-/// vehicle's gear now comes from its blueprint, and only the test-only prototype keeps fused
-/// static gear.
+/// Every animated vehicle's gear comes from its blueprint.
 #[test]
 fn the_whole_animated_fleet_rides_blueprint_gear() {
     for kind in VehicleKind::PLAYABLE {
@@ -169,7 +164,6 @@ fn the_whole_animated_fleet_rides_blueprint_gear() {
         assert!(has_blueprint, "{kind:?} must carry a blueprint track");
         assert!(RunningGearKinematics::for_vehicle(kind).is_some(), "{kind:?} animates");
     }
-    assert!(RunningGearKinematics::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
 #[test]

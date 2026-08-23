@@ -29,33 +29,15 @@ pub struct MountFrames {
 impl MountFrames {
     pub fn for_vehicle(kind: VehicleKind) -> Self {
         // Migrated vehicles derive their mounts from the blueprint; the rest use the constants below.
-        if let Some(blueprint) = crate::VehicleBlueprint::for_vehicle(kind) {
-            return blueprint.mount_frames();
-        }
-        match kind {
-            VehicleKind::PrototypeMedium => Self {
-                turret_ring: MountFrame::new(Vec3::new(0.0, 1.28, 0.0)),
-                gun_trunnion: MountFrame::new(Vec3::new(0.0, 1.72, 1.00)),
-                muzzle: MountFrame::new(Vec3::new(0.0, 1.72, 4.90)),
-            },
-            // Blueprint-migrated: mounts come from `blueprint.mount_frames()` above, always.
-            VehicleKind::T54_1951
-            | VehicleKind::T34_85
-            | VehicleKind::IS3
-            | VehicleKind::TigerI
-            | VehicleKind::TigerII
-            | VehicleKind::Jagdtiger
-            | VehicleKind::PantherII
-            | VehicleKind::Centurion => {
-                unreachable!("{kind:?} is blueprint-migrated")
-            }
-        }
+        crate::VehicleBlueprint::for_vehicle(kind)
+            .expect("every VehicleKind is blueprint-migrated")
+            .mount_frames()
     }
 }
 
 impl Default for MountFrames {
     fn default() -> Self {
-        Self::for_vehicle(VehicleKind::PrototypeMedium)
+        Self::for_vehicle(VehicleKind::BENCHMARK)
     }
 }
 

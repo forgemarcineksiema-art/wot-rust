@@ -1,7 +1,7 @@
 # Hala v4 — uczciwa klatka i pełny dom (program)
 
-Status: ZATWIERDZONY 2026-08-14. Następca Hali 3.0 (`docs/hala-3-program/plan.md`,
-zakończona 2026-08-10, PR #536–#557). Ten dokument jest rejestrem stanu programu —
+Status: ZATWIERDZONY 2026-08-14. Następca Hali 3.0 (zakończona 2026-08-10, PR #536–#557).
+Ten dokument jest rejestrem stanu programu —
 aktualizowany po każdym zmergowanym PR.
 
 Decyzje bazowe (usera, wiążące):

@@ -4,48 +4,6 @@ use super::{
 };
 use crate::{GunSpec, RoundId};
 
-pub(crate) fn prototype_loadout() -> VehicleModules {
-    VehicleModules {
-        hull: HullChassis {
-            name: "Prototype hull".to_string(),
-            mass_kg: 17_500.0,
-            hit_points: 1_450,
-            front_mm: 120.0,
-            side_mm: 80.0,
-            rear_mm: 60.0,
-            max_forward_speed_mps: 15.0,
-            max_reverse_speed_mps: 5.0,
-        },
-        engine: EngineModule {
-            name: "Prototype V12".to_string(),
-            power_kw: 520.0,
-            mass_kg: 1_600.0,
-            hit_points: 160,
-            fire_chance: 0.15,
-        },
-        suspension: SuspensionModule {
-            name: "Prototype running gear".to_string(),
-            mass_kg: 3_200.0,
-            hit_points: 160,
-            turn_rate_rad_s: 1.2,
-            max_load_kg: 38_000.0,
-        },
-        turret: TurretModule {
-            name: "Prototype turret".to_string(),
-            mass_kg: 7_000.0,
-            hit_points: 250,
-            front_mm: 200.0,
-            side_mm: 90.0,
-            rear_mm: 60.0,
-            roof_mm: None,
-            traverse: TurretTraverse::Rotating { rate_rad_s: 0.75 },
-            max_gun_caliber_mm: 122.0,
-        },
-        gun: gun_prototype(),
-        radio: RadioModule { name: "Prototype radio".to_string(), mass_kg: 100.0, hit_points: 50 },
-    }
-}
-
 pub(crate) fn jagdtiger_loadout() -> VehicleModules {
     VehicleModules {
         hull: HullChassis {
@@ -180,32 +138,6 @@ pub(crate) fn gun_pak43_l71() -> GunModule {
         },
         mass_kg: 2_400.0,
         hit_points: 170,
-    }
-}
-
-pub(crate) fn gun_prototype() -> GunModule {
-    GunModule {
-        spec: GunSpec {
-            name: "120 mm Prototype".to_string(),
-            reload_seconds: 8.0,
-            dispersion_mrad: 2.5,
-            aim_time_seconds: 2.4,
-            movement_bloom_mrad: 4.6,
-            shot_bloom_mrad: 3.7,
-            max_dispersion_mrad: 17.0,
-            barrel_length_m: 5.6,
-            // Fictional vehicle: the old fleet default kept as its own decision, not as a leftover.
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
-            // A FICTIONAL vehicle, so its three `RoundId`s are invented by definition and say
-            // so in the catalog. It keeps three slots because it is also the fleet's general
-            // test tank — the one specs exercise the full rack path against.
-            shell: RoundId::Prototype120Ap.spec(),
-            special_shell: Some(RoundId::Prototype120Apcr.spec()),
-            he_shell: Some(RoundId::Prototype120He.spec()),
-        },
-        mass_kg: 2_600.0,
-        hit_points: 160,
     }
 }
 

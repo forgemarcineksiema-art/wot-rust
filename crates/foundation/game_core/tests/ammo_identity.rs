@@ -80,18 +80,40 @@ fn every_designation_is_unique_and_non_empty() {
     }
 }
 
-/// No orphan identities: every cataloged round is fielded by at least one gun. An identity
-/// nothing chambers is either a typo or a round that should not have been added yet — appending
-/// on demand is the doctrine working.
+/// Retired with the test-only prototype gun (wire v48). The identities stay — `RoundId` is
+/// append-only — but nothing chambers them. A new orphan that is not this family is still a
+/// typo or a round that should not have been added yet.
+const RETIRED_PROTOTYPE_ROUNDS: [RoundId; 3] =
+    [RoundId::Prototype120Ap, RoundId::Prototype120Apcr, RoundId::Prototype120He];
+
+/// No orphan identities, except the retired prototype family. Every other cataloged round is
+/// fielded by at least one gun.
 #[test]
-fn every_round_in_the_catalog_is_fielded_by_a_gun() {
+fn every_living_round_in_the_catalog_is_fielded_by_a_gun() {
     let fielded: HashSet<RoundId> =
         every_fielded_shell().into_iter().filter_map(|(_, shell)| shell.round).collect();
+    for round in RETIRED_PROTOTYPE_ROUNDS {
+        assert!(
+            !fielded.contains(&round),
+            "{} was retired with the prototype gun and must stay unfielded",
+            round.designation()
+        );
+    }
+    let mut living = 0;
     for round in RoundId::ALL {
+        if RETIRED_PROTOTYPE_ROUNDS.contains(&round) {
+            continue;
+        }
+        living += 1;
         assert!(
             fielded.contains(&round),
             "{} ({round:?}) is cataloged but no gun chambers it",
             round.designation()
         );
     }
+    assert_eq!(
+        living,
+        RoundId::ALL.len() - RETIRED_PROTOTYPE_ROUNDS.len(),
+        "the living catalog must stay the full roster minus the three retired prototype rounds"
+    );
 }

@@ -75,26 +75,9 @@ impl HitboxProfile {
     pub fn for_vehicle(kind: VehicleKind) -> Self {
         // Migrated vehicles derive the hitbox from their blueprint (the single shape source); the
         // rest fall back to the hand-authored boxes below.
-        if let Some(blueprint) = crate::VehicleBlueprint::for_vehicle(kind) {
-            return blueprint.hitbox();
-        }
-        match kind {
-            // height 2.40 m, hull/turret split at world y 1.80
-            VehicleKind::PrototypeMedium => {
-                Self::new(1.70, 1.20, 3.20, 1.15, 0.65).with_turret_plan(0.82, 1.00, 0.0)
-            }
-            // Blueprint-migrated: the hitbox comes from `blueprint.hitbox()` above, always.
-            VehicleKind::T54_1951
-            | VehicleKind::T34_85
-            | VehicleKind::IS3
-            | VehicleKind::TigerI
-            | VehicleKind::TigerII
-            | VehicleKind::Jagdtiger
-            | VehicleKind::PantherII
-            | VehicleKind::Centurion => {
-                unreachable!("{kind:?} is blueprint-migrated")
-            }
-        }
+        crate::VehicleBlueprint::for_vehicle(kind)
+            .expect("every VehicleKind is blueprint-migrated")
+            .hitbox()
     }
 }
 
@@ -144,18 +127,21 @@ impl TankSpec {
         (-self.gun.depression_deg.to_radians(), self.gun.elevation_deg.to_radians())
     }
 
-    /// How far this vehicle's commander spots (v29, per era): later optics see farther. The
-    /// number lives on the SPEC so the garage can show it and the sim reads one source.
+    /// How far this vehicle's commander spots. Frozen on the vehicle so dropping eras is not a
+    /// silent rebalance: the late-war park keeps 400 m, the postwar park keeps 440 m.
     pub fn view_range_m(&self) -> f32 {
-        match self.kind.era() {
-            crate::Era::EarlyWar => 360.0,
-            crate::Era::LateWar => 400.0,
-            crate::Era::ColdWar => 440.0,
+        match self.kind {
+            VehicleKind::T34_85
+            | VehicleKind::TigerI
+            | VehicleKind::TigerII
+            | VehicleKind::Jagdtiger
+            | VehicleKind::PantherII => 400.0,
+            VehicleKind::T54_1951 | VehicleKind::IS3 | VehicleKind::Centurion => 440.0,
         }
     }
 
     pub fn medium_test_tank() -> Self {
-        VehicleKind::PrototypeMedium.spec()
+        VehicleKind::BENCHMARK.spec()
     }
 
     /// The running-gear contact footprint, with the hitbox-estimate fallback for specs that

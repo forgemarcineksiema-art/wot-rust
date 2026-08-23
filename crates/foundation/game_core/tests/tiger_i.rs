@@ -49,8 +49,8 @@ fn tiger_i_is_available_in_known_specs() {
 
 /// The aim-dependent duel the weakspot work exists to create (#428). The KwK 36 could not beat
 /// a T-54's honest 60-degree glacis — the retired smear was what let it — but the bow port's
-/// flat 100 mm is exactly what an 8.8 cm round eats. Cross-era asymmetry is the DESIGN: eras
-/// match by era, and when they do meet, the older gun wins by aiming, not by a discount.
+/// flat 100 mm is exactly what an 8.8 cm round eats. When the older gun meets the T-54, it
+/// wins by aiming, not by a discount.
 #[test]
 fn tiger_kwk36_beats_the_t54_port_but_not_its_honest_glacis() {
     let tiger = TankSpec::tiger_i_ausf_e();

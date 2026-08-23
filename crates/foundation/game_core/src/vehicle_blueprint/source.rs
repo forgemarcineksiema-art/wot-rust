@@ -72,8 +72,7 @@ impl BlueprintFile {
 fn visual_ron(kind: VehicleKind) -> Option<&'static str> {
     match kind {
         VehicleKind::TigerI => Some(include_str!("../../blueprints/tiger_i_ausf_e.visual.ron")),
-        VehicleKind::PrototypeMedium
-        | VehicleKind::T54_1951
+        VehicleKind::T54_1951
         | VehicleKind::TigerII
         | VehicleKind::Jagdtiger
         | VehicleKind::PantherII
@@ -83,13 +82,11 @@ fn visual_ron(kind: VehicleKind) -> Option<&'static str> {
     }
 }
 
-/// The embedded RON source for `kind`, or `None` for kinds that have no blueprint (the
-/// test-only prototype). EXHAUSTIVE on purpose: adding a `VehicleKind` variant fails here
-/// until its blueprint file exists — the data-file equivalent of the old missing-match-arm
-/// compile error.
+/// The embedded RON source for `kind`. EXHAUSTIVE on purpose: adding a `VehicleKind` variant
+/// fails here until its blueprint file exists — the data-file equivalent of the old
+/// missing-match-arm compile error.
 pub(super) fn blueprint_ron(kind: VehicleKind) -> Option<&'static str> {
     match kind {
-        VehicleKind::PrototypeMedium => None,
         VehicleKind::T54_1951 => Some(include_str!("../../blueprints/t54_1951.blueprint.ron")),
         VehicleKind::TigerI => Some(include_str!("../../blueprints/tiger_i_ausf_e.blueprint.ron")),
         VehicleKind::TigerII => {

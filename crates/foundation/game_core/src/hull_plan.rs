@@ -34,8 +34,8 @@ pub struct HullPlan {
 
 impl HullPlan {
     /// The plan a vehicle drives as, taken from the same blueprint the mesh is built from — so
-    /// there is no second number to keep in step with the first. Vehicles without a blueprint (the
-    /// test-only prototype) fall back to the hitbox plan, which is what they used to use.
+    /// there is no second number to keep in step with the first. Vehicles without a blueprint
+    /// fall back to the hitbox plan.
     pub fn for_vehicle(kind: VehicleKind) -> Self {
         match VehicleBlueprint::for_vehicle(kind) {
             Some(blueprint) => Self {

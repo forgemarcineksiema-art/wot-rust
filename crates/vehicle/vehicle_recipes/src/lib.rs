@@ -81,7 +81,7 @@ pub use budgets::{
 };
 
 pub(crate) use armament::{GunPlan, gun_group, gun_group_with_mantlet_scale};
-pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
+pub(crate) use chassis::shade_hull;
 pub(crate) use chassis_blueprint::{blueprint_prism_hull, blueprint_skirts};
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
@@ -113,7 +113,6 @@ pub fn bake_vehicle_lod(
 
 fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Option<BakedVehicle> {
     Some(match kind {
-        VehicleKind::PrototypeMedium => soviet::prototype_medium(hitbox, mounts),
         VehicleKind::T54_1951 => soviet::t54_1951(hitbox, mounts),
         VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
         VehicleKind::TigerII => tiger_ii::tiger_ii(hitbox, mounts),
@@ -131,7 +130,6 @@ pub(crate) const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 pub(crate) const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 pub(crate) const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 pub(crate) const SG_BARREL: SmoothingGroup = SmoothingGroup(4);
-pub(crate) const SG_WHEEL: SmoothingGroup = SmoothingGroup(5);
 pub(crate) const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
 pub(crate) const SG_RING: SmoothingGroup = SmoothingGroup(7);
 

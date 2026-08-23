@@ -51,7 +51,7 @@ pub use source::{BlueprintFile, VisualDetailFile, parse_blueprint, parse_visual_
 pub enum TurretForm {
     /// A rounded cast dome (Soviet mediums).
     CastDome,
-    /// A welded box turret (the prototype medium).
+    /// A welded box turret.
     WeldedBox,
     /// A fixed casemate superstructure (tank destroyers); never traverses.
     Casemate,

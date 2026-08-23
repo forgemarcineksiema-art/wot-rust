@@ -370,12 +370,10 @@ mod tests {
     #[test]
     fn hover_over_a_tree_node_lights_the_node_not_a_carousel_cell() {
         use crate::app::garage::layout::tree_node_center;
-        use game_core::Era;
 
         let mut g = GarageState::default();
         g.open_tech_tree();
-        // Hover the first Era II node (Tiger I, PLAYABLE index 1).
-        let node = tree_node_center(Era::LateWar, 0);
+        let node = tree_node_center(game_core::VehicleKind::TigerI);
         g.set_cursor(node);
         let rect = hover_rect(&g, &g.hit_test(false)).expect("a tree node must have a hover rect");
         assert!(

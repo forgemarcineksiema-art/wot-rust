@@ -234,9 +234,8 @@ mod tests {
     #[test]
     fn flat_ground_matches_the_centre_sample() {
         let map = map_from(|_, _| 2.5);
-        let fallback = ContactFootprint::from_hitbox(&HitboxProfile::for_vehicle(
-            VehicleKind::PrototypeMedium,
-        ));
+        let fallback =
+            ContactFootprint::from_hitbox(&HitboxProfile::for_vehicle(VehicleKind::T54_1951));
         for footprint in [t54(), fallback] {
             let height =
                 support_height(&map, Vec3::new(30.0, 2.5, 30.0), 0.7, &footprint, &[]).unwrap();

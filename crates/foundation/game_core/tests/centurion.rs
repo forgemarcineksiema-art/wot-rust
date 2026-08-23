@@ -3,7 +3,7 @@
 //! pace), the skirted flank, and the honest 65-round rack.
 
 use game_core::{
-    ArmorFacing, Era, Nation, ShellSpec, TankSpec, VehicleKind, known_tank_specs,
+    ArmorFacing, Nation, ShellSpec, TankSpec, VehicleClass, VehicleKind, known_tank_specs,
     resolve_penetration,
 };
 
@@ -24,16 +24,17 @@ fn centurion_spec_matches_core_historical_shape() {
 }
 
 #[test]
-fn centurion_is_the_british_era_iii_entry() {
+fn centurion_is_the_british_tier_eight_medium() {
     assert_eq!(VehicleKind::Centurion.nation(), Nation::Britain);
-    assert_eq!(VehicleKind::Centurion.era(), Era::ColdWar);
+    assert_eq!(VehicleKind::Centurion.tier(), 8);
+    assert_eq!(VehicleKind::Centurion.class(), VehicleClass::Medium);
     assert!(VehicleKind::PLAYABLE.contains(&VehicleKind::Centurion));
     let names: Vec<_> = known_tank_specs().into_iter().map(|spec| spec.name).collect();
     assert!(names.contains(&"Centurion Mk 3".to_string()));
 }
 
 /// The gunnery trade in numbers: the 20-pounder shoots tighter than the D-10 family it meets
-/// in Era III, for less per-shot alpha — a sidegrade role, not a straight upgrade.
+/// at tier VIII/IX, for less per-shot alpha — a sidegrade role, not a straight upgrade.
 #[test]
 fn the_20pdr_out_shoots_the_d10_for_less_alpha() {
     let cent = TankSpec::centurion_mk3();

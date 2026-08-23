@@ -42,8 +42,6 @@ fn t54_reference_pack_is_discoverable_by_vehicle_kind() {
         ReferencePack::for_vehicle(VehicleKind::Jagdtiger).unwrap().family_slug(),
         "jagdtiger"
     );
-    // The placeholder prototype is intentionally not a benchmarked family.
-    assert!(ReferencePack::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
 #[test]
@@ -105,9 +103,4 @@ fn measured_ratio_reports_signed_percentage_difference() {
     assert!((hull.percent_difference() - expected).abs() < 1.0e-3);
     // A passing ratio sits within tolerance, so its percentage delta is small.
     assert!(hull.percent_difference().abs() < 15.0);
-}
-
-#[test]
-fn the_test_only_prototype_has_no_production_forge_reference_pack() {
-    assert!(ReferencePack::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }

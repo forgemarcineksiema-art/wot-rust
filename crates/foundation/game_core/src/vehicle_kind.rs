@@ -38,44 +38,45 @@ impl Nation {
     }
 }
 
-/// The game's three technology eras — the matchmaking bracket, replacing tier spread entirely:
-/// a battle is one era, never a mix. Era is derived from [`VehicleKind`], never serialized,
-/// so appending eras (and vehicles) later stays wire-compatible.
+/// Combat role — the tech-tree *line* inside a nation. One nation carries at most one line per
+/// class today (a second Soviet medium is still the medium line, with a gap between tiers).
+/// Derived from [`VehicleKind`], never serialized; not an identity enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Era {
-    /// Early-war designs (1939-42). No playable vehicles yet — reserved by the roadmap.
-    EarlyWar,
-    /// Late-war heavy metal (1943-45): the Tiger/Panther family.
-    LateWar,
-    /// Early Cold War (1946-55): T-54, IS-3 and their contemporaries.
-    ColdWar,
+pub enum VehicleClass {
+    Medium,
+    Heavy,
+    TankDestroyer,
 }
 
-impl Era {
-    /// Every era, oldest first — the tech tree's primary axis.
-    pub const ALL: [Era; 3] = [Era::EarlyWar, Era::LateWar, Era::ColdWar];
+impl VehicleClass {
+    /// Every class a line can be. The tree walks this and skips empty columns.
+    pub const ALL: [VehicleClass; 3] =
+        [VehicleClass::Medium, VehicleClass::Heavy, VehicleClass::TankDestroyer];
 
     pub fn label(self) -> &'static str {
         match self {
-            Era::EarlyWar => "Era I",
-            Era::LateWar => "Era II",
-            Era::ColdWar => "Era III",
+            VehicleClass::Medium => "Medium",
+            VehicleClass::Heavy => "Heavy",
+            VehicleClass::TankDestroyer => "TD",
         }
     }
+}
 
-    /// The era's descriptive name + years, for surfaces that explain the bracket (the tech
-    /// tree's era bands) rather than just tagging it.
-    pub fn display_name(self) -> &'static str {
-        match self {
-            Era::EarlyWar => "EARLY WAR 1939-42",
-            Era::LateWar => "LATE WAR 1943-45",
-            Era::ColdWar => "COLD WAR 1946-55",
-        }
-    }
-
-    /// The production roster restricted to this era — the pool a random battle draws from.
-    pub fn playable(self) -> impl Iterator<Item = VehicleKind> {
-        VehicleKind::PLAYABLE.into_iter().filter(move |kind| kind.era() == self)
+/// Roman numeral for a World of Tanks tier (I–X). Out-of-range is a programming error: tiers
+/// live on [`VehicleKind::tier`], which only returns 1–10.
+pub fn tier_roman(tier: u8) -> &'static str {
+    match tier {
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        5 => "V",
+        6 => "VI",
+        7 => "VII",
+        8 => "VIII",
+        9 => "IX",
+        10 => "X",
+        _ => unreachable!("VehicleKind::tier is 1..=10, got {tier}"),
     }
 }
 
@@ -91,7 +92,6 @@ impl Era {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum VehicleKind {
     #[default]
-    PrototypeMedium,
     T54_1951,
     TigerI,
     TigerII,
@@ -112,8 +112,7 @@ impl VehicleKind {
     pub const BENCHMARK: VehicleKind = VehicleKind::T54_1951;
 
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 9] = [
-        VehicleKind::PrototypeMedium,
+    pub const ALL: [VehicleKind; 8] = [
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
@@ -124,24 +123,16 @@ impl VehicleKind {
         VehicleKind::T34_85,
     ];
 
-    /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
-    /// stable wire identity, but garage and review surfaces should use this list.
-    pub const PLAYABLE: [VehicleKind; 8] = [
-        VehicleKind::T54_1951,
-        VehicleKind::TigerI,
-        VehicleKind::TigerII,
-        VehicleKind::Jagdtiger,
-        VehicleKind::PantherII,
-        VehicleKind::IS3,
-        VehicleKind::Centurion,
-        VehicleKind::T34_85,
-    ];
+    /// Player-facing production roster. Same set as [`Self::ALL`] — the test-only prototype
+    /// medium was deleted (wire v48); there is no non-playable identity slot left.
+    pub const PLAYABLE: [VehicleKind; 8] = Self::ALL;
 
-    /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for every playable
-    /// vehicle (the test-only prototype medium ships no asset file).
+    /// A random 7v7 draws bots from this many tiers above and below the player's tank.
+    pub const MATCHMAKING_SPREAD: u8 = 1;
+
+    /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json`.
     pub fn slug(self) -> &'static str {
         match self {
-            VehicleKind::PrototypeMedium => "prototype_medium",
             VehicleKind::T54_1951 => "t54_1951",
             VehicleKind::TigerI => "tiger_i_ausf_e",
             VehicleKind::TigerII => "tiger_ii_ausf_b",
@@ -163,7 +154,6 @@ impl VehicleKind {
     /// Canonical display name (the historical designation).
     pub fn display_name(self) -> &'static str {
         match self {
-            VehicleKind::PrototypeMedium => "Prototype Medium",
             VehicleKind::T54_1951 => "T-54-3 obr. 1951",
             VehicleKind::TigerI => "Panzerkampfwagen VI Tiger Ausf. E",
             VehicleKind::TigerII => "Panzerkampfwagen VI B Tiger II",
@@ -182,7 +172,6 @@ impl VehicleKind {
     /// new vehicle states both names in one file or fails the exhaustive match.
     pub fn short_name(self) -> &'static str {
         match self {
-            VehicleKind::PrototypeMedium => "Proto",
             VehicleKind::T54_1951 => "T-54",
             VehicleKind::TigerI => "Tiger I",
             VehicleKind::TigerII => "Tiger II",
@@ -228,35 +217,54 @@ impl VehicleKind {
         self.spec_ref().has_fixed_casemate()
     }
 
-    /// The technology era this vehicle fights in — the matchmaking bracket. The test-only
-    /// prototype medium is a T-55-shaped stand-in, so it sits with the Cold War park.
-    pub fn era(self) -> Era {
+    /// World of Tanks combat tier (1–10). The matchmaking bracket and the tree's vertical axis.
+    /// Numbers match the live Tankopedia: T-34-85 is VI, Tiger I is VII, the T8 park is VIII,
+    /// T-54 and Jagdtiger are IX.
+    pub fn tier(self) -> u8 {
+        match self {
+            VehicleKind::T34_85 => 6,
+            VehicleKind::TigerI => 7,
+            VehicleKind::TigerII
+            | VehicleKind::PantherII
+            | VehicleKind::IS3
+            | VehicleKind::Centurion => 8,
+            VehicleKind::T54_1951 | VehicleKind::Jagdtiger => 9,
+        }
+    }
+
+    /// Combat role — the tech-tree line inside [`Self::nation`].
+    pub fn class(self) -> VehicleClass {
         match self {
             VehicleKind::T34_85
-            | VehicleKind::TigerI
-            | VehicleKind::TigerII
-            | VehicleKind::Jagdtiger
-            | VehicleKind::PantherII => Era::LateWar,
-            VehicleKind::PrototypeMedium
             | VehicleKind::T54_1951
-            | VehicleKind::IS3
-            | VehicleKind::Centurion => Era::ColdWar,
+            | VehicleKind::PantherII
+            | VehicleKind::Centurion => VehicleClass::Medium,
+            VehicleKind::TigerI | VehicleKind::TigerII | VehicleKind::IS3 => VehicleClass::Heavy,
+            VehicleKind::Jagdtiger => VehicleClass::TankDestroyer,
         }
     }
 
     /// The historical origin nation of this vehicle — used by the garage carousel and tech tree.
     pub fn nation(self) -> Nation {
         match self {
-            VehicleKind::PrototypeMedium
-            | VehicleKind::T34_85
-            | VehicleKind::T54_1951
-            | VehicleKind::IS3 => Nation::Ussr,
+            VehicleKind::T34_85 | VehicleKind::T54_1951 | VehicleKind::IS3 => Nation::Ussr,
             VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
             | VehicleKind::PantherII => Nation::Germany,
             VehicleKind::Centurion => Nation::Britain,
         }
+    }
+
+    /// Whether `other` may spawn in the same random battle as this vehicle (tier ±
+    /// [`Self::MATCHMAKING_SPREAD`]).
+    pub fn in_matchmaking_bracket(self, other: Self) -> bool {
+        self.tier().abs_diff(other.tier()) <= Self::MATCHMAKING_SPREAD
+    }
+
+    /// The production roster restricted to this vehicle's matchmaking bracket.
+    pub fn matchmaking_pool(self) -> impl Iterator<Item = VehicleKind> {
+        VehicleKind::PLAYABLE.into_iter().filter(move |kind| self.in_matchmaking_bracket(*kind))
     }
 
     pub fn effective_turret_yaw_rad(self, turret_yaw_rad: f32) -> f32 {
@@ -270,7 +278,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 9);
+        assert_eq!(VehicleKind::ALL.len(), 8);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -279,9 +287,9 @@ mod tests {
     }
 
     #[test]
-    fn playable_roster_exposes_every_production_vehicle() {
-        // The roster rule: no clones. Every non-test vehicle is playable; the only variant
-        // outside this list is the test-only prototype medium.
+    fn playable_roster_is_the_full_identity_set() {
+        // The roster rule: no clones, no test-only slot. PLAYABLE and ALL are the same eight.
+        assert_eq!(VehicleKind::PLAYABLE, VehicleKind::ALL);
         assert_eq!(
             VehicleKind::PLAYABLE,
             [
@@ -295,8 +303,6 @@ mod tests {
                 VehicleKind::T34_85,
             ]
         );
-        assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
-        assert_eq!(VehicleKind::ALL.len(), VehicleKind::PLAYABLE.len() + 1);
     }
 
     /// The cache must be the SAME spec the uncached assembly produces — a stale or mis-indexed
@@ -332,8 +338,9 @@ mod tests {
     }
 
     #[test]
-    fn default_is_prototype_medium() {
-        assert_eq!(VehicleKind::default(), VehicleKind::PrototypeMedium);
+    fn default_is_the_benchmark() {
+        assert_eq!(VehicleKind::default(), VehicleKind::BENCHMARK);
+        assert_eq!(VehicleKind::BENCHMARK, VehicleKind::T54_1951);
     }
 
     #[test]
@@ -353,6 +360,11 @@ mod tests {
         }
         assert_eq!(VehicleKind::from_slug("ghost_tank_9000"), None, "unknown slug is None");
         assert_eq!(VehicleKind::from_slug(""), None, "empty slug is None");
+        assert_eq!(
+            VehicleKind::from_slug("prototype_medium"),
+            None,
+            "the deleted prototype slug must not resolve"
+        );
     }
 
     #[test]
@@ -368,38 +380,54 @@ mod tests {
     }
 
     #[test]
-    fn eras_split_the_park_along_the_historical_generation_gap() {
-        // The whole Tiger/Panther family fights in Era II; the postwar Soviet park in Era III.
-        for kind in [
-            VehicleKind::TigerI,
-            VehicleKind::TigerII,
-            VehicleKind::Jagdtiger,
-            VehicleKind::PantherII,
-        ] {
-            assert_eq!(kind.era(), Era::LateWar, "{kind:?}");
-        }
-        for kind in [VehicleKind::T54_1951, VehicleKind::IS3, VehicleKind::Centurion] {
-            assert_eq!(kind.era(), Era::ColdWar, "{kind:?}");
+    fn tiers_and_classes_match_the_world_of_tanks_tree() {
+        assert_eq!(VehicleKind::T34_85.tier(), 6);
+        assert_eq!(VehicleKind::T34_85.class(), VehicleClass::Medium);
+        assert_eq!(VehicleKind::TigerI.tier(), 7);
+        assert_eq!(VehicleKind::TigerI.class(), VehicleClass::Heavy);
+        assert_eq!(VehicleKind::TigerII.tier(), 8);
+        assert_eq!(VehicleKind::TigerII.class(), VehicleClass::Heavy);
+        assert_eq!(VehicleKind::PantherII.tier(), 8);
+        assert_eq!(VehicleKind::PantherII.class(), VehicleClass::Medium);
+        assert_eq!(VehicleKind::IS3.tier(), 8);
+        assert_eq!(VehicleKind::IS3.class(), VehicleClass::Heavy);
+        assert_eq!(VehicleKind::Centurion.tier(), 8);
+        assert_eq!(VehicleKind::Centurion.class(), VehicleClass::Medium);
+        assert_eq!(VehicleKind::T54_1951.tier(), 9);
+        assert_eq!(VehicleKind::T54_1951.class(), VehicleClass::Medium);
+        assert_eq!(VehicleKind::Jagdtiger.tier(), 9);
+        assert_eq!(VehicleKind::Jagdtiger.class(), VehicleClass::TankDestroyer);
+        for kind in VehicleKind::ALL {
+            assert!((1..=10).contains(&kind.tier()), "{kind:?} tier out of I..=X");
         }
     }
 
     #[test]
-    fn every_populated_era_fields_at_least_two_playable_vehicles() {
-        // A one-vehicle era would put clone armies on both teams AND leave the enemy roster
-        // with zero variety; the roadmap fills Era I before any vehicle claims it.
-        for era in [Era::EarlyWar, Era::LateWar, Era::ColdWar] {
-            let pool = era.playable().count();
-            assert!(pool == 0 || pool >= 2, "{era:?} fields {pool} vehicle(s)");
+    fn matchmaking_is_plus_minus_one_tier() {
+        // T-34-85 (VI) meets Tiger I (VII), not the VIII/IX park.
+        let t34 = VehicleKind::T34_85.matchmaking_pool().collect::<Vec<_>>();
+        assert_eq!(t34, [VehicleKind::TigerI, VehicleKind::T34_85]);
+        // Tiger I (VII) never meets the T-54 / Jagdtiger (IX).
+        assert!(!VehicleKind::TigerI.in_matchmaking_bracket(VehicleKind::T54_1951));
+        assert!(!VehicleKind::TigerI.in_matchmaking_bracket(VehicleKind::Jagdtiger));
+        // An VIII *does* meet the T-54 — that is the era wall coming down.
+        assert!(VehicleKind::TigerII.in_matchmaking_bracket(VehicleKind::T54_1951));
+        // Every live pool has at least two designs (no clone-army bracket).
+        for kind in VehicleKind::PLAYABLE {
+            assert!(
+                kind.matchmaking_pool().count() >= 2,
+                "{kind:?} (T{}) fields a one-vehicle bracket",
+                kind.tier()
+            );
         }
-        assert!(Era::LateWar.playable().count() >= 2);
-        assert!(Era::ColdWar.playable().count() >= 2);
     }
 
     #[test]
-    fn era_labels_read_as_the_three_brackets() {
-        assert_eq!(Era::EarlyWar.label(), "Era I");
-        assert_eq!(Era::LateWar.label(), "Era II");
-        assert_eq!(Era::ColdWar.label(), "Era III");
+    fn tier_romans_cover_the_wot_ladder() {
+        assert_eq!(tier_roman(6), "VI");
+        assert_eq!(tier_roman(7), "VII");
+        assert_eq!(tier_roman(8), "VIII");
+        assert_eq!(tier_roman(9), "IX");
     }
 
     #[test]
@@ -411,7 +439,6 @@ mod tests {
 
     #[test]
     fn nation_matches_historical_origin() {
-        assert_eq!(VehicleKind::PrototypeMedium.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::T54_1951.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::TigerI.nation(), Nation::Germany);
         assert_eq!(VehicleKind::TigerII.nation(), Nation::Germany);
@@ -419,6 +446,7 @@ mod tests {
         assert_eq!(VehicleKind::PantherII.nation(), Nation::Germany);
         assert_eq!(VehicleKind::IS3.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::Centurion.nation(), Nation::Britain);
+        assert_eq!(VehicleKind::T34_85.nation(), Nation::Ussr);
     }
 
     #[test]
@@ -441,7 +469,7 @@ mod tests {
 
     #[test]
     fn playable_roster_spans_all_nations() {
-        for nation in [Nation::Ussr, Nation::Germany, Nation::Britain] {
+        for nation in Nation::ALL {
             assert!(
                 VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == nation),
                 "playable roster must include {nation:?}"

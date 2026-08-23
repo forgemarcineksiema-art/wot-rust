@@ -1,6 +1,6 @@
 # Working in this repo (read me first — any AI tool)
 
-Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crates under
+Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Workspace of crates under
 `crates/{foundation,kernels,vehicle,world,runtime,render,ui,apps,tooling}`.
 
 ## Non-negotiable rules
@@ -28,7 +28,7 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - `docs/map-forge-policy.md` — map + flora doctrine (procedural-only); `docs/maps/*.md` —
   per-map dossiers. editor: `cargo run -p editor`.
 - `docs/shadow-policy.md`, `docs/engineering-rules.md`.
-- `crates/tooling/quality` — **the ratchet**: 18 gate tests enforce the layer DAG, append-only
+- `crates/tooling/quality` — **the ratchet**: 21 gate tests enforce the layer DAG, append-only
   identity enums and the W0 rules. Burn allowlist entries down; never widen one to get green.
 - Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.
 - Perf: `cargo run -p client --release --example probe -- perf_capture`; sim bench `combat_hot_path`.

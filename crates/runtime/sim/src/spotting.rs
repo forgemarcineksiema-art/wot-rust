@@ -17,7 +17,7 @@ use terrain::{HeightMap, StaticCoverObject};
 
 use crate::TankState;
 
-/// Legacy flat view range. v29 spots per OBSERVER spec (`TankSpec::view_range_m`, per era);
+/// Legacy flat view range. v29 spots per OBSERVER spec (`TankSpec::view_range_m`, per vehicle);
 /// this constant remains as the mid-era reference for fog tuning and bot heuristics.
 pub const VIEW_RANGE_M: f32 = 400.0;
 /// Recompute cadence: every 6 ticks = 10 Hz at the 60 Hz simulation.
@@ -283,7 +283,7 @@ pub(crate) fn apply_spotted_masks_with_hold(
 }
 
 /// Compute, for each tank (in `tanks` order), the bitmask of teams that can currently see it. A
-/// team sees a tank when any living member has LOS within ITS OWN view range (per-era optics,
+/// team sees a tank when any living member has LOS within ITS OWN view range (per-vehicle optics,
 /// `TankSpec::view_range_m`); a tank's own team always sees it, and a wreck is public.
 ///
 /// The radio speaks here (v29): an observer with a DESTROYED radio no longer contributes to the

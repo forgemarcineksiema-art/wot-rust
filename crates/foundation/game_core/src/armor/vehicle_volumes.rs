@@ -51,16 +51,6 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
         VehicleKind::PantherII => &PANTHER_II,
         VehicleKind::Centurion => &CENTURION,
         VehicleKind::T34_85 => &T34_85,
-        // The test-only prototype has no blueprint (`blueprint_ron` returns `None` for it), so
-        // there is nothing to bake. Listed EXHAUSTIVELY rather than swept up by a wildcard: a new
-        // `VehicleKind` must fail to compile here until someone decides whether it has armour.
-        //
-        // What the wildcard cost: a vehicle missing from this table returns `None`, and
-        // `sim::shell_trace::tank` then resolves it against BOX BANDS instead of its convex
-        // volumes (`tank.rs:54`). No panic, no log, no red test — a hull shipping with the game's
-        // central promise quietly switched off. The fleet loops that should have caught it
-        // `continue` past a `None` instead of failing, so they never did.
-        VehicleKind::PrototypeMedium => return None,
     };
     cell.get_or_init(|| VehicleBlueprint::for_vehicle(kind).map(bake_vehicle_armor)).as_ref()
 }

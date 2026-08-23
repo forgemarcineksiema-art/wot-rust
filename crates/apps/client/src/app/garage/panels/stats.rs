@@ -15,11 +15,11 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, spec: &TankSpec, aspe
     push_panel(v, panel_center, panel_half, CHAMFER_PANEL, aspect, PANEL);
     let left = STAT_X - STAT_HALF_X;
     push_text(v, strings::VEHICLE, left, PANEL_TOP, 0.04, aspect, TEXT_DIM);
-    // The matchmaking bracket, right-aligned on the header row: a battle is one era, and the
-    // player should know which one this hull deploys into before pressing Battle.
-    let era = spec.kind.era().label();
-    let era_width = crate::hud::font::text_width(era, 0.04, aspect);
-    push_text(v, era, STAT_X + STAT_HALF_X - era_width, PANEL_TOP, 0.04, aspect, VALUE);
+    // The matchmaking bracket, right-aligned on the header row: a battle is tier ±1, and the
+    // player should know which tier this hull deploys into before pressing Battle.
+    let tier = game_core::tier_roman(spec.kind.tier());
+    let tier_width = crate::hud::font::text_width(tier, 0.04, aspect);
+    push_text(v, tier, STAT_X + STAT_HALF_X - tier_width, PANEL_TOP, 0.04, aspect, VALUE);
     push_hairline(v, left, STAT_X + STAT_HALF_X, 0.755, HAIRLINE);
 
     for (i, (icon, value)) in rows(spec).iter().enumerate() {
@@ -89,16 +89,16 @@ fn rows(spec: &TankSpec) -> [(HudIcon, String); STAT_ROWS] {
 mod tests {
     use super::*;
 
-    /// The header row carries the era bracket: the only VALUE-colored glyphs above the hairline
-    /// (every stat value sits at `STAT_TOP` and below). The player must see which era this hull
+    /// The header row carries the tier bracket: the only VALUE-colored glyphs above the hairline
+    /// (every stat value sits at `STAT_TOP` and below). The player must see which tier this hull
     /// deploys into before pressing Battle.
     #[test]
-    fn the_stats_header_carries_the_vehicles_era_bracket() {
+    fn the_stats_header_carries_the_vehicles_tier_bracket() {
         let mut vertices = Vec::new();
         draw(&mut vertices, &game_core::VehicleKind::TigerI.spec(), 16.0 / 9.0);
         let header_value_glyphs =
             vertices.iter().filter(|v| v.color == VALUE && v.position[1] > 0.78).count();
-        assert!(header_value_glyphs > 0, "the era label must sit on the header row");
+        assert!(header_value_glyphs > 0, "the tier label must sit on the header row");
     }
 
     /// The column has to carry the promise the game is sold on. `dispersion_mrad` and

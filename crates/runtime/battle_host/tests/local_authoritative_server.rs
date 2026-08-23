@@ -29,11 +29,10 @@ fn random_7v7_spawns_fourteen_tanks_with_player_on_team_one() {
     assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
 }
 
-/// A random battle is one technology bracket: every tank on the field shares the player's era.
-/// This is the era system doing the matchmaker's job — no Tiger ever meets a T-54 (locked for
-/// both directions and across seeds, so it cannot pass by luck of the draw).
+/// A random battle is one matchmaking bracket: every tank on the field is within ±1 tier of
+/// the player's hull. T-34-85 (VI) never meets the T-54 (IX); an VIII *does*.
 #[test]
-fn random_7v7_fields_a_single_era_battle() {
+fn random_7v7_fields_a_tier_spread_battle() {
     for seed in [1u64, 2, 3, 4, 5] {
         for player_vehicle in [game_core::VehicleKind::TigerI, game_core::VehicleKind::T54_1951] {
             let server = LocalAuthoritativeServer::new_random_7v7(
@@ -42,22 +41,22 @@ fn random_7v7_fields_a_single_era_battle() {
             );
             let snapshot = server.latest_snapshot();
             for tank in &snapshot.tanks {
-                assert_eq!(
-                    tank.vehicle.era(),
-                    player_vehicle.era(),
-                    "seed {seed}: {:?} broke into a {:?} battle",
+                assert!(
+                    player_vehicle.in_matchmaking_bracket(tank.vehicle),
+                    "seed {seed}: {:?} (T{}) broke into a T{} battle",
                     tank.vehicle,
-                    player_vehicle.era()
+                    tank.vehicle.tier(),
+                    player_vehicle.tier()
                 );
             }
         }
     }
 }
 
-/// The era pool must not collapse into clone armies: across seeds, the enemy team of an Era II
-/// battle draws more than one design (the pool has four).
+/// The ±1 pool must not collapse into clone armies: across seeds, a T8 battle draws more
+/// than one design (the pool is the whole VIII/IX park plus Tiger I).
 #[test]
-fn random_7v7_era_battles_keep_roster_variety() {
+fn random_7v7_tier_battles_keep_roster_variety() {
     let mut kinds = std::collections::HashSet::new();
     for seed in [11u64, 12, 13, 14] {
         let server = LocalAuthoritativeServer::new_random_7v7(
@@ -68,7 +67,7 @@ fn random_7v7_era_battles_keep_roster_variety() {
             kinds.insert(tank.vehicle);
         }
     }
-    assert!(kinds.len() >= 3, "four seeds of Era II must field variety, got {kinds:?}");
+    assert!(kinds.len() >= 3, "four seeds of a T8 battle must field variety, got {kinds:?}");
 }
 
 #[test]

@@ -73,9 +73,6 @@ impl SteeringKind {
             | VehicleKind::PantherII
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger => Self::BrakedTrack,
-            // The test-only prototype keeps the pre-P4.5 behaviour, which is what every vehicle
-            // had before this existed.
-            _ => Self::Regenerative,
         }
     }
 }

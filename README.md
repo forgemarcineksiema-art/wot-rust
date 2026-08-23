@@ -1,7 +1,7 @@
 # WOT Rust — the honest tank game
 
 A native-Rust game of armored vehicle battles on large terrain maps: 7v7 on
-1000 m fields, WWII-era vehicles in three eras, and a design creed of **honesty** — no ±25%
+1000 m fields, WWII vehicles on nation trees (lines and tiers), and a design creed of **honesty** — no ±25%
 damage RNG, sub-milliradian
 dispersion, no premium ammo, armor resolved against real 3D plates, and a world where what
 blocks the shell is exactly what blocks the eye. Not a general-purpose engine: everything is
@@ -31,7 +31,7 @@ release, and where the center of gravity should go next. Individual program docs
   tree generators** — the world ships no imported art at all (flora is procedural-only, and a
   battlefield oak's trunk is a gameplay solid, not a painting).
 - **Deterministic sim + netcode**: fixed-tick authoritative server, protocol snapshots,
-  replay regression fixtures, per-era spotting, bots with route planning.
+  replay regression fixtures, per-vehicle spotting, bots with route planning.
 
 ## Daily commands
 

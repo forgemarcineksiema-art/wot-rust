@@ -7,12 +7,12 @@ have line of sight to it, and that mask replicates in the snapshot
 
 ## The rule
 
-- **View range is per OBSERVER** (v29): `TankSpec::view_range_m()` returns
-  360 m (Early War), 400 m (Late War), 440 m (Cold War) — later optics see
-  farther (`crates/foundation/game_core/src/tank.rs:149-155`; used at
-  `crates/runtime/sim/src/spotting.rs:317,364`). The old flat
-  `VIEW_RANGE_M = 400 m` survives only as the mid-era reference for fog tuning
-  and bot heuristics (`spotting.rs:20-22`).
+- **View range is per OBSERVER** (v29): `TankSpec::view_range_m()` is frozen on
+  the vehicle (400 m for the late-war park, 440 m for the postwar park —
+  `crates/foundation/game_core/src/tank.rs`; used at
+  `crates/runtime/sim/src/spotting.rs`). The old flat
+  `VIEW_RANGE_M = 400 m` survives only as the mid-park reference for fog tuning
+  and bot heuristics (`spotting.rs`).
 - **Concealment is stillness** (decision 2.6, 2026-08-02, `spotting.rs:49-66`):
   a hull whose planar speed is at or below `STATIONARY_SPEED_MPS = 0.5` is seen
   from only `STATIONARY_SPOT_FACTOR = 0.7` of the observer's range. Binary and

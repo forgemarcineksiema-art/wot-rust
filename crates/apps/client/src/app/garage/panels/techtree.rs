@@ -1,41 +1,31 @@
-//! The browse-only tech tree view, organised along the design's PRIMARY axis: era. Three
-//! horizontal bands read chronologically top to bottom — Era I (1939-42, deliberately empty: the
-//! reserved roadmap bracket explains the axis), Era II late-war metal, Era III early Cold War —
-//! and each band lines its playable vehicles up as nodes tagged with their nation. A battle is
-//! one era, never a mix; this screen is where the player learns that. Clicking a node selects
-//! that vehicle and returns to the hangar. There is no research or economy — every playable
-//! vehicle is selectable.
+//! The browse-only tech tree view: nation groups, line columns, tier rows (higher tier
+//! higher) — the World of Tanks tree, not an era band. Only [`VehicleKind::PLAYABLE`] nodes
+//! are drawn; there is no reserved empty band and no ghost predecessor. Clicking a node
+//! selects that vehicle and returns to the hangar. There is no research or economy.
 
-use game_core::{Era, VehicleKind};
+use game_core::{VehicleKind, tier_roman};
 use renderer_api::HudVertex;
 
 use crate::app::garage::GarageHit;
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::{
     BATTLE, PANEL, SLOT, SLOT_SELECTED, TEXT, TEXT_DIM, TREE_CLOSE_CENTER, TREE_CLOSE_HALF,
-    TREE_ERA_LABEL_X, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect, tree_era_y,
-    tree_node_center, tree_node_half,
+    TREE_LINE_LABEL_Y, TREE_NATION_LABEL_Y, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect,
+    tree_col_x, tree_columns, tree_node_center, tree_node_half,
 };
 use crate::hud::font::{push_text, text_width};
 use crate::hud::push_panel;
 use crate::hud::theme::{CHAMFER_PANEL, CHAMFER_SLOT};
 
 /// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre,
-/// its node half-extents). Vehicles line up left-to-right inside their ERA's band, in roster
-/// order; a band's node size comes from its own population (`layout::tree_node_half`).
+/// its node half-extents).
 fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2], [f32; 2])> {
-    let mut out = Vec::new();
-    for era in Era::ALL {
-        let half = tree_node_half(era);
-        for (col, kind) in era.playable().enumerate() {
-            let index = VehicleKind::PLAYABLE
-                .iter()
-                .position(|k| *k == kind)
-                .expect("era.playable() draws from PLAYABLE");
-            out.push((index, kind, tree_node_center(era, col), half));
-        }
-    }
-    out
+    let half = tree_node_half();
+    VehicleKind::PLAYABLE
+        .into_iter()
+        .enumerate()
+        .map(|(index, kind)| (index, kind, tree_node_center(kind), half))
+        .collect()
 }
 
 /// The tree-node rect (centre, half) for a `VehicleKind::PLAYABLE` index, or `None` if out of
@@ -50,48 +40,55 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
     let mut v = Vec::new();
     push_panel(&mut v, TREE_PANEL_CENTER, TREE_PANEL_HALF, CHAMFER_PANEL, aspect, PANEL);
 
-    // Era band labels down the left edge: the bracket tag big, the descriptive years under it.
-    // An era with nothing fielded states so instead of hiding — the axis is the message.
-    for era in Era::ALL {
-        let y = tree_era_y(era);
-        push_text(&mut v, era.label(), TREE_ERA_LABEL_X, y + 0.045, 0.042, aspect, VALUE);
-        push_text(&mut v, era.display_name(), TREE_ERA_LABEL_X, y - 0.012, 0.02, aspect, TEXT_DIM);
-        if era.playable().next().is_none() {
-            let placeholder = crate::ui_strings::garage::ERA_RESERVED;
-            push_text(
-                &mut v,
-                placeholder,
-                tree_node_center(era, 0)[0] - tree_node_half(era)[0],
-                y + 0.014,
-                0.026,
-                aspect,
-                TEXT_DIM,
-            );
+    let cols = tree_columns();
+    // Nation headers span their occupied line columns.
+    let mut col = 0;
+    while col < cols.len() {
+        let nation = cols[col].0;
+        let mut end = col + 1;
+        while end < cols.len() && cols[end].0 == nation {
+            end += 1;
         }
+        let x0 = tree_col_x(col);
+        let x1 = tree_col_x(end - 1);
+        let tag = nation.label();
+        let color = nation.color();
+        let w = text_width(tag, 0.028, aspect);
+        push_text(
+            &mut v,
+            tag,
+            (x0 + x1) * 0.5 - w / 2.0,
+            TREE_NATION_LABEL_Y,
+            0.028,
+            aspect,
+            [color[0], color[1], color[2], 0.95],
+        );
+        col = end;
     }
 
-    // Vehicle nodes inside their era band: a nation tag in the nation's colour over the name.
+    for (index, &(_, class)) in cols.iter().enumerate() {
+        let tag = class.label();
+        let w = text_width(tag, 0.018, aspect);
+        push_text(
+            &mut v,
+            tag,
+            tree_col_x(index) - w / 2.0,
+            TREE_LINE_LABEL_Y,
+            0.018,
+            aspect,
+            TEXT_DIM,
+        );
+    }
+
     let selected = state.selected_index();
     for (i, kind, center, half) in tree_nodes() {
         let bg = if i == selected { SLOT_SELECTED } else { SLOT };
         push_panel(&mut v, center, half, CHAMFER_SLOT, aspect, bg);
-        let nation = kind.nation();
-        let tag = nation.label();
-        let color = nation.color();
-        let w = text_width(tag, 0.02, aspect);
-        push_text(
-            &mut v,
-            tag,
-            center[0] - w / 2.0,
-            center[1] + 0.046,
-            0.02,
-            aspect,
-            [color[0], color[1], color[2], 0.95],
-        );
-        // The name fits ITS node: a crowded band's narrower plate shrinks the text to match
-        // rather than letting a long name print past the plate edge.
+        let roman = tier_roman(kind.tier());
+        let w = text_width(roman, 0.018, aspect);
+        push_text(&mut v, roman, center[0] - w / 2.0, center[1] + 0.046, 0.018, aspect, VALUE);
         let name = kind.short_name();
-        let mut size = 0.032;
+        let mut size = 0.028;
         let max_w = 2.0 * half[0] - 0.02;
         let w = text_width(name, size, aspect);
         if w > max_w {
@@ -101,7 +98,6 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
         push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.012, size, aspect, TEXT);
     }
 
-    // Close button in the top-right corner.
     push_panel(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, CHAMFER_SLOT, aspect, BATTLE);
     let label = crate::ui_strings::garage::BACK;
     let w = text_width(label, 0.028, aspect);
@@ -137,6 +133,8 @@ pub(in crate::app::garage) fn hit_test(state: &GarageState) -> GarageHit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::garage::layout::tree_tier_y;
+    use game_core::{Nation, VehicleClass};
 
     fn at(garage: &mut GarageState, point: [f32; 2]) -> GarageHit {
         garage.open_tech_tree();
@@ -144,50 +142,42 @@ mod tests {
         hit_test(garage)
     }
 
+    fn playable_index(kind: VehicleKind) -> usize {
+        VehicleKind::PLAYABLE.iter().position(|k| *k == kind).expect("playable")
+    }
+
     #[test]
-    fn techtree_draws_era_bands_and_vehicle_nodes() {
+    fn techtree_draws_nation_columns_and_vehicle_nodes() {
         let mut state = GarageState::default();
         state.open_tech_tree();
-        let aspect = 16.0 / 9.0;
-
-        let v = draw(&state, aspect);
-
-        // Panel + close button + 6 nodes = 8 quads = 48 vertices minimum, plus era labels,
-        // nation tags and node names.
+        let v = draw(&state, 16.0 / 9.0);
         assert!(v.len() > 48, "tech tree must emit text and node vertices, got {}", v.len());
     }
 
     #[test]
-    fn every_node_sits_in_its_own_eras_band() {
-        // THE phase-5 lock: era is the layout's primary axis. Every playable vehicle's node
-        // centre-line is its era's band, not a nation column.
+    fn every_node_sits_on_its_nation_line_and_tier() {
         for (_, kind, center, _) in tree_nodes() {
-            assert_eq!(
-                center[1],
-                tree_era_y(kind.era()),
-                "{kind:?} must sit in the {:?} band",
-                kind.era()
+            assert_eq!(center[1], tree_tier_y(kind.tier()), "{kind:?} must sit on its tier row");
+            let cols = tree_columns();
+            let col = cols
+                .iter()
+                .position(|&(nation, class)| nation == kind.nation() && class == kind.class())
+                .expect("column");
+            assert!(
+                (center[0] - tree_col_x(col)).abs() < 1.0e-5,
+                "{kind:?} must sit in its nation/line column"
             );
         }
-        // And the bands are genuinely distinct rows, chronological top to bottom.
-        assert!(tree_era_y(Era::EarlyWar) > tree_era_y(Era::LateWar));
-        assert!(tree_era_y(Era::LateWar) > tree_era_y(Era::ColdWar));
+        // Higher tier sits higher on the panel.
+        assert!(tree_tier_y(9) > tree_tier_y(8));
+        assert!(tree_tier_y(8) > tree_tier_y(7));
+        assert!(tree_tier_y(7) > tree_tier_y(6));
     }
 
     #[test]
-    fn the_empty_early_war_band_states_itself_instead_of_hiding() {
-        let mut state = GarageState::default();
-        state.open_tech_tree();
-        let v = draw(&state, 16.0 / 9.0);
-
-        // Era I has no playable vehicles, yet its band prints glyphs (label + years + the
-        // reserved placeholder) — the axis is communicated, not collapsed.
-        let band_y = tree_era_y(Era::EarlyWar);
-        let band_glyphs = v
-            .iter()
-            .filter(|vert| (vert.position[1] - band_y).abs() < 0.08 && vert.uv[0] >= 0.0)
-            .count();
-        assert!(band_glyphs > 60, "the reserved era band must speak: {band_glyphs} glyph verts");
+    fn the_tree_has_no_reserved_empty_band() {
+        // No reserved empty band — every drawn vehicle node is a playable tank.
+        assert_eq!(tree_nodes().len(), VehicleKind::PLAYABLE.len());
     }
 
     #[test]
@@ -199,12 +189,18 @@ mod tests {
     #[test]
     fn techtree_hit_test_returns_vehicle_for_node_click() {
         let mut g = GarageState::default();
-        // Tiger I is the first Era II node; it is PLAYABLE index 1.
-        assert_eq!(at(&mut g, tree_node_center(Era::LateWar, 0)), GarageHit::Vehicle(1));
-        // T-54 is the first Era III node (PLAYABLE index 0).
-        assert_eq!(at(&mut g, tree_node_center(Era::ColdWar, 0)), GarageHit::Vehicle(0));
-        // The IS-3 lines up beside it in the same band (PLAYABLE index 5).
-        assert_eq!(at(&mut g, tree_node_center(Era::ColdWar, 1)), GarageHit::Vehicle(5));
+        assert_eq!(
+            at(&mut g, tree_node_center(VehicleKind::TigerI)),
+            GarageHit::Vehicle(playable_index(VehicleKind::TigerI))
+        );
+        assert_eq!(
+            at(&mut g, tree_node_center(VehicleKind::T54_1951)),
+            GarageHit::Vehicle(playable_index(VehicleKind::T54_1951))
+        );
+        assert_eq!(
+            at(&mut g, tree_node_center(VehicleKind::IS3)),
+            GarageHit::Vehicle(playable_index(VehicleKind::IS3))
+        );
     }
 
     #[test]
@@ -217,17 +213,27 @@ mod tests {
     fn techtree_draws_every_playable_vehicle_as_a_node() {
         let mut state = GarageState::default();
         state.open_tech_tree();
-        let aspect = 16.0 / 9.0;
-
-        let v = draw(&state, aspect);
-
-        // Each vehicle node is a quad (6 verts) + nation tag + short name (variable glyphs × 6).
-        // 6 vehicles × (6 + ~4 name glyphs × 6 + ~4 tag glyphs × 6) ≈ 324 verts from nodes alone.
+        let v = draw(&state, 16.0 / 9.0);
         assert!(
             v.len() >= 300,
             "tech tree must draw all {} playable vehicles as nodes, got {} vertices",
             VehicleKind::PLAYABLE.len(),
             v.len()
+        );
+    }
+
+    #[test]
+    fn occupied_lines_are_nation_then_class() {
+        assert_eq!(
+            tree_columns(),
+            [
+                (Nation::Ussr, VehicleClass::Medium),
+                (Nation::Ussr, VehicleClass::Heavy),
+                (Nation::Germany, VehicleClass::Medium),
+                (Nation::Germany, VehicleClass::Heavy),
+                (Nation::Germany, VehicleClass::TankDestroyer),
+                (Nation::Britain, VehicleClass::Medium),
+            ]
         );
     }
 }

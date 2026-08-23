@@ -156,36 +156,35 @@ pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
 /// T-54 was being drawn as one of four kinds of steel. `deck_details::headlight` now builds a
 /// painted housing whose bezel turns in over a recessed `Glass` lens instead of a solid
 /// `BarrelSteel` cylinder, and the driver's, commander's and British sight hoods carry a glass
-/// prism face (`turret_fittings::vision_prism`). `PrototypeMedium` is the one row that does NOT
-/// move, which is the check that this went in through the shared fittings: the prototype routes
-/// through none of them. Locked by `vehicle_forge/tests/material_law.rs`.
+/// prism face (`turret_fittings::vision_prism`). The test-only prototype (since deleted in wire
+/// v48) was the one row that did NOT move, which is the check that this went in through the
+/// shared fittings: it routed through none of them. Locked by `vehicle_forge/tests/material_law.rs`.
 ///
 /// Previous, before that pass: Tiger I 8_638_016_921_081_242_465; Tiger II
 /// 7_566_020_042_162_252_338; Jagdtiger 5_983_034_482_053_846_612; Panther II
 /// 7_506_679_536_634_783_988; IS-3 764_441_410_926_956_128; Centurion
 /// 15_818_076_589_286_630_709; T-34-85 10_310_688_321_347_204_439 (the T-54's own chain is
 /// kept at its row).
-/// The 2026-08-08 roundness re-record moves EIGHT rows (PrototypeMedium routes through none of the
-/// affected fittings and stays put, which is again the check that this went in through shared
-/// construction). Segment counts on hand-written revolves — cupolas, the IS-3 fuel drums, deck
+/// The 2026-08-08 roundness re-record moves EIGHT rows (the since-deleted prototype routed
+/// through none of the affected fittings and stayed put, which is again the check that this went
+/// in through shared construction). Segment counts on hand-written revolves — cupolas, the IS-3 fuel drums, deck
 /// fittings, headlights — now come from `game_core::roundness::round_segments` instead of a number
 /// typed at the call site. Positions are unchanged; only ring resolution moves.
 /// Re-recorded 2026-08-12 (the mirror): the world's +X is the vehicle's PORT side, and every
 /// hand-authored asymmetric fitting in the fleet — cupolas, driver hatches, bow MG balls,
 /// headlights, periscope hoods — was authored under the opposite belief and rendered mirrored
 /// (judged against Studio tiles whose camera basis carried the same inversion). EIGHT rows move
-/// with the sign flip; PrototypeMedium is byte-identical, which is the check that the flip went
-/// in through the authored data and not through shared construction. Locked from now on by
+/// with the sign flip; the since-deleted prototype was byte-identical, which is the check that
+/// the flip went in through the authored data and not through shared construction. Locked from now on by
 /// `game_core/tests/handedness.rs` (blueprint-to-screen chain).
-pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
+pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // Re-recorded 2026-08-11 (a lathe corner is a line): profile corners sharper than 40 deg
     // now carry one vertex row per band, so hard-smoothing lathes keep crisp arrises through
     // the weld. Six rows move — the vehicles whose recipes turn hard-edged drums and rims; the
-    // Prototype, IS-3 and Centurion rows are byte-identical, which is the check that
+    // IS-3 and Centurion rows (and the since-deleted prototype's) are byte-identical, which is the check that
     // smooth-group lathes still weld back to the old bake (that survival is a named, separate
     // decision). The shipped T-54 hybrid builds without the MeshBuilder and its own golden did
     // not move for this change.
-    (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
     // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
     // legacy recipe reads the same `HullShape` the shipping hybrid does, so it moves with it —

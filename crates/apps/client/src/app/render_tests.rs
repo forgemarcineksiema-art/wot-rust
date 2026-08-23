@@ -417,8 +417,7 @@ fn snapshot_for_vehicle(
 }
 
 fn snapshot_at(tank_id: TankId, server_tick: u64, position: [f32; 3]) -> Snapshot {
-    let mut snapshot =
-        snapshot_for_vehicle(tank_id, server_tick, game_core::VehicleKind::PrototypeMedium);
+    let mut snapshot = snapshot_for_vehicle(tank_id, server_tick, game_core::VehicleKind::T54_1951);
     snapshot.tanks[0].position = position;
     snapshot
 }

@@ -379,7 +379,6 @@ fn vehicle_name(kind: VehicleKind) -> &'static str {
         VehicleKind::IS3 => "IS3",
         VehicleKind::Centurion => "Centurion",
         VehicleKind::T34_85 => "T34_85",
-        other => panic!("{other:?} joined the roster without joining the mobility table"),
     }
 }
 

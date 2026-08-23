@@ -78,7 +78,7 @@ pub(crate) fn random_7v7_setup_for_humans(
         let vehicle = if slot == 0 {
             config.player_vehicle
         } else {
-            random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle.era())
+            random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle)
         };
         let id = random_battle_spawn(&mut sim, &battlefield, team_one, slot, vehicle, config.seed);
         if slot < humans {
@@ -117,7 +117,7 @@ fn random_battle_spawn_enemy_team(
     let mut target_tank = TankId(0);
     for slot in 0..7 {
         let vehicle =
-            random_battle_bot_vehicle(config.seed, 30 + slot as u64, config.player_vehicle.era());
+            random_battle_bot_vehicle(config.seed, 30 + slot as u64, config.player_vehicle);
         let id = random_battle_spawn(sim, map, zone, slot, vehicle, config.seed);
         if slot == 0 {
             target_tank = id;
@@ -131,11 +131,11 @@ fn random_battle_spawn_zone(map: &BattlefieldMap, team: u16) -> &SpawnZone {
     map.spawn_zones.iter().find(|zone| zone.team == team).expect("team spawn zone")
 }
 
-/// Bots deploy from the player's era only — a battle is one technology bracket, never a museum
-/// mix (the era system replaces tier spread entirely). An era too thin to field two designs
-/// falls back to the full playable park rather than cloning one hull fourteen times.
-fn random_battle_bot_vehicle(seed: BattleSeed, salt: u64, era: game_core::Era) -> VehicleKind {
-    let roster: Vec<VehicleKind> = era.playable().collect();
+/// Bots deploy from the player's tier ±1 — World of Tanks matchmaking, not a museum mix.
+/// A bracket too thin to field two designs falls back to the full playable park rather than
+/// cloning one hull fourteen times.
+fn random_battle_bot_vehicle(seed: BattleSeed, salt: u64, player: VehicleKind) -> VehicleKind {
+    let roster: Vec<VehicleKind> = player.matchmaking_pool().collect();
     if roster.len() < 2 {
         let all = VehicleKind::PLAYABLE;
         return all[seed.random_battle_index(salt, all.len())];

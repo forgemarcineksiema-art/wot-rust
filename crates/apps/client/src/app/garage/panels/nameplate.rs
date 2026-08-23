@@ -1,4 +1,4 @@
-//! The vehicle nameplate over the hero scene: the historical designation with its era + nation
+//! The vehicle nameplate over the hero scene: the historical designation with its tier + nation
 //! line, celebrating the subject the phase-1a relight put back in the frame. Non-interactive —
 //! it never hit-tests; a click through it orbits the camera like any other scene click.
 
@@ -28,7 +28,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         TEXT,
     );
 
-    let sub = format!("{} - {}", kind.era().label(), kind.nation().label());
+    let sub = format!("{} - {}", game_core::tier_roman(kind.tier()), kind.nation().label());
     let w = text_width(&sub, 0.022, aspect);
     push_text(
         v,
@@ -62,15 +62,22 @@ mod tests {
     use game_core::VehicleKind;
 
     #[test]
-    fn the_nameplate_prints_the_designation_with_its_era_and_nation() {
+    fn the_nameplate_prints_the_designation_with_its_tier_and_nation() {
         let mut state = GarageState::default();
         state.select_vehicle(VehicleKind::IS3);
         let mut v = Vec::new();
         draw(&mut v, &state, 16.0 / 9.0);
 
-        // Panel quad (18 chamfered verts) + "IS-3" glyphs + the era/nation sub-line glyphs.
-        // "IS-3" (4) + "Era III - USSR" (12 visible) = 16 glyphs × 6 = 96 verts over the panel.
-        assert!(v.len() >= 96, "the nameplate must print name + era + nation, got {}", v.len());
+        // Panel quad + "IS-3" glyphs + the tier/nation sub-line.
+        assert_eq!(
+            format!(
+                "{} - {}",
+                game_core::tier_roman(VehicleKind::IS3.tier()),
+                VehicleKind::IS3.nation().label()
+            ),
+            "VIII - USSR"
+        );
+        assert!(v.len() >= 80, "the nameplate must print name + tier + nation, got {}", v.len());
         // Every vertex stays in the top-centre band, clear of the tabs above and the hero below.
         assert!(
             v.iter().all(|vert| vert.position[1] > 0.60 && vert.position[1] < 0.80),
