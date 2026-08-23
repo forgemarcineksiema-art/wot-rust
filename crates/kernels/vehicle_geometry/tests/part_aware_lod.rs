@@ -40,13 +40,13 @@ fn sphere(center: Vec3, radius: f32) -> GeometryMesh {
 
 fn baked(hull: GeometryMesh, turret: GeometryMesh, gun: GeometryMesh) -> BakedVehicle {
     BakedVehicle::new(
-        VehicleKind::PrototypeMedium,
+        VehicleKind::T54_1951,
         vec![
             Submesh { kind: SubmeshKind::Hull, mesh: hull },
             Submesh { kind: SubmeshKind::Turret, mesh: turret },
             Submesh { kind: SubmeshKind::Gun, mesh: gun },
         ],
-        MountFrames::for_vehicle(VehicleKind::PrototypeMedium),
+        MountFrames::for_vehicle(VehicleKind::T54_1951),
     )
 }
 

@@ -132,33 +132,5 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
         }
         return profile;
     }
-    match kind {
-        // Blueprint-migrated: facets come from `bp.armor` above, always.
-        VehicleKind::T54_1951
-        | VehicleKind::T34_85
-        | VehicleKind::IS3
-        | VehicleKind::TigerI
-        | VehicleKind::TigerII
-        | VehicleKind::Jagdtiger
-        | VehicleKind::PantherII
-        | VehicleKind::Centurion => {
-            unreachable!("{kind:?} is blueprint-migrated")
-        }
-        VehicleKind::PrototypeMedium => ArmorProfile::new_with_facets(
-            facet(h.front_mm, 35.0),
-            facet(h.side_mm, 5.0),
-            facet(h.rear_mm, 0.0),
-            weakspot(t.front_mm, 25.0, 0.9),
-            facet(t.side_mm, 10.0),
-            facet(t.rear_mm, 0.0),
-        ),
-    }
-}
-
-fn facet(nominal_thickness_mm: f32, slope_degrees: f32) -> ArmorFacet {
-    ArmorFacet::new(nominal_thickness_mm, slope_degrees, 1.0)
-}
-
-fn weakspot(nominal_thickness_mm: f32, slope_degrees: f32, multiplier: f32) -> ArmorFacet {
-    ArmorFacet::new(nominal_thickness_mm, slope_degrees, multiplier)
+    unreachable!("{kind:?} is blueprint-migrated")
 }

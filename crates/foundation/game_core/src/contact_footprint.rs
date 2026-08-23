@@ -119,9 +119,10 @@ mod tests {
 
     #[test]
     fn an_even_spread_covers_first_to_last_wheel() {
-        // The hitbox-estimate path (no blueprint) spreads stations evenly across the run.
-        let footprint = ContactFootprint::for_vehicle(VehicleKind::PrototypeMedium);
-        let hitbox = HitboxProfile::for_vehicle(VehicleKind::PrototypeMedium);
+        // The hitbox-estimate path spreads stations evenly across the run. Every live vehicle
+        // now has a blueprint, so the fallback is exercised directly.
+        let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
+        let footprint = ContactFootprint::from_hitbox(&hitbox);
         let stations = footprint.station_zs();
         assert_eq!(stations.len(), 5);
         let half_run = hitbox.half_length_m * 0.78;
@@ -135,9 +136,9 @@ mod tests {
     }
 
     #[test]
-    fn a_vehicle_without_a_blueprint_gets_a_hitbox_estimate() {
-        let footprint = ContactFootprint::for_vehicle(VehicleKind::PrototypeMedium);
-        let hitbox = HitboxProfile::for_vehicle(VehicleKind::PrototypeMedium);
+    fn a_hitbox_estimate_stays_inside_the_collision_box() {
+        let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
+        let footprint = ContactFootprint::from_hitbox(&hitbox);
         assert_eq!(footprint.station_zs().len(), 5);
         assert!(footprint.half_run() < hitbox.half_length_m);
         assert!(footprint.half_gauge_x < hitbox.half_width_m);

@@ -348,7 +348,7 @@ fn camera_orbit_yaw_wraps_into_pi_range() {
 }
 
 fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> TankSnapshot {
-    let spec = game_core::VehicleKind::PrototypeMedium.spec();
+    let spec = game_core::VehicleKind::T54_1951.spec();
     TankSnapshot {
         tank_id: TankId(1),
         team: game_core::TeamId(1),

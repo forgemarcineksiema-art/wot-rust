@@ -11,7 +11,7 @@ use crate::VehicleKind;
 /// `GunSpec::ammo_options()` order (stock AP, the gun's special round, HE).
 pub const MAX_AMMO_SLOTS: usize = 3;
 
-/// Fallback rack size for fixtures and the test-only prototype; real vehicles author theirs in
+/// Fallback rack size for fixtures; real vehicles author theirs in
 /// [`VehicleKind::ammo_capacity`].
 pub const fn default_ammo_capacity() -> u16 {
     40
@@ -24,7 +24,6 @@ impl VehicleKind {
     /// which is the honest-ammo trade working as designed.
     pub fn ammo_capacity(self) -> u16 {
         match self {
-            VehicleKind::PrototypeMedium => default_ammo_capacity(),
             VehicleKind::T54_1951 => 34,
             VehicleKind::TigerI => 92,
             VehicleKind::TigerII => 84,

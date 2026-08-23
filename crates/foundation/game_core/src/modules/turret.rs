@@ -22,7 +22,7 @@ impl TurretTraverse {
 }
 
 /// Turret (or casemate). Provides front-armor for the assembled profile, traverse, and the
-/// largest gun caliber it can mount. It carries NO view range: spotting is per-era by design
+/// largest gun caliber it can mount. It carries NO view range: spotting is per-vehicle by design
 /// (`TankSpec::view_range_m`, v29) — a per-turret number here was dead data that contradicted
 /// a settled rule, and dead data is where the next dishonest UI number comes from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -2,7 +2,6 @@ use game_core::VehicleKind;
 
 pub fn forge_vehicle_slug(kind: VehicleKind) -> &'static str {
     match kind {
-        VehicleKind::PrototypeMedium => "prototype-medium",
         VehicleKind::T54_1951 => "t54-1951",
         VehicleKind::TigerI => "tiger-i-ausf-e",
         VehicleKind::TigerII => "tiger-ii-ausf-b",

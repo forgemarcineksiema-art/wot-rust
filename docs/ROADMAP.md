@@ -2,15 +2,15 @@
 
 The whole picture — not the current sprint. Program docs (urban map, destruction, fleet…)
 are execution details; THIS is what the game is and what it still owes the player.
-Release shape: buy-to-play (~20-25 EUR), 7v7, three eras, skill matchmaking from day one.
-The road to that release — builds, dates, decision gates and the numbers that end each one —
-was `docs/product-program.md`, retired 2026-08-09; what survives of it is the gap list below.
+Release shape: buy-to-play (~20-25 EUR), 7v7, nation trees (lines and tiers), skill
+matchmaking from day one. The retired release-ladder notes live in git history
+(`git show 83b261d:docs/product-program.md`).
 
 ## The creed (why this game exists)
 
 The honest tank: **no ±25% damage RNG**, dispersion ~0.1-0.3 mrad, armor resolved against
 real 3D plates, no premium ammo (ammo-rack slots instead), no satellite-view artillery,
-eras instead of tiers, what-you-see-is-what-you-shoot everywhere. Every promise above is
+tiers and lines like World of Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is
 test-locked, not marketing.
 
 ## Systems inventory
@@ -25,12 +25,12 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   with sprung attitude, hull-down that actually works, track damage in two tiers.
 - **Destruction (Honest Steel)**: buildings→rubble, breachable walls, crushable fences and
   tree lines, terrain craters, wall scars — replicated, honest.
-- **Spotting**: per-era optics, radio-dead isolation, LOS through real cover, minimap +
+- **Spotting**: per-vehicle optics, radio-dead isolation, LOS through real cover, minimap +
   spotted gates, fog-fairness lock across all weather looks; concealment that is readable —
   a stationary hull is seen from 70 % of range, firing reveals you for 8 s.
 - **Maps**: 4 shipped (steppe / river town / mountain pass / city), all data-driven with a
   full in-repo editor, playability BFS gates and golden hashes.
-- **Fleet**: 8 blueprint-born vehicles across 3 eras and 3 nations, one RON source feeding
+- **Fleet**: 8 blueprint-born vehicles across 3 nations (lines and tiers), one RON source feeding
   hitbox/armor/visuals; a review workshop with measurable gates (Studio, dossiers, ratios);
   no clones. Finish is UNEVEN — the T-54 is the benchmark, others trail it.
 - **Presentation**: wgpu renderer (cascaded shadows, SSAO, HDR+bloom, weather + timeline,
@@ -45,10 +45,11 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
   11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill).
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (**wire v47** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  snapshots (**wire v48** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
   who has not spotted the shooter v44, the battle clock on the wire v45, crew battle wounds
-  team-private v46, concrete-round identity and the tungsten shatter flag v47), replay
+  team-private v46, concrete-round identity and the tungsten shatter flag v47, the
+  test-only PrototypeMedium deleted v48), replay
   regression,
   bots with routes/fire discipline, 7v7
   mode. Remote input
@@ -78,8 +79,8 @@ down anywhere — the document that held them was retired):
    never power**: no XP, no credits, no research, and no module unlocks — modules carry real
    stat deltas, so gating them behind time would be power behind time, which the creed
    forbids.
-3. **Content breadth**: more vehicles per era/nation (Era I is an empty bracket and Britain
-   has one tank), 2-3 more maps, game modes beyond the single 7v7 skirmish.
+3. **Content breadth**: more vehicles per nation/line (Britain has one tank), 2-3 more maps,
+   game modes beyond the single 7v7 skirmish.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
    only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,
    trailers/devlogs, NAME of the game.
@@ -90,11 +91,7 @@ down anywhere — the document that held them was retired):
 Programs of small PRs (1 branch = 1 PR), local `scripts/verify.ps1` as the only merge gate,
 every feature landing with a locking test. Surviving program docs stay as doctrine.
 
-**The release ladder approved 2026-08-04** — a closed playtest, a demo at Next Fest, then
-Early Access — is no longer written down. `docs/product-program.md` held it, together with
-the three named builds, the go-to-market track, the honest-retention design that replaces
-grind and the first numeric release criteria this project had written down; it was retired
-2026-08-09 with the other program registers. Recovering it means git history
+**The release ladder approved 2026-08-04** lives in git history
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.
 
 The open picture work is `docs/art-direction-program.md`, and it is on the marketing

@@ -135,9 +135,8 @@ pub fn gear_detail_for_distance(distance_m: f32) -> GearDetail {
 }
 
 impl RunningGearKinematics {
-    /// Build the kinematics for `kind`, or `None` for vehicles that keep fused static gear (the
-    /// test-only prototype medium). The whole animated fleet reads its blueprint's track — the
-    /// legacy hand-authored table is gone with the last legacy vehicle.
+    /// Build the kinematics for `kind`, or `None` if the vehicle has no blueprint track.
+    /// The whole animated fleet reads its blueprint's track.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
         let track = VehicleBlueprint::for_vehicle(kind).map(|blueprint| blueprint.track)?;
         Some(Self::from_track(&track))

@@ -197,12 +197,12 @@ fn turreted_vehicles_have_dedicated_turret_ring_geometry() {
 /// Cupolas are authored with absolute heights, so this pins their seating: the cupola must crown
 /// the turret (be its highest point) while its base stays sunk into the roof — a mount-frame or
 /// turret-shape change that leaves a cupola floating or swallowed turns this red. The Jagdtiger
-/// (bare casemate) and the prototype medium (plain box turret) carry no cupola by design.
+/// (bare casemate) carries no cupola by design.
 #[test]
 fn cupolas_crown_their_turret_roofs() {
     let mut cupolas_checked = 0;
     for kind in VehicleKind::ALL {
-        if matches!(kind, VehicleKind::Jagdtiger | VehicleKind::PrototypeMedium) {
+        if matches!(kind, VehicleKind::Jagdtiger) {
             continue;
         }
         cupolas_checked += 1;
@@ -233,7 +233,7 @@ fn cupolas_crown_their_turret_roofs() {
     }
     assert_eq!(
         cupolas_checked,
-        VehicleKind::ALL.len() - 2,
+        VehicleKind::ALL.len() - 1,
         "every turreted production vehicle must seat its cupola"
     );
 }

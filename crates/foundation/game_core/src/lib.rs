@@ -77,7 +77,7 @@ pub use vehicle_blueprint::{
     TrackShape, TurretForm, TurretLoftVisual, TurretShape, TurretVisual, VehicleBlueprint,
     VisualDetail, VisualDetailFile, WheelFace, lint, parse_blueprint, parse_visual_detail,
 };
-pub use vehicle_kind::{Era, Nation, VehicleKind};
+pub use vehicle_kind::{Nation, VehicleClass, VehicleKind, tier_roman};
 pub use vehicles::known_tank_specs;
 pub use weapon::{GunSpec, ShellSpec, ShellType};
 pub use weather::{MatchWeather, WeatherVariant};

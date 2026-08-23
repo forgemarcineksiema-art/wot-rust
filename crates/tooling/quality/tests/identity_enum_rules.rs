@@ -7,7 +7,7 @@
 //! iterates an `ALL` constant to ask "is each one handled?". That question is only as honest as
 //! `ALL` is complete, and nothing was checking that.
 //!
-//! `VehicleKind::ALL` was locked by `assert_eq!(VehicleKind::ALL.len(), 9)`. Add a tenth variant
+//! `VehicleKind::ALL` was locked by `assert_eq!(VehicleKind::ALL.len(), 8)`. Add a ninth variant
 //! and forget the constant, and the length is still 9 and the assertion still passes: the lock
 //! held the number, not the roster. This file reads both the enum body and the constant and
 //! compares them name by name.
@@ -23,7 +23,6 @@ use std::path::{Path, PathBuf};
 const IDENTITY_ENUMS: &[&str] = &[
     "ArmorZone",
     "DamageCause",
-    "Era",
     "MapId",
     "MaterialRole",
     "ModuleSlot",

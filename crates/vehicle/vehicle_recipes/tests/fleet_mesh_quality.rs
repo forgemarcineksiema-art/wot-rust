@@ -85,7 +85,7 @@ fn audit(vehicle: &BakedVehicle, source: &str) {
     }
 }
 
-/// The procedural recipes: every vehicle the lineup bakes, including the test-only prototype.
+/// The procedural recipes: every vehicle the lineup bakes.
 #[test]
 fn every_procedural_vehicle_mesh_obeys_the_quality_contract() {
     for kind in VehicleKind::ALL {

@@ -159,35 +159,32 @@ fn a_wreck_is_visible_to_every_team() {
     assert_eq!(state.tank(a).unwrap().spotted_mask, TEAM_1_BIT);
 }
 
-/// v29: optics improved across the eras — a ColdWar commander (440 m) sees a target an EarlyWar
-/// crew (360 m) would drive past. The range belongs to the OBSERVER's spec, one source with the
-/// garage. (Both playable eras today sit at 400/440; the 360 EarlyWar band waits for its fleet.)
+/// Optics live on the observer's spec: the T-54 (440 m) sees a hull the T-34-85 (400 m) cannot.
 #[test]
-fn view_range_follows_the_observers_era() {
-    let cold_war = VehicleKind::T54_1951.spec();
-    let late_war = VehicleKind::T34_85.spec();
-    assert_eq!(cold_war.view_range_m(), 440.0);
-    assert_eq!(late_war.view_range_m(), 400.0);
+fn view_range_follows_the_observers_vehicle() {
+    let t54 = VehicleKind::T54_1951.spec();
+    let t34 = VehicleKind::T34_85.spec();
+    assert_eq!(t54.view_range_m(), 440.0);
+    assert_eq!(t34.view_range_m(), 400.0);
 
-    // A duel at 420 m: the ColdWar tank sees the LateWar tank; the LateWar optics fall short.
+    // A duel at 420 m: the T-54 sees the T-34-85; the T-34-85 optics fall short.
     let mut state = SimulationState::new();
-    let cold = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
-    let late = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 420.0));
+    let t54_id = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let t34_id =
+        state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 420.0));
     // Both hulls have JUST FIRED: concealment is off, so this test measures optics alone.
-    // (A parked, silent hull at 420 m is a different question — the spotting decision's own
-    // tests below own it.)
-    state.tank_mut(cold).unwrap().last_shot_tick = Some(0);
-    state.tank_mut(late).unwrap().last_shot_tick = Some(0);
+    state.tank_mut(t54_id).unwrap().last_shot_tick = Some(0);
+    state.tank_mut(t34_id).unwrap().last_shot_tick = Some(0);
     state.apply_commands(&[], FixedTimestep::from_hz(60));
     assert_eq!(
-        state.tank(late).unwrap().spotted_mask,
+        state.tank(t34_id).unwrap().spotted_mask,
         TEAM_1_BIT | TEAM_2_BIT,
-        "the 440 m ColdWar optics light the LateWar hull at 420 m"
+        "the 440 m T-54 optics light the T-34-85 at 420 m"
     );
     assert_eq!(
-        state.tank(cold).unwrap().spotted_mask,
+        state.tank(t54_id).unwrap().spotted_mask,
         TEAM_1_BIT,
-        "the 400 m LateWar optics fall short at 420 m"
+        "the 400 m T-34-85 optics fall short at 420 m"
     );
 }
 

@@ -4,8 +4,8 @@ use super::catalog_german::{
     tiger_ii_loadout, tiger_ii_transport_track,
 };
 use super::catalog_misc::{
-    gun_kwk42, gun_pak43_l71, gun_pak80, gun_prototype, jagdtiger_loadout,
-    jagdtiger_transport_track, panther_loadout, panther_transport_track, prototype_loadout,
+    gun_kwk42, gun_pak43_l71, gun_pak80, jagdtiger_loadout, jagdtiger_transport_track,
+    panther_loadout, panther_transport_track,
 };
 use super::catalog_soviet::{
     gun_d10t, gun_d10t2s, gun_d25t, is3_engine_v54k, is3_loadout, t34_85_loadout, t54_engine_v55,
@@ -22,7 +22,6 @@ impl VehicleKind {
     /// vehicle's canonical [`crate::TankSpec`].
     pub fn default_loadout(self) -> VehicleModules {
         match self {
-            VehicleKind::PrototypeMedium => prototype_loadout(),
             VehicleKind::T54_1951 => t54_loadout(),
             VehicleKind::TigerI => tiger_i_loadout(),
             VehicleKind::TigerII => tiger_ii_loadout(),
@@ -43,7 +42,6 @@ impl VehicleKind {
     /// swappable armament; mounting still goes through [`VehicleModules::try_install_gun`].
     pub fn gun_options(self) -> Vec<GunModule> {
         match self {
-            VehicleKind::PrototypeMedium => vec![gun_prototype()],
             VehicleKind::T54_1951 => vec![gun_d10t(), gun_d10t2s()],
             VehicleKind::TigerI => vec![gun_kwk36()],
             VehicleKind::TigerII => vec![gun_kwk43()],

@@ -54,7 +54,7 @@ impl Stability {
 }
 
 /// The mass distribution of one loadout on one vehicle, or `None` for a vehicle with no blueprint
-/// to take heights from (the test-only prototype).
+/// to take heights from.
 pub fn stability(kind: VehicleKind, modules: &VehicleModules) -> Option<Stability> {
     let blueprint = VehicleBlueprint::for_vehicle(kind)?;
     Some(stability_from(&blueprint, modules))

@@ -177,7 +177,7 @@ pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
 /// with the sign flip; PrototypeMedium is byte-identical, which is the check that the flip went
 /// in through the authored data and not through shared construction. Locked from now on by
 /// `game_core/tests/handedness.rs` (blueprint-to-screen chain).
-pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
+pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // Re-recorded 2026-08-11 (a lathe corner is a line): profile corners sharper than 40 deg
     // now carry one vertex row per band, so hard-smoothing lathes keep crisp arrises through
     // the weld. Six rows move — the vehicles whose recipes turn hard-edged drums and rims; the
@@ -185,7 +185,6 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // smooth-group lathes still weld back to the old bake (that survival is a named, separate
     // decision). The shipped T-54 hybrid builds without the MeshBuilder and its own golden did
     // not move for this change.
-    (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
     // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
     // legacy recipe reads the same `HullShape` the shipping hybrid does, so it moves with it —

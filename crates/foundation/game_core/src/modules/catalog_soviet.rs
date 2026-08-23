@@ -97,8 +97,8 @@ pub(crate) fn t34_85_loadout() -> VehicleModules {
 }
 
 /// The 85 mm ZiS-S-53: the war-winning medium's gun. Fast-handling and quick to reload — the
-/// Era II Soviet answer trades the German guns' penetration for cadence and mobility-friendly
-/// bloom; the BR-365P arrowhead round buys back penetration at a per-shot damage cost.
+/// T-34-85 trades the German guns' penetration for cadence and mobility-friendly bloom; the
+/// BR-365P arrowhead round buys back penetration at a per-shot damage cost.
 pub(crate) fn gun_zis_s53() -> GunModule {
     GunModule {
         spec: GunSpec {

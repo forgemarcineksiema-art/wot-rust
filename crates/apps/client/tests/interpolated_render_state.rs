@@ -151,7 +151,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
         tanks: vec![TankSnapshot {
             tank_id: TankId(1),
             team: game_core::TeamId(1),
-            vehicle: game_core::VehicleKind::PrototypeMedium,
+            vehicle: game_core::VehicleKind::T54_1951,
             position: [x, 0.0, 0.0],
             yaw_rad: 0.0,
             hull_pitch_rad: 0.0,
@@ -162,7 +162,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
             hit_points: 1000,
             reload_remaining_s: 0.0,
             aim_dispersion_mrad: 2.5,
-            module_hit_points: game_core::VehicleKind::PrototypeMedium
+            module_hit_points: game_core::VehicleKind::T54_1951
                 .spec()
                 .module_health
                 .hit_points_by_slot(),

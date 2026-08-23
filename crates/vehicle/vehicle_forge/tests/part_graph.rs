@@ -204,12 +204,6 @@ fn t54_part_report_explains_existence_role_and_source() {
 }
 
 #[test]
-fn the_test_only_prototype_has_no_production_part_graph() {
-    assert!(VehicleBlueprint::for_vehicle(VehicleKind::PrototypeMedium).is_none());
-    assert!(ForgePartGraph::for_vehicle(VehicleKind::PrototypeMedium).is_none());
-}
-
-#[test]
 fn german_line_has_geometry_derived_part_graphs() {
     // The Tiger I left this coarse tier in W1 PR-T1.3 (bespoke table below).
     for kind in [VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII] {
@@ -541,11 +535,6 @@ fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
 }
 
 #[test]
-fn the_placeholder_prototype_has_no_part_graph() {
-    assert!(ForgePartGraph::for_vehicle(VehicleKind::PrototypeMedium).is_none());
-}
-
-#[test]
 fn the_t54_executable_manifest_is_production_valid() {
     // Every production part must carry a non-empty source note and a non-degenerate volume.
     assert_eq!(validate_production_manifest(VehicleKind::T54_1951), Some(Ok(())));
@@ -583,8 +572,7 @@ fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles(
         !report.contains("tracks"),
         "static production manifest should leave full track belts to runtime running gear"
     );
-    // Legacy / unmigrated vehicles have no executable manifest yet.
-    assert!(part_manifest_report(VehicleKind::PrototypeMedium).is_none());
+    // Geometry-derived German graphs have no executable (kernel-tagged) manifest yet.
     assert!(production_part_manifest(VehicleKind::TigerI).is_none());
 }
 

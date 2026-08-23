@@ -11,20 +11,12 @@ use game_core::VehicleKind;
 /// The old fleet default. A gun carrying exactly this pair is a gun nobody authored.
 const PLACEHOLDER: (f32, f32) = (8.0, 20.1);
 
-/// The one gun allowed to keep the placeholder, because for a fictional vehicle the old default
-/// is as good a decision as any other — what it must not be is a leftover, which is why it is
-/// named here and annotated there.
-const FICTIONAL: &str = "120 mm Prototype";
-
 #[test]
 fn no_real_gun_runs_the_placeholder_arc() {
     let mut checked = 0;
     for kind in VehicleKind::ALL {
         for gun in kind.gun_options() {
             checked += 1;
-            if gun.spec.name == FICTIONAL {
-                continue;
-            }
             assert!(
                 (gun.spec.depression_deg, gun.spec.elevation_deg) != PLACEHOLDER,
                 "{}: still on the fleet placeholder −8/+20.1 — author its real arc",
@@ -32,7 +24,7 @@ fn no_real_gun_runs_the_placeholder_arc() {
             );
         }
     }
-    assert!(checked >= 12, "every gun in the fleet must be examined, saw {checked}");
+    assert!(checked >= 11, "every gun in the fleet must be examined, saw {checked}");
 }
 
 /// The spread IS the point. The IS-3 has the shallowest depression in the fleet and the

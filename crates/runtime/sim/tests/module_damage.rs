@@ -4,6 +4,9 @@ use game_core::{DamageCause, ModuleSlot, TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
 use sim::{FixedTimestep, SimulationState, TankCommand};
 
+mod common;
+use common::pitch_at_t54_bustle;
+
 #[test]
 fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
     let mut state = SimulationState::new();
@@ -47,21 +50,18 @@ fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
 }
 
 #[test]
-fn turret_side_penetration_can_destroy_ammo_rack_module() {
+fn turret_rear_penetration_can_destroy_ammo_rack_module() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
-    // A target WITHOUT a narrow-phase damage layout, so the legacy deterministic zone-roll owns
-    // module selection — the path this test locks. That used to be any tank but the T-54; every
-    // blueprint-born hull now carries authored components, so the prototype is the last vehicle
-    // the legacy path still serves.
-    let target = state.spawn_tank(TeamId(2), VehicleKind::PrototypeMedium.spec(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, -55.0));
+    // Five ready rounds live in the T-54's bustle. A rear-turret penetration meets them.
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::ZERO);
     {
+        let pitch = pitch_at_t54_bustle(&state, shooter, target);
         let shooter = state.tank_mut(shooter).expect("shooter");
-        shooter.yaw_rad = PI / 2.0;
-        // Low over the split: the shot must land on the *turret box side* (the visible turret,
-        // |x| = turret_half_width), and the deterministic module roll there must clear the
-        // ammo-rack chance.
-        shooter.gun_pitch_rad = 0.002;
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        // Through the turret rear into the five ready clips (not the hull tub).
+        shooter.gun_pitch_rad = pitch;
         shooter.spec.gun.shell.penetration_mm_at_100m = 240.0;
     }
     let ammo_before = module_hp(&state, target, ModuleSlot::AmmoRack);
@@ -102,18 +102,16 @@ fn rear_side_penetration_hits_engine_volume_instead_of_generic_side_module() {
 }
 
 #[test]
-fn high_explosive_near_miss_on_armor_can_throw_tracks_without_full_penetration() {
+fn high_explosive_on_the_glacis_hurts_without_penetrating() {
     let mut state = SimulationState::new();
     let shooter = state.spawn_tank(TeamId(1), TankSpec::tiger_i_ausf_e(), Vec3::ZERO);
-    // Legacy zone-roll target: with authored components the Tiger II answers this shot with
-    // `None`, and correctly so — the burst lands on the bow plate, metres from the running gear,
-    // and only a band model could have called that a suspension hit. The track degradation
-    // itself is zone-driven and is locked separately in `track_damage_state`.
-    let target =
-        state.spawn_tank(TeamId(2), VehicleKind::PrototypeMedium.spec(), Vec3::new(0.0, 0.0, 55.0));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.spec.gun.shell = game_core::ShellSpec::high_explosive(88.0, 600.0, 22.0, 300, 3.5);
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = -0.010;
     }
     state.tank_mut(target).expect("target").yaw_rad = PI;
     let target_hp = state.tank(target).expect("target").hit_points;
@@ -122,10 +120,8 @@ fn high_explosive_near_miss_on_armor_can_throw_tracks_without_full_penetration()
 
     let event = state.damage_events().last().expect("HE surface hit event");
     assert!(!event.penetrated);
-    assert_eq!(event.module, Some(ModuleSlot::Suspension));
     assert!(event.damage_hp > 0);
     assert!(state.tank(target).expect("target").hit_points < target_hp);
-    assert_eq!(module_hp(&state, target, ModuleSlot::Suspension), 0);
 }
 
 #[test]
@@ -208,6 +204,7 @@ fn spawned_tank_uses_module_health_from_assembled_loadout() {
     assert_eq!(module_hp(&state, tank, ModuleSlot::Gun), 1);
 }
 
+/// Pitch that puts a rear shot through the T-54 bustle clips (`damage_layout/t54.rs`).
 fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     let step = FixedTimestep::from_hz(60);
     state.apply_commands(&[(shooter, fire_command())], step);

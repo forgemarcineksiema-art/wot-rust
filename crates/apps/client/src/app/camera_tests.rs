@@ -116,7 +116,7 @@ fn snapshot_with_aim(
         tanks: vec![TankSnapshot {
             tank_id,
             team: game_core::TeamId(1),
-            vehicle: game_core::VehicleKind::PrototypeMedium,
+            vehicle: game_core::VehicleKind::T54_1951,
             position: [10.0, 0.0, 10.0],
             yaw_rad: 0.0,
             hull_pitch_rad: 0.0,
@@ -127,7 +127,7 @@ fn snapshot_with_aim(
             hit_points: 1000,
             reload_remaining_s: 0.0,
             aim_dispersion_mrad: 2.5,
-            module_hit_points: game_core::VehicleKind::PrototypeMedium
+            module_hit_points: game_core::VehicleKind::T54_1951
                 .spec()
                 .module_health
                 .hit_points_by_slot(),

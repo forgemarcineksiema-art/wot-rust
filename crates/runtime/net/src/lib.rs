@@ -135,7 +135,11 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// gains `shattered` — the brittle tungsten core's death on the plate (A4), which the sim has
 /// routed on since then and FX can finally read. All appends with `serde(default)`; a legacy
 /// fixture decodes with `round: None` and the client degrades to the type glyph.
-pub const PROTOCOL_VERSION: u16 = 47;
+///
+/// v48: the test-only `VehicleKind::PrototypeMedium` (wire discriminant 0) is deleted outright,
+/// shifting every remaining vehicle down by one — a deliberate wire break (no live players yet;
+/// the roster rule is "no clones", and ALL must name every variant). Same class as v33.
+pub const PROTOCOL_VERSION: u16 = 48;
 
 #[derive(Debug, Error)]
 pub enum NetError {

@@ -131,9 +131,9 @@ The map's presentation lives in the blueprint the same way its truth does:
   (non-empty, one look per variant, rain/wetness in 0..1) is a report Error; the
   fog-fairness bound — no sky may hide a legitimately spotted target — stays a
   `scene_build` lock over the blueprint looks (it needs the renderer's fog math). View
-  range is per-era since v29 (360/400/440 m by era, `game_core::VehicleSpec::view_range_m`),
-  so the bound answers to the longest era range; the lock (`scene_build/src/weather.rs`)
-  still asserts at the 400 m Late-War figure and owes the 440 m Cold-War raise.
+  range is per-vehicle (400/440 m today, `TankSpec::view_range_m`), so the bound
+  answers to the longest parked range; the lock (`scene_build/src/weather.rs`)
+  still asserts at the 400 m figure and owes the 440 m raise.
 - `meta.version` marks the schema: additive sections stay `serde(default)`, a breaking
   document change bumps the version so the editor knows what to migrate.
 - World objects own their surface vocabulary: `world_forge::WorldMaterial` (9 semantic

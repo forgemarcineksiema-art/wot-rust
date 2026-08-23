@@ -151,17 +151,7 @@ impl DamageLayout {
     /// start no fire and detonate no rack — and adding a tenth vehicle would have inherited that
     /// silence without anyone being asked.
     pub fn for_vehicle(kind: VehicleKind) -> Self {
-        let Some(env) = HullEnvelope::of(kind) else {
-            // The prototype medium is a test vessel with no blueprint and no asset file. It has
-            // no interior because it has no documented anatomy to place one against — stated
-            // here rather than reached by falling through a wildcard.
-            debug_assert_eq!(
-                kind,
-                VehicleKind::PrototypeMedium,
-                "every vehicle with a blueprint must own a component layout"
-            );
-            return Self::default();
-        };
+        let env = HullEnvelope::of(kind).expect("every VehicleKind is blueprint-migrated");
         match kind {
             VehicleKind::T54_1951 => Self::t54_1951(),
             VehicleKind::T34_85 => t34_85::layout(&env),
@@ -171,7 +161,6 @@ impl DamageLayout {
             VehicleKind::TigerII => tiger_ii::layout(&env),
             VehicleKind::PantherII => panther_ii::layout(&env),
             VehicleKind::Jagdtiger => jagdtiger::layout(&env),
-            VehicleKind::PrototypeMedium => Self::default(),
         }
     }
 

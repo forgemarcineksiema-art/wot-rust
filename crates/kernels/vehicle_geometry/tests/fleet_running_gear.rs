@@ -115,9 +115,8 @@ fn worst_merge(kin: &RunningGearKinematics) -> (f32, String) {
 fn no_running_gear_disc_merges_into_another() {
     let mut gears_checked = 0;
     for kind in VehicleKind::ALL {
-        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else {
-            continue; // The test-only prototype keeps fused static gear.
-        };
+        let kin = RunningGearKinematics::for_vehicle(kind)
+            .unwrap_or_else(|| panic!("{kind:?} must animate its running gear"));
         gears_checked += 1;
         let (merge, what) = worst_merge(&kin);
         let allowed = ceiling(kind) + TOUCH_TOLERANCE_M;
@@ -164,11 +163,10 @@ fn every_recorded_merge_ceiling_is_still_earned() {
 fn the_authored_belt_bottom_is_reported_against_the_drawn_one() {
     let mut belts_reported = 0;
     for kind in VehicleKind::ALL {
-        let (Some(kin), Some(bp)) =
-            (RunningGearKinematics::for_vehicle(kind), VehicleBlueprint::for_vehicle(kind))
-        else {
-            continue;
-        };
+        let kin = RunningGearKinematics::for_vehicle(kind)
+            .unwrap_or_else(|| panic!("{kind:?} must animate its running gear"));
+        let bp = VehicleBlueprint::for_vehicle(kind)
+            .unwrap_or_else(|| panic!("{kind:?} must carry a blueprint track"));
         belts_reported += 1;
         // `LINK_SEAT` (0.02) is the belt module's private constant; the drawn ground run sits
         // that far under the wheel rim.

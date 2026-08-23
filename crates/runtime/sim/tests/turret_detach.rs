@@ -13,6 +13,9 @@ use sim::{
     segment_impact,
 };
 
+mod common;
+use common::pitch_at_t54_bustle;
+
 fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     let step = FixedTimestep::from_hz(60);
     state.apply_commands(&[(shooter, TankCommand { fire: true, ..TankCommand::idle() })], step);
@@ -25,20 +28,17 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     panic!("the shell never resolved");
 }
 
-/// An ammo-rack side shot on a nearly-dead tank that finishes both the rack and the hull.
-/// The target is a vehicle WITHOUT a narrow-phase damage layout (only the T-54 carries one),
-/// so the legacy deterministic zone-roll lands the killing hit on the rack.
+/// An ammo-rack rear-turret shot on a nearly-dead T-54 that finishes both the rack and the hull.
 fn detonation_kill() -> (SimulationState, TankId) {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
-    // The prototype is the one hull left without authored components, so the legacy zone-roll
-    // this fixture depends on still runs.
-    let target =
-        state.spawn_tank(TeamId(2), game_core::VehicleKind::PrototypeMedium.spec(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, -55.0));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::ZERO);
     {
+        let pitch = pitch_at_t54_bustle(&state, shooter, target);
         let shooter = state.tank_mut(shooter).expect("shooter");
-        shooter.yaw_rad = PI / 2.0;
-        shooter.gun_pitch_rad = 0.002;
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = pitch;
         shooter.spec.gun.shell.penetration_mm_at_100m = 240.0;
     }
     {

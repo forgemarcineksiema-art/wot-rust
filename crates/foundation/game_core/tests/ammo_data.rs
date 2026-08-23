@@ -81,7 +81,7 @@ fn tungsten_cores_are_light_solid_shot_and_blast_cases_carry_their_charge() {
             }
         }
     }
-    assert!(cores_checked >= 8, "every core-firing gun must be reached, saw {cores_checked}");
+    assert!(cores_checked >= 7, "every core-firing gun must be reached, saw {cores_checked}");
 }
 
 /// The Soviet APBC family is BLUNT — the terminal identity B5 will differentiate — and nobody

@@ -25,8 +25,7 @@ pub(crate) struct VehicleForgeSpec {
     pub review_cameras: fn() -> ReviewCameraSet,
 }
 
-/// The forge spec for `kind`, or `None` for vehicles that are not benchmarked families
-/// (the legacy T-55A and the placeholder prototype).
+/// The forge spec for `kind`. Every playable vehicle is a benchmarked family.
 pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
     let spec = match kind {
         VehicleKind::T54_1951 => VehicleForgeSpec {
@@ -63,7 +62,6 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::BakedGeometry,
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
-        VehicleKind::PrototypeMedium => return None,
     };
     Some(spec)
 }

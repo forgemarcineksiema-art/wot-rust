@@ -77,5 +77,5 @@ on the shared ballistic integrator — the player leads the target anyway, so th
 to the fire command's transit (RTT/2, capped by `max_prediction_ticks` ≈ 133 ms), below the
 perception threshold for sub-60 km/h hulls on regional hosting. The future step, if the beta
 demands it, is rewinding ONLY the shooter's turret/gun angles at the fire command — never a full
-world rewind. Anti-wallhack, spotting-per-era, the radio gate, distant-HP quantization and the
+world rewind. Anti-wallhack, spotting-per-vehicle, the radio gate, distant-HP quantization and the
 dead-viewer rule all run server-side in `filtered_for_viewer_with_observers`, before the wire.

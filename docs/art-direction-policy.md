@@ -58,7 +58,7 @@ campaign that closes the gap — and the evidence that the gap is real — is
 Silhouette readability at combat range is the second half of this rule and is already
 locked map-wide: no weather look may fog away more than 35% of a spotted target's contrast
 at view range (`crates/world/scene_build/src/weather.rs`; the lock asserts at the 400 m
-Late-War range — view range is per-era, 360/400/440 m, and the 440 m Cold-War raise is
+mid-park range — view range is per-vehicle, 400/440 m today, and the 440 m raise is
 owed). That bound is inviolable — atmosphere is depth, never concealment.
 
 ### 2. The saturation window
