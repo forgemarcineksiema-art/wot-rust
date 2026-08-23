@@ -8,8 +8,6 @@ use client::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraMode, BattleCameraSettings,
     CameraSubject,
 };
-use game_core::TankId;
-use net::TankSnapshot;
 use terrain::HeightMap;
 
 #[test]
