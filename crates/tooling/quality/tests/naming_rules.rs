@@ -21,7 +21,7 @@ use quality::workspace::{crate_src_dirs, repo_relative, rust_files, workspace_ro
 /// convention that particular module happened to be born under, and every new module re-opens the
 /// question. Five crates mix today; four do not.
 const MIXED_MODULE_STYLE_ALLOWLIST: &[(&str, &str)] = &[
-    ("crates/apps/client", "5 mod.rs against 7 sibling files"),
+    ("crates/apps/client", "5 mod.rs against 5 sibling files"),
     ("crates/foundation/game_core", "2 mod.rs against 3 sibling files"),
     ("crates/kernels/vehicle_geometry", "2 mod.rs against 2 sibling files"),
     ("crates/runtime/sim", "1 mod.rs against 1 sibling file"),
@@ -121,7 +121,8 @@ fn the_allowlist_names_only_crates_that_still_exist() {
 // rule spends its life being argued with rather than obeyed.
 //
 // One real consequence of the split convention IS worth writing down, because it is not a matter
-// of taste: `duplication.rs` skips files named `tests.rs` / `*_tests.rs`. Those 21 files are
-// outside the duplicate-body scan purely because of what they are called, while the 206 inline
-// modules are inside it. That exemption is invisible from either side. It is recorded here rather
+// of taste: `duplication.rs` treats the two spellings differently. Its NAME-collision scan skips
+// files named `tests.rs` / `*_tests.rs`, so those files dodge that rule purely by what they are
+// called — while its IDENTICAL-BODY scan covers them like everything else (proof: entries from
+// `*_tests.rs` files sit on `IDENTICAL_BODY_ALLOWLIST`). The asymmetry is recorded here rather
 // than changed, because narrowing it belongs to the duplication gate's own ratchet.

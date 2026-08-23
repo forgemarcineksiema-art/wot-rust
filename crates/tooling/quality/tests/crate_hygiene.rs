@@ -12,16 +12,8 @@ use quality::{crate_facts, crate_manifests};
 /// an empty list is the goal.
 const ORPHAN_ALLOWLIST: &[&str] = &[
     // `quality` IS the gate. Nothing depends on a test-only architecture crate by design, and it
-    // is the only entry that will ever belong here for that reason.
-    //
-    // The list held three more until 2026-08-02: `panel` and `shell`, two finished contract-tested
-    // kernels for thin fabricated parts built before the part that needed them, and
-    // `experimental_geometry`, an empty slot for a bake-only CAD trial. They were recorded as debt
-    // rather than as neutral facts — a capability nobody has used is a capability nobody has proven
-    // at the call site — and the debt settled both ways an entry can: `shell` and
-    // `experimental_geometry` are gone rather than waiting, while `panel` came back the same day
-    // WITH the part that needed it (073dfe1, the T-54 fender pressings, `t54_fender.rs`) and now
-    // stays off this list the honest way — it has a real dependent.
+    // is the only entry that will ever belong here for that reason. An entry settles either way:
+    // the crate gains a real dependent, or it leaves the tree — waiting is not a state.
     "quality",
 ];
 
@@ -55,8 +47,7 @@ fn no_crate_is_kept_alive_only_by_its_own_tests() {
     );
 }
 
-/// crates.io dependencies declared outside the workspace table. Empty, and meant to stay empty:
-/// `png` was declared inline in eight manifests and `ab_glyph` in one, all hoisted with this rule.
+/// crates.io dependencies declared outside the workspace table. Empty, and meant to stay empty.
 const INLINE_VERSION_ALLOWLIST: &[(&str, &str)] = &[];
 
 /// The root manifest says why: "Paths are centralized here so a crate directory move only edits

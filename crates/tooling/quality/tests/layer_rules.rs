@@ -36,22 +36,19 @@ fn layer_rank(layer: &str) -> Option<usize> {
     })
 }
 
-/// Edges that exist today and are known wrong. Each is a line in `docs/battle-first`, not a
-/// shrug — and each is meant to disappear, taking its entry with it.
+/// Edges that exist today and are known wrong — each is meant to disappear, taking its entry
+/// with it.
 const UPWARD_ALLOWLIST: &[(&str, &str)] = &[
-    // `scene_build` assembles renderer vertices, so it is a render-layer crate sitting in `world`.
-    // The fix is a move, not a rewrite (see target-architecture.md, L4).
+    // `scene_build` assembles renderer vertices in the layouts `renderer_api` declares, so it is
+    // a render-layer crate sitting in `world`. The edge is legal only while that stays its sole
+    // upward reach; it ends when `scene_build` moves under `crates/render/` — a move, not a
+    // rewrite, since nothing else about the crate is render-backend-shaped.
     ("scene_build", "renderer_api"),
 ];
 
 /// App-to-app edges that exist today and are known wrong. EMPTY, and staying that way: apps
 /// compose the layers below them, never each other.
-const APP_TO_APP_ALLOWLIST: &[(&str, &str)] = &[
-    // BURNED (W4): the client→server edge died when the library half of `server` moved to
-    // `runtime` as `battle_host`. BURNED (W4, last entry): the editor→client edge died when
-    // `ui_kit` was extracted — the editor draws its overlays through the same kit the client
-    // does, instead of pulling winit, wgpu, cpal and audio for four symbols.
-];
+const APP_TO_APP_ALLOWLIST: &[(&str, &str)] = &[];
 
 #[test]
 fn every_crate_sits_in_a_known_layer() {

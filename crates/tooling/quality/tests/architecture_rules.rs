@@ -1,7 +1,6 @@
-// The gate holds rules about CODE. The old `core_architecture_docs_exist` here — a hard list of
-// 23 `docs/` paths — and the phrase-grep tests in the sibling files are gone by decision
-// (battle-first, 2026-08-01): a policy document earns its keep by being cited from the tests
-// that enforce it, not by a test asserting the file exists or contains a sentence.
+// The gate holds rules about CODE — deliberately no doc-existence or phrase-grep tests: a
+// policy document earns its keep by being cited from the tests that enforce it, not by a test
+// asserting the file exists or contains a sentence.
 use quality::{rust_files, workspace_root};
 use std::fs;
 
@@ -31,7 +30,7 @@ const RENDER_SURFACE: &[(&str, &[&str])] = &[
     ("renderer_api", &["client", "editor", "renderer_wgpu", "scene_build", "ui_kit"]),
 ];
 
-/// One rule where there were five, applying to all 32 crates instead of four.
+/// One rule, default-deny, applying to every crate in the workspace.
 ///
 /// `server` is the reason this is default-deny rather than a layer rule: `crates/apps` sits ABOVE
 /// `crates/render`, so the dependency direction is legal and only policy keeps the server
@@ -109,9 +108,8 @@ fn the_render_surface_table_grants_nothing_unused() {
 fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
     let root = workspace_root();
     for required_path in [
-        // A wire fixture a test actually READS. The old entry named `input_command_v1.hex`,
-        // which no test had opened for many protocol versions — the gate was guarding a file
-        // whose deletion nothing else would have noticed.
+        // A wire fixture a test actually READS — never guard a file whose deletion no test
+        // would notice.
         "crates/runtime/net/tests/snapshots/input_command_v33.hex",
         "crates/runtime/sim/tests/replays/drive_forward_v1.json",
         "crates/runtime/sim/benches/fixed_tick.rs",
