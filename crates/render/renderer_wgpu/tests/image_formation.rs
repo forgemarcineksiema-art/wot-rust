@@ -5,12 +5,11 @@
 //! grey); this locks that the picture never regresses to that milky look. Runs on the headless
 //! adapter; skips if none is available.
 
+mod common;
+use common::luma;
+
 use renderer_api::{SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-
-fn luma(p: &[u8]) -> f32 {
-    (0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32) / 255.0
-}
 
 #[test]
 fn a_battle_frame_spans_true_blacks_and_bright_highlights() {

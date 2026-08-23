@@ -22,6 +22,8 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
 use client::{REVIEWED_MAPS, ReviewView, review_views_for};
+use game_core::math::srgb_to_linear;
+use scene_build::review_views::map_key;
 use terrain::MapId;
 
 const WIDTH: u32 = 960;
@@ -189,12 +191,6 @@ fn look_goldens_match_their_recordings() {
     let once = render_views(map, &views[..1]);
     let again = render_views(map, &views[..1]);
     assert_eq!(once[0], again[0], "the render must be deterministic on one machine");
-}
-
-/// sRGB byte -> display-linear channel.
-fn srgb_to_linear(byte: u8) -> f32 {
-    let c = byte as f32 / 255.0;
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
 /// What one recorded frame measures. Plane shares answer rule 1's "three separated planes";
@@ -972,17 +968,4 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
         room.p50,
         hero.p50 / room.p50.max(1.0e-6)
     );
-}
-
-/// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's
-/// frames. Kept here rather than exported: the golden filename convention is this harness's
-/// business, and a second copy that drifts would fail loudly on the first missing key.
-fn map_key(map: MapId) -> &'static str {
-    match map {
-        MapId::ProkhorovkaHill252_2 => "prokhorovka",
-        MapId::BystraValley => "bystra",
-        MapId::OrlinyPereval => "orliny",
-        MapId::Ostrogorsk => "ostrogorsk",
-        _ => "scratch",
-    }
 }

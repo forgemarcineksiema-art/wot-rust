@@ -12,7 +12,10 @@ use std::f32::consts::PI;
 
 use game_core::{CrewMemberState, CrewRole, ShellSpec, TankId, TankSpec, TeamId};
 use glam::Vec3;
-use sim::{FixedTimestep, SimulationState, TankCommand};
+use sim::SimulationState;
+
+mod common;
+use common::run_until_shells_clear;
 
 /// One flank shot at the T-54 tower, aimed down the gunner's station line — the same aim the
 /// crew-damage locks use, with the shell swapped so the plate HOLDS. Returns the state after
@@ -32,7 +35,7 @@ fn tower_flank_shot(shell: ShellSpec, z_offset: f32) -> (SimulationState, TankId
         shooter.spec.gun.dispersion_mrad = 0.0;
         shooter.spec.gun.shell = shell;
     }
-    run_until_shell_resolved(&mut state, shooter);
+    run_until_shells_clear(&mut state, shooter);
     (state, target)
 }
 
@@ -117,17 +120,4 @@ fn a_high_explosive_slap_does_not_spall() {
     assert!(event.damage_hp > 0, "the surface chip is unchanged by the spall feature");
     let tank = state.tank(target).expect("target");
     assert_eq!(tank.crew.state(CrewRole::Gunner), CrewMemberState::Active);
-}
-
-fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
-    let dt = FixedTimestep::from_hz(60);
-    state.apply_commands(&[(shooter, TankCommand { fire: true, ..TankCommand::idle() })], dt);
-    assert_eq!(state.shells().len(), 1, "the shot must leave the barrel");
-    for _ in 0..600 {
-        state.apply_commands(&[], dt);
-        if state.shells().is_empty() {
-            return;
-        }
-    }
-    panic!("shell should resolve against the target");
 }

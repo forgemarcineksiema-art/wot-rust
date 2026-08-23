@@ -2,13 +2,11 @@
 //! per-side sag (a thrown track hangs), and the single source of wheel stations shared with
 //! the physics contact footprint. Split from `running_gear.rs` (file budget).
 
+mod common;
+use common::t54;
+
 use game_core::VehicleKind;
 use vehicle_geometry::{GearPart, RunningGearKinematics, running_gear_placements};
-
-fn t54() -> RunningGearKinematics {
-    RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
-        .expect("T-54 has blueprint running gear")
-}
 
 #[test]
 fn wheel_overlap_pulls_only_the_odd_row_inboard() {

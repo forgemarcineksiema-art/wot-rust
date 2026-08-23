@@ -5,12 +5,11 @@
 //! crosses zero ~27° under the horizon; unguarded, fbm(inf) can ride a NaN into the pixel
 //! because NaN * 0.0 = NaN). Runs on the headless adapter; skips if none is available.
 
+mod common;
+use common::luma;
+
 use renderer_api::{SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-
-fn luma(p: &[u8]) -> f32 {
-    (0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32) / 255.0
-}
 
 /// A single far-away triangle so the renderer has a mesh; every pixel in frame is sky.
 fn out_of_frame_geometry() -> (Vec<SceneVertex>, Vec<u32>) {

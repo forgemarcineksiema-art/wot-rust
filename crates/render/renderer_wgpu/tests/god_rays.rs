@@ -3,6 +3,9 @@
 //! the viewer and the sun brighten — while a zero strength leaves the frame untouched and the
 //! picture's total energy stays bounded (painted light, not free light). Skips without a GPU.
 
+mod common;
+use common::total_luma;
+
 use renderer_api::{Camera, SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
@@ -44,13 +47,6 @@ fn render_with_rays(ctx: &GpuContext, strength: f32) -> Vec<u8> {
     let view_proj = view_projection_matrix(&camera, 192.0 / 108.0, 0.1, 2000.0);
     renderer.render(ctx, target.render_target(), view_proj, camera.eye).expect("render");
     target.read_rgba8(ctx).expect("readback")
-}
-
-fn total_luma(pixels: &[u8]) -> f64 {
-    pixels
-        .chunks_exact(4)
-        .map(|p| 0.2126 * p[0] as f64 + 0.7152 * p[1] as f64 + 0.0722 * p[2] as f64)
-        .sum()
 }
 
 #[test]

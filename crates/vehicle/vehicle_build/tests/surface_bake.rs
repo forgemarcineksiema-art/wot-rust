@@ -3,12 +3,11 @@
 //! running-gear recess sit in shadow — while open surfaces (crown, barrel, glacis face) stay clean,
 //! proving this is contact occlusion, not a global dimming. The bake is deterministic.
 
+mod common;
+use common::turret;
+
 use vehicle_build::t54_description;
 use vehicle_geometry::{GeometryMesh, SubmeshKind};
-
-fn turret() -> GeometryMesh {
-    t54_description().build().submesh(SubmeshKind::Turret).expect("turret").mesh.clone()
-}
 
 fn hull() -> GeometryMesh {
     t54_description().build().submesh(SubmeshKind::Hull).expect("hull").mesh.clone()

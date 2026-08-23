@@ -3,12 +3,11 @@
 //! relative to the corners, and an all-off array must be a byte-identical no-op — zero lights,
 //! zero regression on every outdoor look. Runs on the headless adapter; skips if none.
 
+mod common;
+use common::luma;
+
 use renderer_api::{LocalLight, SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-
-fn luma(p: &[u8]) -> f32 {
-    (0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32) / 255.0
-}
 
 /// A flat floor quad under a deliberately dark directional rig, so the pool is the only
 /// meaningful light source in frame.

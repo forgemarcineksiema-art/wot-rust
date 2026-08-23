@@ -257,6 +257,16 @@ pub fn segment_xz_disjoint(
     center_z - half_z > max_z || center_z + half_z < min_z
 }
 
+/// One sRGB byte to linear light — the standard IEC 61966-2-1 decode.
+///
+/// The single implementation for every side of the tree that reads authored colours or golden
+/// pixels (paint baking, look statistics, probes) — three drifting copies is how a "measured"
+/// luma stops meaning one thing.
+pub fn srgb_to_linear(byte: u8) -> f32 {
+    let c = byte as f32 / 255.0;
+    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32::consts::{FRAC_PI_2, PI, TAU};

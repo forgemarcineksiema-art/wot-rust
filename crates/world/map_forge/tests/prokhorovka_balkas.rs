@@ -6,24 +6,11 @@
 use map_forge::battlefield;
 use terrain::{HeightMap, MapId};
 
+mod common;
+use common::blockage;
+
 fn ground(hm: &HeightMap, x: f32, z: f32) -> (f32, f32, f32) {
     (x, hm.sample_height(x, z).expect("inside map"), z)
-}
-
-/// Largest amount the terrain rises above the straight sightline (> 0 means it is masked).
-fn blockage(hm: &HeightMap, from: (f32, f32, f32), to: (f32, f32, f32)) -> f32 {
-    let mut worst = f32::NEG_INFINITY;
-    let steps = 120;
-    for i in 0..=steps {
-        let t = i as f32 / steps as f32;
-        let x = from.0 + (to.0 - from.0) * t;
-        let z = from.2 + (to.2 - from.2) * t;
-        let line_y = from.1 + (to.1 - from.1) * t;
-        if let Some(g) = hm.sample_height(x, z) {
-            worst = worst.max(g - line_y);
-        }
-    }
-    worst
 }
 
 /// A tank rotating inside the ditch balka is in FULL defilade from the midline: both the

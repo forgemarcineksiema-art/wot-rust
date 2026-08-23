@@ -1,6 +1,9 @@
 //! Locking tests for the animatable running gear: placement counts, wheel spin, belt wrap,
 //! per-side independence, and determinism.
 
+mod common;
+use common::t54;
+
 use game_core::VehicleKind;
 use glam::{Mat4, Vec3};
 use vehicle_geometry::{
@@ -118,11 +121,6 @@ fn dished_wheel_faces_meet_the_tire_lip_instead_of_floating_deep_inside_it() {
             kin.wheel_half_width
         );
     }
-}
-
-fn t54() -> RunningGearKinematics {
-    RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
-        .expect("T-54 has blueprint running gear")
 }
 
 fn count(placements: &[vehicle_geometry::GearPlacement], part: GearPart) -> usize {

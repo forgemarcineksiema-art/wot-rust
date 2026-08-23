@@ -25,3 +25,20 @@ fn no_function_body_is_pasted_into_a_second_file() {
         offenders.join("\n  ")
     );
 }
+
+/// An allowlist that outlives its duplication stops being a record and becomes permission —
+/// the same staleness rule the layer and naming gates already apply to their own lists.
+/// (Found live: `t54_object_count` sat here after its two copies had drifted apart.)
+#[test]
+fn the_identical_body_allowlist_describes_duplicates_that_still_exist() {
+    let live = quality::duplication::names_with_identical_bodies();
+    let stale: Vec<&&str> = quality::duplication::IDENTICAL_BODY_ALLOWLIST
+        .iter()
+        .filter(|name| !live.contains(**name))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "these entries no longer describe any identical pair — the duplication is gone, so \
+         delete the entry and let the rule protect the name again: {stale:?}"
+    );
+}

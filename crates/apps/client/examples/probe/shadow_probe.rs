@@ -23,6 +23,7 @@
 //! ```
 
 use client::{REVIEWED_MAPS, render_review_views, review_views_for};
+use game_core::math::srgb_to_linear;
 
 const WIDTH: u32 = 960;
 const HEIGHT: u32 = 540;
@@ -30,11 +31,6 @@ const HEIGHT: u32 = 540;
 /// The ground box the tank's cast shadow edge runs through in `prokhorovka_contact_backlit`.
 /// Below the hull, left of it, clear of the grass tufts that would add their own edges.
 const SHADOW_BOX: [f32; 4] = [0.10, 0.770, 0.42, 0.795];
-
-fn srgb_to_linear(byte: u8) -> f32 {
-    let c = byte as f32 / 255.0;
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
-}
 
 pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let map = REVIEWED_MAPS[0];

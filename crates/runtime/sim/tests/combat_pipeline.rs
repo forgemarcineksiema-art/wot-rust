@@ -2,7 +2,10 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 use game_core::{ArmorFacing, ArmorZone, ModuleSlot, TankSpec, TeamId};
 use glam::Vec3;
-use sim::{FixedTimestep, SimulationState, TankCommand};
+use sim::{FixedTimestep, SimulationState};
+
+mod common;
+use common::{fire_command, run_until_shell_resolved};
 use terrain::HeightMap;
 
 #[test]
@@ -335,22 +338,6 @@ fn point_blank_muzzle_inside_the_enemy_still_strikes_it() {
          hit {:?} vs muzzle {muzzle:?}",
         event.hit_position
     );
-}
-
-fn run_until_shell_resolved(state: &mut SimulationState, shooter: game_core::TankId) {
-    let step = FixedTimestep::from_hz(60);
-    state.apply_commands(&[(shooter, fire_command())], step);
-    for _ in 0..30 {
-        state.apply_commands(&[], step);
-        if !state.damage_events().is_empty() {
-            return;
-        }
-    }
-    panic!("shell should resolve against target");
-}
-
-fn fire_command() -> TankCommand {
-    TankCommand { fire: true, ..TankCommand::idle() }
 }
 
 fn ridge_heightmap() -> HeightMap {

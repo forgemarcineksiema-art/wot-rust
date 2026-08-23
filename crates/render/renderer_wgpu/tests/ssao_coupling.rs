@@ -4,12 +4,11 @@
 //! that dirtied every sunlit crease. With the ambient on, the crease must still darken (AO is
 //! alive, not disabled). Runs on the headless adapter; skips if none is available.
 
+mod common;
+use common::luma_255;
+
 use renderer_api::{SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-
-fn luma(p: &[u8]) -> f32 {
-    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
-}
 
 /// A ground plane meeting a vertical wall: the junction is the classic SSAO crease.
 fn crease_scene() -> (Vec<SceneVertex>, Vec<u32>) {
@@ -79,7 +78,7 @@ fn under_pure_key_light_ssao_is_invisible() {
         max_diff = without
             .chunks_exact(4)
             .zip(with.chunks_exact(4))
-            .map(|(a, b)| (luma(a) - luma(b)).abs())
+            .map(|(a, b)| (luma_255(a) - luma_255(b)).abs())
             .fold(0.0_f32, f32::max);
         if max_diff < 2.0 {
             return;
@@ -112,7 +111,7 @@ fn with_ambient_on_the_crease_still_darkens() {
     let darkened = without
         .chunks_exact(4)
         .zip(with.chunks_exact(4))
-        .filter(|(a, b)| luma(a) - luma(b) > 4.0)
+        .filter(|(a, b)| luma_255(a) - luma_255(b) > 4.0)
         .count();
     assert!(
         darkened > 20,

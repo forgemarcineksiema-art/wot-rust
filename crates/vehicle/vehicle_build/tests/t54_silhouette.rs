@@ -4,9 +4,11 @@
 //! and broad proportions. It catches a collapsed, hollow or wildly mis-proportioned casting without
 //! pinning exact pixels.
 
+mod common;
+use common::turret;
+
 use glam::{Vec2, Vec3};
-use vehicle_build::t54_description;
-use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
+use vehicle_geometry::{GeometryMesh, MaterialRole};
 
 const GRID: usize = 64;
 
@@ -57,10 +59,6 @@ fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
     let has_neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
     let has_pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
     !(has_neg && has_pos)
-}
-
-fn turret() -> GeometryMesh {
-    t54_description().build().submesh(SubmeshKind::Turret).expect("turret").mesh.clone()
 }
 
 #[test]
