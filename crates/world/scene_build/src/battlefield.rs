@@ -804,8 +804,8 @@ fn append_tree_line(
 
     // The crown run: not a slab but a rhythm of masses — one segment over roughly every two
     // boles, each with its own seeded top (88–100 % of the box top, never above it) and a
-    // narrow gap to its neighbours, so the skyline undulates like a planted row instead of
-    // wearing the old dark box. The lit cap reads as the sun-struck upper foliage.
+    // narrow gap to its neighbours, so the skyline undulates like a planted row.
+    // The lit cap reads as the sun-struck upper foliage.
     let crown_lo = box_top * 0.45;
     let seg_step = spacing * 1.8;
     let segments = ((run * 2.0 - 1.2) / seg_step).floor().max(1.0) as usize;

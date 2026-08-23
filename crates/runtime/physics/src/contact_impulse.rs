@@ -13,9 +13,8 @@
 //!
 //! **Order independence is a requirement, not a nicety.** Impulses are gathered against the
 //! start-of-pass state and applied together (Jacobi), never folded in pair by pair, so the outcome
-//! cannot depend on where a tank sits in the roster. That property was bought at some cost in
-//! `ramming.rs` — the ram bill used to be a function of an array index — and a sequential solver
-//! would hand it straight back.
+//! cannot depend on where a tank sits in the roster. That order-independence was bought at
+//! real cost (see `ramming.rs`), and a sequential solver would hand it straight back.
 
 use glam::{Vec2, Vec3};
 
@@ -463,7 +462,7 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
 
 /// Torque from an impulse `J` at offset `r` is `magnitude * (r . tangent)` in this convention,
 /// which falls out of the power balance: `F . v = omega * (F.x*r.z - F.z*r.x)`. Body `b` takes
-/// `+J` and body `a` takes `-J`, so the signs are the other way round from what this used to apply.
+/// `+J` and body `a` takes `-J` — mind that orientation when wiring a new caller.
 ///
 /// The velocity and spin an impulse at this contact hands each hull. Returned rather than applied,
 /// so the warm start can push it straight onto the working state while the iterations gather it.
