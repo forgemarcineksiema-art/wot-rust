@@ -20,14 +20,12 @@ use quality::workspace::{
 };
 
 /// Files allowed to name specific vehicles, with the reason and what burns the entry.
-const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[
-    (
-        "crates/world/scene_build/src/review_views.rs",
-        "The review scenes park specific vehicles for the look harness — presentation content \
+const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[(
+    "crates/world/scene_build/src/review_views.rs",
+    "The review scenes park specific vehicles for the look harness — presentation content \
          in the world layer. Burns when the lineup becomes data, which the visual programme \
          owns (blocked by the user's visual freeze).",
-    ),
-];
+)];
 
 #[test]
 fn specific_vehicles_are_named_only_in_data_and_content_crates() {
