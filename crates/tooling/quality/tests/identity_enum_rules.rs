@@ -110,6 +110,165 @@ fn no_all_constant_is_secretly_a_subset() {
     );
 }
 
+/// The declaration order of every identity enum, PINNED. `every_all_constant_names_every_variant`
+/// compares the enum body and its `ALL` as SETS, so it is blind to a reorder: swapping two variants
+/// keeps the same names but silently changes every wire/asset discriminant from the swap point on,
+/// misreading old blueprints, replays and packets. This golden holds the ORDER. Appending a variant
+/// extends the matching list at its END — a deliberate, reviewed edit, blessed here. Reordering,
+/// inserting, or deleting one changes an existing position and fails, naming the enum.
+///
+/// Seeded from the sources by the (removed) `dump_identity_enum_order` bootstrap; keep in sync only
+/// by appending.
+const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
+    (
+        "ArmorZone",
+        &[
+            "UpperGlacis",
+            "LowerPlate",
+            "HullSide",
+            "HullRear",
+            "TurretFront",
+            "Mantlet",
+            "TurretSide",
+            "TurretRear",
+            "Roof",
+            "LeftTrack",
+            "RightTrack",
+            "Skirt",
+            "HullDeck",
+            "Cupola",
+            "GlacisPort",
+        ],
+    ),
+    ("DamageCause", &["Shell", "Ram", "Impact", "Splash", "Drowning", "Fire", "AmmoRack"]),
+    ("MapId", &["ProkhorovkaHill252_2", "BystraValley", "Scratch", "OrlinyPereval", "Ostrogorsk"]),
+    (
+        "MaterialRole",
+        &[
+            "RolledArmor",
+            "CastArmor",
+            "BarrelSteel",
+            "TrackMetal",
+            "Rubber",
+            "InteriorPrimer",
+            "InteriorMachinery",
+            "Ammunition",
+            "ExposedSteel",
+            "Canvas",
+            "Glass",
+            "Timber",
+        ],
+    ),
+    ("ModuleSlot", &["Engine", "Suspension", "Turret", "Gun", "AmmoRack", "Radio"]),
+    ("Nation", &["Ussr", "Germany", "Britain"]),
+    (
+        "Penetrator",
+        &["FullBoreSharp", "FullBoreBlunt", "TungstenCore", "ShapedCharge", "BlastCase"],
+    ),
+    ("RoadSurface", &["Dirt", "Ballast", "Cobble"]),
+    (
+        "RoundId",
+        &[
+            "Br412",
+            "Br412D",
+            "Bk5",
+            "Of412",
+            "Br365K",
+            "Br365P",
+            "O365K",
+            "Br471B",
+            "Of471",
+            "Pzgr39",
+            "Pzgr40",
+            "SprgrL45",
+            "Pzgr39_43",
+            "Pzgr40_43",
+            "Pzgr43",
+            "SprgrPak80",
+            "Pzgr39_42",
+            "Pzgr40_42",
+            "Sprgr42",
+            "TwentyPdrApcbc",
+            "TwentyPdrApds",
+            "TwentyPdrHe",
+            "Prototype120Ap",
+            "Prototype120Apcr",
+            "Prototype120He",
+        ],
+    ),
+    (
+        "SceneryKind",
+        &[
+            "Oak",
+            "Poplar",
+            "Willow",
+            "FruitTree",
+            "Rock",
+            "Bush",
+            "Pine",
+            "Lamppost",
+            "DebrisHeap",
+            "FloraTree",
+            "FloraPine",
+            "FloraBush",
+        ],
+    ),
+    ("ShellType", &["ArmorPiercing", "Apcr", "Heat", "HighExplosive"]),
+    (
+        "StaticCoverKind",
+        &[
+            "FarmBuilding",
+            "RailCover",
+            "TreeLine",
+            "Wreck",
+            "WoodenFence",
+            "CityBuilding",
+            "StoneWall",
+            "TreeTrunk",
+        ],
+    ),
+    (
+        "VehicleKind",
+        &["T54_1951", "TigerI", "TigerII", "Jagdtiger", "PantherII", "IS3", "Centurion", "T34_85"],
+    ),
+];
+
+#[test]
+fn identity_enum_declaration_order_is_append_only() {
+    let sources = rust_sources(&workspace_root());
+
+    // Every identity enum must be pinned here, and every pin must still name a real enum — so the
+    // golden cannot rot into a partial list while an unpinned identity enum reorders freely.
+    let pinned: std::collections::BTreeSet<&str> =
+        IDENTITY_ENUM_ORDER.iter().map(|(name, _)| *name).collect();
+    for name in IDENTITY_ENUMS {
+        assert!(pinned.contains(name), "identity enum `{name}` has no pinned declaration order");
+    }
+
+    let mut drift = Vec::new();
+    for &(name, expected) in IDENTITY_ENUM_ORDER {
+        let Some((path, text)) = sources.iter().find(|(_, text)| declares_enum(text, name)) else {
+            drift.push(format!("`{name}` is pinned here but declared nowhere"));
+            continue;
+        };
+        let actual = variants_of(text, name);
+        if actual != expected {
+            drift.push(format!(
+                "{}: {name} order drifted\n    expected: {expected:?}\n    found:    {actual:?}\n    \
+                 (append-only: a new variant goes at the END and extends the golden; a reorder, \
+                 insert or delete is forbidden)",
+                path.display()
+            ));
+        }
+    }
+
+    assert!(
+        drift.is_empty(),
+        "an identity enum's variant ORDER is its wire/asset discriminant — it is append-only:\n  {}",
+        drift.join("\n  ")
+    );
+}
+
 /// Every `pub enum Name {` in a file.
 fn enums_declared_in(text: &str) -> Vec<String> {
     let mut names = Vec::new();
