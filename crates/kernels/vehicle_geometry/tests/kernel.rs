@@ -358,6 +358,45 @@ fn extrude_polygon_triangulates_concave_section_with_hole() {
     );
 }
 
+#[test]
+fn a_reflex_corner_wall_faces_outward_not_toward_the_centroid() {
+    // An L-shaped section is concave. The lower arm's top edge (2,1)->(1,1) has its true outward
+    // normal along +section.y (world +Z under Axis::Y), but `edge_mid - centroid` points +section.x
+    // (world +X): the reflex corner drags the mean-of-points the wrong way, and because that hint is
+    // perpendicular to the wall's real normal the old code left the wall facing INWARD (world -Z).
+    let mesh = MeshBuilder::new()
+        .extrude_polygon(
+            Vec3::ZERO,
+            ExtrudePolygonSpec {
+                points: vec![
+                    Vec2::new(0.0, 0.0),
+                    Vec2::new(2.0, 0.0),
+                    Vec2::new(2.0, 1.0),
+                    Vec2::new(1.0, 1.0),
+                    Vec2::new(1.0, 2.0),
+                    Vec2::new(0.0, 2.0),
+                ],
+                hole_indices: vec![],
+                axis: Axis::Y,
+                half_depth: 0.5,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+            },
+        )
+        .build();
+
+    // The lower arm's top wall spans section (2,1)->(1,1) => world x in [1,2] at z=1. Its outward
+    // normal must be world +Z (the section's +y), never world -Z (the inward flip the hint caused).
+    let faces_out = mesh
+        .vertices()
+        .iter()
+        .any(|v| (v.position - Vec3::new(2.0, 0.5, 1.0)).length() < 1.0e-3 && v.normal.z > 0.8);
+    assert!(
+        faces_out,
+        "the reflex arm's top wall must face outward (+Z), not inward toward the centroid"
+    );
+}
+
 /// A loft connects varying cross-sections into a tapered solid: the back is wide and tall, the
 /// bow narrow and low, like a hull plan. The skin must be finite, unit-normalled, outward-wound,
 /// and bounded by the extreme sections.
