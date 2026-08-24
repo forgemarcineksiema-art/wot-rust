@@ -6,9 +6,12 @@
 //! # Contract
 //! Deformation takes and returns only a [`GeometryMesh`]. It never sees a `HitboxProfile`, armour
 //! facets, mount frames, part anchors or module locations, so it *cannot* move them. Every vertex is
-//! displaced along its own normal by at most `tolerance` metres, clamped into the part's authored
-//! gameplay volume, and the result is re-smoothed so normals stay finite. The displacement is a pure
-//! function of vertex position and the spec `seed`, so a bake reproduces byte-for-byte.
+//! displaced along the shared normal of its corner by at most `tolerance` metres, clamped into the
+//! part's authored gameplay volume, and the result is re-smoothed so normals stay finite. The
+//! displacement is a pure function of vertex position and the spec `seed`, so a bake reproduces
+//! byte-for-byte.
+
+use std::collections::HashMap;
 
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex};
@@ -36,24 +39,48 @@ pub struct DeformationSpec {
 }
 
 /// Apply `spec` to a copy of `mesh`, displacing each vertex within `spec.radius` of `spec.center`
-/// along its normal. The per-vertex displacement is clamped to `± tolerance` metres so it can never
-/// leave the authored gameplay volume; normals are rebuilt afterwards. Pure in `(position, seed)`.
+/// along the shared normal of its corner. The per-vertex displacement is clamped to `± tolerance`
+/// metres so it can never leave the authored gameplay volume; normals are rebuilt afterwards. Pure
+/// in `(position, seed)`.
 pub fn deform(mesh: &GeometryMesh, spec: &DeformationSpec, tolerance: f32) -> GeometryMesh {
     let limit = clean_tolerance(tolerance);
     if limit == 0.0 || !spec.radius.is_finite() || spec.radius <= 0.0 {
         return mesh.clone();
     }
+    // Displacement direction is shared across every vertex that occupies a corner, not taken from
+    // each vertex's own normal. A HARD EDGE stores two coincident vertices carrying different face
+    // normals (the weld key folds the normal in for a crease); pushing each along its OWN normal
+    // pulls them apart into a crack — the magnitude is already position-keyed, but the direction was
+    // not. Averaging the normals meeting at a corner keeps that corner coincident under the move, so
+    // a dent on a welded plate seam stays watertight instead of tearing.
+    let mut corner_normal: HashMap<[i64; 3], Vec3> = HashMap::new();
+    for v in mesh.vertices() {
+        *corner_normal.entry(corner_key(v.position)).or_insert(Vec3::ZERO) += v.normal;
+    }
     let vertices: Vec<GeometryVertex> = mesh
         .vertices()
         .iter()
         .map(|v| {
+            let direction =
+                corner_normal[&corner_key(v.position)].try_normalize().unwrap_or(v.normal);
             let signed = displacement(spec, v.position).clamp(-limit, limit);
-            GeometryVertex { position: v.position + v.normal * signed, ..*v }
+            GeometryVertex { position: v.position + direction * signed, ..*v }
         })
         .collect();
-    // Re-smooth so the displaced surface gets finite, consistent normals (and stays welded where the
-    // input was welded — the displacement is position-keyed so coincident vertices move together).
+    // Re-smooth so the displaced surface gets finite, consistent normals; coincident inputs share a
+    // corner key above, so they moved together and stay welded here.
     GeometryMesh::new(vertices, mesh.indices().to_vec()).weld_and_smooth()
+}
+
+/// Quantise a position to the same sub-millimetre grid the weld uses (`WELD_SCALE = 4096`), so
+/// vertices the kernel meant to share a corner land in one bucket and are displaced as one.
+fn corner_key(position: Vec3) -> [i64; 3] {
+    const WELD_SCALE: f32 = 4096.0;
+    [
+        (position.x * WELD_SCALE).round() as i64,
+        (position.y * WELD_SCALE).round() as i64,
+        (position.z * WELD_SCALE).round() as i64,
+    ]
 }
 
 /// The signed displacement (in metres, before tolerance clamping) for a vertex at `position`.
@@ -193,5 +220,68 @@ mod tests {
         let top_before = base.vertices().iter().map(|v| v.position.y).fold(f32::MIN, f32::max);
         let top_after = out.vertices().iter().map(|v| v.position.y).fold(f32::MIN, f32::max);
         assert!(top_after < top_before, "the dent lowers the top of the shell");
+    }
+
+    /// Boundary edges counted by POSITION, not vertex index. A hard-edge seam stores two coincident
+    /// vertices with different normals, so the index-keyed count `quality_report` uses reads the
+    /// seam as boundary even on a watertight box. Keyed on the quantised position a closed shell has
+    /// zero; a crack — coincident corners pulled apart — leaves physical edges used an odd number of
+    /// times.
+    fn boundary_edges_by_position(mesh: &GeometryMesh) -> usize {
+        let key = |p: Vec3| {
+            [
+                (p.x * 4096.0).round() as i64,
+                (p.y * 4096.0).round() as i64,
+                (p.z * 4096.0).round() as i64,
+            ]
+        };
+        let verts = mesh.vertices();
+        let mut edges: HashMap<([i64; 3], [i64; 3]), i32> = HashMap::new();
+        for tri in mesh.indices().chunks_exact(3) {
+            let p = [
+                key(verts[tri[0] as usize].position),
+                key(verts[tri[1] as usize].position),
+                key(verts[tri[2] as usize].position),
+            ];
+            for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+                let (lo, hi) = if p[a] <= p[b] { (p[a], p[b]) } else { (p[b], p[a]) };
+                *edges.entry((lo, hi)).or_insert(0) += 1;
+            }
+        }
+        edges.values().filter(|&&count| count % 2 != 0).count()
+    }
+
+    #[test]
+    fn a_dent_across_a_hard_edge_does_not_tear_the_plate_seam() {
+        use vehicle_geometry::{MeshBuilder, SmoothingGroup};
+        // A chamfered plate is a CLOSED box with HARD normal seams: coincident corner and edge
+        // vertices carry different face normals. A dent crossing such a seam used to pull those
+        // coincident vertices apart — each along its own normal — cracking the plate open. The fix
+        // displaces every vertex sharing a corner along the shared corner normal, so the seam holds.
+        let plate = MeshBuilder::new()
+            .plate_box(
+                Vec3::ZERO,
+                Vec3::splat(0.5),
+                0.06,
+                MaterialRole::RolledArmor,
+                SmoothingGroup::hard_edges(),
+            )
+            .build()
+            .weld_and_smooth();
+        assert_eq!(boundary_edges_by_position(&plate), 0, "the welded plate starts watertight");
+
+        let dent = DeformationSpec {
+            kind: DeformationKind::ShallowDent,
+            center: Vec3::new(0.4, 0.4, 0.4), // a corner where three hard faces meet
+            radius: 0.45,
+            amplitude: 0.06,
+            seed: 3,
+        };
+        let dented = deform(&plate, &dent, 0.055);
+        assert_eq!(
+            boundary_edges_by_position(&dented),
+            0,
+            "denting across a hard edge must not tear the seam into an open crack"
+        );
     }
 }
