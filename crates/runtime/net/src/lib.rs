@@ -149,6 +149,8 @@ pub enum NetError {
     Codec(#[from] Box<bincode::ErrorKind>),
     #[error("protocol frame is too short: {len} bytes")]
     FrameTooShort { len: usize },
+    #[error("recording frame is too long: {len} bytes (max {max})")]
+    RecordingFrameTooLong { len: usize, max: usize },
     #[error("protocol frame magic does not match")]
     InvalidFrameMagic,
     #[error("protocol version mismatch: expected {expected}, got {actual}")]
@@ -602,7 +604,19 @@ pub enum DisconnectReason {
 /// trailing bytes**, so a prefix of a longer/newer message can no longer be silently
 /// mis-decoded as a valid shorter one.
 fn wire_codec() -> impl Options {
-    bincode::DefaultOptions::new().with_fixint_encoding().reject_trailing_bytes()
+    // Cap deserialization allocation at the largest frame the reassembler can ever hand us
+    // (`MAX_FRAGMENTS * MAX_DATAGRAM_PAYLOAD`). Today every wire `Vec` rides the safe seq path and
+    // the 32 KB reassembler window already bounds input, so this changes no accepted message — but
+    // it makes the bound EXPLICIT rather than emergent, so the day a `String`/`ByteBuf` field is
+    // added (bincode pre-allocates those from the declared length, before reading) it cannot become
+    // an allocation bomb. The limit only rejects; it never alters the byte encoding, so wire goldens
+    // are untouched.
+    const WIRE_LIMIT: u64 =
+        transport::MAX_FRAGMENTS as u64 * transport::MAX_DATAGRAM_PAYLOAD as u64;
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .reject_trailing_bytes()
+        .with_limit(WIRE_LIMIT)
 }
 
 pub fn encode_message(message: &ProtocolMessage) -> Result<Vec<u8>, NetError> {

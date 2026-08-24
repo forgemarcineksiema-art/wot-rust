@@ -8,6 +8,12 @@ use std::io::{Read, Write};
 
 use crate::{NetError, ProtocolMessage, decode_frame, encode_frame};
 
+/// The largest a recorded frame can legitimately be: a recording stores whole wire frames, and the
+/// transport refuses to fragment anything past `MAX_FRAGMENTS * MAX_DATAGRAM_PAYLOAD`, so a longer
+/// record is corrupt or hostile. Used to cap the read allocation before it is attempted.
+const MAX_RECORDING_FRAME_LEN: usize =
+    crate::transport::MAX_FRAGMENTS * crate::transport::MAX_DATAGRAM_PAYLOAD;
+
 /// Writes one session's frames. Each record: `u32` little-endian length + the frame bytes
 /// (magic, version, payload — exactly what the wire carried).
 pub struct FrameRecorder<W: Write> {
@@ -48,6 +54,13 @@ pub fn read_recording<R: Read>(mut source: R) -> Result<Vec<ProtocolMessage>, Ne
             Err(error) => return Err(NetError::Transport(error.to_string())),
         }
         let len = u32::from_le_bytes(len_bytes) as usize;
+        // A recorded frame is a wire frame, so it can never exceed what the reassembler would carry.
+        // Cap the allocation on the declared length: a corrupt or hostile prefix (a torn record whose
+        // length word is garbage, or a crafted replay) otherwise asks for up to 4 GiB before a single
+        // byte is read. Reject it instead of letting the OOM through.
+        if len > MAX_RECORDING_FRAME_LEN {
+            return Err(NetError::RecordingFrameTooLong { len, max: MAX_RECORDING_FRAME_LEN });
+        }
         let mut frame = vec![0u8; len];
         match source.read_exact(&mut frame) {
             Ok(()) => {}
@@ -94,5 +107,31 @@ mod tests {
         let torn = &buffer[..buffer.len() - 3];
         let recovered = read_recording(torn).expect("torn tail is not fatal");
         assert_eq!(recovered.len(), 1);
+    }
+
+    #[test]
+    fn an_oversized_length_prefix_is_rejected_before_it_is_allocated() {
+        // A corrupt or hostile record whose length word claims ~4 GiB must error, not send
+        // `read_recording` off to `vec![0u8; 4 GiB]` and OOM the process on open. The cap is the
+        // largest frame the transport could ever have fragmented, so no real record is refused.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&u32::MAX.to_le_bytes());
+        match read_recording(&bytes[..]) {
+            Err(NetError::RecordingFrameTooLong { len, max }) => {
+                assert_eq!(len, u32::MAX as usize);
+                assert_eq!(max, MAX_RECORDING_FRAME_LEN);
+                assert!(len > max);
+            }
+            other => panic!("an oversized length prefix must be rejected, got {other:?}"),
+        }
+
+        // A length one byte past the cap is refused; the cap itself is not a real record here, but
+        // the boundary is what the guard turns on.
+        let mut at_boundary = Vec::new();
+        at_boundary.extend_from_slice(&((MAX_RECORDING_FRAME_LEN as u32) + 1).to_le_bytes());
+        assert!(matches!(
+            read_recording(&at_boundary[..]),
+            Err(NetError::RecordingFrameTooLong { .. })
+        ));
     }
 }
