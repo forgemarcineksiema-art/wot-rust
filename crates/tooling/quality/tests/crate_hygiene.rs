@@ -163,8 +163,67 @@ fn every_manifest_inherits_the_workspace_version_and_toolchain() {
     );
 }
 
+/// The one crate that does NOT inherit the workspace lints, and why. Inheriting `[lints]` is how
+/// `unsafe_code = "forbid"` — the loudest rule in the workspace — reaches each crate. A new crate
+/// that omits the section (the easiest way is to copy this one's manifest) silently regains the
+/// right to write `unsafe`, and `clippy -D warnings` never notices, because forbidding unsafe is not
+/// a clippy lint. This allowlist is the deliberate exception; every other crate must inherit.
+const LINTS_OPT_OUT: &[(&str, &str)] = &[(
+    "timer_resolution",
+    "quarantines the single Win32 FFI unsafe block behind a safe API — see its manifest and lib.rs",
+)];
+
+/// The inheritance the toolchain test above does NOT cover, and the one that matters most: without
+/// `[lints] workspace = true`, `unsafe_code = "forbid"` does not reach the crate. Nothing else in the
+/// gate would catch it (clippy passes; the code compiles), so the rule that names itself the
+/// non-negotiable is the one with the weakest guard — this closes it.
+#[test]
+fn every_manifest_inherits_the_workspace_lints_except_the_documented_optout() {
+    let mut offenders = Vec::new();
+    for manifest in crate_manifests(&workspace_root()) {
+        let text = std::fs::read_to_string(&manifest).expect("manifest is readable");
+        let dir = manifest
+            .parent()
+            .and_then(|d| d.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let inherits = manifest_inherits_workspace_lints(&text);
+        let allowed = LINTS_OPT_OUT.iter().any(|(krate, _)| *krate == dir);
+        if !inherits && !allowed {
+            offenders.push(format!(
+                "{dir}: no `[lints] workspace = true` — it silently drops unsafe_code=forbid \
+                 (clippy -D warnings cannot see unsafe). Inherit the workspace lints, or justify \
+                 the exception in LINTS_OPT_OUT"
+            ));
+        }
+        if inherits && allowed {
+            offenders.push(format!(
+                "{dir}: inherits the workspace lints now, so drop it from LINTS_OPT_OUT — an \
+                 allowlist that outlives its exception reads as a decision that no longer holds"
+            ));
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "the workspace-lints inheritance (unsafe_code=forbid) or its one exception drifted:\n  {}",
+        offenders.join("\n  ")
+    );
+}
+
+/// Whether a manifest inherits the workspace `[lints]` table — either the inline `lints.workspace`
+/// form or a `[lints]` section carrying `workspace = true` (up to the next section header).
+fn manifest_inherits_workspace_lints(text: &str) -> bool {
+    if text.contains("lints.workspace = true") {
+        return true;
+    }
+    let Some(start) = text.find("[lints]") else { return false };
+    let section = &text[start + "[lints]".len()..];
+    let end = section.find("\n[").unwrap_or(section.len());
+    section[..end].lines().map(str::trim).any(|line| line == "workspace = true")
+}
+
 /// An allowlist that outlives its exception is worse than no allowlist: it reads as a considered
-/// decision while naming something that no longer exists. Both lists above have to earn their keep.
+/// decision while naming something that no longer exists. Every list above has to earn its keep.
 #[test]
 fn the_allowlists_name_only_crates_that_still_exist() {
     let facts = crate_facts(&workspace_root());
@@ -173,6 +232,7 @@ fn the_allowlists_name_only_crates_that_still_exist() {
     let stale: Vec<_> = ORPHAN_ALLOWLIST
         .iter()
         .chain(INLINE_VERSION_ALLOWLIST.iter().map(|(krate, _)| krate))
+        .chain(LINTS_OPT_OUT.iter().map(|(krate, _)| krate))
         .filter(|name| !known.contains(*name))
         .collect();
 
