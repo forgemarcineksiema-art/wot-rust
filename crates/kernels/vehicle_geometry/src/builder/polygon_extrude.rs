@@ -57,15 +57,24 @@ impl MeshBuilder {
         for (ring_index, ring) in polygon_rings(&spec.points, &spec.hole_indices).iter().enumerate()
         {
             let ring_points = &spec.points[ring.clone()];
-            let centroid = point_average(ring_points);
+            // A wall faces its edge's true outward normal, chosen by the ring's winding — NOT
+            // `edge_mid - centroid`. That heuristic only holds for a ring star-shaped about the mean
+            // of its points; on any edge of a reflex (concave) notch — which is exactly what this
+            // earcut-backed operator exists to build — the edge midpoint sits centroid-side of the
+            // real normal, so the hint is perpendicular-or-worse and the wall is left facing inward.
+            // The outer ring faces away from its own interior (the solid); a hole faces into its
+            // interior (the void). Keyed off the signed area, so either input orientation walls out.
+            let ccw = crate::polygon::signed_area(ring_points) >= 0.0;
             for local_index in ring.clone() {
                 let next_index =
                     if local_index + 1 == ring.end { ring.start } else { local_index + 1 };
                 let a = spec.points[local_index];
                 let b = spec.points[next_index];
-                let edge_mid = (a + b) * 0.5;
-                let outward_2d =
-                    if ring_index == 0 { edge_mid - centroid } else { centroid - edge_mid };
+                let edge = b - a;
+                // Right-hand edge normal points to a CCW ring's exterior; flip for a CW ring.
+                let exterior =
+                    if ccw { Vec2::new(edge.y, -edge.x) } else { Vec2::new(-edge.y, edge.x) };
+                let outward_2d = if ring_index == 0 { exterior } else { -exterior };
                 let outward = section_to_world(spec.axis, outward_2d, 0.0);
                 let quad = oriented_quad(
                     [
@@ -90,8 +99,4 @@ fn polygon_rings(points: &[Vec2], hole_indices: &[usize]) -> Vec<std::ops::Range
     starts.extend_from_slice(hole_indices);
     starts.push(points.len());
     starts.windows(2).map(|pair| pair[0]..pair[1]).collect()
-}
-
-fn point_average(points: &[Vec2]) -> Vec2 {
-    points.iter().fold(Vec2::ZERO, |sum, point| sum + *point) / points.len() as f32
 }
