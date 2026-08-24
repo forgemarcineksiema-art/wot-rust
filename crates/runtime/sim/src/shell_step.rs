@@ -73,7 +73,7 @@ pub(crate) fn step_shells(
                     _ => ArmorEntry::Plate,
                 };
                 let mut carved = Vec::new();
-                let (event, exit) = apply_shell_impact(
+                let Some((event, exit)) = apply_shell_impact(
                     &shells[index],
                     tanks,
                     id,
@@ -87,7 +87,12 @@ pub(crate) fn step_shells(
                     entry,
                     thickness_scale,
                     &mut carved,
-                );
+                ) else {
+                    // The struck tank is gone (unreachable on today's paths): drop the shell with
+                    // no event rather than crashing. `carved` is still empty here.
+                    shells.swap_remove(index);
+                    continue;
+                };
                 for record in carved {
                     events.push_armor_breach(record.tank, record.breach);
                 }

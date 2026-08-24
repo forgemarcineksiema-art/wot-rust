@@ -108,9 +108,12 @@ pub(crate) fn apply_shell_impact(
     // cast wall has thinned (the turret flank running aft).
     thickness_scale: f32,
     breaches_out: &mut Vec<crate::event_stamp::ArmorBreachRecord>,
-) -> (DamageEvent, Option<ShellExit>) {
-    let target =
-        tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
+) -> Option<(DamageEvent, Option<ShellExit>)> {
+    // The trace named this target from the same tick's tank slice, and no path despawns a tank
+    // between the trace and here — wrecks persist through the whole tick. But looking an entity up
+    // by id is a fallible operation, so it answers with `None` rather than a panic: a future
+    // mid-tick despawn drops the shell with no effect instead of crashing the host mid-battle.
+    let target = tanks.iter_mut().find(|tank| tank.id == target_id)?;
     let target_was_alive = target.hit_points > 0;
     let penetration = match entry {
         ArmorEntry::Plate => resolve_impact_penetration(
@@ -369,7 +372,7 @@ pub(crate) fn apply_shell_impact(
         shattered: penetration.ricocheted
             && shell.shell.penetrator == game_core::Penetrator::TungstenCore,
     };
-    (event, exit)
+    Some((event, exit))
 }
 
 /// What the shell did once it was inside the hull.
@@ -858,6 +861,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_shell_whose_target_is_gone_resolves_to_no_effect_instead_of_panicking() {
+        // The trace names a target from the tick's own tank slice, and no path despawns a tank
+        // mid-tick today (wrecks persist the whole tick), so this is unreachable in the shipped
+        // game. It is locked anyway: looking a tank up by id is fallible, and a future mid-tick
+        // despawn must drop the shell with `None` rather than crash the host in the middle of a hit.
+        let spec = TankSpec::t54_1951();
+        let mut tanks =
+            vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::new(0.0, 0.0, 20.0), 0.0)];
+        let shell =
+            shell_toward(TankId(1), Vec3::new(0.0, 1.5, 0.0), Vec3::new(0.0, 0.0, 900.0), &spec);
+        let plate = Vec3::new(0.0, 0.5, -0.866).normalize();
+
+        let outcome = apply_shell_impact(
+            &shell,
+            &mut tanks,
+            TankId(99), // no tank with this id is present
+            ArmorFacing::HullFront,
+            ArmorZone::UpperGlacis,
+            30.0,
+            Vec3::new(0.0, 1.5, 18.5),
+            plate,
+            18.5,
+            0,
+            ArmorEntry::Plate,
+            1.0,
+            &mut Vec::new(),
+        );
+        assert!(outcome.is_none(), "a missing target yields no event, not a panic");
+    }
+
     /// The event must carry through EXACTLY the struck-plate normal the trace resolved and the
     /// shell's own heading — this is the wire truth the client seats the impact mark on. The
     /// trace's normal correctness is locked separately (tests/armor_geometry.rs); here we lock
@@ -886,7 +920,8 @@ mod tests {
             ArmorEntry::Plate,
             1.0,
             &mut Vec::new(),
-        );
+        )
+        .expect("the struck tank is present in this test");
 
         assert!((event.plate_normal - plate).length() < 1.0e-3, "plate normal survives verbatim");
         assert!(
@@ -1041,7 +1076,8 @@ mod tests {
             ArmorEntry::Plate,
             1.0,
             &mut Vec::new(),
-        );
+        )
+        .expect("the struck tank is present in this test");
         assert!(event.penetrated);
         assert_ne!(event.damaged_modules_mask, 0);
         assert_eq!(tanks[0].armor_breaches.breaches().len(), 1);
@@ -1078,7 +1114,8 @@ mod tests {
                 entry,
                 1.0,
                 &mut Vec::new(),
-            );
+            )
+            .expect("the struck tank is present in this test");
             let entry_wounds = tanks[0]
                 .armor_breaches
                 .breaches()
@@ -1134,7 +1171,8 @@ mod tests {
                 ArmorEntry::Plate,
                 1.0,
                 &mut Vec::new(),
-            );
+            )
+            .expect("the struck tank is present in this test");
             assert!(event.penetrated);
             tanks.remove(0).armor_breaches
         };
@@ -1177,7 +1215,8 @@ mod tests {
             ArmorEntry::Plate,
             1.0,
             &mut Vec::new(),
-        );
+        )
+        .expect("the struck tank is present in this test");
         assert!(event.penetrated);
         assert!(!tanks[0].armor_breaches.breaches().is_empty());
     }

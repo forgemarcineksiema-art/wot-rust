@@ -456,7 +456,7 @@ impl SimulationState {
             // Ammo switch before the fire check: the honest rule is simple — any real switch
             // restarts the full reload (the loader swaps the round out of the breech).
             if let Some(slot) = command.select_ammo
-                && (slot as usize) < game_core::MAX_AMMO_SLOTS
+                && (slot as usize) < tank.spec.gun.ammo_slot_count()
                 && slot != tank.selected_ammo
             {
                 tank.selected_ammo = slot;
