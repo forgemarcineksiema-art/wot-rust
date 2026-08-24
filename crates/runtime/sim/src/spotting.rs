@@ -165,9 +165,17 @@ fn terrain_clear(heightmap: &HeightMap, from: Vec3, to: Vec3) -> bool {
     true
 }
 
-/// Whether the segment enters the axis-aligned cover box (slab method). A hit means the sight line
-/// is blocked by that cover.
-fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> bool {
+/// The `[t_min, t_max]` sub-interval of the segment `from -> to` (parameter in `[0, 1]`) that lies
+/// inside the axis-aligned box, by the slab method, or `None` if the segment misses the box. A
+/// zero-length interval means the segment only grazes the box at one endpoint — a caller that needs
+/// a genuine through-passage (blast occlusion) checks `t_max - t_min`; a caller that only asks
+/// "does it touch?" (a sight line) checks `is_some`.
+pub(crate) fn segment_box_interval(
+    from: Vec3,
+    to: Vec3,
+    center: [f32; 3],
+    half: [f32; 3],
+) -> Option<(f32, f32)> {
     let dir = to - from;
     let (mut t_min, mut t_max) = (0.0f32, 1.0f32);
     for axis in 0..3 {
@@ -176,7 +184,7 @@ fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> b
         let hi = center[axis] + half[axis];
         if d.abs() < 1.0e-6 {
             if from[axis] < lo || from[axis] > hi {
-                return false; // parallel and outside this slab
+                return None; // parallel and outside this slab
             }
         } else {
             let mut t1 = (lo - from[axis]) / d;
@@ -187,11 +195,17 @@ fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> b
             t_min = t_min.max(t1);
             t_max = t_max.min(t2);
             if t_min > t_max {
-                return false;
+                return None;
             }
         }
     }
-    true
+    Some((t_min, t_max))
+}
+
+/// Whether the segment enters the axis-aligned cover box (slab method). A hit means the sight line
+/// is blocked by that cover.
+fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> bool {
+    segment_box_interval(from, to, center, half).is_some()
 }
 
 /// A full sight line: terrain unobstructed and no cover box in the way. Cover goes first: a
