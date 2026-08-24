@@ -8,7 +8,7 @@ use game_core::{
     ArmorFacing, ArmorProfile, ArmorZone, DamageCause, DamageEvent, ModuleSlot, ShellType, TankId,
 };
 use glam::Vec3;
-use terrain::HeightMap;
+use terrain::{HeightMap, StaticCoverObject};
 
 use crate::event_stamp::BattleEventOutput;
 use crate::{ShellState, TankState};
@@ -47,6 +47,7 @@ pub(crate) fn burst_he_splash(
     events: &mut BattleEventOutput<'_>,
     direct_target: Option<TankId>,
     heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
 ) {
     let radius = shell.shell.explosive_radius_m;
     if shell.shell.shell_type != ShellType::HighExplosive || radius <= 0.0 {
@@ -65,9 +66,13 @@ pub(crate) fn burst_he_splash(
         if falloff <= 0.0 {
             continue;
         }
-        // The honest-tank rule holds for blast: terrain between the burst and the hull kills
-        // the splash - a ridge that stops the shell stops its pressure wave too.
-        if !splash_line_clear(heightmap, burst_point, hull_point) {
+        // The honest-tank rule holds for blast: anything between the burst and the hull that stops
+        // the shell stops its pressure wave too — a ridge of terrain OR a cover wall. Without the
+        // cover half, an HE round bursting on a garden wall dealt full splash to a tank pressed
+        // against the far face, straight through unbroken masonry.
+        if cover_blocks_splash(cover, burst_point, hull_point)
+            || !splash_line_clear(heightmap, burst_point, hull_point)
+        {
             continue;
         }
         let soaked = facing_plate_mm(&tank.spec.hull, burst_local) * SPLASH_ARMOR_ABSORPTION;
@@ -160,6 +165,34 @@ fn splash_line_clear(heightmap: Option<&HeightMap>, burst: Vec3, hull_point: Vec
     true
 }
 
+/// Whether a cover box genuinely stands BETWEEN the burst and the hull point — the same slab the
+/// shell trace and the sight line use, but requiring a real through-passage (a positive-length
+/// interior crossing), not a graze. That distinction matters here: the common case is an HE round
+/// detonating ON a wall, so the burst sits on the wall's own surface — a plain touch test would read
+/// that wall as occluding its own blast and wrongly shield a tank standing in FRONT of it. Destroyed
+/// cover is already absent from the slice (`live_cover_for_sight_and_shells`), so a flattened wall
+/// stops nothing.
+fn cover_blocks_splash(cover: &[StaticCoverObject], burst: Vec3, hull: Vec3) -> bool {
+    /// The fraction of the burst→hull segment that must lie inside a box to count as occluding.
+    const THROUGH_EPS: f32 = 1.0e-3;
+    cover.iter().any(|object| {
+        !game_core::math::segment_xz_disjoint(
+            burst,
+            hull,
+            object.center[0],
+            object.center[2],
+            object.half_extents_m[0],
+            object.half_extents_m[2],
+        ) && crate::spotting::segment_box_interval(
+            burst,
+            hull,
+            object.center,
+            object.half_extents_m,
+        )
+        .is_some_and(|(t0, t1)| t1 - t0 > THROUGH_EPS)
+    })
+}
+
 /// The plate the blast actually strikes, picked by the burst direction in the hull frame: a
 /// detonation over the deck soaks by the roof, against the bow by the glacis, beside the hull
 /// by the side. The old rule took the thinnest external plate regardless of direction, so a
@@ -211,7 +244,12 @@ mod tests {
         }
     }
 
-    fn splash_damage_at(burst: Vec3, tank_pos: Vec3, heightmap: Option<&HeightMap>) -> u32 {
+    fn splash_damage_at(
+        burst: Vec3,
+        tank_pos: Vec3,
+        heightmap: Option<&HeightMap>,
+        cover: &[StaticCoverObject],
+    ) -> u32 {
         let shooter =
             fresh_tank(TankId(1), TeamId(1), TankSpec::t54_1951(), Vec3::new(500.0, 0.0, 0.0), 0.0);
         let victim = fresh_tank(TankId(2), TeamId(2), TankSpec::t54_1951(), tank_pos, 0.0);
@@ -224,7 +262,7 @@ mod tests {
         let mut event_stamp = crate::event_stamp::BattleEventStamp::new(Default::default(), 0);
         let mut output =
             BattleEventOutput::new(&mut events, &mut impacts, &mut breaches, &mut event_stamp);
-        burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap);
+        burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap, cover);
         hp_before - tanks[1].hit_points
     }
 
@@ -245,10 +283,26 @@ mod tests {
         // 0.9 m behind that plate, with the ground wall in between on the ridged map.
         let burst = Vec3::new(8.0, 0.2, 6.9);
         let victim = Vec3::new(8.0, 0.0, 11.0);
-        let wounded_open = splash_damage_at(burst, victim, Some(&open));
-        let wounded_ridged = splash_damage_at(burst, victim, Some(&ridged));
+        let wounded_open = splash_damage_at(burst, victim, Some(&open), &[]);
+        let wounded_ridged = splash_damage_at(burst, victim, Some(&ridged), &[]);
         assert!(wounded_open > 0, "the open-field control burst must wound: {wounded_open}");
         assert_eq!(wounded_ridged, 0, "the ground wall must kill the blast entirely");
+    }
+
+    /// The same shielding, but by a COVER wall instead of terrain — and driven end to end through
+    /// `burst_he_splash`, so it also locks that the tick threads its cover slice into the blast. A
+    /// tank pressed against the far face of a garden wall used to eat full splash through it.
+    #[test]
+    fn a_cover_wall_between_the_burst_and_the_tank_kills_the_splash_end_to_end() {
+        let victim = Vec3::new(8.0, 0.0, 11.0);
+        // 0.9 m behind the victim's rear plate, with the wall between them (z = 7.05..7.35).
+        let burst = Vec3::new(8.0, 0.2, 6.9);
+        let wall = [test_wall([8.0, 1.0, 7.2], [4.0, 2.5, 0.15])];
+
+        let open = splash_damage_at(burst, victim, None, &[]);
+        let walled = splash_damage_at(burst, victim, None, &wall);
+        assert!(open > 0, "the open control burst must wound: {open}");
+        assert_eq!(walled, 0, "a cover wall between burst and hull must kill the blast");
     }
 
     /// The soak is directional: a burst over the deck is resisted by the thin roof, one against
@@ -259,12 +313,60 @@ mod tests {
         let spec = TankSpec::t54_1951();
         let above = Vec3::new(50.0, spec.hitbox.center_y_m + spec.hitbox.half_height_m + 1.0, 50.0);
         let front = Vec3::new(50.0, spec.hitbox.center_y_m, 50.0 + spec.hitbox.half_length_m + 1.0);
-        let deck_wound = splash_damage_at(above, tank_pos, None);
-        let bow_wound = splash_damage_at(front, tank_pos, None);
+        let deck_wound = splash_damage_at(above, tank_pos, None, &[]);
+        let bow_wound = splash_damage_at(front, tank_pos, None, &[]);
         assert!(deck_wound > 0, "a deck burst at 1 m must wound: {deck_wound}");
         assert!(
             deck_wound > bow_wound,
             "the thin roof must soak less than the glacis: deck {deck_wound} vs bow {bow_wound}"
+        );
+    }
+
+    fn test_wall(center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
+        StaticCoverObject {
+            id: "w".to_string(),
+            name: "w".to_string(),
+            kind: terrain::StaticCoverKind::StoneWall,
+            center,
+            half_extents_m: half,
+        }
+    }
+
+    #[test]
+    fn a_cover_wall_between_the_burst_and_the_hull_blocks_the_splash() {
+        // Wall across z = 9.5..10.5, wide in x. Burst in front, hull behind: the segment crosses
+        // the wall interior, so the blast is occluded exactly as the shell and the sight line are.
+        let wall = [test_wall([0.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
+        assert!(
+            cover_blocks_splash(&wall, Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
+            "a wall standing between burst and hull must occlude the blast"
+        );
+    }
+
+    #[test]
+    fn a_cover_wall_off_to_the_side_does_not_block_the_splash() {
+        let wall = [test_wall([20.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
+        assert!(
+            !cover_blocks_splash(&wall, Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
+            "a wall nowhere near the blast line must not occlude it"
+        );
+    }
+
+    #[test]
+    fn a_burst_on_a_wall_still_splashes_a_hull_in_front_of_it() {
+        // The critical edge case: HE detonates ON the wall's near face and a tank hugs that SAME
+        // face. The burst sits on the box surface, but the segment to the front hull never enters
+        // the box interior — a plain touch test would wrongly shield it. The far side is still
+        // shielded from the same burst.
+        let wall = [test_wall([0.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
+        let on_near_face = Vec3::new(0.0, 1.0, 9.5);
+        assert!(
+            !cover_blocks_splash(&wall, on_near_face, Vec3::new(0.0, 1.0, 8.0)),
+            "a burst on a wall must still splash what stands in front of that wall"
+        );
+        assert!(
+            cover_blocks_splash(&wall, on_near_face, Vec3::new(0.0, 1.0, 12.0)),
+            "the same wall must shield a hull on its far side"
         );
     }
 }

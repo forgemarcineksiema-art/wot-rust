@@ -117,6 +117,7 @@ pub(crate) fn step_shells(
                         events,
                         Some(direct_target),
                         heightmap,
+                        cover,
                     );
                 }
                 if ricochet_continues {
@@ -140,11 +141,19 @@ pub(crate) fn step_shells(
                     shell_id: shells[index].id,
                     ..Default::default()
                 });
-                burst_he_splash(&shells[index], position, tanks, events, None, heightmap);
+                burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover);
                 shells.swap_remove(index);
             }
             None => {
-                if step_unhit_shell(shells, tanks, events, index, segment_distance, heightmap) {
+                if step_unhit_shell(
+                    shells,
+                    tanks,
+                    events,
+                    index,
+                    segment_distance,
+                    heightmap,
+                    cover,
+                ) {
                     index += 1;
                 }
             }
@@ -159,6 +168,7 @@ fn step_unhit_shell(
     index: usize,
     segment_distance: f32,
     heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
 ) -> bool {
     if ground_contact(shells[index].position, heightmap) {
         let position = shells[index].position;
@@ -172,7 +182,7 @@ fn step_unhit_shell(
             shell_id: shells[index].id,
             ..Default::default()
         });
-        burst_he_splash(&shells[index], position, tanks, events, None, heightmap);
+        burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover);
         shells.swap_remove(index);
         false
     } else if shells[index].age_seconds >= shells[index].max_age_seconds {
