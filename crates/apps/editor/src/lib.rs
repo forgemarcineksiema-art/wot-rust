@@ -110,8 +110,20 @@ impl EditorDocument {
 
     /// Serialize the canonical RON form to the document's path (or the given one, which
     /// becomes the document's home — "Save As").
+    ///
+    /// Atomic: the RON is written to a sibling `.tmp` and renamed over the target, so an interrupted
+    /// or failed write (a full disk, an antivirus lock caught mid-write) can never truncate the real
+    /// blueprint into an unparseable half — which would lose the map. `std::fs::rename` replaces an
+    /// existing file on both Windows and Unix. (The garage save landed this same guard first.)
     pub fn save_as(&mut self, path: &Path) -> anyhow::Result<()> {
-        std::fs::write(path, self.blueprint.to_ron())?;
+        let mut tmp = path.as_os_str().to_owned();
+        tmp.push(".tmp");
+        let tmp = PathBuf::from(tmp);
+        std::fs::write(&tmp, self.blueprint.to_ron())?;
+        if let Err(error) = std::fs::rename(&tmp, path) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(error.into());
+        }
         self.path = Some(path.to_path_buf());
         self.dirty = false;
         Ok(())
@@ -169,6 +181,43 @@ mod tests {
 
         let reopened = EditorDocument::open(&path).expect("opens");
         assert_eq!(reopened.blueprint(), document.blueprint());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn saving_is_atomic_and_leaves_no_temp_sibling() {
+        // The blueprint is written to a sibling temp and renamed over the target, so a crash
+        // mid-write cannot truncate a saved map into an unparseable half. After a successful save
+        // the temp must be gone, and a save OVER an existing file must fully replace it (the rename,
+        // not a partial in-place write).
+        let directory = std::env::temp_dir().join("wot_editor_atomic_test");
+        std::fs::create_dir_all(&directory).expect("temp dir");
+        let path = directory.join("atomic.map.ron");
+        std::fs::remove_file(&path).ok();
+        let tmp = {
+            let mut t = path.as_os_str().to_owned();
+            t.push(".tmp");
+            PathBuf::from(t)
+        };
+
+        let mut first = EditorDocument::new_scratch();
+        first.apply_edit(|blueprint| blueprint.meta.name = "First".into());
+        first.save_as(&path).expect("first save");
+        assert!(path.exists(), "the save lands on the target path");
+        assert!(!tmp.exists(), "the temp sibling is renamed away, not left behind");
+
+        // Save a different document over the existing file: the rename must fully replace it.
+        let mut second = EditorDocument::new_scratch();
+        second.apply_edit(|blueprint| blueprint.meta.name = "Second".into());
+        second.save_as(&path).expect("overwriting save");
+        assert!(!tmp.exists(), "no temp lingers after overwriting an existing file");
+        let reopened = EditorDocument::open(&path).expect("reopens");
+        assert_eq!(
+            reopened.blueprint().meta.name,
+            "Second",
+            "the overwrite fully replaced the map"
+        );
+
         std::fs::remove_file(&path).ok();
     }
 
