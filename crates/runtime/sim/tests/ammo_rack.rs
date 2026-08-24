@@ -91,3 +91,27 @@ fn same_slot_or_invalid_switch_requests_are_no_ops() {
     assert_eq!(tank.selected_ammo, 0, "an out-of-range slot is ignored");
     assert_eq!(tank.reload_remaining_s, 0.0);
 }
+
+#[test]
+fn selecting_a_slot_the_gun_does_not_field_is_refused_and_never_jams_the_reload() {
+    // A gun that fielded no special or HE round has fewer than MAX_AMMO_SLOTS real slots. Selecting
+    // a slot that is in-bounds of the storage array but beyond the gun's actual options (here slot 1
+    // on a stock-only gun) used to pass the guard, switch to an always-empty slot and RESTART the
+    // full reload — a self-inflicted jam that only clears by switching back and eating a second
+    // reload. The guard now counts the gun's real slots, so the phantom switch is a no-op.
+    let mut spec = TankSpec::medium_test_tank();
+    spec.gun.special_shell = None;
+    spec.gun.he_shell = None;
+    assert_eq!(spec.gun.ammo_slot_count(), 1, "a stock-only gun fields exactly one slot");
+
+    let mut state = SimulationState::new();
+    let id = state.spawn_tank(TeamId(1), spec, Vec3::ZERO);
+
+    state.apply_commands(&[(id, select(1))], step());
+    let tank = state.tank(id).unwrap();
+    assert_eq!(tank.selected_ammo, 0, "a slot beyond the gun's real options is refused");
+    assert_eq!(
+        tank.reload_remaining_s, 0.0,
+        "the refused switch must not restart the reload — that restart was the jam"
+    );
+}

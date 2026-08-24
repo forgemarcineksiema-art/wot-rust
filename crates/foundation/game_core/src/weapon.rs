@@ -360,6 +360,14 @@ impl GunSpec {
         options.extend(self.he_shell);
         options
     }
+
+    /// How many ammo slots this gun actually fields — `ammo_options().len()` without building the
+    /// Vec. A gun that fielded no special or HE round has fewer than `MAX_AMMO_SLOTS`; selecting a
+    /// slot at or beyond this count is a phantom the loader cannot serve, and must be refused rather
+    /// than accepted (which would restart the reload for an always-empty slot and jam the gun).
+    pub fn ammo_slot_count(&self) -> usize {
+        1 + usize::from(self.special_shell.is_some()) + usize::from(self.he_shell.is_some())
+    }
 }
 
 const fn default_aim_time_seconds() -> f32 {
@@ -461,5 +469,25 @@ mod tests {
         assert!(options[2].explosive_radius_m > 0.0, "HE is the round that bursts");
         let kinds: std::collections::HashSet<_> = options.iter().map(|s| s.shell_type).collect();
         assert!(kinds.len() >= 3, "the rounds are of distinct shell types");
+    }
+
+    #[test]
+    fn ammo_slot_count_matches_the_options_length_across_the_fleet() {
+        // The cheap count feeds the ammo-switch guard (`state::advance`), so it must equal the
+        // authoritative `ammo_options().len()` for every vehicle — a guard that over-counts lets a
+        // player select a phantom, always-empty slot and jam the reload; one that under-counts
+        // hides a real round. It also may never exceed the storage the counts array has.
+        for kind in VehicleKind::ALL {
+            let gun = kind.spec().gun;
+            assert_eq!(
+                gun.ammo_slot_count(),
+                gun.ammo_options().len(),
+                "{kind:?}: ammo_slot_count drifted from ammo_options()"
+            );
+            assert!(
+                gun.ammo_slot_count() <= crate::MAX_AMMO_SLOTS,
+                "{kind:?}: more ammo slots than the counts array can hold"
+            );
+        }
     }
 }

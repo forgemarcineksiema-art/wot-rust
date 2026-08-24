@@ -48,13 +48,54 @@ impl TankCommand {
 
     pub fn clamped(self) -> Self {
         Self {
-            throttle: self.throttle.clamp(-1.0, 1.0),
-            steer: self.steer.clamp(-1.0, 1.0),
-            brake: self.brake.clamp(0.0, 1.0),
-            turret_yaw_delta: self.turret_yaw_delta.clamp(-1.0, 1.0),
-            gun_pitch_delta: self.gun_pitch_delta.clamp(-1.0, 1.0),
+            throttle: nan_safe_clamp(self.throttle, -1.0, 1.0),
+            steer: nan_safe_clamp(self.steer, -1.0, 1.0),
+            brake: nan_safe_clamp(self.brake, 0.0, 1.0),
+            turret_yaw_delta: nan_safe_clamp(self.turret_yaw_delta, -1.0, 1.0),
+            gun_pitch_delta: nan_safe_clamp(self.gun_pitch_delta, -1.0, 1.0),
             fire: self.fire,
             select_ammo: self.select_ammo,
         }
+    }
+}
+
+/// Clamp to `[lo, hi]`, treating NaN as the neutral `0.0` rather than letting it through.
+/// `f32::clamp` passes NaN straight out — and a single NaN in `throttle` becomes NaN velocity, NaN
+/// position, and, through the contact impulses, a NaN in every neighbour it touches. `±inf` needs
+/// no special case: `clamp` already pins it to the axis bound (full input is a legal command). The
+/// remote lane rejects non-finite commands too (`battle_host::remote_input`), but the authority
+/// sanitises here so every path into a tick is cleaned at one door, not only the wire.
+fn nan_safe_clamp(value: f32, lo: f32, hi: f32) -> f32 {
+    if value.is_nan() { 0.0 } else { value.clamp(lo, hi) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clamped_neutralises_nan_and_pins_infinities_to_the_bound() {
+        let poisoned = TankCommand {
+            throttle: f32::NAN,
+            steer: f32::INFINITY,
+            brake: f32::NEG_INFINITY,
+            turret_yaw_delta: f32::NAN,
+            gun_pitch_delta: -5.0,
+            fire: true,
+            select_ammo: Some(1),
+        };
+        let clean = poisoned.clamped();
+        assert_eq!(clean.throttle, 0.0, "NaN throttle must not reach the tick");
+        assert_eq!(clean.steer, 1.0, "+inf steer clamps to the axis limit, not through it");
+        assert_eq!(clean.brake, 0.0, "-inf brake collapses to no braking");
+        assert_eq!(clean.turret_yaw_delta, 0.0);
+        assert_eq!(
+            clean.gun_pitch_delta, -1.0,
+            "a finite out-of-range value still clamps normally"
+        );
+        assert!(clean.throttle.is_finite() && clean.steer.is_finite() && clean.brake.is_finite());
+        // Non-numeric fields pass through untouched.
+        assert!(clean.fire);
+        assert_eq!(clean.select_ammo, Some(1));
     }
 }
