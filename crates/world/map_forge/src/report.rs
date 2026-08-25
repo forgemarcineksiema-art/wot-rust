@@ -885,12 +885,17 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
 fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
     let Some(symmetry) = blueprint.symmetry else { return };
     let axis_z = blueprint.grid.axis_z();
+    // Each probe axis strides by ITS OWN extent. The x stride used to borrow size_m[1] —
+    // harmless while the grid gate refuses rectangles, but validate_map still runs on a
+    // refused map, and there the x probes walked the wrong range and vanished through the
+    // NaN armor below, silently shrinking coverage instead of failing loudly.
+    let size_x = blueprint.grid.size_m[0];
     let size_z = blueprint.grid.size_m[1];
     let mut max_delta = 0.0_f32;
     let mut worst = None;
     for zi in 0..=50 {
         for xi in 0..=50 {
-            let x = xi as f32 * (size_z / 50.0);
+            let x = xi as f32 * (size_x / 50.0);
             let z = zi as f32 * (size_z / 50.0);
             let here = map.heightmap.sample_height(x, z).unwrap_or(f32::NAN);
             let mirrored =
