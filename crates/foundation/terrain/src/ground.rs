@@ -123,6 +123,13 @@ pub struct GroundClassifier {
     step_m: f32,
     water_level_m: Option<f32>,
     roads: Vec<Road>,
+    /// Per-road XZ bounds, inflated by the half width — OUTSIDE its box a road's blend is
+    /// exactly 0.0 (`road_blend` zeroes past `width * 0.5`), so skipping it is bitwise
+    /// invisible to the weights. This is the classifier's hot-path armor: the splat bake
+    /// asks for weights at every one of 1024^2 texels, and walking every road's whole
+    /// polyline per texel was measured as the dominant cost of a map swap (~362 ms of
+    /// 517 ms on Ostrogorsk, whose street grid is exactly where road counts grow).
+    road_bounds: Vec<[f32; 4]>,
     /// Drainage truth (see [`crate::FlowField`]): computed ONCE from the authored samples
     /// at construction — flow is geology, craters never recompute it.
     flow: FlowField,
@@ -141,6 +148,7 @@ impl GroundClassifier {
             span_m: (stats.max_m - stats.min_m).max(1.0),
             step_m: (extent_x_m / CLASSIFY_TEXELS) * 0.5,
             water_level_m: battlefield.water.map(|water| water.surface_level_m),
+            road_bounds: battlefield.roads.iter().map(road_bound).collect(),
             roads: battlefield.roads.clone(),
             flow: FlowField::from_heightmap(heightmap),
         }
@@ -190,9 +198,22 @@ impl GroundClassifier {
         // the rock lane — in the picture and under the tracks (rock: grip 1.04 / rolling
         // 0.9), so a paved road stops being the slowest ground in the game. The hard
         // shoulder's feather is sharpened one extra smoothstep: stone ends where the kerb
-        // does instead of bleeding a metre of gravel into the verge.
-        let (road, surface) =
-            strongest_road_at(&self.roads, x, z).unwrap_or((0.0, RoadSurface::Dirt));
+        // does instead of bleeding a metre of gravel into the verge. Roads outside their
+        // bounds are skipped: their blend is exactly 0.0, and at zero blend both surface
+        // arms below contribute nothing, so the weights are bit-identical to the full walk
+        // (the splat goldens are the lock on that sentence).
+        let mut road = 0.0_f32;
+        let mut surface = RoadSurface::Dirt;
+        for (candidate, bound) in self.roads.iter().zip(&self.road_bounds) {
+            if x < bound[0] || x > bound[2] || z < bound[1] || z > bound[3] {
+                continue;
+            }
+            let blend = road_blend(candidate, x, z);
+            if blend > road {
+                road = blend;
+                surface = candidate.surface;
+            }
+        }
         let (dirt_road, paved) = match surface {
             RoadSurface::Dirt => (road, 0.0),
             RoadSurface::Ballast | RoadSurface::Cobble => (0.0, road * road * (3.0 - 2.0 * road)),
@@ -247,6 +268,21 @@ impl GroundClassifier {
         }
         blended
     }
+}
+
+/// The XZ rectangle outside which a road provably paints nothing: its points' bounds
+/// inflated by half the width. `road_blend` returns exactly 0.0 at and past that distance,
+/// so a bounds miss and the full walk agree bit for bit.
+pub fn road_bound(road: &Road) -> [f32; 4] {
+    let reach = road.width_m * 0.5;
+    let mut bound = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+    for point in &road.points {
+        bound[0] = bound[0].min(point[0]);
+        bound[1] = bound[1].min(point[1]);
+        bound[2] = bound[2].max(point[0]);
+        bound[3] = bound[3].max(point[1]);
+    }
+    [bound[0] - reach, bound[1] - reach, bound[2] + reach, bound[3] + reach]
 }
 
 /// How strongly one road paints a world point: full over the inner core, feathered to nothing at
