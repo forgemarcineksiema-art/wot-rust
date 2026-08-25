@@ -9,9 +9,9 @@
 
 use std::collections::HashMap;
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
-use crate::mesh::{GeometryVertex, MaterialRole, SmoothingGroup};
+use crate::mesh::{GeometryVertex, MaterialRole, SmoothingGroup, SurfaceMapping};
 use crate::{BakedVehicle, GeometryMesh, MeshBounds};
 
 /// How aggressively a part may be reduced. Mirrors the authoring `PartLod` policy, but expresses the
@@ -92,6 +92,15 @@ struct Cluster {
     count: f32,
     material: MaterialRole,
     smoothing: SmoothingGroup,
+    // The parametric chart of the FIRST vertex to land in this cell. A cell is per (grid, material,
+    // smoothing) and smaller than a chart, so its vertices share one mapping and near-identical uv0
+    // — averaging would smear a seam, so the representative simply inherits the first. Without this,
+    // rebuilding the representative through `GeometryVertex::new` reset every LOD vertex to
+    // `Triplanar`/zero, so plates, wheels, track and fenders that carry an authored uv0 at LOD0 fell
+    // to triplanar projection at distance and lost their tangent-space normal detail — a visible
+    // mapping pop at the LOD switch.
+    uv0: Vec2,
+    mapping: SurfaceMapping,
 }
 
 /// Collapse vertices sharing a grid cell + material + smoothing group into their centroid, then
@@ -118,6 +127,8 @@ fn cluster(mesh: &GeometryMesh, cell: f32) -> GeometryMesh {
                 count: 0.0,
                 material: vertex.material,
                 smoothing: vertex.smoothing,
+                uv0: vertex.uv0,
+                mapping: vertex.mapping,
             });
             clusters.len() - 1
         });
@@ -132,8 +143,14 @@ fn cluster(mesh: &GeometryMesh, cell: f32) -> GeometryMesh {
     let representatives: Vec<GeometryVertex> = clusters
         .iter()
         .map(|c| {
-            GeometryVertex::new(c.position / c.count, c.normal, c.material, c.smoothing)
-                .with_surface_shade(c.shade / c.count)
+            let mut rep =
+                GeometryVertex::new(c.position / c.count, c.normal, c.material, c.smoothing)
+                    .with_surface_shade(c.shade / c.count);
+            // Carry the authored parametric chart through the reduction; a Triplanar cell restores
+            // exactly the old `new()` default (zero uv0, Triplanar), so nothing changes for it.
+            rep.uv0 = c.uv0;
+            rep.mapping = c.mapping;
+            rep
         })
         .collect();
 
