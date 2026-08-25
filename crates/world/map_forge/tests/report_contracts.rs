@@ -447,13 +447,19 @@ fn the_census_counts_fightable_crests_and_the_report_warns_below_the_floor() {
         "below the floor the report must say so, with the count"
     );
 
-    // One authored ridge — 1.3 m, exactly what the Ridge brush lays down — and the map has a
-    // fighting line: hulls hide behind it on both sides, turrets work over it.
+    // One authored ridge, above the fleet-derived floor (lowest hull-centre 1.19 + the
+    // 0.3 m sight slack = 1.49), and the map has a fighting line: hulls hide behind it,
+    // turrets work over it. Two things moved on purpose against the old fixture: 1.3 m of
+    // amplitude sat below the floor (a crest that height cannot block even the lowest
+    // hull-centre sight line once the graze slack is priced in), and sigma 6 was too WIDE
+    // to fight from — standing close enough to see the full crest means standing on its
+    // own skirt, so the RELATIVE rise never clears the floor. A fightable crest is tall
+    // enough AND narrow enough; that pair is the sculpting lesson this gauge now teaches.
     let mut ridged = flat_square();
     ridged.terrain.ops.push(map_forge::blueprint::TerrainOp::Gauss1 {
         axis: map_forge::blueprint::MapAxis::Z,
         apply: map_forge::blueprint::Apply::Add,
-        terms: vec![map_forge::blueprint::Gauss1Term { center: 150.0, sigma: 6.0, amp: 1.3 }],
+        terms: vec![map_forge::blueprint::Gauss1Term { center: 150.0, sigma: 3.0, amp: 1.65 }],
     });
     let (map, report) = map_forge::compile(&ridged);
     let spots = map_forge::hull_down_positions(&map);
@@ -609,4 +615,18 @@ fn the_passability_margin_is_the_fleet_measurement() {
         .fold(0.0, f32::max);
     assert!(widest > 1.5, "the fleet fields real hulls (got {widest})");
     assert_eq!(map_forge::cover_passability_margin_m(), widest);
+}
+
+/// The census floor is the fleet's own measurement composed with the sim's sight slack —
+/// never a number someone typed: the lowest hull-centre plus SIGHT_GRAZE_SLACK_M. A crest
+/// below this sum cannot block even the lowest vehicle's hull-centre sight line, so a
+/// census that blessed it would be steering the brush (and the bots) at half-cover.
+#[test]
+fn the_census_rise_floor_is_the_fleet_measurement() {
+    let lowest_centre = game_core::VehicleKind::ALL
+        .iter()
+        .map(|kind| kind.spec().hitbox.center_y_m)
+        .fold(f32::INFINITY, f32::min);
+    assert!(lowest_centre > 1.0, "the fleet fields real hulls (got {lowest_centre})");
+    assert_eq!(map_forge::hull_down_rise_min_m(), lowest_centre + game_core::SIGHT_GRAZE_SLACK_M);
 }

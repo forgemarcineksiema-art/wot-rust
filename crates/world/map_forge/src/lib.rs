@@ -18,5 +18,5 @@ pub use compile::{ForgeError, compile};
 pub use golden::{battlefield_hash, map_golden_hashes};
 pub use report::{
     HullDownSpot, MapReport, ReportEntry, Severity, WaterThresholds, cover_passability_margin_m,
-    hull_down_positions,
+    hull_down_positions, hull_down_rise_min_m,
 };
