@@ -1291,11 +1291,12 @@ impl EditorApp {
         };
         self.viewshed = Some(crate::visibility::viewshed_mesh(
             &self.compiled.battlefield.heightmap,
+            &self.compiled.battlefield.static_cover,
             [hit.x, hit.z],
             400.0,
         ));
         self.status = format!(
-            "viewshed from {:.0}, {:.0}: dark = DEAD ground for a turret there (V clears)",
+            "viewshed from {:.0}, {:.0}: dark = hull DEAD ground for the sim's eye (V clears)",
             hit.x, hit.z
         );
     }
