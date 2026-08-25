@@ -193,3 +193,13 @@ fn the_backdrop_meets_the_map_exactly_and_closes_the_valley() {
     // Physics never follows the eye out there.
     assert!(map.heightmap.sample_height(-10.0, 500.0).is_none());
 }
+
+/// The fightable-crest inventory, ratcheted: the W2 approach sculpt (census-band lips on
+/// the east bank, the 3 m levees as movement masks) must never quietly erode. The floor is
+/// the measured count minus a hair of slack; burn UPWARD by sculpting, never down.
+#[test]
+fn bystra_carries_a_fightable_crest_inventory() {
+    let map = battlefield(MapId::BystraValley);
+    let spots = map_forge::hull_down_positions(&map).len();
+    assert!(spots >= 28, "the crest inventory eroded: {spots} against the measured 32");
+}

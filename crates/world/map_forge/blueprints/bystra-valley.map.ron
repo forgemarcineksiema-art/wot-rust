@@ -163,6 +163,62 @@ MapBlueprint(
                 half_width_m: 4.0,
                 falloff_m: 7.0,
             )),
+            // Teren W2 (audyt "Atlas Terenu", 2026-08-25): the valley was an OPEN BOOK -
+            // the exposure sweep read only ~10% of standable ground hidden from the enemy
+            // half and a 0.3-1.5% hull-down band, with every metre of the march to the
+            // crossings in full view. The masking grammar a floodplain can honestly carry
+            // is the LEVEE: deep balkas do not fit here (a 1.7 m cut dives under the
+            // 5.0 m water table and trips the puddle contract), but flood-banks RISE.
+            // THREE metres, measured and not guessed: the sight rule forgives a 0.3 m
+            // graze and the turret top rides at 2.53, so a bank under ~2.9 m is nearly
+            // transparent to spotting at range - the first cut of this sculpt laid 1.7 m
+            // levees and the exposure sweep did not move a tenth of a point. A 3 m bank
+            // hides the whole silhouette; crossing it anywhere is a slow 0.56-grade climb
+            // (deliberate - the road gate is the fast gap), and the FIGHTING crests are
+            // the census-band lips below, not the levee itself.
+            //
+            // The west levee pair: a flood-bank between the valley road and the ford
+            // track, the masked walk toward the south/north fords. The valley road
+            // breaches it at its own crossing - the gap in the mask is the road gate,
+            // exposed by design.
+            Stroke(StrokeSpec(
+                points: [(438.0, 318.0), (472.0, 326.0), (500.0, 330.0)],
+                profile: Ridge(amp_m: 3.0),
+                half_width_m: 4.0,
+                falloff_m: 10.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(438.0, 682.0), (472.0, 674.0), (500.0, 670.0)],
+                profile: Ridge(amp_m: 3.0),
+                half_width_m: 4.0,
+                falloff_m: 10.0,
+            )),
+            // The east levee pair: the mill-side flood-bank screening the run from the
+            // orchards toward the plank crossings.
+            Stroke(StrokeSpec(
+                points: [(612.0, 238.0), (640.0, 262.0), (664.0, 286.0)],
+                profile: Ridge(amp_m: 3.0),
+                half_width_m: 4.0,
+                falloff_m: 10.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(612.0, 762.0), (640.0, 738.0), (664.0, 714.0)],
+                profile: Ridge(amp_m: 3.0),
+                half_width_m: 4.0,
+                falloff_m: 10.0,
+            )),
+            // The east-bank lips: a crest-and-shelf pair on the floodplain shoulder above
+            // the town approach, looking WEST over the bridge and fords - the far bank
+            // finally answers Windmill Hill with hull-down of its own instead of an open
+            // slope. Windows sit off the axis so the bridge street keeps its grade.
+            CrestShelf(
+                crest_x: 655.0,
+                shelf_x: 672.0,
+                sigma_x: 8.0,
+                crest_h: 1.6,
+                shelf_cut: 1.0,
+                windows: [(380.0, 55.0), (620.0, 55.0)],
+            ),
             ClampMin(0.2),
         ],
     ),
@@ -304,6 +360,39 @@ MapBlueprint(
             kind: RailCover,
             at: (Fixed(135.0), Fixed(800.0)),
             half_extents_m: (12.0, 1.2, 2.2),
+        ),
+        Cover(
+            // West of the levee line, NOT at (390, 300): a crushable hedge 150 m from the
+            // spawn sat inside the warm-up steering circle and exposed the predictor's
+            // cover-crush seam (the server crushes through, a predictor holding authored
+            // boxes bounces - filed for the netcode register). The mask line matters, the
+            // exact metre does not; the field boundary now reaches toward the upland.
+            id: "bocage_west_south",
+            name: "field bocage (west, south)",
+            kind: TreeLine,
+            at: (Fixed(296.0), Fixed(340.0)),
+            half_extents_m: (22.0, 8.5, 3.0),
+        ),
+        Cover(
+            id: "bocage_west_north",
+            name: "field bocage (west, north)",
+            kind: TreeLine,
+            at: (Fixed(296.0), Fixed(660.0)),
+            half_extents_m: (22.0, 8.5, 3.0),
+        ),
+        Cover(
+            id: "bocage_mill_south",
+            name: "mill-side bocage (south)",
+            kind: TreeLine,
+            at: (Fixed(655.0), Fixed(255.0)),
+            half_extents_m: (20.0, 8.0, 3.0),
+        ),
+        Cover(
+            id: "bocage_mill_north",
+            name: "mill-side bocage (north)",
+            kind: TreeLine,
+            at: (Fixed(655.0), Fixed(745.0)),
+            half_extents_m: (20.0, 8.0, 3.0),
         ),
         Cover(
             id: "ford_wreck_south",
@@ -476,6 +565,18 @@ MapBlueprint(
                 at: (400.0, 850.0),
                 facing_yaw_rad: 3.1415927,
                 radius_m: None,
+            ),
+        ],
+        capture_zones: [
+            // Teren W2: the DEFAULT map finally has an objective (Prokhorovka and
+            // Ostrogorsk carried one; annihilation-only on the map the game boots into
+            // was rotation incoherence). The market square is the town's own heart: the
+            // brawl flank holds it, the crossings feed it, Windmill Hill overwatches the
+            // approaches to it.
+            CaptureZoneSpec(
+                id: "market_square",
+                at: (745.0, 500.0),
+                radius_m: 28.0,
             ),
         ],
         strategic_points: [
