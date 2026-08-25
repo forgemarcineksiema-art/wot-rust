@@ -94,7 +94,9 @@ impl ClientApp {
         let tanks = self.render_state.interpolated_tanks();
         // The reticle trace and pen hint fly the SELECTED shell (the predictor holds the custom
         // loadout and the optimistic slot choice); the snapshot-derived spec is stock by kind.
-        let mut player_spec = self.player_spec();
+        // This is the ONE caller that mutates its copy — it flies the selected shell, not the
+        // stock one — so it clones the borrowed spec deliberately, where the others just read.
+        let mut player_spec = self.player_spec().clone();
         player_spec.gun.shell = self.predictor.selected_shell();
         let muzzle_velocity = player_spec.gun.shell.muzzle_velocity_mps;
         let muzzle = self.muzzle_position_of(&tank);
@@ -411,7 +413,7 @@ mod tests {
         let slot = game_core::ModuleSlot::Gun;
         wounded.module_hit_points[slot.wire_index()] /= 2;
         // As settled as this gun now gets: fully recovered for the damage it carries.
-        let floor = sim::base_dispersion_mrad(&app.player_spec(), 0.5);
+        let floor = sim::base_dispersion_mrad(app.player_spec(), 0.5);
         wounded.aim_dispersion_mrad = floor;
         app.predictor.sync_to(&wounded);
 

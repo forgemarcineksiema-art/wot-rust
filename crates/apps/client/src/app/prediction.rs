@@ -158,9 +158,17 @@ impl ClientApp {
         self.player_snapshot().map_or(game_core::TeamId(1), |tank| tank.team)
     }
 
-    pub(super) fn player_spec(&self) -> game_core::TankSpec {
-        self.player_snapshot()
-            .map_or_else(|| self.predictor.spec().clone(), |tank| tank.vehicle.spec())
+    /// The player's spec, BORROWED — the HUD, reticle, camera and audio all read a field or two off
+    /// it every frame, and cloning a whole `TankSpec` (two `String`s, the damage layout Vec) for
+    /// each of those reads was the dominant per-frame allocation the audit flagged. Both sources
+    /// borrow: the snapshot's vehicle resolves its static spec (`spec_ref`, the same stock spec the
+    /// old `spec()` cloned), and the predictor lends its stored spec. A caller that needs to MUTATE
+    /// its own copy (the reticle swaps in the selected shell) clones this explicitly.
+    pub(super) fn player_spec(&self) -> &game_core::TankSpec {
+        match self.player_snapshot() {
+            Some(tank) => tank.vehicle.spec_ref(),
+            None => self.predictor.spec(),
+        }
     }
 
     #[cfg(test)]
