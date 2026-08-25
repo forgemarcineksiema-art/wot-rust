@@ -2,6 +2,12 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-25 (teren W5, Prokhorovka only): the PSEL - the water the western
+    // flank was named for. Two mirrored lowland reaches hug the west edge (the railway
+    // embankment crosses it too, so each reach ends in the marsh at the railbed's foot);
+    // the beds are PLATEAU strokes engineered flat under a 2.9 m table, so the river wades
+    // at 0.6 m everywhere and can drown no one BY CONSTRUCTION. The naked-flank contract
+    // stands (the field window starts east of the reeds); the fighting ground is dry.
     // Re-blessed 2026-08-25 (teren W4, Ostrogorsk only): two BRICKED cuts in the berm at
     // z 390/610 - dug like the three open gates, sealed by intact StoneWall plugs. A shell
     // breaches the brick, thirty tonnes crush it, and a route exists at minute five that
@@ -93,5 +99,5 @@
     ("bystra_valley", "3586811d6ff312c1"),
     ("orliny_pereval", "4ae506aa7b153c82"),
     ("ostrogorsk", "f4cd7a1809c1d9ba"),
-    ("prokhorovka_hill_252_2", "7c164cc3d65b2d43"),
+    ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
 ]

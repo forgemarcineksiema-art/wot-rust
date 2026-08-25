@@ -8,8 +8,10 @@ fn western_field_is_flat_open_ground_unlike_the_rolling_steppe() {
 
     // Local relief (max-min over ~35 m windows) measures folds a tank could hide behind.
     // The open Psel field (deep west, clear of the embankment, ditch and overwatch knolls)
-    // must be markedly flatter than the rolling central steppe.
-    let field_relief = max_local_relief(hm, (8, 26), (46, 74), 3);
+    // must be markedly flatter than the rolling central steppe. The window starts EAST of
+    // the Psel's own bank (teren W5): the river the flank is named for is a feature, not a
+    // violation - the FIELD between the reeds and the rails is what stays naked.
+    let field_relief = max_local_relief(hm, (16, 26), (46, 74), 3);
     let steppe_relief = max_local_relief(hm, (60, 92), (46, 74), 3);
 
     assert!(
@@ -90,4 +92,39 @@ fn max_local_relief(
         }
     }
     worst
+}
+
+/// Teren W5: the Psel is honest water on the map's west edge - and ONLY there. Every wet
+/// node sits in the river lowland (x < 120), the deepest wade stays under the ford band's
+/// roof (nothing on this map can drown), and the fighting ground - spawns, the farm bench,
+/// the balka floors - is dry to real margins.
+#[test]
+fn the_psel_wets_only_the_western_lowland_and_never_drowns() {
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
+    let water = map.water.expect("the Psel ships");
+    let hm = &map.heightmap;
+    let mut deepest = 0.0f32;
+    let mut wet_nodes = 0;
+    for zi in 0..hm.height() {
+        for xi in 0..hm.width() {
+            let depth = water.depth_over(hm.sample_at_index(xi, zi));
+            if depth > 0.0 {
+                wet_nodes += 1;
+                let x = xi as f32 * hm.cell_size_m();
+                assert!(x < 120.0, "water outside the Psel lowland at x {x}");
+                deepest = deepest.max(depth);
+            }
+        }
+    }
+    assert!(wet_nodes > 200, "the reach is a real river, not a puddle ({wet_nodes} nodes)");
+    assert!(deepest < 0.9, "the Psel wades, never drowns (deepest {deepest:.2} m)");
+    for (x, z, what) in
+        [(500.0, 150.0, "south spawn"), (500.0, 500.0, "the farm"), (520.0, 384.0, "balka floor")]
+    {
+        let ground = hm.sample_height(x, z).expect("probe");
+        assert!(
+            water.depth_over(ground) == 0.0 && ground > water.surface_level_m + 0.3,
+            "{what} must stand dry with margin (ground {ground:.2})"
+        );
+    }
 }

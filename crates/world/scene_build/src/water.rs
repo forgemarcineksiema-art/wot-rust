@@ -135,9 +135,28 @@ mod tests {
 
     #[test]
     fn a_dry_map_builds_no_water_mesh() {
+        // Prokhorovka carried this probe until teren W5 gave it the Psel; the mountain
+        // pass is the roster's dry map now (and dry BY DESIGN - its dossier says why).
         let (vertices, indices) =
-            battlefield_water_mesh(&map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2));
+            battlefield_water_mesh(&map_forge::battlefield(terrain::MapId::OrlinyPereval));
         assert!(vertices.is_empty() && indices.is_empty());
+    }
+
+    #[test]
+    fn the_psel_mesh_stays_in_the_western_lowland() {
+        // The W5 river: the wet quads hug the west edge and reach nothing east of the
+        // lowland - the render surface obeys the same bound the map contract locks.
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let water = map.water.expect("the Psel ships");
+        let (vertices, indices) = water_surface_mesh(&map.heightmap, water);
+        assert!(!indices.is_empty(), "the Psel must produce a surface");
+        for vertex in &vertices {
+            assert!(
+                vertex.position[0] < 132.0,
+                "water mesh east of the Psel lowland at x {}",
+                vertex.position[0]
+            );
+        }
     }
 
     #[test]
