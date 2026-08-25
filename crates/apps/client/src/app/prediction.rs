@@ -47,19 +47,20 @@ impl ClientApp {
     /// the predictor re-plant a hull that the server already had sliding away.
     fn neighbours_for_prediction(&self) -> Vec<ContactBody> {
         self.session
-            .current_snapshot()
-            .tanks
-            .iter()
-            .filter(|tank| tank.tank_id != self.player_tank)
-            .map(|tank| {
-                let spec = tank.vehicle.spec();
-                let motion = self.render_state.motion_of(tank.tank_id);
-                let heading = Vec3::new(tank.yaw_rad.sin(), 0.0, tank.yaw_rad.cos());
+            .neighbour_poses()
+            .into_iter()
+            .filter(|pose| pose.tank_id != self.player_tank)
+            .map(|pose| {
+                // `spec_ref` borrows the static spec for the kind — the same one the old snapshot
+                // path resolved via `vehicle.spec()`, but without the per-neighbour deep clone.
+                let spec = pose.vehicle.spec_ref();
+                let motion = self.render_state.motion_of(pose.tank_id);
+                let heading = Vec3::new(pose.yaw_rad.sin(), 0.0, pose.yaw_rad.cos());
                 ContactBody {
-                    id: tank.tank_id.0,
-                    position: Vec3::from_array(tank.position),
+                    id: pose.tank_id.0,
+                    position: Vec3::from_array(pose.position),
                     velocity: heading * motion.forward_speed_mps,
-                    yaw_rad: tank.yaw_rad,
+                    yaw_rad: pose.yaw_rad,
                     yaw_rate_rad_s: motion.yaw_rate_rad_s,
                     footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
                     mass_kg: spec.mass_kg,
@@ -221,6 +222,24 @@ mod tests {
             full_roster.saturating_sub(1),
             "prediction collision must see every local-server tank except the player, not just the filtered viewer snapshot"
         );
+    }
+
+    #[test]
+    fn neighbour_poses_match_the_full_snapshot_field_for_field() {
+        // The per-tick lightweight accessor replaced building a whole Snapshot just to read poses;
+        // it must stay a FAITHFUL substitute — same roster, same id/position/yaw/vehicle in the same
+        // order — or the local contact predictor would place neighbours differently than the server.
+        let app = ClientApp::new();
+        let snapshot = app.session.current_snapshot();
+        let poses = app.session.neighbour_poses();
+
+        assert_eq!(poses.len(), snapshot.tanks.len(), "the memo covers the whole roster");
+        for (pose, tank) in poses.iter().zip(&snapshot.tanks) {
+            assert_eq!(pose.tank_id, tank.tank_id);
+            assert_eq!(pose.position, tank.position);
+            assert_eq!(pose.yaw_rad, tank.yaw_rad);
+            assert_eq!(pose.vehicle, tank.vehicle, "same vehicle kind → same resolved spec");
+        }
     }
 
     #[test]
