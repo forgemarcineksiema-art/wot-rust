@@ -1672,6 +1672,13 @@ pub(crate) fn road_surface_tone(surface: RoadSurface) -> (Vec3, f32) {
 fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
     let mut best: Option<(Vec3, f32, f32)> = None;
     for road in roads {
+        // The bounds check before the polyline walk (terrain::road_bound): this runs per
+        // ground VERTEX — playfield plus both apron rings — and past the box the blend is
+        // exactly 0.0, so the skip cannot move a single painted texel.
+        let bound = terrain::road_bound(road);
+        if wx < bound[0] || wx > bound[2] || wz < bound[1] || wz > bound[3] {
+            continue;
+        }
         let half = road.width_m * 0.5;
         let distance = road.distance_to(wx, wz);
         if distance >= half {
