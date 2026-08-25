@@ -193,11 +193,11 @@ impl GeometryMesh {
     /// rather than facets. Hard-edge vertices fold the normal into their identity, so coincident
     /// faces with different normals stay separate and welded plates keep their crisp seams.
     ///
-    /// Positions, winding, triangle count, materials, and per-vertex shade are all preserved; only
-    /// normals change and duplicate vertices are removed. Normals are rebuilt from the indexed
-    /// triangle faces so smoothing does not depend on pre-authored vertex normals. The pass is
-    /// deterministic: buckets are numbered in first-encounter order, independent of hash-map
-    /// iteration.
+    /// Positions, winding, materials, and per-vertex shade are all preserved; only normals change,
+    /// duplicate vertices are removed, and any triangle the weld MERGE collapses to zero area is
+    /// dropped (see below). Normals are rebuilt from the indexed triangle faces so smoothing does
+    /// not depend on pre-authored vertex normals. The pass is deterministic: buckets are numbered
+    /// in first-encounter order, independent of hash-map iteration.
     pub fn weld_and_smooth(self) -> Self {
         let mut bucket_of: HashMap<WeldKey, usize> = HashMap::new();
         let mut welded: Vec<GeometryVertex> = Vec::new();
@@ -232,7 +232,23 @@ impl GeometryMesh {
             }
         }
 
-        let indices = self.indices.iter().map(|&index| remap[index as usize]).collect();
+        // Drop triangles the weld MERGE collapsed. When two corners fall in the same bucket their
+        // shared edge was shorter than the weld grid (~0.244 mm), so the triangle is a sub-resolution
+        // zero-area ghost — never renderable, and left in it shows as a black sliver with a broken
+        // tangent. This is weld finishing its own decimation, NOT a blanket degenerate filter: a
+        // needle whose corners land in DIFFERENT buckets keeps all three indices and still faces the
+        // quality gate's area check, so an upstream sliver bug is not masked. On every mesh built
+        // today no triangle collapses, so nothing is dropped and the triangle count is unchanged.
+        let indices = self
+            .indices
+            .chunks_exact(3)
+            .filter_map(|tri| {
+                let [a, b, c] =
+                    [remap[tri[0] as usize], remap[tri[1] as usize], remap[tri[2] as usize]];
+                (a != b && b != c && a != c).then_some([a, b, c])
+            })
+            .flatten()
+            .collect();
         Self::new(welded, indices)
     }
 }
