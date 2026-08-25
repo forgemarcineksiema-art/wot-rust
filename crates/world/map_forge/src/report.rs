@@ -105,10 +105,23 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
 /// fail on ground a tank genuinely cannot take.
 const CLIMB_GRADE: f32 = game_core::MAX_CLIMB_GRADE;
 
-/// How far outside a cover box the drive graph still refuses to walk. One number, used by the
-/// passability test AND by the explanation of a failed one, so a block and its account of itself
-/// can never disagree about where a footprint ends.
-const COVER_PASSABILITY_MARGIN_M: f32 = 0.3;
+/// How far outside a cover box the drive graph refuses to walk: the WIDEST hull the fleet
+/// fields, half-axle to half-axle. A route certificate is a promise to every vehicle, and
+/// the old hand-written 0.3 m certified alleys a point could thread and a 3.5 m hull could
+/// not — the gate passed maps the game then refused to drive. Derived, not written down,
+/// so a wider future hull moves the rule (the belly-line pattern); one number, used by the
+/// passability test AND by the explanation of a failed one, so a block and its account of
+/// itself can never disagree about where a footprint ends.
+pub fn cover_passability_margin_m() -> f32 {
+    use std::sync::OnceLock;
+    static MARGIN: OnceLock<f32> = OnceLock::new();
+    *MARGIN.get_or_init(|| {
+        game_core::VehicleKind::ALL
+            .iter()
+            .map(|kind| kind.spec().hitbox.half_width_m)
+            .fold(0.0, f32::max)
+    })
+}
 
 /// M7: geometry was never the point - PLAYABILITY is. A coarse drive graph over the
 /// heightfield (8-neighbour steps, grade within the climb wall, water shallower than
@@ -135,7 +148,7 @@ fn check_playability(
                 return false;
             }
             let (x, z) = (xi as f32 * cell, zi as f32 * cell);
-            !terrain::inside_any_cover(&map.static_cover, x, z, COVER_PASSABILITY_MARGIN_M)
+            !terrain::inside_any_cover(&map.static_cover, x, z, cover_passability_margin_m())
         })
         .collect();
 
@@ -1122,6 +1135,15 @@ fn flood_reachable(
             if reached[next] || !passable[next] {
                 continue;
             }
+            // A hull is a box, not a point: a diagonal step must not thread the seam
+            // between two blocked cells (touching corners read as a wall, not a slot).
+            if dx != 0 && dz != 0 {
+                let side_a = zi as usize * width + nx as usize;
+                let side_b = nz as usize * width + xi as usize;
+                if !passable[side_a] || !passable[side_b] {
+                    continue;
+                }
+            }
             let there = heightmap.sample_at_index(nx as usize, nz as usize);
             let distance = cell * ((dx * dx + dz * dz) as f32).sqrt();
             if ((there - here) / distance).abs() > CLIMB_GRADE {
@@ -1176,7 +1198,7 @@ fn walls_around(
         let (x, z) = (xi as f32 * cell, zi as f32 * cell);
         let distance = (x - position[0]).hypot(z - position[2]);
         for object in
-            terrain::covers_containing(&map.static_cover, x, z, COVER_PASSABILITY_MARGIN_M)
+            terrain::covers_containing(&map.static_cover, x, z, cover_passability_margin_m())
         {
             match nearest.iter_mut().find(|(_, existing)| *existing == object) {
                 Some((best, _)) => *best = best.min(distance),
@@ -1308,5 +1330,24 @@ fn check_hull_down(map: &BattlefieldMap, report: &mut MapReport) {
             ),
             at,
         );
+    }
+}
+
+#[cfg(test)]
+mod drive_graph_tests {
+    use super::*;
+
+    /// The corner rule, on a 3x3 graph solved by hand: with the two orthogonal
+    /// neighbours of the start blocked, the diagonal cell must be unreachable — the
+    /// old walk threaded the touching corners as if a hull were a point.
+    #[test]
+    fn a_diagonal_step_does_not_thread_touching_corners() {
+        let heightmap = terrain::HeightMap::flat(3, 3, 5.0, 1.0).expect("flat 3x3");
+        let mut passable = vec![true; 9];
+        passable[1] = false; // (1, 0)
+        passable[3] = false; // (0, 1)
+        let reached = flood_reachable(0, &passable, &heightmap, 3, 3, 5.0);
+        assert!(!reached[4], "the diagonal between two blocked cells is a wall, not a slot");
+        assert!(reached[0], "the start reaches itself");
     }
 }

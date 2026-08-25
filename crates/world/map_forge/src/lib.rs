@@ -17,5 +17,6 @@ pub use catalog::{battlefield, blueprint_for, cached_blueprint, set_scratch_sour
 pub use compile::{ForgeError, compile};
 pub use golden::{battlefield_hash, map_golden_hashes};
 pub use report::{
-    HullDownSpot, MapReport, ReportEntry, Severity, WaterThresholds, hull_down_positions,
+    HullDownSpot, MapReport, ReportEntry, Severity, WaterThresholds, cover_passability_margin_m,
+    hull_down_positions,
 };
