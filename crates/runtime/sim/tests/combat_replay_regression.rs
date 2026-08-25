@@ -56,7 +56,8 @@ fn fire_penetration_replay_is_a_regression_test() {
         "the target's full pool changed — the shot is measured against a different tank now"
     );
     assert_eq!(
-        target.hit_points, replay.expected.target_hit_points,
+        target.hit_points,
+        replay.expected.target_hit_points,
         "the penetration's damage drifted from the pinned deterministic outcome \
          (dealt {}, fixture expects {})",
         replay.expected.target_hit_points_full - target.hit_points,
