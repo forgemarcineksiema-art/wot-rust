@@ -10,7 +10,7 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use battle_host::{BattleMode, LocalAuthoritativeServer};
-use game_core::{TankId, TankSpec};
+use game_core::{TankId, TankSpec, VehicleKind};
 use net::session::{ClientSession, SessionFailure, SessionState, TIMEOUT_MS};
 use net::transport::Transport;
 use net::{AuthoritativeMotion, ClientInputCommand, ProtocolMessage, ReplicationConfig, Snapshot};
@@ -34,6 +34,16 @@ pub(super) struct BattleSessionTick {
     /// arrives as a stream of additions on the reliable lane rather than in every snapshot;
     /// the app folds them into its own ArmorBreachSet per tank.
     pub(super) armor_breaches: Vec<net::ArmorBreachDelta>,
+}
+
+/// The minimal per-neighbour snapshot the contact predictor reads each tick — see
+/// [`BattleSessionKind::neighbour_poses`]. Deliberately tiny: everything the local solver needs to
+/// place a neighbour hull and nothing the full `Snapshot` carries for other consumers.
+pub(crate) struct NeighbourPose {
+    pub(crate) tank_id: TankId,
+    pub(crate) position: [f32; 3],
+    pub(crate) yaw_rad: f32,
+    pub(crate) vehicle: VehicleKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,11 +193,50 @@ impl BattleSessionKind {
         }
     }
 
+    /// Test-only now that live prediction reads `neighbour_poses`: the tests still inspect the whole
+    /// snapshot (full roster, every field), which is exactly what a full build is for.
+    #[cfg(test)]
     pub fn current_snapshot(&self) -> Snapshot {
         match self {
             Self::Local(server) => server.current_snapshot(),
             // The wire IS the current truth for a remote battle.
             Self::Remote(session) => session.latest_snapshot.clone().unwrap_or_default(),
+        }
+    }
+
+    /// The minimal per-neighbour data the client's contact predictor needs each tick — id, pose, and
+    /// which vehicle (for its footprint and mass) — WITHOUT building or cloning a whole `Snapshot`
+    /// (256 craters, ~800 cover scars, every hull's breach set) just to read 13 positions. Local
+    /// borrows the sim's tanks; remote borrows the last snapshot's. The vehicle kind matches what
+    /// `Snapshot` carries (`tank.spec.kind`), so the predictor resolves the same spec as before.
+    pub fn neighbour_poses(&self) -> Vec<NeighbourPose> {
+        match self {
+            Self::Local(server) => server
+                .tanks()
+                .iter()
+                .map(|tank| NeighbourPose {
+                    tank_id: tank.id,
+                    position: tank.position.to_array(),
+                    yaw_rad: tank.yaw_rad,
+                    vehicle: tank.spec.kind,
+                })
+                .collect(),
+            Self::Remote(session) => session
+                .latest_snapshot
+                .as_ref()
+                .map(|snapshot| {
+                    snapshot
+                        .tanks
+                        .iter()
+                        .map(|tank| NeighbourPose {
+                            tank_id: tank.tank_id,
+                            position: tank.position,
+                            yaw_rad: tank.yaw_rad,
+                            vehicle: tank.vehicle,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 

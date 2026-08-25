@@ -213,6 +213,12 @@ impl LocalAuthoritativeServer {
         Snapshot::from(&self.sim)
     }
 
+    /// The live authoritative tanks, borrowed. The client's contact predictor reads neighbour poses
+    /// from here instead of building a whole `Snapshot` every tick just to see where they are.
+    pub fn tanks(&self) -> &[sim::TankState] {
+        self.sim.tanks()
+    }
+
     pub fn authoritative_motion(&self, tank_id: TankId) -> Option<net::AuthoritativeMotion> {
         let tank = self.sim.tank(tank_id)?;
         Some(net::AuthoritativeMotion {
