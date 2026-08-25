@@ -559,6 +559,32 @@ fn weld_and_smooth_averages_cast_normals_and_preserves_hard_seams() {
 }
 
 #[test]
+fn weld_and_smooth_drops_a_triangle_its_merge_collapsed_but_keeps_healthy_ones() {
+    // A healthy triangle plus a sub-grid sliver whose short edge (0.1 mm, under the ~0.244 mm weld
+    // grid) fuses its two corners into one bucket. The sliver must be DROPPED — a collapsed triangle
+    // is a zero-area ghost that renders as a black sliver with a broken tangent — while the healthy
+    // triangle survives with all three corners intact.
+    let mesh = GeometryMesh::new(
+        vec![
+            vertex(Vec3::new(0.0, 0.0, 0.0), Vec3::Z),
+            vertex(Vec3::new(1.0, 0.0, 0.0), Vec3::Z),
+            vertex(Vec3::new(0.0, 1.0, 0.0), Vec3::Z),
+            vertex(Vec3::new(0.0, 0.0, 2.0), Vec3::Z),
+            vertex(Vec3::new(0.0001, 0.0, 2.0), Vec3::Z), // 0.1 mm from the previous corner
+            vertex(Vec3::new(0.0, 1.0, 2.0), Vec3::Z),
+        ],
+        vec![0, 1, 2, 3, 4, 5],
+    )
+    .weld_and_smooth();
+
+    assert_eq!(mesh.triangle_count(), 1, "the collapsed sliver is dropped, the healthy face stays");
+    for tri in mesh.indices().chunks_exact(3) {
+        let [a, b, c] = [tri[0], tri[1], tri[2]];
+        assert!(a != b && b != c && a != c, "no surviving triangle may have a repeated index");
+    }
+}
+
+#[test]
 fn weld_and_smooth_recomputes_smooth_normals_from_indexed_faces() {
     let bad_normal = Vec3::Y;
     let mesh = GeometryMesh::new(
