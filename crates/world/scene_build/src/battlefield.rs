@@ -1489,6 +1489,21 @@ fn append_border_apron(
                 let (x, z) = (position_of(ix), position_of(iz));
                 let mut y = beyond(x, z);
                 if inside_frame(x, z, hole_out_m) {
+                    // The tuck seats under the LIVE surface where one exists: a shell
+                    // crater digs the playfield up to 1.2 m below the analytic
+                    // continuation, and an apron tucked 0.4 m under the UN-cratered
+                    // height floated as a plate inside the bowl. `sample_height` carries
+                    // the crater overlay, so the tuck follows every hole; off the
+                    // playfield (the far ring tucking under the near ring) the analytic
+                    // surface IS the finer surface and the plain tuck stands.
+                    if x >= 0.0
+                        && x <= extent_x
+                        && z >= 0.0
+                        && z <= extent_z
+                        && let Some(live) = heightmap.sample_height(x, z)
+                    {
+                        y = live;
+                    }
                     y -= APRON_TUCK_M;
                 }
                 let step = cell_m * 0.5;
@@ -1700,6 +1715,58 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
 mod tests {
 
     use super::*;
+
+    /// The apron-crater seam (Atlas audit P3): a shell crater at the red line digs the
+    /// playfield below the analytic continuation — an apron tucked under the UN-cratered
+    /// height floated as a plate inside the bowl (falsified: reverting the fix trips this
+    /// probe at 9.6 over a 9.325 bowl floor). With the tuck seated under the LIVE surface,
+    /// every triangle-referenced in-playfield vertex sits at-or-under the cratered ground.
+    #[test]
+    fn the_apron_tucks_under_a_crater_at_the_red_line() {
+        let mut heightmap = terrain::HeightMap::flat(41, 41, 5.0, 10.0).expect("flat map");
+        let [extent_x, extent_z] = heightmap.extent_m();
+        // Centred so an APRON-grid vertex (the 12 m lattice from -240) lands inside the
+        // bowl proper - the probe must meet the ring, not only playfield nodes.
+        let record = terrain::CraterRecord::from_world(
+            extent_x - 8.0,
+            106.0,
+            4.0,
+            1.2,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        heightmap.set_craters(std::slice::from_ref(&record));
+        let beyond = |_: f32, _: f32| 10.0_f32;
+        let (vertices, indices) = terrain_scene_mesh_full(&heightmap, None, &[], Some(&beyond));
+        // Only vertices a triangle actually references: cut cells leave their un-cratered
+        // base corners in the buffer unreferenced by construction, and a buffer entry no
+        // triangle draws cannot float over anything.
+        let mut referenced = vec![false; vertices.len()];
+        for &index in &indices {
+            referenced[index as usize] = true;
+        }
+        let mut checked = 0;
+        for (vertex, used) in vertices.iter().zip(&referenced) {
+            if !used {
+                continue;
+            }
+            let [x, y, z] = vertex.position;
+            if !(0.0..=extent_x).contains(&x) || !(0.0..=extent_z).contains(&z) {
+                continue;
+            }
+            let dx = x - record.x_m();
+            let dz = z - record.z_m();
+            if (dx * dx + dz * dz).sqrt() >= record.influence_radius_m() {
+                continue;
+            }
+            checked += 1;
+            let ground = heightmap.sample_height(x, z).expect("inside the map");
+            assert!(
+                y <= ground + 1.0e-3,
+                "a vertex floats over the bowl at ({x}, {z}): {y} over {ground}"
+            );
+        }
+        assert!(checked > 8, "the sweep actually met the bowl ({checked} vertices)");
+    }
 
     #[test]
     fn the_border_apron_continues_the_ground_to_the_haze_on_every_authored_map() {
