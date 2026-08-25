@@ -20,10 +20,17 @@ struct ReplayTank {
     yaw_rad: f32,
 }
 
+/// The EXACT outcome of a deterministic replay, not a band. The sim carries no RNG — the honest-tank
+/// doctrine is the whole point — so one shooter, one target, one command stream resolve to one
+/// result every time. A floor/ceiling (`hit_points <= 1250`, `events >= 1`) let a real regression
+/// hide inside its slack: a penetration that dealt 300 instead of 320, or one that stopped throwing
+/// its second event, both still satisfied the band. These are pinned like a golden — a deliberate
+/// balance change re-blesses them; drift fails them.
 #[derive(Debug, Deserialize)]
 struct ReplayExpected {
-    target_hit_points_max: u32,
-    damage_events_min: usize,
+    target_hit_points_full: u32,
+    target_hit_points: u32,
+    damage_events: usize,
 }
 
 #[test]
@@ -44,8 +51,22 @@ fn fire_penetration_replay_is_a_regression_test() {
     }
 
     let target = state.tank(target).expect("target tank");
-    assert!(target.hit_points <= replay.expected.target_hit_points_max);
-    assert!(total_damage_events >= replay.expected.damage_events_min);
+    assert_eq!(
+        target.spec.hit_points, replay.expected.target_hit_points_full,
+        "the target's full pool changed — the shot is measured against a different tank now"
+    );
+    assert_eq!(
+        target.hit_points,
+        replay.expected.target_hit_points,
+        "the penetration's damage drifted from the pinned deterministic outcome \
+         (dealt {}, fixture expects {})",
+        replay.expected.target_hit_points_full - target.hit_points,
+        replay.expected.target_hit_points_full - replay.expected.target_hit_points
+    );
+    assert_eq!(
+        total_damage_events, replay.expected.damage_events,
+        "the damage-event count drifted from the pinned deterministic outcome"
+    );
 }
 
 fn spawn_replay_tank(state: &mut SimulationState, tank: &ReplayTank) -> TankId {

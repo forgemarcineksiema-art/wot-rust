@@ -12,7 +12,6 @@ use super::{
 };
 use vehicle_geometry::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
-    ProfilePoint, RevolveSpec,
 };
 
 pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
@@ -127,18 +126,10 @@ fn panther_g_turret(t: &TurretShape) -> MeshBuilder {
 /// the rear plate and the driver's periscope housing riding the long ramp.
 fn panther_hull_details(hull: &HullShape) -> GeometryMesh {
     let mut builder = MeshBuilder::new();
-    for x in [-0.45_f32, 0.45] {
-        builder = builder.capped_revolve_at(
-            Vec3::new(x, 0.0, -hull.half_len + 0.30),
-            RevolveSpec {
-                profile: vec![ProfilePoint::new(0.08, 0.95), ProfilePoint::new(0.08, 1.90)],
-                axis: Axis::Y,
-                segments: 10,
-                material: MaterialRole::RolledArmor,
-                smoothing: SG_HARD,
-            },
-        );
-    }
+    // The exhausts live on the deck: `panther_ii_deck` appends `german_exhaust_stacks` (open dark
+    // mouth, segments from the radius). This function used to add a SECOND, bespoke faceted pair
+    // (10-segment capped rods at x ±0.45) that interpenetrated the conformant pair — a duplicate
+    // the shared-helper migration never deleted. Removed: one honest pipe per side.
     let run = (hull.deck_y - hull.sponson_y) * hull.glacis_slope_deg.to_radians().tan();
     builder = builder.plate_box(
         Vec3::new(-0.55, hull.deck_y + 0.03, hull.half_len - run - 0.28),

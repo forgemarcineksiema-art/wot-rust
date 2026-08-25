@@ -4,6 +4,7 @@
 //! the drum cupola on the left, the Rommelkiste stowage bin closing the turret's rear armor
 //! plane, twin exhaust stacks on the rear plate, and the interleaved eight-wheel running gear.
 
+use game_core::roundness::round_segments;
 use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind};
 use glam::{Vec2, Vec3};
 
@@ -189,7 +190,9 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
             RevolveSpec {
                 profile: vec![ProfilePoint::new(0.10, 1.00), ProfilePoint::new(0.10, 2.02)],
                 axis: Axis::Y,
-                segments: 10,
+                // Roundness law: segments from the radius, not a hand-typed 10 that facets a
+                // free-standing 0.10 m stack at 4.9 mm (well over the 2.8 mm tolerance).
+                segments: round_segments(0.10),
                 material: MaterialRole::RolledArmor,
                 smoothing: SG_HARD,
             },
@@ -253,7 +256,9 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
                 ProfilePoint::new(0.09, plate_z(1.58) + 0.09),
             ],
             axis: Axis::Z,
-            segments: 10,
+            // Roundness law over its widest radius: a hand-typed 10 facets this bow ball at
+            // 6.4 mm — the worst single facet in the fleet, on a prominent feature.
+            segments: round_segments(0.13),
             material: MaterialRole::CastArmor,
             smoothing: SG_HARD,
         },

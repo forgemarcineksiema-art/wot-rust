@@ -13,7 +13,6 @@ use super::{
 };
 use vehicle_geometry::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
-    ProfilePoint, RevolveSpec,
 };
 
 pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
@@ -131,18 +130,10 @@ fn henschel_turret(t: &TurretShape) -> MeshBuilder {
 /// the driver's periscope housing on the long glacis.
 fn tiger_ii_hull_details(hull: &HullShape) -> GeometryMesh {
     let mut builder = MeshBuilder::new();
-    for x in [-0.55_f32, 0.55] {
-        builder = builder.capped_revolve_at(
-            Vec3::new(x, 0.0, -hull.half_len + 0.34),
-            RevolveSpec {
-                profile: vec![ProfilePoint::new(0.09, 0.95), ProfilePoint::new(0.09, 1.95)],
-                axis: Axis::Y,
-                segments: 10,
-                material: MaterialRole::RolledArmor,
-                smoothing: SG_HARD,
-            },
-        );
-    }
+    // The exhausts live on the deck: `tiger_ii_deck` appends `german_exhaust_stacks` (open dark
+    // mouth, segments from the radius). This function used to add a SECOND, bespoke faceted pair
+    // (10-segment capped rods at x ±0.55) that interpenetrated the conformant pair only 33 mm away
+    // — a duplicate the shared-helper migration never deleted. Removed: one honest pipe per side.
     // The driver's periscope box riding the glacis line, just left of the centre.
     let run = (hull.deck_y - hull.sponson_y) * hull.glacis_slope_deg.to_radians().tan();
     builder = builder.plate_box(
