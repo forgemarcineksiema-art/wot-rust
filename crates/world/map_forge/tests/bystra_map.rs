@@ -80,35 +80,12 @@ fn bystra_scale_water_and_anatomy_are_declared() {
     assert!(stats.max_m - stats.min_m > 20.0, "a valley has real relief");
 }
 
-/// The western high ground works: from the Windmill Hill crest a turret sees the stone
-/// bridge's deck across the floodplain.
-#[test]
-fn windmill_hill_overwatches_the_stone_bridge() {
-    let map = battlefield(MapId::BystraValley);
-    let bridge_x = bystra_river_center_x(HALF_M);
-    let hill = eye(&map, 250.0, HALF_M, 2.2);
-    let deck = eye(&map, bridge_x, HALF_M, 1.0);
-    assert!(sight_clear(&map, hill, deck), "the Windmill Hill crest must see the bridge deck");
-}
-
-/// The hull-down shelf works exactly like a hull-down shelf: from the bridge, the shelf
-/// ground at hull height is masked by the crest, while a turret above it is exposed.
-#[test]
-fn windmill_shelf_masks_a_hull_from_the_bridge_but_fires_over_the_crest() {
-    let map = battlefield(MapId::BystraValley);
-    let bridge_x = bystra_river_center_x(HALF_M);
-    let bridge = eye(&map, bridge_x, HALF_M, 2.0);
-    let shelf_hull = eye(&map, 340.0, HALF_M - 90.0, 0.9);
-    let shelf_turret = eye(&map, 340.0, HALF_M - 90.0, 2.4);
-    assert!(
-        !sight_clear(&map, bridge, shelf_hull),
-        "the crest must mask a hull on the shelf from the bridge"
-    );
-    assert!(
-        sight_clear(&map, bridge, shelf_turret),
-        "the turret above the crest must still work the bridge"
-    );
-}
+// The two sight-line contracts (the Windmill crest overwatch and the shelf hull-down)
+// moved to `crates/runtime/sim/tests/bystra_hull_down.rs`: the local `sight_clear` copy
+// they leaned on carried the OPPOSITE slack sign to the sim's spotting rule and ignored
+// cover boxes, so it certified promises the live game did not keep (its crest probe even
+// stood inside the windmill tower). A sight promise is certified by `sim::line_of_sight`
+// or it is not certified at all.
 
 /// Spawns are dry, gentle ground — nobody deploys into the river or onto a cliff.
 #[test]
@@ -142,33 +119,9 @@ fn kamienna_streets_hold_the_bench_ramp() {
     }
 }
 
-fn eye(map: &terrain::BattlefieldMap, x: f32, z: f32, above_m: f32) -> [f32; 3] {
-    [x, map.heightmap.sample_height(x, z).unwrap() + above_m, z]
-}
-
 /// The backdrop skirt of THIS map's blueprint (the horizon enclosure lives in the document).
 fn skirt_at(x: f32, z: f32) -> f32 {
     backdrop_height(cached_blueprint_by_id("bystra_valley").expect("bystra is shipped"), x, z)
-}
-
-/// Same rule as the sim's spotting raycast: stepping the segment every 2 m, the ground must
-/// stay below the sight line (0.3 m tolerance).
-fn sight_clear(map: &terrain::BattlefieldMap, from: [f32; 3], to: [f32; 3]) -> bool {
-    let (fx, fy, fz) = (from[0], from[1], from[2]);
-    let (tx, ty, tz) = (to[0], to[1], to[2]);
-    let length = ((tx - fx).powi(2) + (tz - fz).powi(2)).sqrt();
-    let steps = (length / 2.0).ceil().max(1.0) as u32;
-    for step in 1..steps {
-        let t = step as f32 / steps as f32;
-        let x = fx + (tx - fx) * t;
-        let z = fz + (tz - fz) * t;
-        let line = fy + (ty - fy) * t;
-        let ground = map.heightmap.sample_height(x, z).unwrap();
-        if ground > line - 0.3 {
-            return false;
-        }
-    }
-    true
 }
 
 /// The dressing plays fair too: every scenery instance is mirrored (position + kind + scale),

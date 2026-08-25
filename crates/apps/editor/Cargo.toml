@@ -14,6 +14,7 @@ map_forge.workspace = true
 renderer_api.workspace = true
 renderer_wgpu.workspace = true
 scene_build.workspace = true
+sim.workspace = true
 terrain.workspace = true
 winit.workspace = true
 

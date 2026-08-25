@@ -456,8 +456,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if gameplay_view {
             // The observer stands LOW on the southern approach: the stamped hill throws
             // its dead-ground shadow north - exactly what a hull-down defender exploits.
-            let (shed_vertices, shed_indices) =
-                visibility::viewshed_mesh(&battlefield.heightmap, [150.0, 85.0], 400.0);
+            let (shed_vertices, shed_indices) = visibility::viewshed_mesh(
+                &battlefield.heightmap,
+                &battlefield.static_cover,
+                [150.0, 85.0],
+                400.0,
+            );
             let base = marker_vertices.len() as u32;
             marker_vertices.extend_from_slice(&shed_vertices);
             marker_indices.extend(shed_indices.iter().map(|index| index + base));

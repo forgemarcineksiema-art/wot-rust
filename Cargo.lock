@@ -1100,6 +1100,7 @@ dependencies = [
  "renderer_api",
  "renderer_wgpu",
  "scene_build",
+ "sim",
  "terrain",
  "ui_kit",
  "winit",
