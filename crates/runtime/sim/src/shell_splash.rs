@@ -199,7 +199,13 @@ fn cover_blocks_splash(cover: &[StaticCoverObject], burst: Vec3, hull: Vec3) -> 
 /// frontal burst was soaked by the roof it never touched.
 fn facing_plate_mm(armor: &ArmorProfile, burst_local: Vec3) -> f32 {
     let direction = burst_local.normalize_or_zero();
-    if direction.y > direction.x.abs().max(direction.z.abs()) {
+    // A blast whose direction is dominated by the VERTICAL axis meets a thin horizontal plate: the
+    // roof from above, the belly from below. The belly is un-modelled, but it is a thin plate like
+    // the roof — NOT the thick side the old SIGNED test fell through to. `direction.y > ...` only
+    // caught the roof; a burst under the hull (direction.y ≈ -1) failed it and was soaked by the
+    // flank, so under-belly splash (a mine, an HE round going off beneath) barely existed. `.abs()`
+    // catches both, so a blast from below now bites the way one from above does.
+    if direction.y.abs() > direction.x.abs().max(direction.z.abs()) {
         return armor.plate(ArmorZone::Roof).nominal_thickness_mm;
     }
     if direction.x.abs() >= direction.z.abs() {
@@ -319,6 +325,33 @@ mod tests {
         assert!(
             deck_wound > bow_wound,
             "the thin roof must soak less than the glacis: deck {deck_wound} vs bow {bow_wound}"
+        );
+    }
+
+    #[test]
+    fn a_blast_from_below_soaks_by_the_thin_belly_like_the_roof_not_the_thick_side() {
+        // A burst under the hull (a mine, an HE round going off beneath) meets the thin belly, not
+        // the thick flank the old signed test fell through to. The belly is un-modelled, so it soaks
+        // like the roof — but that is far closer than the side, and under-belly splash now bites.
+        let tank_pos = Vec3::new(50.0, 0.0, 50.0);
+        let hb = TankSpec::t54_1951().hitbox;
+        let below = Vec3::new(50.0, hb.center_y_m - hb.half_height_m - 1.0, 50.0);
+        let above = Vec3::new(50.0, hb.center_y_m + hb.half_height_m + 1.0, 50.0);
+        let side = Vec3::new(50.0 + hb.half_width_m + 1.0, hb.center_y_m, 50.0);
+
+        let below_wound = splash_damage_at(below, tank_pos, None, &[]);
+        let above_wound = splash_damage_at(above, tank_pos, None, &[]);
+        let side_wound = splash_damage_at(side, tank_pos, None, &[]);
+
+        assert!(below_wound > 0, "a blast under the belly must wound: {below_wound}");
+        assert!(
+            below_wound > side_wound,
+            "the thin belly soaks less than the thick side: below {below_wound} vs side {side_wound}"
+        );
+        assert_eq!(
+            below_wound, above_wound,
+            "belly and roof are the same thin plate in this model — a below burst is not soaked \
+             by the flank"
         );
     }
 
