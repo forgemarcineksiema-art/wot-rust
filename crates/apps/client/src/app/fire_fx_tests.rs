@@ -136,6 +136,15 @@ fn a_terrain_impact_digs_a_crater_and_an_armor_hit_does_not() {
 
     // The crater is part of the frame's FX batch even after the burst particles die out.
     app.fx = crate::fx::FxSystem::default();
-    let vertices = app.fx_frame_vertices([30.0, 20.0, 20.0], [30.0, 0.0, 40.0]);
+    let mut live = Vec::new();
+    let mut vertices = Vec::new();
+    app.fx_frame_vertices_into([30.0, 20.0, 20.0], [30.0, 0.0, 40.0], &mut live, &mut vertices);
     assert!(!vertices.is_empty(), "the crater outlives the dust in the FX batch");
+
+    // Reusing the SAME scratch buffers across frames — the whole point of the recover-the-buffer
+    // pattern the render loop uses — must rebuild the IDENTICAL batch, not accumulate onto or leak
+    // the previous frame's vertices. This is the clear-on-fill contract that reuse depends on.
+    let first = vertices.clone();
+    app.fx_frame_vertices_into([30.0, 20.0, 20.0], [30.0, 0.0, 40.0], &mut live, &mut vertices);
+    assert_eq!(vertices, first, "reused FX scratch rebuilds the same batch, frame to frame");
 }

@@ -76,27 +76,32 @@ impl ClientApp {
     ///
     /// (See `tank_can_reach_the_screen` below for the vehicle cull this batch is NOT subject
     /// to — FX are cheap quads; vehicles are hundreds of gear instances.)
-    pub(super) fn fx_frame_vertices(
+    /// Fill `out` with this frame's composited FX batch, using `live` as working space for the
+    /// quads that carry the game (particles, tracers, hull decals). Both buffers are caller-owned
+    /// scratch, cleared here and reused across frames, so a ~1 MiB batch costs no allocation — the
+    /// caller recovers them the same way the grass frame does.
+    pub(super) fn fx_frame_vertices_into(
         &self,
         eye: [f32; 3],
         target: [f32; 3],
-    ) -> Vec<renderer_api::FxVertex> {
+        live: &mut Vec<renderer_api::FxVertex>,
+        out: &mut Vec<renderer_api::FxVertex>,
+    ) {
         let eye = glam::Vec3::from_array(eye);
         let budget = renderer_wgpu::fx_vertex_budget();
         // Built first to learn their size, appended last to keep their place in the composite.
-        let mut live = Vec::new();
+        live.clear();
         live.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
-        crate::fx::append_shell_tracers(&mut live, &shells, eye);
-        self.append_scar_quads(&mut live);
+        crate::fx::append_shell_tracers(live, &shells, eye);
+        self.append_scar_quads(live);
 
         let ground = budget.saturating_sub(live.len());
-        let mut fx_vertices = Vec::with_capacity(budget.min(ground + live.len()));
-        self.track_marks.append_quads_within(&mut fx_vertices, ground);
-        let left = ground - fx_vertices.len().min(ground);
-        self.terrain_scars.append_quads_within(&mut fx_vertices, left);
-        fx_vertices.extend(live);
-        fx_vertices
+        out.clear();
+        self.track_marks.append_quads_within(out, ground);
+        let left = ground - out.len().min(ground);
+        self.terrain_scars.append_quads_within(out, left);
+        out.append(live);
     }
 }
 

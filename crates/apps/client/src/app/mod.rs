@@ -526,6 +526,11 @@ pub(crate) struct ClientApp {
     grass_cache: Vec<renderer_api::RenderObject>,
     grass_cache_eye: Option<glam::Vec3>,
     grass_cache_crater_fingerprint: u64,
+    /// Reused FX-vertex scratch: the per-frame composite (~1 MiB at the budget) and the "live"
+    /// quads it appends last. Kept across frames so building the batch costs no allocation — the
+    /// same recover-the-buffer pattern the grass frame uses just below.
+    fx_live_scratch: Vec<renderer_api::FxVertex>,
+    fx_composite_scratch: Vec<renderer_api::FxVertex>,
     /// Which LOD rung each battlefield oak drew last frame. Carried across frames so a tree
     /// parked on a band boundary swaps once instead of flickering (see `scene_build::tree_lod`).
     tree_lod_state: scene_build::tree_lod::TreeLodState,
@@ -768,6 +773,8 @@ impl ClientApp {
             grass_cache: Vec::new(),
             grass_cache_eye: None,
             grass_cache_crater_fingerprint: 0,
+            fx_live_scratch: Vec::new(),
+            fx_composite_scratch: Vec::new(),
             tree_lod_state: scene_build::tree_lod::TreeLodState::default(),
             cracked_shells: std::collections::HashSet::new(),
             terrain_scars: crate::fx::TerrainScars::default(),

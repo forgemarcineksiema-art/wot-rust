@@ -638,7 +638,11 @@ impl ClientApp {
             hud.extend(enemy_bars);
             hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
         }
-        let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
+        // Reused scratch (recovered after `set_fx` below), so the ~1 MiB FX batch is not
+        // reallocated every presented frame — the same pattern as the grass frame.
+        let mut fx_live = std::mem::take(&mut self.fx_live_scratch);
+        let mut fx_vertices = std::mem::take(&mut self.fx_composite_scratch);
+        self.fx_frame_vertices_into(camera.eye, camera.target, &mut fx_live, &mut fx_vertices);
         let scene_time_s = self.presented_time_s();
         self.ensure_scene(SceneKind::Battle);
         let weather = self.weather_frame;
@@ -715,6 +719,10 @@ impl ClientApp {
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");
         }
+        // Recover the FX scratch buffers (drained/consumed above) so next frame reuses their
+        // capacity instead of allocating fresh.
+        self.fx_live_scratch = std::mem::take(&mut fx_live);
+        self.fx_composite_scratch = std::mem::take(&mut fx_vertices);
     }
 }
 
