@@ -74,6 +74,70 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::ExportMesh { vehicle, out, profile } => {
             export_mesh_command(&vehicle, out, profile.parse()?)?
         }
+        Command::MapAtlas { out, map, res, skip_exposure } => {
+            map_atlas_command(out, map.as_deref(), res, skip_exposure)?
+        }
+    }
+    Ok(())
+}
+
+/// Render the terrain atlas: per map a directory of instrument PNGs plus one `atlas.md`
+/// with the measured stats. Exposure is the slow sweep (~seconds per map in release);
+/// `--skip-exposure` renders everything else in a blink for the tight loop.
+fn map_atlas_command(
+    out: Option<PathBuf>,
+    map_slug: Option<&str>,
+    res: f32,
+    skip_exposure: bool,
+) -> anyhow::Result<()> {
+    use crate::atlas;
+
+    let out = out.unwrap_or_else(|| PathBuf::from("target/map_atlas"));
+    let maps: Vec<MapId> =
+        match map_slug {
+            Some(slug) => vec![MapId::from_slug(slug).with_context(|| {
+                format!("unknown map slug {slug} (known: {:?})", MapId::SHIPPED)
+            })?],
+            None => MapId::SHIPPED.to_vec(),
+        };
+    let mut report = String::from(
+        "# Terrain atlas\n\nMeasured through the game's own rules: `sample_height` \
+         (bilinear, the sim's lane), `GroundClassifier` (splat = drive), \
+         `game_core::MAX_CLIMB_GRADE`/`ROAD_COMFORT_GRADE`, the physics wading bands, \
+         `sim::DROWN_DEPTH_M`, and `sim::line_of_sight` over the born cover state with the \
+         T-54 benchmark geometry.\n\n",
+    );
+    for id in maps {
+        let map = map_forge::battlefield(id);
+        let classifier = terrain::GroundClassifier::new(&map);
+        let dir = out.join(id.slug());
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("failed to create {}", dir.display()))?;
+        let mut layers = vec![
+            ("form", atlas::form_layer(&map, res)),
+            ("ground", atlas::ground_layer(&map, &classifier, res)),
+            ("drive", atlas::drive_layer(&map, res)),
+            ("tactical", atlas::tactical_layer(&map, res)),
+        ];
+        if !skip_exposure {
+            let from_south = atlas::exposure_field(&map, false, 5.0, 60.0);
+            let from_north = atlas::exposure_field(&map, true, 5.0, 60.0);
+            layers.push(("exposure_from_south", atlas::exposure_layer(&map, &from_south, res)));
+            layers.push(("exposure_from_north", atlas::exposure_layer(&map, &from_north, res)));
+            report.push_str(&atlas::atlas_stats(&map, &from_south, &from_north).markdown_section());
+        }
+        for (name, raster) in layers {
+            let path = dir.join(format!("{name}.png"));
+            std::fs::write(&path, raster.to_png_bytes()?)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+            println!("wrote {}", path.display());
+        }
+    }
+    if !skip_exposure {
+        let path = out.join("atlas.md");
+        std::fs::write(&path, &report)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        println!("wrote {}", path.display());
     }
     Ok(())
 }

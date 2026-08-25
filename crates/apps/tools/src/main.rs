@@ -1,3 +1,4 @@
+mod atlas;
 mod cli;
 mod commands;
 

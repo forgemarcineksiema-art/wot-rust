@@ -88,6 +88,24 @@ pub enum Command {
         #[arg(long)]
         blueprint_file: Option<PathBuf>,
     },
+    /// Render the terrain atlas of shipped maps: form / ground / drive / tactical /
+    /// exposure PNG layers plus `atlas.md` stats, every number measured through the game's
+    /// own rules (`sample_height`, `GroundClassifier`, `sim::line_of_sight`, the mobility
+    /// and wading constants). The terrain-review instrument.
+    MapAtlas {
+        /// Output directory (default `target/map_atlas`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// One map slug to render; all shipped maps when absent.
+        #[arg(long)]
+        map: Option<String>,
+        /// Metres per pixel of the image layers.
+        #[arg(long, default_value_t = 1.0)]
+        res: f32,
+        /// Skip the exposure sweep (the slow layer) for a quick look at the rest.
+        #[arg(long, default_value_t = false)]
+        skip_exposure: bool,
+    },
     /// Export a baked vehicle as Wavefront OBJ (+ MTL) for external inspection — the
     /// master-reference loop (orbit, section, measure, overlay on a scale drawing). Geometry
     /// leaves for inspection; only NUMBERS come back into the blueprint.

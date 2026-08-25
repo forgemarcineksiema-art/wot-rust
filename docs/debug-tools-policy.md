@@ -21,6 +21,11 @@ renderer, and tools can expose state without ad hoc one-off code.
 - **The probe binary** (`crates/apps/client/examples/probe/`): staged review renders
   (`tenement_probe`, `factory_probe`, `flora_probe`, `ostrogorsk_views`, `battle_hud`, …)
   and the perf capture (`perf_capture`).
+- **The terrain atlas** (`cargo run --release -p tools -- map-atlas`): top-down instrument
+  renders per shipped map (form / ground / drive / tactical / two exposure sweeps) plus
+  `atlas.md` stats — drivability by the game's own grade and wading constants, exposure and
+  hull-down bands through `sim::line_of_sight` with the T-54 geometry, the sim-vs-mesh
+  ground-parity residual, and the engagement-distance profile. Writes `target/map_atlas/`.
 - **`WOT_RECORD`** capture.
 
 ## What does not exist (known gaps)

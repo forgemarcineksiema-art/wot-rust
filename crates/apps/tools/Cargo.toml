@@ -9,11 +9,15 @@ rust-version.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 game_core.workspace = true
+glam.workspace = true
 gltf.workspace = true
 map_forge.workspace = true
+physics.workspace = true
+png.workspace = true
 ron.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sim.workspace = true
 terrain.workspace = true
 vehicle_forge.workspace = true
 
