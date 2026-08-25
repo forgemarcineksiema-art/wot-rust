@@ -595,6 +595,17 @@ fn apply_internal_module_path(
 }
 
 fn component_bit(id: game_core::DamageComponentId) -> u32 {
+    // The damaged-components mask is a u32 wire field (protocol v26): bit `n` is
+    // `DamageComponentId(n + 1)`, so only ids 1..=32 own a bit. An id outside that range would be
+    // SILENTLY maskless — a destroyed component that never reports destroyed on the wire, and id 0
+    // would alias id 1. The fleet uses ids up to 22 (`game_core`'s `every_component_id_fits_the_
+    // wire_mask`), so this never fires today; it turns a future 33rd-component content change from a
+    // silent truncation into a caught panic in dev and test. Release stays defined via the fallback.
+    debug_assert!(
+        (1..=32).contains(&id.0),
+        "component id {} is outside the u32 damaged-components wire mask (1..=32)",
+        id.0
+    );
     1_u32.checked_shl(u32::from(id.0.saturating_sub(1))).unwrap_or(0)
 }
 
@@ -1278,5 +1289,21 @@ mod w0_7_tests {
             assert_eq!(seen & bit, 0, "id {id} must not collide");
             seen |= bit;
         }
+    }
+
+    // The fleet gate (`game_core`'s `no_component_id_falls_off_the_end_of_the_damage_mask`) proves no
+    // AUTHORED layout mints a bad id. These two lock the call site's own contract for any FUTURE path
+    // that constructs a synthetic id outside a layout: a shift off the end is a loud dev/test panic,
+    // never the silent empty mask it used to fold to.
+    #[test]
+    #[should_panic(expected = "outside the u32 damaged-components wire mask")]
+    fn a_component_id_past_the_wire_ceiling_is_loud_not_silent() {
+        let _ = component_bit(game_core::DamageComponentId(33));
+    }
+
+    #[test]
+    #[should_panic(expected = "outside the u32 damaged-components wire mask")]
+    fn a_zero_component_id_is_loud_not_aliased_onto_id_one() {
+        let _ = component_bit(game_core::DamageComponentId(0));
     }
 }
