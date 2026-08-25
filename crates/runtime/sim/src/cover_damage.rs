@@ -213,6 +213,66 @@ impl<'a> LiveCover<'a> {
     }
 }
 
+/// A per-battle memo of the live-cover resolution, so the authoritative tick stops re-cloning the
+/// whole cover slice — two `String`s per object, ~150 objects on a city map — every single frame
+/// once anything is broken. It rebuilds ONLY when a cover phase actually changes (rare) and borrows
+/// its materialised slices on every tick in between. This is the server-side twin of the client's
+/// `LiveCoverCache`; the honest common case (nothing damaged yet) still borrows the authored slice
+/// inside [`live_cover_for`], so an untouched battle allocates nothing here either.
+#[derive(Debug, Default, Clone)]
+pub struct CoverCache {
+    phases: Vec<CoverPhase>,
+    sight: Vec<StaticCoverObject>,
+    movement: Option<Vec<StaticCoverObject>>,
+    rubble: Vec<RubbleMound>,
+}
+
+/// The cache is DERIVED state, not authoritative: two [`crate::SimulationState`]s with equal
+/// `cover_states` are equal whether or not either has materialised its cache. So it must not sway
+/// `SimulationState`'s derived `PartialEq`, which the replay/determinism tests lean on — always-equal
+/// keeps the memo invisible to equality while `cover_states`, the real state, is compared as before.
+impl PartialEq for CoverCache {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl CoverCache {
+    /// Rebuild the memo IFF the cover phases changed since it was last built; otherwise leave the
+    /// materialised slices untouched. The guard is a phase compare — one byte per object — so the
+    /// steady state (no cover changed this tick) is a walk over ~150 bytes instead of ~150 heap
+    /// clones. `movement` is materialised only when a mound exists, exactly like [`LiveCover`].
+    pub fn refresh(&mut self, cover: &[StaticCoverObject], states: &[CoverState]) {
+        let unchanged = self.phases.len() == states.len()
+            && self.phases.iter().zip(states).all(|(phase, state)| *phase == state.phase);
+        if unchanged {
+            return;
+        }
+        self.sight = live_cover_for_sight_and_shells(cover, states).into_owned();
+        self.movement = states
+            .iter()
+            .any(|state| state.phase == CoverPhase::Rubble)
+            .then(|| live_cover_for_movement(cover, states).into_owned());
+        self.rubble = rubble_mounds(cover, states);
+        self.phases = states.iter().map(|state| state.phase).collect();
+    }
+
+    /// What stops a shell and hides a hull.
+    pub fn sight(&self) -> &[StaticCoverObject] {
+        &self.sight
+    }
+
+    /// What stops a HULL — rubble is climbable, so it parts from `sight` once a building falls.
+    pub fn movement(&self) -> &[StaticCoverObject] {
+        self.movement.as_deref().unwrap_or(&self.sight)
+    }
+
+    /// What a hull STANDS ON that the heightmap does not know: collapsed buildings, as debris.
+    pub fn rubble(&self) -> &[RubbleMound] {
+        &self.rubble
+    }
+}
+
 fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {
     phase_bytes
         .iter()
@@ -590,5 +650,43 @@ mod tests {
             None,
             "open air hits nothing"
         );
+    }
+
+    #[test]
+    fn the_cover_cache_matches_a_fresh_resolution_and_invalidates_on_phase_change() {
+        // One of each phase outcome: a building that rubbles, foliage that vanishes, an intact wall.
+        let cover = vec![
+            object("barn", StaticCoverKind::FarmBuilding, [0.0, 3.0, 0.0], [5.0, 3.0, 4.0]),
+            object("hedge", StaticCoverKind::TreeLine, [20.0, 2.0, 0.0], [10.0, 2.0, 1.0]),
+            object("wall", StaticCoverKind::StoneWall, [40.0, 1.0, 0.0], [4.0, 1.0, 0.5]),
+        ];
+        let states = cover_states_for(&cover);
+        let mut cache = CoverCache::default();
+
+        // Intact: the memo equals a fresh resolution, and with no rubble yet movement borrows sight.
+        cache.refresh(&cover, &states);
+        assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &states).as_ref());
+        assert_eq!(cache.movement(), live_cover_for_movement(&cover, &states).as_ref());
+        assert_eq!(cache.rubble(), rubble_mounds(&cover, &states).as_slice());
+        assert!(cache.rubble().is_empty(), "nothing is rubble yet");
+
+        // Bring the barn down (Rubble) and clear the hedge (Gone), then refresh: the memo must
+        // follow the new phases — a stale cache would keep blocking with cover the battle has lost.
+        let mut changed = states.clone();
+        damage_cover(&mut changed, &cover, 0, 10_000);
+        damage_cover(&mut changed, &cover, 1, 10_000);
+        assert_eq!(changed[0].phase, CoverPhase::Rubble);
+        assert_eq!(changed[1].phase, CoverPhase::Gone);
+
+        cache.refresh(&cover, &changed);
+        assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &changed).as_ref());
+        assert_eq!(cache.movement(), live_cover_for_movement(&cover, &changed).as_ref());
+        assert_eq!(cache.rubble(), rubble_mounds(&cover, &changed).as_slice());
+        assert_eq!(cache.rubble().len(), 1, "the barn is now a mound");
+        assert_ne!(cache.movement(), cache.sight(), "movement and sight part ways over rubble");
+
+        // Refreshing again with the SAME phases keeps the same answer (the steady-state borrow path).
+        cache.refresh(&cover, &changed);
+        assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &changed).as_ref());
     }
 }
