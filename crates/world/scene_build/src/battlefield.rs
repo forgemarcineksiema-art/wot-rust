@@ -1350,7 +1350,18 @@ fn terrain_scene_mesh_full(
             let i = (z * w + x) as u32;
             let right = i + 1;
             let down = i + w as u32;
-            indices.extend_from_slice(&[i, down, right, right, down, down + 1]);
+            // The diagonal is the SAME one the sim samples across
+            // (`terrain::cell_splits_on_main_diagonal`): one rule, one surface — and,
+            // unlike the old fixed anti-diagonal, symmetric under a fair map's mirror.
+            let h00 = heightmap.sample_at_index(x, z);
+            let h10 = heightmap.sample_at_index(x + 1, z);
+            let h01 = heightmap.sample_at_index(x, z + 1);
+            let h11 = heightmap.sample_at_index(x + 1, z + 1);
+            if terrain::cell_splits_on_main_diagonal(h00, h10, h01, h11) {
+                indices.extend_from_slice(&[i, down, down + 1, i, down + 1, right]);
+            } else {
+                indices.extend_from_slice(&[i, down, right, right, down, down + 1]);
+            }
         }
     }
     for &(x, z) in &cut {

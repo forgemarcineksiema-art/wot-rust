@@ -1,4 +1,3 @@
-use crate::sculpt::lerp;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -37,6 +36,21 @@ pub struct HeightMap {
     /// this from the replicated ledger via [`Self::set_craters`].
     #[serde(skip)]
     craters: crate::craters::CraterField,
+}
+
+/// Which diagonal a cell's two drawn triangles share: `true` = the MAIN diagonal
+/// (h00-h11), `false` = the ANTI diagonal (h10-h01). ONE rule for the sampler above and
+/// the render mesh (`scene_build::terrain_scene_mesh_full`), chosen per cell as the
+/// diagonal with the smaller height difference — the standard fidelity heuristic, and,
+/// unlike a fixed split, SYMMETRIC under the mirror a fair map is built on: mirroring
+/// swaps the two corner pairs, so the rule picks the same geometric diagonal on both
+/// halves and mirrored interior samples stay bit-equal (the fixed anti-diagonal broke
+/// exactly that, which the editor's fairness locks caught). Ties pick the main diagonal;
+/// a tie with nonzero twist is the one spot mirror equality can still slip, and authored
+/// terrain does not produce those twins.
+#[inline]
+pub fn cell_splits_on_main_diagonal(h00: f32, h10: f32, h01: f32, h11: f32) -> bool {
+    (h00 - h11).abs() <= (h10 - h01).abs()
 }
 
 impl HeightMap {
@@ -105,9 +119,31 @@ impl HeightMap {
 
         let tx = grid_x - x0 as f32;
         let tz = grid_z - z0 as f32;
-        let hx0 = lerp(self.sample_at_index(x0, z0), self.sample_at_index(x1, z0), tx);
-        let hx1 = lerp(self.sample_at_index(x0, z1), self.sample_at_index(x1, z1), tx);
-        let base = lerp(hx0, hx1, tz);
+        // The sampled surface IS the drawn surface: each cell splits into the two
+        // triangles the render mesh draws (`scene_build::terrain_scene_mesh_full` picks
+        // its diagonal with the same [`cell_splits_on_main_diagonal`] rule), so the
+        // ground a shell resolves against, the ground a sight line grazes and the ground
+        // the eye reads are ONE surface by construction. Bilinear interpolation was
+        // retired for exactly that seam: inside a twisted cell the two definitions
+        // diverged by up to 0.48 m on the shipped maps (the map-atlas ground-parity
+        // measurement), and "what blocks the shell blocks the eye" is a promise about
+        // this residual. Cell edges evaluate identically to bilinear, so cross-cell
+        // continuity and every edge-sampled value are untouched.
+        let h00 = self.sample_at_index(x0, z0);
+        let h10 = self.sample_at_index(x1, z0);
+        let h01 = self.sample_at_index(x0, z1);
+        let h11 = self.sample_at_index(x1, z1);
+        let base = if cell_splits_on_main_diagonal(h00, h10, h01, h11) {
+            if tx >= tz {
+                h00 + tx * (h10 - h00) + tz * (h11 - h10)
+            } else {
+                h00 + tz * (h01 - h00) + tx * (h11 - h01)
+            }
+        } else if tx + tz <= 1.0 {
+            h00 + tx * (h10 - h00) + tz * (h01 - h00)
+        } else {
+            h11 + (1.0 - tx) * (h01 - h11) + (1.0 - tz) * (h10 - h11)
+        };
         // The crater overlay (protocol v31). The empty-ledger check is a plain length load so
         // virgin ground — the overwhelming majority of samples in the hot loops — pays one
         // predictable branch; the deformed path is deliberately out-of-line (see `delta`).

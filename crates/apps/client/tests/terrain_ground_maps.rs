@@ -221,15 +221,21 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // tributaries, approach crests, the rail borrow ditch. Only Prokhorovka moved, and its
     // whole envelope held: all five contract suites, symmetry, playability BFS and the
     // hull-down census passed over the sculpted ground before this bless.
+    // Blessed again 2026-08-25 (surface parity), ALL EIGHT HASHES: `sample_height` stands
+    // on the render mesh's own triangle planes instead of a bilinear patch (the shared
+    // per-cell diagonal is the flatter one, mirror-symmetric on fair maps), so
+    // every texel sampled INSIDE a cell moved by up to the old twist residual (<= 0.48 m of
+    // ground; the classification and its weights rule are untouched). The drive and the
+    // picture keep reading one surface - now the same one the sim shoots and spots against.
     // Blessed again 2026-08-05 (teren C3): the Bystra sculpt session — first roads (the
     // gravel tracks and cobbled street splat as stone since A2), the second floodplain
     // terrace and swales (the moisture rule wets the wider lowland), the bridgehead bluffs
     // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0xb61e_5715_f3e5_3cda_u64, 0xd510_1fd3_8cfb_461d_u64),
-        (MapId::BystraValley, 0x784f_7027_fd7a_47ac, 0xff3d_ff4c_3740_6c61),
-        (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x6e4c_4dfb_0d92_aa12),
-        (MapId::Ostrogorsk, 0x4b6a_1ab6_9add_dbd8, 0xac6e_0948_2b47_9e51),
+        (MapId::ProkhorovkaHill252_2, 0x6562_9cd0_6d40_f32f_u64, 0xeca4_e313_ca58_d880_u64),
+        (MapId::BystraValley, 0x624c_74b0_1cb1_c388, 0xe671_a539_e8e2_81b0),
+        (MapId::OrlinyPereval, 0xcfe5_3851_bf87_55d4, 0x97bb_a288_deee_7e8c),
+        (MapId::Ostrogorsk, 0x4493_96c3_9f3d_9792, 0x3523_a71c_7d66_a610),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");
