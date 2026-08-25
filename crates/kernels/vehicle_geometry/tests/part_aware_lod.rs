@@ -3,10 +3,10 @@
 //! drops a required group to nothing, or moves a mount frame.
 
 use game_core::{MountFrames, VehicleKind};
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use vehicle_geometry::{
     BakedVehicle, GeometryMesh, GeometryVertex, LodAuditError, MaterialRole, PartImportance,
-    SmoothingGroup, Submesh, SubmeshKind, audit_reduction, reduce_mesh,
+    SmoothingGroup, Submesh, SubmeshKind, SurfaceMapping, audit_reduction, reduce_mesh,
 };
 
 /// A lat-long sphere of `radius` at `center` — a dense smooth shell with plenty of triangles to
@@ -36,6 +36,55 @@ fn sphere(center: Vec3, radius: f32) -> GeometryMesh {
         }
     }
     GeometryMesh::new(v, idx).weld_and_smooth()
+}
+
+#[test]
+fn reduction_carries_the_parametric_uv_chart_it_does_not_reset_to_triplanar() {
+    // A parametric-charted triangle (plates, wheels, track, fenders author uv0 like this). The
+    // reducer rebuilt every representative through `GeometryVertex::new`, which resets uv0 to zero
+    // and mapping to Triplanar — so at LOD1/LOD2 these surfaces lost their authored chart and their
+    // tangent-space normal detail, popping to triplanar projection at the LOD switch distance.
+    let uv = |x: f32, z: f32| Vec2::new(x, z);
+    let mesh = GeometryMesh::new(
+        vec![
+            GeometryVertex::new(
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::Y,
+                MaterialRole::RolledArmor,
+                SmoothingGroup(3),
+            )
+            .with_uv0(uv(0.0, 0.0)),
+            GeometryVertex::new(
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::Y,
+                MaterialRole::RolledArmor,
+                SmoothingGroup(3),
+            )
+            .with_uv0(uv(1.0, 0.0)),
+            GeometryVertex::new(
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::Y,
+                MaterialRole::RolledArmor,
+                SmoothingGroup(3),
+            )
+            .with_uv0(uv(0.0, 1.0)),
+        ],
+        vec![0, 1, 2],
+    );
+
+    // A grid fine enough that the three corners stay in distinct cells — the reduction is near
+    // identity, so what is under test is the representative rebuild, not the collapse.
+    let reduced = reduce_mesh(&mesh, 0.1);
+
+    assert_eq!(reduced.triangle_count(), 1, "the triangle survives this fine a grid");
+    assert!(
+        reduced.vertices().iter().all(|v| v.mapping == SurfaceMapping::ParametricUv),
+        "every reduced vertex keeps its parametric mapping, not a reset to Triplanar"
+    );
+    assert!(
+        reduced.vertices().iter().any(|v| v.uv0 != Vec2::ZERO),
+        "the authored uv0 chart survives reduction rather than being zeroed"
+    );
 }
 
 fn baked(hull: GeometryMesh, turret: GeometryMesh, gun: GeometryMesh) -> BakedVehicle {
