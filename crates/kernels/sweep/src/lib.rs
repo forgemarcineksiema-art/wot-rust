@@ -9,7 +9,9 @@
 mod frame;
 
 use glam::{Vec2, Vec3};
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, is_convex};
+use vehicle_geometry::{
+    GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, is_convex, signed_area,
+};
 
 use crate::frame::{Frame, fixed_up, parallel_transport, tangents};
 
@@ -104,8 +106,17 @@ pub fn try_sweep(spec: &SweepSpec<'_>) -> Result<GeometryMesh, SweepError> {
         }
     };
 
-    let rings = build_rings(&path.points, &frames, &section.points, spec);
-    let m = section.points.len();
+    // Normalize the section to CCW so the fixed cap/side winding below faces outward regardless of
+    // how the caller listed its points — the guard `loft` and `extrude` already carry, and the one
+    // this kernel alone was missing. `is_convex` (in `validate_spec`) is winding-agnostic, so a
+    // CW-but-convex section passed validation and then got inward-facing, lit-from-behind walls.
+    // Every section built today is already CCW, so this reverses nothing for them.
+    let mut section_points = section.points.clone();
+    if signed_area(&section_points) < 0.0 {
+        section_points.reverse();
+    }
+    let rings = build_rings(&path.points, &frames, &section_points, spec);
+    let m = section_points.len();
     let n = path.points.len();
     let mut indices = Vec::new();
     stitch_rings(&mut indices, n, m, path.closed, section.closed);
