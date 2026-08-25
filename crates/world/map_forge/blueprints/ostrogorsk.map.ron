@@ -78,6 +78,16 @@ MapBlueprint(
                 apply: Subtract,
                 terms: [Gauss2Term(x: 830.0, z: 500.0, sx: 12.0, sz: 14.0, amp: 7.0), Gauss2Term(x: 830.0, z: 270.0, sx: 12.0, sz: 10.0, amp: 7.0), Gauss2Term(x: 830.0, z: 730.0, sx: 12.0, sz: 10.0, amp: 7.0)],
             ),
+            // Teren W4 (audyt "Atlas Terenu", 2026-08-25): TWO MORE CUTS - and both born
+            // BRICKED. The berm's three doors were the whole east flank; these mirrored
+            // cuts between the crossing and the underpasses are dug like the others but
+            // sealed by masonry plugs (StoneWall cover below): a shell breaches the brick,
+            // thirty tonnes crush it, and a NEW route exists that did not at tick zero -
+            // destruction as the key to the map, on mechanisms the game already ships.
+            Gauss2(
+                apply: Subtract,
+                terms: [Gauss2Term(x: 830.0, z: 390.0, sx: 12.0, sz: 10.0, amp: 7.0), Gauss2Term(x: 830.0, z: 610.0, sx: 12.0, sz: 10.0, amp: 7.0)],
+            ),
             // Teren C4 (the dossier's own TODO): the berm "reads gently from deep east" -
             // so the east foot gets the BORROW DITCH every real embankment is dug from,
             // broken at the three gates the way real ditches break at crossings (two
@@ -445,6 +455,23 @@ MapBlueprint(
         ),
         // Burned-out hulls flanking the level crossing: the axis gate is pre-marked as the
         // fought-over door it will be.
+        Cover(
+            // The masonry plug in the south bricked cut: 150 HP of brick and a hull's
+            // shove between the fields and the far east - born INTACT (no "ruin" tag),
+            // opened only by fire or by thirty tonnes at speed.
+            id: "berm_plug_south",
+            name: "bricked cut (south plug)",
+            kind: StoneWall,
+            at: (Fixed(830.0), Fixed(390.0)),
+            half_extents_m: (1.0, 1.6, 9.0),
+        ),
+        Cover(
+            id: "berm_plug_north",
+            name: "bricked cut (north plug)",
+            kind: StoneWall,
+            at: (Fixed(830.0), Fixed(610.0)),
+            half_extents_m: (1.0, 1.6, 9.0),
+        ),
         Cover(
             id: "crossing_wreck_south",
             name: "burned-out hull at the level crossing (south)",

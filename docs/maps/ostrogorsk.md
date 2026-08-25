@@ -37,7 +37,14 @@ wall, Ostrogorsk is a **city + open outskirts hybrid** — every playstyle gets 
    far-side observation anchors.
 
 The signature mechanic: the berm is the east wall — the eastern routes ARE the gates, and
-the wreck-marked level crossing is the axis door both teams can pre-sight.
+the wreck-marked level crossing is the axis door both teams can pre-sight. Since the W4
+pass (Atlas audit, 2026-08-25) the wall also carries TWO BRICKED CUTS (z 390/610, mirrored,
+between the crossing and the underpasses): dug like the open gates but sealed by intact
+`StoneWall` plugs — a shell breaches the brick, thirty tonnes crush it, and a route exists
+at minute five that did not exist at tick zero. Destruction as the key to the map, locked
+by `a_bricked_cut_opens_by_demolition` (sim) and
+`the_bricked_cuts_are_drivable_ground_behind_intact_masonry` (map); the certified drive
+graph still runs through the three open gates only, so the new doors are EARNED.
 
 ## Playable Shape
 

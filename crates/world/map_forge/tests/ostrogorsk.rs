@@ -29,7 +29,10 @@ fn map() -> terrain::BattlefieldMap {
 #[test]
 fn the_berm_is_impassable_between_the_gates() {
     let map = map();
-    for z in [120.0, 200.0, 340.0, 400.0, 620.0, 660.0, 800.0, 880.0] {
+    // Probes updated for the W4 bricked cuts at z 390/610: the wall now stands between
+    // FIVE openings, and 430/570 are the new between-the-gates points (400/620 sit on the
+    // cut skirts).
+    for z in [120.0, 200.0, 340.0, 430.0, 570.0, 660.0, 800.0, 880.0] {
         let grade = max_grade(&map.heightmap, (790.0, z), (870.0, z));
         assert!(
             grade > 0.55,
@@ -160,4 +163,37 @@ fn the_parapets_ride_the_fill_and_the_elevator_compounds_are_whole() {
             "the elevator ensemble must include {id}"
         );
     }
+}
+
+/// Teren W4: the bricked cuts are REAL cuts sealed by REAL masonry. The terrain under
+/// each plug is drivable ground (the door is the brick, not the earth), the plugs stand
+/// on the map as intact StoneWall — crushable under thirty tonnes, breachable by fire,
+/// and gone means GONE (a StoneWall leaves no mound) — and the drive graph refuses them
+/// while sealed: the certified routes still run through the three open gates only.
+#[test]
+fn the_bricked_cuts_are_drivable_ground_behind_intact_masonry() {
+    let map = map();
+    for z in [390.0, 610.0] {
+        let grade = max_grade(&map.heightmap, (790.0, z), (870.0, z));
+        assert!(
+            grade < 0.5,
+            "the cut floor at z {z} must drive once the brick is gone (got {grade:.2})"
+        );
+    }
+    let mut plugs = 0;
+    for object in &map.static_cover {
+        if object.id.starts_with("berm_plug_") {
+            plugs += 1;
+            assert_eq!(object.kind, terrain::StaticCoverKind::StoneWall);
+            assert!(object.kind.is_crushable(), "thirty tonnes opens the brick");
+            assert!(!object.kind.leaves_rubble(), "a breached wall is a door, not a mound");
+            assert_eq!(
+                terrain::born_cover_phase_byte(object),
+                0,
+                "{} is born intact — the route must be EARNED",
+                object.id
+            );
+        }
+    }
+    assert_eq!(plugs, 2, "one plug per bricked cut, mirrored");
 }
