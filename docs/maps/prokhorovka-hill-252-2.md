@@ -29,6 +29,14 @@ WoT map anatomy as the genre reference.
      the west-facing crest shelf (crest x=726 / shelf x=752 — covers pushes from the
      centre) and the NEW axis-facing top ridge (a drawn Ridge stroke at z≈368/632 —
      covers the north–south standoff over the saddle).
+- **The Psel itself (teren W5, Atlas audit 2026-08-25):** the flank finally carries the
+  water it was named for — two mirrored lowland reaches hugging the west edge, ending in
+  the marsh at the railway embankment's foot (the embankment crosses the west edge too,
+  and its wall stands). Plateau-engineered beds under a 2.9 m table: a 0.6 m wading river
+  that CANNOT drown anyone by construction, wet only west of x 120, with the fighting
+  ground dry to margins (locked by `the_psel_wets_only_the_western_lowland_and_never_drowns`).
+  The naked-flank contract stands — the field window starts east of the reeds; the
+  westernmost walk of the bare flank is now a slow one, and the wading physics engage.
 - Flora (Świat 2.0): farm and field broadleaf scatters are procedural oaks (instanced LOD +
   trunk cover); procedural bushes retain the steppe's lowland vocabulary. Retired imported
   kinds are never authored.

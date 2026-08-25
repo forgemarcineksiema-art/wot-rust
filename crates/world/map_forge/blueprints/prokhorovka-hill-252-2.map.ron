@@ -181,10 +181,34 @@ MapBlueprint(
                 apply: Subtract,
                 terms: [Gauss1Term(center: 0.0, sigma: 140.0, amp: 4.0)],
             ),
+            // Teren W5 (audyt "Atlas Terenu", 2026-08-25): the PSEL. The western flank has
+            // carried the river's name since the first blueprint and never its water. Two
+            // lowland reaches hug the west edge - a mirrored pair, because the RAILWAY
+            // EMBANKMENT crosses the west edge too and its wall stands (each reach ends in
+            // the marsh at the railbed's foot, where the borrow ditch already wets the
+            // line). The beds are PLATEAU strokes, engineered flat under the global table
+            // below: depth is level-minus-target by construction, 0.6 m everywhere - a
+            // wading river that CANNOT drown anyone, deep enough that the naked flank's
+            // westernmost walk is a slow one. The scout's trade on the bare steppe is
+            // speed against the reeds.
+            Stroke(StrokeSpec(
+                points: [(36.0, 60.0), (34.0, 300.0), (35.0, 468.0)],
+                profile: Plateau(target_m: 2.3),
+                half_width_m: 8.0,
+                falloff_m: 13.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(35.0, 532.0), (34.0, 700.0), (36.0, 940.0)],
+                profile: Plateau(target_m: 2.3),
+                half_width_m: 8.0,
+                falloff_m: 13.0,
+            )),
             ClampMin(0.2),
         ],
     ),
-    water: None,
+    water: Some(WaterSpec(
+        surface_level_m: 2.9,
+    )),
     materials: Some(GroundMaterialsSpec(
         // Grey-green grass drifting to sun-dried straw, dirt roads, and the chalk that
         // breaks through Kursk crests. Albedos are the policy swatches.
