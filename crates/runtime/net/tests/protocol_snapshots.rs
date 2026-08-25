@@ -433,6 +433,25 @@ fn sample_breach_set() -> game_core::ArmorBreachSet {
     set
 }
 
+/// A run that regenerates the goldens must be RED, never green.
+///
+/// `REGEN_WIRE_FIXTURES=1` rewrites every `.hex` fixture to match whatever bytes the code emits
+/// THIS run — so every `*_is_stable` assertion above then compares the fresh bytes against the
+/// fixture it just wrote from those same bytes, and cannot fail. A regen run that reported green
+/// would silently bless a protocol change: the whole point of these goldens, inverted. This guard
+/// fails whenever the variable is set, so the intended workflow is the only green path — regen
+/// (this test RED, fixtures rewritten), then rerun WITHOUT the variable (this test green, protocol
+/// actually verified against the committed fixtures).
+#[test]
+fn a_regeneration_run_is_never_green() {
+    assert!(
+        std::env::var_os("REGEN_WIRE_FIXTURES").is_none(),
+        "REGEN_WIRE_FIXTURES is set: the wire goldens were just rewritten from this run's own \
+         bytes, so every stability test here is a tautology. Rerun the suite WITHOUT the variable \
+         to verify the protocol against the committed fixtures."
+    );
+}
+
 /// The golden wire fixture for `name`. Set `REGEN_WIRE_FIXTURES=1` while running these tests to
 /// rewrite the fixtures after a deliberate protocol bump, then rerun clean to verify.
 fn wire_fixture(bytes: &[u8], name: &str) -> String {
