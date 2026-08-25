@@ -220,7 +220,7 @@ fn hillshade(heightmap: &HeightMap, x: f32, z: f32) -> f32 {
     let normal = [-dx / normal_len, 2.0 * step / normal_len, -dz / normal_len];
     // Sun from the north-west (-x, +z in world; the raster draws north = +z at the top),
     // 45 degrees up.
-    let light = [-0.5, 0.70710678, 0.5];
+    let light = [-0.5, std::f32::consts::FRAC_1_SQRT_2, 0.5];
     let dot = normal[0] * light[0] + normal[1] * light[1] + normal[2] * light[2];
     0.55 + dot.max(0.0) * 0.6
 }
