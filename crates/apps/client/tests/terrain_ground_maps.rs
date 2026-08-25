@@ -221,6 +221,9 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // tributaries, approach crests, the rail borrow ditch. Only Prokhorovka moved, and its
     // whole envelope held: all five contract suites, symmetry, playability BFS and the
     // hull-down census passed over the sculpted ground before this bless.
+    // Blessed again 2026-08-26 (teren W2b): the Kamienna back-lane pair is COBBLE, and
+    // roads paint the splat - both Bystra hashes moved with the new stone lanes (and the
+    // crown in the macro normal). Only Bystra moved.
     // Blessed again 2026-08-25 (teren W5): the Prokhorovka Psel - both its hashes moved
     // (the reaches carve the west edge and the new water table wets the margin lane the
     // classifier reads). Only Prokhorovka moved.
@@ -242,7 +245,7 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
     for (map, splat, normals) in [
         (MapId::ProkhorovkaHill252_2, 0x9028_ea73_8ba3_6f5e_u64, 0x7d30_f9e6_9044_2f4a_u64),
-        (MapId::BystraValley, 0x0e7f_deef_4978_f2dd, 0x4d9a_c93d_a39c_7015),
+        (MapId::BystraValley, 0xd6cf_ed0c_d6be_34d5, 0x60a6_1b27_f521_1396),
         (MapId::OrlinyPereval, 0xcfe5_3851_bf87_55d4, 0x97bb_a288_deee_7e8c),
         (MapId::Ostrogorsk, 0xbed9_c9eb_8b15_08fb, 0x3e52_2c8c_ea8b_f9f2),
     ] {
