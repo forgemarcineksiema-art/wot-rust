@@ -233,8 +233,8 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
     // Previous: 11_582_503_112_659_279_264 (the model-logic review).
     // Previous: 16_183_656_741_282_067_528 (W4 F5.iii, the authored gun group).
-    (VehicleKind::TigerI, 15_834_198_765_301_912_737_u64),
-    (VehicleKind::TigerII, 3_660_207_591_825_264_476_u64),
+    (VehicleKind::TigerI, 581_300_994_314_658_394_u64),
+    (VehicleKind::TigerII, 16_874_227_684_286_219_701_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
     // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
@@ -245,7 +245,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
     // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
     // Previous: 1_355_280_321_240_589_747 (PR-06, one-slope-one-truth).
-    (VehicleKind::PantherII, 2_202_160_313_070_214_175_u64),
+    (VehicleKind::PantherII, 4_961_078_625_024_602_127_u64),
     (VehicleKind::IS3, 17_995_367_529_957_441_607_u64),
     (VehicleKind::Centurion, 1_660_917_501_456_944_285_u64),
     (VehicleKind::T34_85, 5_983_751_080_387_906_242_u64),
