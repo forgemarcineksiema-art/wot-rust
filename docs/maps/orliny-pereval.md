@@ -66,10 +66,16 @@ decide the mid-game").
 
 - Spawns: team 1 (500, 140) facing north, team 2 (500, 860) facing south — flat aprons,
   roughly equidistant from all three gates.
-- 13 strategic points: Orlinoye hamlet (Observation, axis), Sokol + Oryol summits
+- 15 strategic points: Orlinoye hamlet (Observation, axis), Sokol + Oryol summits
   (HighGround, axis), Dolina col + defile gate (Crossing, axis), 4 hull-down shelf points
   (mirrored pairs on the Sokol shoulder and the Oryol face), west rim overwatch pair
-  (Observation), defile mouth pair (FlankRoute).
+  (Observation), defile mouth pair (FlankRoute) — and, since the W3
+  counter-perch pass (Atlas audit, 2026-08-25), the EAST rim overwatch pair (Observation,
+  930, 220/780): the knolls stand proud of the defile approach and of the bowl toward the
+  Oryol face, while the pass col sits beyond the longest parked view range (516 m > 440 m),
+  so the side that lost the summits finally has a standoff answer on the defile flank
+  without the perch reaching into the middle lane (locked by
+  `the_east_rim_answers_the_defile_flank_but_not_the_col`).
 - The two on-axis Crossing points name the massif gates for the bots' route planner; the
   water-crossing machinery never fires on a dry map (`bot_routes` helpers return "safe" with
   no water body).

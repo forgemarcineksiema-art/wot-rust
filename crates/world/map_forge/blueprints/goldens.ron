@@ -2,6 +2,12 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-25 (teren W3, Orliny only): the east rim overwatch pair is NAMED
+    // (930, 220/780) - the audit's anti-snowball register: the west rim always had its
+    // pair, the east knolls carried no position, and whoever took the summits owned the
+    // defile flank unopposed. Data-only (two strategic points; the terrain program is
+    // untouched): the knolls already stand proud of the defile approach, and the col
+    // stays out of reach by the game's own optics (516 m > the 440 m longest view).
     // Re-blessed 2026-08-25 (teren W2, Bystra only): the approach sculpt the Atlas audit
     // demanded - 3 m flood-levees masking the ford and plank walks (1.7 m proved nearly
     // transparent to the 0.3 m sight slack: measured, raised, re-measured), census-band
@@ -79,7 +85,7 @@
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
     ("bystra_valley", "3586811d6ff312c1"),
-    ("orliny_pereval", "c509af00486384c4"),
+    ("orliny_pereval", "4ae506aa7b153c82"),
     ("ostrogorsk", "b87b86f93cf274b5"),
     ("prokhorovka_hill_252_2", "7c164cc3d65b2d43"),
 ]
