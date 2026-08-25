@@ -195,6 +195,53 @@ MapBlueprint(
             at: (Fixed(700.0), Fixed(568.0)),
             half_extents_m: (5.0, 1.1, 0.8),
         ),
+        // Teren W3b: the defile finally WEARS the stone it plays as. Three mirrored crag
+        // pairs hug the knuckle feet inside the slot - honest cover boxes (the road
+        // corridor stays clear by the drive graph's own hull margin), so the knife-fight
+        // lane has walls a burta can actually lean on, and the eye sees the granite the
+        // splat always claimed.
+        Cover(
+            id: "defile_crag_west_south",
+            name: "defile crag (west wall, south)",
+            kind: Crag,
+            at: (Fixed(808.0), Fixed(478.0)),
+            half_extents_m: (5.5, 2.8, 3.4),
+        ),
+        Cover(
+            id: "defile_crag_west_north",
+            name: "defile crag (west wall, north)",
+            kind: Crag,
+            at: (Fixed(808.0), Fixed(522.0)),
+            half_extents_m: (5.5, 2.8, 3.4),
+        ),
+        Cover(
+            id: "defile_crag_east_south",
+            name: "defile crag (east wall, south)",
+            kind: Crag,
+            at: (Fixed(872.0), Fixed(486.0)),
+            half_extents_m: (5.0, 2.4, 3.0),
+        ),
+        Cover(
+            id: "defile_crag_east_north",
+            name: "defile crag (east wall, north)",
+            kind: Crag,
+            at: (Fixed(872.0), Fixed(514.0)),
+            half_extents_m: (5.0, 2.4, 3.0),
+        ),
+        Cover(
+            id: "defile_crag_mouth_south",
+            name: "defile mouth crag (south)",
+            kind: Crag,
+            at: (Fixed(852.0), Fixed(452.0)),
+            half_extents_m: (4.0, 2.0, 2.8),
+        ),
+        Cover(
+            id: "defile_crag_mouth_north",
+            name: "defile mouth crag (north)",
+            kind: Crag,
+            at: (Fixed(852.0), Fixed(548.0)),
+            half_extents_m: (4.0, 2.0, 2.8),
+        ),
         Cover(
             id: "defile_wreck_south",
             name: "burned-out hull at the defile mouth (south)",

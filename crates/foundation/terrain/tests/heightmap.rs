@@ -117,3 +117,37 @@ fn mirrored_maps_sample_mirrored_ground_between_nodes() {
     }
     assert!(probes > 300, "the sweep actually probed the interior ({probes})");
 }
+
+/// Teren W3b: a crag never floats. Seated on a slope, its box bottom sits at or below the
+/// ground under EVERY footprint corner — the stone sinks into the hill instead of hovering
+/// at the downhill edge the way a centre-seated axis-aligned box would.
+#[test]
+fn a_crag_seats_into_the_slope_it_stands_on() {
+    let heightmap = terrain::heightmap_from_fn(21, 5.0, |x, _| x * 0.4); // a steady 0.4 slope in x
+    let crag = terrain::grounded_cover(
+        &heightmap,
+        "crag",
+        "crag",
+        terrain::StaticCoverKind::Crag,
+        [50.0, 50.0],
+        [5.0, 2.5, 3.0],
+    );
+    let bottom = crag.center[1] - crag.half_extents_m[1];
+    for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        let corner_ground = heightmap.sample_height(50.0 + sx * 5.0, 50.0 + sz * 3.0).unwrap();
+        assert!(
+            bottom <= corner_ground + 1.0e-4,
+            "the crag floats at a corner: bottom {bottom} over ground {corner_ground}"
+        );
+    }
+    // And an ordinary building still seats at its centre ground.
+    let barn = terrain::grounded_cover(
+        &heightmap,
+        "barn",
+        "barn",
+        terrain::StaticCoverKind::FarmBuilding,
+        [50.0, 50.0],
+        [5.0, 2.5, 3.0],
+    );
+    assert!((barn.center[1] - (20.0 + 2.5)).abs() < 1.0e-3);
+}

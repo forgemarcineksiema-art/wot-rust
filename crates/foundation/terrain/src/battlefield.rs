@@ -90,6 +90,13 @@ pub enum StaticCoverKind {
     /// and its wreckage is the same stumps-and-fallen-trunk dressing. Appended last — the
     /// order is frozen.
     TreeTrunk,
+    /// A granite crag (teren W3b, Atlas audit): the honest BIG rock the scenery rules could
+    /// never carry — solid scenery must stay under the 0.40 m belly line, and a
+    /// metre-and-more of stone that reads as cover MUST be cover. Indestructible like a
+    /// rail embankment (shellfire does not demolish granite), never crushable, and the bake
+    /// composes faceted blocks strictly inside the collision box: what stops the shell is
+    /// what the eye sees. Appended last — the order is frozen.
+    Crag,
 }
 
 impl StaticCoverKind {
@@ -97,7 +104,7 @@ impl StaticCoverKind {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [StaticCoverKind; 8] = [
+    pub const ALL: [StaticCoverKind; 9] = [
         StaticCoverKind::FarmBuilding,
         StaticCoverKind::RailCover,
         StaticCoverKind::TreeLine,
@@ -106,6 +113,7 @@ impl StaticCoverKind {
         StaticCoverKind::CityBuilding,
         StaticCoverKind::StoneWall,
         StaticCoverKind::TreeTrunk,
+        StaticCoverKind::Crag,
     ];
 
     /// Structural health before the object is destroyed; `None` is indestructible (rail
@@ -124,7 +132,7 @@ impl StaticCoverKind {
             StaticCoverKind::StoneWall => Some(150),
             // Any shell sweeps a fence span away (the kinetic chip already deals 80).
             StaticCoverKind::WoodenFence => Some(40),
-            StaticCoverKind::RailCover | StaticCoverKind::Wreck => None,
+            StaticCoverKind::RailCover | StaticCoverKind::Wreck | StaticCoverKind::Crag => None,
         }
     }
 

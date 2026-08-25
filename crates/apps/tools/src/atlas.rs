@@ -505,6 +505,7 @@ pub fn tactical_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
             StaticCoverKind::WoodenFence => [188, 158, 92],
             StaticCoverKind::StoneWall => [158, 122, 92],
             StaticCoverKind::TreeTrunk => [92, 62, 32],
+            StaticCoverKind::Crag => [118, 116, 110],
         };
         fill_box(&mut raster, &frame, object, color, 1.0);
     }

@@ -2,6 +2,15 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-26 (teren W3b, Orliny only): the defile WEARS its stone - six
+    // mirrored CRAG boxes hug the knuckle feet in the slot. Crag is the NEW ninth cover
+    // kind (identity-enum golden extended): the honest big rock scenery could never carry
+    // (solid dressing stays under the 0.40 m belly line) - indestructible, uncrushable,
+    // baked as jointed granite blocks strictly inside the collision box, and SEATED on the
+    // lowest footprint corner so a crag on a slope sinks into the hill instead of
+    // hovering at its downhill edge (the first render caught two floaters; the seating
+    // rule is locked in terrain's tests). The defile road corridor stays clear by the
+    // drive graph's own hull margin.
     // Re-blessed 2026-08-26 (teren W2b, Bystra only): the town the cobbles always claimed.
     // The market-facing row leaves the timber grid and returns as eight MASONRY kamienice
     // (~11.4 m - capped by the destruction doctrine, not taste: 0.18 of the 14 m first cut
@@ -107,7 +116,7 @@
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
     ("bystra_valley", "3161e30ae33d03ed"),
-    ("orliny_pereval", "4ae506aa7b153c82"),
+    ("orliny_pereval", "80dc2598aeeed46a"),
     ("ostrogorsk", "f4cd7a1809c1d9ba"),
     ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
 ]

@@ -721,6 +721,72 @@ fn append_cover_box(
         // wave U). Semantics are final; only the dressing is interim.
         StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
         StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
+        StaticCoverKind::Crag => append_crag(vertices, indices, cover, center, half),
+    }
+}
+
+/// A granite crag (teren W3b): jointed blocks, not a boulder — a scree plinth carrying a
+/// stagger of joint-split columns, every block STRICTLY inside the collision box (what
+/// stops the shell is what the eye sees; nothing pokes past the footprint). Deterministic
+/// per crag: block heights and offsets grow from the cover's own position, so mirrored
+/// twins wear mirrored stone and a recompile never reshuffles a face.
+fn append_crag(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+    center: Vec3,
+    half: Vec3,
+) {
+    const GRANITE: [f32; 3] = [0.34, 0.33, 0.31];
+    const GRANITE_LIT: [f32; 3] = [0.39, 0.38, 0.35];
+    const GRANITE_SHADE: [f32; 3] = [0.29, 0.29, 0.28];
+    const GLOSS: f32 = 0.12;
+    let ground_y = center.y - half.y;
+    let unit = |salt: u64| terrain::position_unit(cover.center[0], cover.center[2], salt);
+
+    // The scree plinth: a broad low slab seating the whole footprint.
+    let plinth_h = half.y * (0.28 + unit(0xC401) * 0.10);
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + plinth_h, center.z),
+        Vec3::new(half.x * 0.96, plinth_h, half.z * 0.93),
+        GRANITE_SHADE,
+        GLOSS,
+    );
+
+    // Joint-split columns: staggered along the crag's long axis, tallest near the middle,
+    // each clamped inside the box in every axis.
+    let along_x = half.x >= half.z;
+    let columns = 4;
+    for column in 0..columns {
+        let t = (column as f32 + 0.5) / columns as f32;
+        let salt = 0xC410 + column as u64;
+        let peak = 1.0 - (t - 0.5).abs() * 0.9;
+        let col_h = half.y * (0.55 + peak * 0.45 - unit(salt) * 0.12).clamp(0.4, 1.0);
+        let (long_half, thin_half) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+        let col_long = long_half * (0.16 + unit(salt + 8) * 0.10);
+        let col_thin = thin_half * (0.62 + unit(salt + 16) * 0.25);
+        let long_center = (t * 2.0 - 1.0) * (long_half - col_long) * 0.92;
+        let thin_center = (unit(salt + 24) - 0.5) * (thin_half - col_thin) * 1.2;
+        let (dx, dz, hx, hz) = if along_x {
+            (long_center, thin_center, col_long, col_thin)
+        } else {
+            (thin_center, long_center, col_thin, col_long)
+        };
+        let tone = match column % 3 {
+            0 => GRANITE,
+            1 => GRANITE_LIT,
+            _ => GRANITE_SHADE,
+        };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x + dx, ground_y + col_h, center.z + dz),
+            Vec3::new(hx, col_h, hz),
+            tone,
+            GLOSS,
+        );
     }
 }
 
