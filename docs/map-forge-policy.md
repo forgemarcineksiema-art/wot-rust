@@ -37,7 +37,10 @@ re-canonicalizable by construction):
 - `water`: standing water level (depth is `level − ground` by construction).
 - `objects`: grounded cover boxes and mirrored town grids, in document order.
 - `scenery`: seeded, mirrored scatter/row/fixed dressing with declarative exclusion rules.
-- `roads`: painted polylines (render-only), explicit or mirrored pairs.
+- `roads`: painted polylines, explicit or mirrored pairs — and DRIVEN, not render-only:
+  since teren A2 the surface routes the ground rule (Ballast/Cobble take the rock lane,
+  grip 1.04 / rolling 0.9; Dirt wears to worn earth), so laying or moving a road retunes
+  every drive across it (locked by `a_paved_road_is_never_the_slowest_ground`).
 - `gameplay`: spawn zones, strategic points, named features.
 
 ### The op vocabulary

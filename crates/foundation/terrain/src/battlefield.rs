@@ -201,9 +201,13 @@ impl RoadSurface {
         [RoadSurface::Dirt, RoadSurface::Ballast, RoadSurface::Cobble];
 }
 
-/// A render-only road: a polyline in world XZ painted onto the terrain vertices as worn
-/// ground. Purely presentation — no collision, no movement bonus, no concealment change —
-/// so the paint can follow the readable line without gameplay side effects.
+/// A road: a polyline in world XZ painted onto the terrain — and DRIVEN. No collision and
+/// no concealment change, but the surface routes the ground rule (teren A2): Ballast and
+/// Cobble claim the rock lane (grip 1.04 / rolling 0.9), Dirt wears the ground to worn
+/// earth (0.95 / 1.35), and physics reads those scales on the deterministic path — locked
+/// by `a_paved_road_is_never_the_slowest_ground`. A road is sim input, not decoration:
+/// moving one retunes every drive across it. (This doc used to say "render-only, no
+/// movement bonus", which had been false since the stone lane landed.)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Road {
     pub id: String,
@@ -260,8 +264,8 @@ pub struct BattlefieldMap {
     /// `serde(default)` keeps pre-scenery baked assets deserializing.
     #[serde(default)]
     pub scenery: Vec<SceneryInstance>,
-    /// Render-only roads painted onto the terrain (see [`Road`]). `serde(default)` keeps
-    /// pre-road baked assets deserializing.
+    /// Roads painted onto the terrain AND fed to the ground rule — a paved lane drives as
+    /// stone (see [`Road`]). `serde(default)` keeps pre-road baked assets deserializing.
     #[serde(default)]
     pub roads: Vec<Road>,
 }
