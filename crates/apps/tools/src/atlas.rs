@@ -233,7 +233,7 @@ fn shade(color: [u8; 3], factor: f32) -> [u8; 3] {
     ]
 }
 
-fn lerp3(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
+fn atlas_lerp_rgb(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
     let t = t.clamp(0.0, 1.0);
     [
         (a[0] as f32 + (b[0] as f32 - a[0] as f32) * t) as u8,
@@ -251,7 +251,7 @@ fn mix64(state: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
-fn unit(state: &mut u64) -> f32 {
+fn atlas_unit(state: &mut u64) -> f32 {
     (mix64(state) >> 40) as f32 / ((1u64 << 24) - 1) as f32
 }
 
@@ -330,7 +330,11 @@ pub fn form_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
             let mut color = ramp[ramp.len() - 1].1;
             for pair in ramp.windows(2) {
                 if t <= pair[1].0 {
-                    color = lerp3(pair[0].1, pair[1].1, (t - pair[0].0) / (pair[1].0 - pair[0].0));
+                    color = atlas_lerp_rgb(
+                        pair[0].1,
+                        pair[1].1,
+                        (t - pair[0].0) / (pair[1].0 - pair[0].0),
+                    );
                     break;
                 }
             }
@@ -343,13 +347,17 @@ pub fn form_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
             if band(h) != band(h_right) || band(h) != band(h_up) {
                 let major = band(h.max(h_right).max(h_up)) % 5 == 0;
                 let alpha = if major { 0.5 } else { 0.22 };
-                color = lerp3(color, [40, 32, 24], alpha);
+                color = atlas_lerp_rgb(color, [40, 32, 24], alpha);
             }
             if let Some(water) = &map.water {
                 let depth = water.depth_over(h);
                 if depth > 0.0 {
                     let deep = (depth / sim::DROWN_DEPTH_M).clamp(0.0, 1.0);
-                    color = lerp3(color, lerp3([90, 140, 190], [16, 44, 108], deep), 0.85);
+                    color = atlas_lerp_rgb(
+                        color,
+                        atlas_lerp_rgb([90, 140, 190], [16, 44, 108], deep),
+                        0.85,
+                    );
                 }
             }
             raster.px[py * frame.width + px] = color;
@@ -387,7 +395,7 @@ pub fn ground_layer(map: &BattlefieldMap, classifier: &GroundClassifier, res_m: 
             if let Some(water) = &map.water {
                 let depth = water.depth_over(height_clamped(heightmap, x, z));
                 if depth > 0.0 {
-                    color = lerp3(color, [30, 70, 140], 0.8);
+                    color = atlas_lerp_rgb(color, [30, 70, 140], 0.8);
                 }
             }
             raster.px[py * frame.width + px] = color;
@@ -470,7 +478,7 @@ pub fn tactical_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
             if let Some(water) = &map.water {
                 let depth = water.depth_over(height_clamped(heightmap, x, z));
                 if depth > 0.0 {
-                    color = lerp3(color, [40, 90, 160], 0.85);
+                    color = atlas_lerp_rgb(color, [40, 90, 160], 0.85);
                 }
             }
             raster.px[py * frame.width + px] = color;
@@ -754,17 +762,17 @@ pub fn exposure_layer(map: &BattlefieldMap, field: &ExposureField, res_m: f32) -
                 ExposureClass::NotStandable => [70, 74, 82],
                 ExposureClass::Hidden => [238, 238, 228],
                 ExposureClass::HullDown => {
-                    lerp3([120, 156, 240], [50, 84, 210], (seen * 3.0).min(1.0))
+                    atlas_lerp_rgb([120, 156, 240], [50, 84, 210], (seen * 3.0).min(1.0))
                 }
                 ExposureClass::Exposed => {
-                    lerp3([242, 210, 160], [200, 34, 26], (seen * 2.5).min(1.0))
+                    atlas_lerp_rgb([242, 210, 160], [200, 34, 26], (seen * 2.5).min(1.0))
                 }
             };
             let mut color = shade(color, hillshade(&map.heightmap, x, z).clamp(0.75, 1.1));
             if let Some(water) = &map.water {
                 let depth = water.depth_over(height_clamped(&map.heightmap, x, z));
                 if depth >= FORD_MAX_DEPTH_M {
-                    color = lerp3(color, [18, 46, 110], 0.8);
+                    color = atlas_lerp_rgb(color, [18, 46, 110], 0.8);
                 }
             }
             raster.px[py * frame.width + px] = color;
@@ -903,10 +911,10 @@ fn engagement_bands(map: &BattlefieldMap, cover: &[StaticCoverObject]) -> Vec<(f
     let mut attempts = 0usize;
     while sampled < 6000 && attempts < 120_000 {
         attempts += 1;
-        let ax = 20.0 + unit(&mut state) * (map.size_m[0] - 40.0);
-        let az = 20.0 + unit(&mut state) * (map.size_m[1] - 40.0);
-        let bx = 20.0 + unit(&mut state) * (map.size_m[0] - 40.0);
-        let bz = 20.0 + unit(&mut state) * (map.size_m[1] - 40.0);
+        let ax = 20.0 + atlas_unit(&mut state) * (map.size_m[0] - 40.0);
+        let az = 20.0 + atlas_unit(&mut state) * (map.size_m[1] - 40.0);
+        let bx = 20.0 + atlas_unit(&mut state) * (map.size_m[0] - 40.0);
+        let bz = 20.0 + atlas_unit(&mut state) * (map.size_m[1] - 40.0);
         let distance = ((ax - bx).powi(2) + (az - bz).powi(2)).sqrt();
         let Some(band) = bands.iter().position(|&edge| distance <= edge) else {
             continue;
