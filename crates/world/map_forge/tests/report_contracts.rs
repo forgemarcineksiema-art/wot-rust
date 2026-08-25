@@ -561,3 +561,52 @@ fn scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover() {
         "a tree standing inside a barn must be reported"
     );
 }
+
+/// The drive graph speaks for a hull, not a point: a slot wide enough for a grid node to
+/// clear the old hand-written 0.3 m margin but far too narrow for the fleet's widest hull
+/// must refuse the route. The east wall leaves a 2.4 m slot centred on the node at z = 150
+/// — exactly the geometry the old gate certified and the battle then walled off.
+#[test]
+fn a_gap_narrower_than_the_widest_hull_does_not_certify_a_route() {
+    use map_forge::blueprint::{ObjectSpec, StrategicPointSpec, XCoord};
+    let mut walled = flat_square();
+    let wall = |id: &str, x: f32, z: f32, half: [f32; 3]| ObjectSpec::Cover {
+        id: id.into(),
+        name: "wall".into(),
+        kind: terrain::StaticCoverKind::FarmBuilding,
+        at: [XCoord::Fixed(x), XCoord::Fixed(z)],
+        half_extents_m: half,
+    };
+    walled.objects.push(wall("wall_n", 150.0, 130.0, [20.0, 3.0, 2.0]));
+    walled.objects.push(wall("wall_s", 150.0, 170.0, [20.0, 3.0, 2.0]));
+    walled.objects.push(wall("wall_w", 130.0, 150.0, [2.0, 3.0, 20.0]));
+    // The east wall in two runs, leaving the 2.4 m slot centred on the node at z = 150.
+    walled.objects.push(wall("wall_e_n", 170.0, 159.4, [2.0, 3.0, 8.2]));
+    walled.objects.push(wall("wall_e_s", 170.0, 140.6, [2.0, 3.0, 8.2]));
+    walled.gameplay.strategic_points.push(StrategicPointSpec {
+        id: "courtyard".into(),
+        name: "the slotted yard".into(),
+        role: terrain::StrategicRole::Observation,
+        at: [XCoord::Fixed(150.0), XCoord::Fixed(150.0)],
+        radius_m: 10.0,
+    });
+    let (_, report) = compile(&walled);
+    assert!(
+        report
+            .errors()
+            .any(|entry| entry.check == "playability" && entry.message.contains("unreachable")),
+        "a 2.4 m slot is a wall to a 3.5 m hull - the route must be refused"
+    );
+}
+
+/// The margin is the fleet's own measurement, not a number someone typed: the widest
+/// hull's half-width, so a new wider vehicle moves the gate without anyone remembering to.
+#[test]
+fn the_passability_margin_is_the_fleet_measurement() {
+    let widest = game_core::VehicleKind::ALL
+        .iter()
+        .map(|kind| kind.spec().hitbox.half_width_m)
+        .fold(0.0, f32::max);
+    assert!(widest > 1.5, "the fleet fields real hulls (got {widest})");
+    assert_eq!(map_forge::cover_passability_margin_m(), widest);
+}
