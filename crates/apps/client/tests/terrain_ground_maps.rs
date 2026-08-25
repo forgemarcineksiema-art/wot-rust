@@ -221,6 +221,9 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // tributaries, approach crests, the rail borrow ditch. Only Prokhorovka moved, and its
     // whole envelope held: all five contract suites, symmetry, playability BFS and the
     // hull-down census passed over the sculpted ground before this bless.
+    // Blessed again 2026-08-25 (teren W2): the Bystra approach sculpt - 3 m levees, east
+    // bank lips, bocage - moved BOTH Bystra hashes (the levees carry rock-break on their
+    // climbs and the moisture rule re-drains around the new banks). Only Bystra moved.
     // Blessed again 2026-08-25 (surface parity), ALL EIGHT HASHES: `sample_height` stands
     // on the render mesh's own triangle planes instead of a bilinear patch (the shared
     // per-cell diagonal is the flatter one, mirror-symmetric on fair maps), so
@@ -233,7 +236,7 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
     for (map, splat, normals) in [
         (MapId::ProkhorovkaHill252_2, 0x6562_9cd0_6d40_f32f_u64, 0xeca4_e313_ca58_d880_u64),
-        (MapId::BystraValley, 0x624c_74b0_1cb1_c388, 0xe671_a539_e8e2_81b0),
+        (MapId::BystraValley, 0x0e7f_deef_4978_f2dd, 0x4d9a_c93d_a39c_7015),
         (MapId::OrlinyPereval, 0xcfe5_3851_bf87_55d4, 0x97bb_a288_deee_7e8c),
         (MapId::Ostrogorsk, 0x4493_96c3_9f3d_9792, 0x3523_a71c_7d66_a610),
     ] {

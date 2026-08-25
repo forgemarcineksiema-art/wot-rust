@@ -2,6 +2,14 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-25 (teren W2, Bystra only): the approach sculpt the Atlas audit
+    // demanded - 3 m flood-levees masking the ford and plank walks (1.7 m proved nearly
+    // transparent to the 0.3 m sight slack: measured, raised, re-measured), census-band
+    // lips (1.6 m) on the east bank answering Windmill Hill, four bocage TreeLine pairs,
+    // and the market-square capture zone (the DEFAULT map finally carries an objective).
+    // Exposure moved honestly: clear-LOS at 200-550 m fell ~6 pp across every band and the
+    // hull-down share doubled; the fightable-crest inventory is ratcheted at >= 26 (30
+    // measured). Only Bystra moved.
     // Re-blessed 2026-08-25 (surface parity), ALL FOUR MAPS: `sample_height` now stands on
     // the SAME triangle planes the render mesh draws — the bilinear patch is retired,
     // closing the measured sim-vs-eye ground seam (worst 0.48 m, Bystra north plank bank;
@@ -70,7 +78,7 @@
     // the program's only GAMEPLAY-shaping wave, shipped behind the user's eye verdict with
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
-    ("bystra_valley", "5a385944345d100b"),
+    ("bystra_valley", "3586811d6ff312c1"),
     ("orliny_pereval", "c509af00486384c4"),
     ("ostrogorsk", "b87b86f93cf274b5"),
     ("prokhorovka_hill_252_2", "7c164cc3d65b2d43"),

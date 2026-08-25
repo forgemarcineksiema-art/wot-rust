@@ -74,6 +74,36 @@ relief of six centimetres. The session gives it:
   vanguard reaches the crossing corridor (51 m of margin), and at least one seed takes the
   far bank outright (221 m of margin, seed 5 takes the town).
 
+## The W2 approach sculpt (Atlas audit, 2026-08-25)
+
+The terrain atlas (`cargo run --release -p tools -- map-atlas`) read the valley as an OPEN
+BOOK: ~10% of standable ground hidden from the enemy half, a 0.3-1.5% hull-down band, 54%
+clear sight lines even at 400-550 m - every metre of the march to the crossings under eyes.
+The sculpt answers with the grammar a floodplain honestly carries:
+
+- **3 m flood-levees** (mirrored pairs, west of the fords and on the mill side): movement
+  masks for the crossing walks, breached by the valley road at its own gate. Measured, not
+  guessed: the first cut laid 1.7 m banks and the exposure sweep did not move - the sight
+  rule's 0.3 m graze slack plus a 2.53 m turret makes anything under ~3 m nearly
+  transparent at range. Crossing a levee anywhere is a slow 0.56-grade climb by design.
+- **East-bank lips** (CrestShelf 1.6 m, census-band): the far bank finally answers Windmill
+  Hill with hull-down of its own over the bridge and fords.
+- **Four bocage TreeLine pairs**: the honest mass-masker - an 8 m hedgerow blocks what no
+  tank-scale earthwork can.
+- **The market-square capture zone** (745, 500, r 28): the DEFAULT map carries an objective
+  at last; the brawl flank holds it, the crossings feed it, the windmill overwatches it.
+
+Re-measured after the sculpt (final geometry): clear-LOS fell across every long band
+(200-300: 75.6→70.9%, 300-400: 62.1→57.3%, 400-550: 53.8→48.7%), the hull-down share
+grew (S 1.5→1.7%, N 0.3→0.8%), and the fightable-crest inventory is ratcheted at ≥28
+(32 measured, `bystra_carries_a_fightable_crest_inventory`). The reticle seam ratchet
+holds at its 10-per-ten-thousand ceiling (master baseline 7 — the four 3 m levees cost
+~3 poses; falloff 10 and lips at sigma 8 are where the seam and the census stop pulling
+the knife apart). Two fixture covenants surfaced and are honoured: the west bocage
+dodges BOTH the predictor's warm-up steering circle and the practice-duel corridor at
+(340, 300)-(340, 340) — a crushable hedge in either exposed the predictor's
+cover-crush seam, filed for the netcode register.
+
 ## Status
 
 DEFAULT battle map (the opt-in gate now selects AWAY from it); historical note: playable behind the opt-in gate: set `WOT_MAP=bystra-valley` before launching the client.
