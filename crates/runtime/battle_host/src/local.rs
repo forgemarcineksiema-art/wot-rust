@@ -246,16 +246,14 @@ impl LocalAuthoritativeServer {
         // keeps hiding behind a flattened building and refuses to fire through the hole it just
         // made. The pristine common case borrows the authored slice; only a battle that has
         // damaged cover pays for building the live view.
-        let live_cover = sim::live_cover_for_sight_and_shells(
-            &self.battlefield.static_cover,
-            self.sim.cover_states(),
-        );
+        self.sim.refresh_live_cover(&self.battlefield.static_cover);
+        let live_cover = self.sim.cached_sight_cover();
         commands.extend(self.bots.commands(
             self.sim.tick(),
             self.sim.tanks(),
             &self.battlefield,
             self.sim.ground(),
-            &live_cover,
+            live_cover,
             battle_over,
             self.sim.damage_events(),
         ));

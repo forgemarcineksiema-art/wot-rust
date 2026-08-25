@@ -60,6 +60,13 @@ pub struct SimulationState {
     /// cover derived from it. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
     #[serde(default)]
     cover_states: Vec<crate::cover_damage::CoverState>,
+    /// Memoized live-cover resolution derived from `cover_states` — the tick borrows it instead of
+    /// re-cloning the whole cover slice every frame once something is broken (see
+    /// [`crate::cover_damage::CoverCache`]). Pure derived state: `serde(skip)` keeps it off the wire
+    /// and out of saved states (rebuilt on the first tick), and its always-equal `PartialEq` keeps it
+    /// out of state equality. `cover_states` remains the one authoritative source.
+    #[serde(skip)]
+    live_cover_cache: crate::cover_damage::CoverCache,
     /// The battle's crater ledger (protocol v31): quantized records of every high-explosive
     /// ground burst, appended by the shell step and folded into the heightmap overlay by the
     /// battlefield owner. `serde(default)` keeps pre-v31 fixtures loading with virgin ground.
@@ -113,6 +120,7 @@ impl SimulationState {
             water: None,
             ground: None,
             cover_states: Vec::new(),
+            live_cover_cache: crate::cover_damage::CoverCache::default(),
             craters: Vec::new(),
             cover_scars: Vec::new(),
             last_battle_event_id: BattleEventId::default(),
@@ -212,15 +220,36 @@ impl SimulationState {
         if self.cover_states.len() != cover.len() {
             self.cover_states = crate::cover_damage::initial_cover_states(cover);
         }
-        let sight_cover =
-            crate::cover_damage::live_cover_for_sight_and_shells(cover, &self.cover_states);
+        // Borrow the memo (taken out so it can be read beside the mutable tank/spotting fields, then
+        // returned) instead of re-cloning the whole cover slice on every spotting refresh.
+        let mut live_cover = std::mem::take(&mut self.live_cover_cache);
+        live_cover.refresh(cover, &self.cover_states);
         crate::spotting::apply_spotted_masks_with_hold(
             self.tick,
             &mut self.tanks,
             &mut self.spotting_memory,
             heightmap,
-            &sight_cover,
+            live_cover.sight(),
         );
+        self.live_cover_cache = live_cover;
+    }
+
+    /// Bring the shared live-cover memo up to date with the current cover phases (see
+    /// [`crate::cover_damage::CoverCache`]). Split from the read below so the host can refresh once
+    /// (`&mut`) and then read the slice (`&`) alongside the other `&self` sim views its bot
+    /// line-of-sight needs — a single `&mut self -> &[_]` accessor cannot coexist with those.
+    /// Rebuilds only when a cover phase changed; a no-op otherwise.
+    pub fn refresh_live_cover(&mut self, cover: &[StaticCoverObject]) {
+        if self.cover_states.len() != cover.len() {
+            self.cover_states = crate::cover_damage::initial_cover_states(cover);
+        }
+        self.live_cover_cache.refresh(cover, &self.cover_states);
+    }
+
+    /// The memoized sight/shell cover from the last [`Self::refresh_live_cover`] (or tick). Shared
+    /// borrow, so the host reads it beside `tanks()`/`ground()`/`damage_events()` for bot LOS.
+    pub fn cached_sight_cover(&self) -> &[StaticCoverObject] {
+        self.live_cover_cache.sight()
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
@@ -335,13 +364,18 @@ impl SimulationState {
                 }
             }
         }
-        // The cover this tick resolves against. Two slices, because two different questions:
-        // what stops a HULL, and what stops a SHELL or a sight line. They agree on intact boxes
-        // and on cleared ground, and part ways over rubble — see `cover_damage::CoverPurpose`.
-        let live_cover = crate::cover_damage::LiveCover::resolve(cover, &self.cover_states);
-        // ...and the third resolution: what a hull STANDS ON. A collapsed building is debris, and
-        // debris is ground — the support envelope and the drive's own slope probe both read it.
-        let rubble = crate::cover_damage::rubble_mounds(cover, &self.cover_states);
+        // The cover this tick resolves against — MEMOIZED. A battle untouched since last tick
+        // borrows last frame's materialised slices instead of re-cloning the whole authored cover
+        // (two `String`s per object, ~150 on a city map) every single frame. It is taken OUT of
+        // `self` for the tick so its slices can be read while the hulls — a different field — are
+        // mutated, and put back at the end. Refreshed AFTER the crush above, so it reflects this
+        // tick's post-crush, pre-shell cover exactly as `LiveCover::resolve` did; shells that fall
+        // later this tick change `cover_states` and re-key the memo for the NEXT tick. The cache
+        // holds all three views: what stops a HULL, what stops a SHELL/sight line (they agree but
+        // for rubble), and — the third — what a hull STANDS ON, a collapsed building as debris.
+        let mut live_cover = std::mem::take(&mut self.live_cover_cache);
+        live_cover.refresh(cover, &self.cover_states);
+        let rubble = live_cover.rubble();
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
             recover_aim_dispersion(tank, dt);
@@ -422,7 +456,7 @@ impl SimulationState {
                 cover: live_cover.movement(),
                 footprint: Some(&footprint),
                 water: self.water,
-                rubble: &rubble,
+                rubble,
                 ground: self.ground.as_ref(),
             };
             let phase = crate::tank_drive::advance_tank(tank, command, dt, world);
@@ -440,7 +474,7 @@ impl SimulationState {
                 cover: live_cover.movement(),
                 footprint: Some(&footprint),
                 water: self.water,
-                rubble: &rubble,
+                rubble,
                 ground: self.ground.as_ref(),
             };
             let ground =
@@ -483,7 +517,7 @@ impl SimulationState {
         );
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
-        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, &rubble, dt);
+        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, rubble, dt);
         // Drowning runs for EVERY living hull, commanded or not — a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
@@ -575,6 +609,9 @@ impl SimulationState {
         );
         self.last_battle_event_id = event_stamp.last_event_id();
         self.tick += 1;
+        // Return the memo for the next tick. If shells changed cover this tick its phases are now
+        // stale and the next `refresh` rebuilds; otherwise the next tick borrows these same slices.
+        self.live_cover_cache = live_cover;
     }
 
     /// PHASE 2: every hull that WOULD meet another this tick exchanges momentum with it.
