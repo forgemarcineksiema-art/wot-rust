@@ -40,6 +40,37 @@ fn a_straight_capped_pipe_is_a_closed_manifold() {
 }
 
 #[test]
+fn a_clockwise_wound_section_still_sweeps_faces_outward() {
+    // `square_section` is CCW. A caller that lists the SAME convex outline the other way round
+    // (clockwise, negative signed area) must get the identical outward-facing band — the kernel
+    // normalizes winding, as `loft` and `extrude` do. Before that fix the CW section passed the
+    // winding-agnostic convexity check and then built inward-facing, lit-from-behind walls, which
+    // `CLOSED_SMOOTH_MESH`'s outward-winding gate rejects.
+    let cw_section = SweepSection {
+        points: vec![
+            Vec2::new(-0.1, 0.2),
+            Vec2::new(0.1, 0.2),
+            Vec2::new(0.1, -0.2),
+            Vec2::new(-0.1, -0.2),
+        ],
+        closed: true,
+    };
+    let path = SweepPath { points: vec![Vec3::ZERO, Vec3::Z, Vec3::Z * 2.0], closed: false };
+    let mesh = try_sweep(&SweepSpec {
+        path: &path,
+        section: &cw_section,
+        frame_mode: SweepFrameMode::ParallelTransport,
+        caps: SweepCaps::Both,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        section_scale: None,
+    })
+    .expect("a clockwise section is a valid convex outline");
+    mesh.validate_quality(CLOSED_SMOOTH_MESH)
+        .expect("a clockwise-wound section still faces outward once winding is normalized");
+}
+
+#[test]
 fn an_open_pipe_without_caps_has_two_boundary_rings() {
     let path = SweepPath { points: vec![Vec3::ZERO, Vec3::Z, Vec3::Z * 2.0], closed: false };
     let mesh = sweep(&path, SweepFrameMode::ParallelTransport, SweepCaps::Open).expect("pipe");
