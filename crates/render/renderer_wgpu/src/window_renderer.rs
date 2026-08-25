@@ -177,11 +177,35 @@ impl WindowRenderer {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+            // The surface no longer matches the window (a resize is in flight): reconfigure and draw
+            // the next frame against the fresh surface. Common and benign — no log.
+            wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(&self.ctx.device, &self.config);
                 return Ok(());
             }
-            _ => return Ok(()),
+            // Minimized or fully behind another window: skip the frame. Frequent while minimized, so
+            // it stays silent — logging here would spam once per frame.
+            wgpu::CurrentSurfaceTexture::Occluded => return Ok(()),
+            // The GPU did not hand back a frame in time — a transient hitch. Skip it, but leave a
+            // low-severity trace so a persistent stall is at least visible in a debug log.
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                tracing::debug!("surface acquire timed out — skipping this frame");
+                return Ok(());
+            }
+            // The surface (and possibly the device) was lost — a driver reset, a Windows TDR, a GPU
+            // or display change. Reconfiguring is wgpu's documented first response; the WARN is the
+            // whole point of this arm — a lost device used to leave a silent black screen with no
+            // trace at all (the declared `GpuErrorPolicy` promised a handler that did not exist).
+            wgpu::CurrentSurfaceTexture::Lost => {
+                tracing::warn!(
+                    "surface lost — reconfiguring (driver reset / TDR / display change)"
+                );
+                self.surface.configure(&self.ctx.device, &self.config);
+                return Ok(());
+            }
+            // A validation error, or any status a future wgpu adds: never swallow it into a silent
+            // black frame. Surface it so the caller logs it instead of rendering nothing forever.
+            status => return Err(RenderError::new(format!("surface unavailable: {status:?}"))),
         };
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let target = SceneRenderTarget {

@@ -74,6 +74,19 @@ impl GpuContext {
         }))
         .map_err(|error| RenderError::new(format!("failed to create GPU device: {error}")))?;
 
+        // Make the `GpuErrorPolicy` honest and give a lost device or an escaped GPU error a TRACE
+        // instead of a silent black screen (the policy used to CLAIM a handler that did not exist).
+        // A driver reset / Windows TDR fires the device-lost callback; a validation or out-of-memory
+        // error that no error scope caught fires the uncaptured handler. Both LOG rather than abort —
+        // a shipped game must not crash a player on a transient driver quirk; the surface loop
+        // recovers, and a persistent failure keeps leaving a trail instead of vanishing.
+        device.set_device_lost_callback(|reason, message| {
+            tracing::error!(?reason, %message, "GPU device lost");
+        });
+        device.on_uncaptured_error(std::sync::Arc::new(|error: wgpu::Error| {
+            tracing::error!(%error, "uncaptured GPU error");
+        }));
+
         Ok(Self { instance, adapter, device, queue })
     }
 }
