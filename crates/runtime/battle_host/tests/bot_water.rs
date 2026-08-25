@@ -39,16 +39,7 @@ fn the_river_costs_no_more_hulls_than_it_does_today() {
     /// Seeds, out of the eight below, whose battle currently loses at least one hull to the
     /// channel. The number is the ratchet: burn it down by teaching the escape to climb out
     /// sideways (register H1), never up by tuning around it.
-    ///
-    /// Re-based 2 -> 3 on the surface-parity fix (2026-08-25): the sim now drives the SAME
-    /// bank profile the eye always saw (sample_height stands on the render triangles), and
-    /// on that honest ground seed 5's vanguard stalls on the west bank mid-reach at
-    /// (529, 391) and slides from 1.30 m to flooding over ~12 s — the exact H1 mechanism
-    /// (reverse thrust cannot beat gravity plus water drag on a slick bank; the escape
-    /// must learn to climb out SIDEWAYS). That is a pinned, reproducible register entry,
-    /// not a tuning: the old base of 2 was measured against a bilinear phantom surface no
-    /// player ever saw. Burn 3 down by fixing H1; never raise it.
-    const SEEDS_LOSING_A_HULL: usize = 3;
+    const SEEDS_LOSING_A_HULL: usize = 2;
     /// Deepest any hull wades, over every seed. A ceiling, not a promise of safety.
     const DEEPEST_WADE_M: f32 = 2.65;
 

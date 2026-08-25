@@ -3,11 +3,14 @@
 // the deliberate-change record.
 [
     // Re-blessed 2026-08-25 (surface parity), ALL FOUR MAPS: `sample_height` now stands on
-    // the SAME anti-diagonal triangle planes the render mesh draws — the bilinear patch is
-    // retired, closing the measured sim-vs-eye ground seam (worst 0.48 m, Bystra north
-    // plank bank; >5 cm on 3.7% of Prokhorovka cells). Heightmap SAMPLES are untouched;
-    // what moved is every grounded y at off-node positions (scatter scenery above all),
-    // by centimetres. Terrain, cover footprints, roads and gameplay stand untouched.
+    // the SAME triangle planes the render mesh draws — the bilinear patch is retired,
+    // closing the measured sim-vs-eye ground seam (worst 0.48 m, Bystra north plank bank;
+    // >5 cm on 3.7% of Prokhorovka cells). The shared per-cell diagonal is the flatter one
+    // (`terrain::cell_splits_on_main_diagonal`) — unlike the mesh's old fixed anti split
+    // it is mirror-symmetric, so fair maps stay fair between nodes too. Heightmap SAMPLES
+    // are untouched; what moved is every grounded y at off-node positions (scatter
+    // scenery above all), by centimetres. Terrain, cover footprints, roads and gameplay
+    // stand untouched.
     // Re-blessed 2026-08-03 (Świat w Skali): the 12 wrecks shrank from a 6.8×3.2×12.4 m bus to a
     // real knocked-out-hull footprint (~3.5×2.2×6.5 m), so a live tank no longer looks miniature
     // beside one — and the Ostrogorsk factory pair's scrambled wider-than-long box is corrected.
@@ -67,8 +70,8 @@
     // the program's only GAMEPLAY-shaping wave, shipped behind the user's eye verdict with
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
-    ("bystra_valley", "5f230de237e4e6cf"),
-    ("orliny_pereval", "99b7a9f943fd500a"),
-    ("ostrogorsk", "ee937dab87911ef8"),
-    ("prokhorovka_hill_252_2", "4983b55a6c5ee446"),
+    ("bystra_valley", "5a385944345d100b"),
+    ("orliny_pereval", "c509af00486384c4"),
+    ("ostrogorsk", "b87b86f93cf274b5"),
+    ("prokhorovka_hill_252_2", "7c164cc3d65b2d43"),
 ]

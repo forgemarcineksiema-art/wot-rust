@@ -819,18 +819,32 @@ pub fn mesh_parity(heightmap: &HeightMap) -> MeshParityStats {
             let h10 = heightmap.sample_at_index(x0 + 1, z0);
             let h01 = heightmap.sample_at_index(x0, z0 + 1);
             let h11 = heightmap.sample_at_index(x0 + 1, z0 + 1);
-            // One probe per triangle: the drawn plane evaluated with the same float
-            // expressions the sampler uses, so parity reads exactly 0.0 when they agree.
-            let lower_plane = h00 + 0.25 * (h10 - h00) + 0.25 * (h01 - h00);
-            let upper_plane = h11 + 0.25 * (h01 - h11) + 0.25 * (h10 - h11);
-            let lower_sample = heightmap
-                .sample_height((x0 as f32 + 0.25) * cell, (z0 as f32 + 0.25) * cell)
-                .unwrap_or(lower_plane);
-            let upper_sample = heightmap
-                .sample_height((x0 as f32 + 0.75) * cell, (z0 as f32 + 0.75) * cell)
-                .unwrap_or(upper_plane);
-            let divergence =
-                (lower_sample - lower_plane).abs().max((upper_sample - upper_plane).abs());
+            // One probe per triangle of the CHOSEN split, the drawn plane evaluated with
+            // the same float expressions the sampler uses, so parity reads exactly 0.0
+            // when sim and mesh agree.
+            let (pa, pb, plane_a, plane_b) =
+                if terrain::cell_splits_on_main_diagonal(h00, h10, h01, h11) {
+                    (
+                        (0.75, 0.25),
+                        (0.25, 0.75),
+                        h00 + 0.75 * (h10 - h00) + 0.25 * (h11 - h10),
+                        h00 + 0.75 * (h01 - h00) + 0.25 * (h11 - h01),
+                    )
+                } else {
+                    (
+                        (0.25, 0.25),
+                        (0.75, 0.75),
+                        h00 + 0.25 * (h10 - h00) + 0.25 * (h01 - h00),
+                        h11 + 0.25 * (h01 - h11) + 0.25 * (h10 - h11),
+                    )
+                };
+            let sample_a = heightmap
+                .sample_height((x0 as f32 + pa.0) * cell, (z0 as f32 + pa.1) * cell)
+                .unwrap_or(plane_a);
+            let sample_b = heightmap
+                .sample_height((x0 as f32 + pb.0) * cell, (z0 as f32 + pb.1) * cell)
+                .unwrap_or(plane_b);
+            let divergence = (sample_a - plane_a).abs().max((sample_b - plane_b).abs());
             cells += 1;
             if divergence > 0.05 {
                 over_5 += 1;

@@ -222,7 +222,8 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // whole envelope held: all five contract suites, symmetry, playability BFS and the
     // hull-down census passed over the sculpted ground before this bless.
     // Blessed again 2026-08-25 (surface parity), ALL EIGHT HASHES: `sample_height` stands
-    // on the render mesh's anti-diagonal triangle planes instead of a bilinear patch, so
+    // on the render mesh's own triangle planes instead of a bilinear patch (the shared
+    // per-cell diagonal is the flatter one, mirror-symmetric on fair maps), so
     // every texel sampled INSIDE a cell moved by up to the old twist residual (<= 0.48 m of
     // ground; the classification and its weights rule are untouched). The drive and the
     // picture keep reading one surface - now the same one the sim shoots and spots against.
@@ -231,10 +232,10 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // terrace and swales (the moisture rule wets the wider lowland), the bridgehead bluffs
     // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0xf644_d73b_5873_5227_u64, 0xeb3e_9f5e_08f1_ac01_u64),
-        (MapId::BystraValley, 0xd68b_acb9_3d7d_9c59, 0x147f_f4e5_e5a5_b599),
-        (MapId::OrlinyPereval, 0xaf6e_9d41_8e90_8ce1, 0xbe1b_a9b5_9365_c089),
-        (MapId::Ostrogorsk, 0x8e22_ef82_ec76_766c, 0x32a9_f641_c559_e177),
+        (MapId::ProkhorovkaHill252_2, 0x6562_9cd0_6d40_f32f_u64, 0xeca4_e313_ca58_d880_u64),
+        (MapId::BystraValley, 0x624c_74b0_1cb1_c388, 0xe671_a539_e8e2_81b0),
+        (MapId::OrlinyPereval, 0xcfe5_3851_bf87_55d4, 0x97bb_a288_deee_7e8c),
+        (MapId::Ostrogorsk, 0x4493_96c3_9f3d_9792, 0x3523_a71c_7d66_a610),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");

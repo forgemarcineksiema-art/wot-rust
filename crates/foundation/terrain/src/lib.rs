@@ -33,7 +33,7 @@ pub use ground::{
     GroundClassifier, GroundMaterial, GroundProperties, grass_patchwork_noise, road_blend,
     road_blend_at, strongest_road_at, value_noise,
 };
-pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
+pub use heightmap::{HeightMap, HeightMapStats, TerrainError, cell_splits_on_main_diagonal};
 // The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
 // helpers — one grounding/grounding-math implementation, no forked copies.
 pub use map_build::{
