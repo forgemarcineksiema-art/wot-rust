@@ -19,6 +19,11 @@ impl WgpuLabelPolicy {
     }
 }
 
+/// The GPU-error stance this renderer takes, DESCRIBING what `GpuContext` actually installs at
+/// device creation — not an aspiration. The device-lost callback and the uncaptured-error handler
+/// are wired there (`gpu_context::new_with_options`); they LOG rather than abort, because a shipped
+/// game must not crash a player on a transient driver quirk. Keep the fields here in step with that
+/// wiring — this struct is only useful while it stays true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GpuErrorPolicy {
     uses_error_scopes: bool,
@@ -30,8 +35,11 @@ impl Default for GpuErrorPolicy {
     fn default() -> Self {
         Self {
             uses_error_scopes: true,
+            // Installed for real in `gpu_context` (was a claim with no handler behind it).
             installs_uncaptured_error_handler: true,
-            uncaptured_errors_are_fatal: true,
+            // The handler logs; it does NOT abort. Crashing a player on an escaped GPU warning is
+            // worse than the warning.
+            uncaptured_errors_are_fatal: false,
         }
     }
 }

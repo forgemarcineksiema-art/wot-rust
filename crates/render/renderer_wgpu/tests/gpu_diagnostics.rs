@@ -16,10 +16,12 @@ fn wgpu_backend_has_required_renderdoc_labels() {
 }
 
 #[test]
-fn gpu_error_policy_requires_scopes_and_uncaptured_handler() {
+fn gpu_error_policy_installs_a_handler_that_logs_rather_than_aborts() {
     let policy = GpuErrorPolicy::default();
 
     assert!(policy.uses_error_scopes());
+    // The device-lost callback and uncaptured-error handler are wired in `gpu_context`.
     assert!(policy.installs_uncaptured_error_handler());
-    assert!(policy.uncaptured_errors_are_fatal());
+    // ...and they LOG, not abort — a shipped game must not crash on a transient driver quirk.
+    assert!(!policy.uncaptured_errors_are_fatal());
 }
