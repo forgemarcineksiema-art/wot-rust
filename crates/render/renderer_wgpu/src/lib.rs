@@ -7,10 +7,7 @@ mod gpu_layout;
 mod msaa;
 mod offscreen;
 mod pass_recorder;
-mod pipeline_registry;
 mod rain_pipeline;
-mod readback_queue;
-mod renderer;
 mod scene_pipeline;
 mod scene_renderer;
 mod scene_resources;
@@ -19,16 +16,14 @@ mod shader_library;
 mod shader_validation;
 mod sky_pipeline;
 mod surface_config;
-mod texture_upload;
-mod upload_buffers;
 mod vehicle_pipeline;
 mod vehicle_resources;
 mod water_pipeline;
 mod window_renderer;
 
 use renderer_api::{
-    GpuBackend, GpuDeviceType, RenderAdapterReport, RenderError, RenderLimitProfile,
-    RenderLimitsSummary, TextureCompressionSupport,
+    GpuBackend, GpuDeviceType, RenderAdapterReport, RenderError, RenderLimitsSummary,
+    TextureCompressionSupport,
 };
 
 pub use frame_graph::{FRAME_GRAPH, FrameResource, FrameSwitches, PassCondition, PassId, PassNode};
@@ -42,10 +37,7 @@ pub use gpu_layout::{
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pass_recorder::{FrameCounts, PassCounts, PassOrder};
-pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
 pub use rain_pipeline::rain_shader_source;
-pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
-pub use renderer::WgpuRenderer;
 pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
 pub use scene_renderer::env_group::build_shadow_bind_group_layout;
@@ -62,13 +54,6 @@ pub use shader_validation::{
 };
 pub use sky_pipeline::sky_shader_source;
 pub use surface_config::select_present_mode;
-pub use texture_upload::{
-    TextureExtent, TextureFormat, TextureUpload, TextureUploadId, TextureUploadQueue,
-};
-pub use upload_buffers::{
-    DynamicUniformAllocation, DynamicUniformRingBuffer, FrameUploadArena, InstanceBatch,
-    InstanceBatchKind, InstanceBufferAllocator, UploadBatch,
-};
 pub use vehicle_pipeline::{build_vehicle_pipeline, vehicle_shader_source};
 pub use vehicle_resources::{GpuVehicleMesh, VehicleMeshRegistry};
 pub use water_pipeline::water_shader_source;
@@ -99,42 +84,6 @@ pub fn adapter_report_from_wgpu(
         texture_compression_support(features),
         features.contains(wgpu::Features::TIMESTAMP_QUERY),
     )
-}
-
-pub fn request_limits_for_profile(profile: RenderLimitProfile) -> wgpu::Limits {
-    match profile {
-        RenderLimitProfile::LowSpec => renderer_low_spec_limits(),
-        RenderLimitProfile::Recommended => renderer_recommended_limits(),
-        RenderLimitProfile::High => renderer_high_limits(),
-    }
-}
-
-pub fn renderer_low_spec_limits() -> wgpu::Limits {
-    wgpu::Limits::downlevel_webgl2_defaults()
-}
-
-pub fn renderer_recommended_limits() -> wgpu::Limits {
-    wgpu::Limits {
-        max_texture_dimension_2d: 8_192,
-        max_bind_groups: 4,
-        max_sampled_textures_per_shader_stage: 16,
-        max_storage_buffers_per_shader_stage: 8,
-        max_color_attachments: 8,
-        max_buffer_size: 256 * 1024 * 1024,
-        ..renderer_low_spec_limits()
-    }
-}
-
-pub fn renderer_high_limits() -> wgpu::Limits {
-    wgpu::Limits {
-        max_texture_dimension_2d: 16_384,
-        max_bind_groups: 8,
-        max_sampled_textures_per_shader_stage: 32,
-        max_storage_buffers_per_shader_stage: 16,
-        max_color_attachments: 8,
-        max_buffer_size: 512 * 1024 * 1024,
-        ..renderer_recommended_limits()
-    }
 }
 
 fn map_backend(backend: wgpu::Backend) -> GpuBackend {
