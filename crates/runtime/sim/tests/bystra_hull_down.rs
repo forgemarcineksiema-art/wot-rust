@@ -74,3 +74,46 @@ fn windmill_shelf_masks_a_hull_from_the_bridge_but_fires_over_the_crest() {
         "the turret above the crest must still work the bridge"
     );
 }
+
+/// Teren W2b: the market masonry obeys the destruction doctrine on ITS map — an intact
+/// kamienica blocks the cross-market hull line, and the felled one leaves a mound the
+/// hull still hides behind while the TURRET works over it. This is the cap that forced
+/// the row down from its 14 m first cut: 0.18 of 14 m stood proud of the turret line and
+/// buried the destruction-opens-the-map promise.
+#[test]
+fn a_felled_kamienica_opens_the_turret_line_and_keeps_the_hull_line() {
+    use sim::{CoverPhase, damage_cover, initial_cover_states, live_cover_for_sight_and_shells};
+    let map = map();
+    let mut states = initial_cover_states(&map.static_cover);
+    let (index, _) = map
+        .static_cover
+        .iter()
+        .enumerate()
+        .find(|(_, object)| object.id == "kamienica_b_south")
+        .expect("the market kamienica ships");
+
+    let spec = TankSpec::t54_1951();
+    let west_eye = eye(&map, 706.0, 462.0);
+    let east_ground = map.heightmap.sample_height(758.0, 462.0).expect("east of the row");
+    let east_hull = Vec3::new(758.0, east_ground + spec.hitbox.center_y_m, 462.0);
+    let east_turret =
+        Vec3::new(758.0, east_ground + spec.hitbox.center_y_m + spec.hitbox.half_height_m, 462.0);
+
+    let live = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    assert!(
+        !line_of_sight(Some(&map.heightmap), &live, west_eye, east_turret),
+        "the intact kamienica must block the cross-market line"
+    );
+
+    damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+    assert_eq!(states[index].phase, CoverPhase::Rubble);
+    let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    assert!(
+        line_of_sight(Some(&map.heightmap), &live_after, west_eye, east_turret),
+        "the mound must stay under turret eyes - destruction opens the market"
+    );
+    assert!(
+        !line_of_sight(Some(&map.heightmap), &live_after, west_eye, east_hull),
+        "and the hull line stays covered behind the mound"
+    );
+}

@@ -2,6 +2,16 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-26 (teren W2b, Bystra only): the town the cobbles always claimed.
+    // The market-facing row leaves the timber grid and returns as eight MASONRY kamienice
+    // (~11.4 m - capped by the destruction doctrine, not taste: 0.18 of the 14 m first cut
+    // stood proud of the turret line and buried destruction-opens-the-map; the new sim
+    // lock holds the mound under turret eyes on THIS map), plus the churchyard walls
+    // (1.6 m - the 2.2 m first cut sat exactly in the eye-over-gun refusal band and
+    // pushed the reticle seam over its ratchet) and the cobbled back lane pair behind the
+    // row. Honest ledger: the map-wide exposure dials barely moved (+0.1 pp hidden) - the
+    // value is town-local: masonry durability, rubble that reshapes the market fight, a
+    // second stone rotation, and the silhouette tier. Only Bystra moved.
     // Re-blessed 2026-08-25 (teren W5, Prokhorovka only): the PSEL - the water the western
     // flank was named for. Two mirrored lowland reaches hug the west edge (the railway
     // embankment crosses it too, so each reach ends in the marsh at the railbed's foot);
@@ -96,7 +106,7 @@
     // the program's only GAMEPLAY-shaping wave, shipped behind the user's eye verdict with
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
-    ("bystra_valley", "3586811d6ff312c1"),
+    ("bystra_valley", "3161e30ae33d03ed"),
     ("orliny_pereval", "4ae506aa7b153c82"),
     ("ostrogorsk", "f4cd7a1809c1d9ba"),
     ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),

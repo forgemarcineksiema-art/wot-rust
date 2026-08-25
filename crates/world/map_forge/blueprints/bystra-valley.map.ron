@@ -408,6 +408,17 @@ MapBlueprint(
             at: (Fixed(505.0), Fixed(680.0)),
             half_extents_m: (1.75, 1.1, 3.25),
         ),
+        // Teren W2b (audyt "Atlas Terenu", 2026-08-26): the town the church and the cobbles
+        // always claimed. The market-facing row leaves the timber grid and returns as
+        // MASONRY - eight kamienice framing the square (CityBuilding: 1500 HP over the
+        // farm build's 600, rubble mounds a turret works over) - the town gains masonry
+        // durability, rubble that RESHAPES the market fight, and a silhouette tier:
+        // cottages ~7 m, kamienice ~11.4, windmill 15, church 27. The height is CAPPED by
+        // the destruction doctrine, not by taste: the CityBuilding rubble fraction (0.18)
+        // was tuned so a felled 11 m block stays under turret eyes - at the 14 m first
+        // cut the mound stood 2.52 m and blocked the turret line too, burying the
+        // destruction-opens-the-map promise this row exists to import. The timber grid
+        // keeps the two outer rows.
         TownGrid(
             id_prefix: "town_house",
             name_prefix: "Kamienna house",
@@ -419,12 +430,83 @@ MapBlueprint(
                 816.0,
             ],
             row_offsets_m: [
-                38.0,
                 82.0,
                 126.0,
             ],
             wide_half_m: (6.5, 3.6, 4.0),
             narrow_half_m: (5.5, 3.0, 4.8),
+        ),
+        Cover(
+            id: "kamienica_a_south",
+            name: "market kamienica (west, south)",
+            kind: CityBuilding,
+            at: (Fixed(690.0), Fixed(462.0)),
+            half_extents_m: (7.0, 5.7, 5.5),
+        ),
+        Cover(
+            id: "kamienica_a_north",
+            name: "market kamienica (west, north)",
+            kind: CityBuilding,
+            at: (Fixed(690.0), Fixed(538.0)),
+            half_extents_m: (7.0, 5.7, 5.5),
+        ),
+        Cover(
+            id: "kamienica_b_south",
+            name: "market kamienica (mid-west, south)",
+            kind: CityBuilding,
+            at: (Fixed(732.0), Fixed(462.0)),
+            half_extents_m: (6.5, 5.5, 5.2),
+        ),
+        Cover(
+            id: "kamienica_b_north",
+            name: "market kamienica (mid-west, north)",
+            kind: CityBuilding,
+            at: (Fixed(732.0), Fixed(538.0)),
+            half_extents_m: (6.5, 5.5, 5.2),
+        ),
+        Cover(
+            id: "kamienica_c_south",
+            name: "market kamienica (mid-east, south)",
+            kind: CityBuilding,
+            at: (Fixed(774.0), Fixed(462.0)),
+            half_extents_m: (7.2, 5.8, 5.6),
+        ),
+        Cover(
+            id: "kamienica_c_north",
+            name: "market kamienica (mid-east, north)",
+            kind: CityBuilding,
+            at: (Fixed(774.0), Fixed(538.0)),
+            half_extents_m: (7.2, 5.8, 5.6),
+        ),
+        Cover(
+            id: "kamienica_d_south",
+            name: "market kamienica (east, south)",
+            kind: CityBuilding,
+            at: (Fixed(816.0), Fixed(462.0)),
+            half_extents_m: (6.8, 5.6, 5.4),
+        ),
+        Cover(
+            id: "kamienica_d_north",
+            name: "market kamienica (east, north)",
+            kind: CityBuilding,
+            at: (Fixed(816.0), Fixed(538.0)),
+            half_extents_m: (6.8, 5.6, 5.4),
+        ),
+        // The churchyard wall: breachable masonry closing the yard toward the market
+        // houses, with the town street left clear on the east side.
+        Cover(
+            id: "churchyard_wall_south",
+            name: "churchyard wall (south run)",
+            kind: StoneWall,
+            at: (Fixed(696.0), Fixed(478.0)),
+            half_extents_m: (6.5, 0.8, 0.4),
+        ),
+        Cover(
+            id: "churchyard_wall_north",
+            name: "churchyard wall (north run)",
+            kind: StoneWall,
+            at: (Fixed(696.0), Fixed(522.0)),
+            half_extents_m: (6.5, 0.8, 0.4),
         ),
     ],
     scenery: [
@@ -534,6 +616,14 @@ MapBlueprint(
             surface: Cobble,
             points: [(700.0, 380.0), (706.0, 440.0), (706.0, 560.0), (700.0, 620.0)],
             width_m: 5.5,
+        ),
+        // Teren W2b: the back lane behind the kamienica row - the town brawl finally
+        // rotates on stone instead of queueing on one street.
+        MirroredPair(
+            id_base: "market_back_lane",
+            surface: Cobble,
+            south_points: [(686.0, 440.0), (820.0, 440.0)],
+            width_m: 5.0,
         ),
         // The crossing tracks are QUARRY GRAVEL (Ballast): Kamienna's quarry is right up
         // the hill, and a ford road through a floodplain is exactly what crushed stone is
