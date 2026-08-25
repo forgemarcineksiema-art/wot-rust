@@ -1232,9 +1232,28 @@ const HULL_DOWN_LATTICE_M: f32 = 10.0;
 /// The window ahead in which the crest must rise: close enough to hug, far enough to depress over.
 const HULL_DOWN_NEAR_M: f32 = 5.0;
 const HULL_DOWN_FAR_M: f32 = 15.0;
-/// The rise band that makes a crest fightable: enough to cover a hull (the fleet's hulls run
-/// roughly 1.5-1.9 m to the deck), not so much that the turret and gun are buried too.
-const HULL_DOWN_RISE_MIN_M: f32 = 0.9;
+/// The rise floor that makes a crest a MASK and not a speed bump, derived from the fleet
+/// and the sim's own sight rule: the lowest hull-centre the fleet fields (the sim's lower
+/// spotting target, `spotting::target_points`) plus the grazing slack the terrain raycast
+/// forgives (`game_core::SIGHT_GRAZE_SLACK_M`). Below this sum a crest cannot block the
+/// hull-centre sight line of even the lowest vehicle at range — the old hand-written 0.9
+/// blessed crests that covered half a hull and left the spotting rule seeing the rest.
+/// Taller hulls need taller crests still (the Tiger II's centre rides at 1.52, above the
+/// old band's ceiling entirely); the census blesses the floor case: a crest at least one
+/// vehicle genuinely fights from.
+pub fn hull_down_rise_min_m() -> f32 {
+    use std::sync::OnceLock;
+    static FLOOR: OnceLock<f32> = OnceLock::new();
+    *FLOOR.get_or_init(|| {
+        let lowest_centre = game_core::VehicleKind::ALL
+            .iter()
+            .map(|kind| kind.spec().hitbox.center_y_m)
+            .fold(f32::INFINITY, f32::min);
+        lowest_centre + game_core::SIGHT_GRAZE_SLACK_M
+    })
+}
+/// The rise ceiling: past this the crest buries the gun too (the benchmark fire line runs
+/// ~1.78 m); a slope that keeps climbing is terrain refusing you, not covering you.
 const HULL_DOWN_RISE_MAX_M: f32 = 1.8;
 /// Beyond the crest the ground must FALL — a slope that keeps climbing is a wall, not a position.
 const HULL_DOWN_BEYOND_M: f32 = 10.0;
@@ -1294,7 +1313,7 @@ pub fn hull_down_positions(map: &BattlefieldMap) -> Vec<HullDownSpot> {
                     t += 1.0;
                 }
                 let (crest_t, rise) = crest?;
-                if !(HULL_DOWN_RISE_MIN_M..=HULL_DOWN_RISE_MAX_M).contains(&rise) {
+                if !(hull_down_rise_min_m()..=HULL_DOWN_RISE_MAX_M).contains(&rise) {
                     return None;
                 }
                 // Past the crest the ground falls away: a firing line exists on the other side.

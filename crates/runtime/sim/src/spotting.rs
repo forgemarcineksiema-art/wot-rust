@@ -158,7 +158,10 @@ fn terrain_clear(heightmap: &HeightMap, from: Vec3, to: Vec3) -> bool {
     let steps = (segment.length() / step_m).ceil().max(1.0) as u32;
     for step in 1..steps {
         let point = from + segment * (step as f32 / steps as f32);
-        if heightmap.sample_height(point.x, point.z).is_some_and(|g| g > point.y + 0.3) {
+        if heightmap
+            .sample_height(point.x, point.z)
+            .is_some_and(|g| g > point.y + game_core::SIGHT_GRAZE_SLACK_M)
+        {
             return false;
         }
     }

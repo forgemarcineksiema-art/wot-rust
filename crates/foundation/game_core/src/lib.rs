@@ -14,6 +14,7 @@ pub mod mobility;
 mod modules;
 mod mount;
 pub mod roundness;
+pub mod sight;
 pub mod stability;
 mod steering;
 mod tank;
@@ -63,6 +64,7 @@ pub use modules::{
     suspension_agility_fraction,
 };
 pub use mount::{MountFrame, MountFrames};
+pub use sight::SIGHT_GRAZE_SLACK_M;
 pub use stability::{Stability, stability, stock_stability};
 pub use steering::SteeringKind;
 pub use tank::{HitboxProfile, TankSpec};
