@@ -112,3 +112,35 @@ fn the_born_ruins_open_the_city_from_tick_zero() {
     }
     assert_eq!(ruined, 6, "three mirrored born-ruin pairs open the sightlines");
 }
+
+/// Teren W4: the bricked cut is a door the battle can OPEN. Sealed, the plug blocks the
+/// hull-height line through its cut; demolished (a StoneWall goes to GONE — a breached
+/// wall is a door, not a mound), the same line carries — a route exists at minute five
+/// that did not exist at tick zero, on the mechanisms the game already ships.
+#[test]
+fn a_bricked_cut_opens_by_demolition() {
+    let map = city();
+    let mut states = initial_cover_states(&map.static_cover);
+    let (index, plug) = map
+        .static_cover
+        .iter()
+        .enumerate()
+        .find(|(_, object)| object.id == "berm_plug_south")
+        .expect("the south plug ships");
+
+    let from = hull(&map, 770.0, 390.0);
+    let to = hull(&map, 890.0, 390.0);
+    let live = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    assert!(
+        !line_of_sight(Some(&map.heightmap), &live, from, to),
+        "born bricked: the plug must seal the cut's hull line"
+    );
+
+    damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+    assert_eq!(states[index].phase, CoverPhase::Gone, "{} breaches clean", plug.id);
+    let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    assert!(
+        line_of_sight(Some(&map.heightmap), &live_after, from, to),
+        "breached: the cut must carry the hull line - the new route is real"
+    );
+}
