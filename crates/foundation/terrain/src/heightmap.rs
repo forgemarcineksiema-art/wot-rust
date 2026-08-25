@@ -1,4 +1,3 @@
-use crate::sculpt::lerp;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -105,9 +104,25 @@ impl HeightMap {
 
         let tx = grid_x - x0 as f32;
         let tz = grid_z - z0 as f32;
-        let hx0 = lerp(self.sample_at_index(x0, z0), self.sample_at_index(x1, z0), tx);
-        let hx1 = lerp(self.sample_at_index(x0, z1), self.sample_at_index(x1, z1), tx);
-        let base = lerp(hx0, hx1, tz);
+        // The sampled surface IS the drawn surface: each cell splits on the same
+        // anti-diagonal as the render mesh (`scene_build::terrain_scene_mesh_full`,
+        // indices `[i, down, right] / [right, down, down+1]`), so the ground a shell
+        // resolves against, the ground a sight line grazes and the ground the eye reads
+        // are ONE surface by construction. Bilinear interpolation was retired for exactly
+        // that seam: inside a twisted cell the two definitions diverged by up to 0.48 m on
+        // the shipped maps (the map-atlas ground-parity measurement), and "what blocks the
+        // shell blocks the eye" is a promise about this residual. Cell edges evaluate
+        // identically to bilinear, so cross-cell continuity and every edge-sampled value
+        // are untouched.
+        let h00 = self.sample_at_index(x0, z0);
+        let h10 = self.sample_at_index(x1, z0);
+        let h01 = self.sample_at_index(x0, z1);
+        let h11 = self.sample_at_index(x1, z1);
+        let base = if tx + tz <= 1.0 {
+            h00 + tx * (h10 - h00) + tz * (h01 - h00)
+        } else {
+            h11 + (1.0 - tx) * (h01 - h11) + (1.0 - tz) * (h10 - h11)
+        };
         // The crater overlay (protocol v31). The empty-ledger check is a plain length load so
         // virgin ground — the overwhelming majority of samples in the hot loops — pays one
         // predictable branch; the deformed path is deliberately out-of-line (see `delta`).

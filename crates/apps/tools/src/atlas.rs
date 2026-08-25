@@ -791,12 +791,13 @@ pub fn exposure_layer(map: &BattlefieldMap, field: &ExposureField, res_m: f32) -
 
 // --- stats ---------------------------------------------------------------------------------
 
-/// The sim-vs-render ground parity: the sim (contact, shell trace, LOS) reads the BILINEAR
-/// `sample_height`, while `scene_build::terrain_scene_mesh_full` draws each 5 m cell as two
-/// planes split on the fixed anti-diagonal. Inside a cell the two surfaces differ by the
-/// twist term `(h00 + h11 - h01 - h10) * tx * tz` — worst |twist|/4 at the diagonal
-/// midpoint. This measures that honesty seam per cell, because "what blocks the shell
-/// blocks the eye" is a promise about THIS residual.
+/// The sim-vs-render ground parity: `sample_height` (the lane contact, shell traces and
+/// LOS resolve through) measured directly against the two planes the render mesh draws for
+/// each cell (`scene_build::terrain_scene_mesh_full`, fixed anti-diagonal split). Since
+/// the surface-parity fix the sampler stands on those planes by construction and this
+/// residual is exactly zero; the instrument keeps measuring it so any second surface
+/// definition that ever creeps back in is a red number, not a comment. "What blocks the
+/// shell blocks the eye" is a promise about THIS residual.
 pub struct MeshParityStats {
     pub worst_m: f32,
     pub worst_at: (f32, f32),
@@ -811,13 +812,25 @@ pub fn mesh_parity(heightmap: &HeightMap) -> MeshParityStats {
     let mut over_5 = 0usize;
     let mut over_15 = 0usize;
     let mut cells = 0usize;
+    let cell = heightmap.cell_size_m();
     for z0 in 0..heightmap.height() - 1 {
         for x0 in 0..heightmap.width() - 1 {
-            let twist = heightmap.sample_at_index(x0, z0)
-                + heightmap.sample_at_index(x0 + 1, z0 + 1)
-                - heightmap.sample_at_index(x0 + 1, z0)
-                - heightmap.sample_at_index(x0, z0 + 1);
-            let divergence = twist.abs() * 0.25;
+            let h00 = heightmap.sample_at_index(x0, z0);
+            let h10 = heightmap.sample_at_index(x0 + 1, z0);
+            let h01 = heightmap.sample_at_index(x0, z0 + 1);
+            let h11 = heightmap.sample_at_index(x0 + 1, z0 + 1);
+            // One probe per triangle: the drawn plane evaluated with the same float
+            // expressions the sampler uses, so parity reads exactly 0.0 when they agree.
+            let lower_plane = h00 + 0.25 * (h10 - h00) + 0.25 * (h01 - h00);
+            let upper_plane = h11 + 0.25 * (h01 - h11) + 0.25 * (h10 - h11);
+            let lower_sample = heightmap
+                .sample_height((x0 as f32 + 0.25) * cell, (z0 as f32 + 0.25) * cell)
+                .unwrap_or(lower_plane);
+            let upper_sample = heightmap
+                .sample_height((x0 as f32 + 0.75) * cell, (z0 as f32 + 0.75) * cell)
+                .unwrap_or(upper_plane);
+            let divergence =
+                (lower_sample - lower_plane).abs().max((upper_sample - upper_plane).abs());
             cells += 1;
             if divergence > 0.05 {
                 over_5 += 1;
@@ -1146,6 +1159,23 @@ mod tests {
         let field = exposure_field(&map, true, 10.0, 90.0);
         let ditch = field.class_at(520.0, 384.0);
         assert_ne!(ditch, ExposureClass::Exposed, "the balka masks the hull (got {ditch:?})");
+    }
+
+    /// The surface-parity lock: on every shipped map, `sample_height` and the planes the
+    /// render mesh draws are the SAME surface — the residual the atlas once measured at
+    /// up to 0.48 m reads exactly zero, and stays a red number if a second surface
+    /// definition ever creeps back in.
+    #[test]
+    fn the_sim_stands_on_the_drawn_ground() {
+        for &id in MapId::SHIPPED {
+            let map = map_forge::battlefield(id);
+            let parity = mesh_parity(&map.heightmap);
+            assert_eq!(
+                parity.worst_m, 0.0,
+                "{}: sim and mesh disagree by {} m at {:?}",
+                map.id, parity.worst_m, parity.worst_at
+            );
+        }
     }
 
     /// Every shipped map renders every layer at review resolution without panicking, and the
