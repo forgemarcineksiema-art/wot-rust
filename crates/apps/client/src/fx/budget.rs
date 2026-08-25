@@ -240,7 +240,7 @@ fn the_ground_marks_give_way_so_the_frame_fits() {
     );
 
     // The frame the client builds: essentials take what they need, the ground takes the rest.
-    // Saturating, exactly as `fx_frame_vertices` does — if the essentials ever outgrew the
+    // Saturating, exactly as `fx_frame_vertices_into` does — if the essentials ever outgrew the
     // buffer the test above is the one that should say so, not an underflow here.
     let ground_budget = budget.saturating_sub(FX_ESSENTIAL_VERTEX_BUDGET + FX_TRACER_ALLOWANCE);
     let mut frame = Vec::new();
