@@ -88,3 +88,40 @@ fn oryol_face_offers_hull_down_over_the_pass_approach() {
     let map = map();
     assert_hull_down_line(&map.heightmap, (505.0, 300.0), 595.0, 630.0, 330.0);
 }
+
+/// Teren W3: the east rim answers the summits — and only the summits' flank. The named
+/// knolls stand PROUD of the defile approach (a commander's eye on the perch clears a
+/// turret on the approach bowl by metres — real overwatch by elevation, no knife-crest
+/// to certify), while the massif stands metres PROUD of the perch-to-col line, so the
+/// counter watches the defile flank without reaching into the middle lane.
+#[test]
+fn the_east_rim_answers_the_defile_flank_but_not_the_col() {
+    let map = map();
+    let perch_ground = map.heightmap.sample_height(930.0, 220.0).expect("perch");
+    let eye = (930.0, perch_ground + 2.3, 220.0);
+
+    // The perch genuinely overwatches the defile approach: clear line, metres of slack.
+    let approach_ground = map.heightmap.sample_height(840.0, 320.0).expect("approach");
+    let approach_turret = (840.0, approach_ground + 2.4, 320.0);
+    assert!(
+        common::clearance(&map.heightmap, eye, approach_turret) > 1.0,
+        "the knoll must stand proud of the defile approach"
+    );
+    // The perch stands over the bowl toward the Oryol face too.
+    let bowl_ground = map.heightmap.sample_height(780.0, 350.0).expect("bowl");
+    let bowl_turret = (780.0, bowl_ground + 2.4, 350.0);
+    assert!(
+        common::clearance(&map.heightmap, eye, bowl_turret) > 1.0,
+        "the knoll must stand proud of the approach bowl"
+    );
+    // And the col stays out of the perch's reach - not by a wall (the gated ridge is
+    // OPEN toward the pass by design, and the col sits higher than the knoll) but by the
+    // game's own optics: the hamlet lies beyond the longest view range any vehicle
+    // parks (440 m, `TankSpec::view_range_m`), with margin. The counter watches the
+    // defile flank; the middle lane cannot be farmed from it.
+    let distance = ((930.0f32 - 500.0).powi(2) + (220.0f32 - 500.0).powi(2)).sqrt();
+    assert!(
+        distance > 460.0,
+        "the perch-to-col distance must clear the longest parked view range: {distance}"
+    );
+}

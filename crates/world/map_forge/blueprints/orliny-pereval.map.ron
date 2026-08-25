@@ -522,6 +522,27 @@ MapBlueprint(
                 at: (Fixed(90.0), Fixed(790.0)),
                 radius_m: 40.0,
             ),
+            // Teren W3 (audyt "Atlas Terenu", 2026-08-25): the east rim finally ANSWERS.
+            // The west rim always had its overwatch pair; the east knolls existed as
+            // terrain and carried NO position, so whoever took the summits owned the
+            // defile flank unopposed - the snowball the audit called out. The knolls
+            // already stand metres over the defile approach; naming them hands the perch
+            // to the bots' route planner, and the massif still blinds them to the pass
+            // col, so the counter is a counter, not a second oppression.
+            StrategicPointSpec(
+                id: "east_rim_overwatch_south",
+                name: "east rim overwatch (south)",
+                role: Observation,
+                at: (Fixed(930.0), Fixed(220.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "east_rim_overwatch_north",
+                name: "east rim overwatch (north)",
+                role: Observation,
+                at: (Fixed(930.0), Fixed(780.0)),
+                radius_m: 40.0,
+            ),
             StrategicPointSpec(
                 id: "defile_mouth_south",
                 name: "defile mouth (south)",
