@@ -79,6 +79,12 @@ decide the mid-game").
 - The two on-axis Crossing points name the massif gates for the bots' route planner; the
   water-crossing machinery never fires on a dry map (`bot_routes` helpers return "safe" with
   no water body).
+- **The defile's stone (teren W3b, 2026-08-26):** six mirrored `Crag` boxes — the new
+  ninth cover kind, the honest big rock (indestructible, uncrushable, jointed-granite bake
+  strictly inside the collision box, seated on the lowest footprint corner so slope-standing
+  stone never floats). The knife-fight lane finally has walls a flank can lean on, and the
+  eye sees the granite the splat always claimed; the gate road corridor stays clear by the
+  drive graph's hull margin.
 - Cover: the Orlinoye `TownGrid` (12 houses) + on-axis chapel (the tall silhouette of the
   col), mirrored shepherd barns in the Dolina, serpentine retaining walls, summit sangar
   breastworks, wrecks at the defile mouths, hedgerow screens on the Dolina lane.

@@ -56,7 +56,11 @@ pub fn grounded_point(
     }
 }
 
-/// A cover box seated on the terrain: `center.y = ground + half_height`.
+/// A cover box seated on the terrain: `center.y = ground + half_height` — except a CRAG,
+/// which seats on the LOWEST ground under its footprint corners. An axis-aligned box on a
+/// slope floats at its downhill corner if seated at the centre; a building refuses steep
+/// ground, but a crag's whole job is to stand ON the slope, so its stone sinks into the
+/// hill instead of hovering over it (the buried part blocks exactly like the hill does).
 pub fn grounded_cover(
     heightmap: &HeightMap,
     id: &str,
@@ -65,7 +69,19 @@ pub fn grounded_cover(
     xz: [f32; 2],
     half_extents_m: [f32; 3],
 ) -> StaticCoverObject {
-    let ground_y = heightmap.sample_height(xz[0], xz[1]).unwrap_or(0.0);
+    let centre = heightmap.sample_height(xz[0], xz[1]).unwrap_or(0.0);
+    let ground_y = if kind == StaticCoverKind::Crag {
+        let mut lowest = centre;
+        for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+            let corner = heightmap
+                .sample_height(xz[0] + sx * half_extents_m[0], xz[1] + sz * half_extents_m[2])
+                .unwrap_or(centre);
+            lowest = lowest.min(corner);
+        }
+        lowest
+    } else {
+        centre
+    };
     StaticCoverObject {
         id: id.to_string(),
         name: name.to_string(),

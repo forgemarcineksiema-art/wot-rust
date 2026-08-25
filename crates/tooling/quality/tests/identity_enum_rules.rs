@@ -225,6 +225,9 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
             "CityBuilding",
             "StoneWall",
             "TreeTrunk",
+            // teren W3b (2026-08-26): the honest BIG rock - solid scenery stays under the
+            // belly line, so a crag that reads as cover IS cover.
+            "Crag",
         ],
     ),
     (
