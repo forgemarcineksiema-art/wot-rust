@@ -104,3 +104,17 @@ fn the_mills_flank_the_causeway_as_a_rot_pair() {
     assert_eq!(south.half_extents_m, north.half_extents_m, "fairness shares the box");
     assert!(south.half_extents_m[1] >= 7.0, "a mill is a tower, not a shed");
 }
+
+/// The fightable-crest INVENTORY, ratcheted (the Bystra pattern): the census that feeds
+/// the bots' overwatch and the report's gauge measures 40 positions on this map - more
+/// than Bystra's 32, out of the drumlins, the ridgelets, the pit rims and the shore
+/// banks. The dossier's first verdict called the inventory "v1-thin" off the ATLAS BAND,
+/// which is a DIFFERENT metric (fleet-integrated LOS - thin here because a lakeland is
+/// open by design, the long lines running over water); the census says the POSITIONS are
+/// there. Measured 40; the ratchet holds erosion at ten percent.
+#[test]
+fn mazurski_carries_a_fightable_crest_inventory() {
+    let map = map();
+    let spots = map_forge::hull_down_positions(&map).len();
+    assert!(spots >= 36, "the crest inventory eroded: {spots} against the measured 40");
+}

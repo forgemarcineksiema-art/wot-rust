@@ -67,13 +67,17 @@ From `cargo run --release -p tools -- map-atlas` — the instrument's numbers, n
 9.4 m relief, 91.7 % comfort grades (no walls: the lakes are the walls), 8.3 % standing
 water, sim-vs-mesh parity 0.00 m. Exposure: ~10–12 % hidden, ~1.5 % hull-down, 75 %
 clear LOS at 400–550 m. **The open read is honest for a lakeland — the long lines run
-over water, and the lakes deny the flanks the way Orliny's massif denies its middle — but
-the hull-down inventory is v1-thin.** A first post-atlas iteration added three rot pairs
-of tight ridgelets (the Bystra lip recipe: tall AND narrow) at the causeway approaches,
-the moraine lane and the shore-road turn; they census locally but move the map-wide dial
-by well under a point — the lesson of Bystra's W2 stands: a map's fightable-crest
-INVENTORY is built by a dedicated wave (~30 sites), not by six strokes. That wave is the
-map's named follow-up, after it meets the bots.
+over water, and the lakes deny the flanks the way Orliny's massif denies its middle.**
+
+The first verdict here called the hull-down inventory "v1-thin" and promised a ~30-site
+crest wave. **The census disproved the promise's premise** (measure > thesis, again): the
+same `hull_down_positions` gauge the bots and the report read measures **40 fightable
+positions** on this map — more than Bystra's 32 — out of the drumlins, the ridgelets, the
+peat-pit rims and the shore banks; the inventory is ratcheted at ≥ 36 in the map's tests.
+The thin ATLAS number describes a different thing: the fleet-integrated hull-down BAND,
+which stays narrow on any map whose long sightlines run over open water — that is the
+lakeland's character, not a missing wave. The three ridgelet pairs from the first
+iteration stay as worked approaches; no further sculpt is owed.
 
 ## Contracts
 
