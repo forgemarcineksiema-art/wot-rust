@@ -105,7 +105,12 @@ fn the_sheet_gates_bite() {
     let mut overlapping = two_lakes();
     overlapping.water.as_mut().unwrap().bodies[1].rect = [100.0, 100.0, 250.0, 250.0];
     let (_, report) = compile(&overlapping);
-    assert!(report.errors().any(|entry| entry.message.contains("overlap")), "overlap gate");
+    assert!(
+        report
+            .errors()
+            .any(|entry| entry.check == "standing_water" && entry.message.contains("overlap")),
+        "overlap gate"
+    );
 
     let mut outside = two_lakes();
     outside.water.as_mut().unwrap().bodies[0].rect = [-10.0, 50.0, 110.0, 110.0];
