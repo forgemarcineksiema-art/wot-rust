@@ -90,15 +90,20 @@ fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
     ];
     assert!(tagged.iter().all(|message| message.session_id() == Some(SESSION_ID)));
 
+    // v49: VehicleSelection LEFT the legacy set — it carries the session like every other
+    // client message, so the remote host can finally accept it (seat=vehicle).
+    let seated_selection = ProtocolMessage::VehicleSelection(net::ClientVehicleSelection {
+        session_id: SESSION_ID,
+        client_tick: 0,
+        requested_vehicle: VehicleKind::T54_1951,
+    });
+    assert_eq!(seated_selection.session_id(), Some(SESSION_ID));
+
     let legacy = [
         ProtocolMessage::Input(ClientInputCommand {
             client_tick: 0,
             tank_id: TankId(1),
             command: TankCommand::idle(),
-        }),
-        ProtocolMessage::VehicleSelection(net::ClientVehicleSelection {
-            client_tick: 0,
-            requested_vehicle: VehicleKind::T54_1951,
         }),
         ProtocolMessage::Snapshot(Snapshot::default()),
     ];

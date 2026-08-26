@@ -38,6 +38,10 @@ struct RemoteClient {
     session_id: u64,
     retired_session_ids: VecDeque<u64>,
     tank: Option<TankId>,
+    /// The crew's garage pick (v49), newest-wins across the lobby. Read exactly once — at
+    /// `start_battle`, where the roster spawns; afterwards it is inert (a late joiner takes
+    /// over whatever hull is free, whichever garage it came from).
+    requested_vehicle: Option<game_core::VehicleKind>,
     /// The first InputBatch is the implicit ack that the crew knows its seat; until then the
     /// host re-sends StartBattle every tick (the wire is lossy and that one word must land).
     acked_start: bool,
@@ -54,6 +58,7 @@ impl RemoteClient {
             session_id: 0,
             retired_session_ids: VecDeque::new(),
             tank: None,
+            requested_vehicle: None,
             acked_start: false,
             inputs: RemoteInputQueue::default(),
             events: RemoteEventQueue::default(),
@@ -252,6 +257,12 @@ impl RemoteBattleServer {
                     if client.belongs_to(session_id) =>
                 {
                     client.events.acknowledge(last_received_seq);
+                    client.last_heard_ms = now_ms;
+                }
+                ProtocolMessage::VehicleSelection(selection)
+                    if client.belongs_to(selection.session_id) =>
+                {
+                    client.requested_vehicle = Some(selection.requested_vehicle);
                     client.last_heard_ms = now_ms;
                 }
                 // Untagged legacy traffic is never accepted by the remote host.
@@ -493,21 +504,23 @@ impl RemoteBattleServer {
     fn start_battle(&mut self, transport: &mut dyn Transport) {
         // Seats go to crews that finished a hello, never to bare addresses. Counting every table
         // entry let a spoofed datagram consume a human seat that then answered to nobody.
-        let humans = self
+        // ONE snapshot of the seated order carries both the count and each crew's garage pick,
+        // so the wish list and the tank hand-out below cannot disagree about who sits where.
+        let seats: Vec<(std::net::SocketAddr, Option<game_core::VehicleKind>)> = self
             .clients
-            .values()
-            .filter(|client| client.is_established())
-            .count()
-            .clamp(1, LOBBY_FULL_PLAYERS);
+            .iter()
+            .filter(|(_, client)| client.is_established())
+            .take(LOBBY_FULL_PLAYERS)
+            .map(|(address, client)| (*address, client.requested_vehicle))
+            .collect();
+        let wishes: Vec<Option<game_core::VehicleKind>> =
+            seats.iter().map(|(_, wish)| *wish).collect();
         let (core, human_tanks) =
-            LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, humans);
+            LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, &wishes);
         let server_tick = core.authoritative_tick();
         let time_limit_tick = core.time_limit_tick();
-        // The same `is_established()` cut as the count above: a seat may only go to a client that
-        // completed the handshake, or the zip hands a real tank to a spoofed address.
-        for (client, tank) in
-            self.clients.values_mut().filter(|client| client.is_established()).zip(human_tanks)
-        {
+        for ((address, _), tank) in seats.into_iter().zip(human_tanks) {
+            let Some(client) = self.clients.get_mut(&address) else { continue };
             client.tank = Some(tank);
             let start = ProtocolMessage::StartBattle {
                 session_id: client.session_id,

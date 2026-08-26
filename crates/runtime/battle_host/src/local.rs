@@ -65,9 +65,10 @@ impl LocalAuthoritativeServer {
     pub fn new_random_7v7_for_humans(
         config: ServerTickConfig,
         battle: RandomBattleConfig,
-        humans: usize,
+        human_vehicles: &[Option<game_core::VehicleKind>],
     ) -> (Self, Vec<TankId>) {
-        let (setup, human_tanks) = crate::setup::random_7v7_setup_for_humans(battle, humans);
+        let (setup, human_tanks) =
+            crate::setup::random_7v7_setup_for_humans(battle, human_vehicles);
         (Self::from_setup(config, setup), human_tanks)
     }
 

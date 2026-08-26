@@ -139,7 +139,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v48: the test-only `VehicleKind::PrototypeMedium` (wire discriminant 0) is deleted outright,
 /// shifting every remaining vehicle down by one — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones", and ALL must name every variant). Same class as v33.
-pub const PROTOCOL_VERSION: u16 = 48;
+pub const PROTOCOL_VERSION: u16 = 49;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -176,8 +176,14 @@ pub struct ClientInputCommand {
     pub command: TankCommand,
 }
 
+/// The crew's garage pick, sent during the lobby (v49: carries the session like every other
+/// client message — as untagged legacy traffic the server rightly refused it, and the seat
+/// always spawned the benchmark). Idempotent and unreliable-friendly: the client repeats it
+/// until seated, the server keeps newest-wins, and a pick after the battle starts is a no-op
+/// (the roster is spawned; a late joiner takes over whatever hull is free).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ClientVehicleSelection {
+    pub session_id: u64,
     pub client_tick: u64,
     pub requested_vehicle: VehicleKind,
 }
@@ -578,9 +584,8 @@ impl ProtocolMessage {
             | ProtocolMessage::CombatEventBatch { session_id, .. }
             | ProtocolMessage::CombatEventAck { session_id, .. } => Some(*session_id),
             ProtocolMessage::SnapshotDelivery(delivery) => Some(delivery.session_id),
-            ProtocolMessage::Input(_)
-            | ProtocolMessage::VehicleSelection(_)
-            | ProtocolMessage::Snapshot(_) => None,
+            ProtocolMessage::VehicleSelection(selection) => Some(selection.session_id),
+            ProtocolMessage::Input(_) | ProtocolMessage::Snapshot(_) => None,
         }
     }
 }
