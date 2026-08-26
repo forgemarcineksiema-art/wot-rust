@@ -371,16 +371,16 @@ fn check_standing_water(blueprint: &MapBlueprint, map: &BattlefieldMap, report: 
             let mut t = a;
             while t <= b {
                 let (x, z) = if horizontal { (t, fixed) } else { (fixed, t) };
-                if let Some(ground) = map.heightmap.sample_height(x, z) {
-                    if ground < body.surface_level_m - 1.0e-3 {
-                        push(
-                            format!(
-                                "sheet {index} shoreline leaks through its rect edge at                                  ({x:.0}, {z:.0}) - the pool must end on dry ground inside"
-                            ),
-                            Some([x, ground, z]),
-                        );
-                        return false;
-                    }
+                if let Some(ground) = map.heightmap.sample_height(x, z)
+                    && ground < body.surface_level_m - 1.0e-3
+                {
+                    push(
+                        format!(
+                            "sheet {index} shoreline leaks through its rect edge at                              ({x:.0}, {z:.0}) - the pool must end on dry ground inside"
+                        ),
+                        Some([x, ground, z]),
+                    );
+                    return false;
                 }
                 t += cell;
             }
