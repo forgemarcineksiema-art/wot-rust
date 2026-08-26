@@ -633,7 +633,29 @@ impl ClientApp {
         let addr: std::net::SocketAddr = target.parse().ok()?;
         let transport =
             net::transport::UdpTransport::bind("0.0.0.0:0".parse().expect("addr")).ok()?;
-        let mut remote = session::RemoteSession::connect(addr, Box::new(transport));
+        // Seat=vehicle (v49): `WOT_VEHICLE=<slug>` asks the lobby for that hull — the same
+        // env-var register as WOT_MAP/WOT_CONNECT (the honest MVP; the garage lobby UI is
+        // the follow-up). An unknown slug is refused LOUDLY: connecting as the wrong tank
+        // because of a typo is exactly the silent lie this register exists to avoid.
+        let vehicle = match std::env::var("WOT_VEHICLE") {
+            Ok(value) => {
+                let slug = value.trim().to_string();
+                match game_core::VehicleKind::PLAYABLE
+                    .iter()
+                    .copied()
+                    .find(|kind| kind.slug() == slug)
+                {
+                    Some(kind) => Some(kind),
+                    None => {
+                        tracing::error!(slug, "WOT_VEHICLE names no playable vehicle");
+                        return None;
+                    }
+                }
+            }
+            Err(_) => None,
+        };
+        let mut remote =
+            session::RemoteSession::connect_with_vehicle(addr, Box::new(transport), vehicle);
         // Pump until seated: the lobby deadline is the server's, so wait generously (session
         // timeout aborts a silent server after 10 s regardless).
         for _ in 0..0_u32.wrapping_add(60_000 / 10) {

@@ -379,3 +379,86 @@ fn unestablished_sources_neither_start_the_battle_nor_overrun_the_table() {
         host.tracked_client_count()
     );
 }
+
+/// Seat=vehicle (netcode block 3, v49): each crew's GARAGE PICK spawns as its hull. Client
+/// A asks for the IS-3, client B for the Tiger I — the lobby seats both in exactly those
+/// tanks (the pick rides the hello/heartbeat cadence, so a lossy wire still lands it), and
+/// a pick nobody sent falls back to the host default, never to a random bot draw.
+#[test]
+fn the_lobby_seats_each_crew_in_its_garage_pick() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.0.1:40100".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut port_a = hub.port("10.0.0.2:5100".parse().expect("addr"));
+    let mut port_b = hub.port("10.0.0.3:5100".parse().expect("addr"));
+
+    let battle = RandomBattleConfig {
+        seed: BattleSeed::fixed(21),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 400, 0);
+    let mut client_a = ClientSession::connect(server_addr, 0);
+    client_a.request_vehicle(game_core::VehicleKind::IS3);
+    let mut client_b = ClientSession::connect(server_addr, 0);
+    client_b.request_vehicle(game_core::VehicleKind::TigerI);
+
+    let mut assigned = [None, None];
+    let mut latest_snapshot: [Option<net::Snapshot>; 2] = [None, None];
+    let mut input_sequence = [0_u64, 0_u64];
+    for step in 0..600_u64 {
+        let now_ms = step * 16;
+        for (index, (client, port)) in
+            [(&mut client_a, &mut port_a), (&mut client_b, &mut port_b)].into_iter().enumerate()
+        {
+            for message in client.tick(now_ms, port).expect("client tick") {
+                match message {
+                    ProtocolMessage::StartBattle { assigned_tank, .. } => {
+                        assigned[index] = Some(assigned_tank);
+                        client.clear_vehicle_selection();
+                    }
+                    ProtocolMessage::SnapshotDelivery(delivery) => {
+                        latest_snapshot[index] = Some(delivery.snapshot);
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(tank) = assigned[index] {
+                let batch = ProtocolMessage::InputBatch {
+                    session_id: client.session_id(),
+                    commands: vec![net::ClientInputCommand {
+                        client_tick: input_sequence[index],
+                        tank_id: tank,
+                        command: sim::TankCommand::idle(),
+                    }],
+                };
+                client.endpoint.send(port, &batch).expect("input batch");
+                input_sequence[index] += 1;
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+
+    let (tank_a, tank_b) = (assigned[0].expect("A seated"), assigned[1].expect("B seated"));
+    let vehicle_of = |snapshot: &net::Snapshot, tank| {
+        snapshot
+            .tanks
+            .iter()
+            .find(|t| t.tank_id == tank)
+            .map(|t| t.vehicle)
+            .expect("own hull is in the own cut")
+    };
+    let snapshot_a = latest_snapshot[0].clone().expect("A receives snapshots");
+    let snapshot_b = latest_snapshot[1].clone().expect("B receives snapshots");
+    assert_eq!(
+        vehicle_of(&snapshot_a, tank_a),
+        game_core::VehicleKind::IS3,
+        "crew A fights in the hull it picked"
+    );
+    assert_eq!(
+        vehicle_of(&snapshot_b, tank_b),
+        game_core::VehicleKind::TigerI,
+        "crew B fights in the hull it picked"
+    );
+}

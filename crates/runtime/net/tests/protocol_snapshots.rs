@@ -31,22 +31,23 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 48);
+    assert_eq!(PROTOCOL_VERSION, 49);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v34_is_stable() {
+fn vehicle_selection_wire_snapshot_v49_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
+        session_id: 77,
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
     });
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 48);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
+    assert_eq!(PROTOCOL_VERSION, 49);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v49"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
@@ -57,7 +58,7 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 48);
+    assert_eq!(PROTOCOL_VERSION, 49);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -108,7 +109,7 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 48);
+    assert_eq!(PROTOCOL_VERSION, 49);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -127,7 +128,7 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 48);
+    assert_eq!(PROTOCOL_VERSION, 49);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }

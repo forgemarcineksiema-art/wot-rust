@@ -287,9 +287,27 @@ pub struct RemoteSession {
 }
 
 impl RemoteSession {
+    /// Test-suite door: connect with no pick (the host default seat). Production goes
+    /// through [`Self::connect_with_vehicle`] — the garage pick is part of the contract.
+    #[cfg(test)]
     pub fn connect(server_addr: SocketAddr, transport: Box<dyn Transport>) -> Self {
+        Self::connect_with_vehicle(server_addr, transport, None)
+    }
+
+    /// Connect and ask the lobby to seat this crew in `vehicle` (seat=vehicle, v49). The
+    /// pick repeats on the handshake cadence until `StartBattle` settles the seat; `None`
+    /// keeps the host's default hull.
+    pub fn connect_with_vehicle(
+        server_addr: SocketAddr,
+        transport: Box<dyn Transport>,
+        vehicle: Option<game_core::VehicleKind>,
+    ) -> Self {
+        let mut session = ClientSession::connect(server_addr, 0);
+        if let Some(kind) = vehicle {
+            session.request_vehicle(kind);
+        }
         Self {
-            session: ClientSession::connect(server_addr, 0),
+            session,
             transport,
             started: Instant::now(),
             assigned_tank: None,
@@ -427,6 +445,8 @@ impl RemoteSession {
                         Some(current) if current == assigned_tank => {}
                         Some(_) => continue,
                     }
+                    // Seated: the garage pick is settled, stop repeating it.
+                    self.session.clear_vehicle_selection();
                     self.seat_started_ms.get_or_insert(now_ms);
                     self.latest_server_tick = self.latest_server_tick.max(server_tick);
                     self.time_limit_tick = time_limit_tick;

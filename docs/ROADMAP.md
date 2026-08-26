@@ -45,7 +45,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
   11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill).
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (**wire v48** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  snapshots (**wire v49** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
   who has not spotted the shooter v44, the battle clock on the wire v45, crew battle wounds
   team-private v46, concrete-round identity and the tungsten shatter flag v47, the

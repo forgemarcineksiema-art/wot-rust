@@ -51,15 +51,19 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
 }
 
 pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
-    random_7v7_setup_for_humans(config, 1).0
+    random_7v7_setup_for_humans(config, &[None]).0
 }
 
 /// The dedicated server's variant (N2): reserve the first `humans` team-one slots for connected
 /// players (returned in slot order); everything else is a bot. `humans == 1` is exactly the
 /// desktop battle.
+/// Seat=vehicle (netcode block 3, v49): each human slot spawns the crew's GARAGE PICK.
+/// `human_vehicles[slot]` is that crew's wish; `None` falls back to the host's
+/// `player_vehicle` for slot 0 (the historical single-human contract, bit-for-bit) and to
+/// the benchmark for later seats — a predictable hull, never a random bot draw.
 pub(crate) fn random_7v7_setup_for_humans(
     config: RandomBattleConfig,
-    humans: usize,
+    human_vehicles: &[Option<game_core::VehicleKind>],
 ) -> (BattleSetup, Vec<TankId>) {
     let battlefield = map_forge::battlefield(config.map);
     let mut sim = SimulationState::new();
@@ -72,11 +76,15 @@ pub(crate) fn random_7v7_setup_for_humans(
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);
 
-    let humans = humans.clamp(1, 7);
+    let humans = human_vehicles.len().clamp(1, 7);
     let mut human_tanks = Vec::with_capacity(humans);
     for slot in 0..7 {
-        let vehicle = if slot == 0 {
-            config.player_vehicle
+        let vehicle = if slot < humans {
+            match human_vehicles.get(slot).copied().flatten() {
+                Some(pick) => pick,
+                None if slot == 0 => config.player_vehicle,
+                None => game_core::VehicleKind::BENCHMARK,
+            }
         } else {
             random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle)
         };

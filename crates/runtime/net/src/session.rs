@@ -102,6 +102,10 @@ pub struct ClientSession {
     started_ms: u64,
     last_heard_ms: u64,
     next_ping_ms: u64,
+    /// The crew's garage pick, repeated alongside every hello resend and heartbeat until
+    /// the caller clears it (on being seated). Unreliable-friendly by redundancy, like the
+    /// input window: the server keeps newest-wins and ignores picks once the roster spawns.
+    vehicle_selection: Option<game_core::VehicleKind>,
 }
 
 impl ClientSession {
@@ -125,7 +129,30 @@ impl ClientSession {
             started_ms: now_ms,
             last_heard_ms: now_ms,
             next_ping_ms: now_ms + HEARTBEAT_MS,
+            vehicle_selection: None,
         }
+    }
+
+    /// Ask the lobby to seat this crew in `kind`. Sent (and re-sent) until [`Self::
+    /// clear_vehicle_selection`]; a pick that arrives after the battle starts is a no-op on
+    /// the server, so there is no race to lose — only a benchmark hull to fall back to.
+    pub fn request_vehicle(&mut self, kind: game_core::VehicleKind) {
+        self.vehicle_selection = Some(kind);
+    }
+
+    /// Stop repeating the pick — the caller saw `StartBattle` and the seat is settled.
+    pub fn clear_vehicle_selection(&mut self) {
+        self.vehicle_selection = None;
+    }
+
+    fn selection_message(&self, now_ms: u64) -> Option<ProtocolMessage> {
+        self.vehicle_selection.map(|requested_vehicle| {
+            ProtocolMessage::VehicleSelection(crate::ClientVehicleSelection {
+                session_id: self.session_id,
+                client_tick: now_ms,
+                requested_vehicle,
+            })
+        })
     }
 
     pub fn session_id(&self) -> u64 {
@@ -190,6 +217,9 @@ impl ClientSession {
                 } else if now_ms >= self.next_resend_ms {
                     let hello = self.hello.clone();
                     self.endpoint.send(transport, &hello)?;
+                    if let Some(selection) = self.selection_message(now_ms) {
+                        self.endpoint.send(transport, &selection)?;
+                    }
                     self.resend_interval_ms = (self.resend_interval_ms * 2).min(RESEND_CAP_MS);
                     self.next_resend_ms = now_ms + self.resend_interval_ms;
                 }
@@ -203,6 +233,9 @@ impl ClientSession {
                         client_time_us: now_ms * 1_000,
                     };
                     self.endpoint.send(transport, &ping)?;
+                    if let Some(selection) = self.selection_message(now_ms) {
+                        self.endpoint.send(transport, &selection)?;
+                    }
                     self.next_ping_ms = now_ms + HEARTBEAT_MS;
                 }
             }
