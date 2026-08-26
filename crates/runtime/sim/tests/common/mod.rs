@@ -66,3 +66,12 @@ pub fn run_until_shells_clear(state: &mut SimulationState, shooter: TankId) {
 pub fn flat_field() -> HeightMap {
     HeightMap::flat(96, 96, 4.0, 0.0).expect("flat terrain")
 }
+
+/// The commander's eye over a ground point on a compiled map: the hitbox top, exactly as
+/// `sim::spotting::observer_eye` stacks it over the benchmark hull standing there. Shared
+/// by the map-promise suites (Bystra hull-down, Orliny watchtower) — one rule, one body.
+pub fn commander_eye(map: &terrain::BattlefieldMap, x: f32, z: f32) -> Vec3 {
+    let spec = TankSpec::t54_1951();
+    let ground = map.heightmap.sample_height(x, z).expect("probe on the map");
+    Vec3::new(x, ground + spec.hitbox.center_y_m + spec.hitbox.half_height_m, z)
+}

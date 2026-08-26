@@ -15,16 +15,11 @@ use terrain::{BattlefieldMap, MapId, bystra_river_center_x};
 
 const HALF_M: f32 = 500.0;
 
+mod common;
+use common::commander_eye as eye;
+
 fn map() -> BattlefieldMap {
     map_forge::battlefield(MapId::BystraValley)
-}
-
-/// The commander's eye over a ground point: the hitbox top, exactly as
-/// `sim::spotting::observer_eye` stacks it over a hull standing there.
-fn eye(map: &BattlefieldMap, x: f32, z: f32) -> Vec3 {
-    let spec = TankSpec::t54_1951();
-    let ground = map.heightmap.sample_height(x, z).expect("probe on the map");
-    Vec3::new(x, ground + spec.hitbox.center_y_m + spec.hitbox.half_height_m, z)
 }
 
 /// A target's two sample points over a ground point: hull centre and hitbox top, exactly

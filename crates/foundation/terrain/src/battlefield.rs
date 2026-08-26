@@ -97,6 +97,12 @@ pub enum StaticCoverKind {
     /// composes faceted blocks strictly inside the collision box: what stops the shell is
     /// what the eye sees. Appended last — the order is frozen.
     Crag,
+    /// A freestanding stone watchtower (teren W3b, Orliny col landmark): a Svan-style
+    /// battered masonry shaft. Destructible like the masonry it is — and its rubble
+    /// fraction is tuned so the FELLED tower's stump lands in the hull-down band
+    /// (hides a hull, ducks the turret line): the landmark falls into a fighting
+    /// position instead of a wall. Appended after Crag — the order is frozen.
+    StoneTower,
 }
 
 impl StaticCoverKind {
@@ -104,7 +110,7 @@ impl StaticCoverKind {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [StaticCoverKind; 9] = [
+    pub const ALL: [StaticCoverKind; 10] = [
         StaticCoverKind::FarmBuilding,
         StaticCoverKind::RailCover,
         StaticCoverKind::TreeLine,
@@ -114,6 +120,7 @@ impl StaticCoverKind {
         StaticCoverKind::StoneWall,
         StaticCoverKind::TreeTrunk,
         StaticCoverKind::Crag,
+        StaticCoverKind::StoneTower,
     ];
 
     /// Structural health before the object is destroyed; `None` is indestructible (rail
@@ -132,6 +139,9 @@ impl StaticCoverKind {
             StaticCoverKind::StoneWall => Some(150),
             // Any shell sweeps a fence span away (the kinetic chip already deals 80).
             StaticCoverKind::WoodenFence => Some(40),
+            // A freestanding tower is less structure than a city block but thicker-walled
+            // than a farmhouse: 1.5 farm buildings' worth of shellfire fells it.
+            StaticCoverKind::StoneTower => Some(900),
             StaticCoverKind::RailCover | StaticCoverKind::Wreck | StaticCoverKind::Crag => None,
         }
     }
@@ -153,7 +163,12 @@ impl StaticCoverKind {
     /// simply vanishes. `true` = leaves a (lowered) blocking mound, `false` = goes fully clear.
     /// A StoneWall deliberately leaves NO mound: a breached wall is a door, not a speed bump.
     pub fn leaves_rubble(self) -> bool {
-        matches!(self, StaticCoverKind::FarmBuilding | StaticCoverKind::CityBuilding)
+        matches!(
+            self,
+            StaticCoverKind::FarmBuilding
+                | StaticCoverKind::CityBuilding
+                | StaticCoverKind::StoneTower
+        )
     }
 
     /// The fraction of its original height a rubble mound keeps: low enough that a turret-height
@@ -165,6 +180,11 @@ impl StaticCoverKind {
     pub fn rubble_height_frac(self) -> f32 {
         match self {
             StaticCoverKind::CityBuilding => 0.18,
+            // A watchtower stands nearly twice a tenement, so its fraction drops further:
+            // 0.11 of the 20 m Orliny tower is a 2.2 m stump — under the benchmark turret
+            // line (2.53 m), above the hull-down floor (1.49 m). The felled landmark
+            // becomes a fighting mound, locked by `sim`'s Orliny tests.
+            StaticCoverKind::StoneTower => 0.11,
             _ => 0.4,
         }
     }
