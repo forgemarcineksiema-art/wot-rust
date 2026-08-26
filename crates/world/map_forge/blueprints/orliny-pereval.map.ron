@@ -129,6 +129,16 @@ MapBlueprint(
                 preset: LeadOvercast,
                 sky_rgb: (0.46, 0.49, 0.53),
             ),
+            // Teren W3b tail: the SEA OF FOG. DawnFog's valley haze pools below 12 m -
+            // on this map that is exactly the valley floors (9-13 m) and nothing else:
+            // the spawn aprons and the Dolina meadows drown in mist while the pass bench
+            // (31 m) and the summits stand clear as islands. You climb OUT of the fog
+            // toward the fight; the fairness sweep bounds the sum like any other look.
+            LookSpec(
+                variant: DawnFog,
+                preset: DawnFog,
+                sky_rgb: (0.70, 0.68, 0.64),
+            ),
         ],
     )),
     objects: [

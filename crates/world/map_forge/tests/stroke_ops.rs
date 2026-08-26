@@ -265,8 +265,14 @@ fn a_stroke_heavy_bystra_still_fits_the_edit_loop_budget() {
     let start = std::time::Instant::now();
     let _timed = compile(&blueprint);
     let elapsed = start.elapsed();
+    // 250 ms sat UNDER the machine's own spread: measured 2026-08-26 on the dev box, six
+    // back-to-back runs (three on clean master, three with an unrelated data-only diff)
+    // landed 252-279 ms with identical distributions — the budget was failing on thermal
+    // noise, not on strokes. Raised per-item with that measurement (the repo rule),
+    // keeping ~25% headroom over the observed worst; a REAL regression (another stroke
+    // pass, a resolution change) still trips it.
     assert!(
-        elapsed.as_millis() < 250,
+        elapsed.as_millis() < 350,
         "24 drawn strokes on the heaviest map must stay inside the edit-loop budget \
          (took {elapsed:?})"
     );
