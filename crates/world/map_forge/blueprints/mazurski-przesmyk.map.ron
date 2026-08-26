@@ -82,6 +82,46 @@ MapBlueprint(
                 half_width_m: 10.0,
                 falloff_m: 22.0,
             )),
+            // Fighting crests (post-atlas iteration): the first cut's drumlins were low
+            // and WIDE - a rolling carpet, no crest to fight from (hull-down 1.1-1.6%,
+            // clear LOS 75.9% at 400-550 m; the W1.5 law says a fightable crest is tall
+            // AND narrow). Three rot pairs of tight ridgelets, the Bystra lip recipe.
+            Stroke(StrokeSpec(
+                points: [(430.0, 390.0), (470.0, 415.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.0,
+                falloff_m: 9.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(570.0, 610.0), (530.0, 585.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.0,
+                falloff_m: 9.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(640.0, 330.0), (700.0, 360.0), (750.0, 380.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.5,
+                falloff_m: 9.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(360.0, 670.0), (300.0, 640.0), (250.0, 620.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.5,
+                falloff_m: 9.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(140.0, 520.0), (170.0, 560.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.0,
+                falloff_m: 9.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(860.0, 480.0), (830.0, 440.0)],
+                profile: Ridge(amp_m: 2.0),
+                half_width_m: 4.0,
+                falloff_m: 9.0,
+            )),
             // The worked hull-down: a crest-and-shelf pair overlooking the causeway from
             // each side - two ops, because a half-turn crest faces the OTHER way.
             CrestShelf(
