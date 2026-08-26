@@ -238,8 +238,13 @@ mod tests {
         // Warm-up, then the measured pass.
         document.recompile();
         let compiled = document.recompile();
+        // 250 ms sat AT the dev box's own spread (measured 2026-08-26: repeated runs land
+        // 240-280 ms, flipping on thermal noise - the sibling stroke-budget test in
+        // map_forge read the same distribution). Raised per-item with that measurement,
+        // keeping ~25% headroom over the observed worst; a real compile regression still
+        // trips it.
         assert!(
-            compiled.compile_time < Duration::from_millis(250),
+            compiled.compile_time < Duration::from_millis(350),
             "full recompile took {:?} — the live edit loop is broken",
             compiled.compile_time
         );
