@@ -287,6 +287,9 @@ pub struct RemoteSession {
 }
 
 impl RemoteSession {
+    /// Test-suite door: connect with no pick (the host default seat). Production goes
+    /// through [`Self::connect_with_vehicle`] — the garage pick is part of the contract.
+    #[cfg(test)]
     pub fn connect(server_addr: SocketAddr, transport: Box<dyn Transport>) -> Self {
         Self::connect_with_vehicle(server_addr, transport, None)
     }
