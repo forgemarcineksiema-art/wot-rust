@@ -87,6 +87,18 @@ Locked by `crates/world/map_forge/tests/mazurski_przesmyk.rs`:
 - `the_mills_flank_the_causeway_as_a_rot_pair` — the signature pair stands where the
   dossier says, as exact half-turn twins.
 
+And in `crates/runtime/battle_host/tests/mazurski_battle.rs` (the map met the bots
+2026-08-26 — the dossier's own precondition for the crest wave):
+
+- `a_7v7_sets_up_and_ticks_on_mazurski_przesmyk` — 14 hulls deploy on DRY ground on their
+  own diagonal ends and the authoritative loop runs.
+- `the_bots_march_between_the_lakes_and_nobody_drowns` — after 60 s of battle most of the
+  fleet has left its spawn apron AND nobody, living or wrecked, sits below the drowning
+  line. This soak stands on the closed W6.2 seam: the route brain now reads the map's
+  COMPLETE water (`bot_routes::water_depth_at` through `water_view()`), so the lakes read
+  as deep water and a lake-crossing line detours through the causeway — before the fix the
+  table-only read answered "dry" over both lakes (locked, falsified, in `bot_routes`).
+
 Plus the shared gates every shipped map passes: the map report (Rot180 symmetry, spawns,
 in-bounds, playability BFS from every spawn to every point, the standing-water sheet
 contracts), the goldens review gate (`blueprints/goldens.ron`), determinism, and the
