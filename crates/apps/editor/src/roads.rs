@@ -282,7 +282,11 @@ mod tests {
             let d = ((x - 50.0).powi(2) + (z - 50.0).powi(2)).sqrt();
             2.0 + (d / 50.0) * 4.0
         });
-        let (vertices, indices) = depth_tint_mesh(&heightmap, 5.0, &thresholds);
+        let water = terrain::WaterView {
+            table: Some(terrain::WaterBody { surface_level_m: 5.0 }),
+            sheets: &[],
+        };
+        let (vertices, indices) = depth_tint_mesh(&heightmap, water, &thresholds);
         assert!(!vertices.is_empty());
         assert!(indices.len().is_multiple_of(3));
         assert!(vertices.iter().all(|vertex| (vertex.position[1] - 5.06).abs() < 1.0e-3));
