@@ -139,6 +139,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "e53a5883270a2fe0"),
+    ("mazurski_przesmyk", "42cc56e9c3e19c66"),
     ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
 ]
