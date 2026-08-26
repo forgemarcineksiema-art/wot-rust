@@ -5,11 +5,11 @@
 //!
 //! Scatters stay procedural: deleting a scatter-born instance adds a small
 //! `exclusion_circles` entry to its op — the seed keeps walking, that spot now refuses.
-//! Fixed scenery is mirror-fair by vocabulary (`push_mirrored`), so a placed tree ALWAYS
+//! Fixed scenery is fair by vocabulary (`compile`'s `push_paired`), so a placed tree ALWAYS
 //! brings its northern twin; the editor shows both and deletes both through one spot.
 
 use glam::Vec3;
-use map_forge::blueprint::{MapBlueprint, ObjectSpec, SceneryOp, XCoord};
+use map_forge::blueprint::{MapBlueprint, ObjectSpec, SceneryOp, SymmetrySpec, XCoord};
 use terrain::{BattlefieldMap, SceneryKind, StaticCoverKind};
 
 use crate::pick::ray_aabb;
@@ -261,16 +261,19 @@ fn classify_scenery(
     position: [f32; 3],
     kind: SceneryKind,
 ) -> Selection {
-    let axis_z = map.size_m[1] * 0.5;
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = [map.size_m[0], map.size_m[1]];
     for (op_index, op) in blueprint.scenery.iter().enumerate() {
         if let SceneryOp::Fixed { kind: op_kind, spots, .. } = op
             && *op_kind == kind
         {
             for (spot_index, spot) in spots.iter().enumerate() {
-                let twin_z = axis_z * 2.0 - spot[1];
-                if (position[0] - spot[0]).abs() < 0.5
-                    && ((position[2] - spot[1]).abs() < 0.5 || (position[2] - twin_z).abs() < 0.5)
-                {
+                let [twin_x, twin_z] = symmetry.twin(*spot, size_m);
+                let at_spot =
+                    (position[0] - spot[0]).abs() < 0.5 && (position[2] - spot[1]).abs() < 0.5;
+                let at_twin =
+                    (position[0] - twin_x).abs() < 0.5 && (position[2] - twin_z).abs() < 0.5;
+                if at_spot || at_twin {
                     return Selection::FixedScenery { op_index, spot_index, kind };
                 }
             }
@@ -313,17 +316,31 @@ pub fn delete(
             }
         }
         Selection::ScatterInstance { position, kind } => {
-            let axis_z = map.size_m[1] * 0.5;
-            // Scatters walk the SOUTH half; the exclusion must name the canonical spot.
-            let canonical_z =
-                if position[2] > axis_z { axis_z * 2.0 - position[2] } else { position[2] };
+            let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+            let size_m = [map.size_m[0], map.size_m[1]];
+            // Scatters walk the authoring half; the exclusion must name the canonical
+            // spot - the accepted point, whichever of the pair lies inside the region.
+            let twin = symmetry.twin([position[0], position[2]], size_m);
             for op in blueprint.scenery.iter_mut() {
                 if let SceneryOp::Scatter { kind: op_kind, region, exclude, .. } = op
                     && *op_kind == *kind
-                    && (region.x[0]..=region.x[1]).contains(&position[0])
-                    && (region.z[0]..=region.z[1]).contains(&canonical_z)
                 {
-                    exclude.exclusion_circles.push([position[0].round(), canonical_z.round(), 2.5]);
+                    let inside = |x: f32, z: f32| {
+                        (region.x[0]..=region.x[1]).contains(&x)
+                            && (region.z[0]..=region.z[1]).contains(&z)
+                    };
+                    let canonical = if inside(position[0], position[2]) {
+                        [position[0], position[2]]
+                    } else if inside(twin[0], twin[1]) {
+                        twin
+                    } else {
+                        continue;
+                    };
+                    exclude.exclusion_circles.push([
+                        canonical[0].round(),
+                        canonical[1].round(),
+                        2.5,
+                    ]);
                     return Ok(format!(
                         "excluded the {kind:?} (the scatter stays procedural; a 2.5 m circle now refuses that spot)"
                     ));
@@ -436,6 +453,24 @@ mod tests {
         assert_eq!(compiled.battlefield.scenery.len(), 2);
         assert_eq!(compiled.battlefield.scenery[0].position[2], 100.0);
         assert_eq!(compiled.battlefield.scenery[1].position[2], 200.0, "the mirror twin");
+    }
+
+    /// Teren W6: on a half-turn document a planted tree's twin lands at the ROTATED spot.
+    #[test]
+    fn a_planted_tree_on_a_rot_map_grows_its_half_turn_twin() {
+        let mut document = scratch();
+        document.apply_edit(|blueprint| {
+            blueprint.symmetry = Some(map_forge::blueprint::SymmetrySpec::Rot180);
+            place_entry(blueprint, PaletteEntry::Oak, [70.0, 120.0]);
+        });
+        let compiled = document.recompile();
+        assert_eq!(compiled.battlefield.scenery.len(), 2);
+        let twin = &compiled.battlefield.scenery[1];
+        assert_eq!(
+            [twin.position[0], twin.position[2]],
+            [230.0, 180.0],
+            "the twin is the half-turn image, not the mirror"
+        );
     }
 
     #[test]

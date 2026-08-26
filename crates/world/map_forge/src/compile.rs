@@ -225,13 +225,16 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                             base[1] * stretch(0x7063, 0.94, 1.06),
                             base[2] * stretch(0x7064, 0.9, 1.1),
                         ];
-                        for (side, sign) in [("south", -1.0_f32), ("north", 1.0_f32)] {
+                        let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+                        let south = [x, axis_z - row_offset];
+                        let north = symmetry.twin(south, blueprint.grid.size_m);
+                        for (side, at) in [("south", south), ("north", north)] {
                             out.push(grounded_cover(
                                 heightmap,
                                 &format!("{id_prefix}_c{column}_r{row}_{side}"),
                                 &format!("{name_prefix} (column {column}, row {row}, {side})"),
                                 *kind,
-                                [x, axis_z + sign * row_offset],
+                                at,
                                 half,
                             ));
                         }
@@ -244,7 +247,8 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
 }
 
 fn expand_roads(blueprint: &MapBlueprint) -> Vec<Road> {
-    let size_z = blueprint.grid.size_m[1];
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = blueprint.grid.size_m;
     let mut out = Vec::new();
     for road in &blueprint.roads {
         match road {
@@ -266,7 +270,7 @@ fn expand_roads(blueprint: &MapBlueprint) -> Vec<Road> {
                 out.push(Road {
                     id: format!("{id_base}_north"),
                     surface: *surface,
-                    points: south_points.iter().map(|p| [p[0], size_z - p[1]]).collect(),
+                    points: south_points.iter().map(|p| symmetry.twin(*p, size_m)).collect(),
                     width_m: *width_m,
                 });
             }
@@ -330,6 +334,9 @@ fn expand_scenery(
 ) -> Vec<SceneryInstance> {
     let river = blueprint.river.as_ref();
     let axis_z = blueprint.grid.axis_z();
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = blueprint.grid.size_m;
+    let twin = |x: f32, z: f32| symmetry.twin([x, z], size_m);
     let mut out = Vec::new();
     for op in &blueprint.scenery {
         match op {
@@ -340,7 +347,7 @@ fn expand_scenery(
                     *kind,
                     *pairs,
                     ScatterRegion { x: (region.x[0], region.x[1]), z: (region.z[0], region.z[1]) },
-                    axis_z,
+                    &twin,
                     heightmap,
                     &refused,
                     &mut out,
@@ -350,13 +357,17 @@ fn expand_scenery(
                 for step in 0..*count {
                     let z = z_start_m + step as f32 * z_step_m;
                     for &x in xs {
-                        push_mirrored(&mut out, heightmap, *kind, x, z, *yaw_rad, *scale, axis_z);
+                        push_paired(
+                            &mut out, heightmap, *kind, x, z, *yaw_rad, *scale, symmetry, size_m,
+                        );
                     }
                 }
             }
             SceneryOp::Fixed { kind, spots, yaw_rad, scale } => {
                 for &[x, z] in spots {
-                    push_mirrored(&mut out, heightmap, *kind, x, z, *yaw_rad, *scale, axis_z);
+                    push_paired(
+                        &mut out, heightmap, *kind, x, z, *yaw_rad, *scale, symmetry, size_m,
+                    );
                 }
             }
         }
@@ -364,14 +375,15 @@ fn expand_scenery(
     out
 }
 
-/// A planted/fixed instance plus its northern twin — mirrors position across the axis,
-/// grounded on the heightmap. A row is a row of PLANTS, not stamped clones (Immersja A2.1):
-/// each pair jitters the authored scale ±12 % (seeded from the canonical position and
-/// SHARED by the twins — an Oak's trunk becomes a cover box scaled by the instance, and
-/// fairness demands identical twins), and each instance grows its own yaw — a lamppost's
-/// arm stays over the road within a few degrees, everything else swings freely.
+/// A planted/fixed instance plus its fairness twin — the twin position and base yaw come
+/// from the map's symmetry, grounded on the heightmap. A row is a row of PLANTS, not
+/// stamped clones (Immersja A2.1): each pair jitters the authored scale ±12 % (seeded from
+/// the canonical position and SHARED by the twins — an Oak's trunk becomes a cover box
+/// scaled by the instance, and fairness demands identical twins), and each instance grows
+/// its own yaw — a lamppost's arm stays over the road within a few degrees, everything
+/// else swings freely.
 #[expect(clippy::too_many_arguments)]
-fn push_mirrored(
+fn push_paired(
     out: &mut Vec<SceneryInstance>,
     heightmap: &HeightMap,
     kind: terrain::SceneryKind,
@@ -379,17 +391,19 @@ fn push_mirrored(
     z: f32,
     yaw_rad: f32,
     scale: f32,
-    axis_z: f32,
+    symmetry: SymmetrySpec,
+    size_m: [f32; 2],
 ) {
     let scale = scale * (0.88 + terrain::position_unit(x, z, 0x5CEA) * 0.24);
-    for (zz, base_yaw) in [(z, yaw_rad), (axis_z * 2.0 - z, -yaw_rad)] {
-        let own = terrain::position_unit(x, zz, 0x0A17);
+    let [tx, tz] = symmetry.twin([x, z], size_m);
+    for ([xx, zz], base_yaw) in [([x, z], yaw_rad), ([tx, tz], symmetry.twin_yaw(yaw_rad))] {
+        let own = terrain::position_unit(xx, zz, 0x0A17);
         let yaw = match kind {
             terrain::SceneryKind::Lamppost => base_yaw + (own - 0.5) * 0.35,
             _ => own * std::f32::consts::TAU,
         };
-        if let Some(ground) = heightmap.sample_height(x, zz) {
-            out.push(SceneryInstance { kind, position: [x, ground, zz], yaw_rad: yaw, scale });
+        if let Some(ground) = heightmap.sample_height(xx, zz) {
+            out.push(SceneryInstance { kind, position: [xx, ground, zz], yaw_rad: yaw, scale });
         }
     }
 }
@@ -508,10 +522,35 @@ impl crate::blueprint::Exclusion {
 }
 
 impl SymmetrySpec {
-    /// The mirror image of z under this symmetry (`axis_z` comes from the grid).
-    pub(crate) fn mirror_z(&self, z: f32, axis_z: f32) -> f32 {
+    /// The fairness twin of a world point under this symmetry. Every pairing rule in the
+    /// pipeline — road expansion, town grids, scenery pairs, the report's twin hunts, the
+    /// editor's ghosts — asks THIS function, so a new symmetry lands everywhere at once
+    /// instead of leaking one hardcoded mirror at a time.
+    pub fn twin(&self, point: [f32; 2], size_m: [f32; 2]) -> [f32; 2] {
         match self {
-            SymmetrySpec::MirrorZ => axis_z * 2.0 - z,
+            SymmetrySpec::MirrorZ => [point[0], size_m[1] - point[1]],
+            SymmetrySpec::Rot180 => [size_m[0] - point[0], size_m[1] - point[1]],
+        }
+    }
+
+    /// The twin's base yaw: a reflection flips the sign, a half-turn adds π.
+    pub fn twin_yaw(&self, yaw_rad: f32) -> f32 {
+        match self {
+            SymmetrySpec::MirrorZ => -yaw_rad,
+            SymmetrySpec::Rot180 => yaw_rad + std::f32::consts::PI,
+        }
+    }
+
+    /// Whether a point is its OWN twin (within `tolerance_m`): the fixed line of a mirror,
+    /// the fixed centre of a half-turn. The report's pairing checks exempt these.
+    pub fn is_self_twin(&self, point: [f32; 2], size_m: [f32; 2], tolerance_m: f32) -> bool {
+        match self {
+            // The historical predicate, verbatim: within a metre of the axis LINE.
+            SymmetrySpec::MirrorZ => (point[1] - size_m[1] * 0.5).abs() < tolerance_m,
+            SymmetrySpec::Rot180 => {
+                let twin = self.twin(point, size_m);
+                (twin[0] - point[0]).abs() < tolerance_m && (twin[1] - point[1]).abs() < tolerance_m
+            }
         }
     }
 }

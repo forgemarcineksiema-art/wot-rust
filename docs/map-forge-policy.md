@@ -27,7 +27,15 @@ re-canonicalizable by construction):
 
 - `meta`: id, name, historical basis, design notes.
 - `grid`: size, cell size, minimum terrain elevation (the final clamp).
-- `symmetry`: the fairness contract when the map has one (`MirrorZ`) — checked, not assumed.
+- `symmetry`: the fairness contract when the map has one — checked, not assumed. Two
+  vocabularies: `MirrorZ` (reflection across the z axis — the WoT-like north/south
+  fairness, walls and gates ON the axis) and `Rot180` (half-turn about the map centre —
+  each team sees the same map turned around, so diagonal layouts stay fair without the
+  wall-on-the-axis grammar). Every pairing rule in the pipeline (roads, town grids,
+  scenery pairs, the report's twin hunts, the editor's ghosts and brushes) asks
+  `SymmetrySpec::twin`, so both speak everywhere at once. The legacy RIVER machinery
+  speaks MirrorZ only (its fairness algebra is even about the axis) — a river on a
+  Rot180 map is a report Error; half-turn maps author standing water instead.
 - `river`: the centerline as data (`terrain::RiverSpec`); every river-relative thing
   (carve, water mesh, minimap, bots, backdrop) follows the same line.
 - `horizon`: the optional backdrop enclosure (rolling hills + closure band + the river's
