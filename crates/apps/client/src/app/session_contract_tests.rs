@@ -558,3 +558,31 @@ fn local_play_hands_the_predictor_the_authoritative_motion() {
         "a hull under full throttle must report real authoritative motion, saw {moving_ticks} ticks"
     );
 }
+
+/// Netcode block 2, the honest-failure rule: an app built around a remote session that
+/// never seated (dead wire, refused lobby, silence) says CONNECTION LOST from the first
+/// frame — never a silent bot battle wearing multiplayer's name. The terminal reason on
+/// the session is the whole mechanism; without it the outcome may not appear.
+#[test]
+fn an_unseated_remote_start_says_connection_lost_not_bots() {
+    let hub = MemoryHub::new();
+    // A port with NO server behind it: the connect can only die.
+    let dead_addr: std::net::SocketAddr = "10.0.0.250:40999".parse().expect("addr");
+    let client_port = hub.port("10.0.0.9:5999".parse().expect("addr"));
+    let remote = RemoteSession::connect(dead_addr, Box::new(client_port));
+
+    let mut app = crate::app::ClientApp::new_seeded(7);
+    app.confirm_garage_selection(); // leave the garage - the tick loop is gated on it
+    let mut session = BattleSessionKind::Remote(Box::new(remote));
+    // FALSIFICATION ARM (kept commented): skip the abandon and the outcome stays None -
+    // the terminal reason is the entire mechanism, proven red before this landed.
+    session.abandon_remote(crate::app::session::RemoteTerminalReason::TimedOut);
+    app.session = session;
+
+    app.run_fixed_ticks(1);
+    assert_eq!(
+        app.battle_outcome,
+        Some(crate::hud::BattleHudOutcome::ConnectionLost),
+        "a failed remote start must be LOUD - the screen says the truth from frame one"
+    );
+}
