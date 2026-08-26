@@ -119,7 +119,7 @@ pub(crate) struct SightPoint {
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
     cover: &[StaticCoverObject],
-    water: Option<terrain::WaterBody>,
+    water: terrain::WaterView<'_>,
     tanks: &[TankSnapshot],
     owner: TankId,
     owner_team: TeamId,
@@ -353,7 +353,7 @@ mod tests {
                 blockers: &sets.blockers,
                 heightmap: Some(heightmap),
                 cover,
-                water: None,
+                water: terrain::WaterView::DRY,
             };
             let mut previous = eye;
             let mut travelled = 1.0_f32;
@@ -382,7 +382,7 @@ mod tests {
             let fast = aim_point_with_sweep(
                 heightmap,
                 cover,
-                None,
+                terrain::WaterView::DRY,
                 &tanks,
                 TankId(1),
                 TeamId(1),
@@ -407,7 +407,17 @@ mod tests {
         let flat = HeightMap::flat(64, 64, 5.0, 0.0).unwrap();
         let eye = Vec3::new(100.0, 10.0, 100.0);
         let sweep = |forward: Vec3| {
-            aim_point_with_sweep(&flat, &[], None, &[], TankId(1), TeamId(1), eye, forward, 0.0)
+            aim_point_with_sweep(
+                &flat,
+                &[],
+                terrain::WaterView::DRY,
+                &[],
+                TankId(1),
+                TeamId(1),
+                eye,
+                forward,
+                0.0,
+            )
         };
 
         let ground = sweep(Vec3::new(0.0, -1.0, 1.0).normalize());
@@ -448,7 +458,7 @@ mod tests {
             aim_point_with_sweep(
                 &flat,
                 std::slice::from_ref(&barn),
-                None,
+                terrain::WaterView::DRY,
                 &[],
                 TankId(1),
                 TeamId(1),

@@ -25,7 +25,7 @@ fn moving_target_hit_time(shooter: &TankState, target: &TankState) -> Option<f32
         blockers: &[],
         heightmap: None,
         cover: &[],
-        water: None,
+        water: terrain::WaterView::DRY,
     };
     let mut age = 0.0;
     while age < SHELL_MAX_AGE_SECONDS {

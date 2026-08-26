@@ -42,7 +42,16 @@ re-canonicalizable by construction):
   exit gap). `None` means the terrain program simply continues (an open steppe).
 - `terrain`: the heightfield program — a base surface plus **ordered structural ops**.
   Order is the design: "decks applied last" is visible in the document, not in a comment.
-- `water`: standing water level (depth is `level − ground` by construction).
+- `water`: standing water — the map-wide table plus bounded `bodies` sheets (teren W6),
+  each a rect holding its own level; depth is `level − ground` by construction in both.
+  ONE resolution rule (`terrain::WaterView::level_at` — sheets first in document order,
+  table as fallback) drives wading, drowning, shell splashes, the water mesh, the
+  minimap and the report's drown cells alike. Sheet contracts (report Errors): rects
+  in-bounds and non-overlapping, every rect edge DRY under the sheet's level (the only
+  way into a pool is down through its surface — what keeps the splash's analytic planes
+  complete), the table never wetting ground inside a sheet's rect, and on a fair map
+  sheets pair under the symmetry. A sheets-only map (mountain tarns) sets the table
+  under the terrain floor.
 - `objects`: grounded cover boxes and mirrored town grids, in document order.
 - `scenery`: seeded, mirrored scatter/row/fixed dressing with declarative exclusion rules.
 - `roads`: painted polylines, explicit or mirrored pairs — and DRIVEN, not render-only:

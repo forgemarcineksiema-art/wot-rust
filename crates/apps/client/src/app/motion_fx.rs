@@ -74,9 +74,9 @@ impl ClientApp {
                 self.battlefield.heightmap.sample_height(base.x, base.z).unwrap_or(base.y);
             let water_surface = self
                 .battlefield
-                .water
-                .filter(|water| water.depth_over(ground_y) > WADING_DEPTH_M)
-                .map(|water| water.surface_level_m);
+                .water_view()
+                .level_at(base.x, base.z)
+                .filter(|level| level - ground_y > WADING_DEPTH_M);
 
             let mut fastest = 0.0_f32;
             for (side, x_sign) in [(0_usize, -1.0_f32), (1, 1.0)] {

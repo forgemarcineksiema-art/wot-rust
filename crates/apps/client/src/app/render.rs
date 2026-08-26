@@ -678,7 +678,7 @@ impl ClientApp {
         if moved || crater_fingerprint != self.grass_cache_crater_fingerprint {
             self.grass_cache = scene_build::grass::grass_frame_objects(
                 &self.battlefield.heightmap,
-                self.battlefield.water,
+                self.battlefield.water_view(),
                 &self.battlefield.static_cover,
                 &self.battle_scene_meshes.as_ref().expect("ensured above").ground_maps,
                 &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),

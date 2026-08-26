@@ -469,7 +469,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if water_view && let Some(water) = battlefield.water {
             let (tint_vertices, tint_indices) = roads::depth_tint_mesh(
                 &battlefield.heightmap,
-                water.surface_level_m,
+                terrain::WaterView { table: Some(water), sheets: &[] },
                 &map_forge::WaterThresholds::default(),
             );
             let base = marker_vertices.len() as u32;

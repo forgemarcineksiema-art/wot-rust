@@ -148,8 +148,10 @@ pub fn advance_tank_on_world(
     }
     // Standing water over the contact: wading drag enters the force model through the contact,
     // and the riverbed softens the tracks. Zero depth (or a dry map) leaves both untouched.
-    if let Some(water) = obstacles.water {
-        contact.water_depth_m = water.depth_over(contact.height_m);
+    let water_depth =
+        obstacles.water.depth_at(contact.height_m, state.position.x, state.position.z);
+    if water_depth > 0.0 {
+        contact.water_depth_m = water_depth;
         contact.traction = crate::water::wading_traction(contact.traction, contact.water_depth_m);
     }
     let was_grounded = is_grounded(state.position.y, contact.height_m);

@@ -75,6 +75,7 @@ impl Default for WaterThresholds {
 pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport {
     let mut report = MapReport::default();
     check_grid(blueprint, &mut report);
+    check_standing_water(blueprint, map, &mut report);
     check_sculpt(blueprint, &mut report);
     check_strokes(blueprint, map, &mut report);
     check_road_profiles(blueprint, map, &mut report);
@@ -138,16 +139,15 @@ fn check_playability(
     let heightmap = &map.heightmap;
     let (width, height) = (heightmap.width(), heightmap.height());
     let cell = heightmap.cell_size_m();
+    let water_field = map.water_field();
     let passable: Vec<bool> = (0..width * height)
         .map(|index| {
             let (xi, zi) = (index % width, index / width);
             let ground = heightmap.sample_at_index(xi, zi);
-            if let Some(water) = map.water
-                && water.surface_level_m - ground >= thresholds.drown_depth_m
-            {
+            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
+            if water_field.depth_at(ground, x, z) >= thresholds.drown_depth_m {
                 return false;
             }
-            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
             !terrain::inside_any_cover(&map.static_cover, x, z, cover_passability_margin_m())
         })
         .collect();
@@ -322,6 +322,123 @@ fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
                 .to_string(),
             None,
         );
+    }
+}
+
+/// Standing sheets' contract (teren W6): every rect is well-formed and INSIDE the
+/// playfield (the backdrop skirt never reads the sheets, so shoreline at the border would
+/// tear the apron seam), no two sheets overlap (which table answers would be document-order
+/// trivia the eye cannot read), and on a fair map the sheets pair under the symmetry like
+/// everything else — same twin rule, same self-twin exemption.
+fn check_standing_water(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
+    let Some(water) = &blueprint.water else { return };
+    let bodies = &water.bodies;
+    if bodies.is_empty() {
+        return;
+    }
+    let size = blueprint.grid.size_m;
+    let mut push = |message: String, at: Option<[f32; 3]>| {
+        report.push("standing_water", Severity::Error, message, at);
+    };
+    for (index, body) in bodies.iter().enumerate() {
+        let [x0, z0, x1, z1] = body.rect;
+        if x0 >= x1 || z0 >= z1 {
+            push(format!("sheet {index} rect is degenerate ({:?})", body.rect), None);
+            continue;
+        }
+        if x0 < 0.0 || z0 < 0.0 || x1 > size[0] || z1 > size[1] {
+            push(
+                format!("sheet {index} leaves the playfield ({:?})", body.rect),
+                Some([x0, body.surface_level_m, z0]),
+            );
+        }
+        for (other_index, other) in bodies.iter().enumerate().skip(index + 1) {
+            let overlap = x0 < other.rect[2]
+                && other.rect[0] < x1
+                && z0 < other.rect[3]
+                && other.rect[1] < z1;
+            if overlap {
+                push(format!("sheets {index} and {other_index} overlap"), None);
+            }
+        }
+        // The shoreline contract that makes the shell splash's analytic planes COMPLETE:
+        // every rect edge is dry ground under the sheet's own level (the only way into the
+        // pool is down through its surface), and the global table stays under the ground
+        // everywhere inside the rect (two surfaces over one column would render and
+        // resolve against each other).
+        let cell = map.heightmap.cell_size_m().max(0.5);
+        let mut walk_edges = |a: f32, b: f32, horizontal: bool, fixed: f32| {
+            let mut t = a;
+            while t <= b {
+                let (x, z) = if horizontal { (t, fixed) } else { (fixed, t) };
+                if let Some(ground) = map.heightmap.sample_height(x, z)
+                    && ground < body.surface_level_m - 1.0e-3
+                {
+                    push(
+                        format!(
+                            "sheet {index} shoreline leaks through its rect edge at                              ({x:.0}, {z:.0}) - the pool must end on dry ground inside"
+                        ),
+                        Some([x, ground, z]),
+                    );
+                    return false;
+                }
+                t += cell;
+            }
+            true
+        };
+        let edges_dry = walk_edges(x0, x1, true, z0)
+            && walk_edges(x0, x1, true, z1)
+            && walk_edges(z0, z1, false, x0)
+            && walk_edges(z0, z1, false, x1);
+        if edges_dry && let Some(table) = &blueprint.water {
+            let mut z = z0;
+            'table: while z <= z1 {
+                let mut x = x0;
+                while x <= x1 {
+                    if let Some(ground) = map.heightmap.sample_height(x, z)
+                        && ground < table.surface_level_m - 1.0e-3
+                    {
+                        push(
+                            format!(
+                                "the global table wets ground inside sheet {index}'s rect                                  at ({x:.0}, {z:.0}) - one column, two surfaces"
+                            ),
+                            Some([x, ground, z]),
+                        );
+                        break 'table;
+                    }
+                    x += cell;
+                }
+                z += cell;
+            }
+        }
+    }
+    if let Some(symmetry) = blueprint.symmetry {
+        let twin_rect = |rect: [f32; 4]| -> [f32; 4] {
+            let a = symmetry.twin([rect[0], rect[1]], size);
+            let b = symmetry.twin([rect[2], rect[3]], size);
+            [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])]
+        };
+        let near = |a: [f32; 4], b: [f32; 4]| {
+            a.iter().zip(b.iter()).all(|(lhs, rhs)| (lhs - rhs).abs() < 1.0)
+        };
+        for (index, body) in bodies.iter().enumerate() {
+            let twin = twin_rect(body.rect);
+            if near(twin, body.rect) {
+                continue; // its own twin: a sheet astride the symmetry's fixed set
+            }
+            let paired = bodies.iter().any(|other| {
+                near(twin, other.rect)
+                    && (other.surface_level_m - body.surface_level_m).abs() < 1.0e-3
+            });
+            if !paired {
+                report.push(
+                    "symmetry",
+                    Severity::Error,
+                    format!("standing sheet {index} has no twin at the same level"),
+                    Some([body.rect[0], body.surface_level_m, body.rect[1]]),
+                );
+            }
+        }
     }
 }
 
@@ -813,9 +930,7 @@ fn check_spawns(map: &BattlefieldMap, report: &mut MapReport) {
             let x = zone.center[0] + dx;
             let z = zone.center[2] + dz;
             if let Some(h) = map.heightmap.sample_height(x, z) {
-                if let Some(water) = map.water
-                    && water.depth_over(h) > 0.0
-                {
+                if map.water_field().depth_at(h, x, z) > 0.0 {
                     report.push(
                         "spawns",
                         Severity::Error,

@@ -135,7 +135,7 @@ pub(crate) fn run() {
         let wobble = glam::Vec3::new((frame as f32 * 0.1).sin() * 3.0, 0.0, frame as f32 * 0.05);
         let objects = client::grass_frame_objects(
             &battlefield.heightmap,
-            battlefield.water,
+            battlefield.water_view(),
             &battlefield.static_cover,
             &maps,
             &materials,
@@ -505,7 +505,7 @@ fn frame_time_capture() {
                 let grass = if with_grass {
                     client::grass_frame_objects(
                         &battlefield.heightmap,
-                        battlefield.water,
+                        battlefield.water_view(),
                         &battlefield.static_cover,
                         &ground_maps,
                         &materials,

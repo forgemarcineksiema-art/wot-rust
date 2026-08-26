@@ -51,7 +51,7 @@ pub fn grass_card_dressing_mesh(
     let meadow = MeadowGround {
         maps,
         heightmap,
-        water: battlefield.water,
+        water: battlefield.water_view(),
         cover: &battlefield.static_cover,
     };
     let cols = (extent_x / CELL_M).floor() as i32;
@@ -388,6 +388,7 @@ mod tests {
             design_notes: vec![],
             heightmap,
             water: None,
+            standing_water: vec![],
             river: None,
             spawn_zones: vec![],
             capture_zones: vec![],
@@ -412,7 +413,7 @@ mod tests {
         let eye = glam::Vec3::new(128.0, 3.0, 80.0);
         let ring = crate::grass::grass_frame_objects(
             &battlefield.heightmap,
-            None,
+            terrain::WaterView::DRY,
             &[],
             &maps,
             &materials,
@@ -591,6 +592,7 @@ mod tests {
             design_notes: vec![],
             heightmap,
             water: None,
+            standing_water: vec![],
             river: None,
             spawn_zones: vec![],
             capture_zones: vec![],

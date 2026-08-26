@@ -271,11 +271,17 @@ pub struct BattlefieldMap {
     pub historical_basis: String,
     pub design_notes: Vec<String>,
     pub heightmap: HeightMap,
-    /// The map's standing water, if any (see [`WaterBody`]): depth anywhere is
+    /// The map's global water table, if any (see [`WaterBody`]): depth anywhere is
     /// `water.depth_over(heightmap height)`. `None` is a dry map; `serde(default)` keeps
     /// pre-water baked assets deserializing.
     #[serde(default)]
     pub water: Option<WaterBody>,
+    /// Bounded standing-water sheets over their own tables (teren W6) — mountain tarns,
+    /// paired lakes at different altitudes. Consumers resolve the COMPLETE water through
+    /// [`crate::WaterField`] (`water_field()`), never one channel alone. `serde(default)`
+    /// keeps single-table baked assets deserializing.
+    #[serde(default)]
+    pub standing_water: Vec<crate::StandingWater>,
     /// The map's river centerline as data, if any (see [`RiverSpec`]): the carve, the water
     /// mesh, the minimap, bot water probes and the backdrop skirt all follow the same line.
     /// `serde(default)` keeps pre-river baked assets deserializing.
@@ -301,6 +307,18 @@ pub struct BattlefieldMap {
 impl BattlefieldMap {
     pub fn feature(&self, kind: MapFeatureKind, name: &str) -> Option<&MapFeature> {
         self.features.iter().find(|feature| feature.kind == kind && feature.name.contains(name))
+    }
+
+    /// The map's COMPLETE water as one resolvable field — the door every consumer walks
+    /// (sim, physics, meshes, minimap, report): reading `water` alone misses the sheets.
+    pub fn water_field(&self) -> crate::WaterField {
+        crate::WaterField { table: self.water, sheets: self.standing_water.clone() }
+    }
+
+    /// The zero-clone borrow of the same field, for per-frame callers (reticle sweeps,
+    /// minimap rebuilds).
+    pub fn water_view(&self) -> crate::WaterView<'_> {
+        crate::WaterView { table: self.water, sheets: &self.standing_water }
     }
 }
 

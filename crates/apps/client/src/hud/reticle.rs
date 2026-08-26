@@ -73,7 +73,7 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     pub heightmap: &'a HeightMap,
     pub cover: &'a [StaticCoverObject],
     /// The map's standing water — the previewed splash must be the server's splash.
-    pub water: Option<terrain::WaterBody>,
+    pub water: terrain::WaterView<'a>,
     /// The PLAYER'S gun arc (min, max) in radians — a per-vehicle property since the fleet
     /// stopped sharing one hard-coded pair. HULL-relative, like the simulation's own limits.
     pub gun_pitch_limits_rad: (f32, f32),

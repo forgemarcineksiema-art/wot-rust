@@ -171,7 +171,7 @@ fn set_crater_view_grass(
 ) {
     let grass = grass_frame_objects(
         &battlefield.heightmap,
-        battlefield.water,
+        battlefield.water_view(),
         &battlefield.static_cover,
         maps,
         materials,

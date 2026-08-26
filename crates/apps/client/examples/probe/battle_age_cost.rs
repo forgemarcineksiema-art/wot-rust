@@ -67,7 +67,7 @@ pub(crate) fn run() {
         let grass_ms = timed(9, || {
             client::grass_frame_objects(
                 &field.heightmap,
-                field.water,
+                field.water_view(),
                 &field.static_cover,
                 &maps,
                 &materials,

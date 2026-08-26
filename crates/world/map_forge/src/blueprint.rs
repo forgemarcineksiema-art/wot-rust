@@ -106,8 +106,22 @@ pub enum SymmetrySpec {
 }
 
 /// Standing water (see `terrain::WaterBody`); depth is `level − ground` by construction.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// `surface_level_m` is the map-wide table; `bodies` (teren W6) are bounded sheets over
+/// their own tables — a sheets-only map (mountain tarns, no valley water) sets the global
+/// table under the terrain floor, which is the honest "table below every grain of ground".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WaterSpec {
+    pub surface_level_m: f32,
+    #[serde(default)]
+    pub bodies: Vec<StandingWaterSpec>,
+}
+
+/// One bounded sheet: the rect `[x0, z0, x1, z1]` that contains the pool, and its level.
+/// The pool's SHAPE stays the terrain contour under the level — the rect only scopes which
+/// table answers there (see `terrain::StandingWater`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct StandingWaterSpec {
+    pub rect: [f32; 4],
     pub surface_level_m: f32,
 }
 

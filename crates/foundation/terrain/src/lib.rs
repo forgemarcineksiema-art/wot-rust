@@ -52,4 +52,4 @@ pub use scenery::{
     position_unit, scatter_mirrored,
 };
 pub use sculpt::{band_mask, lerp, polyline_distance, smoothstep01};
-pub use water::WaterBody;
+pub use water::{StandingWater, WaterBody, WaterField, WaterView};

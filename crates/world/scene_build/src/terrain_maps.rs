@@ -386,6 +386,7 @@ mod tests {
             design_notes: vec![],
             heightmap,
             water: None,
+            standing_water: vec![],
             river: None,
             spawn_zones: vec![],
             capture_zones: vec![],

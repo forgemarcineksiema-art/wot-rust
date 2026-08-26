@@ -40,8 +40,9 @@ pub struct TankDriveWorld<'a> {
     /// Running-gear contact stations for the support envelope (trench bridging, crest overhang).
     /// `None` keeps the legacy centre-probe ride height.
     pub footprint: Option<&'a game_core::ContactFootprint>,
-    /// The map's standing water (wading drag + riverbed traction cut); `None` is a dry map.
-    pub water: Option<terrain::WaterBody>,
+    /// The map's standing water (wading drag + riverbed traction cut); a dry view is a
+    /// dry map.
+    pub water: terrain::WaterView<'a>,
     /// Collapsed buildings, as ground (see `terrain::RubbleMound`). Empty until something comes
     /// down, so an untouched battlefield drives bit-identically.
     pub rubble: &'a [terrain::RubbleMound],

@@ -17,7 +17,7 @@ const VIEW_HALF_FOV_RAD: f32 = 0.55;
 fn sample_relief(
     heightmap: &HeightMap,
     extent: [f32; 2],
-    water: Option<terrain::WaterBody>,
+    water: terrain::WaterView<'_>,
 ) -> (Vec<f32>, Vec<bool>) {
     let n = RELIEF_RES;
     let mut heights = vec![0.0f32; n * n];
@@ -29,7 +29,7 @@ fn sample_relief(
             let z = (iz as f32 + 0.5) / n as f32 * extent[1];
             let y = heightmap.sample_height(x, z).unwrap_or(0.0);
             heights[iz * n + ix] = y;
-            wet[iz * n + ix] = water.map(|w| w.depth_over(y) > 0.05).unwrap_or(false);
+            wet[iz * n + ix] = water.depth_at(y, x, z) > 0.05;
             lo = lo.min(y);
             hi = hi.max(y);
         }
@@ -55,7 +55,7 @@ pub(super) struct MinimapStaticLayers {
 pub(super) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> MinimapStaticLayers {
     let extent = battlefield.heightmap.extent_m();
     let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
-    let (relief, water) = sample_relief(&battlefield.heightmap, extent_m, battlefield.water);
+    let (relief, water) = sample_relief(&battlefield.heightmap, extent_m, battlefield.water_view());
     let roads = battlefield.roads.iter().map(|road| road.points.clone()).collect();
     let cover = battlefield
         .static_cover

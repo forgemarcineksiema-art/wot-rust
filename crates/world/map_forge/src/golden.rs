@@ -33,6 +33,14 @@ pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
     if let Some(water) = map.water {
         f32_bits(&mut hash, water.surface_level_m);
     }
+    // Standing sheets fold in AFTER the table; an empty list adds nothing, so every
+    // single-table golden stands exactly where it was.
+    for sheet in &map.standing_water {
+        for value in sheet.rect {
+            f32_bits(&mut hash, value);
+        }
+        f32_bits(&mut hash, sheet.surface_level_m);
+    }
     if let Some(river) = map.river {
         for value in [
             river.base_x_m,
