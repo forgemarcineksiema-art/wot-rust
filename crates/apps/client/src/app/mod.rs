@@ -618,25 +618,36 @@ impl ClientApp {
     fn new_without_vehicle_artifacts() -> Self {
         // N3: `WOT_CONNECT=host:port` joins a dedicated server instead of hosting the battle
         // in-process. Env-var entry is the honest MVP; the garage UI field is a follow-up.
-        if let Ok(target) = std::env::var("WOT_CONNECT")
-            && let Some(app) = Self::from_remote_env(target.trim())
-        {
-            return app;
+        // Once the variable is set, the remote path OWNS the start: it never falls through
+        // to a silent local battle (netcode block 2 — asking for multiplayer and getting
+        // bots without a word is the lie the audit named).
+        if let Ok(target) = std::env::var("WOT_CONNECT") {
+            return Self::from_remote_env(target.trim());
         }
         Self::from_battle_config(RandomBattleConfig::runtime_from_env(VehicleKind::default()))
     }
 
     /// Connect, wait to be seated (the lobby may hold us until its deadline), then build the
-    /// app around the ASSIGNED tank and the SERVER's map. `None` falls back to a local battle
-    /// (bad address, no answer) — the game always starts.
-    fn from_remote_env(target: &str) -> Option<Self> {
-        let addr: std::net::SocketAddr = target.parse().ok()?;
-        let transport =
-            net::transport::UdpTransport::bind("0.0.0.0:0".parse().expect("addr")).ok()?;
+    /// app around the ASSIGNED tank and the SERVER's map.
+    ///
+    /// Failure is LOUD, never a silent bot battle: a malformed address or an unknown
+    /// `WOT_VEHICLE` slug is a configuration error and exits the process with the reason on
+    /// stderr; a connect that dies on the wire (refused, timed out, never seated) starts
+    /// the app on the CONNECTION LOST screen — the same terminal the player would see if
+    /// the battle dropped mid-fight, with the local battle one deliberate garage click
+    /// away, never an accident.
+    fn from_remote_env(target: &str) -> Self {
+        let addr: std::net::SocketAddr = match target.parse() {
+            Ok(addr) => addr,
+            Err(error) => {
+                eprintln!("WOT_CONNECT: `{target}` is not host:port ({error})");
+                std::process::exit(2);
+            }
+        };
         // Seat=vehicle (v49): `WOT_VEHICLE=<slug>` asks the lobby for that hull — the same
-        // env-var register as WOT_MAP/WOT_CONNECT (the honest MVP; the garage lobby UI is
-        // the follow-up). An unknown slug is refused LOUDLY: connecting as the wrong tank
-        // because of a typo is exactly the silent lie this register exists to avoid.
+        // env-var register as WOT_MAP/WOT_CONNECT. An unknown slug is refused loudly:
+        // connecting as the wrong tank because of a typo is exactly the silent lie this
+        // register exists to avoid.
         let vehicle = match std::env::var("WOT_VEHICLE") {
             Ok(value) => {
                 let slug = value.trim().to_string();
@@ -647,12 +658,20 @@ impl ClientApp {
                 {
                     Some(kind) => Some(kind),
                     None => {
-                        tracing::error!(slug, "WOT_VEHICLE names no playable vehicle");
-                        return None;
+                        eprintln!("WOT_VEHICLE: `{slug}` names no playable vehicle");
+                        std::process::exit(2);
                     }
                 }
             }
             Err(_) => None,
+        };
+        let transport = match net::transport::UdpTransport::bind("0.0.0.0:0".parse().expect("addr"))
+        {
+            Ok(transport) => transport,
+            Err(error) => {
+                eprintln!("WOT_CONNECT: cannot bind a UDP socket ({error})");
+                std::process::exit(2);
+            }
         };
         let mut remote =
             session::RemoteSession::connect_with_vehicle(addr, Box::new(transport), vehicle);
@@ -666,16 +685,20 @@ impl ClientApp {
             if remote.is_terminal()
                 || matches!(remote.state(), net::session::SessionState::Failed(_))
             {
-                tracing::warn!(target, "remote connect failed; falling back to a local battle");
-                return None;
+                tracing::warn!(target, "remote connect failed; starting on CONNECTION LOST");
+                break;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        if !remote.is_seated() {
-            tracing::warn!(target, "the lobby never seated us; falling back to a local battle");
-            return None;
+        let seated = remote.is_seated();
+        let mut session = session::BattleSessionKind::Remote(Box::new(remote));
+        if !seated {
+            // Covers both exits above: a dead wire, and a lobby that never seated us
+            // inside the generous window. The terminal reason is what puts CONNECTION
+            // LOST on screen from the first frame.
+            session.abandon_remote(session::RemoteTerminalReason::TimedOut);
         }
-        Some(Self::from_session(session::BattleSessionKind::Remote(Box::new(remote))))
+        Self::from_session(session)
     }
 
     fn from_session(session: session::BattleSessionKind) -> Self {

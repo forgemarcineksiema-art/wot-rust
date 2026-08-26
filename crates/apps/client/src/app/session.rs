@@ -91,6 +91,15 @@ impl BattleSessionKind {
         }
     }
 
+    /// Force the remote session terminal from OUTSIDE the pump — the connect path uses it
+    /// when the lobby never seats us: the app then starts on the CONNECTION LOST screen
+    /// instead of silently playing bots (netcode block 2 — the honest-failure rule).
+    pub(super) fn abandon_remote(&mut self, reason: RemoteTerminalReason) {
+        if let Self::Remote(session) = self {
+            session.enter_terminal(reason);
+        }
+    }
+
     pub(super) fn remote_terminal_reason(&self) -> Option<RemoteTerminalReason> {
         match self {
             Self::Local(_) => None,
