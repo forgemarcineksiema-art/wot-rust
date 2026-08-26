@@ -85,9 +85,20 @@ decide the mid-game").
   stone never floats). The knife-fight lane finally has walls a flank can lean on, and the
   eye sees the granite the splat always claimed; the gate road corridor stays clear by the
   drive graph's hull margin.
-- Cover: the Orlinoye `TownGrid` (12 houses) + on-axis chapel (the tall silhouette of the
-  col), mirrored shepherd barns in the Dolina, serpentine retaining walls, summit sangar
-  breastworks, wrecks at the defile mouths, hedgerow screens on the Dolina lane.
+- **The col landmark (teren W3b tail, 2026-08-26):** the Orlinoye watchtower — a Svan-style
+  20 m `StoneTower` (the new tenth cover kind) on the axis at the capture point itself. The
+  pale limewashed shaft crests the pass skyline from BOTH spawn roads (locked in `sim`
+  through the live LOS rule), so the objective draws the eye from the first minute. It is
+  destructible masonry (900 HP), and its rubble fraction is 0.11 by the destruction
+  doctrine: the felled tower leaves a 2.2 m stump under the benchmark turret line (2.53 m)
+  and above the hull-down floor (1.49 m) — the landmark falls into a fighting mound on the
+  cap, with both sight lines locked in `sim/tests/orliny_watchtower.rs`. 20 m is the honest
+  Svan height and the skyline necessity: a 15.4 m first cut lost "tallest silhouette" to
+  the chapel standing on the rising Oryol shoulder (ground 37.3 m vs the 31.0 m bench).
+- Cover: the Orlinoye `TownGrid` (12 houses) + on-axis chapel + the watchtower (the
+  tallest silhouette of the col), mirrored shepherd barns in the Dolina, serpentine
+  retaining walls, summit sangar breastworks, wrecks at the defile mouths, hedgerow
+  screens on the Dolina lane.
 - Roads (render-only): the mirrored serpentine pass road + the hamlet street, the Dolina
   road, the defile road.
 
@@ -105,6 +116,17 @@ Locked by `crates/world/map_forge/tests/orliny_pereval.rs`:
   turret clears (> 0.4 m), scanned as a line, not one tuned point.
 - `the_summits_are_the_roof_of_the_map` — Oryol crowns the map; the massif carries real
   vertical drama (> 60 m).
+- `the_watchtower_crowns_the_col_as_the_tallest_silhouette` — no cover raises a taller
+  silhouette from its own footprint (≥ 1.5 m half-height margin), and within the hamlet
+  nothing stands higher in absolute terms.
+
+And in `crates/runtime/sim/tests/orliny_watchtower.rs` (through the live LOS rule):
+
+- `the_watchtower_crests_the_skyline_from_both_spawn_roads` — the crown's near arris is
+  visible from a commander's eye at either spawn.
+- `the_felled_watchtower_leaves_a_hull_down_stump_on_the_col` — intact blocks the cross-col
+  lines; felled, the turret line opens over the 2.2 m stump while the hull line stays
+  covered.
 
 And in `crates/runtime/battle_host/tests/orliny_battle.rs`:
 

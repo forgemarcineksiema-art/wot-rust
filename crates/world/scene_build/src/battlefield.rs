@@ -722,6 +722,158 @@ fn append_cover_box(
         StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
         StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
         StaticCoverKind::Crag => append_crag(vertices, indices, cover, center, half),
+        StaticCoverKind::StoneTower => append_stone_tower(vertices, indices, center, half),
+    }
+}
+
+/// A Svan-style stone watchtower (teren W3b, the Orliny col landmark): a granite plinth, a
+/// battered limewashed shaft rising in weathered courses, slit loopholes, a machicolated
+/// crown re-widening over a shadowed throat, corner piers and a stepped slate cap. Every
+/// block STRICTLY inside the collision box — the pale shaft against the granite pass is the
+/// landmark read, and what stops the shell is exactly what the eye sees standing there.
+fn append_stone_tower(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const LIME: ([f32; 3], f32) = ([0.56, 0.54, 0.49], 0.06);
+    const LIME_SHADE: ([f32; 3], f32) = ([0.50, 0.48, 0.43], 0.06);
+    const STONE: ([f32; 3], f32) = ([0.38, 0.37, 0.34], 0.10);
+    const SLATE: ([f32; 3], f32) = ([0.24, 0.25, 0.27], 0.14);
+    const VOID: ([f32; 3], f32) = ([0.06, 0.06, 0.07], 0.02);
+    let ground_y = center.y - half.y;
+    let height = half.y * 2.0;
+    let foot = half.x.min(half.z);
+
+    // The exposed granite plinth seating the full footprint.
+    let plinth_h = (height * 0.06).clamp(0.4, 1.0);
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, ground_y + plinth_h * 0.5, center.z),
+        Vec3::new(half.x * 0.99, plinth_h * 0.5, half.z * 0.99),
+        STONE.0,
+        STONE.1,
+    );
+
+    // The battered shaft: four courses tapering toward the crown, alternating limewash
+    // weathering so the shaft reads as coursework, not one extrusion.
+    let crown_h = (height * 0.11).clamp(1.2, 2.0);
+    let throat_h = 0.3;
+    let cap_h = (height * 0.06).clamp(0.6, 1.1);
+    let shaft_h = height - plinth_h - throat_h - crown_h - cap_h;
+    let courses = 4;
+    let course_h = shaft_h / courses as f32;
+    let mut course_insets = [0.0f32; 4];
+    for (course, inset) in course_insets.iter_mut().enumerate() {
+        let t = course as f32 / (courses - 1) as f32;
+        *inset = 0.96 - t * 0.14; // 0.96 → 0.82 of the box half: the batter.
+    }
+    for (course, inset) in course_insets.iter().enumerate() {
+        let base = ground_y + plinth_h + course as f32 * course_h;
+        let tone = if course % 2 == 0 { LIME } else { LIME_SHADE };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x, base + course_h * 0.5, center.z),
+            Vec3::new(half.x * inset, course_h * 0.5, half.z * inset),
+            tone.0,
+            tone.1,
+        );
+    }
+
+    // Slit loopholes on the two upper courses: thin dark plates just proud of their
+    // course's face (and still well inside the box), one per face per level.
+    for level in [2usize, 3] {
+        let inset = course_insets[level];
+        let slit_y = ground_y + plinth_h + (level as f32 + 0.55) * course_h;
+        let slit_half_h = (course_h * 0.16).clamp(0.3, 0.5);
+        for (dx, dz, hx, hz) in [
+            (half.x * inset + 0.03, 0.0, 0.03, foot * 0.05),
+            (-half.x * inset - 0.03, 0.0, 0.03, foot * 0.05),
+            (0.0, half.z * inset + 0.03, foot * 0.05, 0.03),
+            (0.0, -half.z * inset - 0.03, foot * 0.05, 0.03),
+        ] {
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(center.x + dx, slit_y, center.z + dz),
+                Vec3::new(hx, slit_half_h, hz),
+                VOID.0,
+                VOID.1,
+            );
+        }
+    }
+
+    // The shadowed throat under the crown's overhang, then the crown re-widening past the
+    // shaft — the machicolation silhouette that says "watchtower" at a kilometre.
+    let throat_y = ground_y + plinth_h + shaft_h;
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, throat_y + throat_h * 0.5, center.z),
+        Vec3::new(half.x * 0.76, throat_h * 0.5, half.z * 0.76),
+        VOID.0,
+        VOID.1,
+    );
+    let crown_y = throat_y + throat_h;
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, crown_y + crown_h * 0.5, center.z),
+        Vec3::new(half.x * 0.94, crown_h * 0.5, half.z * 0.94),
+        STONE.0,
+        STONE.1,
+    );
+    // Machicolation mouths: dark tabs under the crown lip, three per face.
+    for face in 0..4 {
+        for mouth in 0..3 {
+            let along = (mouth as f32 - 1.0) * foot * 0.5;
+            let (dx, dz, hx, hz) = match face {
+                0 => (half.x * 0.94 + 0.02, along, 0.02, foot * 0.09),
+                1 => (-half.x * 0.94 - 0.02, along, 0.02, foot * 0.09),
+                2 => (along, half.z * 0.94 + 0.02, foot * 0.09, 0.02),
+                _ => (along, -half.z * 0.94 - 0.02, foot * 0.09, 0.02),
+            };
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(center.x + dx, crown_y + crown_h * 0.22, center.z + dz),
+                Vec3::new(hx, crown_h * 0.16, hz),
+                VOID.0,
+                VOID.1,
+            );
+        }
+    }
+    // Corner piers on the crown top carrying the cap.
+    let pier_h = cap_h * 0.45;
+    for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(
+                center.x + sx * half.x * 0.72,
+                crown_y + crown_h + pier_h * 0.5,
+                center.z + sz * half.z * 0.72,
+            ),
+            Vec3::new(half.x * 0.16, pier_h * 0.5, half.z * 0.16),
+            STONE.0,
+            STONE.1,
+        );
+    }
+    // The stepped slate cap: two shrinking slabs reading as the low pyramid roof.
+    let cap_y = crown_y + crown_h + pier_h;
+    let slab_h = (cap_h - pier_h) * 0.5;
+    for (step, spread) in [(0usize, 0.88f32), (1, 0.5)] {
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x, cap_y + (step as f32 + 0.5) * slab_h, center.z),
+            Vec3::new(half.x * spread, slab_h * 0.5, half.z * spread),
+            SLATE.0,
+            SLATE.1,
+        );
     }
 }
 
@@ -2614,6 +2766,46 @@ mod tests {
                 .any(|v| v.position[1] >= crown_y && v.color[0] >= 0.48 && v.color[1] >= 0.46);
             assert!(lit_crown, "{}: the crown wears the lighter coping/cap stone", cover.id);
         }
+    }
+
+    /// Teren W3b: the Svan watchtower reads as the landmark it is — pale limewashed shaft,
+    /// dark machicolation voids, slate cap — with every vertex inside the collision box and
+    /// the silhouette actually FILLING the box's height (a landmark that stops short of its
+    /// own collider would be a lie both ways).
+    #[test]
+    fn the_watchtower_wears_lime_voids_and_slate_inside_its_box() {
+        let tower = StaticCoverObject {
+            id: "col_watchtower_probe".into(),
+            name: "watchtower".into(),
+            kind: StaticCoverKind::StoneTower,
+            center: [0.0, 10.0, 0.0],
+            half_extents_m: [2.6, 10.0, 2.6],
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_cover_box(&mut vertices, &mut indices, &tower);
+        assert!(vertices.len() > 24 * 6, "plinth, courses, slits, crown and cap add up");
+        let mut top = f32::MIN;
+        for vertex in &vertices {
+            assert!(
+                vertex.position[0].abs() <= 2.6 + 1.0e-3
+                    && vertex.position[2].abs() <= 2.6 + 1.0e-3
+                    && vertex.position[1] <= 20.0 + 1.0e-3
+                    && vertex.position[1] >= -1.0e-3,
+                "tower geometry must stay inside the collision box, got {:?}",
+                vertex.position
+            );
+            top = top.max(vertex.position[1]);
+        }
+        assert!(top >= 20.0 - 1.0e-3, "the cap reaches the box top, got {top}");
+        let limewash = vertices.iter().any(|v| v.color[0] > 0.52 && v.color[2] > 0.45);
+        assert!(limewash, "the shaft wears the pale limewash that makes the landmark");
+        let voids = vertices.iter().filter(|v| v.color[0] < 0.1).count();
+        assert!(voids >= 24 * 8, "loopholes and machicolation mouths read as dark voids");
+        let slate_cap = vertices
+            .iter()
+            .any(|v| v.position[1] > 18.5 && v.color[2] > v.color[0] && v.color[0] < 0.3);
+        assert!(slate_cap, "the crown carries the cool slate cap");
     }
 
     /// The breach (urban-map PR-10): a Gone wall leaves a knee-high toppled course — inside

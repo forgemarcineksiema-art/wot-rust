@@ -2,6 +2,18 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-08-26 (teren W3b tail, Orliny only): the col carries its LANDMARK -
+    // the Orlinoye watchtower, a Svan-style shaft on the axis at (500, 500), the capture
+    // point itself. StoneTower is the NEW tenth cover kind (identity-enum golden extended):
+    // destructible masonry (900 HP), and its rubble fraction is 0.11 BY THE DOCTRINE - the
+    // felled 20 m tower leaves a 2.2 m stump that ducks the benchmark turret line (2.53 m)
+    // and clears the hull-down floor (1.49 m), so the landmark falls into a fighting mound
+    // instead of a wall (sim locks both lines on this map). 20 m is the honest Svan height
+    // AND the skyline necessity: the first 15.4 m cut lost "tallest silhouette" to the
+    // chapel standing on the RISING Oryol shoulder (ground 37.3 vs the 31.0 bench - the
+    // tallest-silhouette lock caught it). The pale limewashed bake crests the pass from
+    // BOTH spawn roads (locked in sim through the live LOS rule), and the hamlet feature
+    // note hands "tallest silhouette of the col" from the chapel to the tower.
     // Re-blessed 2026-08-26 (teren W3b, Orliny only): the defile WEARS its stone - six
     // mirrored CRAG boxes hug the knuckle feet in the slot. Crag is the NEW ninth cover
     // kind (identity-enum golden extended): the honest big rock scenery could never carry
@@ -116,7 +128,7 @@
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
     ("bystra_valley", "3161e30ae33d03ed"),
-    ("orliny_pereval", "80dc2598aeeed46a"),
+    ("orliny_pereval", "d77bdb0815a7c23a"),
     ("ostrogorsk", "f4cd7a1809c1d9ba"),
     ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
 ]

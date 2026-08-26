@@ -228,6 +228,9 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
             // teren W3b (2026-08-26): the honest BIG rock - solid scenery stays under the
             // belly line, so a crag that reads as cover IS cover.
             "Crag",
+            // teren W3b (2026-08-26): the Orliny col landmark - a Svan-style watchtower
+            // whose felled stump lands in the hull-down band by its rubble fraction.
+            "StoneTower",
         ],
     ),
     (

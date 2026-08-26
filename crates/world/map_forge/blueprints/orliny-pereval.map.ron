@@ -139,6 +139,20 @@ MapBlueprint(
             at: (Fixed(556.0), Fixed(500.0)),
             half_extents_m: (4.5, 5.0, 6.0),
         ),
+        // Teren W3b: the col finally carries the landmark the audit asked for. A Svan-style
+        // watchtower on the axis at the capture point itself - the pale 20 m shaft (real
+        // Svan towers run 20-25 m; anything shorter loses the skyline to the chapel on the
+        // rising Oryol shoulder) crests the pass from BOTH spawn roads (locked in sim), so
+        // the objective draws the eye from the first minute. Felled, its stump lands in the
+        // hull-down band by the StoneTower rubble fraction: the landmark falls into a
+        // fighting position.
+        Cover(
+            id: "col_watchtower",
+            name: "Orlinoye watchtower",
+            kind: StoneTower,
+            at: (Fixed(500.0), Fixed(500.0)),
+            half_extents_m: (2.6, 10.0, 2.6),
+        ),
         Cover(
             id: "shepherd_barn_south",
             name: "shepherd barn (south)",
@@ -653,7 +667,7 @@ MapBlueprint(
                 name: "hamlet of Orlinoye",
                 at: (Fixed(500.0), Fixed(500.0)),
                 radius_m: 90.0,
-                note: "a mirrored hamlet on the pass bench; the chapel on the axis is the tallest silhouette of the col",
+                note: "a mirrored hamlet on the pass bench; the watchtower on the axis is the tallest silhouette of the col, the chapel at its side",
             ),
         ],
     ),

@@ -125,3 +125,43 @@ fn the_east_rim_answers_the_defile_flank_but_not_the_col() {
         "the perch-to-col distance must clear the longest parked view range: {distance}"
     );
 }
+
+/// Teren W3b tail: the col carries its landmark. The Orlinoye watchtower stands ON the
+/// axis at the capture point itself and wears the StoneTower kind (destructible masonry
+/// that falls into a hull-down stump — the sim locks both sight lines). The landmark
+/// claim, in the two honest halves: no cover on the map raises a taller silhouette from
+/// its own footprint, and within the hamlet nothing stands higher in absolute terms —
+/// "the tallest silhouette of the col", as the feature note promises. (A crag riding a
+/// mountain knuckle at the map's edge may top the tower's absolute Y — that is the
+/// mountain's height, not a rival silhouette.)
+#[test]
+fn the_watchtower_crowns_the_col_as_the_tallest_silhouette() {
+    let map = map();
+    let tower = map
+        .static_cover
+        .iter()
+        .find(|object| object.id == "col_watchtower")
+        .expect("the col watchtower ships");
+    assert_eq!(tower.kind, terrain::StaticCoverKind::StoneTower);
+    assert_eq!([tower.center[0], tower.center[2]], [500.0, 500.0], "on the axis, on the cap");
+    let tower_top = tower.center[1] + tower.half_extents_m[1];
+    for other in map.static_cover.iter().filter(|object| object.id != "col_watchtower") {
+        assert!(
+            tower.half_extents_m[1] >= other.half_extents_m[1] + 1.5,
+            "no cover raises a taller silhouette than the tower: {} ({:.1} vs {:.1} half)",
+            other.id,
+            tower.half_extents_m[1],
+            other.half_extents_m[1]
+        );
+        let in_hamlet = (other.center[0] - 500.0).powi(2) + (other.center[2] - 500.0).powi(2)
+            <= 90.0f32.powi(2);
+        if in_hamlet {
+            let other_top = other.center[1] + other.half_extents_m[1];
+            assert!(
+                tower_top > other_top + 1.0,
+                "within the hamlet the tower out-tops {} ({tower_top:.1} vs {other_top:.1})",
+                other.id
+            );
+        }
+    }
+}
