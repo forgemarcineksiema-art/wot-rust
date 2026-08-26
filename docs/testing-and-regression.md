@@ -31,7 +31,7 @@ When changing protocol encoding intentionally:
 5. Remove that variable and rerun the same test clean.
 6. Document the compatibility impact before merging.
 
-Current compatibility note: the transport frame carries `PROTOCOL_VERSION = 48`
+Current compatibility note: the transport frame carries `PROTOCOL_VERSION = 49`
 (`crates/runtime/net/src/lib.rs`; this number is gate-locked against that constant by
 `crates/tooling/quality/tests/roadmap_claims.rs`); a peer with a different version fails the
 frame before payload decode. Recent versions: v44 withholds a third-party projectile's owner
