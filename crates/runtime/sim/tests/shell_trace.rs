@@ -37,7 +37,7 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
         blockers: &[],
         heightmap: None,
         cover: &[],
-        water: None,
+        water: terrain::WaterView::DRY,
     };
     let outcome = trace_shell(
         shell.position,
@@ -98,7 +98,7 @@ fn projectile_radius_catches_a_cover_edge_and_reports_the_real_surface() {
         blockers: &[],
         heightmap: None,
         cover: &cover,
-        water: None,
+        water: terrain::WaterView::DRY,
     };
     assert!(segment_impact(from, to, to - from, &ray_world).is_none(), "center ray clears");
 
@@ -128,7 +128,7 @@ fn a_shell_falling_into_water_splashes_at_the_surface_not_the_bed() {
         blockers: &[],
         heightmap: Some(&heightmap),
         cover: &[],
-        water: Some(water),
+        water: terrain::WaterView { table: Some(water), sheets: &[] },
     };
 
     // Lobbed from above the surface, flying down-range and falling.
@@ -154,7 +154,7 @@ fn a_shell_falling_into_water_splashes_at_the_surface_not_the_bed() {
     }
 
     // The identical shot over the drained basin reaches the ground instead.
-    let dry_world = ShellTraceWorld { water: None, ..world };
+    let dry_world = ShellTraceWorld { water: terrain::WaterView::DRY, ..world };
     let dry = trace_shell(
         Vec3::new(30.0, 8.0, 10.0),
         Vec3::new(0.0, -20.0, 60.0),

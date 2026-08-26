@@ -43,11 +43,16 @@ pub struct SimulationState {
     /// Last-fresh-sight memory behind the spotted hold (see `spotting::SpottingMemory`).
     #[serde(default)]
     spotting_memory: crate::spotting::SpottingMemory,
-    /// The battle map's standing water, installed once at setup (like the heightmap, it never
-    /// changes mid-battle). Drives wading drag, drowning, and shell splashes. `serde(default)`
-    /// keeps pre-water fixtures loading dry.
+    /// The battle map's global water table, installed once at setup (like the heightmap, it
+    /// never changes mid-battle). Drives wading drag, drowning, and shell splashes.
+    /// `serde(default)` keeps pre-water fixtures loading dry.
     #[serde(default)]
     water: Option<WaterBody>,
+    /// Bounded standing-water sheets (teren W6), installed with the table. Every consumer
+    /// resolves the pair through `water_view()` — one rule, one door. `serde(default)`
+    /// keeps single-table fixtures loading sheet-free.
+    #[serde(default)]
+    standing_water: Vec<terrain::StandingWater>,
     /// The map's ground rule (`terrain::GroundClassifier`), installed once at battle setup like
     /// the water. It is derived wholly from the map, so it is not replicated: the client builds
     /// the same one from the same battlefield and the predictor reads an identical answer.
@@ -118,6 +123,7 @@ impl SimulationState {
             armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
+            standing_water: Vec::new(),
             ground: None,
             cover_states: Vec::new(),
             live_cover_cache: crate::cover_damage::CoverCache::default(),
@@ -144,14 +150,23 @@ impl SimulationState {
         &self.cover_states
     }
 
-    /// Install the battle map's standing water (see [`terrain::WaterBody`]). Call once at
-    /// battle setup alongside the heightmap; `None` (the default) is a dry map.
-    pub fn set_water(&mut self, water: Option<WaterBody>) {
-        self.water = water;
+    /// Install the battle map's COMPLETE standing water (see [`terrain::WaterField`]) —
+    /// the global table and the bounded sheets together. Call once at battle setup
+    /// alongside the heightmap; `None` / a dry field is a dry map. `impl Into` keeps the
+    /// historical `set_water(Some(WaterBody { .. }))` call shape valid.
+    pub fn set_water(&mut self, water: impl Into<terrain::WaterField>) {
+        let field = water.into();
+        self.water = field.table;
+        self.standing_water = field.sheets;
     }
 
     pub fn water(&self) -> Option<WaterBody> {
         self.water
+    }
+
+    /// The map's complete water as the one resolvable view (table + sheets).
+    pub fn water_view(&self) -> terrain::WaterView<'_> {
+        terrain::WaterView { table: self.water, sheets: &self.standing_water }
     }
 
     /// Install the map's ground rule. Call once at battle setup alongside the heightmap and the
@@ -328,7 +343,6 @@ impl SimulationState {
         cover: &[StaticCoverObject],
     ) {
         let dt = timestep.dt_seconds();
-        let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
         self.shots_fired.clear();
@@ -455,7 +469,7 @@ impl SimulationState {
                 heightmap,
                 cover: live_cover.movement(),
                 footprint: Some(&footprint),
-                water: self.water,
+                water: terrain::WaterView { table: self.water, sheets: &self.standing_water },
                 rubble,
                 ground: self.ground.as_ref(),
             };
@@ -473,7 +487,7 @@ impl SimulationState {
                 heightmap,
                 cover: live_cover.movement(),
                 footprint: Some(&footprint),
-                water: self.water,
+                water: terrain::WaterView { table: self.water, sheets: &self.standing_water },
                 rubble,
                 ground: self.ground.as_ref(),
             };
@@ -523,7 +537,7 @@ impl SimulationState {
         crate::drowning::step_drowning(
             &mut self.tanks,
             heightmap,
-            self.water,
+            terrain::WaterView { table: self.water, sheets: &self.standing_water },
             dt,
             &mut self.damage_events,
             &mut event_stamp,
@@ -539,6 +553,10 @@ impl SimulationState {
             &mut event_stamp,
         );
         {
+            // Field-precise view (not `water_view()`): the block mutates sibling fields
+            // while the context borrows only the sheets.
+            let water = terrain::WaterView { table: self.water, sheets: &self.standing_water };
+            let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water };
             let mut events = BattleEventOutput::new(
                 &mut self.damage_events,
                 &mut self.shell_impacts,

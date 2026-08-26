@@ -12,7 +12,7 @@ pub(crate) struct ReticleTraceQuery<'a> {
     pub heightmap: &'a HeightMap,
     pub cover: &'a [StaticCoverObject],
     /// The map's standing water — the preview must splash exactly where the server will.
-    pub water: Option<terrain::WaterBody>,
+    pub water: terrain::WaterView<'a>,
     pub tanks: &'a [TankSnapshot],
     pub owner: TankId,
     pub owner_team: TeamId,
@@ -153,7 +153,7 @@ mod tests {
         let outcome = reticle_trace(ReticleTraceQuery {
             heightmap: &heightmap,
             cover: &[],
-            water: None,
+            water: terrain::WaterView::DRY,
             tanks: &[ally, enemy],
             owner: TankId(1),
             owner_team: TeamId(1),
@@ -182,7 +182,7 @@ mod tests {
         let outcome = reticle_trace(ReticleTraceQuery {
             heightmap: &heightmap,
             cover: &[],
-            water: None,
+            water: terrain::WaterView::DRY,
             tanks: std::slice::from_ref(&target),
             owner: TankId(1),
             owner_team: TeamId(1),
@@ -203,7 +203,7 @@ mod tests {
             blockers: &sets.blockers,
             heightmap: Some(&heightmap),
             cover: &[],
-            water: None,
+            water: terrain::WaterView::DRY,
         };
         let direct =
             trace_shell(muzzle, velocity, 0.09, tick_dt_seconds(), SHELL_MAX_AGE_SECONDS, &world);

@@ -126,7 +126,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
         crate::aim::aim_point_with_sweep(
             &flat,
             cache.blocking(),
-            None,
+            terrain::WaterView::DRY,
             &[],
             TankId(1),
             TeamId(1),
@@ -151,7 +151,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
             hull_pose: game_core::math::HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 },
             heightmap: &flat,
             cover: cache.blocking(),
-            water: None,
+            water: terrain::WaterView::DRY,
             tanks: &[],
             player_spec: &spec,
             owner: TankId(1),

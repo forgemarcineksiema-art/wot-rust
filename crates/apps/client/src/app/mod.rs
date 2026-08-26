@@ -331,7 +331,7 @@ impl ClientApp {
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         self.minimap_static = minimap;
-        self.predictor.set_water(battlefield.water);
+        self.predictor.set_water(battlefield.water_field());
         self.camera_controller = BattleCameraController::new(Self::map_camera_settings(map));
         // The ground rule is per-map (roads, water, height stats, drainage). Before this
         // line existed the predictor kept gripping by the PREVIOUS map's classifier after
@@ -725,7 +725,7 @@ impl ClientApp {
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         let mut predictor = LocalPredictor::new(&player_spec);
-        predictor.set_water(battlefield.water);
+        predictor.set_water(battlefield.water_field());
         let minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
         let weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
             local_server.map_id(),

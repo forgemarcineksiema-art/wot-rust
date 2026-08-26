@@ -96,8 +96,9 @@ fn measure(map: MapId) -> Seam {
             continue;
         };
         // Neither hull in the water: a drowning tank is not a shot anybody is owed.
-        if let Some(water) = battlefield.water
-            && (water.depth_over(shooter_y) > 0.0 || water.depth_over(target_y) > 0.0)
+        let water_view = battlefield.water_view();
+        if water_view.depth_at(shooter_y, shooter_x, shooter_z) > 0.0
+            || water_view.depth_at(target_y, target_x, target_z) > 0.0
         {
             continue;
         }
@@ -131,7 +132,7 @@ fn measure(map: MapId) -> Seam {
             blockers: &sets.blockers,
             heightmap: Some(heightmap),
             cover,
-            water: battlefield.water,
+            water: battlefield.water_view(),
         };
         let eye_world = sim::ShellTraceWorld { projectile_radius_m: 0.0, ..world };
         let sight = sim::segment_impact(eye, eye + forward * 1200.0, forward, &world);
@@ -172,7 +173,7 @@ fn measure(map: MapId) -> Seam {
             crate::hud::reticle_sweep::ReticleTraceQuery {
                 heightmap,
                 cover,
-                water: battlefield.water,
+                water: battlefield.water_view(),
                 tanks: &tanks,
                 owner: TankId(1),
                 owner_team: TeamId(1),

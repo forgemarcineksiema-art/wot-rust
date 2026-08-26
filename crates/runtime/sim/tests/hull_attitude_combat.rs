@@ -60,7 +60,7 @@ fn hull_tilt_angles_the_glacis_against_a_level_shot() {
             blockers: &[],
             heightmap: None,
             cover: &[],
-            water: None,
+            water: terrain::WaterView::DRY,
         };
         // Aim at the GLACIS AS POSED, and pin the zone. The old aim was a fixed horizontal
         // line at y 1.0: level it crossed the glacis band, but nose-up lifts the bow's fold by

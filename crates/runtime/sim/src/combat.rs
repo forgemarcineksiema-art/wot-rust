@@ -14,11 +14,11 @@ use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
 use crate::{ShellState, TankState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CombatTickContext {
+pub(crate) struct CombatTickContext<'a> {
     pub dt_seconds: f32,
     pub tick: u64,
     /// The map's standing water: shells die in a splash at the surface (see `shell_trace`).
-    pub water: Option<terrain::WaterBody>,
+    pub water: terrain::WaterView<'a>,
 }
 
 /// How the round got past the target's outer skin at this contact.

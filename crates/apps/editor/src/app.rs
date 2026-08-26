@@ -594,8 +594,9 @@ impl EditorApp {
             return;
         }
         if self.show_water && self.stamp.is_none() && self.selection.is_none() {
-            let level = self.document.blueprint().water.map_or(4.0, |water| water.surface_level_m)
-                + steps * 0.25;
+            let level =
+                self.document.blueprint().water.as_ref().map_or(4.0, |water| water.surface_level_m)
+                    + steps * 0.25;
             let mut summary = String::new();
             self.document.apply_edit(|blueprint| {
                 summary = crate::roads::set_water_level(blueprint, level);
@@ -1203,12 +1204,17 @@ impl EditorApp {
     }
 
     fn rebuild_water_tint(&mut self) {
-        self.water_tint = match (self.show_water, self.compiled.battlefield.water) {
-            (true, Some(water)) => crate::roads::depth_tint_mesh(
-                &self.compiled.battlefield.heightmap,
-                water.surface_level_m,
-                &map_forge::WaterThresholds::default(),
-            ),
+        // ONE walk through the resolution rule (table + sheets): the overlay shows every
+        // pool the sim will drown a hull in, each at its own level, nothing outside its
+        // governing rect.
+        self.water_tint = match (self.show_water, self.compiled.battlefield.water_view()) {
+            (true, water) if water.table.is_some() || !water.sheets.is_empty() => {
+                crate::roads::depth_tint_mesh(
+                    &self.compiled.battlefield.heightmap,
+                    water,
+                    &map_forge::WaterThresholds::default(),
+                )
+            }
             _ => (Vec::new(), Vec::new()),
         };
     }
@@ -1359,8 +1365,12 @@ impl EditorApp {
                 ],
             )
         } else if self.show_water {
-            let level =
-                self.document.blueprint().water.map_or("- (press = to add)".to_string(), |water| {
+            let level = self
+                .document
+                .blueprint()
+                .water
+                .as_ref()
+                .map_or("- (press = to add)".to_string(), |water| {
                     format!("{:.2} m", water.surface_level_m)
                 });
             (

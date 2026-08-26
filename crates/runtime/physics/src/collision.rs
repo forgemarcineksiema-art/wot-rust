@@ -48,10 +48,10 @@ impl TankObstacle {
 pub struct TankWorldObstacles<'a> {
     pub cover: &'a [StaticCoverObject],
     pub tank_footprint: TankFootprint,
-    /// The map's standing water, if any: wading drag and the riverbed traction cut read the
-    /// depth of water over the terrain contact (see [`crate::water`]). `None` keeps the dry
+    /// The map's standing water: wading drag and the riverbed traction cut read the depth
+    /// of water over the terrain contact (see [`crate::water`]). A dry view keeps the dry
     /// path bit-identical (replay-locked).
-    pub water: Option<terrain::WaterBody>,
+    pub water: terrain::WaterView<'a>,
     /// Collapsed buildings, as GROUND (see [`terrain::RubbleMound`]). Empty on a battlefield
     /// nothing has knocked down yet, which keeps the untouched path bit-identical.
     pub rubble: &'a [terrain::RubbleMound],
@@ -63,11 +63,11 @@ pub struct TankWorldObstacles<'a> {
 
 impl<'a> TankWorldObstacles<'a> {
     pub fn new(cover: &'a [StaticCoverObject], tank_footprint: TankFootprint) -> Self {
-        Self { cover, tank_footprint, water: None, rubble: &[], ground: None }
+        Self { cover, tank_footprint, water: terrain::WaterView::DRY, rubble: &[], ground: None }
     }
 
-    pub fn with_water(mut self, water: Option<terrain::WaterBody>) -> Self {
-        self.water = water;
+    pub fn with_water(mut self, water: impl Into<terrain::WaterView<'a>>) -> Self {
+        self.water = water.into();
         self
     }
 

@@ -39,9 +39,10 @@ pub struct LocalPredictor {
     previous_forward_speed_mps: f32,
     /// Forward acceleration over the most recent tick (m/s², tick-domain, exact).
     tick_accel_long_mps2: f32,
-    /// The battle map's standing water — a map property, so it survives vehicle resets. The
-    /// predicted wading drag must match the server's or fording would reconciliation-jitter.
-    water: Option<terrain::WaterBody>,
+    /// The battle map's COMPLETE standing water (table + sheets) — a map property, so it
+    /// survives vehicle resets. The predicted wading drag must match the server's or
+    /// fording would reconciliation-jitter.
+    water: terrain::WaterField,
     /// The contact solver's memory, exactly as the server keeps one. Without it the predicted hull
     /// would rediscover every contact from nothing each tick while the authority did not, and the
     /// two would disagree by more the longer they leaned on each other.
@@ -67,7 +68,7 @@ impl LocalPredictor {
             seeded: false,
             previous_forward_speed_mps: 0.0,
             tick_accel_long_mps2: 0.0,
-            water: None,
+            water: terrain::WaterField::default(),
             contacts: ContactCache::default(),
             previous: PredictedPose {
                 position: Vec3::ZERO,
@@ -86,15 +87,16 @@ impl LocalPredictor {
 
     pub fn reset_to_spec(&mut self, spec: &TankSpec) {
         // Water belongs to the map, not the vehicle — a garage swap keeps the same river.
-        let water = self.water;
+        let water = std::mem::take(&mut self.water);
         *self = Self::new(spec);
         self.water = water;
     }
 
-    /// Install the battle map's standing water (see [`terrain::WaterBody`]) so predicted wading
-    /// matches the authoritative step. `None` (the default) is a dry map.
-    pub fn set_water(&mut self, water: Option<terrain::WaterBody>) {
-        self.water = water;
+    /// Install the battle map's COMPLETE standing water (see [`terrain::WaterField`]) so
+    /// predicted wading matches the authoritative step, sheets included. The historical
+    /// `set_water(Some(WaterBody { .. }))` call shape stays valid.
+    pub fn set_water(&mut self, water: impl Into<terrain::WaterField>) {
+        self.water = water.into();
     }
 
     pub fn spec(&self) -> &TankSpec {
@@ -185,7 +187,7 @@ impl LocalPredictor {
             heightmap: Some(heightmap),
             cover,
             footprint: Some(&footprint),
-            water: self.water,
+            water: self.water.view(),
             rubble,
             // The predictor must read the SAME surface the server does, or the local hull grips
             // differently on a road than the authority says it does.
@@ -200,6 +202,16 @@ impl LocalPredictor {
         // also meant a shove could never be predicted at all, only discovered as a correction.
         let phase = advance_tank_drive(&mut self.drive, &self.spec, modules, world, command, dt);
         self.exchange_contacts(neighbours, dt);
+        // Rebuilt, not reused: the first world's water view cannot borrow across the
+        // contact exchange's `&mut self`. Same fields, same tick, same answer.
+        let world = TankDriveWorld {
+            heightmap: Some(heightmap),
+            cover,
+            footprint: Some(&footprint),
+            water: self.water.view(),
+            rubble,
+            ground,
+        };
         let ground =
             settle_tank_drive(&mut self.drive, &self.spec, modules, world, command, phase, dt);
         self.pending_landing_impact_mps =

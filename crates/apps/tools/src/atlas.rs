@@ -349,8 +349,8 @@ pub fn form_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
                 let alpha = if major { 0.5 } else { 0.22 };
                 color = atlas_lerp_rgb(color, [40, 32, 24], alpha);
             }
-            if let Some(water) = &map.water {
-                let depth = water.depth_over(h);
+            {
+                let depth = map.water_view().depth_at(h, x, z);
                 if depth > 0.0 {
                     let deep = (depth / sim::DROWN_DEPTH_M).clamp(0.0, 1.0);
                     color = atlas_lerp_rgb(
@@ -392,8 +392,8 @@ pub fn ground_layer(map: &BattlefieldMap, classifier: &GroundClassifier, res_m: 
             let wet = classifier.flow_wetness_at(x, z);
             let factor = hillshade(heightmap, x, z) * (1.0 - wet * 0.35);
             let mut color = shade([rgb[0] as u8, rgb[1] as u8, rgb[2] as u8], factor);
-            if let Some(water) = &map.water {
-                let depth = water.depth_over(height_clamped(heightmap, x, z));
+            {
+                let depth = map.water_view().depth_at(height_clamped(heightmap, x, z), x, z);
                 if depth > 0.0 {
                     color = atlas_lerp_rgb(color, [30, 70, 140], 0.8);
                 }
@@ -420,8 +420,8 @@ pub const DRIVE_CRUSHABLE_COVER: [u8; 3] = [110, 104, 96];
 /// reads the map: blue means "the water decides here".
 pub fn drive_class(map: &BattlefieldMap, x: f32, z: f32) -> [u8; 3] {
     let h = height_clamped(&map.heightmap, x, z);
-    if let Some(water) = &map.water {
-        let depth = water.depth_over(h);
+    {
+        let depth = map.water_view().depth_at(h, x, z);
         if depth >= sim::DROWN_DEPTH_M {
             return DRIVE_DROWN;
         }
@@ -475,8 +475,8 @@ pub fn tactical_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
         for px in 0..frame.width {
             let (x, z) = frame.world_at(px, py);
             let mut color = shade([196, 192, 184], hillshade(heightmap, x, z));
-            if let Some(water) = &map.water {
-                let depth = water.depth_over(height_clamped(heightmap, x, z));
+            {
+                let depth = map.water_view().depth_at(height_clamped(heightmap, x, z), x, z);
                 if depth > 0.0 {
                     color = atlas_lerp_rgb(color, [40, 90, 160], 0.85);
                 }
@@ -659,11 +659,8 @@ fn standable(map: &BattlefieldMap, x: f32, z: f32) -> bool {
     if step_grade(&map.heightmap, x, z) >= GRADE_WALL {
         return false;
     }
-    if let Some(water) = &map.water {
-        let depth = water.depth_over(height_clamped(&map.heightmap, x, z));
-        if depth >= FORD_MAX_DEPTH_M {
-            return false;
-        }
+    if map.water_view().depth_at(height_clamped(&map.heightmap, x, z), x, z) >= FORD_MAX_DEPTH_M {
+        return false;
     }
     true
 }
@@ -771,8 +768,8 @@ pub fn exposure_layer(map: &BattlefieldMap, field: &ExposureField, res_m: f32) -
                 }
             };
             let mut color = shade(color, hillshade(&map.heightmap, x, z).clamp(0.75, 1.1));
-            if let Some(water) = &map.water {
-                let depth = water.depth_over(height_clamped(&map.heightmap, x, z));
+            {
+                let depth = map.water_view().depth_at(height_clamped(&map.heightmap, x, z), x, z);
                 if depth >= FORD_MAX_DEPTH_M {
                     color = atlas_lerp_rgb(color, [18, 46, 110], 0.8);
                 }
@@ -1138,6 +1135,7 @@ mod tests {
             design_notes: vec![],
             heightmap,
             water: None,
+            standing_water: vec![],
             river: None,
             spawn_zones: vec![],
             capture_zones: vec![],

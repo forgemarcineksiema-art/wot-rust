@@ -1,7 +1,7 @@
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
 use terrain::{
-    BattlefieldMap, HeightMap, Road, RoadSurface, StaticCoverKind, StaticCoverObject, WaterBody,
+    BattlefieldMap, HeightMap, Road, RoadSurface, StaticCoverKind, StaticCoverObject, WaterView,
 };
 
 use crate::tank_mesh::push_oriented_box;
@@ -54,7 +54,7 @@ pub fn battlefield_ground_mesh(battlefield: &BattlefieldMap) -> SceneMeshData {
     let beyond = beyond_border_height(battlefield);
     terrain_scene_mesh_full(
         &battlefield.heightmap,
-        battlefield.water,
+        battlefield.water_view(),
         &battlefield.roads,
         Some(beyond.as_ref()),
     )
@@ -1482,17 +1482,17 @@ fn stone_palette(id: &str) -> ([f32; 3], f32) {
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so
 /// the terrain reads clearly: grass in the lowlands, rock on the heights and steeps.
 pub fn terrain_scene_mesh(heightmap: &HeightMap) -> (Vec<SceneVertex>, Vec<u32>) {
-    terrain_scene_mesh_with_water(heightmap, None)
+    terrain_scene_mesh_with_water(heightmap, WaterView::DRY)
 }
 
 /// Like [`terrain_scene_mesh`], with submerged ground tinted river-blue by depth — the
 /// stopgap water read until the real animated surface pass lands. Gameplay water (drag,
 /// drowning, splashes) is already live; the tint keeps the danger visible in the meantime.
-pub fn terrain_scene_mesh_with_water(
+pub fn terrain_scene_mesh_with_water<'a>(
     heightmap: &HeightMap,
-    water: Option<WaterBody>,
+    water: impl Into<WaterView<'a>>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
-    terrain_scene_mesh_full(heightmap, water, &[], None)
+    terrain_scene_mesh_full(heightmap, water.into(), &[], None)
 }
 
 /// The full terrain surface: height/slope base color, the grass patchwork, painted roads,
@@ -1505,7 +1505,7 @@ pub fn terrain_scene_mesh_with_water(
 /// uncut cell is untouched by construction), so the patchwork is watertight with no stitching.
 fn terrain_scene_mesh_full(
     heightmap: &HeightMap,
-    water: Option<WaterBody>,
+    water: WaterView<'_>,
     roads: &[Road],
     beyond: Option<&dyn Fn(f32, f32) -> f32>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
@@ -1527,8 +1527,8 @@ fn terrain_scene_mesh_full(
         // wins only where the tint lane says so — the submerged riverbed, whose depth
         // tint has no splat equivalent. Dry ground carries 0 (splat rules).
         let mut vertex_color_dominance = 0.0;
-        if let Some(water) = water {
-            let depth = water.depth_over(y);
+        {
+            let depth = water.depth_at(y, wx, wz);
             color = water_tint(color, depth);
             if depth > 0.02 {
                 gloss = 0.35;
@@ -1903,7 +1903,7 @@ mod tests {
             terrain::CraterRecord::from_world(120.0, 122.5, 4.0, 1.2, 0),
         ];
         heightmap.set_craters(&records);
-        let (vertices, indices) = terrain_scene_mesh_full(&heightmap, None, &[], None);
+        let (vertices, indices) = terrain_scene_mesh_full(&heightmap, WaterView::DRY, &[], None);
         let mut referenced = vec![false; vertices.len()];
         for &index in &indices {
             referenced[index as usize] = true;
@@ -1963,7 +1963,8 @@ mod tests {
         );
         heightmap.set_craters(std::slice::from_ref(&record));
         let beyond = |_: f32, _: f32| 10.0_f32;
-        let (vertices, indices) = terrain_scene_mesh_full(&heightmap, None, &[], Some(&beyond));
+        let (vertices, indices) =
+            terrain_scene_mesh_full(&heightmap, WaterView::DRY, &[], Some(&beyond));
         // Only vertices a triangle actually references: cut cells leave their un-cratered
         // base corners in the buffer unreferenced by construction, and a buffer entry no
         // triangle draws cannot float over anything.

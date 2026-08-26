@@ -22,7 +22,7 @@ fn driven(tracks: TrackDriveStatus, command: TankCommand, ticks: u32) -> TankDri
         heightmap: None,
         cover: &[],
         footprint: None,
-        water: None,
+        water: terrain::WaterView::DRY,
         rubble: &[],
         ground: None,
     };

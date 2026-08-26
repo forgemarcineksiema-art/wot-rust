@@ -22,7 +22,7 @@ fn hit(from: Vec3, to: Vec3, tank: TraceTank) -> (ArmorZone, f32) {
         blockers: &[],
         heightmap: None,
         cover: &[],
-        water: None,
+        water: terrain::WaterView::DRY,
     };
     match segment_impact(from, to, to - from, &world) {
         Some(SegmentImpact::Tank { zone, impact_angle_degrees, .. }) => {
@@ -105,7 +105,7 @@ fn misses(from: Vec3, to: Vec3, tank: TraceTank) {
         blockers: &[],
         heightmap: None,
         cover: &[],
-        water: None,
+        water: terrain::WaterView::DRY,
     };
     let outcome = sim::segment_impact(from, to, to - from, &world);
     assert!(outcome.is_none(), "expected a clean miss, got {outcome:?}");

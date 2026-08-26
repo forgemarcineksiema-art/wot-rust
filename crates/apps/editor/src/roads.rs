@@ -142,7 +142,7 @@ pub fn ribbon_mesh(
 /// Set (or create) the standing-water level, snapped to the quarter metre.
 pub fn set_water_level(blueprint: &mut MapBlueprint, level_m: f32) -> String {
     let level_m = (level_m * 4.0).round() / 4.0;
-    blueprint.water = Some(WaterSpec { surface_level_m: level_m });
+    blueprint.water = Some(WaterSpec { surface_level_m: level_m, bodies: Vec::new() });
     format!("water level {level_m:.2} m")
 }
 
@@ -172,7 +172,7 @@ pub fn classify_depth(depth_m: f32, thresholds: &WaterThresholds) -> DepthClass 
 /// PLACED: sculpt the sill until the band under the crossing turns green.
 pub fn depth_tint_mesh(
     heightmap: &HeightMap,
-    water_level_m: f32,
+    water: terrain::WaterView<'_>,
     thresholds: &WaterThresholds,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
     const FORD_GREEN: [f32; 3] = [0.30, 0.58, 0.34];
@@ -181,11 +181,13 @@ pub fn depth_tint_mesh(
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     let cell = heightmap.cell_size_m();
-    let lift = water_level_m + 0.06;
     for zi in 0..heightmap.height() {
         for xi in 0..heightmap.width() {
             let ground = heightmap.sample_at_index(xi, zi);
-            let depth = water_level_m - ground;
+            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
+            let Some(level) = water.level_at(x, z) else { continue };
+            let lift = level + 0.06;
+            let depth = level - ground;
             if depth <= 0.0 {
                 continue;
             }
@@ -194,7 +196,6 @@ pub fn depth_tint_mesh(
                 DepthClass::Marginal => MARGINAL_AMBER,
                 DepthClass::Drowning => DROWNING_RED,
             };
-            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
             let half = cell * 0.5;
             let base = vertices.len() as u32;
             for (px, pz) in [
@@ -296,7 +297,7 @@ mod tests {
         document.apply_edit(|blueprint| {
             set_water_level(blueprint, 3.13);
         });
-        assert_eq!(document.blueprint().water.unwrap().surface_level_m, 3.25);
+        assert_eq!(document.blueprint().water.as_ref().unwrap().surface_level_m, 3.25);
         document.apply_edit(|blueprint| blueprint.water = None);
         assert!(document.blueprint().water.is_none());
     }

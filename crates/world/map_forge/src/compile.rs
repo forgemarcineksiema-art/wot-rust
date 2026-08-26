@@ -108,7 +108,20 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
         h
     });
 
-    let water = blueprint.water.map(|w| WaterBody { surface_level_m: w.surface_level_m });
+    let water = blueprint.water.as_ref().map(|w| WaterBody { surface_level_m: w.surface_level_m });
+    let standing_water: Vec<terrain::StandingWater> = blueprint
+        .water
+        .as_ref()
+        .map(|w| {
+            w.bodies
+                .iter()
+                .map(|body| terrain::StandingWater {
+                    rect: body.rect,
+                    surface_level_m: body.surface_level_m,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut static_cover = expand_objects(blueprint, &heightmap);
     let roads = expand_roads(blueprint);
     let scenery = expand_scenery(blueprint, &heightmap, &static_cover, &roads);
@@ -139,6 +152,7 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
         design_notes: blueprint.meta.design_notes.clone(),
         heightmap,
         water,
+        standing_water,
         river: blueprint.river,
         spawn_zones,
         capture_zones,

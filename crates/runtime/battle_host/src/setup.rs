@@ -22,7 +22,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     let map_id = MapId::default();
     let battlefield = map_forge::battlefield(map_id);
     let mut sim = SimulationState::new();
-    sim.set_water(battlefield.water);
+    sim.set_water(battlefield.water_field());
     // The map's ground rule, resolved once: what the surface under every track IS. Same call the
     // client makes from the same battlefield, so the predictor grips the road where the authority
     // grips it — it is derived from the map, so it never rides the wire.
@@ -63,7 +63,7 @@ pub(crate) fn random_7v7_setup_for_humans(
 ) -> (BattleSetup, Vec<TankId>) {
     let battlefield = map_forge::battlefield(config.map);
     let mut sim = SimulationState::new();
-    sim.set_water(battlefield.water);
+    sim.set_water(battlefield.water_field());
     // The map's ground rule, resolved once: what the surface under every track IS. Same call the
     // client makes from the same battlefield, so the predictor grips the road where the authority
     // grips it — it is derived from the map, so it never rides the wire.

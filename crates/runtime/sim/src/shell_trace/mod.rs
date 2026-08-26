@@ -152,7 +152,7 @@ mod tests {
             blockers: &[],
             heightmap: None,
             cover: &[],
-            water: None,
+            water: ::terrain::WaterView::DRY,
         }
     }
 

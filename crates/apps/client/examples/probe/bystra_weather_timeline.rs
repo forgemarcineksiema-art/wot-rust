@@ -53,7 +53,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     for (name, eye, look) in views {
         let grass = grass_frame_objects(
             &battlefield.heightmap,
-            battlefield.water,
+            battlefield.water_view(),
             &battlefield.static_cover,
             &ground_maps,
             &materials,

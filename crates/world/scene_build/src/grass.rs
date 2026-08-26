@@ -9,7 +9,7 @@ use renderer_api::{
     MaterialHandle, MeshAsset, MeshHandle, RenderObject, SceneVertex, TerrainGroundMaps,
     TerrainMaterialSet,
 };
-use terrain::{HeightMap, WaterBody};
+use terrain::HeightMap;
 
 /// The scene-registry handle the tuft mesh lives under — inside the shadowless-dressing band
 /// (see `renderer_api::SHADOWLESS_DRESSING_MESH_BASE`): grass draws in the color pass only,
@@ -553,7 +553,7 @@ pub(crate) fn species_at(x: f32, z_folded: f32, cell_dry: f32, species_lane: f32
 pub(crate) struct MeadowGround<'a> {
     pub maps: &'a TerrainGroundMaps,
     pub heightmap: &'a HeightMap,
-    pub water: Option<WaterBody>,
+    pub water: terrain::WaterView<'a>,
     pub cover: &'a [terrain::StaticCoverObject],
 }
 
@@ -581,7 +581,7 @@ impl MeadowGround<'_> {
             return None; // grass does not grow through a tenement floor
         }
         let ground = self.heightmap.sample_height(x, z)?;
-        if self.water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
+        if self.water.depth_at(ground, x, z) > MAX_WATER_DEPTH_M {
             return None;
         }
         Some(ground)
@@ -594,7 +594,7 @@ impl MeadowGround<'_> {
 /// fade every frame, while this CPU population extends to [`GRASS_CACHE_RADIUS_M`].
 pub fn grass_frame_objects(
     heightmap: &HeightMap,
-    water: Option<WaterBody>,
+    water: terrain::WaterView<'_>,
     cover: &[terrain::StaticCoverObject],
     maps: &TerrainGroundMaps,
     materials: &TerrainMaterialSet,
@@ -803,7 +803,14 @@ mod tests {
         let ground = flat_ground();
         let eye = Vec3::new(128.0, 3.0, 128.0);
         let materials = TerrainMaterialSet::default();
-        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
+        let grown = grass_frame_objects(
+            &ground,
+            terrain::WaterView::DRY,
+            &[],
+            &full_veg_maps(256.0),
+            &materials,
+            eye,
+        );
         let tufts: Vec<(f32, f32)> = grown
             .iter()
             .map(|object| (object.transform[3][0], object.transform[3][2]))
@@ -843,7 +850,14 @@ mod tests {
             .expect("a 256 m field holds at least one fully bald cell");
         let eye = Vec3::new((bald.0 as f32 + 0.5) * CELL_M, 3.0, (bald.1 as f32 + 0.5) * CELL_M);
         let materials = TerrainMaterialSet::default();
-        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
+        let grown = grass_frame_objects(
+            &ground,
+            terrain::WaterView::DRY,
+            &[],
+            &full_veg_maps(256.0),
+            &materials,
+            eye,
+        );
         let inside_bald = grown.iter().any(|object| {
             (object.transform[3][0] / CELL_M).floor() as i32 == bald.0
                 && (object.transform[3][2] / CELL_M).floor() as i32 == bald.1
@@ -872,7 +886,7 @@ mod tests {
         let materials = TerrainMaterialSet::default();
         let grown = grass_frame_objects(
             &ground,
-            None,
+            terrain::WaterView::DRY,
             std::slice::from_ref(&block),
             &full_veg_maps(256.0),
             &materials,
@@ -894,7 +908,14 @@ mod tests {
         let materials = crate::terrain_maps::terrain_material_set_for(terrain::MapId::BystraValley);
         let eye = Vec3::new(128.0, 3.0, 128.0);
 
-        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
+        let grown = grass_frame_objects(
+            &ground,
+            terrain::WaterView::DRY,
+            &[],
+            &full_veg_maps(256.0),
+            &materials,
+            eye,
+        );
         assert!(
             grown.len() > 400 && grown.len() <= MAX_GRASS_INSTANCES,
             "a vegetated ring stands dense but budgeted, got {}",
@@ -913,10 +934,20 @@ mod tests {
             );
         }
 
-        let bare = grass_frame_objects(&ground, None, &[], &bare_dirt_maps(256.0), &materials, eye);
+        let bare = grass_frame_objects(
+            &ground,
+            terrain::WaterView::DRY,
+            &[],
+            &bare_dirt_maps(256.0),
+            &materials,
+            eye,
+        );
         assert!(bare.is_empty(), "a dirt road grows nothing, got {}", bare.len());
 
-        let flood = Some(WaterBody { surface_level_m: 2.0 });
+        let flood = terrain::WaterView {
+            table: Some(terrain::WaterBody { surface_level_m: 2.0 }),
+            sheets: &[],
+        };
         let drowned =
             grass_frame_objects(&ground, flood, &[], &full_veg_maps(256.0), &materials, eye);
         assert!(drowned.is_empty(), "standing water drowns the tufts, got {}", drowned.len());
@@ -935,7 +966,8 @@ mod tests {
         let eye = Vec3::new(128.0, 3.0, 128.0);
         assert!(vegetation_weight(&maps, 124.0, eye.z) > 0.99);
         assert!(vegetation_weight(&maps, 132.0, eye.z) > 0.99);
-        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let grown =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
 
         let mut left = 0;
         let mut right = 0;
@@ -974,7 +1006,8 @@ mod tests {
             terrain::CRATER_KIND_HIGH_EXPLOSIVE,
         );
         ground.set_craters(&[crater]);
-        let after = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let after =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
 
         let kill = crater.radius_m() * 1.45;
         let mut ring_neighbours = 0;
@@ -1001,7 +1034,8 @@ mod tests {
             crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(260.0);
         let eye = Vec3::new(128.0, 3.0, 128.0);
-        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let grown =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
         for tuft in grown.iter().step_by(97) {
             let x = tuft.transform[3][0];
             let z = tuft.transform[3][2];
@@ -1148,7 +1182,8 @@ mod tests {
         let materials = TerrainMaterialSet::default();
         let maps = full_veg_maps(extent_z);
         let eye = Vec3::new(128.0, 3.0, extent_z * 0.5);
-        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let grown =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
         let count_of = |species: GrassSpecies| {
             grown.iter().filter(|tuft| tuft.mesh == species.mesh_handle()).count()
         };
@@ -1193,8 +1228,10 @@ mod tests {
         let maps = full_veg_maps(256.0);
         let eye_a = Vec3::new(127.75, 3.0, 128.0);
         let eye_b = eye_a + Vec3::new(4.25, 0.0, 0.0);
-        let a = grass_frame_objects(&ground, None, &[], &maps, &materials, eye_a);
-        let b = grass_frame_objects(&ground, None, &[], &maps, &materials, eye_b);
+        let a =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye_a);
+        let b =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye_b);
         let a_by_key: std::collections::HashMap<_, _> =
             a.iter().map(|tuft| (tuft_key(tuft), tuft)).collect();
         let b_by_key: std::collections::HashMap<_, _> =
@@ -1242,7 +1279,14 @@ mod tests {
         for z_phase in 0..16 {
             for x_phase in 0..16 {
                 let eye = Vec3::new(96.0 + x_phase as f32 * 0.5, 3.0, 96.0 + z_phase as f32 * 0.5);
-                let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+                let grown = grass_frame_objects(
+                    &ground,
+                    terrain::WaterView::DRY,
+                    &[],
+                    &maps,
+                    &materials,
+                    eye,
+                );
                 peak = peak.max(grown.len());
                 floor = floor.min(grown.len());
                 assert!(
@@ -1277,7 +1321,8 @@ mod tests {
         let maps = full_veg_maps(extent_z);
         // The eye sits ON the axis, so both twins of every nearby candidate are in range.
         let eye = Vec3::new(128.0, 3.0, extent_z * 0.5);
-        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let grown =
+            grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
         let mut probed = 0;
         for tuft in grown.iter().step_by(37) {
             let (x, z) = (tuft.transform[3][0], tuft.transform[3][2]);
@@ -1301,15 +1346,15 @@ mod tests {
             crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(256.0);
         let eye = Vec3::new(100.0, 3.0, 100.0);
-        let a = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
-        let b = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let a = grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
+        let b = grass_frame_objects(&ground, terrain::WaterView::DRY, &[], &maps, &materials, eye);
         assert_eq!(a.len(), b.len(), "the same eye grows the same field");
         assert_eq!(a[0].transform, b[0].transform);
 
         // A shared cell keeps its tufts when the eye moves one cell over (world-anchored).
         let moved = grass_frame_objects(
             &ground,
-            None,
+            terrain::WaterView::DRY,
             &[],
             &maps,
             &materials,

@@ -51,7 +51,7 @@ fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
         heightmap: None,
         cover: &[],
         footprint: None,
-        water: None,
+        water: terrain::WaterView::DRY,
         rubble: &[],
         ground: None,
     };

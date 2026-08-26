@@ -378,6 +378,7 @@ mod tests {
             design_notes: vec![],
             heightmap,
             water: water_level_m.map(|level| crate::WaterBody { surface_level_m: level }),
+            standing_water: vec![],
             river: None,
             spawn_zones: vec![],
             capture_zones: vec![],

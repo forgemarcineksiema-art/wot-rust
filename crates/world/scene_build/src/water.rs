@@ -1,10 +1,11 @@
-//! Build the river-surface mesh from the map's water body: a flat grid at `surface_level_m`,
-//! clipped to the cells that are actually wet, with the real depth baked per vertex (the
-//! shader's shore fade and shallow→deep tint read it). One source of truth: the same
-//! `WaterBody::depth_over(heightmap)` rule that drives wading, drowning, and shell splashes.
+//! Build the water-surface mesh from the map's COMPLETE water — the global table and the
+//! bounded standing sheets (teren W6): flat grids at each surface level, clipped to the
+//! cells that are actually wet, with the real depth baked per vertex (the shader's shore
+//! fade and shallow→deep tint read it). One source of truth: the same `level − ground`
+//! rule that drives wading, drowning, and shell splashes.
 
 use renderer_api::WaterVertex;
-use terrain::{BattlefieldMap, HeightMap, WaterBody};
+use terrain::{BattlefieldMap, HeightMap, StandingWater, WaterBody};
 
 /// Ignore film-thin sheets — same spirit as the shell splash's minimum depth.
 const MIN_WET_DEPTH_M: f32 = 0.05;
@@ -16,6 +17,14 @@ pub fn battlefield_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>
         Some(water) => water_surface_mesh(&battlefield.heightmap, water),
         None => (Vec::new(), Vec::new()),
     };
+    // Each standing sheet is its own little table: same walk, its rect, its level. The
+    // report gates keep sheets edge-dry and non-overlapping, so the meshes cannot fight.
+    for sheet in &battlefield.standing_water {
+        let (sheet_vertices, sheet_indices) = sheet_surface_mesh(&battlefield.heightmap, *sheet);
+        let base = vertices.len() as u32;
+        vertices.extend(sheet_vertices);
+        indices.extend(sheet_indices.into_iter().map(|index| index + base));
+    }
     // The river keeps flowing past the horizon: the backdrop strips render with this same mesh.
     let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_water_mesh(battlefield);
     let base = vertices.len() as u32;
@@ -30,8 +39,39 @@ pub fn battlefield_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>
 pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<WaterVertex>, Vec<u32>) {
     let w = heightmap.width();
     let h = heightmap.height();
+    surface_mesh_in(heightmap, water.surface_level_m, (0, w - 1), (0, h - 1))
+}
+
+/// One standing sheet's mesh: the same walk, bounded to the sheet's rect at its own level.
+pub fn sheet_surface_mesh(
+    heightmap: &HeightMap,
+    sheet: StandingWater,
+) -> (Vec<WaterVertex>, Vec<u32>) {
     let cell = heightmap.cell_size_m();
-    let depth_at = |x: usize, z: usize| water.depth_over(heightmap.sample_at_index(x, z));
+    let clamp_x = |value: f32| (value / cell).floor().max(0.0) as usize;
+    let x_range = (
+        clamp_x(sheet.rect[0]),
+        ((sheet.rect[2] / cell).ceil() as usize).min(heightmap.width() - 1),
+    );
+    let z_range = (
+        clamp_x(sheet.rect[1]),
+        ((sheet.rect[3] / cell).ceil() as usize).min(heightmap.height() - 1),
+    );
+    surface_mesh_in(heightmap, sheet.surface_level_m, x_range, z_range)
+}
+
+/// The shared quad walk over `[x0..x1] x [z0..z1]` cells at one still level.
+fn surface_mesh_in(
+    heightmap: &HeightMap,
+    surface_level_m: f32,
+    (x0, x1): (usize, usize),
+    (z0, z1): (usize, usize),
+) -> (Vec<WaterVertex>, Vec<u32>) {
+    let w = heightmap.width();
+    let h = heightmap.height();
+    let cell = heightmap.cell_size_m();
+    let depth_at =
+        |x: usize, z: usize| (surface_level_m - heightmap.sample_at_index(x, z)).max(0.0);
 
     // The downstream current at a grid node: the river flows ALONG its channel, i.e.
     // perpendicular to the cross-channel depth gradient (which points toward the deep line).
@@ -70,7 +110,7 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
             if vertex_index[slot] == u32::MAX {
                 vertex_index[slot] = vertices.len() as u32;
                 vertices.push(WaterVertex::flowing(
-                    [x as f32 * cell, water.surface_level_m, z as f32 * cell],
+                    [x as f32 * cell, surface_level_m, z as f32 * cell],
                     depth_at(x, z).max(0.0),
                     flow_at(x, z),
                 ));
@@ -78,8 +118,8 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
             vertex_index[slot]
         };
 
-    for z in 0..h - 1 {
-        for x in 0..w - 1 {
+    for z in z0..z1.min(h - 1) {
+        for x in x0..x1.min(w - 1) {
             let wet = depth_at(x, z) > MIN_WET_DEPTH_M
                 || depth_at(x + 1, z) > MIN_WET_DEPTH_M
                 || depth_at(x, z + 1) > MIN_WET_DEPTH_M
@@ -101,6 +141,43 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
 mod tests {
 
     use super::*;
+
+    /// Teren W6: two standing sheets mesh at their OWN levels, each surface confined to
+    /// its rect — the render side of the one resolution rule.
+    #[test]
+    fn two_sheets_mesh_at_their_own_levels_inside_their_rects() {
+        let heightmap = terrain::heightmap_from_fn(61, 5.0, |x, z| {
+            let bowl = |cx: f32, cz: f32| {
+                let d2 = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+                6.0 * (-d2 / (2.0 * 12.0 * 12.0)).exp()
+            };
+            10.0 - bowl(80.0, 80.0) - bowl(220.0, 220.0)
+        });
+        let sheets = [
+            terrain::StandingWater { rect: [50.0, 50.0, 110.0, 110.0], surface_level_m: 8.0 },
+            terrain::StandingWater { rect: [190.0, 190.0, 250.0, 250.0], surface_level_m: 6.0 },
+        ];
+        let (mut vertices, _) = sheet_surface_mesh(&heightmap, sheets[0]);
+        let (pond_vertices, _) = sheet_surface_mesh(&heightmap, sheets[1]);
+        assert!(!vertices.is_empty() && !pond_vertices.is_empty(), "both pools draw");
+        vertices.extend(pond_vertices);
+        for vertex in &vertices {
+            let [x, y, z] = vertex.position;
+            if (y - 8.0).abs() < 1.0e-4 {
+                assert!(
+                    (45.0..=115.0).contains(&x) && (45.0..=115.0).contains(&z),
+                    "tarn surface stays by its rect, got ({x}, {z})"
+                );
+            } else if (y - 6.0).abs() < 1.0e-4 {
+                assert!(
+                    (185.0..=255.0).contains(&x) && (185.0..=255.0).contains(&z),
+                    "pond surface stays by its rect, got ({x}, {z})"
+                );
+            } else {
+                panic!("a water vertex at neither level: {y}");
+            }
+        }
+    }
 
     #[test]
     fn the_baked_current_flows_downstream_along_the_channel() {

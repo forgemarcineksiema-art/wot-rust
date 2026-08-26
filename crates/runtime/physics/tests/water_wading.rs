@@ -5,12 +5,17 @@ use physics::{
     TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState,
     TankWorldObstacles, step_tank_on_world_with_tanks,
 };
-use terrain::{HeightMap, WaterBody};
+use terrain::{HeightMap, StandingWater, WaterBody, WaterView};
 
 const DT: f32 = 1.0 / 60.0;
 
 /// Drive full throttle straight ahead for `seconds` over flat ground flooded to `water`.
 fn run(water: Option<WaterBody>, seconds: f32) -> TankKinematicState {
+    run_in(WaterView { table: water, sheets: &[] }, seconds)
+}
+
+/// The same drive under an arbitrary water FIELD (teren W6: sheets are positional).
+fn run_in(water: WaterView<'_>, seconds: f32) -> TankKinematicState {
     let heightmap = HeightMap::flat(60, 60, 5.0, 0.0).expect("flat map");
     let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
@@ -30,6 +35,25 @@ fn run(water: Option<WaterBody>, seconds: f32) -> TankKinematicState {
         );
     }
     state
+}
+
+/// Teren W6: wading is POSITIONAL. The same drive with the same ford-depth sheet is slow
+/// while the lane crosses the rect and bit-identical to dry ground when the sheet lies a
+/// map-quarter away.
+#[test]
+fn a_sheet_wades_inside_its_rect_and_costs_nothing_outside() {
+    let lane_sheet =
+        [StandingWater { rect: [20.0, 0.0, 40.0, 300.0], surface_level_m: FORD_MAX_DEPTH_M }];
+    let far_sheet =
+        [StandingWater { rect: [200.0, 200.0, 260.0, 260.0], surface_level_m: FORD_MAX_DEPTH_M }];
+    let dry = run(None, 6.0);
+    let in_pool = run_in(WaterView { table: None, sheets: &lane_sheet }, 6.0);
+    let beside_pool = run_in(WaterView { table: None, sheets: &far_sheet }, 6.0);
+    assert!(
+        in_pool.position.z - 20.0 < (dry.position.z - 20.0) * 0.8,
+        "the lane crosses the sheet - it must wade"
+    );
+    assert_eq!(dry, beside_pool, "a sheet a map-quarter away must not exist for this hull");
 }
 
 #[test]

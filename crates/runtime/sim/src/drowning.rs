@@ -5,7 +5,7 @@
 //! self-repair). Server-authoritative only — the client predicts wading drag but never damage.
 
 use game_core::{DamageCause, DamageEvent, ModuleSlot};
-use terrain::{HeightMap, WaterBody};
+use terrain::{HeightMap, WaterView};
 
 use crate::event_stamp::BattleEventStamp;
 use crate::tank_state::TankState;
@@ -25,21 +25,24 @@ const DROWN_PULSE_HP_FRACTION: f32 = 1.0 / 8.0;
 pub(crate) fn step_drowning(
     tanks: &mut [TankState],
     heightmap: Option<&HeightMap>,
-    water: Option<WaterBody>,
+    water: WaterView<'_>,
     dt: f32,
     damage_events: &mut Vec<DamageEvent>,
     event_stamp: &mut BattleEventStamp,
 ) {
-    let (Some(heightmap), Some(water)) = (heightmap, water) else {
+    let Some(heightmap) = heightmap else {
         return;
     };
+    if water.table.is_none() && water.sheets.is_empty() {
+        return;
+    }
     for tank in tanks.iter_mut() {
         if tank.hit_points == 0 {
             continue;
         }
         let depth = heightmap
             .sample_height(tank.position.x, tank.position.z)
-            .map_or(0.0, |ground| water.depth_over(ground));
+            .map_or(0.0, |ground| water.depth_at(ground, tank.position.x, tank.position.z));
         if depth < DROWN_DEPTH_M {
             tank.submerged_s = 0.0;
             continue;
