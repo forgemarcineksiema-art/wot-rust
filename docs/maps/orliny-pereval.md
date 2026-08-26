@@ -95,6 +95,12 @@ decide the mid-game").
   cap, with both sight lines locked in `sim/tests/orliny_watchtower.rs`. 20 m is the honest
   Svan height and the skyline necessity: a 15.4 m first cut lost "tallest silhouette" to
   the chapel standing on the rising Oryol shoulder (ground 37.3 m vs the 31.0 m bench).
+- **The sea of fog (teren W3b tail, 2026-08-26):** a fourth look — `DawnFog`. The
+  two-layer fog model's valley haze pools below 12 m, which on this map is exactly the
+  valley floors (9–13 m): the spawn aprons and the Dolina meadows drown in dawn mist
+  while the pass bench (31 m) and the summits stand clear as islands — you climb OUT of
+  the fog toward the fight. Pure data (one `LookSpec`); the fairness sweep bounds the fog
+  sum like any other look, and the recorded golden holds the metric gates.
 - Cover: the Orlinoye `TownGrid` (12 houses) + on-axis chapel + the watchtower (the
   tallest silhouette of the col), mirrored shepherd barns in the Dolina, serpentine
   retaining walls, summit sangar breastworks, wrecks at the defile mouths, hedgerow
