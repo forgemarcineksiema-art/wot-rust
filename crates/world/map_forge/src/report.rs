@@ -307,6 +307,22 @@ fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
             None,
         );
     }
+    // The river machinery's fairness algebra (centerline even about the axis, mirrored
+    // banks, crossing lanes) speaks MirrorZ only; on a half-turn map it would certify a
+    // reflected river the rotation never produces. Fence it loudly — Rot180 maps carry
+    // standing water, not the legacy river (teren W6).
+    if blueprint.symmetry == Some(crate::blueprint::SymmetrySpec::Rot180)
+        && blueprint.river.is_some()
+    {
+        report.push(
+            "grid",
+            Severity::Error,
+            "the river machinery speaks MirrorZ only — a Rot180 map authors standing water \
+             instead"
+                .to_string(),
+            None,
+        );
+    }
 }
 
 /// The sculpt layer's contract (map-editor D1): canonical form (sorted, no duplicates,
@@ -341,10 +357,13 @@ fn check_sculpt(blueprint: &MapBlueprint, report: &mut MapReport) {
             break;
         }
     }
-    if blueprint.symmetry.is_some() {
+    if let Some(symmetry) = blueprint.symmetry {
         for &(index, quanta) in &sculpt.samples {
             let (xi, zi) = (index % side, index / side);
-            let mirrored = (side - 1 - zi) * side + xi;
+            let mirrored = match symmetry {
+                crate::blueprint::SymmetrySpec::MirrorZ => (side - 1 - zi) * side + xi,
+                crate::blueprint::SymmetrySpec::Rot180 => (side - 1 - zi) * side + (side - 1 - xi),
+            };
             if sculpt.delta_m_at(mirrored) != f32::from(quanta) * sculpt.step_m {
                 report.push(
                     "sculpt",
@@ -859,7 +878,7 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
     // The "grows outside the map" guard this check used to carry was DELETED 2026-08-07, when
     // writing the test that trips it (`scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover`)
     // showed it could not be tripped. Every path into `map.scenery` runs through
-    // `compile::push_mirrored` or `terrain::scatter_mirrored`, and both DROP a point whose
+    // `compile::push_paired` or `terrain::scatter_mirrored`, and both DROP a point whose
     // `sample_height` comes back `None` — so an out-of-map instance never reaches a compiled map
     // to be warned about. Grounding is the stronger guarantee, and a branch nothing can take is
     // not a promise (the `data_contracts` gate's own words). What survives is the guard that can
@@ -884,13 +903,14 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
 /// on-axis or come in mirror twins (the legacy tests' tolerances, kept).
 fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
     let Some(symmetry) = blueprint.symmetry else { return };
-    let axis_z = blueprint.grid.axis_z();
     // Each probe axis strides by ITS OWN extent. The x stride used to borrow size_m[1] —
     // harmless while the grid gate refuses rectangles, but validate_map still runs on a
     // refused map, and there the x probes walked the wrong range and vanished through the
     // NaN armor below, silently shrinking coverage instead of failing loudly.
     let size_x = blueprint.grid.size_m[0];
     let size_z = blueprint.grid.size_m[1];
+    let size_m = blueprint.grid.size_m;
+    let twin_of = |x: f32, z: f32| symmetry.twin([x, z], size_m);
     let mut max_delta = 0.0_f32;
     let mut worst = None;
     for zi in 0..=50 {
@@ -898,9 +918,9 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
             let x = xi as f32 * (size_x / 50.0);
             let z = zi as f32 * (size_z / 50.0);
             let here = map.heightmap.sample_height(x, z).unwrap_or(f32::NAN);
-            let mirrored =
-                map.heightmap.sample_height(x, symmetry.mirror_z(z, axis_z)).unwrap_or(f32::NAN);
-            let delta = (here - mirrored).abs();
+            let [tx, tz] = twin_of(x, z);
+            let twinned = map.heightmap.sample_height(tx, tz).unwrap_or(f32::NAN);
+            let delta = (here - twinned).abs();
             if delta > max_delta {
                 max_delta = delta;
                 worst = Some([x, here, z]);
@@ -917,14 +937,15 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
     }
 
     let has_twin = |center: [f32; 3], half: Option<[f32; 3]>, others: &[StaticCoverObject]| {
+        let [tx, tz] = twin_of(center[0], center[2]);
         others.iter().any(|other| {
-            (other.center[0] - center[0]).abs() < 1.0
-                && (other.center[2] - symmetry.mirror_z(center[2], axis_z)).abs() < 1.0
+            (other.center[0] - tx).abs() < 1.0
+                && (other.center[2] - tz).abs() < 1.0
                 && half.is_none_or(|h| other.half_extents_m == h)
         })
     };
     for cover in &map.static_cover {
-        if (cover.center[2] - axis_z).abs() < 1.0 {
+        if symmetry.is_self_twin([cover.center[0], cover.center[2]], size_m, 1.0) {
             continue;
         }
         if !has_twin(cover.center, Some(cover.half_extents_m), &map.static_cover) {
@@ -937,13 +958,14 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
         }
     }
     for point in &map.strategic_points {
-        if (point.position[2] - axis_z).abs() < 1.0 {
+        if symmetry.is_self_twin([point.position[0], point.position[2]], size_m, 1.0) {
             continue;
         }
+        let [tx, tz] = twin_of(point.position[0], point.position[2]);
         let twin = map.strategic_points.iter().any(|other| {
             other.role == point.role
-                && (other.position[0] - point.position[0]).abs() < 1.0
-                && (other.position[2] - symmetry.mirror_z(point.position[2], axis_z)).abs() < 1.0
+                && (other.position[0] - tx).abs() < 1.0
+                && (other.position[2] - tz).abs() < 1.0
         });
         if !twin {
             report.push(
@@ -955,13 +977,14 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
         }
     }
     for zone in &map.capture_zones {
-        if (zone.center[2] - axis_z).abs() < 1.0 {
+        if symmetry.is_self_twin([zone.center[0], zone.center[2]], size_m, 1.0) {
             continue;
         }
-        let twin = map.capture_zones.iter().any(|other| {
-            (other.center[0] - zone.center[0]).abs() < 1.0
-                && (other.center[2] - symmetry.mirror_z(zone.center[2], axis_z)).abs() < 1.0
-        });
+        let [tx, tz] = twin_of(zone.center[0], zone.center[2]);
+        let twin = map
+            .capture_zones
+            .iter()
+            .any(|other| (other.center[0] - tx).abs() < 1.0 && (other.center[2] - tz).abs() < 1.0);
         if !twin {
             report.push(
                 "symmetry",

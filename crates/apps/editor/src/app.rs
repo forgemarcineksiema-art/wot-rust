@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use glam::Vec3;
+use map_forge::blueprint::SymmetrySpec;
 use renderer_api::{
     Camera, CameraProjectionPolicy, RenderFrame, SceneVertex, view_projection_matrix,
 };
@@ -1517,16 +1518,16 @@ impl EditorApp {
                             brush.radius_m,
                             color,
                         );
-                        // On a fair map the twin ring shows WHERE the mirror stamp lands.
-                        if self.document.blueprint().symmetry.is_some() {
-                            let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
-                            let mirrored_z = axis_z * 2.0 - hit.z;
-                            if (mirrored_z - hit.z).abs() > 0.5 {
+                        // On a fair map the twin ring shows WHERE the twin stamp lands.
+                        if let Some(symmetry) = self.document.blueprint().symmetry {
+                            let size = self.compiled.battlefield.size_m;
+                            let twin = symmetry.twin([hit.x, hit.z], [size[0], size[1]]);
+                            if (twin[0] - hit.x).abs() > 0.5 || (twin[1] - hit.z).abs() > 0.5 {
                                 markers::brush_ring(
                                     &mut vertices,
                                     &mut indices,
                                     heightmap,
-                                    [hit.x, mirrored_z],
+                                    twin,
                                     brush.radius_m,
                                     color.map(|c| c * 0.55),
                                 );
@@ -1575,13 +1576,22 @@ impl EditorApp {
                 [0.95, 0.65, 0.15],
             );
             if drag.form.twin.is_some() {
-                let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
-                let twin_z = axis_z * 2.0 - drag.form.center.z - drag.transform.move_m[1];
+                let symmetry = self.document.blueprint().symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+                let size = self.compiled.battlefield.size_m;
+                // The twin ghost rides the twin of the DRAGGED position: the same door the
+                // commit walks (apply_transform), so release sets exactly what the eye saw.
+                let twin = symmetry.twin(
+                    [
+                        drag.form.center.x + drag.transform.move_m[0],
+                        drag.form.center.z + drag.transform.move_m[1],
+                    ],
+                    [size[0], size[1]],
+                );
                 markers::brush_ring(
                     &mut vertices,
                     &mut indices,
                     heightmap,
-                    [at[0], twin_z],
+                    twin,
                     drag.form.footprint_m,
                     [0.52, 0.36, 0.08],
                 );

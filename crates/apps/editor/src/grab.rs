@@ -12,7 +12,7 @@
 //! unstampable), and the river ops follow the river, not the hand.
 
 use glam::Vec3;
-use map_forge::blueprint::{Apply, MapBlueprint, StrokeProfile, TerrainOp};
+use map_forge::blueprint::{Apply, MapBlueprint, StrokeProfile, SymmetrySpec, TerrainOp};
 use terrain::HeightMap;
 
 use crate::stamp::quantize_m;
@@ -70,7 +70,9 @@ impl Transform {
 /// Every grabbable form in the document, twins resolved. Rebuilt at pick time from
 /// structure - cheap (a walk over the op list) and impossible to desynchronize.
 pub fn enumerate_forms(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Form> {
-    let axis_z = blueprint.grid.axis_z();
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = blueprint.grid.size_m;
+    let twin_of = |x: f32, z: f32| symmetry.twin([x, z], size_m);
     let near = |a: f32, b: f32| (a - b).abs() < 0.5;
     let ground = |x: f32, z: f32| heightmap.sample_height(x, z).unwrap_or(0.0);
     let mut out = Vec::new();
@@ -81,10 +83,11 @@ pub fn enumerate_forms(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<F
                 for (term_index, term) in terms.iter().enumerate() {
                     // The twin is a sibling term in the SAME op whose center reflects and
                     // whose shape matches; emit the pair once, from its lower index.
+                    let [twin_x, twin_z] = twin_of(term.x, term.z);
                     let twin = terms.iter().enumerate().find(|(other_index, other)| {
                         *other_index != term_index
-                            && near(other.x, term.x)
-                            && near(other.z, axis_z * 2.0 - term.z)
+                            && near(other.x, twin_x)
+                            && near(other.z, twin_z)
                             && near(other.sx, term.sx)
                             && near(other.sz, term.sz)
                             && near(other.amp, term.amp)
@@ -118,11 +121,10 @@ pub fn enumerate_forms(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<F
                         && near(other.half_width_m, spec.half_width_m)
                         && near(other.falloff_m, spec.falloff_m)
                         && other.points.len() == spec.points.len()
-                        && other
-                            .points
-                            .iter()
-                            .zip(&spec.points)
-                            .all(|(a, b)| near(a[0], b[0]) && near(a[1], axis_z * 2.0 - b[1]))
+                        && other.points.iter().zip(&spec.points).all(|(a, b)| {
+                            let [twin_x, twin_z] = twin_of(b[0], b[1]);
+                            near(a[0], twin_x) && near(a[1], twin_z)
+                        })
                 });
                 if let Some((twin_index, _)) = twin
                     && twin_index < op_index
@@ -165,8 +167,8 @@ pub fn enumerate_forms(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<F
                         return false;
                     };
                     *other_index != op_index
-                        && near(*x2, *x)
-                        && near(*z2, axis_z * 2.0 - z)
+                        && near(*x2, twin_of(*x, *z)[0])
+                        && near(*z2, twin_of(*x, *z)[1])
                         && near(*t2, *target_m)
                         && near(*sx2, *sx)
                         && near(*sz2, *sz)
@@ -200,10 +202,16 @@ pub fn apply_transform(blueprint: &mut MapBlueprint, form: &Form, transform: &Tr
     let dz = quantize_m(transform.move_m[1], 1.0);
     let raise = quantize_m(transform.raise_m, 0.25);
     let widen = transform.widen;
-    // The twin mirrors the ground motion; lift and width are shared.
+    // The twin transforms the ground motion under the map's symmetry (a mirror negates
+    // dz, a half-turn negates both); lift and width are shared.
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let [twin_dx, twin_dz] = match symmetry {
+        SymmetrySpec::MirrorZ => [dx, -dz],
+        SymmetrySpec::Rot180 => [-dx, -dz],
+    };
     apply_to(blueprint, form.primary, dx, dz, raise, widen);
     if let Some(twin) = form.twin {
-        apply_to(blueprint, twin, dx, -dz, raise, widen);
+        apply_to(blueprint, twin, twin_dx, twin_dz, raise, widen);
     }
     let mut spoken: Vec<&str> = Vec::new();
     if dx != 0.0 || dz != 0.0 {
@@ -370,6 +378,43 @@ mod tests {
         assert!(
             !report.errors().any(|entry| entry.check == "symmetry"),
             "direct manipulation keeps the map fair"
+        );
+    }
+
+    /// Teren W6: on a half-turn map the grab resolves the ROTATED pair as one form, the
+    /// twin moves by the ROTATED delta, and the compiled document stays fair.
+    #[test]
+    fn moving_a_rot_hill_counter_moves_its_half_turn_twin() {
+        let mut blueprint = crate::EditorDocument::new_scratch().blueprint().clone();
+        blueprint.symmetry = Some(SymmetrySpec::Rot180);
+        let size = blueprint.grid.size_m;
+        blueprint.terrain.ops.push(TerrainOp::Gauss2 {
+            apply: Apply::Add,
+            terms: vec![
+                Gauss2Term { x: 100.0, z: 100.0, sx: 20.0, sz: 20.0, amp: 6.0 },
+                Gauss2Term { x: size[0] - 100.0, z: size[1] - 100.0, sx: 20.0, sz: 20.0, amp: 6.0 },
+            ],
+        });
+        let heightmap = map_forge::compile(&blueprint).0.heightmap;
+        let forms = enumerate_forms(&blueprint, &heightmap);
+        let hill = forms
+            .iter()
+            .find(|form| form.label == "hill" && form.twin.is_some())
+            .expect("the rot pair resolves as ONE form");
+        let transform = Transform { move_m: [12.2, 6.8], raise_m: 0.0, widen: 1.0 };
+        apply_transform(&mut blueprint, hill, &transform);
+        let FormRef::Gauss2Term { op_index, .. } = hill.primary else { panic!() };
+        let TerrainOp::Gauss2 { terms, .. } = &blueprint.terrain.ops[op_index] else { panic!() };
+        assert_eq!([terms[0].x, terms[0].z], [112.0, 107.0]);
+        assert_eq!(
+            [terms[1].x, terms[1].z],
+            [size[0] - 112.0, size[1] - 107.0],
+            "the twin counter-moves so the pair stays a half-turn pair"
+        );
+        let (_, report) = map_forge::compile(&blueprint);
+        assert!(
+            !report.errors().any(|entry| entry.check == "symmetry"),
+            "direct manipulation keeps the half-turn map fair"
         );
     }
 

@@ -98,24 +98,25 @@ pub fn position_unit(x: f32, z: f32, salt: u64) -> f32 {
     ((hash >> 40) & 0x00ff_ffff) as f32 / 16_777_216.0
 }
 
-/// A rectangular scatter region on the SOUTHERN half (z ≤ half axis); every accepted point is
-/// emitted together with its northern mirror twin.
+/// A rectangular scatter region on the authoring (team-1) half; every accepted point is
+/// emitted together with its fairness twin.
 #[derive(Debug, Clone, Copy)]
 pub struct ScatterRegion {
     pub x: (f32, f32),
     pub z: (f32, f32),
 }
 
-/// Scatter `pairs` mirrored instance pairs of `kind` inside `region`, rejecting points the
+/// Scatter `pairs` paired instance pairs of `kind` inside `region`, rejecting points the
 /// `exclude` rule refuses (bounded attempts, so a mostly-excluded region under-fills rather
-/// than spinning). Mirroring: `z → axis*2 − z`, `yaw → −yaw`.
+/// than spinning). The `twin` rule maps a point to its fairness partner — the mirror image
+/// on a MirrorZ map, the half-turn image on a Rot180 map; this function only walks it.
 #[expect(clippy::too_many_arguments)]
 pub fn scatter_mirrored(
     seed: u64,
     kind: SceneryKind,
     pairs: usize,
     region: ScatterRegion,
-    axis_z: f32,
+    twin: &dyn Fn(f32, f32) -> [f32; 2],
     heightmap: &HeightMap,
     exclude: &dyn Fn(f32, f32) -> bool,
     out: &mut Vec<SceneryInstance>,
@@ -135,8 +136,8 @@ pub fn scatter_mirrored(
         let Some(ground) = heightmap.sample_height(x, z) else {
             continue;
         };
-        let mirrored_z = axis_z * 2.0 - z;
-        let Some(mirrored_ground) = heightmap.sample_height(x, mirrored_z) else {
+        let [twin_x, twin_z] = twin(x, z);
+        let Some(twin_ground) = heightmap.sample_height(twin_x, twin_z) else {
             continue;
         };
         out.push(SceneryInstance { kind, position: [x, ground, z], yaw_rad: yaw, scale });
@@ -146,8 +147,8 @@ pub fn scatter_mirrored(
         // mirrored halves stop reading as one forest stamped twice.
         out.push(SceneryInstance {
             kind,
-            position: [x, mirrored_ground, mirrored_z],
-            yaw_rad: position_unit(x, mirrored_z, 0x0A17) * std::f32::consts::TAU,
+            position: [twin_x, twin_ground, twin_z],
+            yaw_rad: position_unit(twin_x, twin_z, 0x0A17) * std::f32::consts::TAU,
             scale,
         });
         placed += 1;

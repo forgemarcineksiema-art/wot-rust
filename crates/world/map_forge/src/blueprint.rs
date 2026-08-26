@@ -97,6 +97,12 @@ impl GridSpec {
 pub enum SymmetrySpec {
     /// Mirror across `z = axis_z` (positions and yaw), the WoT-like north/south fairness.
     MirrorZ,
+    /// Half-turn about the map centre (teren W6): the twin of `(x, z)` is
+    /// `(size_x − x, size_z − z)` and yaw rotates by π. Each team sees the SAME map turned
+    /// around, not reflected — diagonal layouts stay fair without the wall-on-the-axis
+    /// grammar MirrorZ forces on every design. The legacy river machinery stays MirrorZ-only
+    /// (a report Error fences it); standing water speaks both.
+    Rot180,
 }
 
 /// Standing water (see `terrain::WaterBody`); depth is `level − ground` by construction.

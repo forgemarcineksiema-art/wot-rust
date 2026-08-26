@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use map_forge::blueprint::{MapBlueprint, SculptSpec};
+use map_forge::blueprint::{MapBlueprint, SculptSpec, SymmetrySpec};
 use terrain::{HeightMap, smoothstep01};
 
 /// The default quantum for a document that has no sculpt layer yet: 5 cm — fine enough
@@ -75,7 +75,7 @@ pub struct Stroke {
     cell_m: f32,
     min_height_m: f32,
     step_m: f32,
-    mirrored: bool,
+    symmetry: Option<SymmetrySpec>,
     base: Vec<f32>,
     delta_m: Vec<f32>,
     flatten_target_m: Option<f32>,
@@ -94,7 +94,7 @@ impl Stroke {
             cell_m: heightmap.cell_size_m(),
             min_height_m: blueprint.grid.min_height_m,
             step_m: blueprint.sculpt.as_ref().map_or(DEFAULT_STEP_M, |sculpt| sculpt.step_m),
-            mirrored: blueprint.symmetry.is_some(),
+            symmetry: blueprint.symmetry,
             base: heightmap.samples().to_vec(),
             delta_m: vec![0.0; heightmap.width() * heightmap.height()],
             flatten_target_m: None,
@@ -113,10 +113,18 @@ impl Stroke {
         (self.base[index] + self.delta_m[index]).max(self.min_height_m)
     }
 
-    /// The canonical (south-half) twin of a sample — base reads for base-dependent modes go
-    /// through it so both halves of a fair map compute IDENTICAL deltas.
+    /// The canonical twin of a sample — base reads for base-dependent modes go through it
+    /// so both halves of a fair map compute IDENTICAL deltas. MirrorZ canonicalizes to the
+    /// south half; Rot180 to the lexicographically-first of the pair about the map centre.
     fn canonical(&self, xi: usize, zi: usize) -> usize {
-        let zi = if self.mirrored { zi.min(self.side - 1 - zi) } else { zi };
+        let (xi, zi) = match self.symmetry {
+            None => (xi, zi),
+            Some(SymmetrySpec::MirrorZ) => (xi, zi.min(self.side - 1 - zi)),
+            Some(SymmetrySpec::Rot180) => {
+                let (rx, rz) = (self.side - 1 - xi, self.side - 1 - zi);
+                if (rz, rx) < (zi, xi) { (rx, rz) } else { (xi, zi) }
+            }
+        };
         zi * self.side + xi
     }
 
@@ -155,27 +163,27 @@ impl Stroke {
         }
     }
 
-    /// The dab and — on a mirrored map — its twin. BOTH halves are STAGED against the same
+    /// The dab and — on a fair map — its twin. BOTH halves are STAGED against the same
     /// pre-dab state and committed together: a base-dependent mode (Flatten, Smooth,
-    /// Terrace, Erode) must never see the south half's fresh writes through its canonical
-    /// reads, or the twins' deltas drift apart. The twin's drag tangent mirrors with it
-    /// (dz negated), so a Ridge crest and its twin bend the same way about the axis.
+    /// Terrace, Erode) must never see the first half's fresh writes through its canonical
+    /// reads, or the twins' deltas drift apart. The twin's drag tangent transforms with it
+    /// (dz negated on a mirror, both components on a half-turn), so a Ridge crest and its
+    /// twin bend the same way about the symmetry.
     fn mirrored_dab(&mut self, center: [f32; 2], settings: &BrushSettings, dt_s: f32) {
         let tangent = self.tangent;
         let mut staged: Vec<(usize, f32)> = Vec::new();
         self.stage_dab(center, settings, dt_s, tangent, &mut staged);
-        if self.mirrored {
-            let axis_z = (self.side - 1) as f32 * self.cell_m * 0.5;
-            let mirrored_z = axis_z * 2.0 - center[1];
-            if (mirrored_z - center[1]).abs() > f32::EPSILON {
-                let mirrored_tangent = tangent.map(|[tx, tz]| [tx, -tz]);
-                self.stage_dab(
-                    [center[0], mirrored_z],
-                    settings,
-                    dt_s,
-                    mirrored_tangent,
-                    &mut staged,
-                );
+        if let Some(symmetry) = self.symmetry {
+            let extent = (self.side - 1) as f32 * self.cell_m;
+            let twin = symmetry.twin(center, [extent, extent]);
+            if (twin[0] - center[0]).abs() > f32::EPSILON
+                || (twin[1] - center[1]).abs() > f32::EPSILON
+            {
+                let twin_tangent = tangent.map(|[tx, tz]| match symmetry {
+                    SymmetrySpec::MirrorZ => [tx, -tz],
+                    SymmetrySpec::Rot180 => [-tx, -tz],
+                });
+                self.stage_dab(twin, settings, dt_s, twin_tangent, &mut staged);
             }
         }
         for (index, change) in staged {
@@ -405,6 +413,38 @@ mod tests {
             assert!(
                 !report.errors().any(|entry| entry.check == "sculpt"),
                 "{mode:?}: an editor stroke can never trip the sculpt contract"
+            );
+            blueprint.sculpt = None;
+        }
+    }
+
+    /// Teren W6: the same by-construction fairness on a HALF-TURN map — every mode's
+    /// stroke pairs by rotation (both indices), and the report's rotated sculpt gate
+    /// stays quiet on an editor stroke.
+    #[test]
+    fn a_rot180_map_gets_bit_identical_rot_twin_stamps_for_every_mode() {
+        let (mut blueprint, _) = scratch();
+        blueprint.symmetry = Some(SymmetrySpec::Rot180);
+        let compiled = map_forge::compile(&blueprint).0;
+        let side = 61_u32;
+        for mode in BrushMode::CYCLE {
+            let mut stroke = Stroke::begin(&blueprint, &compiled.heightmap);
+            stroke.dab([150.0, 100.0], &settings(mode), 0.7);
+            let Some(sculpt) = stroke.committed(None) else { continue };
+            for &(index, quanta) in &sculpt.samples {
+                let (xi, zi) = (index % side, index / side);
+                let rotated = (side - 1 - zi) * side + (side - 1 - xi);
+                assert_eq!(
+                    sculpt.delta_m_at(rotated),
+                    f32::from(quanta) * sculpt.step_m,
+                    "{mode:?}: sample {index} must have an exact rot twin at {rotated}"
+                );
+            }
+            blueprint.sculpt = Some(sculpt);
+            let (_, report) = map_forge::compile(&blueprint);
+            assert!(
+                !report.errors().any(|entry| entry.check == "sculpt"),
+                "{mode:?}: an editor stroke can never trip the rotated sculpt contract"
             );
             blueprint.sculpt = None;
         }
