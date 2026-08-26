@@ -1593,6 +1593,13 @@ fn append_crater_cell(
             let wx = cell_x as f32 * cell + sx as f32 * step;
             let wz = cell_z as f32 * cell + sz as f32 * step;
             let y = sample(wx, wz);
+            // One stencil for every patch vertex — and that is SOUND, not sloppy: since
+            // the surface-parity fix the sampled ground is piecewise planar, so a central
+            // difference at a NODE equals the mean of the adjacent plane slopes at ANY
+            // stencil width — the patch's fine stencil and the base grid's 5 m rule agree
+            // there by construction (the audit's "crater lighting crease" dissolved when
+            // the sim moved onto the drawn triangles; the coincident-vertex shading lock
+            // in this file's tests measured it and now stands guard).
             let normal = Vec3::new(
                 sample(wx - step, wz) - sample(wx + step, wz),
                 2.0 * step,
@@ -1715,6 +1722,74 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
 mod tests {
 
     use super::*;
+
+    /// The shading-watertight invariant: any two triangle-referenced vertices standing at
+    /// the SAME position must carry the SAME normal, or a lighting seam rings the geometry
+    /// even though the positions are watertight. The audit filed the crater patch boundary
+    /// as a crease (fine stencil vs the base grid's 5 m rule) — instrumenting this lock
+    /// proved the surface-parity fix had DISSOLVED it: on the piecewise-planar sampled
+    /// ground a node's central difference equals the mean of the adjacent plane slopes at
+    /// any stencil width, so patch and base normals agree by construction. The lock stays
+    /// as the guard: any future surface or stencil change that reopens the seam is a red
+    /// assertion, not a subtle ring of light.
+    #[test]
+    fn coincident_referenced_vertices_shade_identically() {
+        // A CURVED field: the crease is a stencil-width artefact, and on linear ground
+        // every stencil measures the same gradient — curvature is what separates the
+        // patch's 0.625 m stencil from the base grid's 5 m one (the first falsification
+        // run proved it by NOT biting on a plane).
+        // Curvature at STROKE scale (the sigma-3..5 lips real maps carry): on gentle
+        // ground the two stencil widths agree to a fraction of a degree and the crease is
+        // invisible — it is the tight authored relief where the 5 m and 0.625 m stencils
+        // disagree by whole degrees, so that is what the fixture carries.
+        let mut heightmap = terrain::heightmap_from_fn(41, 5.0, |x, z| {
+            10.0 + (x * 0.42).sin() * 1.7 + (z * 0.37).cos() * 1.4 + x * 0.03
+        });
+        let records = [
+            terrain::CraterRecord::from_world(60.0, 60.0, 2.0, 0.8, 0),
+            // Wide enough to cut TWO adjacent cells: patch-to-patch boundary exercised.
+            terrain::CraterRecord::from_world(120.0, 122.5, 4.0, 1.2, 0),
+        ];
+        heightmap.set_craters(&records);
+        let (vertices, indices) = terrain_scene_mesh_full(&heightmap, None, &[], None);
+        let mut referenced = vec![false; vertices.len()];
+        for &index in &indices {
+            referenced[index as usize] = true;
+        }
+        let mut by_position: std::collections::HashMap<(i64, i64, i64), [f32; 3]> =
+            Default::default();
+        let mut coincident = 0;
+        for (vertex, used) in vertices.iter().zip(&referenced) {
+            if !used {
+                continue;
+            }
+            let key = (
+                (vertex.position[0] * 1024.0).round() as i64,
+                (vertex.position[1] * 1024.0).round() as i64,
+                (vertex.position[2] * 1024.0).round() as i64,
+            );
+            match by_position.entry(key) {
+                std::collections::hash_map::Entry::Vacant(slot) => {
+                    slot.insert(vertex.normal);
+                }
+                std::collections::hash_map::Entry::Occupied(slot) => {
+                    coincident += 1;
+                    let seen = slot.get();
+                    let dot = seen[0] * vertex.normal[0]
+                        + seen[1] * vertex.normal[1]
+                        + seen[2] * vertex.normal[2];
+                    assert!(
+                        dot > 0.9999,
+                        "a lighting crease at {:?}: {:?} vs {:?}",
+                        vertex.position,
+                        seen,
+                        vertex.normal
+                    );
+                }
+            }
+        }
+        assert!(coincident > 30, "the sweep actually met shared seams ({coincident})");
+    }
 
     /// The apron-crater seam (Atlas audit P3): a shell crater at the red line digs the
     /// playfield below the analytic continuation — an apron tucked under the UN-cratered
