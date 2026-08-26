@@ -586,3 +586,76 @@ fn an_unseated_remote_start_says_connection_lost_not_bots() {
         "a failed remote start must be LOUD - the screen says the truth from frame one"
     );
 }
+
+/// N4, the reconnect: a NETWORK death re-dials on the same local port, the host re-keys
+/// the seat for the known address, and the crew is back in ITS OWN tank — terminal
+/// cleared, snapshots flowing — without the player doing anything. The screen said
+/// CONNECTION LOST for exactly as long as the seat was actually gone.
+#[test]
+fn a_network_death_redials_back_into_the_same_tank() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.30.0.1:40000".parse().expect("server addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port("10.30.0.2:5000".parse().expect("client addr"));
+    let mut host = RemoteBattleServer::new(ServerTickConfig::new(60, 1), contract_battle(), 100, 0);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+
+    let mut seated_tank = None;
+    let mut cut_at_ms = None;
+    let mut resumed_snapshots = 0_usize;
+    for step in 0..4_000_u64 {
+        let now_ms = step * 17;
+        let outcome =
+            remote.tick_with_player_input_at(contract_input(sim::TankCommand::idle()), now_ms);
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+
+        if seated_tank.is_none() && remote.is_seated() {
+            seated_tank = remote.assigned_tank;
+        }
+        // Once seated and flowing, cut the line ONCE: a transport death mid-battle.
+        if cut_at_ms.is_none() && seated_tank.is_some() && step > 400 {
+            remote.enter_terminal(RemoteTerminalReason::Transport);
+            assert!(remote.is_terminal(), "the cut is real (test premise)");
+            cut_at_ms = Some(now_ms);
+        }
+        if let Some(cut) = cut_at_ms
+            && now_ms > cut
+            && !remote.is_terminal()
+            && outcome.snapshot.is_some()
+        {
+            resumed_snapshots += 1;
+        }
+    }
+
+    let tank = seated_tank.expect("the crew was seated before the cut");
+    assert!(cut_at_ms.is_some(), "the line was cut (test premise)");
+    assert!(!remote.is_terminal(), "the re-dial must clear the terminal by winning a seat");
+    assert_eq!(remote.assigned_tank, Some(tank), "the host re-keys the SAME tank by address");
+    assert!(
+        resumed_snapshots > 10,
+        "the world must flow again after the reconnect, saw {resumed_snapshots}"
+    );
+}
+
+/// The other half of the N4 rule: an ANSWER is not an outage. A refusal never re-dials —
+/// the terminal stands, and the budget is never spent knocking on a door that said no.
+#[test]
+fn a_refused_session_never_redials() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.31.0.1:40000".parse().expect("server addr");
+    let client_port = hub.port("10.31.0.2:5000".parse().expect("client addr"));
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    remote.enter_terminal(RemoteTerminalReason::Refused);
+    let first_session_id = remote.session_id_for_tests();
+    for step in 0..600_u64 {
+        let _ =
+            remote.tick_with_player_input_at(contract_input(sim::TankCommand::idle()), step * 17);
+    }
+    assert!(remote.is_terminal(), "a refusal is final");
+    assert_eq!(
+        remote.session_id_for_tests(),
+        first_session_id,
+        "no fresh handshake may be spent on an answer"
+    );
+}

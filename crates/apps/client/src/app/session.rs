@@ -63,6 +63,25 @@ pub(super) enum RemoteTerminalReason {
     MapMismatch,
 }
 
+impl RemoteTerminalReason {
+    /// Which deaths are worth RE-DIALING (N4): the network ones. The host holds a silent
+    /// crew's seat and re-keys it for the same address, and a fresh hello replays the
+    /// armor-breach baseline — so a timeout, a transport hiccup, a stalled snapshot lane
+    /// or a broken combat stream are all recoverable by simply connecting again. A refusal,
+    /// a finished battle and a map mismatch are answers, not outages.
+    pub(super) fn is_retryable(self) -> bool {
+        matches!(
+            self,
+            Self::TimedOut
+                | Self::Transport
+                | Self::SnapshotStalled
+                | Self::InputBacklog
+                | Self::CombatEventGap
+                | Self::CombatEventOverflow
+        )
+    }
+}
+
 pub(crate) enum BattleSessionKind {
     Local(Box<LocalAuthoritativeServer>),
     Remote(Box<RemoteSession>),
@@ -288,6 +307,12 @@ pub struct RemoteSession {
     pending_reconciliation: Option<RemoteReconciliation>,
     delivery_ready: bool,
     terminal_reason: Option<RemoteTerminalReason>,
+    /// The reconnect budget (N4). A retryable terminal starts the re-dial clock; every
+    /// interval a FRESH `ClientSession` (new session_id, same local port) knocks again —
+    /// the host re-keys the seat for a known address and replays the baseline. The screen
+    /// says CONNECTION LOST the whole time; it clears only when a seat word actually lands.
+    redial_attempts: u32,
+    next_redial_ms: Option<u64>,
     seat_started_ms: Option<u64>,
     rtt_ms: Option<u32>,
     last_snapshot_ms: u64,
@@ -332,6 +357,8 @@ impl RemoteSession {
             pending_reconciliation: None,
             delivery_ready: false,
             terminal_reason: None,
+            redial_attempts: 0,
+            next_redial_ms: None,
             seat_started_ms: None,
             rtt_ms: None,
             last_snapshot_ms: 0,
@@ -357,6 +384,13 @@ impl RemoteSession {
 
     pub fn is_seated(&self) -> bool {
         self.assigned_tank.is_some()
+    }
+
+    /// Test window on the live handshake identity: a re-dial mints a new session, an
+    /// answered terminal must not.
+    #[cfg(test)]
+    pub(super) fn session_id_for_tests(&self) -> u64 {
+        self.session.session_id()
     }
 
     pub(super) fn is_terminal(&self) -> bool {
@@ -385,7 +419,35 @@ impl RemoteSession {
         self.pump_at(now_ms);
     }
 
+    /// How often a re-dial knocks, and how long it keeps knocking (30 x 2 s = a minute of
+    /// fighting for the seat before the terminal is accepted as final).
+    const REDIAL_INTERVAL_MS: u64 = 2_000;
+    const REDIAL_MAX_ATTEMPTS: u32 = 30;
+
+    /// Re-dial after a NETWORK death (N4): a fresh handshake on the same local port. The
+    /// host re-keys the seat for a known address, `StartBattle` re-seats us and replays the
+    /// armor baseline; the terminal (and the CONNECTION LOST screen it drives) clears only
+    /// when that seat word actually arrives — see the StartBattle arm.
+    fn try_redial(&mut self, now_ms: u64) {
+        let Some(reason) = self.terminal_reason else { return };
+        if !reason.is_retryable() || self.redial_attempts >= Self::REDIAL_MAX_ATTEMPTS {
+            return;
+        }
+        let due = *self.next_redial_ms.get_or_insert(now_ms);
+        if now_ms < due {
+            return;
+        }
+        self.redial_attempts += 1;
+        self.next_redial_ms = Some(now_ms + Self::REDIAL_INTERVAL_MS);
+        let peer = self.session.endpoint.peer();
+        self.session = ClientSession::connect(peer, now_ms);
+        // The stall watchdog must not re-fire off the OLD silence while the new handshake
+        // is still in flight.
+        self.last_snapshot_ms = now_ms;
+    }
+
     fn pump_at(&mut self, now_ms: u64) {
+        self.try_redial(now_ms);
         let inbox = match self.session.tick(now_ms, self.transport.as_mut()) {
             Ok(inbox) => inbox,
             Err(error) => {
@@ -452,10 +514,22 @@ impl RemoteSession {
                     match self.assigned_tank {
                         None => self.assigned_tank = Some(assigned_tank),
                         Some(current) if current == assigned_tank => {}
+                        // A DIFFERENT tank mid-session can only mean the old seat aged out
+                        // and someone else took it: a re-dial does not accept a stranger's
+                        // hull (the predictor and the HUD are built around the old spec).
+                        // The terminal stands, the budget runs out, the screen stays honest.
                         Some(_) => continue,
                     }
                     // Seated: the garage pick is settled, stop repeating it.
                     self.session.clear_vehicle_selection();
+                    // A seat word closes any reconnect in flight (N4): the terminal - and
+                    // the CONNECTION LOST screen it drives - clears exactly here, when the
+                    // seat is REAL again, never optimistically at re-dial time.
+                    if self.terminal_reason.take().is_some() {
+                        self.redial_attempts = 0;
+                        self.next_redial_ms = None;
+                        self.last_snapshot_ms = now_ms;
+                    }
                     self.seat_started_ms.get_or_insert(now_ms);
                     self.latest_server_tick = self.latest_server_tick.max(server_tick);
                     self.time_limit_tick = time_limit_tick;
@@ -597,7 +671,7 @@ impl RemoteSession {
         self.take_pending_tick()
     }
 
-    fn enter_terminal(&mut self, reason: RemoteTerminalReason) {
+    pub(super) fn enter_terminal(&mut self, reason: RemoteTerminalReason) {
         if self.terminal_reason.is_none() {
             self.terminal_reason = Some(reason);
             self.retire_control();
