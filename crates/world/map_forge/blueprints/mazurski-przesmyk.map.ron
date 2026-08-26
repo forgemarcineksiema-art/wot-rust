@@ -1,0 +1,520 @@
+MapBlueprint(
+    meta: MetaSpec(
+        version: 1,
+        id: "mazurski_przesmyk",
+        name: "Mazurski Przesmyk",
+        historical_basis: "Masurian Lakeland, January 1945: the fight for the lake defiles during the East Prussian offensive - the land bridges between the great lakes (the Loetzen Gap pattern) were the armor question of the whole province. A fictional defile composed for half-turn fairness; no specific engagement is depicted.",
+        design_notes: [
+            "the first Rot180 map: each team sees the SAME battlefield turned around - a great lake on the left hand, open moraine on the right, and the diagonal between the spawns is the axis of the fight; no wall-on-the-axis, no reflected halves",
+            "water is the architecture: two drowning-deep lakes own the NW and SE quarters (they DENY, they do not host), two sunken peat ponds flank the central causeway - the map's knife point, 47 m of land between two splash hazards, and the only capture zone",
+            "three honest lanes per team: the causeway (short, contested, overlooked), the near-shore road behind the reeds (long left flank), and the open moraine with esker hull-down (right); the peat-pond defiles stitch them together at mid-map",
+        ],
+    ),
+    grid: GridSpec(
+        size_m: (1000.0, 1000.0),
+        cell_m: 5.0,
+        min_height_m: 0.2,
+    ),
+    symmetry: Some(Rot180),
+    horizon: Some(HorizonSpec(
+        hills_base_m: 20.0,
+        swell: (6.0, 0.004, 0.005, 1.7),
+        x_roll: (4.0, 0.008),
+        z_roll: (3.5, 0.007),
+        closure_start_m: 30.0,
+        closure_span_m: 300.0,
+        river_gap_half_m: 0.0,
+        river_gap_falloff_m: 1.0,
+    )),
+    terrain: TerrainProgram(
+        // A lakeland plateau: the moraine rolls from authored knolls, never from analytic
+        // relief (SinX/CosDz are mirror-even, not rot-even - on a half-turn map every
+        // hill is a PAIRED decision).
+        base: Constant(9.0),
+        ops: [
+            // The two great lake basins, each carved by a rot-paired stack: a broad main
+            // bowl plus an offset lobe so the shoreline meanders instead of ringing.
+            Gauss2(
+                apply: Subtract,
+                terms: [
+                    Gauss2Term(x: 220.0, z: 750.0, sx: 85.0, sz: 95.0, amp: 5.5),
+                    Gauss2Term(x: 780.0, z: 250.0, sx: 85.0, sz: 95.0, amp: 5.5),
+                    Gauss2Term(x: 300.0, z: 650.0, sx: 50.0, sz: 55.0, amp: 2.6),
+                    Gauss2Term(x: 700.0, z: 350.0, sx: 50.0, sz: 55.0, amp: 2.6),
+                ],
+            ),
+            // The peat pits: two sunken pond basins flanking the causeway, steep-banked
+            // the way cut peat is. Their water (4 m) sits far under the 9 m moraine - the
+            // causeway between them stands proud and naked.
+            Gauss2(
+                apply: Subtract,
+                terms: [
+                    Gauss2Term(x: 460.0, z: 500.0, sx: 20.0, sz: 36.0, amp: 7.0),
+                    Gauss2Term(x: 540.0, z: 500.0, sx: 20.0, sz: 36.0, amp: 7.0),
+                ],
+            ),
+            // The moraine knolls: rot-paired drumlins giving the open quarters their
+            // rhythm and the shore roads their masks.
+            Gauss2(
+                apply: Add,
+                terms: [
+                    Gauss2Term(x: 300.0, z: 180.0, sx: 32.0, sz: 26.0, amp: 1.8),
+                    Gauss2Term(x: 700.0, z: 820.0, sx: 32.0, sz: 26.0, amp: 1.8),
+                    Gauss2Term(x: 150.0, z: 420.0, sx: 40.0, sz: 30.0, amp: 1.6),
+                    Gauss2Term(x: 850.0, z: 580.0, sx: 40.0, sz: 30.0, amp: 1.6),
+                    Gauss2Term(x: 620.0, z: 620.0, sx: 30.0, sz: 38.0, amp: 2.0),
+                    Gauss2Term(x: 380.0, z: 380.0, sx: 30.0, sz: 38.0, amp: 2.0),
+                    Gauss2Term(x: 560.0, z: 120.0, sx: 36.0, sz: 28.0, amp: 1.5),
+                    Gauss2Term(x: 440.0, z: 880.0, sx: 36.0, sz: 28.0, amp: 1.5),
+                ],
+            ),
+            // The eskers: one gravel spine per open quarter, drawn as rot-twin strokes -
+            // the right-flank fight has a ridge to work, and the road below it a reason.
+            Stroke(StrokeSpec(
+                points: [(120.0, 140.0), (230.0, 220.0), (330.0, 290.0)],
+                profile: Ridge(amp_m: 2.2),
+                half_width_m: 10.0,
+                falloff_m: 22.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(880.0, 860.0), (770.0, 780.0), (670.0, 710.0)],
+                profile: Ridge(amp_m: 2.2),
+                half_width_m: 10.0,
+                falloff_m: 22.0,
+            )),
+            // The worked hull-down: a crest-and-shelf pair overlooking the causeway from
+            // each side - two ops, because a half-turn crest faces the OTHER way.
+            CrestShelf(
+                crest_x: 372.0,
+                shelf_x: 352.0,
+                sigma_x: 8.0,
+                crest_h: 1.8,
+                shelf_cut: 1.1,
+                windows: [(470.0, 26.0)],
+            ),
+            CrestShelf(
+                crest_x: 628.0,
+                shelf_x: 648.0,
+                sigma_x: 8.0,
+                crest_h: 1.8,
+                shelf_cut: 1.1,
+                windows: [(530.0, 26.0)],
+            ),
+            ClampMin(0.2),
+        ],
+    ),
+    water: Some(WaterSpec(
+        // The global table sits under the terrain floor: every drop of water on this map
+        // is a NAMED sheet - the first map built on the standing-water schema.
+        surface_level_m: 0.0,
+        bodies: [
+            StandingWaterSpec(rect: (60.0, 560.0, 380.0, 940.0), surface_level_m: 6.0),
+            StandingWaterSpec(rect: (620.0, 60.0, 940.0, 440.0), surface_level_m: 6.0),
+            StandingWaterSpec(rect: (428.0, 440.0, 494.0, 560.0), surface_level_m: 4.0),
+            StandingWaterSpec(rect: (506.0, 440.0, 572.0, 560.0), surface_level_m: 4.0),
+        ],
+    )),
+    materials: Some(GroundMaterialsSpec(
+        // Lakeland palette: lush glacial-till greens, cut hay, dark peat, and the grey
+        // granite of the erratics.
+        layers: (
+            GroundLayerSpec(albedo: (0.22, 0.33, 0.20), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.45, 0.42, 0.26), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.28, 0.24, 0.18), detail: 0.9, gloss: 0.06),
+            GroundLayerSpec(albedo: (0.44, 0.44, 0.42), detail: 1.0, gloss: 0.12),
+        ),
+        macro_normal_strength: 0.7,
+        field_patch_strength: 0.85,
+    )),
+    environment: Some(EnvironmentSpec(
+        looks: [
+            LookSpec(
+                variant: ClearAfternoon,
+                preset: ClearAfternoon,
+                sky_rgb: (0.55, 0.65, 0.78),
+            ),
+            LookSpec(
+                variant: Overcast,
+                preset: DawnFog,
+                sky_rgb: (0.72, 0.70, 0.66),
+            ),
+            LookSpec(
+                variant: GoldenEvening,
+                preset: GoldenEvening,
+                sky_rgb: (0.83, 0.62, 0.44),
+            ),
+        ],
+    )),
+    objects: [
+        // The twin mills: the map's signature pair, one at each end of the causeway -
+        // the landmark that names the objective from a kilometre out.
+        Cover(
+            id: "causeway_windmill_south",
+            name: "causeway mill (south)",
+            kind: FarmBuilding,
+            at: (Fixed(500.0), Fixed(466.0)),
+            half_extents_m: (3.2, 7.5, 3.2),
+        ),
+        Cover(
+            id: "causeway_windmill_north",
+            name: "causeway mill (north)",
+            kind: FarmBuilding,
+            at: (Fixed(500.0), Fixed(534.0)),
+            half_extents_m: (3.2, 7.5, 3.2),
+        ),
+        // Defile hamlets: a working farmstead on each team's approach bench.
+        TownGrid(
+            id_prefix: "przesmyk_farm",
+            name_prefix: "defile farmstead",
+            kind: FarmBuilding,
+            columns_x_m: [340.0, 375.0],
+            row_offsets_m: [120.0, 160.0],
+            wide_half_m: (6.0, 3.4, 4.2),
+            narrow_half_m: (5.0, 3.0, 4.6),
+        ),
+        // Open-flank barns: the right-hand fight's only architecture.
+        Cover(
+            id: "moraine_barn_south",
+            name: "moraine barn (south)",
+            kind: FarmBuilding,
+            at: (Fixed(720.0), Fixed(180.0)),
+            half_extents_m: (5.5, 3.6, 4.0),
+        ),
+        Cover(
+            id: "moraine_barn_north",
+            name: "moraine barn (north)",
+            kind: FarmBuilding,
+            at: (Fixed(280.0), Fixed(820.0)),
+            half_extents_m: (5.5, 3.6, 4.0),
+        ),
+        // Reed screens: TreeLine belts masking the shore roads where they round the lakes.
+        Cover(
+            id: "reed_screen_south",
+            name: "lakeshore alder screen (south)",
+            kind: TreeLine,
+            at: (Fixed(300.0), Fixed(586.0)),
+            half_extents_m: (26.0, 8.4, 3.0),
+        ),
+        Cover(
+            id: "reed_screen_north",
+            name: "lakeshore alder screen (north)",
+            kind: TreeLine,
+            at: (Fixed(700.0), Fixed(414.0)),
+            half_extents_m: (26.0, 8.4, 3.0),
+        ),
+        Cover(
+            id: "far_shore_screen_south",
+            name: "far-shore alder screen (south)",
+            kind: TreeLine,
+            at: (Fixed(905.0), Fixed(460.0)),
+            half_extents_m: (3.0, 8.4, 24.0),
+        ),
+        Cover(
+            id: "far_shore_screen_north",
+            name: "far-shore alder screen (north)",
+            kind: TreeLine,
+            at: (Fixed(95.0), Fixed(540.0)),
+            half_extents_m: (3.0, 8.4, 24.0),
+        ),
+        // Glacial erratics: the honest Mazury boulder, as the Crag it is.
+        Cover(
+            id: "erratic_south",
+            name: "glacial erratic (south)",
+            kind: Crag,
+            at: (Fixed(560.0), Fixed(300.0)),
+            half_extents_m: (2.4, 1.5, 1.8),
+        ),
+        Cover(
+            id: "erratic_north",
+            name: "glacial erratic (north)",
+            kind: Crag,
+            at: (Fixed(440.0), Fixed(700.0)),
+            half_extents_m: (2.4, 1.5, 1.8),
+        ),
+        // Burned hulls at the causeway approaches: the pinch reads as already fought-over.
+        Cover(
+            id: "causeway_wreck_south",
+            name: "burned-out hull at the causeway (south)",
+            kind: Wreck,
+            at: (Fixed(462.0), Fixed(428.0)),
+            half_extents_m: (1.75, 1.1, 3.25),
+        ),
+        Cover(
+            id: "causeway_wreck_north",
+            name: "burned-out hull at the causeway (north)",
+            kind: Wreck,
+            at: (Fixed(538.0), Fixed(572.0)),
+            half_extents_m: (1.75, 1.1, 3.25),
+        ),
+    ],
+    scenery: [
+        // Reeds and brush thicken every shoreline; the scatter twin machinery lands the
+        // rot pairs.
+        // Reed belts hug the DRY shore bands (the rects stop where the water begins);
+        // each op's rot twin dresses the other lake's matching shore by the machinery.
+        Scatter(
+            seed: 4501001,
+            kind: Bush,
+            pairs: 20,
+            region: ScatterRect(
+                x: (60.0, 340.0),
+                z: (540.0, 600.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4501007,
+            kind: Bush,
+            pairs: 14,
+            region: ScatterRect(
+                x: (60.0, 110.0),
+                z: (620.0, 900.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4501002,
+            kind: Bush,
+            pairs: 10,
+            region: ScatterRect(
+                x: (410.0, 590.0),
+                z: (420.0, 465.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // Oaks on the eskers and around the farmsteads.
+        Scatter(
+            seed: 4501003,
+            kind: Oak,
+            pairs: 3,
+            region: ScatterRect(
+                x: (120.0, 360.0),
+                z: (120.0, 320.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(170.0, 130.0, 70.0), (830.0, 870.0, 70.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4501004,
+            kind: Oak,
+            pairs: 3,
+            region: ScatterRect(
+                x: (300.0, 420.0),
+                z: (300.0, 420.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // Erratic field: granite boulders strewn over the open moraine.
+        Scatter(
+            seed: 4501005,
+            kind: Rock,
+            pairs: 22,
+            region: ScatterRect(
+                x: (420.0, 610.0),
+                z: (80.0, 400.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(170.0, 130.0, 70.0), (830.0, 870.0, 70.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4501006,
+            kind: Rock,
+            pairs: 8,
+            region: ScatterRect(
+                x: (60.0, 380.0),
+                z: (300.0, 540.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+    ],
+    roads: [
+        // The causeway road: spawn to spawn through the knife point; the pair machinery
+        // rotates the northern half.
+        MirroredPair(
+            id_base: "causeway_road",
+            surface: Dirt,
+            south_points: [
+                (170.0, 130.0),
+                (330.0, 300.0),
+                (455.0, 420.0),
+                (500.0, 475.0),
+                (500.0, 500.0),
+            ],
+            width_m: 5.0,
+        ),
+        // The shore road: each team's long left flank behind the reeds.
+        MirroredPair(
+            id_base: "shore_road",
+            surface: Dirt,
+            south_points: [
+                (150.0, 160.0),
+                (110.0, 400.0),
+                (95.0, 620.0),
+                (130.0, 870.0),
+                (300.0, 958.0),
+                (520.0, 962.0),
+            ],
+            width_m: 4.5,
+        ),
+        // The moraine lane: the open right flank under the esker, bending into the east
+        // peat defile - the lake's west shore is where the right hand runs out of land.
+        MirroredPair(
+            id_base: "moraine_lane",
+            surface: Dirt,
+            south_points: [
+                (220.0, 150.0),
+                (480.0, 210.0),
+                (560.0, 300.0),
+                (596.0, 430.0),
+                (600.0, 478.0),
+            ],
+            width_m: 4.5,
+        ),
+    ],
+    gameplay: GameplaySpec(
+        spawns: [
+            SpawnSpec(
+                team: 1,
+                at: (170.0, 130.0),
+                facing_yaw_rad: 0.7853982,
+                radius_m: None,
+            ),
+            SpawnSpec(
+                team: 2,
+                at: (830.0, 870.0),
+                facing_yaw_rad: 3.9269908,
+                radius_m: None,
+            ),
+        ],
+        capture_zones: [
+            CaptureZoneSpec(
+                id: "causeway",
+                at: (500.0, 500.0),
+                radius_m: 22.0,
+            ),
+        ],
+        strategic_points: [
+            StrategicPointSpec(
+                id: "causeway_gate",
+                name: "the causeway",
+                role: Crossing,
+                at: (Fixed(500.0), Fixed(500.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "west_defile",
+                name: "west peat defile",
+                role: FlankRoute,
+                at: (Fixed(404.0), Fixed(548.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "east_defile",
+                name: "east peat defile",
+                role: FlankRoute,
+                at: (Fixed(596.0), Fixed(452.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "esker_south",
+                name: "south esker crest",
+                role: HighGround,
+                at: (Fixed(230.0), Fixed(220.0)),
+                radius_m: 35.0,
+            ),
+            StrategicPointSpec(
+                id: "esker_north",
+                name: "north esker crest",
+                role: HighGround,
+                at: (Fixed(770.0), Fixed(780.0)),
+                radius_m: 35.0,
+            ),
+            StrategicPointSpec(
+                id: "shelf_south",
+                name: "causeway overlook shelf (south)",
+                role: HullDown,
+                at: (Fixed(352.0), Fixed(470.0)),
+                radius_m: 28.0,
+            ),
+            StrategicPointSpec(
+                id: "shelf_north",
+                name: "causeway overlook shelf (north)",
+                role: HullDown,
+                at: (Fixed(648.0), Fixed(530.0)),
+                radius_m: 28.0,
+            ),
+            StrategicPointSpec(
+                id: "far_corner_south",
+                name: "far lakeshore corner (south)",
+                role: Observation,
+                at: (Fixed(150.0), Fixed(905.0)),
+                radius_m: 35.0,
+            ),
+            StrategicPointSpec(
+                id: "far_corner_north",
+                name: "far lakeshore corner (north)",
+                role: Observation,
+                at: (Fixed(850.0), Fixed(95.0)),
+                radius_m: 35.0,
+            ),
+        ],
+        features: [
+            FeatureSpec(
+                kind: Lowland,
+                name: "the west lake",
+                at: (Fixed(230.0), Fixed(750.0)),
+                radius_m: 180.0,
+                note: "drowning-deep glacial lake: it denies the whole quarter - the shore road behind the reeds is the only way around",
+            ),
+            FeatureSpec(
+                kind: Lowland,
+                name: "the east lake",
+                at: (Fixed(770.0), Fixed(250.0)),
+                radius_m: 180.0,
+                note: "the west lake's half-turn twin: each team sees a lake on its LEFT hand",
+            ),
+            FeatureSpec(
+                kind: Crossing,
+                name: "the causeway",
+                at: (Fixed(500.0), Fixed(500.0)),
+                radius_m: 60.0,
+                note: "47 m of land between the peat ponds, flanked by the twin mills: the capture point, and the map's knife",
+            ),
+            FeatureSpec(
+                kind: Lowland,
+                name: "the peat pits",
+                at: (Fixed(500.0), Fixed(500.0)),
+                radius_m: 80.0,
+                note: "two sunken cut-peat ponds astride the causeway; a shell that misses the pinch raises a fountain",
+            ),
+            FeatureSpec(
+                kind: Ridge,
+                name: "the eskers",
+                at: (Fixed(500.0), Fixed(500.0)),
+                radius_m: 420.0,
+                note: "gravel spines on both open quarters: the right-flank hull-down and the reason the moraine lane bends",
+            ),
+        ],
+    ),
+)

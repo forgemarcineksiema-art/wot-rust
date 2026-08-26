@@ -110,6 +110,9 @@ impl ClientApp {
                 // Street canyons want the valley leash; the open east flank never needs
                 // more than the steppe grants.
                 terrain::MapId::Ostrogorsk => 21.0,
+                // Rolling moraine between lakes: the valley leash reads right - the long
+                // sightlines are over water, where the camera never travels.
+                terrain::MapId::MazurskiPrzesmyk => 21.0,
             },
             ..Default::default()
         }

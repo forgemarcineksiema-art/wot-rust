@@ -28,7 +28,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 - **Spotting**: per-vehicle optics, radio-dead isolation, LOS through real cover, minimap +
   spotted gates, fog-fairness lock across all weather looks; concealment that is readable —
   a stationary hull is seen from 70 % of range, firing reveals you for 8 s.
-- **Maps**: 4 shipped (steppe / river town / mountain pass / city), all data-driven with a
+- **Maps**: 5 shipped (steppe / river town / mountain pass / city / lake defile), all data-driven with a
   full in-repo editor, playability BFS gates and golden hashes.
 - **Fleet**: 8 blueprint-born vehicles across 3 nations (lines and tiers), one RON source feeding
   hitbox/armor/visuals; a review workshop with measurable gates (Studio, dossiers, ratios);
@@ -67,7 +67,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
 - Map rotation & per-map bot battle tests (Bystra, Orliny and Ostrogorsk have one;
-  Prokhorovka does not, and there is no seeded rotation).
+  Prokhorovka and Mazurski Przesmyk do not, and there is no seeded rotation).
 - Human playtesting: the maps have never met a second human.
 
 **MISSING toward release** (the honest gap list; dates and thresholds are no longer written

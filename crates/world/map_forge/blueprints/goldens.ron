@@ -130,5 +130,15 @@
     ("bystra_valley", "3161e30ae33d03ed"),
     ("orliny_pereval", "d77bdb0815a7c23a"),
     ("ostrogorsk", "f4cd7a1809c1d9ba"),
+    // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
+    // firsts at once: the first Rot180 half-turn map (each team sees the SAME battlefield
+    // turned around - lake on the left, moraine on the right, twin mills dead ahead) and
+    // the first map on the standing-water schema (four named sheets at two levels: two
+    // drowning lakes denying the NW/SE quarters, two peat ponds flanking the 47 m
+    // causeway that is the only capture zone; the global table sits under the terrain
+    // floor). The report came back CLEAN on the first compile - the sheet gates (dry
+    // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
+    // authored numbers as written.
+    ("mazurski_przesmyk", "e53a5883270a2fe0"),
     ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
 ]

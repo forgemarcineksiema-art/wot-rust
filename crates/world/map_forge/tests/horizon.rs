@@ -13,6 +13,9 @@ fn every_shipped_map_authors_its_horizon_at_its_blessed_height() {
         (MapId::Ostrogorsk, 58.0),
         (MapId::OrlinyPereval, 130.0),
         (MapId::ProkhorovkaHill252_2, 22.0),
+        // A lakeland's horizon is low rolling moraine - barely above the map's own
+        // drumlins; the enclosure is a suggestion of more lake country, not a wall.
+        (MapId::MazurskiPrzesmyk, 20.0),
     ];
     assert_eq!(blessed.len(), MapId::SHIPPED.len(), "every shipped map is in the table");
     for (id, hills_base_m) in blessed {

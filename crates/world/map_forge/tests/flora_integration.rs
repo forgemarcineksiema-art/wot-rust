@@ -38,6 +38,7 @@ fn every_shipped_map_scatters_procedural_oaks_sparsely() {
         (MapId::BystraValley, 9),
         (MapId::OrlinyPereval, 6),
         (MapId::Ostrogorsk, 9),
+        (MapId::MazurskiPrzesmyk, 6),
     ];
 
     for (map_id, tree_pairs) in expected_pairs {
