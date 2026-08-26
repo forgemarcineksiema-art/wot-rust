@@ -12,16 +12,11 @@ use glam::Vec3;
 use sim::line_of_sight;
 use terrain::{BattlefieldMap, MapId};
 
+mod common;
+use common::commander_eye as eye;
+
 fn map() -> BattlefieldMap {
     map_forge::battlefield(MapId::OrlinyPereval)
-}
-
-/// The commander's eye over a ground point: the hitbox top, exactly as
-/// `sim::spotting::observer_eye` stacks it over a hull standing there.
-fn eye(map: &BattlefieldMap, x: f32, z: f32) -> Vec3 {
-    let spec = TankSpec::t54_1951();
-    let ground = map.heightmap.sample_height(x, z).expect("probe on the map");
-    Vec3::new(x, ground + spec.hitbox.center_y_m + spec.hitbox.half_height_m, z)
 }
 
 /// The crown of the tower breaks the skyline from both spawn roads: a commander rolling
