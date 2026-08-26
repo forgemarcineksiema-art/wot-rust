@@ -87,7 +87,7 @@ fn planned_drive_target(
     objective: Vec3,
     battlefield: &BattlefieldMap,
 ) -> Vec3 {
-    if battlefield.water.is_none() {
+    if map_is_dry(battlefield) {
         return water_safe_target(tank, objective, battlefield);
     }
     let stale = replan_due
@@ -161,7 +161,7 @@ pub(crate) fn bot_in_deep_water(
     if here > BOT_DEEP_WATER_M {
         return true;
     }
-    if battlefield.water.is_none() {
+    if map_is_dry(battlefield) {
         return false;
     }
     let heading = Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z);
@@ -329,16 +329,26 @@ pub(crate) fn water_escape_command(
 }
 
 /// Standing-water depth under a world point; 0 on dry maps, off-map, or above the waterline.
+///
+/// Resolved through the map's COMPLETE water (teren W6.2) — the same `level_at` rule the
+/// sim drowns by. Reading the legacy table alone was the seam that made the brain blind to
+/// standing sheets: on Mazurski the table sits under the terrain floor and every lake is a
+/// sheet, so the old read answered "dry" over two drowning lakes.
 pub(crate) fn water_depth_at(battlefield: &BattlefieldMap, x: f32, z: f32) -> f32 {
-    match (battlefield.water, battlefield.heightmap.sample_height(x, z)) {
-        (Some(water), Some(ground)) => water.depth_over(ground).max(0.0),
-        _ => 0.0,
+    match battlefield.heightmap.sample_height(x, z) {
+        Some(ground) => battlefield.water_view().depth_at(ground, x, z),
+        None => 0.0,
     }
+}
+
+/// A map with neither table nor sheets never pays for water awareness.
+fn map_is_dry(battlefield: &BattlefieldMap) -> bool {
+    battlefield.water.is_none() && battlefield.standing_water.is_empty()
 }
 
 /// True when the straight drive line from `from` to `to` runs through deep water.
 fn line_crosses_deep_water(battlefield: &BattlefieldMap, from: Vec3, to: Vec3) -> bool {
-    if battlefield.water.is_none() {
+    if map_is_dry(battlefield) {
         return false;
     }
     let span = to - from;
@@ -883,6 +893,42 @@ mod tests {
         assert!(
             water_depth_at(&map, landing.x, landing.z) < here,
             "the escape must lead OUT of the water, not along it: {command:?}"
+        );
+    }
+
+    /// Teren W6.2, the seam CLOSED: the route brain reads the map's COMPLETE water — the
+    /// standing sheets, not just the legacy table. On Mazurski the table sits under the
+    /// terrain floor (the old table-only read answered "dry" everywhere) and both lakes
+    /// are sheets: the brain must see the drowning water and detour a lake-crossing line
+    /// through the causeway, exactly as it detours Bystra's river through the bridge.
+    #[test]
+    fn the_route_brain_sees_the_standing_sheets_not_just_the_table() {
+        let map = map_forge::battlefield(terrain::MapId::MazurskiPrzesmyk);
+        assert!(
+            water_depth_at(&map, 220.0, 750.0) > BOT_DEEP_WATER_M,
+            "mid-lake must read as deep water to the brain"
+        );
+        assert_eq!(water_depth_at(&map, 500.0, 430.0), 0.0, "the causeway approach is dry");
+
+        // A bot south of the west lake, bound for the far corner beyond it: the straight
+        // line runs through the lake's drowning centre.
+        let ground = map.heightmap.sample_height(220.0, 480.0).expect("dry shore");
+        let tank =
+            crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(220.0, ground, 480.0));
+        let target = Vec3::new(220.0, ground, 905.0);
+        assert!(
+            line_crosses_deep_water(&map, tank.position, target),
+            "the straight line must cross the lake (test premise)"
+        );
+        let waypoint = water_safe_target(&tank, target, &map);
+        let causeway = map
+            .strategic_points
+            .iter()
+            .find(|point| point.role == StrategicRole::Crossing)
+            .expect("the causeway is the map's one Crossing");
+        assert!(
+            Vec3::from_array(causeway.position).distance(waypoint) < 1.0,
+            "a lake-bound bot detours through the causeway, got {waypoint:?}"
         );
     }
 

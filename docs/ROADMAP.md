@@ -66,8 +66,9 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
-- Map rotation & per-map bot battle tests (Bystra, Orliny and Ostrogorsk have one;
-  Prokhorovka and Mazurski Przesmyk do not, and there is no seeded rotation).
+- Map rotation: every shipped map now carries a bot battle test (Prokhorovka and Mazurski
+  landed 2026-08-26; Mazurski's soak also asserts nobody ends below the drowning line),
+  but there is still no seeded rotation.
 - Human playtesting: the maps have never met a second human.
 
 **MISSING toward release** (the honest gap list; dates and thresholds are no longer written
