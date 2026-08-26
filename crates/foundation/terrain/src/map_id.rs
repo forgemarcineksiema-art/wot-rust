@@ -31,6 +31,11 @@ pub enum MapId {
     /// the urban-map program's map (docs/maps/ostrogorsk.md). Plays opt-in via
     /// `WOT_MAP=ostrogorsk`.
     Ostrogorsk,
+    /// The lake defile (Masurian Lakeland, 1945): the first Rot180 half-turn map and the
+    /// first built on the standing-water schema — two drowning lakes deny the corner
+    /// quarters, two peat ponds flank the 47 m causeway that is the only capture zone
+    /// (docs/maps/mazurski-przesmyk.md). Plays opt-in via `WOT_MAP=mazurski-przesmyk`.
+    MazurskiPrzesmyk,
 }
 
 impl MapId {
@@ -38,12 +43,13 @@ impl MapId {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [MapId; 5] = [
+    pub const ALL: [MapId; 6] = [
         MapId::ProkhorovkaHill252_2,
         MapId::BystraValley,
         MapId::Scratch,
         MapId::OrlinyPereval,
         MapId::Ostrogorsk,
+        MapId::MazurskiPrzesmyk,
     ];
 
     /// Every SHIPPED map — the catalog the rotation, goldens and baked assets cover.
@@ -57,6 +63,7 @@ impl MapId {
         MapId::BystraValley,
         MapId::OrlinyPereval,
         MapId::Ostrogorsk,
+        MapId::MazurskiPrzesmyk,
     ];
 
     /// CLI/asset slug: `generate-map --map <slug>` and the `assets/maps/` filename stem
@@ -68,6 +75,7 @@ impl MapId {
             Self::Scratch => "scratch",
             Self::OrlinyPereval => "orliny-pereval",
             Self::Ostrogorsk => "ostrogorsk",
+            Self::MazurskiPrzesmyk => "mazurski-przesmyk",
         }
     }
 

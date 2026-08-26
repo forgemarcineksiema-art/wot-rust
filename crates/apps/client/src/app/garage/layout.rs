@@ -54,6 +54,7 @@ pub(super) fn map_pick_label(map: Option<terrain::MapId>) -> &'static str {
         Some(MapId::BystraValley) => "MAP: BYSTRA VALLEY",
         Some(MapId::OrlinyPereval) => "MAP: ORLINY PEREVAL",
         Some(MapId::Ostrogorsk) => "MAP: OSTROGORSK",
+        Some(MapId::MazurskiPrzesmyk) => "MAP: MAZURSKI PRZESMYK",
         Some(MapId::Scratch) => "MAP: SCRATCH",
     }
 }

@@ -294,8 +294,13 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
 
 /// The maps whose looks are locked. A map missing from here ships unreviewed, so the coverage
 /// test reads this list rather than trusting anyone to remember.
-pub const REVIEWED_MAPS: [MapId; 4] =
-    [MapId::ProkhorovkaHill252_2, MapId::BystraValley, MapId::OrlinyPereval, MapId::Ostrogorsk];
+pub const REVIEWED_MAPS: [MapId; 5] = [
+    MapId::ProkhorovkaHill252_2,
+    MapId::BystraValley,
+    MapId::OrlinyPereval,
+    MapId::Ostrogorsk,
+    MapId::MazurskiPrzesmyk,
+];
 
 /// Every review view for one map: its shared look vantage under **every** variant the blueprint
 /// declares, followed by the identity views that say what the map IS.
@@ -339,6 +344,7 @@ pub fn map_key(map: MapId) -> &'static str {
         MapId::BystraValley => "bystra",
         MapId::OrlinyPereval => "orliny",
         MapId::Ostrogorsk => "ostrogorsk",
+        MapId::MazurskiPrzesmyk => "mazurski",
         _ => "scratch",
     }
 }
@@ -368,6 +374,9 @@ fn look_vantage(map: MapId, at: &dyn Fn(f32, f32, f32) -> [f32; 3]) -> ([f32; 3]
         MapId::OrlinyPereval => (at(500.0, 4.0, 220.0), at(500.0, 8.0, 500.0)),
         // The boulevard runs the length of the map into the city.
         MapId::Ostrogorsk => (at(460.0, 3.0, 230.0), at(460.0, 2.5, 500.0)),
+        // Up the causeway road toward the twin mills: lake on the left through the
+        // reeds, moraine right, the pinch dead ahead - the diagonal IS the map.
+        MapId::MazurskiPrzesmyk => (at(330.0, 3.0, 300.0), at(500.0, 6.0, 490.0)),
         _ => (at(500.0, CHASE_EYE_HEIGHT_M, 250.0), at(500.0, 2.0, 500.0)),
     }
 }
@@ -407,6 +416,11 @@ fn identity_views(
         // whether the city reads as masonry or as boxes.
         MapId::Ostrogorsk => {
             vec![named("canyon", at(150.0, 2.4, 446.0), at(400.0, 2.0, 446.0))]
+        }
+        // The causeway between the peat ponds at tank-eye height: water both sides, the
+        // mills flanking - the frame that judges whether the knife point reads.
+        MapId::MazurskiPrzesmyk => {
+            vec![named("causeway", at(500.0, 2.4, 430.0), at(500.0, 3.0, 540.0))]
         }
         _ => Vec::new(),
     }

@@ -141,7 +141,19 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
         ],
     ),
     ("DamageCause", &["Shell", "Ram", "Impact", "Splash", "Drowning", "Fire", "AmmoRack"]),
-    ("MapId", &["ProkhorovkaHill252_2", "BystraValley", "Scratch", "OrlinyPereval", "Ostrogorsk"]),
+    (
+        "MapId",
+        &[
+            "ProkhorovkaHill252_2",
+            "BystraValley",
+            "Scratch",
+            "OrlinyPereval",
+            "Ostrogorsk",
+            // teren W6 (2026-08-26): the lake defile - first Rot180 map, first on the
+            // standing-water schema.
+            "MazurskiPrzesmyk",
+        ],
+    ),
     (
         "MaterialRole",
         &[
