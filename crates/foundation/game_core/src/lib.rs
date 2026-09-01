@@ -36,6 +36,7 @@ pub use armor::{
     resolve_penetration_through_track, segment_volume_entry, segment_volume_entry_with_margin,
     segment_volume_interval_with_margin, vehicle_armor_volumes,
 };
+pub use armor::{TracedImpact, belt_index, resolve_traced_impact, struck_flank};
 pub use armor_breach::surface_basis as armor_surface_basis;
 pub use armor_breach::{
     ApertureLobe, ArmorBreach, ArmorBreachAdd, ArmorBreachDescriptor, ArmorBreachSet, ArmorFrame,

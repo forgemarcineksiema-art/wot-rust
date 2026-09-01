@@ -1,8 +1,7 @@
-use game_core::math::{plate_normal, world_to_tank_local};
+use game_core::math::world_to_tank_local;
 use game_core::{
     ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
-    ShellType, TankId, TrackSide, resolve_penetration_at_distance_on_zone_scaled,
-    resolve_penetration_through_screens,
+    ShellSpec, ShellType, TankId, TracedImpact, TrackSide, resolve_traced_impact,
 };
 use glam::Vec3;
 
@@ -772,10 +771,11 @@ fn deterministic_spall_directions(direction: Vec3, seed: u64) -> [Vec3; 3] {
     })
 }
 
-/// The armor test for one resolved hit. Ordinary zones test their single plate; the track zones
-/// are a SPACED-ARMOR pair — the track band screens the hull side plate behind it, and each
-/// layer is measured against its own true 3D normal (the side plate carries its slope and the
-/// hull's live attitude, exactly like a direct side hit would).
+/// The armor test for one resolved hit — the sim's half of the ONE resolver (Inny Poziom A1):
+/// gather what the hull knows (its attitude, which belts still stand) into a `TracedImpact`
+/// and hand it to `game_core::resolve_traced_impact`, the same function the reticle's hint
+/// calls over the snapshot. Ordinary zones test their single plate at the struck spot's
+/// thickness; the track zones are a SPACED-ARMOR stack measured against its true 3D normals.
 fn resolve_impact_penetration(
     shell: &ShellState,
     target: &TankState,
@@ -786,67 +786,75 @@ fn resolve_impact_penetration(
     // runs aft, so a flank hit resolves against the metal THERE, not against the flank average.
     thickness_scale: f32,
 ) -> PenetrationResult {
-    if !matches!(zone, ArmorZone::LeftTrack | ArmorZone::RightTrack | ArmorZone::Skirt) {
-        return resolve_penetration_at_distance_on_zone_scaled(
-            &shell.shell,
-            &target.spec.hull,
+    resolve_traced_impact(&traced_impact(
+        &shell.shell,
+        target,
+        zone,
+        impact_angle_degrees,
+        distance_m,
+        thickness_scale,
+        shell.velocity_mps,
+    ))
+}
+
+/// What the hull contributes to a traced contact: its attitude and which belts stand.
+fn traced_impact<'a>(
+    shell: &'a ShellSpec,
+    target: &'a TankState,
+    zone: ArmorZone,
+    impact_angle_degrees: f32,
+    distance_m: f32,
+    thickness_scale: f32,
+    direction: Vec3,
+) -> TracedImpact<'a> {
+    TracedImpact {
+        shell,
+        armor: &target.spec.hull,
+        hull: target.hull_pose(),
+        zone,
+        impact_angle_degrees,
+        distance_m,
+        thickness_scale,
+        direction,
+        belts_present: [
+            target.tracks.hp(TrackSide::Left) > 0,
+            target.tracks.hp(TrackSide::Right) > 0,
+        ],
+    }
+}
+
+/// The server's verdict for a traced outcome against `target` — the seam's measuring point.
+/// The client's reticle answers the same outcome from the snapshot; the parity test in the
+/// client asserts the two agree on ten thousand traced impacts. `None` when the outcome is
+/// not a plate hit on this tank.
+pub fn verdict_for_traced_impact(
+    shell: &ShellSpec,
+    target: &TankState,
+    outcome: &crate::shell_trace::TraceOutcome,
+) -> Option<PenetrationResult> {
+    let crate::shell_trace::TraceOutcome::Tank {
+        id,
+        zone,
+        impact_angle_degrees,
+        distance_m,
+        thickness_scale,
+        direction,
+        ..
+    } = *outcome
+    else {
+        return None;
+    };
+    (id == target.id).then(|| {
+        resolve_traced_impact(&traced_impact(
+            shell,
+            target,
             zone,
             impact_angle_degrees,
             distance_m,
             thickness_scale,
-        );
-    }
-    // Which flank the shell met. The track zones say so outright; the skirt pair shares one
-    // zone, so the struck plate is whichever side faces the shell's approach, resolved in the
-    // hull frame.
-    let struck_side = match zone {
-        ArmorZone::LeftTrack => TrackSide::Left,
-        ArmorZone::RightTrack => TrackSide::Right,
-        _ => {
-            let local =
-                target.hull_pose().basis().transpose() * shell.velocity_mps.normalize_or_zero();
-            if local.x < 0.0 { TrackSide::Right } else { TrackSide::Left }
-        }
-    };
-    let side_sign = match struck_side {
-        TrackSide::Left => -1.0,
-        TrackSide::Right => 1.0,
-    };
-    let side_slope = target.spec.hull.facet(ArmorFacing::HullSide).slope_degrees;
-    let side_normal =
-        plate_normal(target.hull_pose(), 0.0, ArmorZone::HullSide, side_sign, side_slope);
-    let direction = shell.velocity_mps.normalize_or_zero();
-    let side_angle_degrees = (-direction).dot(side_normal).clamp(-1.0, 1.0).acos().to_degrees();
-
-    // The spaced stack standing off this flank, OUTERMOST FIRST — the honest geometry of what
-    // the shell actually crosses:
-    //   * a skirt hangs outside the belt, so a skirt hit still has the belt behind it;
-    //   * a BROKEN track is not there any more (the thrown belt lies on the ground beside the
-    //     hull), so it stops screening — the sim never charges armour for steel the eye can
-    //     see is missing;
-    //   * an empty stack is a bare side plate.
-    let belt_zone = match struck_side {
-        TrackSide::Left => ArmorZone::LeftTrack,
-        TrackSide::Right => ArmorZone::RightTrack,
-    };
-    let mut screens = [ArmorZone::Skirt; 2];
-    let mut screen_count = 0;
-    if zone == ArmorZone::Skirt {
-        screens[screen_count] = ArmorZone::Skirt;
-        screen_count += 1;
-    }
-    if target.tracks.hp(struck_side) > 0 {
-        screens[screen_count] = belt_zone;
-        screen_count += 1;
-    }
-    resolve_penetration_through_screens(
-        &shell.shell,
-        &target.spec.hull,
-        &screens[..screen_count],
-        impact_angle_degrees,
-        side_angle_degrees,
-        distance_m,
-    )
+            direction,
+        ))
+    })
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 mod facet;
+mod impact;
 mod resolve;
 mod vehicle_volumes;
 mod volumes;
@@ -8,6 +9,7 @@ mod weakspots;
 mod zone;
 
 pub use facet::{ArmorFacet, ArmorFacetProfile};
+pub use impact::{TracedImpact, belt_index, resolve_traced_impact, struck_flank};
 pub(crate) use resolve::resolve_penetration_at_distance_on_facet;
 pub use resolve::{
     PenetrationResult, resolve_penetration, resolve_penetration_at_distance,

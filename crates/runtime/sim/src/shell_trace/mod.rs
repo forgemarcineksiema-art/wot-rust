@@ -84,6 +84,7 @@ pub fn trace_shell(
                 zone,
                 impact_angle_degrees,
                 hit_position,
+                thickness_scale,
                 ..
             }) => {
                 return TraceOutcome::Tank {
@@ -93,6 +94,8 @@ pub fn trace_shell(
                     impact_angle_degrees,
                     hit_position,
                     distance_m: travelled + hit_position.distance(previous),
+                    thickness_scale,
+                    direction: velocity.normalize_or_zero(),
                 };
             }
             Some(SegmentImpact::Obstacle { position, surface }) => {
