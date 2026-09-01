@@ -8,8 +8,9 @@ matchmaking from day one. The retired release-ladder notes live in git history
 
 ## The creed (why this game exists)
 
-The honest tank: **no ±25% damage RNG**, dispersion ~0.1-0.3 mrad, armor resolved against
-real 3D plates, no premium ammo (ammo-rack slots instead), no satellite-view artillery,
+The honest tank: **no ±25% damage RNG**, an aiming envelope that is a hard maximum radius
+(1.9–3.4 mrad at rest across the fleet, centre-biased, no gaussian tail — tighter than WoT's
+3.2–4.2 and with no shot ever outside the circle), armor resolved against real 3D plates, no premium ammo (ammo-rack slots instead), no satellite-view artillery,
 tiers and lines like World of Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is
 test-locked, not marketing.
 
@@ -22,8 +23,10 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   side — the shot's presentation channels are an open register, `inny-poziom-program.md` S); weakspots
   are measured patches (mantlet, cupola volume, aimable bow ports), not facet multipliers; rack
   cook-off the crew can fight, replicated with a teammate-only countdown.
-- **Movement**: planar rigid-body hull (velocity + yaw inertia, drift), per-wheel suspension
-  with sprung attitude, hull-down that actually works, track damage in two tiers.
+- **Movement**: planar rigid-body hull (velocity + yaw inertia, drift), hull-down that actually
+  works, track damage in two tiers. The authoritative hull is a rigid beam on a rate-limited
+  attitude ramp; per-wheel travel and the sprung attitude are presentation-side today. The sprung
+  authoritative hull is `inny-poziom-program.md` G7.
 - **Destruction (Honest Steel)**: buildings→rubble, breachable walls, crushable fences and
   tree lines, terrain craters, wall scars — replicated, honest. Mechanics only: the collapse is
   a state swap, cover damage is two constants and three maps are near-static — the register is
@@ -103,7 +106,10 @@ every feature landing with a locking test. Surviving program docs stay as doctri
 **The open second pass (approved 2026-09-01)** is [inny-poziom-program.md](inny-poziom-program.md):
 the audit that found the simulation mature and the visible layer thin, its register across the
 kernels and fleet, tracks, Honest Steel, armour, flora, the shot, roles and the interface, and
-the wave plan (W1 Widok → W2 the track → W3 Kuźnia 2.0 → W4 Obraz, the interface in parallel).
+the wave plan (W1 Widok → W2 Jazda → W3 Kuźnia 2.0 → W4 Obraz → W5 Miasto i Ziemia, with the
+frame lane and the interface lane in parallel). Its decisions include the sprung authoritative
+hull, gravity at 9.81, the rewritten dispersion creed above, instanced grammar-built buildings,
+a scattering-LUT sky and per-vehicle fording depth.
 
 **The release ladder approved 2026-08-04** lives in git history
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.
