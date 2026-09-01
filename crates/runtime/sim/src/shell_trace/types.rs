@@ -125,6 +125,13 @@ pub enum TraceOutcome {
         impact_angle_degrees: f32,
         hit_position: Vec3,
         distance_m: f32,
+        /// The struck plate's share of its zone's thickness at this spot (see
+        /// [`SegmentImpact::Tank`]). The reticle used to drop it and read the flank average —
+        /// half of "green, then 0" (Inny Poziom A1).
+        thickness_scale: f32,
+        /// The shell's world direction at contact — the side plate's angle behind a track or
+        /// skirt stack is measured against it, on the server and in the sight alike.
+        direction: Vec3,
     },
     Obstacle {
         position: Vec3,

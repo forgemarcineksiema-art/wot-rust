@@ -1,5 +1,5 @@
 use game_core::math::HullPose;
-use game_core::{ArmorFacing, TankId, TankSpec, TeamId, resolve_penetration_at_distance_on_zone};
+use game_core::{ArmorFacing, TankId, TankSpec, TeamId};
 use glam::{Mat4, Vec3, Vec4};
 use net::TankSnapshot;
 use terrain::{HeightMap, StaticCoverObject};
@@ -201,26 +201,45 @@ fn feedback_from_outcome(
 /// The verdict for the shot under the crosshair. It rides the same solution trace, so it follows
 /// what the player is AIMING AT instead of flashing green/red through every hull the barrel
 /// happens to sweep across on its way there.
+///
+/// It is the SERVER'S resolver over the SERVER'S inputs (Inny Poziom A1): the struck spot's
+/// thickness and the shell's direction ride the trace outcome, the target's attitude and its
+/// standing belts come off the snapshot, and `game_core::resolve_traced_impact` is the one
+/// function both sides call. It used to call the bare zone resolver — no thickness scale, no
+/// spaced stack on a track or skirt hit — and read green where the server charged the belt and
+/// the side plate behind it. The parity test over ten thousand traced impacts guards the seam.
 fn penetration_from_outcome(
     query: &ReticleFeedbackQuery<'_>,
     outcome: &sim::TraceOutcome,
 ) -> Option<PenetrationHint> {
     // Only a tank impact has armor to penetrate; terrain/cover/open-sky shots have no hint.
-    let sim::TraceOutcome::Tank { id, facing, zone, impact_angle_degrees, distance_m, .. } =
-        *outcome
+    let sim::TraceOutcome::Tank {
+        id,
+        facing,
+        zone,
+        impact_angle_degrees,
+        distance_m,
+        thickness_scale,
+        direction,
+        ..
+    } = *outcome
     else {
         return None;
     };
     // The player fires their own shell at the *target's* armor — read the shell from the player's
     // spec, not from the tank we are pointing at.
-    let target_hull = query.tanks.iter().find(|tank| tank.tank_id == id)?.vehicle.spec_ref().hull;
-    let result = resolve_penetration_at_distance_on_zone(
-        &query.player_spec.gun.shell,
-        &target_hull,
+    let target = query.tanks.iter().find(|tank| tank.tank_id == id)?;
+    let result = game_core::resolve_traced_impact(&game_core::TracedImpact {
+        shell: &query.player_spec.gun.shell,
+        armor: &target.vehicle.spec_ref().hull,
+        hull: target.hull_pose(),
         zone,
         impact_angle_degrees,
         distance_m,
-    );
+        thickness_scale,
+        direction,
+        belts_present: [target.track_hp[0] > 0, target.track_hp[1] > 0],
+    });
     Some(PenetrationHint {
         penetrates: result.penetrated,
         shell_pen_mm: result.effective_armor_mm + result.remaining_penetration_mm,
@@ -239,6 +258,8 @@ pub(crate) fn world_to_clip_xy(point: Vec3, view_projection: [[f32; 4]; 4]) -> O
     (ndc.x.abs() <= 1.2 && ndc.y.abs() <= 1.2).then_some([ndc.x, ndc.y])
 }
 
+#[cfg(test)]
+mod parity_tests;
 #[cfg(test)]
 mod seam_tests;
 #[cfg(test)]

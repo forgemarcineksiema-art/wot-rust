@@ -35,7 +35,7 @@ pub use aiming::{
 pub use clock::{
     DEFAULT_SERVER_TICK_HZ, DEFAULT_SIMULATION_TICK_HZ, DEFAULT_SNAPSHOT_HZ, SimulationClock,
 };
-pub use combat::FIRE_BUFFER_S;
+pub use combat::{FIRE_BUFFER_S, verdict_for_traced_impact};
 pub use command::TankCommand;
 pub use cover_damage::{
     CoverPhase, CoverState, LiveCover, cover_states_for, damage_cover, initial_cover_states,
