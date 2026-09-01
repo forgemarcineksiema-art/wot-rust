@@ -18,13 +18,16 @@ test-locked, not marketing.
 **DONE and test-locked** — meaning: the MECHANICS work and their promises sit in regression
 tests. It does not mean final art polish; where finish varies, the partial list says so.
 - **Combat**: 3D armor volumes from blueprints, ricochet/normalization, spaced armor & HEAT
-  honesty, swept-shell kinetics (v24), HE splash, module damage, fire feel + feedback; weakspots
+  honesty, swept-shell kinetics (v24), HE splash, module damage, fire feel + feedback (the sim
+  side — the shot's presentation channels are an open register, `inny-poziom-program.md` S); weakspots
   are measured patches (mantlet, cupola volume, aimable bow ports), not facet multipliers; rack
   cook-off the crew can fight, replicated with a teammate-only countdown.
 - **Movement**: planar rigid-body hull (velocity + yaw inertia, drift), per-wheel suspension
   with sprung attitude, hull-down that actually works, track damage in two tiers.
 - **Destruction (Honest Steel)**: buildings→rubble, breachable walls, crushable fences and
-  tree lines, terrain craters, wall scars — replicated, honest.
+  tree lines, terrain craters, wall scars — replicated, honest. Mechanics only: the collapse is
+  a state swap, cover damage is two constants and three maps are near-static — the register is
+  `inny-poziom-program.md` Z.
 - **Spotting**: per-vehicle optics, radio-dead isolation, LOS through real cover, minimap +
   spotted gates, fog-fairness lock across all weather looks; concealment that is readable —
   a stationary hull is seen from 70 % of range, firing reveals you for 8 s.
@@ -43,7 +46,9 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   (coverage-preserving mips), a true crossed-quad impostor splatted from the same bake, and
   a three-level wind hierarchy (trunk cantilever / baked branch jitter / uv-gated leaf
   flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
-  11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill).
+  11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill). Grown, not yet
+  rolled out: two of six species are placed, and the map-border backdrop ring still stands on
+  the pre-Drzewa frustum kit on every map (`inny-poziom-program.md` F).
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
   snapshots (**wire v49** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
@@ -94,6 +99,11 @@ down anywhere — the document that held them was retired):
 
 Programs of small PRs (1 branch = 1 PR), local `scripts/verify.ps1` as the only merge gate,
 every feature landing with a locking test. Surviving program docs stay as doctrine.
+
+**The open second pass (approved 2026-09-01)** is [inny-poziom-program.md](inny-poziom-program.md):
+the audit that found the simulation mature and the visible layer thin, its register across the
+kernels and fleet, tracks, Honest Steel, armour, flora, the shot, roles and the interface, and
+the wave plan (W1 Widok → W2 the track → W3 Kuźnia 2.0 → W4 Obraz, the interface in parallel).
 
 **The release ladder approved 2026-08-04** lives in git history
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.
