@@ -145,6 +145,12 @@ pub struct HorizonSpec {
     /// The river's exit corridor stays open: a band mask around the centerline.
     pub river_gap_half_m: f32,
     pub river_gap_falloff_m: f32,
+    /// The species the enclosing hills grow (Inny Poziom F1): `(kind, weight)` pairs the
+    /// backdrop ring draws from, so the treeline past the red line follows the map's climate
+    /// — pine on a pass, willow along a river valley, poplar around a steppe town. Only tree
+    /// kinds are meaningful here; an empty list falls back to the pre-F1 oak/poplar mix.
+    #[serde(default)]
+    pub flora: Vec<(SceneryKind, f32)>,
 }
 
 // --- Terrain program -------------------------------------------------------------------

@@ -56,7 +56,8 @@ graph still runs through the three open gates only, so the new doors are EARNED.
   one honest grade under every street), mirrored outskirts rises (`Gauss2`, +6 m) with a
   `CrestShelf` hull-down line on their west shoulders, the berm (`Gauss1` axis X, σ 6,
   +7 m) pierced by three subtractive `Gauss2` gate cuts, `ClampMin`.
-- Backdrop: `HorizonSpec` with `hills_base_m` 24 — low steppe enclosure, no river gap.
+- Backdrop: `HorizonSpec` with `hills_base_m` 24 — low steppe enclosure, no river gap. Its
+  ring is the town's outskirts (`flora`: Poplar 0.50, Oak 0.35, FruitTree 0.15 — Inny Poziom F1).
 - Looks: ClearAfternoon wearing **HazyNoon** (dusty summer default), GoldenEvening,
   Overcast (LeadOvercast), RainSqualls (wet streets). Static weather program.
 - Materials: dusty late-summer palette — worn verge green, sun-cured stubble, packed

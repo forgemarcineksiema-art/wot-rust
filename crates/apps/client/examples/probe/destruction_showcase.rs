@@ -234,6 +234,8 @@ fn vehicle_shots(
 
     // One renderer, meshes registered once.
     let mut renderer = SceneRenderer::for_offscreen(ctx, &terrain_vertices, &terrain_indices)?;
+    // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+    crate::bind_battle_foliage_atlas(&mut renderer, ctx);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.shadow_focus = Some([cx, ground, cz]);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {

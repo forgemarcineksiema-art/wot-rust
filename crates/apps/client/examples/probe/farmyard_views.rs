@@ -23,6 +23,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
+    // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+    crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     renderer.set_battlefield_ground(
         &ctx,
         &ground_v,

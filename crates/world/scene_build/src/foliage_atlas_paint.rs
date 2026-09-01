@@ -8,6 +8,10 @@
 //! no-op is replaced by the real atlas everywhere the battlefield draws, and the frame stays
 //! pixel-identical until geometry starts carrying nonzero UVs (the look goldens are the
 //! regression proof — byte-exact WITHOUT a re-record).
+//!
+//! Inny Poziom F1: every species gets its impostor sprite pair here, not just the
+//! battlefield oak — the backdrop ring past the red line stands on these sprites, and the
+//! painted-frustum kit it used to wear is gone.
 
 use game_core::math::srgb_to_linear;
 use glam::Vec3;
@@ -17,14 +21,16 @@ use world_forge::tree::leaf_atlas::{
 };
 
 /// Exact bytes both pages cost on the GPU, mips included — locked the way the shadow-memory
-/// budget is: to the byte, so growth is a deliberate diff, never drift. Two 1024×512 RGBA8
-/// pages with complete chains (re-locked with the impostor strip, Drzewa 3.0 PR10).
-pub const FOLIAGE_ATLAS_BYTES: usize = 5_592_408;
+/// budget is: to the byte, so growth is a deliberate diff, never drift. Two 2048×1024 RGBA8
+/// pages with complete chains (re-locked with the oak's impostor strip, Drzewa 3.0 PR10, and
+/// again when every species got its sprite pair, Inny Poziom F1: 5 592 408 → 22 369 624 —
+/// the price of the backdrop ring standing on real trees instead of painted cones).
+pub const FOLIAGE_ATLAS_BYTES: usize = 22_369_624;
 
 /// The world-space window one impostor sprite's INSET rect maps onto, tree-local metres.
-/// The crossed quads in `tree_lod` are built to exactly these extents, so the sprite's
-/// silhouette and the quad agree by shared constants, not by tuning: `top_m` IS the baked
-/// tree's tip.
+/// The crossed quads (`foliage::push_impostor_quads`) are built to exactly these extents, so
+/// the sprite's silhouette and the quad agree by shared constants, not by tuning: `top_m` IS
+/// the baked tree's tip.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ImpostorWindow {
     pub half_width_m: f32,
@@ -32,13 +38,33 @@ pub struct ImpostorWindow {
     pub bottom_m: f32,
 }
 
-/// The window of the battlefield tree's impostor (the representative rung individual).
-pub fn battle_tree_impostor_window() -> ImpostorWindow {
-    let tree = world_forge::tree::bake_tree_lod(
-        crate::tree_lod::BATTLE_TREE,
-        crate::tree_lod::RUNG_SEED,
-        world_forge::tree::TreeLod::Close,
-    );
+/// The representative individual every species' impostor is splatted from (the ladder's
+/// rung seed, the Close bake — the same tree the Near rung draws for the oak). Baked once
+/// per process: the splat AND every crossed quad in the world read the same tree, and a
+/// backdrop ring of hundreds of instances never re-grows a tree per instance.
+fn impostor_source(
+    species: world_forge::tree::TreeSpecies,
+) -> &'static world_forge::tree::BakedTree {
+    use std::sync::OnceLock;
+    static SOURCES: [OnceLock<world_forge::tree::BakedTree>;
+        world_forge::tree::TreeSpecies::ALL.len()] =
+        [const { OnceLock::new() }; world_forge::tree::TreeSpecies::ALL.len()];
+    let index = world_forge::tree::TreeSpecies::ALL
+        .iter()
+        .position(|&s| s == species)
+        .expect("every species is in ALL");
+    SOURCES[index].get_or_init(|| {
+        world_forge::tree::bake_tree_lod(
+            species,
+            crate::tree_lod::RUNG_SEED,
+            world_forge::tree::TreeLod::Close,
+        )
+    })
+}
+
+/// The window of `species`' impostor: the representative individual's tip and card reach.
+pub fn impostor_window(species: world_forge::tree::TreeSpecies) -> ImpostorWindow {
+    let tree = impostor_source(species);
     let tip = tree.tip();
     let reach = tree
         .leaves
@@ -52,12 +78,14 @@ pub fn battle_tree_impostor_window() -> ImpostorWindow {
 }
 
 /// Bake and mip both atlas pages: (color·alpha, tangent normals). The color page carries the
-/// leaf slots (from `world_forge`) AND the battlefield tree's impostor sprites, splatted here
-/// — the paint side owns colors, so the sprite stores exactly what the card path multiplies:
+/// leaf slots (from `world_forge`) AND every species' impostor sprites, splatted here — the
+/// paint side owns colors, so the sprite stores exactly what the card path multiplies:
 /// authored tone × shade × mask.
 pub fn foliage_atlas_chains() -> (Rgba8MipChain, Rgba8MipChain) {
     let mut image = bake_leaf_atlas();
-    splat_battle_tree_impostor(&mut image);
+    for species in world_forge::tree::TreeSpecies::ALL {
+        splat_impostor(&mut image, species);
+    }
     let color = Rgba8MipChain::build(
         Rgba8MipLevel::new(image.width, image.height, image.rgba),
         MipMode::AlphaCoveragePreserving,
@@ -75,19 +103,15 @@ fn linear_to_srgb(linear: f32) -> u8 {
     (encoded * 255.0).round() as u8
 }
 
-/// Splat the battlefield tree into its two impostor sprites: a CPU orthographic painter's
-/// rasterizer over the SAME bake the Near rung draws — bark triangles filled flat in the
-/// trunk tone, cards filled by sampling their own atlas slot times the canopy tone and the
-/// card's shade lane. No render-to-texture, no new pass, no baked sun: the sprite stores
-/// albedo·shade and the FOLIAGE path lights it live like every card.
-fn splat_battle_tree_impostor(image: &mut LeafAtlasImage) {
-    let tree = world_forge::tree::bake_tree_lod(
-        crate::tree_lod::BATTLE_TREE,
-        crate::tree_lod::RUNG_SEED,
-        world_forge::tree::TreeLod::Close,
-    );
-    let window = battle_tree_impostor_window();
-    let (canopy_color, _) = crate::foliage::canopy_color_for_species(crate::tree_lod::BATTLE_TREE);
+/// Splat one species into its two impostor sprites: a CPU orthographic painter's rasterizer
+/// over the SAME bake the Near rung draws — bark triangles filled flat in the trunk tone,
+/// cards filled by sampling their own atlas slot times the canopy tone and the card's shade
+/// lane. No render-to-texture, no new pass, no baked sun: the sprite stores albedo·shade and
+/// the FOLIAGE path lights it live like every card.
+fn splat_impostor(image: &mut LeafAtlasImage, species: world_forge::tree::TreeSpecies) {
+    let tree = impostor_source(species);
+    let window = impostor_window(species);
+    let (canopy_color, _) = crate::foliage::canopy_color_for_species(species);
     let (trunk_color, _) = crate::foliage::TRUNK_TONE;
     // Pre-decode the leaf grid once: card splats sample their slot in linear space, and the
     // alpha snapshot keeps the reads off the buffer the splat is writing into.
@@ -118,7 +142,7 @@ fn splat_battle_tree_impostor(image: &mut LeafAtlasImage) {
         }
         primitives.sort_by(|a, b| a.0.total_cmp(&b.0));
 
-        let (origin_x, origin_y) = leaf_atlas::impostor_origin(which);
+        let (origin_x, origin_y) = leaf_atlas::impostor_origin(species, which);
         let margin = 6.0_f32;
         let px_w = IMPOSTOR_SPRITE_W as f32 - 2.0 * margin;
         let px_h = IMPOSTOR_SPRITE_H as f32 - 2.0 * margin;
@@ -293,56 +317,68 @@ mod tests {
         }
     }
 
-    /// The impostor sprites hold a real tree (PR10): substantial cutout coverage, a crisp
-    /// bimodal alpha rim, and — the ladder's whole invariant, in PIXELS — the silhouette's
-    /// top row lands where the window mapping puts the baked tip (the inset margin row).
+    /// Every species' impostor sprites hold a real tree (PR10 for the oak, F1 for the rest):
+    /// substantial cutout coverage, a crisp bimodal alpha rim, and — the ladder's whole
+    /// invariant, in PIXELS — the silhouette's top row lands where the window mapping puts
+    /// the baked tip (the inset margin row).
     #[test]
-    fn the_impostor_sprites_hold_the_tree_and_its_tip() {
+    fn every_species_impostor_holds_its_tree_and_its_tip() {
         let (color, _) = foliage_atlas_chains();
         let page = color.levels()[0].rgba();
-        let window = battle_tree_impostor_window();
-        let tree = world_forge::tree::bake_tree_lod(
-            crate::tree_lod::BATTLE_TREE,
-            crate::tree_lod::RUNG_SEED,
-            world_forge::tree::TreeLod::Close,
-        );
-        assert!(
-            (window.top_m - tree.tip()).abs() < 1.0e-4,
-            "the window's top IS the baked tip: {} vs {}",
-            window.top_m,
-            tree.tip()
-        );
-        for which in 0..2u32 {
-            let (ox, oy) = leaf_atlas::impostor_origin(which);
-            let (mut covered, mut crisp, mut top_row) = (0u32, 0u32, u32::MAX);
-            for py in 0..IMPOSTOR_SPRITE_H {
-                for px in 0..IMPOSTOR_SPRITE_W {
-                    let index = (((oy + py) * leaf_atlas::ATLAS_WIDTH + ox + px) * 4 + 3) as usize;
-                    let alpha = page[index];
-                    crisp += u32::from(!(64..=192).contains(&alpha));
-                    if alpha >= 128 {
-                        covered += 1;
-                        top_row = top_row.min(py);
+        for species in world_forge::tree::TreeSpecies::ALL {
+            let window = impostor_window(species);
+            let tree = impostor_source(species);
+            assert!(
+                (window.top_m - tree.tip()).abs() < 1.0e-4,
+                "{species:?}: the window's top IS the baked tip: {} vs {}",
+                window.top_m,
+                tree.tip()
+            );
+            for which in 0..2u32 {
+                let (ox, oy) = leaf_atlas::impostor_origin(species, which);
+                let (mut covered, mut crisp, mut top_row) = (0u32, 0u32, u32::MAX);
+                for py in 0..IMPOSTOR_SPRITE_H {
+                    for px in 0..IMPOSTOR_SPRITE_W {
+                        let index =
+                            (((oy + py) * leaf_atlas::ATLAS_WIDTH + ox + px) * 4 + 3) as usize;
+                        let alpha = page[index];
+                        crisp += u32::from(!(64..=192).contains(&alpha));
+                        if alpha >= 128 {
+                            covered += 1;
+                            top_row = top_row.min(py);
+                        }
                     }
                 }
+                let total = IMPOSTOR_SPRITE_W * IMPOSTOR_SPRITE_H;
+                let coverage = covered as f32 / total as f32;
+                assert!(
+                    (0.05..=0.6).contains(&coverage),
+                    "{species:?} azimuth {which}: the sprite holds a tree, not a smear: {coverage:.3}"
+                );
+                assert!(
+                    crisp * 100 >= total * 92,
+                    "{species:?} azimuth {which}: the sprite rim went foggy"
+                );
+                // The tip lands near the inset margin row (6 px). The slack above the margin
+                // is the tip cluster's own mask inset — a cluster mask never reaches its quad
+                // corner, and since the cross-pair rework the geometric tip also carries quad
+                // B's diagonal — and the LIVE card render has exactly the same gap between
+                // quad top and cutout, so the sprite and the mesh agree about where the crown
+                // visually ends. The slack is therefore bounded by ONE card's vertical extent
+                // in sprite pixels — a fruit tree's cards are a far larger share of its 4 m
+                // than an oak's of its 17 m, so the bound is per species, not a number.
+                let card_extent_px = tree
+                    .leaves
+                    .iter()
+                    .map(|card| (card.half_up.y.abs() + card.half_right.y.abs()) / window.top_m)
+                    .fold(0.0_f32, f32::max)
+                    * (IMPOSTOR_SPRITE_H as f32 - 12.0);
+                let allowed = 6 + card_extent_px.ceil() as u32;
+                assert!(
+                    (3..=allowed).contains(&top_row),
+                    "{species:?} azimuth {which}: the sprite tip drifted to row {top_row} (allowed ≤ {allowed})"
+                );
             }
-            let total = IMPOSTOR_SPRITE_W * IMPOSTOR_SPRITE_H;
-            let coverage = covered as f32 / total as f32;
-            assert!(
-                (0.05..=0.6).contains(&coverage),
-                "azimuth {which}: the sprite holds a tree, not a smear: {coverage:.3}"
-            );
-            assert!(crisp * 100 >= total * 92, "azimuth {which}: the sprite rim went foggy");
-            // The tip lands near the inset margin row (6 px). The slack above the margin is
-            // the tip cluster's own mask inset — a cluster mask never reaches its quad
-            // corner, and since the cross-pair rework the geometric tip also carries quad
-            // B's diagonal — and the LIVE card render has exactly the same gap between quad
-            // top and cutout, so the sprite and the mesh agree about where the crown
-            // visually ends.
-            assert!(
-                (3..=28).contains(&top_row),
-                "azimuth {which}: the sprite tip drifted to row {top_row}"
-            );
         }
     }
 

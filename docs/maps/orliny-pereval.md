@@ -51,7 +51,8 @@ decide the mid-game").
   splat's rock break, so the slot reads as the stone gate it plays as), a `FlattenToGauss`
   hamlet bench (target 31 m), `ClampMin`.
 - Backdrop: `HorizonSpec` with `hills_base_m` 60 (vs Bystra's 27) — a true mountain
-  enclosure; no river gap.
+  enclosure; no river gap. Its ring is a pine belt at last (`flora`: Pine 0.70, Oak 0.30 —
+  Inny Poziom F1; the `pine_belt` view used to show hexagonal oak cones).
 - Looks: ClearAfternoon (default), GoldenEvening (alpenglow on the rock), Overcast
   (LeadOvercast). DawnFog stays Bystra's signature. Static weather program (no timeline
   branch).

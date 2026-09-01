@@ -47,6 +47,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let ((ground_v, ground_i), (statics_v, statics_i)) =
             battlefield_ground_and_statics_meshes(&battlefield, &states);
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
+        // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+        crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
         renderer.set_battlefield_ground(
             &ctx,
             &ground_v,

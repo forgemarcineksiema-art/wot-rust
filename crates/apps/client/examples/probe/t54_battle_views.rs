@@ -70,6 +70,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
+    // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+    crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     // Focus the sun-shadow box on the tank (not the camera) so the cast + self shadow are centred.
     renderer.shadow_focus = Some([cx, ground, cz]);

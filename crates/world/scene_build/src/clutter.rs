@@ -16,7 +16,7 @@ use glam::{Mat3, Vec3};
 use renderer_api::{SceneVertex, surface_role};
 use terrain::{BattlefieldMap, SceneryInstance, SceneryKind};
 
-use crate::foliage::{push_baked_tree, push_frustum, push_scenery_tree_far};
+use crate::foliage::{push_baked_tree, push_frustum, push_impostor_tree};
 use crate::tank_mesh::push_oriented_box;
 
 /// The stone a map is built from: linear albedo plus the specular lane, straight off its ground
@@ -133,12 +133,15 @@ pub fn push_scenery_instance_far(
     let s = instance.scale;
     let yaw = instance.yaw_rad;
     match instance.kind {
+        // A far PLANT is its impostor (Inny Poziom F1): the same crossed quads over the same
+        // species sprite the instanced ladder draws past 150 m, baked here at the instance
+        // transform. The painted frustum kit that used to answer this arm is deleted.
         SceneryKind::Oak
         | SceneryKind::Poplar
         | SceneryKind::Willow
         | SceneryKind::FruitTree
         | SceneryKind::Bush
-        | SceneryKind::Pine => push_scenery_tree_far(vertices, indices, instance),
+        | SceneryKind::Pine => push_impostor_tree(vertices, indices, instance),
         // Retired imported kinds (procedural-only, Świat 2.0): they draw nothing anywhere — not
         // here, not in the near bake. The variants stay in the enum (append-only wire identity)
         // but are never authored; this arm only exists so the match is total.

@@ -27,6 +27,7 @@ MapBlueprint(
         closure_span_m: 280.0,
         river_gap_half_m: 0.0,
         river_gap_falloff_m: 1.0,
+        flora: [(Poplar, 0.50), (Oak, 0.35), (FruitTree, 0.15)],
     )),
     terrain: TerrainProgram(
         base: SlopeEases(
