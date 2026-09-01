@@ -8,8 +8,9 @@
 //! from the one it sees at 20 m.
 //!
 //! Three rungs of ONE procedural oak: the near mesh (full LOD0 bake), a sparse mid mesh
-//! (LOD1), and a painted frustum impostor. Each rung stands the same height by construction
-//! (one species, one parameter set), so a swap moves texels, never the tree's size.
+//! (LOD1), and a crossed-quad impostor over the species' sprite pair. Each rung stands the
+//! same height by construction (one species, one parameter set), so a swap moves texels,
+//! never the tree's size.
 
 use glam::{Mat4, Quat, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject};
@@ -47,7 +48,7 @@ pub const HYSTERESIS_M: f32 = 8.0;
 /// Applied identically to all three rungs, so a LOD swap never shifts a tree vertically. The
 /// trunk's cover box is deliberately NOT moved with it: that column blocks from the ground
 /// line up, and the part being buried here is the part below it.
-const TRUNK_SINK_M: f32 = 0.35;
+pub(crate) const TRUNK_SINK_M: f32 = 0.35;
 
 /// A reference seed for the registered rung meshes. Per-instance variety rides the instance
 /// matrix (yaw/scale), and the canopy's deterministic limb/lobe phases come from the species
@@ -199,56 +200,21 @@ pub(crate) fn card_wind_jitter(center: Vec3) -> f32 {
 }
 
 /// The TRUE impostor (Drzewa 3.0 PR10): two crossed vertical quads sampling the pre-splatted
-/// sprite strip in the foliage atlas — 8 triangles where the fake used to resubmit Mid's
-/// whole bake. The sprite stores albedo·shade (no baked sun) and the quads ride the FOLIAGE
-/// role, so a 150 m oak is lit live by the same model as its cards; the quad extents come
-/// from the SAME window constants the splat used, so silhouette agreement is shared math,
-/// not tuning. Vertex color stays white — the sprite already carries the tree's own tones.
+/// sprite pair in the foliage atlas — 8 triangles where the fake used to resubmit Mid's
+/// whole bake. The expansion lives in `foliage::push_impostor_quads`, shared with the
+/// backdrop ring's statics bake (Inny Poziom F1), so a far oak on the field and a far oak on
+/// the enclosing hills are the same quads over the same sprite. Here the tree stays in local
+/// space; position, yaw and scale ride the instance matrix.
 fn impostor_mesh_asset() -> MeshAsset {
-    let window = crate::foliage_atlas_paint::battle_tree_impostor_window();
-    let (_, gloss) = crate::foliage::canopy_color_for_species(BATTLE_TREE);
     let mut vertices: Vec<renderer_api::SceneVertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
-    for which in 0..2u32 {
-        let (right, facing) = if which == 0 { (Vec3::X, Vec3::Z) } else { (Vec3::Z, -Vec3::X) };
-        let rect = world_forge::tree::leaf_atlas::impostor_rect(which);
-        let corners = [
-            (right * -window.half_width_m + Vec3::Y * window.bottom_m, [rect[0], rect[3]]),
-            (right * window.half_width_m + Vec3::Y * window.bottom_m, [rect[2], rect[3]]),
-            (right * window.half_width_m + Vec3::Y * window.top_m, [rect[2], rect[1]]),
-            (right * -window.half_width_m + Vec3::Y * window.top_m, [rect[0], rect[1]]),
-        ];
-        let start = vertices.len() as u32;
-        for face_normal in [facing, -facing] {
-            for (position, uv) in corners {
-                vertices.push(
-                    renderer_api::SceneVertex::surfaced(
-                        position.to_array(),
-                        face_normal.to_array(),
-                        [1.0, 1.0, 1.0],
-                        gloss,
-                    )
-                    .with_surface(renderer_api::surface_role::FOLIAGE)
-                    .with_uv(uv)
-                    .with_sway(0.0),
-                );
-            }
-        }
-        indices.extend_from_slice(&[
-            start,
-            start + 1,
-            start + 2,
-            start,
-            start + 2,
-            start + 3,
-            start + 4,
-            start + 6,
-            start + 5,
-            start + 4,
-            start + 7,
-            start + 6,
-        ]);
-    }
+    crate::foliage::push_impostor_quads(
+        &mut vertices,
+        &mut indices,
+        BATTLE_TREE,
+        |local| local,
+        |direction| direction,
+    );
     MeshAsset::new(vertices, indices)
 }
 

@@ -58,6 +58,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
             );
             renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+            // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+            crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
         }
         renderer.scene_lighting = view.lighting;
         renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);

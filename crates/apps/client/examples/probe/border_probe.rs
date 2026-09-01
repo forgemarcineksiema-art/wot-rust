@@ -37,6 +37,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
 
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_vertices, &statics_indices)?;
+        // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+        crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
         renderer.set_battlefield_ground(
             &ctx,
             &ground_vertices,

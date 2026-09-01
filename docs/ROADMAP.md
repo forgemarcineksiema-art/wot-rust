@@ -50,8 +50,9 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   a three-level wind hierarchy (trunk cantilever / baked branch jitter / uv-gated leaf
   flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
   11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill). Grown, not yet
-  rolled out: two of six species are placed, and the map-border backdrop ring still stands on
-  the pre-Drzewa frustum kit on every map (`inny-poziom-program.md` F).
+  rolled out: two of six species are placed inside the maps (`inny-poziom-program.md` F2);
+  the map-border backdrop ring stands on every species' impostor since F1 (2026-09-01),
+  mixed per map by `HorizonSpec::flora`.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
   snapshots (**wire v49** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer

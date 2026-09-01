@@ -1,8 +1,10 @@
 //! The procedural leaf atlas (Drzewa 3.0 PR5): every mask a leaf card will ever cut is BAKED
 //! here on the CPU, deterministically, from 2-D SDF composition — no imported texture may
 //! exist under map-forge policy #10, and none is needed. One page of color·alpha and one page
-//! of tangent-space dome normals, 1024×512: a 4×4 grid of 128 px leaf slots on the left, the
-//! battlefield-tree impostor strip on the right (splatted by the paint side, PR10).
+//! of tangent-space dome normals, 2048×1024: a 4×4 grid of 128 px leaf slots in the top-left
+//! square, and EVERY species' impostor sprite pair in the rest (splatted by the paint side —
+//! PR10 grew the battlefield oak's pair, Inny Poziom F1 the other five species', so the
+//! backdrop ring past the red line can stand on the same sprites the ladder's far rung uses).
 //!
 //! Slot 0 is LOAD-BEARING WHITE: every procedural vertex in the world carries uv (0,0), and
 //! the moment this atlas replaces the renderer's 1×1 white no-op texel, texel (0,0) must stay
@@ -18,31 +20,52 @@ use glam::Vec2;
 use super::TreeSpecies;
 use crate::shape::Rng;
 
-/// Atlas page width, texels: the leaf-slot grid fills the LEFT 512, the impostor strip the
-/// RIGHT 512 (Drzewa 3.0 PR10 — one binding serves both).
-pub const ATLAS_WIDTH: u32 = 1_024;
+/// Atlas page width, texels. The leaf-slot grid fills the top-left [`LEAF_GRID_PX`] square;
+/// the impostor sprites fill the rest of the first row and the whole second row — one
+/// binding serves both.
+pub const ATLAS_WIDTH: u32 = 2_048;
 /// Atlas page height, texels.
-pub const ATLAS_HEIGHT: u32 = 512;
-/// Slots per grid edge (the left half).
+pub const ATLAS_HEIGHT: u32 = 1_024;
+/// The leaf-slot grid's edge, texels (the top-left square).
+pub const LEAF_GRID_PX: u32 = 512;
+/// Slots per grid edge.
 pub const ATLAS_GRID: u32 = 4;
 /// One slot's edge, texels.
-pub const SLOT_SIZE: u32 = ATLAS_HEIGHT / ATLAS_GRID;
+pub const SLOT_SIZE: u32 = LEAF_GRID_PX / ATLAS_GRID;
 /// UV inset from a slot's edge so bilinear + aniso-8 sampling never reads the neighbour.
 const SLOT_MARGIN_PX: f32 = 6.0;
 
-/// One impostor sprite's region, texels: two azimuths side by side in the right strip.
+/// One impostor sprite's region, texels: two azimuths per species.
 pub const IMPOSTOR_SPRITE_W: u32 = 256;
 pub const IMPOSTOR_SPRITE_H: u32 = 512;
+/// Sprites per row: the first row starts past the leaf grid, the second row is whole.
+const IMPOSTOR_ROW0_SPRITES: u32 = (ATLAS_WIDTH - LEAF_GRID_PX) / IMPOSTOR_SPRITE_W;
+const IMPOSTOR_ROW1_SPRITES: u32 = ATLAS_WIDTH / IMPOSTOR_SPRITE_W;
+// Every species' two azimuths fit the two rows, by construction.
+const _: () =
+    assert!((TreeSpecies::ALL.len() as u32) * 2 <= IMPOSTOR_ROW0_SPRITES + IMPOSTOR_ROW1_SPRITES);
+// The second row starts under the leaf grid, never inside it.
+const _: () = assert!(IMPOSTOR_SPRITE_H >= LEAF_GRID_PX);
 
-/// Where azimuth `which` (0 or 1 — 0° and 90°) of the battlefield-tree impostor lives, as
-/// texel origin. The paint side splats the sprite here; the crossed quads sample it.
-pub fn impostor_origin(which: u32) -> (u32, u32) {
-    (ATLAS_HEIGHT + which.min(1) * IMPOSTOR_SPRITE_W, 0)
+/// The species' position in [`TreeSpecies::ALL`] — the row-major sprite index rides on it.
+fn species_index(species: TreeSpecies) -> u32 {
+    TreeSpecies::ALL.iter().position(|&s| s == species).expect("every species is in ALL") as u32
+}
+
+/// Where azimuth `which` (0 or 1 — 0° and 90°) of `species`' impostor lives, as texel
+/// origin. The paint side splats the sprite here; the crossed quads sample it.
+pub fn impostor_origin(species: TreeSpecies, which: u32) -> (u32, u32) {
+    let index = species_index(species) * 2 + which.min(1);
+    if index < IMPOSTOR_ROW0_SPRITES {
+        (LEAF_GRID_PX + index * IMPOSTOR_SPRITE_W, 0)
+    } else {
+        ((index - IMPOSTOR_ROW0_SPRITES) * IMPOSTOR_SPRITE_W, IMPOSTOR_SPRITE_H)
+    }
 }
 
 /// The impostor sampling rectangle as `[u0, v0, u1, v1]`, inset by the bleed margin.
-pub fn impostor_rect(which: u32) -> [f32; 4] {
-    let (x, y) = impostor_origin(which);
+pub fn impostor_rect(species: TreeSpecies, which: u32) -> [f32; 4] {
+    let (x, y) = impostor_origin(species, which);
     [
         (x as f32 + SLOT_MARGIN_PX) / ATLAS_WIDTH as f32,
         (y as f32 + SLOT_MARGIN_PX) / ATLAS_HEIGHT as f32,
@@ -55,7 +78,10 @@ pub fn impostor_rect(which: u32) -> [f32; 4] {
 pub const SLOT_WHITE: u8 = 0;
 
 /// The review gate for the atlas bytes (bless deliberately; covers BOTH pages).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0x8350_1d6a_56be_9999;
+/// Re-blessed 2026-09-01 (Inny Poziom F1): the page grew 1024×512 → 2048×1024 to hold every
+/// species' impostor sprite pair; the leaf slots themselves are byte-identical (same grid,
+/// same painter, same seeds — only the page around them changed).
+pub const LEAF_ATLAS_GOLDEN: u64 = 0xb8da_a794_d676_a999;
 
 /// The two authored mask variants a species owns (cards mix them per anchor).
 pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
@@ -546,6 +572,36 @@ mod tests {
             let [u0, v0, u1, v1] = atlas_rect(slot);
             assert!(u0 < u1 && v0 < v1);
             assert!(u0 >= 0.0 && v0 >= 0.0 && u1 <= 1.0 && v1 <= 1.0);
+        }
+    }
+
+    /// Every species' sprite pair has its own texels: no two sprites overlap, none overlaps
+    /// the leaf grid, and every rect stays inside the page. The layout is arithmetic, so the
+    /// lock walks every pair rather than trusting the row constants.
+    #[test]
+    fn every_species_owns_two_disjoint_impostor_sprites_outside_the_leaf_grid() {
+        let mut regions: Vec<(TreeSpecies, u32, u32, u32)> = Vec::new();
+        for species in TreeSpecies::ALL {
+            for which in 0..2u32 {
+                let (x, y) = impostor_origin(species, which);
+                assert!(
+                    x + IMPOSTOR_SPRITE_W <= ATLAS_WIDTH && y + IMPOSTOR_SPRITE_H <= ATLAS_HEIGHT
+                );
+                assert!(
+                    x >= LEAF_GRID_PX || y >= LEAF_GRID_PX,
+                    "{species:?}/{which}: sprite at ({x}, {y}) sits in the leaf grid"
+                );
+                let [u0, v0, u1, v1] = impostor_rect(species, which);
+                assert!(u0 < u1 && v0 < v1 && u0 >= 0.0 && v0 >= 0.0 && u1 <= 1.0 && v1 <= 1.0);
+                regions.push((species, which, x, y));
+            }
+        }
+        for (i, a) in regions.iter().enumerate() {
+            for b in &regions[i + 1..] {
+                let apart =
+                    a.2 + IMPOSTOR_SPRITE_W <= b.2 || b.2 + IMPOSTOR_SPRITE_W <= a.2 || a.3 != b.3;
+                assert!(apart, "{:?}/{} and {:?}/{} share texels", a.0, a.1, b.0, b.1);
+            }
         }
     }
 }

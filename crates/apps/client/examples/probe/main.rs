@@ -58,6 +58,22 @@ pub(crate) fn sub_arg(n: usize) -> Option<String> {
     std::env::args().nth(n + 1)
 }
 
+/// Bind the battle's leaf atlas to an offscreen renderer — EVERY probe that draws a
+/// battlefield calls this right after constructing the renderer, exactly as the battle
+/// (`app/render.rs`) and the look harness do. Without it every leaf card and every impostor
+/// samples the renderer's white no-op texel and renders as a solid rectangle: that is what
+/// `perf_capture` and the map-view probes drew from Drzewa 3.0 PR6 to Inny Poziom F1 without
+/// anyone noticing, and the review path had lost the same bind once before (`look_harness`).
+/// The third time the fix is a rule: `tests/probe_foliage_atlas.rs` refuses a battlefield
+/// probe that does not call this.
+pub(crate) fn bind_battle_foliage_atlas(
+    renderer: &mut renderer_wgpu::SceneRenderer,
+    ctx: &renderer_wgpu::GpuContext,
+) {
+    let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
+    renderer.set_foliage_atlas(ctx, &color, Some(&normal));
+}
+
 type ProbeResult = Result<(), Box<dyn std::error::Error>>;
 type ProbeEntry = (&'static str, fn() -> ProbeResult);
 

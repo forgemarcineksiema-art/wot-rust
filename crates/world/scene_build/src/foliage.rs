@@ -1,8 +1,11 @@
 //! Procedural foliage meshes — trees 2.0 (B2): battlefield trees come BAKED from
 //! `world_forge::tree` (species as a parameter set, painterly crown normals), colored here and
 //! folded into the static scene mesh, so a dressed valley still costs the frame nothing. The
-//! old flat-shaded frusta remain as the FAR representation (the backdrop ring uses them
-//! explicitly — at kilometers they read identically and cost almost nothing).
+//! FAR representation of a tree is its impostor — two crossed quads over the species' sprite
+//! pair in the foliage atlas — and it is ONE expansion here for both routes: the instanced
+//! ladder's far rung (`tree_lod`) and the backdrop ring baked into the statics
+//! (`backdrop`). The flat-shaded frustum kit that used to stand in for the ring is gone
+//! (Inny Poziom F1): at 40 m past the red line a hexagonal cone was never "the same picture".
 //!
 //! This module is the VEGETAL half of the scenery vocabulary. The scatter's dispatch and its
 //! non-plant kinds (stone, street furniture, debris) live in `crate::clutter` — they moved out
@@ -27,21 +30,6 @@ pub(crate) fn tree_species(kind: SceneryKind) -> Option<world_forge::tree::TreeS
         | SceneryKind::FloraTree
         | SceneryKind::FloraPine
         | SceneryKind::FloraBush => None,
-    }
-}
-
-/// The trees-to-scale multiplier for a BACKDROP-ring frustum stack. The far stack is coarser and
-/// intrinsically shorter than the mesh it stands in for, so the factor is per-kind (larger than
-/// the mesh factor) to bring the horizon silhouette up to the same mature height the near mesh
-/// now has — a distant treeline that reads as a treeline, not a hedge. Furniture (lamppost,
-/// rock, debris, fruit, bush) is already correct and stays at 1.0.
-fn far_frustum_scale(kind: SceneryKind) -> f32 {
-    match kind {
-        SceneryKind::Oak => 3.4,
-        SceneryKind::Poplar => 3.0,
-        SceneryKind::Willow => 3.6,
-        SceneryKind::Pine => 2.7,
-        _ => 1.0,
     }
 }
 
@@ -191,69 +179,90 @@ pub(crate) fn canopy_color_for_species(species: world_forge::tree::TreeSpecies) 
     }
 }
 
-/// The far representation of a PLANT: the original flat-shaded frusta. The backdrop ring reaches
-/// this through `crate::clutter::push_scenery_instance_far` — at its distances the baked crown
-/// and the painted cone are the same picture, and the ring has thousands of instances.
-pub(crate) fn push_scenery_tree_far(
+/// The impostor of a species: two crossed vertical quads sampling the pre-splatted sprite
+/// pair in the foliage atlas (Drzewa 3.0 PR10) — ONE expansion for both routes, the
+/// instanced ladder (`tree_lod`, tree-local space) and the statics bake (the backdrop ring,
+/// placed by the instance transform), so a far tree can never render differently by route.
+/// The sprite stores albedo·shade and the quads ride the FOLIAGE role, so the tree is lit
+/// live by the same model as its cards; the quad extents come from the SAME window the
+/// splat used, so silhouette agreement is shared math, not tuning. Vertex colour stays
+/// white — the sprite carries the tree's own tones. Each quad is double-faced on its own
+/// normal ring, like a leaf card: seen from behind it lights, not blacks out.
+pub(crate) fn push_impostor_quads(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    species: world_forge::tree::TreeSpecies,
+    place: impl Fn(Vec3) -> Vec3,
+    rotate: impl Fn(Vec3) -> Vec3,
+) {
+    let window = crate::foliage_atlas_paint::impostor_window(species);
+    let (_, gloss) = canopy_color_for_species(species);
+    for which in 0..2u32 {
+        // Azimuth 0 spans X and faces ±Z; azimuth 1 spans Z and faces ∓X — the two views the
+        // paint side splatted.
+        let (right, facing) = if which == 0 { (Vec3::X, Vec3::Z) } else { (Vec3::Z, -Vec3::X) };
+        let rect = world_forge::tree::leaf_atlas::impostor_rect(species, which);
+        let corners = [
+            (right * -window.half_width_m + Vec3::Y * window.bottom_m, [rect[0], rect[3]]),
+            (right * window.half_width_m + Vec3::Y * window.bottom_m, [rect[2], rect[3]]),
+            (right * window.half_width_m + Vec3::Y * window.top_m, [rect[2], rect[1]]),
+            (right * -window.half_width_m + Vec3::Y * window.top_m, [rect[0], rect[1]]),
+        ];
+        let start = vertices.len() as u32;
+        for face_normal in [facing, -facing] {
+            let normal = rotate(face_normal).normalize_or_zero();
+            for (local, uv) in corners {
+                vertices.push(
+                    SceneVertex::surfaced(
+                        place(local).to_array(),
+                        normal.to_array(),
+                        [1.0, 1.0, 1.0],
+                        gloss,
+                    )
+                    .with_surface(renderer_api::surface_role::FOLIAGE)
+                    .with_uv(uv)
+                    .with_sway(0.0),
+                );
+            }
+        }
+        indices.extend_from_slice(&[
+            start,
+            start + 1,
+            start + 2,
+            start,
+            start + 2,
+            start + 3,
+            start + 4,
+            start + 6,
+            start + 5,
+            start + 4,
+            start + 7,
+            start + 6,
+        ]);
+    }
+}
+
+/// A far tree baked into the statics at its instance transform: the backdrop ring's route.
+/// The trunk sinks by the ladder's own constant so a ring tree roots in the enclosing hills
+/// the way a battlefield oak roots in the field. A non-tree kind draws nothing.
+pub(crate) fn push_impostor_tree(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
 ) {
-    let base = Vec3::from_array(instance.position);
-    // Trees-to-scale: the backdrop silhouette rises to the same mature height the near mesh now
-    // has (furniture stays at 1.0). See `far_frustum_scale`.
-    let s = instance.scale * far_frustum_scale(instance.kind);
-    match instance.kind {
-        SceneryKind::Oak => {
-            push_frustum(vertices, indices, base, 0.26 * s, 0.18 * s, 2.2 * s, TRUNK);
-            let crown = base + Vec3::Y * 1.9 * s;
-            push_frustum(vertices, indices, crown, 2.3 * s, 1.5 * s, 1.7 * s, CANOPY_DARK);
-            let top = crown + Vec3::Y * 1.7 * s;
-            push_frustum(vertices, indices, top, 1.5 * s, 0.35 * s, 1.5 * s, CANOPY);
-        }
-        SceneryKind::Poplar => {
-            push_frustum(vertices, indices, base, 0.18 * s, 0.13 * s, 1.4 * s, TRUNK);
-            let crown = base + Vec3::Y * 1.2 * s;
-            push_frustum(vertices, indices, crown, 0.95 * s, 0.12 * s, 6.2 * s, CANOPY_DARK);
-        }
-        SceneryKind::Willow => {
-            push_frustum(vertices, indices, base, 0.30 * s, 0.20 * s, 1.7 * s, TRUNK);
-            // The drooping skirt: wider at its LOWER rim than the crown above it.
-            let skirt = base + Vec3::Y * 1.1 * s;
-            push_frustum(vertices, indices, skirt, 2.9 * s, 2.3 * s, 1.1 * s, CANOPY_PALE);
-            let crown = skirt + Vec3::Y * 1.1 * s;
-            push_frustum(vertices, indices, crown, 2.3 * s, 0.8 * s, 1.3 * s, CANOPY);
-        }
-        SceneryKind::FruitTree => {
-            push_frustum(vertices, indices, base, 0.15 * s, 0.11 * s, 1.1 * s, TRUNK);
-            let crown = base + Vec3::Y * 0.9 * s;
-            push_frustum(vertices, indices, crown, 1.25 * s, 0.4 * s, 1.5 * s, CANOPY_PALE);
-        }
-        SceneryKind::Bush => {
-            // A squat leafy mound, no trunk: knee-high, so it dresses the steppe without
-            // ever *looking* like the concealment it honestly is not.
-            push_frustum(vertices, indices, base, 1.15 * s, 0.85 * s, 0.55 * s, CANOPY_DARK);
-            let top = base + Vec3::Y * 0.5 * s;
-            push_frustum(vertices, indices, top, 0.8 * s, 0.22 * s, 0.5 * s, CANOPY);
-        }
-        SceneryKind::Pine => {
-            // The conifer cone: a bare trunk under two stacked needle frusta tapering to a
-            // near-point tip — unmistakably not a broadleaf, even at backdrop range.
-            push_frustum(vertices, indices, base, 0.24 * s, 0.16 * s, 2.3 * s, TRUNK);
-            let skirt = base + Vec3::Y * 2.0 * s;
-            push_frustum(vertices, indices, skirt, 1.9 * s, 1.0 * s, 2.6 * s, CANOPY_PINE);
-            let tip = skirt + Vec3::Y * 2.6 * s;
-            push_frustum(vertices, indices, tip, 1.1 * s, 0.04 * s, 2.9 * s, CANOPY_PINE);
-        }
-        // Not a plant: `crate::clutter` owns these, and the retired imported kinds draw nothing
-        // anywhere. This arm only exists so the match is total.
-        SceneryKind::Rock
-        | SceneryKind::Lamppost
-        | SceneryKind::DebrisHeap
-        | SceneryKind::FloraTree
-        | SceneryKind::FloraPine
-        | SceneryKind::FloraBush => {}
-    }
+    let Some(species) = tree_species(instance.kind) else {
+        return;
+    };
+    let base = Vec3::from_array(instance.position) - Vec3::Y * crate::tree_lod::TRUNK_SINK_M;
+    let rotation = Mat3::from_rotation_y(instance.yaw_rad);
+    let scale = instance.scale;
+    push_impostor_quads(
+        vertices,
+        indices,
+        species,
+        |local| base + rotation * (local * scale),
+        |direction| rotation * direction,
+    );
 }
 
 // Each material is (color, gloss): bark is matte, leaf canopies carry the faint waxy sheen

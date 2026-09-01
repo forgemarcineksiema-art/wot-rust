@@ -73,6 +73,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+    // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+    crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     for (handle, mesh) in grass_species_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }

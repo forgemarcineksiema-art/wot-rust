@@ -65,6 +65,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
+    // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
+    crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
     renderer.set_dynamic_mesh(&ctx, &vertices, &indices);
