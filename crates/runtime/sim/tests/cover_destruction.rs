@@ -419,3 +419,76 @@ fn a_hull_cannot_climb_a_building_that_is_still_standing() {
     assert!(ended.z < 19.0, "the standing barn must stop the hull short, got z {}", ended.z);
     assert!(peak_y < 0.05, "and nothing may lift it onto the roof — peaked at y {peak_y}");
 }
+
+/// Inny Poziom Z2: cover damage is one function of the shell, not two constants. Walk every
+/// stock round the fleet fires: a bigger bursting charge never needs MORE high-explosive shells
+/// to fell the barn, a bigger muzzle energy never needs MORE kinetic shells, the fleet's biggest
+/// and smallest genuinely differ, and the D-10's own rounds keep the shipped balance (two OF-412
+/// or eight BR-412 for a 600 hp barn) — the anchor the function was fitted to.
+#[test]
+fn the_bigger_gun_fells_the_barn_in_fewer_shots() {
+    use game_core::ShellType;
+
+    let barn_hp = StaticCoverKind::FarmBuilding.max_health().expect("a barn has hit points") as f32;
+    let shots = |damage: u32| (barn_hp / damage.max(1) as f32).ceil() as u32;
+
+    // (gun, the scaling quantity, damage) per round.
+    let mut high_explosive: Vec<(String, f32, u32)> = Vec::new();
+    let mut kinetic: Vec<(String, f32, u32)> = Vec::new();
+    for spec in game_core::known_tank_specs() {
+        for shell in spec.gun.ammo_options() {
+            let damage = sim::cover_damage_hp(&shell);
+            match shell.shell_type {
+                ShellType::HighExplosive => {
+                    high_explosive.push((spec.gun.name.clone(), shell.filler_kg, damage));
+                }
+                ShellType::ArmorPiercing => kinetic.push((
+                    spec.gun.name.clone(),
+                    shell.impact_energy_kj(shell.muzzle_velocity_mps),
+                    damage,
+                )),
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        high_explosive.len() >= 6 && kinetic.len() >= 6,
+        "the fleet walk found {} HE and {} AP rounds",
+        high_explosive.len(),
+        kinetic.len()
+    );
+
+    for (label, rounds) in [("high explosive", &mut high_explosive), ("kinetic", &mut kinetic)] {
+        rounds.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for pair in rounds.windows(2) {
+            assert!(
+                shots(pair[1].2) <= shots(pair[0].2),
+                "{label}: {} ({:.2}) needs {} shots but the smaller {} ({:.2}) needs {}",
+                pair[1].0,
+                pair[1].1,
+                shots(pair[1].2),
+                pair[0].0,
+                pair[0].1,
+                shots(pair[0].2)
+            );
+        }
+        let (smallest, biggest) = (rounds.first().unwrap(), rounds.last().unwrap());
+        assert!(
+            shots(biggest.2) < shots(smallest.2),
+            "{label}: the fleet's biggest ({}) and smallest ({}) round fell the barn in the same \
+             {} shots — the function tells nobody apart",
+            biggest.0,
+            smallest.0,
+            shots(smallest.2)
+        );
+    }
+
+    let d10 = TankSpec::t54_1951().gun;
+    let of412 = d10.he_shell.expect("the D-10 authors its HE round");
+    assert_eq!(sim::cover_damage_hp(&of412), 300, "OF-412 is the anchor: two rounds for a barn");
+    assert_eq!(
+        sim::cover_damage_hp(&d10.shell),
+        80,
+        "BR-412 is the anchor: eight rounds for a barn"
+    );
+}

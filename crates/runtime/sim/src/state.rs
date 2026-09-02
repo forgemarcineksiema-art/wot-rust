@@ -87,9 +87,41 @@ pub struct SimulationState {
     last_battle_event_id: BattleEventId,
 }
 
-/// Cover damage one absorbed shell deals by its type: a high-explosive round brings structures
-/// down, a kinetic round only chips them.
-fn cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
+/// Cover damage one absorbed shell deals (Inny Poziom Z2): a high-explosive round brings
+/// structures down in proportion to its bursting charge, a kinetic round chips them in
+/// proportion to its muzzle energy — ONE function of the shell, where two constants (HE 300,
+/// everything else 80) had a 57 mm and a 152 mm felling a barn in the same number of shells.
+/// Anchored on the D-10's own rounds so the shipped balance is the reference point, not a new
+/// number: a 600 hp barn still takes two OF-412 or eight BR-412.
+pub fn cover_damage_hp(shell: &game_core::ShellSpec) -> u32 {
+    const HE_REFERENCE_DAMAGE: f32 = 300.0;
+    /// OF-412, the D-10's high-explosive round: 2.16 kg of TNT.
+    const HE_REFERENCE_FILLER_KG: f32 = 2.16;
+    const KINETIC_REFERENCE_DAMAGE: f32 = 80.0;
+    /// BR-412 at the muzzle: 15.7 kg at 895 m/s.
+    const KINETIC_REFERENCE_ENERGY_KJ: f32 = 6_288.0;
+    match shell.shell_type {
+        game_core::ShellType::HighExplosive => {
+            if shell.filler_kg <= 0.0 {
+                return HE_REFERENCE_DAMAGE as u32;
+            }
+            let charge = shell.filler_kg / HE_REFERENCE_FILLER_KG;
+            (HE_REFERENCE_DAMAGE * charge.powf(0.75)).clamp(120.0, 600.0).round() as u32
+        }
+        _ => {
+            let energy = shell.impact_energy_kj(shell.muzzle_velocity_mps);
+            if energy <= 0.0 {
+                return KINETIC_REFERENCE_DAMAGE as u32;
+            }
+            let punch = energy / KINETIC_REFERENCE_ENERGY_KJ;
+            (KINETIC_REFERENCE_DAMAGE * punch.powf(0.6)).clamp(30.0, 200.0).round() as u32
+        }
+    }
+}
+
+/// The two constants the function above replaced, kept for an impact whose shell cannot be
+/// named (no owner on the record, or a gun that no longer carries that round type).
+fn legacy_cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
     match shell_type {
         game_core::ShellType::HighExplosive => 300,
         _ => 80,
@@ -583,12 +615,22 @@ impl SimulationState {
                 cover,
                 &self.cover_states,
             ) {
-                crate::cover_damage::damage_cover(
-                    &mut self.cover_states,
-                    cover,
-                    index,
-                    cover_damage_hp(impact.shell_type),
-                );
+                // The impact record is wire data and names the round only by type; the
+                // shooter's gun carries the round itself, and the damage is the round's (Z2).
+                let damage = impact
+                    .owner
+                    .and_then(|owner| self.tanks.iter().find(|tank| tank.id == owner))
+                    .and_then(|shooter| {
+                        shooter
+                            .spec
+                            .gun
+                            .ammo_options()
+                            .into_iter()
+                            .find(|shell| shell.shell_type == impact.shell_type)
+                    })
+                    .map(|shell| cover_damage_hp(&shell))
+                    .unwrap_or_else(|| legacy_cover_damage_hp(impact.shell_type));
+                crate::cover_damage::damage_cover(&mut self.cover_states, cover, index, damage);
                 // And it leaves a WOUND where it died (protocol v32): a kinetic inset or an
                 // HE bite on that face, replicated so every client dresses the same wall.
                 crate::cover_damage::record_cover_scar(
