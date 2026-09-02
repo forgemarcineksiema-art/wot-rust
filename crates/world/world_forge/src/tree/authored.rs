@@ -354,7 +354,7 @@ mod tests {
         assert!(mid.trunk.triangle_count() < near.trunk.triangle_count());
         assert!((240..=400).contains(&near.leaves.len()), "near deck {}", near.leaves.len());
         assert!(mid.leaves.len() < near.leaves.len() && mid.leaves.len() >= 120);
-        assert!(near.leaves.len() % 2 == 0, "cross pairs come in twos");
+        assert!(near.leaves.len().is_multiple_of(2), "cross pairs come in twos");
         assert!(near.tip() > 15.0, "the oak stays mature: {}", near.tip());
         assert!((near.tip() - mid.tip()).abs() < 1.0, "the rungs agree in height");
         let low = near.trunk.vertices().iter().map(|v| v.position.y).fold(f32::MAX, f32::min);
