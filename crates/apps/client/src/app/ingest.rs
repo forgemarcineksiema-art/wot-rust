@@ -121,6 +121,11 @@ impl ClientApp {
         // shell the ground swallowed also digs a crater that outlives the dust.
         for impact in &snapshot.shell_impacts {
             self.fx.impact_burst(impact.position, impact.surface);
+            self.fx.impact_light(
+                impact.position,
+                impact.surface,
+                impact.shell_type == game_core::ShellType::HighExplosive,
+            );
             // The same shell death also speaks: soil swallows, structures and hulls knock, and
             // a high-explosive round (protocol v17 carries the type) detonates instead.
             self.queue_audio(audio::AudioEvent::ShellAbsorbed {
@@ -177,6 +182,11 @@ impl ClientApp {
                 event.penetrated,
                 event.ricocheted,
                 departure,
+            );
+            self.fx.armor_hit_light(
+                event.hit_position,
+                event.penetrated,
+                event.shell_type == game_core::ShellType::HighExplosive,
             );
             // The hit in the body (Inny Poziom S5): the struck hull rocks on its springs from
             // the side the shell came in, as hard as the shooter's round pushes on the S3
@@ -375,6 +385,7 @@ impl ClientApp {
             // One recoil momentum, every channel (Inny Poziom S3): the round's scale rides the
             // event into the blast, the barrel stroke, the hull rock and the camera nudge.
             self.fx.muzzle_blast(event.muzzle, event.direction, ground_y, event.recoil_scale);
+            self.fx.muzzle_light(event.muzzle, event.direction, event.recoil_scale);
             self.fx.hull_dust(event.deck, event.hull_yaw_rad, event.recoil_scale);
             self.presentation.apply_fire_recoil(
                 event.tank_id,

@@ -32,6 +32,13 @@ fn local_pools(world_pos: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
         }
         let to_light = pr.xyz - world_pos;
         let d = length(to_light);
+        // Outside the pool the slot contributes exactly zero, so leave before the facing term
+        // and the multiply: with the shot lights live (Inny Poziom S1) nearly every fragment
+        // of a 1080p frame is outside every pool, and this early-out is what keeps six live
+        // flashes affordable on the MX330. Inside, the arithmetic is the same as before.
+        if (d * d >= pr.w * pr.w) {
+            continue;
+        }
         let t = clamp(1.0 - (d * d) / (pr.w * pr.w), 0.0, 1.0);
         let facing = 0.25 + 0.75 * max(dot(n, to_light / max(d, 1.0e-4)), 0.0);
         let ci = camera.light_rgb_intensity[k];

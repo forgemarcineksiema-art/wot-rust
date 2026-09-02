@@ -650,11 +650,15 @@ impl ClientApp {
         let scene_time_s = self.presented_time_s();
         self.ensure_scene(SceneKind::Battle);
         let weather = self.weather_frame;
+        // The shot and the hit as light (Inny Poziom S1): the FX system's live pulses ride the
+        // profile's local slots for this frame only — the profile itself stays all-off.
+        let mut lighting = weather.lighting;
+        lighting.local_lights = self.fx.local_lights();
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
         renderer.set_outdoor_sky(weather.sky.0, weather.sky.1, weather.sky.2);
-        renderer.set_scene_lighting(weather.lighting);
+        renderer.set_scene_lighting(lighting);
         renderer.set_rain_intensity(weather.rain_intensity);
         renderer.set_wetness(weather.surface_wetness);
         renderer.set_weather_dynamics(

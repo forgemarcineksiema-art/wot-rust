@@ -13,6 +13,7 @@ mod decals;
 mod emitters;
 mod fire;
 mod impacts;
+mod lights;
 mod particle;
 mod terrain_scars;
 mod tracer;
@@ -73,6 +74,8 @@ pub(crate) struct FxSystem {
     stage_clock_s: f32,
     /// Beats of a collapse waiting on the clock (`collapse`).
     staged: Vec<collapse::StagedEmission>,
+    /// The shot and the hit as light (S1): transient pulses feeding the profile's local slots.
+    lights: Vec<lights::LightPulse>,
 }
 
 impl FxSystem {
@@ -94,6 +97,7 @@ impl FxSystem {
         let dt = dt.clamp(0.0, 0.1);
         self.particles.retain_mut(|particle| particle.tick(dt));
         self.fire_staged(dt);
+        self.tick_lights();
     }
 
     #[cfg(test)]
