@@ -64,6 +64,26 @@ impl DesiredAim {
     }
 }
 
+/// The rate command (in `[-1, 1]`) that brings a rate-limited axis onto its target as fast as
+/// the axis can move and lands it exactly (Inny Poziom A10).
+///
+/// The sim's `step_aiming` is a pure rate limiter with no inertia: `angle += command × rate ×
+/// dt`. Against that plant the time-optimal controller is trivial — full rate while the
+/// remaining error is more than one tick of travel, then exactly the remainder — and it
+/// arrives in `ceil(error / (rate·dt))` ticks without overshoot. What stood here before was a
+/// proportional gain (`error × 5`, clamped): full rate only above 11.5° of error, then an
+/// exponential tail with a 455–714 ms time constant, and against a moving sight a PERMANENT
+/// lag of `sweep rate ÷ (rate × gain)` — 7 m behind the crosshair for a T-54 tracking a
+/// 54 km/h crosser, at every range, forever. The player's own gun carries no network delay
+/// (it is locally predicted), so that controller was the whole of the felt lag.
+pub(crate) fn rate_command_to_land(error_rad: f32, rate_rad_s: f32, dt_s: f32) -> f32 {
+    let travel = rate_rad_s * dt_s;
+    if travel <= 0.0 {
+        return 0.0;
+    }
+    (error_rad / travel).clamp(-1.0, 1.0)
+}
+
 impl Default for DesiredAim {
     fn default() -> Self {
         Self::new(0.0, 0.0)
@@ -531,5 +551,78 @@ mod tests {
         let vacuum = gun_pitch_to_hit(muzzle, aim, 500.0, 0.0);
         let dragged = gun_pitch_to_hit(muzzle, aim, 500.0, 0.21);
         assert!(dragged > vacuum + 1.0e-3, "drag must raise the solution: {dragged} vs {vacuum}");
+    }
+}
+
+#[cfg(test)]
+mod rate_command_tests {
+    use super::rate_command_to_land;
+
+    const RATE: f32 = 0.84; // the T-54's traverse after Inny Poziom A11
+    const DT: f32 = 1.0 / 60.0;
+
+    /// The whole promise of A10 on the pure function: full rate while more than one tick of
+    /// travel remains, the exact remainder on the last tick, no overshoot, and arrival in
+    /// `ceil(error / travel)` ticks — 38 for 30° on a T-54, where the proportional gain took
+    /// over two seconds to settle the last 11.5°.
+    #[test]
+    fn the_command_runs_full_rate_then_lands_exactly_without_overshoot() {
+        let travel = RATE * DT;
+        let mut error: f32 = 30.0_f32.to_radians();
+        let expected_ticks = (error / travel).ceil() as usize;
+        let mut ticks = 0;
+        while error.abs() > 1.0e-6 {
+            let command = rate_command_to_land(error, RATE, DT);
+            assert!(
+                command == 1.0 || error < travel + 1.0e-6,
+                "full rate until the last tick: command {command} with {error} rad left"
+            );
+            let before = error;
+            error -= command * travel;
+            assert!(error >= -1.0e-6 && error <= before, "no overshoot: {before} -> {error}");
+            ticks += 1;
+            assert!(ticks <= expected_ticks, "arrives in ceil(error / travel) ticks");
+        }
+        assert_eq!(ticks, expected_ticks);
+        assert_eq!(rate_command_to_land(-0.5, RATE, DT), -1.0, "the other way round too");
+        assert_eq!(rate_command_to_land(0.5, 0.0, DT), 0.0, "a fixed casemate commands nothing");
+    }
+
+    /// A sight sweeping at half the turret's rate is tracked with at most one tick of lag.
+    /// The proportional controller held 5.7° of permanent lag here (`11.5° × sweep/rate`).
+    #[test]
+    fn a_sight_sweeping_under_the_turret_rate_is_tracked_within_one_tick() {
+        let travel = RATE * DT;
+        let sweep_per_tick = 0.5 * travel;
+        let mut target: f32 = 0.0;
+        let mut gun: f32 = 0.0;
+        for tick in 0..240 {
+            target += sweep_per_tick;
+            gun += rate_command_to_land(target - gun, RATE, DT) * travel;
+            let lag = (target - gun).abs();
+            assert!(
+                lag <= travel + 1.0e-6,
+                "tick {tick}: the gun lags the sweep by {:.3}° — more than one tick of travel",
+                lag.to_degrees()
+            );
+        }
+        let old_lag_deg = 11.46 * 0.5;
+        assert!((target - gun).to_degrees() < old_lag_deg * 0.1, "not the old 5.7°");
+    }
+
+    /// A sweep faster than the turret is followed at full rate and falls behind honestly —
+    /// exactly the physics, one tick of travel short per tick, never a hidden gain.
+    #[test]
+    fn a_sweep_faster_than_the_turret_falls_behind_by_exactly_the_physics() {
+        let travel = RATE * DT;
+        let mut target: f32 = 0.0;
+        let mut gun: f32 = 0.0;
+        for _ in 0..60 {
+            target += 2.0 * travel;
+            let command = rate_command_to_land(target - gun, RATE, DT);
+            assert_eq!(command, 1.0, "full rate against a sweep it cannot catch");
+            gun += command * travel;
+        }
+        assert!(((target - gun) - 60.0 * travel).abs() < 1.0e-4);
     }
 }

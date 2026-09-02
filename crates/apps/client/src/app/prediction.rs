@@ -6,7 +6,6 @@ use sim::DEFAULT_SERVER_TICK_HZ;
 use super::ClientApp;
 
 const TICK_DT: f32 = 1.0 / DEFAULT_SERVER_TICK_HZ as f32;
-const TURRET_TRACK_GAIN: f32 = 5.0;
 
 impl ClientApp {
     pub(super) fn seed_prediction(&mut self) {
@@ -190,7 +189,11 @@ impl ClientApp {
             .and_then(|solution| solution.turret_yaw_rad)
             .unwrap_or_else(|| shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw()));
         let current = self.predictor.turret_yaw();
-        (shortest_angle(target - current) * TURRET_TRACK_GAIN).clamp(-1.0, 1.0)
+        crate::aim::rate_command_to_land(
+            shortest_angle(target - current),
+            self.predictor.spec().turret_rotation_rad_s,
+            TICK_DT,
+        )
     }
 
     #[cfg(test)]
@@ -266,10 +269,14 @@ mod tests {
         for _ in 0..300 {
             app.run_fixed_ticks(1);
         }
+        // The command is a RATE in [-1, 1]; with the time-optimal controller (Inny Poziom A10)
+        // a residual of one tick's travel already commands full rate, so convergence is read in
+        // radians of commanded travel — `|command| × rate × dt`, the error clamped to one tick.
+        let travel = app.predictor_spec().turret_rotation_rad_s * TICK_DT;
         let mut closest = f32::INFINITY;
         let mut closest_bearing_error = f32::INFINITY;
         for _ in 0..120 {
-            closest = closest.min(app.turret_tracking_command().abs());
+            closest = closest.min(app.turret_tracking_command().abs() * travel);
             // The SAME window for the heading check below. The note above explains why the
             // residual command is measured over a window rather than at one tick — the sight
             // point rides the hull and the roster jostles — and the heading is the same
@@ -291,7 +298,10 @@ mod tests {
         // instant would fail an assertion about convergence by moving the target, not by missing
         // it. This is the fragility the seed note above describes, answered properly instead of
         // by picking another seed.
-        assert!(closest < 1.0e-2, "turret should come onto the sight point, closest {closest}");
+        assert!(
+            closest < 1.0e-2,
+            "turret should come onto the sight point, closest {closest} rad of commanded travel"
+        );
 
         // The convergence target is the muzzle->sight bearing (with the camera centered the
         // bearing sits near the camera yaw, but the mechanism converges on the SIGHT POINT —

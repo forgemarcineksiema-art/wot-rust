@@ -19,9 +19,12 @@ fn drive_forward_replay_is_a_regression_test() {
     // Forward trajectory and turret are pinned tightly (the old floors passed under huge
     // regressions). Re-pinned 2026-08-23: `medium_test_tank()` is the T-54, not the deleted
     // prototype — the traverse and the first metres of launch are the benchmark hull's.
+    // Re-pinned 2026-09-02 (Inny Poziom A11): the T-54's traverse went from 0.42 to 0.84 rad/s
+    // (24 → 48 deg/s, the genre's value), so the same nine ticks of quarter-rate command turn
+    // the turret exactly twice as far — 0.01575 → 0.0315 rad. The hull's launch is untouched.
     assert!((tank.position.z - 0.101224).abs() < 1e-4, "position.z drifted: {}", tank.position.z);
     assert!(
-        (tank.turret_yaw_rad - 0.01575).abs() < 1e-4,
+        (tank.turret_yaw_rad - 0.0315).abs() < 1e-4,
         "turret_yaw drifted: {}",
         tank.turret_yaw_rad
     );

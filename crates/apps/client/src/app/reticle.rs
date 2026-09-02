@@ -5,8 +5,6 @@ use renderer_api::Camera;
 use super::ClientApp;
 use crate::hud::HudReticle;
 
-const GUN_TRACK_GAIN: f32 = 6.0;
-
 /// Gun commands derived from one resolved sight point: the ballistic elevation and the
 /// muzzle->sight turret bearing share a single (expensive) aim sweep per fixed-tick batch.
 /// Both targets are HULL-relative — the ballistic arc is solved in world space, then converted
@@ -71,7 +69,11 @@ impl ClientApp {
     /// so it cannot be commanded raw.
     pub(super) fn gun_elevation_command_for(&self, solution: Option<&SightSolution>) -> f32 {
         let Some(solution) = solution else { return 0.0 };
-        ((solution.pitch_rad - self.player_gun_pitch()) * GUN_TRACK_GAIN).clamp(-1.0, 1.0)
+        crate::aim::rate_command_to_land(
+            solution.pitch_rad - self.player_gun_pitch(),
+            sim::GUN_ELEVATION_RATE_RAD_S,
+            1.0 / sim::DEFAULT_SERVER_TICK_HZ as f32,
+        )
     }
 
     #[cfg(test)]
