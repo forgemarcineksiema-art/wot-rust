@@ -60,4 +60,16 @@ impl PresentationWorld {
             attitude.fire_impulse(turret_yaw_rad, recoil_scale);
         }
     }
+
+    /// An incoming shell rocks the struck tank's sprung hull from the side it came in (Inny
+    /// Poziom S5) — every tank in view, not only the player's: a hit is seen in the body of
+    /// the hull that took it. `bearing_hull_rad` and `energy` as [`HullAttitude::hit_impulse`].
+    pub fn apply_hit_impulse(&mut self, tank_id: TankId, bearing_hull_rad: f32, energy: f32) {
+        let Some(entity) = self.entity_of(tank_id) else {
+            return;
+        };
+        if let Some(mut attitude) = self.world_mut().get_mut::<crate::HullAttitude>(entity) {
+            attitude.hit_impulse(bearing_hull_rad, energy);
+        }
+    }
 }

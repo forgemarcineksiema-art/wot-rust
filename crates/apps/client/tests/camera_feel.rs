@@ -57,7 +57,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
 /// spring, and in sniper a strictly vertical scope dip bounded by the micro-damper — the jolt
 /// reads, but the aim never smears sideways.
 #[test]
-fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
+fn an_incoming_hit_rocks_the_rig_and_leaves_the_sniper_scope_still() {
     let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
     let environment = BattleCameraEnvironment::with_terrain(&heightmap);
     let position = [20.0, 0.0, 20.0];
@@ -87,7 +87,8 @@ fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
     let recovered = camera.render_camera(&subject, &environment).eye;
     assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
 
-    // Sniper: the dip is vertical only and bounded — x/z of the eye must not move at all.
+    // Sniper: the scope is rigid (the S2 decision, Inny Poziom S5) — the eye does not move by
+    // a single bit in any axis; the hit reaches the sniper through the HUD and sound.
     let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
     sniper.set_mode(BattleCameraMode::Sniper);
     for _ in 0..60 {
@@ -95,16 +96,11 @@ fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
     }
     let before = sniper.render_camera(&subject, &environment).eye;
     sniper.damage_shudder(glam::Vec3::new(1.0, 0.0, 0.0), 1.0);
-    let mut max_dip = 0.0_f32;
     for _ in 0..30 {
         sniper.advance(position, 0.0, 1.0 / 60.0);
         let eye = sniper.render_camera(&subject, &environment).eye;
-        assert_eq!(eye[0], before[0], "a hit must not smear the sniper aim in x");
-        assert_eq!(eye[2], before[2], "a hit must not smear the sniper aim in z");
-        max_dip = max_dip.max(before[1] - eye[1]);
+        assert_eq!(eye, before, "a hit must not move the sniper picture at all");
     }
-    assert!(max_dip > 0.005, "the scope visibly dips, got {max_dip}");
-    assert!(max_dip <= 0.121, "the micro-damper bounds the dip, got {max_dip}");
 }
 
 #[test]

@@ -178,6 +178,24 @@ impl ClientApp {
                 event.ricocheted,
                 departure,
             );
+            // The hit in the body (Inny Poziom S5): the struck hull rocks on its springs from
+            // the side the shell came in, as hard as the shooter's round pushes on the S3
+            // momentum scale — a bounce as hard as a penetration, an HE charge a third more.
+            if let Some(target) = snapshot.tanks.iter().find(|t| t.tank_id == event.target) {
+                let to_hit = event.hit_position - glam::Vec3::from_array(target.position);
+                let (sin_yaw, cos_yaw) = target.yaw_rad.sin_cos();
+                let local_x = to_hit.x * cos_yaw - to_hit.z * sin_yaw;
+                let local_z = to_hit.x * sin_yaw + to_hit.z * cos_yaw;
+                let bearing = local_x.atan2(local_z);
+                let round = snapshot
+                    .tanks
+                    .iter()
+                    .find(|t| t.tank_id == event.source)
+                    .map_or(1.0, |shooter| shooter.vehicle.spec().gun.shell.recoil_scale());
+                let charge =
+                    if event.shell_type == game_core::ShellType::HighExplosive { 1.3 } else { 1.0 };
+                self.presentation.apply_hit_impulse(event.target, bearing, round * charge);
+            }
             // And rings: the struck plate's clang (or the HE charge's own burst), with the
             // outcome (penetration thunk / ricochet whine) layered in by the voice itself.
             self.queue_audio(audio::AudioEvent::ArmorStruck {
