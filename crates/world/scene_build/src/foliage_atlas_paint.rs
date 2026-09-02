@@ -24,8 +24,11 @@ use world_forge::tree::leaf_atlas::{
 /// budget is: to the byte, so growth is a deliberate diff, never drift. Two 2048×1024 RGBA8
 /// pages with complete chains (re-locked with the oak's impostor strip, Drzewa 3.0 PR10, and
 /// again when every species got its sprite pair, Inny Poziom F1: 5 592 408 → 22 369 624 —
-/// the price of the backdrop ring standing on real trees instead of painted cones).
-pub const FOLIAGE_ATLAS_BYTES: usize = 22_369_624;
+/// the price of the backdrop ring standing on real trees instead of painted cones). Re-locked
+/// 2026-09-02 (route 2): 2048×1024 → 2048×2048, 22 369 624 → 44 739 240 — the bottom half is
+/// the oak's authored cluster block, eight 512 px sprites of real leaves; the MX330 carries
+/// 2 GiB and the whole atlas is 2.1 % of it.
+pub const FOLIAGE_ATLAS_BYTES: usize = 44_739_240;
 
 /// The world-space window one impostor sprite's INSET rect maps onto, tree-local metres.
 /// The crossed quads (`foliage::push_impostor_quads`) are built to exactly these extents, so
@@ -97,6 +100,22 @@ pub fn foliage_atlas_chains() -> (Rgba8MipChain, Rgba8MipChain) {
     (color, normal)
 }
 
+/// The bark pair as upload payloads (route 2): both pages box-filtered — an albedo tile is
+/// opaque (no coverage to preserve) and normals renormalise in the shader.
+pub fn bark_texture_chains() -> (Rgba8MipChain, Rgba8MipChain) {
+    let (albedo, normal) = world_forge::tree::authored::bark_pages();
+    (
+        Rgba8MipChain::build(
+            Rgba8MipLevel::new(albedo.width, albedo.height, albedo.rgba.clone()),
+            MipMode::Box,
+        ),
+        Rgba8MipChain::build(
+            Rgba8MipLevel::new(normal.width, normal.height, normal.rgba.clone()),
+            MipMode::Box,
+        ),
+    )
+}
+
 fn linear_to_srgb(linear: f32) -> u8 {
     let c = linear.clamp(0.0, 1.0);
     let encoded = if c <= 0.003_130_8 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 };
@@ -111,7 +130,7 @@ fn linear_to_srgb(linear: f32) -> u8 {
 fn splat_impostor(image: &mut LeafAtlasImage, species: world_forge::tree::TreeSpecies) {
     let tree = impostor_source(species);
     let window = impostor_window(species);
-    let (canopy_color, _) = crate::foliage::canopy_color_for_species(species);
+    let (canopy_color, _) = crate::foliage::card_color_for_species(species);
     let (trunk_color, _) = crate::foliage::TRUNK_TONE;
     // Pre-decode the leaf grid once: card splats sample their slot in linear space, and the
     // alpha snapshot keeps the reads off the buffer the splat is writing into.

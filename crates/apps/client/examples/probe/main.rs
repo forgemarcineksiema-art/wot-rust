@@ -72,6 +72,8 @@ pub(crate) fn bind_battle_foliage_atlas(
 ) {
     let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     renderer.set_foliage_atlas(ctx, &color, Some(&normal));
+    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
+    renderer.set_bark_textures(ctx, &bark_albedo, &bark_normal);
 }
 
 type ProbeResult = Result<(), Box<dyn std::error::Error>>;

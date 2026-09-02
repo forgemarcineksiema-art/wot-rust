@@ -24,8 +24,21 @@ use crate::shape::Rng;
 /// the impostor sprites fill the rest of the first row and the whole second row — one
 /// binding serves both.
 pub const ATLAS_WIDTH: u32 = 2_048;
-/// Atlas page height, texels.
-pub const ATLAS_HEIGHT: u32 = 1_024;
+/// Atlas page height, texels. The top 1024 rows are the procedural page (leaf grid and the
+/// impostor rows); the bottom 1024 are the AUTHORED cluster block (route 2, 2026-09-02):
+/// one species' eight 512 px cluster sprites, pasted from `authored::clusters`.
+pub const ATLAS_HEIGHT: u32 = 2_048;
+/// Where the authored cluster block starts (rows), and its slot geometry.
+pub const CLUSTER_BLOCK_Y: u32 = 1_024;
+pub const CLUSTER_SLOT_PX: u32 = super::authored::CLUSTER_SPRITE_PX;
+/// The first cluster slot number: slots below it index the procedural leaf grid.
+pub const CLUSTER_SLOT_BASE: u8 = (ATLAS_GRID * ATLAS_GRID) as u8;
+const _: () = assert!(
+    CLUSTER_BLOCK_Y + super::authored::CLUSTER_PAGE_H <= ATLAS_HEIGHT
+        && super::authored::CLUSTER_PAGE_W <= ATLAS_WIDTH
+);
+// The cluster block sits under the impostor rows, never inside them.
+const _: () = assert!(IMPOSTOR_SPRITE_H * 2 <= CLUSTER_BLOCK_Y);
 /// The leaf-slot grid's edge, texels (the top-left square).
 pub const LEAF_GRID_PX: u32 = 512;
 /// Slots per grid edge.
@@ -80,10 +93,33 @@ pub const SLOT_WHITE: u8 = 0;
 /// The review gate for the atlas bytes (bless deliberately; covers BOTH pages).
 /// Re-blessed 2026-09-01 (Inny Poziom F1): the page grew 1024×512 → 2048×1024 to hold every
 /// species' impostor sprite pair; the leaf slots themselves are byte-identical (same grid,
-/// same painter, same seeds — only the page around them changed).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0xb8da_a794_d676_a999;
+/// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
+/// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
+/// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
+pub const LEAF_ATLAS_GOLDEN: u64 = 0x57bc_8fe1_2799_82f4;
 
-/// The two authored mask variants a species owns (cards mix them per anchor).
+/// The slots a species' cards are dealt from: the authored cluster block when the species
+/// has authored clusters (route 2), else its two procedural mask variants.
+pub fn card_slots(species: TreeSpecies) -> Vec<u8> {
+    match super::authored::clusters(species) {
+        Some(_) => (0..super::authored::CLUSTER_SPRITES as u8)
+            .map(|sprite| CLUSTER_SLOT_BASE + sprite)
+            .collect(),
+        None => species_slots(species).to_vec(),
+    }
+}
+
+/// Where a cluster slot's sprite sits in the page, texels — `None` for a leaf-grid slot.
+pub fn cluster_slot_origin(slot: u8) -> Option<(u32, u32)> {
+    let sprite = slot.checked_sub(CLUSTER_SLOT_BASE)?;
+    if u32::from(sprite) >= super::authored::CLUSTER_SPRITES {
+        return None;
+    }
+    let (x, y) = super::authored::sprite_origin(u32::from(sprite));
+    Some((x, CLUSTER_BLOCK_Y + y))
+}
+
+/// The two procedural mask variants a species owns (cards mix them per anchor).
 pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
     match species {
         TreeSpecies::Oak => [1, 2],
@@ -95,16 +131,19 @@ pub fn species_slots(species: TreeSpecies) -> [u8; 2] {
     }
 }
 
-/// A slot's sampling rectangle as `[u0, v0, u1, v1]`, inset by the bleed margin.
+/// A slot's sampling rectangle as `[u0, v0, u1, v1]`, inset by the bleed margin — a leaf-grid
+/// slot or an authored cluster slot, whichever the number names.
 pub fn atlas_rect(slot: u8) -> [f32; 4] {
-    let x = (slot as u32 % ATLAS_GRID) * SLOT_SIZE;
-    let y = (slot as u32 / ATLAS_GRID) * SLOT_SIZE;
+    let ((x, y), size) = match cluster_slot_origin(slot) {
+        Some(origin) => (origin, CLUSTER_SLOT_PX),
+        None => (slot_origin(slot), SLOT_SIZE),
+    };
     let (width, height) = (ATLAS_WIDTH as f32, ATLAS_HEIGHT as f32);
     [
         (x as f32 + SLOT_MARGIN_PX) / width,
         (y as f32 + SLOT_MARGIN_PX) / height,
-        ((x + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / width,
-        ((y + SLOT_SIZE) as f32 - SLOT_MARGIN_PX) / height,
+        ((x + size) as f32 - SLOT_MARGIN_PX) / width,
+        ((y + size) as f32 - SLOT_MARGIN_PX) / height,
     ]
 }
 
@@ -144,7 +183,30 @@ pub fn bake_leaf_atlas() -> LeafAtlasImage {
             paint_cluster(&mut rgba, &mut normal, slot, species, variant as u64);
         }
     }
+    paste_authored_clusters(&mut rgba, &mut normal);
     LeafAtlasImage { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, rgba, normal }
+}
+
+/// Paste the authored cluster block (route 2) under the procedural page: ONE species' pages
+/// today — the block is sized for one, and a second authored species grows the page again
+/// rather than sharing slots by accident (the const assert below keeps that honest).
+fn paste_authored_clusters(rgba: &mut [u8], normal: &mut [u8]) {
+    let authored: Vec<TreeSpecies> = TreeSpecies::ALL
+        .into_iter()
+        .filter(|&species| super::authored::clusters(species).is_some())
+        .collect();
+    assert!(authored.len() <= 1, "one authored cluster block: {authored:?}");
+    let Some(pages) = authored.first().and_then(|&species| super::authored::clusters(species))
+    else {
+        return;
+    };
+    for y in 0..pages.height {
+        let src = (y * pages.width * 4) as usize;
+        let dst = (((CLUSTER_BLOCK_Y + y) * ATLAS_WIDTH) * 4) as usize;
+        let row = (pages.width * 4) as usize;
+        rgba[dst..dst + row].copy_from_slice(&pages.color[src..src + row]);
+        normal[dst..dst + row].copy_from_slice(&pages.normal[src..src + row]);
+    }
 }
 
 fn slot_origin(slot: u8) -> (u32, u32) {
@@ -578,6 +640,38 @@ mod tests {
     /// Every species' sprite pair has its own texels: no two sprites overlap, none overlaps
     /// the leaf grid, and every rect stays inside the page. The layout is arithmetic, so the
     /// lock walks every pair rather than trusting the row constants.
+    /// Route 2's block: every cluster slot lies in the bottom half, under both impostor
+    /// rows, inside the page, with an inset rect; the oak deals from it and the poplar (no
+    /// authored clusters) still deals from its procedural pair.
+    #[test]
+    fn the_authored_cluster_block_sits_under_the_procedural_page() {
+        for sprite in 0..super::super::authored::CLUSTER_SPRITES as u8 {
+            let slot = CLUSTER_SLOT_BASE + sprite;
+            let (x, y) = cluster_slot_origin(slot).expect("a cluster slot");
+            assert!(y >= CLUSTER_BLOCK_Y && y >= IMPOSTOR_SPRITE_H * 2);
+            assert!(x + CLUSTER_SLOT_PX <= ATLAS_WIDTH && y + CLUSTER_SLOT_PX <= ATLAS_HEIGHT);
+            let [u0, v0, u1, v1] = atlas_rect(slot);
+            assert!(u0 < u1 && v0 < v1 && u0 >= 0.0 && v0 >= 0.5 && u1 <= 1.0 && v1 <= 1.0);
+        }
+        assert!(cluster_slot_origin(SLOT_WHITE).is_none());
+        assert!(cluster_slot_origin(CLUSTER_SLOT_BASE + 8).is_none());
+        let oak = card_slots(TreeSpecies::Oak);
+        assert_eq!(oak.len(), 8);
+        assert!(oak.iter().all(|&slot| slot >= CLUSTER_SLOT_BASE));
+        assert_eq!(card_slots(TreeSpecies::Poplar), species_slots(TreeSpecies::Poplar).to_vec());
+        // And the block is really pasted: the page's bottom half carries the oak's pages.
+        let image = bake_leaf_atlas();
+        let pages = super::super::authored::clusters(TreeSpecies::Oak).expect("oak clusters");
+        let (x, y) = cluster_slot_origin(CLUSTER_SLOT_BASE).expect("slot");
+        let i = ((y * ATLAS_WIDTH + x) * 4) as usize;
+        assert_eq!(&image.rgba[i..i + 4], &pages.color[..4]);
+        assert!(
+            image.rgba[(CLUSTER_BLOCK_Y as usize * ATLAS_WIDTH as usize * 4)..]
+                .chunks_exact(4)
+                .any(|texel| texel[3] >= 128)
+        );
+    }
+
     #[test]
     fn every_species_owns_two_disjoint_impostor_sprites_outside_the_leaf_grid() {
         let mut regions: Vec<(TreeSpecies, u32, u32, u32)> = Vec::new();

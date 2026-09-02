@@ -10,6 +10,7 @@
 //! planned when the trick was invented. Bark, occlusion hull and the card deck come back as
 //! separate parts so the consumer colors them without any material-enum churn.
 
+pub mod authored;
 mod bark;
 pub mod leaf_atlas;
 pub mod leaves;
@@ -419,7 +420,10 @@ impl BakedTree {
 /// Mid): Close spans 388 (bush) to 1,838 (oak — the 12 cm thin-stick rule slimmed the card-
 /// covered wood everywhere); Mid spans 124 to 976 (a dense pine keeps its whole whorl fan,
 /// because the 55 m swap must never amputate the tree's anatomy).
-pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_000;
+/// Ceiling raised 2,000 → 2,400 on 2026-09-02 (route 2): the AUTHORED oak's wood — Sapling's
+/// trunk and 13 limbs at eight sides plus 16 twigs at four — measures 2,104; the cards still
+/// count in the consumers, and the frame verdict is still the flora_frame_probe's.
+pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_400;
 pub const TREE_LOD1_MAX_TRIS: usize = 1_100;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
@@ -435,7 +439,9 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // clusters hugging their twigs (the levitation fix), top strays pulled into the mass,
     // and Mid keeping the LIMBS plus every second cluster — the 55 m swap moves triangles,
     // never the tree's anatomy.
-    (TreeSpecies::Oak, 0x8eca_e573_70b3_9bf7),
+    // Oak re-blessed 2026-09-02 (route 2): the AUTHORED oak — Sapling's skeleton (trunk and
+    // 13 limbs as wood, 15.9 m), 161 cross pairs of Blender-rendered leaf clusters to 18.7 m.
+    (TreeSpecies::Oak, 0x5727_8c53_12ba_6b14),
     // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
     // grown to 19.6 m, the Column envelope, hard up-tropism.
     (TreeSpecies::Poplar, 0x9acd_70d3_da17_7373),
@@ -470,6 +476,11 @@ pub enum TreeLod {
 }
 
 pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree {
+    // Route 2 (2026-09-02): a species with an AUTHORED tree ships that tree — grown once in
+    // Blender by Sapling, exported per rung, the same individual for every seed.
+    if let Some(tree) = authored::tree(species, seed, lod) {
+        return tree;
+    }
     // ONE path (Drzewa 3.0, complete): the skeleton grows ONCE, the rung meshes its bark and
     // deals its card deck. No entropy burn, no Mid tip-lift — every branch and card draws
     // from hashed seeds off one skeleton, so the rungs share identity by construction. The

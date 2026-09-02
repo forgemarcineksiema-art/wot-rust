@@ -398,6 +398,9 @@ impl ClientApp {
         let (foliage_color, foliage_normal) =
             scene_build::foliage_atlas_paint::foliage_atlas_chains();
         renderer.set_foliage_atlas(&foliage_color, Some(&foliage_normal));
+        // The bark pair rides the same bind group (route 2): every trunk wears the tile.
+        let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
+        renderer.set_bark_textures(&bark_albedo, &bark_normal);
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.

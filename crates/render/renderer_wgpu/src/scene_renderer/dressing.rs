@@ -32,6 +32,18 @@ impl SceneRenderer {
         self.foliage_atlas.set(&ctx.device, &ctx.queue, &self.foliage_bgl, chain, normals);
     }
 
+    /// Bind the bark pair (route 2, trees as data): an albedo tile (sRGB) and its tangent
+    /// normals, 1 m × 2 m per repeat, sampled triplanar in world space by every bark
+    /// fragment. Unset, a bark fragment wears one texel of the authored trunk tone.
+    pub fn set_bark_textures(
+        &mut self,
+        ctx: &GpuContext,
+        albedo: &Rgba8MipChain,
+        normals: &Rgba8MipChain,
+    ) {
+        self.foliage_atlas.set_bark(&ctx.device, &ctx.queue, &self.foliage_bgl, albedo, normals);
+    }
+
     pub fn set_dressing(&mut self, ctx: &GpuContext, vertices: &[SceneVertex], indices: &[u32]) {
         if vertices.is_empty() || indices.is_empty() {
             self.dressing_index_count = 0;

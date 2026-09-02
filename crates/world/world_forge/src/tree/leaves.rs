@@ -93,7 +93,7 @@ pub(crate) fn grow_cards(
         .map(|anchor| anchor.position.distance(centroid))
         .fold(0.0_f32, f32::max)
         .max(0.01);
-    let slots = leaf_atlas::species_slots(species);
+    let slots = leaf_atlas::card_slots(species);
 
     // The FULL deck grows first, always — Mid then filters and rescales it. One growth path
     // means the rungs share every card-level decision by construction. Clusters are grown as
@@ -162,7 +162,7 @@ pub(crate) fn grow_cards(
                 center.y += -0.25 - dip;
             }
             let depth01 = (anchor.position.distance(centroid) / max_reach).clamp(0.0, 1.0);
-            let slot = slots[(rng.next() % 2) as usize];
+            let slot = slots[(rng.next() % slots.len() as u64) as usize];
             let shade = core_shade(species) + (rim_shade(species) - core_shade(species)) * depth01;
             // The cross-pair: quad A faces the cluster's growth; quad B stands in the
             // perpendicular plane (the old facing becomes its span, the old right its
@@ -308,7 +308,7 @@ mod tests {
     fn cards_are_well_formed_and_use_both_species_slots() {
         let cards = oak_cards(TreeLod::Close);
         assert!(cards.len() >= 120, "a mature oak deals a real deck: {}", cards.len());
-        let slots = leaf_atlas::species_slots(TreeSpecies::Oak);
+        let slots = leaf_atlas::card_slots(TreeSpecies::Oak);
         for card in &cards {
             assert!(card.half_right.dot(card.half_up).abs() < 1.0e-3, "spans stay orthogonal");
             assert!((card.normal.length() - 1.0).abs() < 1.0e-3);
@@ -318,5 +318,8 @@ mod tests {
         }
         assert!(cards.iter().any(|c| c.slot == slots[0]));
         assert!(cards.iter().any(|c| c.slot == slots[1]));
+        // Route 2: the oak deals from its authored cluster block, and uses most of it.
+        let used = slots.iter().filter(|slot| cards.iter().any(|c| c.slot == **slot)).count();
+        assert!(used >= slots.len() - 1, "the deck uses the block: {used}/{}", slots.len());
     }
 }

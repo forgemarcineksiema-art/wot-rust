@@ -230,7 +230,7 @@ pub fn tree_mesh_asset(species: TreeSpecies, lod: TreeLod) -> MeshAsset {
         &mut vertices,
         &mut indices,
         &tree,
-        canopy_color,
+        crate::foliage::card_color_for_species(species),
         |local| local,
         |direction| direction,
         // L2 of the wind hierarchy (PR11): every card's allowance carries its own baked

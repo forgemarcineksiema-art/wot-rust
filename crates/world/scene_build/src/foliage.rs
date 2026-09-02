@@ -104,7 +104,7 @@ pub(crate) fn push_baked_tree(
         vertices,
         indices,
         &tree,
-        canopy_color,
+        card_color_for_species(species),
         |local| base + rotation * (local * scale),
         |direction| rotation * direction,
         |_, _| 0.0,
@@ -169,6 +169,19 @@ pub(crate) fn push_leaf_cards(
             start + 7,
             start + 6,
         ]);
+    }
+}
+
+/// What a CARD is tinted: white for a species with authored cluster sprites (route 2 — the
+/// sprite carries its own albedo, and a tint on top would double-colour it), else the
+/// species canopy tone the procedural masks are multiplied by. Shared by the statics bake,
+/// the ladder and the impostor splat, so every route colours a card the same way.
+pub(crate) fn card_color_for_species(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
+    let (tone, gloss) = canopy_color_for_species(species);
+    if world_forge::tree::authored::clusters(species).is_some() {
+        ([1.0, 1.0, 1.0], gloss)
+    } else {
+        (tone, gloss)
     }
 }
 

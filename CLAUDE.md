@@ -25,7 +25,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - **Maps are data**: RON blueprints in `crates/world/map_forge/blueprints/`, compiled +
   report-gated + golden-hashed (`blueprints/goldens.ron` — bless deliberately).
 - **No clones** in content; **CC0 only** for any future imported assets (license manifest
-  required). Flora is procedural-only — no imported trees.
+  required). Flora: since 2026-09-02 (the owner's verdict, route 2) trees are DATA — grown
+  offline in Blender (Sapling), leaf clusters rendered there, CC0 bark tiles with a licence
+  file next to them (`assets/flora/`), embedded in the binary and hash-locked; the runtime
+  (species ladder, wind, impostors, honesty boxes) is unchanged. No imported tree MODELS.
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided

@@ -221,7 +221,18 @@ not history):
    ≤ 600 tris; landmark styles (Church) may reach ~1200 now that bucket culling has landed.
    Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR
    description (one look: a dropped frame is a game bug, not a player problem).
-10. **Flora is procedural-only** (Świat 2.0 decision, 2026-08-06: „Florę CC0 usuwamy").
+10. **Flora is procedural-only — AMENDED 2026-09-02 (route 2, the owner's call after the
+    F7 frames: "the trees look tragic, nowhere near real models"): a tree may be DATA.**
+    The oak is: a Sapling Tree Gen skeleton grown in Blender 5.2 (`scripts/flora/bake_oak_tree.py`,
+    exported per rung to `assets/flora/oak/tree_{near,mid}.bin`), eight leaf-cluster sprites
+    rendered by Cycles from in-house leaf geometry (`bake_oak_clusters.py` → the bottom half of
+    the foliage atlas), and a CC0 bark tile from Poly Haven (`assets/flora/bark/…/LICENSE.md`)
+    projected triplanar onto every bark fragment. Everything embeds in the binary
+    (`world_forge::tree::authored`) and every file is hash-locked; the runtime keeps the
+    species ladder, the wind, the impostor splat and the honesty boxes. What stays true of the
+    original rule: no imported tree MODELS, no glTF pipeline, a licence file for every
+    third-party texel. The paragraph below describes the procedural species that remain.
+    (Original text:) (Świat 2.0 decision, 2026-08-06: „Florę CC0 usuwamy").
     No imported meshes, no glTF/`.flora.*` pipeline, no license provenance to police — down
     to the last texel: even the leaf masks are baked from SDF composition
     (`world_forge::tree::leaf_atlas`). Since Drzewa 3.0 (2026-08-22) a species is a
