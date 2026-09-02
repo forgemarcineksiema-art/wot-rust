@@ -101,7 +101,8 @@ down anywhere — the document that held them was retired):
 
 ## How work is organized
 
-Programs of small PRs (1 branch = 1 PR), local `scripts/verify.ps1` as the only merge gate,
+Programs of small PRs (1 branch = 1 PR), two local gates and no CI (`scripts/verify-pr.ps1`
+per PR, `scripts/verify.ps1` — the full one — daily over what landed; `docs/engineering-rules.md`),
 every feature landing with a locking test. Surviving program docs stay as doctrine.
 
 **The open second pass (approved 2026-09-01)** is [inny-poziom-program.md](inny-poziom-program.md):

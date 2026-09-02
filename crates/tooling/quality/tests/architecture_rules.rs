@@ -116,6 +116,7 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
         "crates/runtime/sim/benches/combat_hot_path.rs",
         "crates/runtime/net/benches/protocol_codec.rs",
         "scripts/verify.ps1",
+        "scripts/verify-pr.ps1",
         // Dormant while CI billing is blocked, and kept for exactly that reason: restoring CI
         // should be one commit, not an archaeology exercise.
         ".github/workflows/ci.yml",

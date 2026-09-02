@@ -125,6 +125,58 @@ fn the_allowlists_name_only_files_that_still_exist() {
     );
 }
 
+/// Inny Poziom Q6: there are two gates, and the cheap one is cheap in exactly one place.
+///
+/// The PR gate (`verify-pr.ps1`) drops the codegen of every example and bench and runs only the
+/// touched crates' tests — that is the whole saving, minutes per PR. What it may NOT drop is the
+/// whole-workspace, all-targets clippy pass: that is the front-end compile of every probe and
+/// bench, and the only reason a PR that breaks a probe's API still fails before it merges. The
+/// full gate (`verify.ps1`) keeps the all-targets test run so the day pays what the PR skipped.
+/// These are text assertions on scripts because a script's behaviour IS its text; a reader who
+/// removes `--all-targets` from the PR gate to save another minute meets this test, not a green
+/// merge and a probe that stopped compiling three PRs ago.
+#[test]
+fn the_pr_gate_fronts_every_target_and_the_full_gate_tests_every_target() {
+    let root = workspace_root();
+    let pr_gate = fs::read_to_string(root.join("scripts/verify-pr.ps1"))
+        .expect("the PR gate script should be readable");
+    let full_gate = fs::read_to_string(root.join("scripts/verify.ps1"))
+        .expect("the full gate script should be readable");
+
+    const CLIPPY_EVERYWHERE: &str = "cargo clippy --workspace --all-targets -- -D warnings";
+    for (name, script) in [("verify-pr.ps1", &pr_gate), ("verify.ps1", &full_gate)] {
+        assert!(script.contains("cargo fmt --all -- --check"), "{name} must run rustfmt");
+        assert!(
+            script.contains(CLIPPY_EVERYWHERE),
+            "{name} must front-end every target of every crate: a probe or a bench that stops \
+             compiling has to fail here"
+        );
+    }
+
+    assert!(
+        pr_gate.contains("@(\"quality\")") && pr_gate.contains("cargo test --workspace --lib"),
+        "the PR gate always runs the ratchet: prepended to whatever crates the PR names, and \
+         carried by `--workspace` when it names none"
+    );
+    assert!(
+        !pr_gate.contains("cargo test --workspace --all-targets"),
+        "the PR gate's saving is the example and bench codegen it skips; an all-targets test run \
+         makes it the full gate under another name"
+    );
+    assert!(
+        full_gate.contains("cargo test --workspace --all-targets"),
+        "the full gate tests every target — the day pays what the PR gate skipped"
+    );
+    assert!(
+        full_gate.contains("[switch] $Deep") && full_gate.contains("CARGO_INCREMENTAL"),
+        "the full gate keeps a -Deep run that compiles without incremental state (Q5)"
+    );
+    assert!(
+        !root.join("scripts/verify-quick.ps1").exists(),
+        "verify-quick.ps1 was retired by the PR gate; a third script is a third truth"
+    );
+}
+
 /// The names passed to `env::var` / `var_os` in a source file.
 fn env_vars_read(source: &str) -> Vec<String> {
     let mut names = Vec::new();

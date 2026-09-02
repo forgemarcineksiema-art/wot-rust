@@ -20,24 +20,52 @@ These are hard rules for this prototype. If a rule hurts, change the design befo
 
 ## Required Gates
 
-The merge gate is exactly what `scripts/verify.ps1` runs (`verify.ps1:33-41`):
+There are two gates and one truth: the full gate is what the day owes, the PR gate is what a
+PR owes. Both are scripts, the second runs a subset of the first, and neither is a CI job
+(CI billing is blocked; `.github/workflows/ci.yml` stays dormant on purpose).
+
+The **full gate**, `scripts/verify.ps1`:
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - `cargo test --workspace --all-targets`
 
-Run all gates with:
+The **PR gate**, `scripts/verify-pr.ps1 [-Crates a,b,...]`:
+
+- `cargo fmt --all -- --check`
+- `cargo clippy --workspace --all-targets -- -D warnings` — the same whole-workspace,
+  all-targets front-end pass, so a probe or a bench that stops compiling fails here without
+  paying for its codegen
+- `cargo test -p quality` — the ratchet, always
+- `cargo test -p <crate>...` for the crates the PR touched; with no crates named,
+  `cargo test --workspace --lib --bins --tests` (no example or bench codegen)
 
 ```powershell
-./scripts/verify.ps1
+./scripts/verify-pr.ps1 -Crates client,scene_build   # before a PR
+./scripts/verify.ps1                                  # once a day over what landed, and before
+                                                      # any merge that touches examples, benches,
+                                                      # the wire, replay fixtures or physics numbers
+./scripts/verify.ps1 -Deep                            # the same, compiled without incremental state
 ```
+
+Why two (Inny Poziom Q6, 2026-09-02): a full run on the reference laptop took 25–35 minutes,
+most of it compiling forty probe modules and every client test target with codegen for a
+change that touched neither. The PR gate keeps what catches a broken PR and drops what only
+catches a broken day; the full gate still runs, over a batch instead of a row. The other half
+of the cost was a fresh worktree per PR — cargo keys a workspace crate's artifacts by its path,
+so a new path rebuilt all thirty-three crates every time. A session keeps ONE worktree for its
+whole run and branches inside it.
 
 `cargo check --workspace --all-targets` is deliberately NOT a separate gate: clippy
 `--all-targets` already runs the full compiler front-end over every target, so a second
-check would be redundant work (the script says so at `verify.ps1:34-35`). The benchmark
-compile (`cargo bench --workspace --no-run`) runs only behind `./scripts/verify.ps1
--Release` — it is a second, optimized build of the whole workspace and roughly doubles wall
-time; run it before cutting a release or tag.
+check would be redundant work (the script says so). The benchmark compile
+(`cargo bench --workspace --no-run`) runs only behind `./scripts/verify.ps1 -Release` — it is
+a second, optimized build of the whole workspace and roughly doubles wall time; run it before
+cutting a release or tag. `-Deep` compiles without incremental state: after a killed build, or
+when a number looks wrong for no reason in the diff. A stale cache once produced a client test
+binary whose physics disagreed with the same source compiled fresh (Q5); the gate's answer may
+not depend on what a previous build left behind, so a build is never killed mid-flight, a
+killed one is followed by `cargo clean -p <crate>`, and the daily full run is a `-Deep` run.
 
 ## Testing Policy
 
