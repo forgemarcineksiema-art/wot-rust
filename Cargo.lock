@@ -4575,6 +4575,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam",
+ "png",
  "ron",
  "serde",
  "serde_json",
