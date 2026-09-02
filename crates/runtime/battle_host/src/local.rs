@@ -143,7 +143,8 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn change_player_vehicle_with_spec_for_player(&mut self, spec: TankSpec) -> Snapshot {
-        self.change_player_vehicle_with_spec(spec).filtered_for_viewer(self.player_tank)
+        let snapshot = self.change_player_vehicle_with_spec(spec);
+        self.view_for(&snapshot, self.player_tank)
     }
 
     pub fn player_tank(&self) -> TankId {
@@ -202,6 +203,23 @@ impl LocalAuthoritativeServer {
         }
     }
 
+    /// Test door (N10): shoot out ONE module — the radio, for the own-eyes lock — and nothing
+    /// else. As narrow as `knock_out_for_test`: a mask bit, no damage path.
+    pub fn destroy_module_for_test(&mut self, tank: TankId, slot: game_core::ModuleSlot) {
+        if let Some(state) = self.sim.tank_mut(tank) {
+            state.modules.damage(slot, u32::MAX);
+        }
+    }
+
+    /// Test door (N10): put a hull somewhere on the map, at rest. Position only; the next tick
+    /// settles it on the ground like any other hull.
+    pub fn place_for_test(&mut self, tank: TankId, position: glam::Vec3) {
+        if let Some(state) = self.sim.tank_mut(tank) {
+            state.position = position;
+            state.velocity_mps = glam::Vec3::ZERO;
+        }
+    }
+
     pub fn authoritative_tick(&self) -> u64 {
         self.sim.tick()
     }
@@ -231,7 +249,19 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn latest_snapshot_for_player(&self) -> Snapshot {
-        self.latest_snapshot.filtered_for_viewer(self.player_tank)
+        self.view_for(&self.latest_snapshot, self.player_tank)
+    }
+
+    /// The player's honest cut of a snapshot (Inny Poziom N10): the SAME rule the remote host
+    /// applies — team intel through a working radio, the crew's own eyes always. The local
+    /// host used to take the plain team-mask cut, so a player whose radio was shot out went
+    /// blind to the hull in front of their own eyes: the sim's team mask already excludes a
+    /// radio-dead observer's sightings, and the plain cut has no "own eyes" clause to put
+    /// them back. One filter, one truth, whichever host the battle runs on.
+    fn view_for(&self, snapshot: &Snapshot, viewer: TankId) -> Snapshot {
+        let viewer_index =
+            snapshot.tanks.iter().position(|tank| tank.tank_id == viewer).unwrap_or(usize::MAX);
+        snapshot.filtered_for_viewer_with_observers(viewer, &self.observer_masks(), viewer_index)
     }
 
     pub fn tick_with_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
@@ -319,7 +349,7 @@ impl LocalAuthoritativeServer {
         let tick = self.tick_with_input(input);
         AuthoritativeTick {
             server_tick: tick.server_tick,
-            snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
+            snapshot: tick.snapshot.map(|snapshot| self.view_for(&snapshot, viewer)),
             damage_events: tick.damage_events,
             shell_impacts: tick.shell_impacts,
             armor_breaches: tick.armor_breaches,
