@@ -2,8 +2,9 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
-    grass_card_dressing_mesh, grass_frame_objects, grass_species_meshes, terrain_material_set_for,
+    bake_terrain_ground_maps, battlefield_dressing_objects, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, grass_card_dressing_mesh, register_battlefield_dressing_meshes,
+    terrain_material_set_for,
 };
 use renderer_api::RenderFrame;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
@@ -112,21 +113,21 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     renderer.scene_time_s = 12.0;
-    for (handle, mesh) in grass_species_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
-    }
+    register_battlefield_dressing_meshes(&ctx, &mut renderer);
 
     for view in &views {
-        // The near-field grass ring the live client conjures around the camera each frame.
-        let grass = grass_frame_objects(
-            &battlefield.heightmap,
-            battlefield.water_view(),
-            &battlefield.static_cover,
+        // The grass ring AND the tree ladder, exactly as the battle submits them.
+        let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
+        let dressing = battlefield_dressing_objects(
+            &battlefield,
             &ground_maps,
             &materials,
+            &[],
             glam::Vec3::from_array(view.eye),
+            &mut tree_lod_state,
         );
-        renderer.set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
+        renderer
+            .set_render_frame(&ctx, &RenderFrame { objects: dressing, ..RenderFrame::default() });
         renderer.scene_lighting = view.lighting;
         renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
         renderer.rain_intensity = view.rain;

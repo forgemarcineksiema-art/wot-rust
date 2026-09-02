@@ -2,8 +2,9 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
-    grass_card_dressing_mesh, grass_frame_objects, grass_species_meshes, terrain_material_set_for,
+    bake_terrain_ground_maps, battlefield_dressing_objects, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, grass_card_dressing_mesh, register_battlefield_dressing_meshes,
+    terrain_material_set_for,
 };
 use game_core::{MatchWeather, WeatherVariant};
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
@@ -48,20 +49,21 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
-    for (handle, mesh) in grass_species_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
-    }
+    register_battlefield_dressing_meshes(&ctx, &mut renderer);
 
     for (name, eye, look) in views {
-        let grass = grass_frame_objects(
-            &battlefield.heightmap,
-            battlefield.water_view(),
-            &battlefield.static_cover,
+        // The grass ring AND the tree ladder, exactly as the battle submits them.
+        let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
+        let dressing = battlefield_dressing_objects(
+            &battlefield,
             &ground_maps,
             &materials,
+            &[],
             glam::Vec3::from_array(eye),
+            &mut tree_lod_state,
         );
-        renderer.set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
+        renderer
+            .set_render_frame(&ctx, &RenderFrame { objects: dressing, ..RenderFrame::default() });
         renderer.shadow_focus = Some(look);
         for time_s in TIMES {
             let weather = timeline.sample(time_s as f32);

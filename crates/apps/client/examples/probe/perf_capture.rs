@@ -80,7 +80,8 @@ pub(crate) fn run() {
 
     // The URBAN map (urban-map program PR-15): the dense-core numbers - the one-look FPS
     // sign-off is measured, not promised. The battlefield oaks draw through the instanced LOD
-    // ladder, so they are NOT in the statics bake — the tree cost lives in flora_frame_probe.
+    // ladder, so they are NOT in the statics bake — their bake cost is the ladder's uploads,
+    // and their FRAME cost is in `frame_time_capture` below, which submits them.
     let city = map_forge::battlefield(terrain::MapId::Ostrogorsk);
     let battlefield_oaks =
         city.scenery.iter().filter(|instance| instance.kind == terrain::SceneryKind::Oak).count();
@@ -376,9 +377,10 @@ fn frame_time_capture() {
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
-    for (handle, mesh) in client::grass_species_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
-    }
+    // The grass species AND the tree ladder — the same registration the battle makes. Until
+    // this call the capture's "full scene" had no oaks in it: the trees left the statics bake
+    // for the ladder in hero-flora phase 2 and this instrument never followed them.
+    client::register_battlefield_dressing_meshes(&ctx, &mut renderer);
 
     // The fleet enters the frame instrument. Built once (the lineup is static at rest phase, so
     // per-frame cost is the DRAW, which is what we are measuring) and its meshes registered like
@@ -464,6 +466,9 @@ fn frame_time_capture() {
     let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
     let base_lighting = renderer.scene_lighting;
     let mut dressing_bound = true;
+    // The ladder's per-tree rung memory, carried across the eye path like the battle carries
+    // it: the hysteresis only exists between consecutive frames.
+    let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
 
     for _ in 0..WARMUP {
         let camera = renderer_api::Camera {
@@ -528,7 +533,10 @@ fn frame_time_capture() {
                     projection.near_plane_m(),
                     projection.far_plane_m(),
                 );
-                let grass = if with_grass {
+                // The instanced dressing as the battle submits it: the grass ring (the
+                // "no near ring" row drops it) and the tree ladder's rung per tree for THIS
+                // eye (every row keeps it — no shipped frame is without its trees).
+                let mut grass = if with_grass {
                     client::grass_frame_objects(
                         &battlefield.heightmap,
                         battlefield.water_view(),
@@ -540,6 +548,13 @@ fn frame_time_capture() {
                 } else {
                     Vec::new()
                 };
+                grass.extend(scene_build::tree_lod::tree_frame_objects(
+                    &battlefield.scenery,
+                    &battlefield.static_cover,
+                    &[],
+                    eye,
+                    &mut tree_lod_state,
+                ));
 
                 // Rebuilt every frame with the CURRENT eye, exactly as the battle path does: the
                 // detail tier a tank draws at is a function of where the camera is this frame.

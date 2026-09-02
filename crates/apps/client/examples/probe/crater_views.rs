@@ -16,9 +16,9 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    TerrainScars, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, grass_card_dressing_mesh, grass_frame_objects, grass_species_meshes,
-    terrain_material_set_for,
+    TerrainScars, bake_terrain_ground_maps, battlefield_dressing_objects,
+    battlefield_ground_and_statics_meshes, battlefield_water_mesh, grass_card_dressing_mesh,
+    register_battlefield_dressing_meshes, terrain_material_set_for,
 };
 use game_core::{ShellImpact, ShellType, TankId};
 use glam::Vec3;
@@ -75,9 +75,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     // The leaf atlas, exactly as the battle binds it — see `bind_battle_foliage_atlas`.
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
-    for (handle, mesh) in grass_species_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
-    }
+    register_battlefield_dressing_meshes(&ctx, &mut renderer);
     set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, close_eye);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
@@ -171,16 +169,20 @@ fn set_crater_view_grass(
     materials: &renderer_api::TerrainMaterialSet,
     eye: [f32; 3],
 ) {
-    let grass = grass_frame_objects(
-        &battlefield.heightmap,
-        battlefield.water_view(),
-        &battlefield.static_cover,
+    // The grass ring AND the tree ladder, exactly as the battle submits them.
+    let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
+    let dressing = battlefield_dressing_objects(
+        battlefield,
         maps,
         materials,
+        &[],
         glam::Vec3::from_array(eye),
+        &mut tree_lod_state,
     );
-    renderer
-        .set_render_frame(ctx, &renderer_api::RenderFrame { objects: grass, ..Default::default() });
+    renderer.set_render_frame(
+        ctx,
+        &renderer_api::RenderFrame { objects: dressing, ..Default::default() },
+    );
 }
 
 #[expect(clippy::too_many_arguments)]

@@ -31,6 +31,17 @@ const _: () = assert!(TREE_IMPOSTOR_MESH.0 < renderer_api::SHADOWLESS_DRESSING_M
 /// are small enough not to need it.
 pub const BATTLE_TREE: TreeSpecies = TreeSpecies::Oak;
 
+/// Which scenery kinds ride the instanced ladder, and as which species. `None` is a kind the
+/// statics bake still owns (every other species, the bush, rocks, street furniture). ONE
+/// answer for the frame builder, the statics bake's skip rule and the instruments that must
+/// draw exactly what the battle draws.
+pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
+    match kind {
+        SceneryKind::Oak => Some(BATTLE_TREE),
+        _ => None,
+    }
+}
+
 /// Rung boundaries in metres, and the band a tree must re-cross before it swaps back. Without
 /// the hysteresis a tree parked exactly on a boundary would flicker between two meshes as the
 /// hull idles; 8 m is wider than any camera jitter and far narrower than a deliberate approach.
@@ -291,7 +302,7 @@ pub fn tree_frame_objects(
 ) -> Vec<RenderObject> {
     let trees: Vec<&SceneryInstance> = scenery
         .iter()
-        .filter(|instance| instance.kind == SceneryKind::Oak)
+        .filter(|instance| ladder_species(instance.kind).is_some())
         .filter(|instance| !stands_in_cleared_cover(instance, cover, cover_states))
         .collect();
     if state.levels.len() != trees.len() {
