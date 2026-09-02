@@ -73,5 +73,7 @@ fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
         crew_unconscious_mask: 0,
         crew_weakened_mask: 0,
         crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
     }
 }

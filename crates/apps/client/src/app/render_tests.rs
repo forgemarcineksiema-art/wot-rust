@@ -317,6 +317,8 @@ fn render_garage_preview_png() {
         crew_unconscious_mask: 0,
         crew_weakened_mask: 0,
         crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -404,6 +406,8 @@ fn snapshot_for_vehicle(
             crew_unconscious_mask: 0,
             crew_weakened_mask: 0,
             crew_down_remaining_s: Default::default(),
+            hull_pitch_velocity_rad_s: 0.0,
+            hull_roll_velocity_rad_s: 0.0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

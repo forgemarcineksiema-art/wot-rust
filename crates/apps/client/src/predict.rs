@@ -328,6 +328,8 @@ impl LocalPredictor {
         net::AuthoritativeMotion {
             velocity_mps: self.drive.kinematic.velocity.to_array(),
             hull_yaw_velocity_rad_s: self.drive.kinematic.yaw_rate_rad_s,
+            hull_pitch_velocity_rad_s: self.drive.kinematic.pitch_vel_rad_s,
+            hull_roll_velocity_rad_s: self.drive.kinematic.roll_vel_rad_s,
         }
     }
 

@@ -358,7 +358,7 @@ The tipping edge is `outer_x` — the number Wave 2 makes honest. This wave foll
   **Nothing new is stored.** The excursion is added to the authoritative `hull_roll_rad`, and the
   attitude system's existing rate limit (1.4 rad/s) walks it back over the following half second. A
   spring would have carried oscillation state into the authoritative simulation, and every attitude
-  in this game is deliberately spring-free so replays and the client predictor stay exact.
+  in this game was spring-free until Inny Poziom G7 put the spring, state and all, on the wire.
 
   That choice is also why **P3.2 needs no PR of its own**: because the excursion IS the hull's roll,
   the gun line follows it, the hitbox tilts with it, armour impact angles include it, the camera

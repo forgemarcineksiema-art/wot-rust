@@ -24,9 +24,9 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   are measured patches (mantlet, cupola volume, aimable bow ports), not facet multipliers; rack
   cook-off the crew can fight, replicated with a teammate-only countdown.
 - **Movement**: planar rigid-body hull (velocity + yaw inertia, drift), hull-down that actually
-  works, track damage in two tiers. The authoritative hull is a rigid beam on a rate-limited
-  attitude ramp; per-wheel travel and the sprung attitude are presentation-side today. The sprung
-  authoritative hull is `inny-poziom-program.md` G7.
+  works, track damage in two tiers. The authoritative hull is a sprung mass on its support plane (G7, 2026-09-02) — it used to be a rigid beam on a rate-limited
+  attitude ramp; per-wheel travel is still presentation-side. The sprung hull is
+  `inny-poziom-program.md` G7, landed.
 - **Destruction (Honest Steel)**: buildings→rubble, breachable walls, crushable fences and
   tree lines, terrain craters, wall scars — replicated, honest. Mechanics only: the collapse is
   a state swap, cover damage is two constants and three maps are near-static — the register is
@@ -54,7 +54,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   the map-border backdrop ring stands on every species' impostor since F1 (2026-09-01),
   mixed per map by `HorizonSpec::flora`.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (**wire v49** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  snapshots (**wire v50** — the sprung hull's attitude velocities v50, breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
   who has not spotted the shooter v44, the battle clock on the wire v45, crew battle wounds
   team-private v46, concrete-round identity and the tungsten shatter flag v47, the

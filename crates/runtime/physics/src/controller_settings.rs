@@ -1,10 +1,18 @@
-use game_core::{SteeringKind, TankSpec};
+use game_core::math::GRAVITY_MPS2;
+use game_core::{SteeringKind, SuspensionKind, TankSpec, VehicleBlueprint, stock_stability};
+
+use crate::hull_attitude::HullSpring;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TankControllerSettings {
     pub max_forward_speed_mps: f32,
     pub max_reverse_speed_mps: f32,
+    /// The sprung hull's springs (Inny Poziom G7), derived from the vehicle by
+    /// [`hull_spring_for_spec`]: natural frequency from the suspension's static deflection,
+    /// damping from its family, weight transfer from the centre of mass, wheelbase and gauge.
+    #[serde(default)]
+    pub hull_spring: HullSpring,
     /// Specific effective drive power (m²/s³): engine power × drivetrain efficiency × the arcade
     /// scale, over mass. Thrust follows `P/v` — huge at a crawl (where track grip caps it), thin
     /// near top speed — so acceleration tapers the way tonnes behind an engine actually do.
@@ -213,6 +221,74 @@ impl TankControllerSettings {
             steering: SteeringKind::for_vehicle(spec.kind),
             pivot_arm_m: spec.contact_footprint().half_gauge_x,
             belts: BeltDrive::HEALTHY,
+            hull_spring: hull_spring_for_spec(spec),
+        }
+    }
+}
+
+/// The hull's springs from the vehicle alone (Inny Poziom G7). The natural frequency is the one
+/// law every sprung mass obeys, `ω = √(g / sag)`: the static deflection of the suspension is the
+/// blueprint's arm rise (how far the trailing arm's pivot stands above the axle at rest), so a
+/// Christie hull on its long-travel coils (0.22 m) wallows near 1.2 Hz where a torsion-bar hull
+/// (0.13 m) sits near 1.5 Hz — and a T-54 and a Jagdtiger on the same bars share the frequency,
+/// because mass cancels in steel sized for its load. Damping is the family's: torsion bars with
+/// shock absorbers on the end stations 0.5, Christie coils with almost none 0.35, Horstmann
+/// bogies with their friction 0.55. Weight transfer is the quasi-static tilt of the sprung mass,
+/// `θ = 12·a·h_cg / (ω²·L²)`, over the wheelbase for pitch and the gauge for roll, with the
+/// centre of mass from the stock stability model.
+pub fn hull_spring_for_spec(spec: &TankSpec) -> HullSpring {
+    let blueprint = VehicleBlueprint::for_vehicle(spec.kind);
+    let (sag_m, family) = blueprint
+        .as_ref()
+        .map(|bp| (bp.track.arm_rise(), bp.track.suspension))
+        .unwrap_or((0.13, SuspensionKind::TorsionBar));
+    let omega_rad_s = (GRAVITY_MPS2 / sag_m.max(0.04)).sqrt();
+    let zeta = match family {
+        SuspensionKind::TorsionBar => 0.5,
+        SuspensionKind::Christie => 0.35,
+        SuspensionKind::Horstmann => 0.55,
+    };
+    let com_height_m = stock_stability(spec.kind).map_or(0.9, |s| s.com_height_m);
+    let footprint = spec.contact_footprint();
+    let wheelbase_m = footprint.wheelbase_m().max(spec.hitbox.half_length_m * 1.2).max(1.0);
+    let gauge_m = (2.0 * footprint.half_gauge_x).max(1.0);
+    let omega_sq = omega_rad_s * omega_rad_s;
+    HullSpring {
+        omega_rad_s,
+        zeta,
+        dive_rad_per_mps2: 12.0 * com_height_m / (omega_sq * wheelbase_m * wheelbase_m),
+        lean_rad_per_mps2: 12.0 * com_height_m / (omega_sq * gauge_m * gauge_m),
+    }
+}
+
+/// Inny Poziom G7, lock (2) — per-vehicle wallow, by what the suspension predicts and nothing
+/// else: a Christie hull on its long-travel coils (T-34-85) settles at a lower natural frequency
+/// than a torsion-bar hull (T-54) by the square root of their static deflections, a T-54 and a
+/// Jagdtiger on the same bars share the frequency — mass cancels in steel sized for its load —
+/// and every hull sits in the band tonnes of sprung steel actually ring at (0.8–2 Hz).
+#[cfg(test)]
+mod hull_spring_locks {
+    use game_core::VehicleKind;
+
+    use super::*;
+
+    #[test]
+    fn suspension_family_and_travel_set_the_wallow_not_the_mass() {
+        let t54 = hull_spring_for_spec(&VehicleKind::T54_1951.spec());
+        let t34 = hull_spring_for_spec(&VehicleKind::T34_85.spec());
+        let jagdtiger = hull_spring_for_spec(&VehicleKind::Jagdtiger.spec());
+        let predicted = (0.13_f32 / 0.22).sqrt();
+        let ratio = t34.omega_rad_s / t54.omega_rad_s;
+        assert!(
+            (ratio - predicted).abs() < 0.05,
+            "Christie over torsion bar: {ratio} vs {predicted}"
+        );
+        assert!(t34.zeta < t54.zeta, "coils with no dampers wallow longer than bars with them");
+        assert!((jagdtiger.omega_rad_s - t54.omega_rad_s).abs() < 1.0e-3, "mass cancels");
+        for (name, spring) in [("T-54", t54), ("T-34-85", t34), ("Jagdtiger", jagdtiger)] {
+            let hz = spring.omega_rad_s / std::f32::consts::TAU;
+            assert!((0.8..=2.0).contains(&hz), "{name} rings at {hz} Hz");
+            assert!(spring.dive_rad_per_mps2 > 0.0 && spring.lean_rad_per_mps2 > 0.0);
         }
     }
 }

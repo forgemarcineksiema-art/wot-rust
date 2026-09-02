@@ -30,13 +30,14 @@ tests.
 
 The hull's ground contact is its running gear, not a point: terrain is sampled at the road-wheel
 stations of the vehicle's `ContactFootprint` (from the blueprint `TrackShape` — the same stations
-the rendered wheels are placed by). The hull rests as a rigid beam on the highest supported
+the rendered wheels are placed by). The hull rides its springs on the highest supported
 stations, which is what makes tank-shaped behavior emerge: trenches narrower than the wheel pitch
 are bridged instead of swallowed, and a nose pushed past a crest hangs level until the centre of
 mass passes the last support, then rotates down onto the far slope.
 
 Hull pitch and roll are **authoritative**: computed kinematically from the support plane,
-rate-limited (no springs, no oscillation state in the sim) and frozen while airborne, so they stay
+sprung (Inny Poziom G7: a per-axis spring-damper whose ω comes from the suspension's static
+deflection and whose state rides the wire) and frozen while airborne, so they stay
 deterministic and replay-stable. They feed gameplay — gun elevation limits are hull-relative (hull
 down over a crest genuinely adds depression), armor impact angles include the hull's tilt, and the
 hitbox tilts with the hull. Weight-transfer theatrics (brake dive, acceleration squat, turn lean,
@@ -194,3 +195,18 @@ when fixed ticks are applied and copies the resulting authoritative state into
 tank snapshots. `game_core` owns vehicle parameters. `net` carries input commands
 and snapshots. No movement rule depends on `wgpu`, renderer frame time, or window
 events.
+
+## The sprung hull (Inny Poziom G7, 2026-09-02)
+
+Pitch and roll are a per-axis spring-damper on the support plane, integrated semi-implicitly in
+f32 at the tick (`physics::HullSpring`, `advance_hull_attitude`). Nothing is authored: the
+natural frequency is `ω = √(g / sag)` with the sag the blueprint's arm rise (torsion bars
+0.13 m → ~1.5 Hz, Christie 0.22 m → ~1.2 Hz; mass cancels, so a T-54 and a Jagdtiger on the
+same bars share the frequency), the damping is the family's (torsion bars 0.5, Christie 0.35,
+Horstmann 0.55), and weight transfer is the quasi-static tilt of the sprung mass,
+`θ = 12·a·h_cg / (ω²·L²)`, over the wheelbase for pitch and the gauge for roll, fed by the
+tick's own acceleration — braking dives the nose, a turn leans the hull out, a ram is a jolt,
+capped at 3.4°. The dip is authoritative: the gun loses elevation with it unless a stabilizer
+cancels it. The rest is an exact fixed point (snapped within 1e-5), so terrain-free replays stay
+bit-exact; the spring state rides the wire (v50) and the predictor. Heave is still the vertical
+snap (register row G7b).

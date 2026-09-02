@@ -15,12 +15,6 @@ const ATTITUDE_ZETA: f32 = 0.55;
 /// Heave (vertical) spring: a touch stiffer so the hull hugs the ground without floating.
 const HEAVE_OMEGA: f32 = 9.0;
 const HEAVE_ZETA: f32 = 0.6;
-/// Radians of dynamic pitch per m/s² of longitudinal acceleration (braking dives the nose).
-const PITCH_PER_ACCEL: f32 = 0.006;
-/// Radians of dynamic roll per m/s² of lateral (centripetal) acceleration.
-const ROLL_PER_ACCEL: f32 = 0.005;
-const MAX_DYNAMIC_PITCH: f32 = 0.035;
-const MAX_DYNAMIC_ROLL: f32 = 0.035;
 /// The sprung hull may float this far ABOVE the replicated height (a drop reads as a settle)...
 const MAX_HEAVE_UP_M: f32 = 0.30;
 /// ...but only this far BELOW it: a deeper lag visibly buries the tracks in the terrain.
@@ -155,14 +149,13 @@ impl HullAttitude {
         self.accel_long_mps2 = spring_to(self.accel_long_mps2, accel_long, ACCEL_SMOOTH_PER_S * dt);
         self.accel_lat_mps2 = spring_to(self.accel_lat_mps2, accel_lat, ACCEL_SMOOTH_PER_S * dt);
 
-        // Targets: terrain slope plus the dynamic weight transfer, read from the SMOOTHED
-        // accelerations so a throttle tap eases the hull over rather than snapping it. Braking
-        // (negative accel while moving forward) dives the nose; accelerating squats it; turning
-        // leans the hull out of the corner.
-        let pitch_target = sample.terrain_pitch_rad
-            + (self.accel_long_mps2 * PITCH_PER_ACCEL).clamp(-MAX_DYNAMIC_PITCH, MAX_DYNAMIC_PITCH);
-        let roll_target = sample.terrain_roll_rad
-            + (self.accel_lat_mps2 * ROLL_PER_ACCEL).clamp(-MAX_DYNAMIC_ROLL, MAX_DYNAMIC_ROLL);
+        // Targets: the replicated attitude alone. Since Inny Poziom G7 the wire carries a SPRUNG
+        // hull — brake dive, launch squat and the turn's lean are authoritative and already in
+        // `terrain_pitch_rad` / `terrain_roll_rad` — so this spring adds no dive of its own (it
+        // used to, and the picture dived twice). It stays a 20 Hz smoother and the carrier of
+        // the fire and hit impulses; the smoothed accelerations still feed the track-tension cue.
+        let pitch_target = sample.terrain_pitch_rad;
+        let roll_target = sample.terrain_roll_rad;
 
         spring_step(
             &mut self.pitch_rad,
@@ -256,37 +249,36 @@ mod tests {
         assert!((att.roll_rad + 0.08).abs() < 5.0e-3, "roll settles: {}", att.roll_rad);
     }
 
+    /// Inny Poziom G7: the wire's pitch already carries the brake dive, so the presentation
+    /// spring adds none of its own — braking, launching and turning leave a level replicated
+    /// hull level in the picture (the picture used to dive twice).
     #[test]
-    fn braking_dives_the_nose() {
-        let mut att = HullAttitude::default();
+    fn the_presentation_spring_adds_no_dive_or_lean_of_its_own() {
         let dt = 1.0 / 60.0;
-        // Cruise at constant speed, then brake hard: pitch must go negative (nose down).
+        let mut att = HullAttitude::default();
         settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1);
         for _ in 0..60 {
             att.step([0.0, 0.0, 0.0], cruise(10.0, 0.0), AttitudeSample::default(), 1.0, dt);
         }
+        let mut extreme = 0.0_f32;
         let mut v = 10.0_f32;
-        let mut min_pitch = 0.0_f32;
         for _ in 0..40 {
             v = (v - 8.0 * dt).max(0.0);
-            let accel = if v > 0.0 { -8.0 } else { 0.0 };
-            att.step([0.0, 0.0, 0.0], cruise(v, accel), AttitudeSample::default(), 1.0, dt);
-            min_pitch = min_pitch.min(att.pitch_rad);
+            att.step([0.0, 0.0, 0.0], cruise(v, -8.0), AttitudeSample::default(), 1.0, dt);
+            extreme = extreme.max(att.pitch_rad.abs());
         }
-        assert!(min_pitch < -0.02, "braking must dive the nose, got {min_pitch}");
-    }
-
-    #[test]
-    fn a_turn_leans_the_hull_through_the_centripetal_cue() {
-        let mut att = HullAttitude::default();
-        let dt = 1.0 / 60.0;
-        settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1);
+        assert!(extreme < 1.0e-3, "braking adds no dive here: {extreme}");
         let turning =
             TankMotion { forward_speed_mps: 8.0, accel_long_mps2: 0.0, yaw_rate_rad_s: 0.8 };
         for _ in 0..120 {
             att.step([0.0, 0.0, 0.0], turning, AttitudeSample::default(), 1.0, dt);
         }
-        assert!(att.roll_rad > 0.015, "a sustained turn must lean the hull, got {}", att.roll_rad);
+        assert!(att.roll_rad.abs() < 1.0e-3, "a turn adds no lean here: {}", att.roll_rad);
+        // The smoothed acceleration still feeds the track-tension cue.
+        for _ in 0..30 {
+            att.step([0.0, 0.0, 0.0], cruise(5.0, 8.0), AttitudeSample::default(), 1.0, dt);
+        }
+        assert!(att.accel_long_mps2 > 4.0, "the tension cue still reads the launch");
     }
 
     #[test]
@@ -304,32 +296,6 @@ mod tests {
         assert!(att.heave_m < -0.1, "the sprung hull lags a sudden step, got {}", att.heave_m);
         settle(&mut att, [0.0, 1.2, 0.0], AttitudeSample::default(), 240);
         assert!(att.heave_m.abs() < 0.01, "and settles back onto it, got {}", att.heave_m);
-    }
-
-    #[test]
-    fn a_full_throttle_launch_eases_the_hull_over_instead_of_snapping_it() {
-        let mut att = HullAttitude::default();
-        let dt = 1.0 / 60.0;
-        settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1); // seed
-        // Hard P/v launch: a constant ~8 m/s² from the very first driven frame.
-        let mut v = 0.0_f32;
-        let mut after_three_frames = 0.0;
-        for frame in 0..60 {
-            v += 8.0 * dt;
-            att.step([0.0, 0.0, 0.0], cruise(v, 8.0), AttitudeSample::default(), 1.0, dt);
-            if frame == 2 {
-                after_three_frames = att.pitch_rad;
-            }
-        }
-        assert!(
-            after_three_frames.abs() < 0.005,
-            "the first frames must ease, not snap: {after_three_frames}"
-        );
-        assert!(
-            att.pitch_rad > 0.015,
-            "a sustained launch still visibly squats the hull: {}",
-            att.pitch_rad
-        );
     }
 
     #[test]

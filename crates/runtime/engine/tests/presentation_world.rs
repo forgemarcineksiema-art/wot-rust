@@ -38,6 +38,8 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         crew_unconscious_mask: 0,
         crew_weakened_mask: 0,
         crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
     }
 }
 

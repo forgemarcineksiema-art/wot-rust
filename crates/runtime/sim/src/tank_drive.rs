@@ -262,6 +262,8 @@ fn drive_state_of(tank: &TankState) -> TankDriveState {
             yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
             pitch_rad: tank.hull_pitch_rad,
             roll_rad: tank.hull_roll_rad,
+            pitch_vel_rad_s: tank.hull_pitch_velocity_rad_s,
+            roll_vel_rad_s: tank.hull_roll_velocity_rad_s,
         },
         aiming: AimingState {
             turret_yaw_rad: tank.turret_yaw_rad,
@@ -321,6 +323,8 @@ pub(crate) fn settle_tank(
     tank.hull_yaw_velocity_rad_s = drive.kinematic.yaw_rate_rad_s;
     tank.hull_pitch_rad = drive.kinematic.pitch_rad;
     tank.hull_roll_rad = drive.kinematic.roll_rad;
+    tank.hull_pitch_velocity_rad_s = drive.kinematic.pitch_vel_rad_s;
+    tank.hull_roll_velocity_rad_s = drive.kinematic.roll_vel_rad_s;
     tank.turret_yaw_rad = drive.aiming.turret_yaw_rad;
     tank.turret_yaw_velocity_rad_s = drive.aiming.turret_yaw_velocity_rad_s;
     tank.gun_pitch_rad = drive.aiming.gun_pitch_rad;
