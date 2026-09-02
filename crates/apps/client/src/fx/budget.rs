@@ -32,7 +32,6 @@ use net::TankSnapshot;
 use terrain::HeightMap;
 
 use super::FxSystem;
-use super::decals::append_decal_quads;
 use super::particle::{MAX_PARTICLES, Particle};
 use super::terrain_scars::{MAX_TERRAIN_SCARS, TerrainScars};
 use super::track_marks::{MAX_TRACK_MARKS, TrackMarks};
@@ -43,11 +42,11 @@ use crate::vehicle::variation::{
 /// The battle roster the budget is sized for: 7v7.
 const BATTLE_TANKS: usize = 14;
 
-/// The locked worst case for the layers that must never be truncated: a full particle pool plus
-/// every tank battered to its decal cap. Penetrations deliberately emit no FX quads — analytical
-/// clipping and rim meshes carry them without covering the opening — so the cap is filled with
-/// the kinds that DO draw, which is what a worst case means.
-const FX_ESSENTIAL_VERTEX_BUDGET: usize = 14_976;
+/// The locked worst case for the layers that must never be truncated: the full particle pool.
+/// Since Inny Poziom Z5 no hit mark costs an FX vertex: penetrations are analytic apertures,
+/// scuffs and gouges are wound records the vehicle shader shades — the fleet's 2 688 decal
+/// vertices (16 marks x 2 stamps x 6 x 14 tanks) left this batch for the armor-damage buffer.
+const FX_ESSENTIAL_VERTEX_BUDGET: usize = 12_288;
 
 /// The locked worst case for the ground marks: the crater pool at its cap, every mark a fresh
 /// high-explosive scorch (the expensive family), plus the rut pool at its cap.
@@ -111,27 +110,6 @@ fn puff(position: Vec3) -> Particle {
     }
 }
 
-/// A tank battered to its decal cap with the marks that actually draw. The old fixture filled
-/// the cap with `Penetration`, which emits nothing — so it locked a fleet decal cost of zero and
-/// would have slept through any growth in the two kinds that do emit.
-fn battered_variation() -> VehicleVariation {
-    let mut variation = VehicleVariation::default();
-    for index in 0..MAX_HIT_DECALS {
-        variation.record_hit(HitDecal {
-            local_position: [0.3 + index as f32 * 0.05, 1.0, 2.0],
-            local_normal: [0.0, 0.0, 1.0],
-            radius: 0.13,
-            age_s: 0.0,
-            // Alternating the two DRAWING kinds; both emit two stamps, so either is the worst
-            // case and using both keeps the lock honest if they ever diverge.
-            kind: if index % 2 == 0 { DecalKind::Scuff } else { DecalKind::Gouge },
-            frame: DecalFrame::Hull,
-            patch: None,
-        });
-    }
-    variation
-}
-
 /// The particle pool at cap, as this frame's batch.
 fn essential_particle_vertices() -> usize {
     let mut fx = FxSystem::default();
@@ -139,15 +117,6 @@ fn essential_particle_vertices() -> usize {
         fx.spawn(puff(Vec3::new(index as f32 * 0.5, 1.0, 30.0)));
     }
     fx.vertices(Vec3::ZERO, Vec3::Z, &|_| None).len()
-}
-
-/// Every tank in the roster battered to its decal cap.
-fn essential_decal_vertices() -> usize {
-    let tank = snapshot();
-    let variation = battered_variation();
-    let mut batch = Vec::new();
-    append_decal_quads(&mut batch, variation.decals(), &tank);
-    batch.len() * BATTLE_TANKS
 }
 
 /// The crater pool at cap, every mark a fresh high-explosive scorch — the expensive family, and
@@ -186,11 +155,12 @@ fn rut_vertices() -> usize {
 #[test]
 fn the_fx_frame_worst_case_is_locked() {
     let particles = essential_particle_vertices();
-    let decals = essential_decal_vertices();
-    let essential = particles + decals;
+    // The fleet's scuffs and gouges are wound RECORDS the vehicle shader reads (Z5), not FX
+    // quads: their cost left this batch for the armor-damage buffer.
+    let essential = particles;
     assert_eq!(
         essential, FX_ESSENTIAL_VERTEX_BUDGET,
-        "the ESSENTIAL FX worst case moved (particles {particles} + fleet decals {decals}); if \
+        "the ESSENTIAL FX worst case moved (particles {particles}); if \
          the change is intentional, update FX_ESSENTIAL_VERTEX_BUDGET in the same diff, with the \
          measurement that justifies the new number",
     );

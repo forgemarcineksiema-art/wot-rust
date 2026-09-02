@@ -366,6 +366,18 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         * (1.0 - burnt)
         * (1.0 - wet * 0.6);
     albedo = mix(albedo, dust_tone * albedo_var, field_dust * 0.55);
+    // Surface wounds (Inny Poziom Z5): a bounce's dish and a ricochet's gouge are MATERIAL —
+    // the normal leans into the depression, the paint is scorched at the rim, the steel is
+    // bared (and shinier) where the round struck, a gouge carries a bright torn scrape along
+    // its groove. Never a flat stamp floating over the plate.
+    let wound = armor_surface_wound(input.world_pos, input.damage_index);
+    world_n = normalize(world_n + wound.bend);
+    // Bared steel is dull grey, not chrome: darker than the paint's tint, half metallic.
+    let bared_steel = vec3<f32>(0.29, 0.285, 0.275) * albedo_var;
+    albedo = mix(albedo, bared_steel, wound.bare);
+    // The dish is a cavity: it shades darker toward its floor, and the scorched rim darker still.
+    albedo = albedo * (1.0 - wound.dent * 0.30) * (1.0 - wound.soot * 0.65);
+    albedo = albedo + vec3<f32>(0.34, 0.33, 0.31) * wound.scrape;
     let ao = ao_rough.r;
 
     // The sun a hull sees is the sun the GROUND under it sees: the shadow map and the wandering
@@ -436,7 +448,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let half_v = normalize(key_dir + view_dir);
     // Micro-variation and dust roughen the finish; rain tightens it; charring caps it matte.
     let role_roughness = select(mat.roughness, 0.78, fractured_steel);
-    let rough_base = role_roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet);
+    let rough_base = role_roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet)
+        * (1.0 - wound.bare * 0.25);
     let roughness = clamp(
         mix(rough_base + (grain - 0.5) * 0.20 + dust * 0.22, 0.95, burnt),
         0.04,
@@ -470,7 +483,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // only reflects at grazing angles, so F0 rides the lane: worn track metal catches the sky at
     // any angle instead of only silhouette-on, which is most of what separates a steel belt from
     // a rubber one at battle range.
-    let metal = ao_rough.b;
+    let metal = max(ao_rough.b, wound.bare * 0.4);
     let f0 = mix(0.04, 0.32, metal);
     let fresnel = f0 + (1.0 - f0) * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.

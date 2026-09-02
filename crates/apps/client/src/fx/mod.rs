@@ -26,7 +26,7 @@ use renderer_api::FxVertex;
 
 use crate::vehicle::pose::VehiclePose;
 pub(crate) use decals::pose_of;
-pub use decals::{append_decal_quads, decal_from_damage_event};
+pub use decals::{append_hit_wounds_to, decal_from_damage_event, hit_wound_records};
 pub(crate) use fire::{FireEvent, resolve_shots};
 use game_core::TankId;
 pub(crate) use particle::{MAX_PARTICLES, Particle};

@@ -246,6 +246,7 @@ pub fn armor_damage_instance(
                 glow,
                 glow_tightness: breach_glow_tightness(breach.shell_type),
                 cut,
+                kind: renderer_api::ArmorMarkKind::Breach,
             });
         }
     }

@@ -3,8 +3,8 @@ use common::{identity, luma_255};
 
 use game_core::TankId;
 use renderer_api::{
-    ArmorApertureRender, ArmorDamageInstance, MaterialHandle, MeshHandle, RenderFrame,
-    RenderObject, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
+    ArmorApertureRender, ArmorDamageInstance, ArmorMarkKind, MaterialHandle, MeshHandle,
+    RenderFrame, RenderObject, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
     VehicleTextureMap, VehicleVertex, view_projection_matrix,
 };
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
@@ -75,6 +75,7 @@ fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
             glow: 0.0,
             glow_tightness: 1.0,
             cut: true,
+            kind: ArmorMarkKind::Breach,
         }],
     }]);
     let center = (32 * 64 + 32) * 4;
@@ -141,6 +142,7 @@ fn a_scorch_only_aperture_darkens_without_opening_the_mesh() {
         glow: 0.0,
         glow_tightness: 1.0,
         cut,
+        kind: ArmorMarkKind::Breach,
     };
     let whole = render(Vec::new());
     let cut =
@@ -368,4 +370,92 @@ fn vehicle_triangle() -> VehicleMeshAsset {
         ],
         vec![0, 1, 2],
     )
+}
+
+/// Inny Poziom Z5: a non-penetrating strike is MATERIAL on the plate, not a stamp over it. A
+/// scuff record (kind 1) changes the plate's colour at its centre — bared steel and a scorched
+/// rim — while the mesh stays closed (the pixel is still the plate, not the background), and a
+/// gouge record (kind 2) does the same along its groove. The renderer decides this from the
+/// same aperture list the breaches ride, so a wound can never float 6 mm in front of its hull.
+#[test]
+fn a_scuff_and_a_gouge_mark_the_plate_without_opening_it() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let mesh = MeshHandle(94);
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let render = |armor_damage| {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+                armor_damage,
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+    let wound = |kind: ArmorMarkKind, major: f32, minor: f32| {
+        vec![ArmorDamageInstance {
+            tank_id: TankId(1),
+            apertures: vec![ArmorApertureRender {
+                center: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+                tangent: [1.0, 0.0, 0.0],
+                major_radius_m: major,
+                minor_radius_m: minor,
+                rotation_rad: 0.0,
+                irregularity: 0.15,
+                phase_a: 0.7,
+                phase_b: 2.1,
+                half_depth_m: 0.2,
+                glow: 0.0,
+                glow_tightness: 1.0,
+                cut: false,
+                kind,
+            }],
+        }]
+    };
+    let whole = render(Vec::new());
+    let scuffed = render(wound(ArmorMarkKind::Scuff, 0.25, 0.25));
+    let gouged = render(wound(ArmorMarkKind::Gouge, 0.45, 0.10));
+    let center = (32 * 64 + 32) * 4;
+    let corner = 4;
+    let plate = &whole[center..center + 4];
+    for (label, marked) in [("scuff", &scuffed), ("gouge", &gouged)] {
+        let pixel = &marked[center..center + 4];
+        // Bared steel is grey where the paint was green: the hue moves even where the luma
+        // barely does, so measure the colour distance, not the brightness.
+        let distance: i32 = (0..3).map(|c| (pixel[c] as i32 - plate[c] as i32).abs()).sum();
+        assert!(
+            distance > 40,
+            "the {label} changes the plate's colour at its centre visibly: {pixel:?} vs {plate:?}"
+        );
+        assert_ne!(
+            pixel,
+            &marked[corner..corner + 4],
+            "the {label} does not open the plate: its centre is not the background"
+        );
+    }
 }

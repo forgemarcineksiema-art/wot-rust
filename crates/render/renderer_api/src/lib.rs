@@ -58,8 +58,8 @@ pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_proje
 pub use terrain_material::{TERRAIN_LAYERS, TerrainGroundMaps, TerrainLayer, TerrainMaterialSet};
 pub use texture::{ALPHA_CUTOUT, MipMode, Rgba8MipChain, Rgba8MipLevel};
 pub use vehicle::{
-    ArmorApertureRender, ArmorDamageInstance, MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex,
-    generate_tangents,
+    ArmorApertureRender, ArmorDamageInstance, ArmorMarkKind, MAPPING_PARAMETRIC, MAPPING_TRIPLANAR,
+    VehicleVertex, generate_tangents,
 };
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,

@@ -98,7 +98,6 @@ impl ClientApp {
         crate::fx::append_shell_tracers(live, &shells, eye);
         // The paths behind the streaks (A8): where every seen shell has been, dimming out.
         self.fx.append_shell_trails(live, eye);
-        self.append_scar_quads(live);
 
         let ground = budget.saturating_sub(live.len());
         out.clear();

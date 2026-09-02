@@ -281,9 +281,10 @@ impl ClientApp {
                 ricocheted: event.ricocheted,
                 high_explosive: event.shell_type == game_core::ShellType::HighExplosive,
             });
-            // The strike also scars the target: a permanent hole for a penetration, a fading
-            // scuff/gouge otherwise, recorded in the plate's own rotating frame and seated on the
-            // target's visual armor via its cached mesh-contact index.
+            // The strike also scars the target: a permanent hole for a penetration, a dished scuff
+            // or a gouge otherwise (material on the plate, kept for the battle — Z5), recorded in
+            // the plate's own rotating frame and seated on the target's visual armor via its
+            // cached mesh-contact index.
             if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target) {
                 let contact = self.vehicle_asset_catalog.contact_index(target.vehicle);
                 if let Some(decal) =

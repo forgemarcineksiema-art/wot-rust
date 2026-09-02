@@ -7,7 +7,32 @@
 
 use glam::{Vec2, Vec3};
 
-/// One world-space analytical opening consumed by color, depth and shadow vehicle passes.
+/// What a mark on the armor IS (Inny Poziom Z5). A breach is the hole (or the scorch ring on a
+/// hull without cut truth); a scuff and a gouge are the MATERIAL a non-penetrating strike left
+/// on the plate — a shallow dish with bared steel and a scorched rim, a bright scrape along the
+/// departure — evaluated by the vehicle shader from the same record list, never as a flat
+/// stamp drawn over the plate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ArmorMarkKind {
+    #[default]
+    Breach,
+    Scuff,
+    Gouge,
+}
+
+impl ArmorMarkKind {
+    /// The lane the GPU record carries (`thermal.w`): 0 breach, 1 scuff, 2 gouge.
+    pub fn as_lane(self) -> f32 {
+        match self {
+            ArmorMarkKind::Breach => 0.0,
+            ArmorMarkKind::Scuff => 1.0,
+            ArmorMarkKind::Gouge => 2.0,
+        }
+    }
+}
+
+/// One world-space analytical mark consumed by the vehicle passes: a breach opens (or scorches)
+/// the plate in color, depth and shadow; a scuff or gouge shades it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ArmorApertureRender {
     pub center: [f32; 3],
@@ -30,6 +55,8 @@ pub struct ArmorApertureRender {
     /// (the part-aware T-54 today); legacy hulls keep a scorch ring instead of a hole into
     /// nothing, until their hybrid migration lands.
     pub cut: bool,
+    /// Breach, scuff or gouge — which material function the shader applies.
+    pub kind: ArmorMarkKind,
 }
 
 /// Per-tank damage descriptors. `tank_id` connects them to ordinary render objects without
