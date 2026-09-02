@@ -420,11 +420,14 @@ impl BakedTree {
 /// Mid): Close spans 388 (bush) to 1,838 (oak — the 12 cm thin-stick rule slimmed the card-
 /// covered wood everywhere); Mid spans 124 to 976 (a dense pine keeps its whole whorl fan,
 /// because the 55 m swap must never amputate the tree's anatomy).
-/// Ceiling raised 2,000 → 2,400 on 2026-09-02 (route 2): the AUTHORED oak's wood — Sapling's
-/// trunk and 13 limbs at eight sides plus 16 twigs at four — measures 2,104; the cards still
-/// count in the consumers, and the frame verdict is still the flora_frame_probe's.
-pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=2_400;
-pub const TREE_LOD1_MAX_TRIS: usize = 1_100;
+/// Ceiling raised 2,000 → 3,500 on 2026-09-02 (route 2): the AUTHORED oak's wood — Sapling's
+/// trunk and limbs at eight sides plus every twig over 4.5 cm at four, so the cluster cards
+/// sit at the crown's envelope instead of pulled onto bare limbs — measures 3,128; the cards
+/// still count in the consumers, and the frame verdict is still the flora_frame_probe's.
+/// Widened again for the variants (2026-09-02, late): the old willow keeps 131 pieces of
+/// pendulous wood at 8,784 triangles; the Mid rung of the same tree 2,100.
+pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 300..=12_000;
+pub const TREE_LOD1_MAX_TRIS: usize = 6_000;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
@@ -441,26 +444,26 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // never the tree's anatomy.
     // Oak re-blessed 2026-09-02 (route 2): the AUTHORED oak — Sapling's skeleton (trunk and
     // 13 limbs as wood, 15.9 m), 161 cross pairs of Blender-rendered leaf clusters to 18.7 m.
-    (TreeSpecies::Oak, 0x5727_8c53_12ba_6b14),
+    (TreeSpecies::Oak, 0x0ce2_6287_5c68_8c8d),
     // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
     // grown to 19.6 m, the Column envelope, hard up-tropism.
-    (TreeSpecies::Poplar, 0x9acd_70d3_da17_7373),
+    (TreeSpecies::Poplar, 0x1f55_74a5_e42c_7d1c),
     // Willow re-blessed 2026-08-22 (Drzewa 3.0 PR8): the sweep showcase — rising limbs arced
     // over by negative tropism, level-2 curtains falling hard, elongated hanging cards.
-    (TreeSpecies::Willow, 0xae22_ee7e_22cb_cd4f),
+    (TreeSpecies::Willow, 0xf3dd_2f44_1eb0_ac4c),
     // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
     // opening into a low orchard dome with heavy down-angles.
-    (TreeSpecies::FruitTree, 0x9b11_9cd6_cad9_2904),
+    (TreeSpecies::FruitTree, 0xa198_90ab_2dcc_7cc8),
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8): a one-level skeleton stub fanning wide
     // into dense small cards; still honestly concealing nothing.
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8, final): dense one-level skeleton, deep
     // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
     // its middle, and the steppe's rule-1 dark plane rides on that.
-    (TreeSpecies::Bush, 0x45ff_6ebb_6ae2_8cd7),
+    (TreeSpecies::Bush, 0xf0f1_858e_6502_e441),
     // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
     // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
     // fronds on cards. The lobes died with this bless.
-    (TreeSpecies::Pine, 0x5bc9_8ae3_7911_cc9f),
+    (TreeSpecies::Pine, 0x8212_3d9a_ed9a_c6a5),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —
@@ -561,7 +564,9 @@ mod tests {
     fn the_canopy_reaches_a_realistic_mature_height() {
         // `tip()` covers both crown representations: lobes for the legacy species, the card
         // deck for the migrated ones.
-        let top = |species| bake_tree(species, 0).tip();
+        // The reference (mature) variant: the young and the sparse are meant to be shorter.
+        let top =
+            |species| bake_tree(species, authored::variant_seed(authored::REFERENCE_VARIANT)).tip();
         assert!(top(TreeSpecies::Oak) > 15.0, "oak: {}", top(TreeSpecies::Oak));
         assert!(top(TreeSpecies::Poplar) > 19.0, "poplar: {}", top(TreeSpecies::Poplar));
         assert!(top(TreeSpecies::Willow) > 12.0, "willow: {}", top(TreeSpecies::Willow));
@@ -592,12 +597,14 @@ mod tests {
 
     #[test]
     fn individuals_differ_but_the_species_family_holds() {
-        let a = bake_tree(TreeSpecies::Oak, 1);
-        let b = bake_tree(TreeSpecies::Oak, 2);
+        let a = bake_tree(TreeSpecies::Oak, authored::seed_for(0, false));
+        let b = bake_tree(TreeSpecies::Oak, authored::seed_for(2, true));
         assert_ne!(a.deterministic_hash(), b.deterministic_hash(), "no two oaks alike");
-        // Family: both stay inside the LOD0 budget and within ~30% height of each other.
+        // Family: a young oak and an old one are still both oaks — the variants span about
+        // 2:1 in height (route 2's "from small to big"), never a sapling next to a giant.
         let (ha, hb) = (a.tip(), b.tip());
-        assert!((ha - hb).abs() / ha.max(hb) < 0.3, "oaks stay oak-sized: {ha} vs {hb}");
+        let ratio = ha.max(hb) / ha.min(hb);
+        assert!((1.0..=2.2).contains(&ratio), "oaks stay oak-sized: {ha} vs {hb}");
     }
 
     // `canopy_normals_point_away_from_the_crown_centroid` died here with the lobes (wave 3):

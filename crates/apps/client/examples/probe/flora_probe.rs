@@ -76,8 +76,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // canopy renders against the white no-op texel and every card is a solid rectangle.
     let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     renderer.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
-    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
-    renderer.set_bark_textures(&ctx, &bark_albedo, &bark_normal);
+    renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
     let mut lod_state = scene_build::tree_lod::TreeLodState::default();
     let tree_frame = renderer_api::RenderFrame {
         objects: scene_build::tree_lod::tree_frame_objects(

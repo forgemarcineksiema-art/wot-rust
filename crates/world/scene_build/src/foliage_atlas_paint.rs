@@ -28,7 +28,7 @@ use world_forge::tree::leaf_atlas::{
 /// 2026-09-02 (route 2): 2048×1024 → 2048×2048, 22 369 624 → 44 739 240 — the bottom half is
 /// the oak's authored cluster block, eight 512 px sprites of real leaves; the MX330 carries
 /// 2 GiB and the whole atlas is 2.1 % of it.
-pub const FOLIAGE_ATLAS_BYTES: usize = 44_739_240;
+pub const FOLIAGE_ATLAS_BYTES: usize = 89_478_488;
 
 /// The world-space window one impostor sprite's INSET rect maps onto, tree-local metres.
 /// The crossed quads (`foliage::push_impostor_quads`) are built to exactly these extents, so
@@ -59,7 +59,7 @@ fn impostor_source(
     SOURCES[index].get_or_init(|| {
         world_forge::tree::bake_tree_lod(
             species,
-            crate::tree_lod::RUNG_SEED,
+            crate::tree_lod::reference_seed(),
             world_forge::tree::TreeLod::Close,
         )
     })
@@ -100,20 +100,27 @@ pub fn foliage_atlas_chains() -> (Rgba8MipChain, Rgba8MipChain) {
     (color, normal)
 }
 
-/// The bark pair as upload payloads (route 2): both pages box-filtered — an albedo tile is
-/// opaque (no coverage to preserve) and normals renormalise in the shader.
-pub fn bark_texture_chains() -> (Rgba8MipChain, Rgba8MipChain) {
-    let (albedo, normal) = world_forge::tree::authored::bark_pages();
-    (
-        Rgba8MipChain::build(
-            Rgba8MipLevel::new(albedo.width, albedo.height, albedo.rgba.clone()),
-            MipMode::Box,
-        ),
-        Rgba8MipChain::build(
-            Rgba8MipLevel::new(normal.width, normal.height, normal.rgba.clone()),
-            MipMode::Box,
-        ),
-    )
+/// Every species' bark pair as upload payloads (route 2), one array layer per species in
+/// `TreeSpecies::ALL` order — the order `surface_role::bark_for_layer` names: both pages
+/// box-filtered (an albedo tile is opaque, no coverage to preserve; normals renormalise in
+/// the shader).
+pub fn bark_texture_layers() -> Vec<(Rgba8MipChain, Rgba8MipChain)> {
+    world_forge::tree::TreeSpecies::ALL
+        .into_iter()
+        .map(|species| {
+            let (albedo, normal) = world_forge::tree::authored::bark_pages(species);
+            (
+                Rgba8MipChain::build(
+                    Rgba8MipLevel::new(albedo.width, albedo.height, albedo.rgba.clone()),
+                    MipMode::Box,
+                ),
+                Rgba8MipChain::build(
+                    Rgba8MipLevel::new(normal.width, normal.height, normal.rgba.clone()),
+                    MipMode::Box,
+                ),
+            )
+        })
+        .collect()
 }
 
 fn linear_to_srgb(linear: f32) -> u8 {

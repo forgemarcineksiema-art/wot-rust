@@ -86,8 +86,22 @@ pub mod surface_role {
     pub const PLANK: f32 = 2.0;
     /// Roof courses (slate/tile/shingle): rows with staggered joints and per-tile tone.
     pub const SLATE: f32 = 3.0;
-    /// Tree bark: vertical striations with deeper grooves.
+    /// Tree bark: vertical striations with deeper grooves — and, since route 2, a species'
+    /// photographic tile: `BARK + layer × BARK_LAYER_STEP` names the bark array layer, and
+    /// every `BARK`-band test (`role < 4.5`, `|role − 4| < 0.5`) still holds for all of them.
     pub const BARK: f32 = 4.0;
+    /// The role step between two bark layers (up to eight layers stay inside the band).
+    pub const BARK_LAYER_STEP: f32 = 0.05;
+
+    /// The bark role of array layer `layer`.
+    pub fn bark_for_layer(layer: u32) -> f32 {
+        BARK + layer as f32 * BARK_LAYER_STEP
+    }
+
+    /// Whether a surface role is a bark (any layer).
+    pub fn is_bark(role: f32) -> bool {
+        (role - BARK).abs() < 0.5
+    }
     /// Mid-field grass clump card (Żywy Step P2): the vertex stage grows it in under the
     /// near blade ring and collapses it into the ground before the dressing chunk culls —
     /// the sway lane doubles as the vertex's height over the root (sway = height * 0.3).

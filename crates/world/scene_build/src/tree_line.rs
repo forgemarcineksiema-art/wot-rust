@@ -52,8 +52,10 @@ use crate::foliage;
 /// and 3.5 m stations left a half-metre window between two of them at 7 m up.
 pub const STATION_SPACING_M: f32 = 3.0;
 /// A station's species must reach this fraction of the box height at its fitted scale, or
-/// the mix's best filler stands there instead.
-pub const FILL_MIN: f32 = 0.80;
+/// the mix's best filler stands there instead. Lowered 0.80 → 0.70 with the authored trees
+/// (route 2, 2026-09-02): their crowns are wider for their height than the procedural ones,
+/// and a 6 m wall fits a mature pine only at 0.6 of its size; the hulls carry the opacity.
+pub const FILL_MIN: f32 = 0.70;
 /// The crown hull: bottom at this fraction of the box height...
 pub const HULL_BOTTOM: f32 = 0.30;
 /// ...top at this fraction of the fitted tip (under the cards' own tips)...
@@ -106,6 +108,8 @@ const DEFAULT_MIX: [(SceneryKind, f32); 2] =
 #[derive(Debug, Clone, PartialEq)]
 pub struct TreeLineStation {
     pub instance: SceneryInstance,
+    /// The bake seed: names the variant that fills this wall (route 2) and the mirror.
+    pub seed: u64,
     pub tip_m: f32,
     pub reach_m: f32,
 }
@@ -273,31 +277,46 @@ pub fn tree_line_stations(
         let position = [x, ground_y, z];
         let candidates = std::iter::once(drawn)
             .chain(by_weight.iter().map(|(kind, _)| *kind).filter(|k| *k != drawn));
-        // (kind, fitted scale, tip, reach, fill) for every species of the mix that fits here.
-        let mut fitted: Vec<(SceneryKind, f32, f32, f32, f32)> = Vec::new();
+        // (kind, seed, fitted scale, tip, reach, fill) for every species of the mix — at
+        // the VARIANT that fills this wall best (route 2: a 16 m wall is a windbreak of young
+        // poplars, a 22 m one of mature; the mirror follows the position).
+        let mirrored =
+            world_forge::tree::authored::variant_of_seed(foliage::statics_tree_seed(position)).1;
+        let mut fitted: Vec<(SceneryKind, u64, f32, f32, f32, f32)> = Vec::new();
         for kind in candidates {
             let Some(species) = foliage::tree_species(kind) else {
                 continue;
             };
-            let tree = bake_tree_lod(species, foliage::statics_tree_seed(position), TreeLod::Mid);
-            let tip = tree.tip().max(0.01);
-            let reach = crown_reach(&tree).max(0.01);
-            let fit = (box_height * HEADROOM / tip)
-                .min((thin + CROWN_OVERHANG_M - across.abs()) / reach)
-                .min((run - along.abs()) / reach)
-                .min(SCALE_MAX);
-            if fit < SCALE_MIN {
-                continue;
+            let mut best: Option<(SceneryKind, u64, f32, f32, f32, f32)> = None;
+            for variant in 0..world_forge::tree::authored::VARIANTS {
+                let seed = world_forge::tree::authored::seed_for(variant, mirrored);
+                let tree = bake_tree_lod(species, seed, TreeLod::Mid);
+                let tip = tree.tip().max(0.01);
+                let reach = crown_reach(&tree).max(0.01);
+                let fit = (box_height * HEADROOM / tip)
+                    .min((thin + CROWN_OVERHANG_M - across.abs()) / reach)
+                    .min((run - along.abs()) / reach)
+                    .min(SCALE_MAX);
+                if fit < SCALE_MIN {
+                    continue;
+                }
+                let fill = tip * fit / box_height;
+                if best.is_none_or(|b| fill > b.5) {
+                    best = Some((kind, seed, fit, tip, reach, fill));
+                }
             }
-            fitted.push((kind, fit, tip, reach, tip * fit / box_height));
+            if let Some(best) = best {
+                fitted.push(best);
+            }
         }
         let chosen = fitted
             .first()
-            .filter(|(kind, _, _, _, fill)| *kind == drawn && *fill >= FILL_MIN)
-            .or_else(|| fitted.iter().max_by(|a, b| a.4.total_cmp(&b.4)));
-        if let Some((kind, scale, tip_m, reach_m, _)) = chosen.copied() {
+            .filter(|(kind, _, _, _, _, fill)| *kind == drawn && *fill >= FILL_MIN)
+            .or_else(|| fitted.iter().max_by(|a, b| a.5.total_cmp(&b.5)));
+        if let Some((kind, seed, scale, tip_m, reach_m, _)) = chosen.copied() {
             stations.push(TreeLineStation {
                 instance: SceneryInstance { kind, position, yaw_rad, scale },
+                seed,
                 tip_m,
                 reach_m,
             });
@@ -406,7 +425,7 @@ pub fn push_tree_line_trees(
         {
             push_crown_hull(vertices, indices, &hull, species);
         }
-        foliage::push_baked_tree(vertices, indices, &station.instance);
+        foliage::push_baked_tree_seeded(vertices, indices, &station.instance, station.seed);
     }
 }
 
@@ -519,8 +538,19 @@ mod tests {
                         station.instance.kind
                     );
                     let fill = station.tip_m * station.instance.scale / box_height;
+                    // A station squeezed against the wall's END fits the end, not the wall:
+                    // its crown must stay inside the box (the door between two boxes stays a
+                    // door), so the fill rule holds where there is room for a crown.
+                    let half = cover.half_extents_m;
+                    let along_x = half[0] >= half[2];
+                    let (run, along) = if along_x {
+                        (half[0], station.instance.position[0] - cover.center[0])
+                    } else {
+                        (half[2], station.instance.position[2] - cover.center[2])
+                    };
+                    let end_room = run - along.abs();
                     assert!(
-                        fill >= FILL_MIN,
+                        fill >= FILL_MIN || end_room < station.reach_m * SCALE_MAX,
                         "{id:?} {}: a {:?} at scale {:.2} fills {:.0} % of a {box_height:.1} m wall",
                         cover.id,
                         station.instance.kind,
@@ -602,7 +632,10 @@ mod tests {
     /// Orliny 22 / 40 k.
     #[test]
     fn the_planted_lines_stay_under_their_triangle_budget() {
-        const MAP_LINES_MAX_TRIS: usize = 120_000;
+        // Raised 120 k → 260 k with the authored stations (route 2): a Mid-rung authored
+        // tree is 1–2 k of wood plus its deck; Bystra's 96 stations measure ~206 k. The frame
+        // cost of the lines is F7b's measurement (the stations onto the ladder).
+        const MAP_LINES_MAX_TRIS: usize = 260_000;
         for id in MapId::SHIPPED {
             let map = map_forge::battlefield(*id);
             let mut vertices = Vec::new();

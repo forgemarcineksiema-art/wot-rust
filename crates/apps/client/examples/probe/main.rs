@@ -30,6 +30,7 @@ mod grass_costumes;
 mod is3_studio;
 mod jagdtiger_profile_probe;
 mod muzzle_probe;
+mod oak_probe;
 mod orliny_views;
 mod ostrogorsk_views;
 mod panther_ii_profile_probe;
@@ -39,6 +40,7 @@ mod reticle_strip;
 mod screenshot;
 mod shadow_probe;
 mod sky_probe;
+mod species_probe;
 mod t34_85_probe;
 mod t54_battle_views;
 mod t54_bow_probe;
@@ -72,8 +74,7 @@ pub(crate) fn bind_battle_foliage_atlas(
 ) {
     let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     renderer.set_foliage_atlas(ctx, &color, Some(&normal));
-    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
-    renderer.set_bark_textures(ctx, &bark_albedo, &bark_normal);
+    renderer.set_bark_textures(ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
 }
 
 type ProbeResult = Result<(), Box<dyn std::error::Error>>;
@@ -110,6 +111,7 @@ const PROBES: &[ProbeEntry] = &[
     ("is3_studio", is3_studio::run),
     ("jagdtiger_profile_probe", jagdtiger_profile_probe::run),
     ("muzzle_probe", muzzle_probe::run),
+    ("oak_probe", oak_probe::run),
     ("orliny_views", orliny_views::run),
     ("ostrogorsk_views", ostrogorsk_views::run),
     ("panther_ii_profile_probe", panther_ii_profile_probe::run),
@@ -121,6 +123,7 @@ const PROBES: &[ProbeEntry] = &[
     ("reticle_strip", reticle_strip::run),
     ("screenshot", screenshot::run),
     ("shadow_probe", shadow_probe::run),
+    ("species_probe", species_probe::run),
     ("sky_probe", sky_probe::run),
     ("t34_85_probe", t34_85_probe::run),
     ("t54_battle_views", t54_battle_views::run),

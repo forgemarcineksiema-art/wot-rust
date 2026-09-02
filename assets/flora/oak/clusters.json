@@ -1,59 +1,40 @@
 {
   "species": "oak",
   "kind": "leaf clusters",
-  "authoring": "in-house, Blender 5.2.0 LTS, scripts/flora/bake_oak_clusters.py",
+  "authoring": "in-house, Blender 5.2.0 LTS, scripts/flora/bake_clusters.py",
   "license": "project-owned (no third-party assets)",
   "sprite_px": 512,
   "grid": [
     4,
-    2
+    1
   ],
   "window_m": 1.5,
+  "hanging": false,
   "seed": 1,
-  "samples": 96,
+  "samples": 80,
   "sprites": [
     {
       "index": 0,
-      "seed": 1000,
-      "leaves": 269
+      "seed": 32815,
+      "leaves": 417
     },
     {
       "index": 1,
-      "seed": 1001,
-      "leaves": 270
+      "seed": 32816,
+      "leaves": 394
     },
     {
       "index": 2,
-      "seed": 1002,
-      "leaves": 253
+      "seed": 32817,
+      "leaves": 415
     },
     {
       "index": 3,
-      "seed": 1003,
-      "leaves": 251
-    },
-    {
-      "index": 4,
-      "seed": 1004,
-      "leaves": 246
-    },
-    {
-      "index": 5,
-      "seed": 1005,
-      "leaves": 250
-    },
-    {
-      "index": 6,
-      "seed": 1006,
-      "leaves": 242
-    },
-    {
-      "index": 7,
-      "seed": 1007,
-      "leaves": 274
+      "seed": 32818,
+      "leaves": 425
     }
   ],
   "color": "clusters_color.png",
   "normal": "clusters_normal.png",
-  "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at bottom centre of each slot"
+  "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at the bottom centre of each slot (top centre for a hanging species)"
 }

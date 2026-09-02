@@ -1,0 +1,40 @@
+{
+  "species": "bush",
+  "kind": "leaf clusters",
+  "authoring": "in-house, Blender 5.2.0 LTS, scripts/flora/bake_clusters.py",
+  "license": "project-owned (no third-party assets)",
+  "sprite_px": 512,
+  "grid": [
+    4,
+    1
+  ],
+  "window_m": 0.9,
+  "hanging": false,
+  "seed": 1,
+  "samples": 80,
+  "sprites": [
+    {
+      "index": 0,
+      "seed": 44834,
+      "leaves": 510
+    },
+    {
+      "index": 1,
+      "seed": 44835,
+      "leaves": 432
+    },
+    {
+      "index": 2,
+      "seed": 44836,
+      "leaves": 515
+    },
+    {
+      "index": 3,
+      "seed": 44837,
+      "leaves": 445
+    }
+  ],
+  "color": "clusters_color.png",
+  "normal": "clusters_normal.png",
+  "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at the bottom centre of each slot (top centre for a hanging species)"
+}

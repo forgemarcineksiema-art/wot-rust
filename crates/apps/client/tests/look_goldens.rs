@@ -793,10 +793,13 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
     // fence draws its near rung inside this crop, so foliage pixels count toward the void
     // (measured 32.6%). The ceiling follows with the usual slack; the metric still cannot
     // tell a leaf from a shadow, which is O2's row.
+    // dark_ceiling 0.35 -> 0.42 at the species-and-variants re-bless (route 2, 2026-09-02,
+    // late): the fruit tree by the fence is an authored, dense one now and its variant is
+    // the position's; more foliage pixels in the crop, the same tank under the same light.
     SubjectBounds {
         view: "prokhorovka_sniper_contact",
         median_floor: 0.320,
-        dark_ceiling: 0.35,
+        dark_ceiling: 0.42,
         form_floor: 0.0200,
     },
     // median_floor re-derived 0.110 -> 0.102 at the 2026-08-14 re-bless, openly: the T-54

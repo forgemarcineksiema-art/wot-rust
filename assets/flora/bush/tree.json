@@ -1,0 +1,260 @@
+{
+  "species": "bush",
+  "generator": "Sapling Tree Gen (Blender extension) + scripts/flora/bake_tree.py",
+  "blender": "5.2.0 LTS",
+  "license": "project-owned output; Sapling is GPL tooling, not shipped",
+  "table": {
+    "seed": 17,
+    "levels": 3,
+    "length": [
+      1.0,
+      0.7,
+      0.55,
+      0.4
+    ],
+    "lengthV": [
+      0.0,
+      0.1,
+      0.1,
+      0.0
+    ],
+    "branches": [
+      0,
+      9,
+      6,
+      0
+    ],
+    "curveRes": [
+      5,
+      4,
+      3,
+      1
+    ],
+    "curve": [
+      0.0,
+      -10.0,
+      -15.0,
+      0.0
+    ],
+    "curveV": [
+      30.0,
+      60.0,
+      80.0,
+      0.0
+    ],
+    "baseSplits": 4,
+    "segSplits": [
+      0.0,
+      0.3,
+      0.2,
+      0.0
+    ],
+    "splitAngle": [
+      0.0,
+      35.0,
+      30.0,
+      0.0
+    ],
+    "splitAngleV": [
+      0.0,
+      10.0,
+      10.0,
+      0.0
+    ],
+    "scale": 2.4,
+    "scaleV": 0.0,
+    "attractUp": [
+      0.0,
+      0.1,
+      0.1,
+      0.0
+    ],
+    "attractOut": [
+      0.0,
+      0.5,
+      0.3,
+      0.0
+    ],
+    "shape": "1",
+    "shapeS": "4",
+    "branchDist": 1.0,
+    "baseSize": 0.05,
+    "baseSize_s": 0.2,
+    "splitHeight": 0.1,
+    "ratio": 0.05,
+    "minRadius": 0.004,
+    "rootFlare": 1.0,
+    "ratioPower": 1.2,
+    "downAngle": [
+      90.0,
+      60.0,
+      50.0,
+      45.0
+    ],
+    "downAngleV": [
+      0.0,
+      -20.0,
+      15.0,
+      10.0
+    ],
+    "rotate": [
+      137.5,
+      137.5,
+      137.5,
+      137.5
+    ],
+    "rotateV": [
+      0.0,
+      20.0,
+      20.0,
+      0.0
+    ],
+    "leaves": 5,
+    "leafDownAngle": 45.0,
+    "leafDownAngleV": 15.0,
+    "leafRotate": 137.5,
+    "leafRotateV": 20.0,
+    "leafScale": 0.7,
+    "leafShape": "rect",
+    "horzLeaves": false,
+    "leafDist": "6"
+  },
+  "variants": {
+    "v0": {
+      "name": "young",
+      "deltas": {
+        "scale": 0.62,
+        "ratio": 0.85,
+        "branches": 0.8,
+        "leaves": -1,
+        "curveV": 1.0,
+        "seed": 101
+      },
+      "seed": 118,
+      "rungs": {
+        "near": {
+          "wood_vertices": 2884,
+          "wood_triangles": 4888,
+          "wood_pieces": 75,
+          "cards": 124,
+          "cards_pulled": 53,
+          "tip_wood_m": 1.898,
+          "tip_cards_m": 2.499,
+          "butt_radius_m": 0.283
+        },
+        "mid": {
+          "wood_vertices": 1056,
+          "wood_triangles": 1560,
+          "wood_pieces": 69,
+          "cards": 64,
+          "cards_pulled": 0,
+          "tip_wood_m": 1.897,
+          "tip_cards_m": 2.499,
+          "butt_radius_m": 0.063
+        }
+      }
+    },
+    "v1": {
+      "name": "mature",
+      "deltas": {
+        "scale": 1.0,
+        "ratio": 1.0,
+        "branches": 1.0,
+        "leaves": 0,
+        "curveV": 1.0,
+        "seed": 0
+      },
+      "seed": 17,
+      "rungs": {
+        "near": {
+          "wood_vertices": 3038,
+          "wood_triangles": 5112,
+          "wood_pieces": 88,
+          "cards": 220,
+          "cards_pulled": 83,
+          "tip_wood_m": 3.244,
+          "tip_cards_m": 3.714,
+          "butt_radius_m": 0.12
+        },
+        "mid": {
+          "wood_vertices": 1024,
+          "wood_triangles": 1528,
+          "wood_pieces": 65,
+          "cards": 112,
+          "cards_pulled": 0,
+          "tip_wood_m": 3.243,
+          "tip_cards_m": 3.714,
+          "butt_radius_m": 0.12
+        }
+      }
+    },
+    "v2": {
+      "name": "old",
+      "deltas": {
+        "scale": 1.15,
+        "ratio": 1.35,
+        "branches": 1.15,
+        "leaves": 1,
+        "curveV": 1.35,
+        "seed": 211
+      },
+      "seed": 228,
+      "rungs": {
+        "near": {
+          "wood_vertices": 3808,
+          "wood_triangles": 6368,
+          "wood_pieces": 114,
+          "cards": 320,
+          "cards_pulled": 122,
+          "tip_wood_m": 3.663,
+          "tip_cards_m": 4.13,
+          "butt_radius_m": 0.186
+        },
+        "mid": {
+          "wood_vertices": 1220,
+          "wood_triangles": 1800,
+          "wood_pieces": 80,
+          "cards": 160,
+          "cards_pulled": 0,
+          "tip_wood_m": 3.663,
+          "tip_cards_m": 4.13,
+          "butt_radius_m": 0.186
+        }
+      }
+    },
+    "v3": {
+      "name": "sparse",
+      "deltas": {
+        "scale": 0.9,
+        "ratio": 0.95,
+        "branches": 0.75,
+        "leaves": -2,
+        "curveV": 1.6,
+        "seed": 307
+      },
+      "seed": 324,
+      "rungs": {
+        "near": {
+          "wood_vertices": 2810,
+          "wood_triangles": 4728,
+          "wood_pieces": 78,
+          "cards": 102,
+          "cards_pulled": 45,
+          "tip_wood_m": 2.71,
+          "tip_cards_m": 3.379,
+          "butt_radius_m": 0.103
+        },
+        "mid": {
+          "wood_vertices": 996,
+          "wood_triangles": 1464,
+          "wood_pieces": 66,
+          "cards": 52,
+          "cards_pulled": 0,
+          "tip_wood_m": 2.71,
+          "tip_cards_m": 3.379,
+          "butt_radius_m": 0.103
+        }
+      }
+    }
+  }
+}

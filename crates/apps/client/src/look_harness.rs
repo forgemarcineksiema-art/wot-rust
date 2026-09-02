@@ -221,8 +221,7 @@ pub fn render_review_views_with_fov(
     // trees; wiring it here keeps the goldens honest about what the player sees.
     let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     renderer.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
-    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
-    renderer.set_bark_textures(&ctx, &bark_albedo, &bark_normal);
+    renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

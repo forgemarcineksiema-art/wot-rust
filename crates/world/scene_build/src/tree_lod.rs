@@ -24,14 +24,17 @@ use world_forge::tree::{TreeLod as BakeLod, TreeSpecies};
 /// purpose: grass may skip the depth passes, a tree may not — its shadow is half of what a
 /// tree contributes to a battlefield.
 const TREE_MESH_BASE: u32 = 0xFEE0_0000;
-/// Handles per species in the block: three rungs and a spare, so the oak's original three
-/// (`0xFEE0_0001..3`) keep the handles they shipped with.
-const HANDLES_PER_SPECIES: u32 = 4;
+/// Handles per variant: three rungs and a spare; per species: `VARIANTS` variants — so the
+/// oak's original three (`0xFEE0_0001..3`) are its first variant's and keep their numbers.
+const HANDLES_PER_VARIANT: u32 = 4;
+pub const VARIANTS: u32 = world_forge::tree::authored::VARIANTS;
+const HANDLES_PER_SPECIES: u32 = HANDLES_PER_VARIANT * VARIANTS;
 
-/// The oak's rungs under their original handles — the names the tests and probes grew up with.
-pub const TREE_NEAR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, TreeLod::Near);
-pub const TREE_MID_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, TreeLod::Mid);
-pub const TREE_IMPOSTOR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, TreeLod::Impostor);
+/// The oak's first variant's rungs under the original handles — the names the tests and
+/// probes grew up with.
+pub const TREE_NEAR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod::Near);
+pub const TREE_MID_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod::Mid);
+pub const TREE_IMPOSTOR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod::Impostor);
 
 const _: () = assert!(
     TREE_MESH_BASE + LADDER_SPECIES.len() as u32 * HANDLES_PER_SPECIES
@@ -39,21 +42,21 @@ const _: () = assert!(
 );
 
 /// The species that ride the instanced ladder, in handle order — append-only, because a handle
-/// is a species × rung slot. Every planted TREE species is here (Inny Poziom F7); the bush is
-/// the one plant the statics bake keeps: a tenth of a tree's triangles at CLOSE, and the
-/// steppe's dark value plane rides on its tufts at every distance.
-pub const LADDER_SPECIES: [TreeSpecies; 5] = [
+/// is a species × variant × rung slot. Every planted species is here: the trees since Inny
+/// Poziom F7, the bush since route 2 gave it an authored shrub of its own.
+pub const LADDER_SPECIES: [TreeSpecies; 6] = [
     TreeSpecies::Oak,
     TreeSpecies::Poplar,
     TreeSpecies::Willow,
     TreeSpecies::FruitTree,
     TreeSpecies::Pine,
+    TreeSpecies::Bush,
 ];
 
-/// The mesh handle of one species' rung: the block base, the species' slot, the rung's index.
-/// `const` so the oak's named handles above are compile-time constants. Asking for a species
-/// that is not on the ladder is a bug, and panics as one.
-pub const fn ladder_mesh(species: TreeSpecies, lod: TreeLod) -> MeshHandle {
+/// The mesh handle of one species' variant's rung: the block base, the species' slot, the
+/// variant's slot, the rung's index. `const` so the oak's named handles above are
+/// compile-time constants.
+pub const fn ladder_mesh(species: TreeSpecies, variant: u32, lod: TreeLod) -> MeshHandle {
     // A `const fn` cannot search `LADDER_SPECIES`; this match IS that order, and
     // `ladder_slots_follow_the_species_order` proves the two agree.
     let slot: u32 = match species {
@@ -62,9 +65,26 @@ pub const fn ladder_mesh(species: TreeSpecies, lod: TreeLod) -> MeshHandle {
         TreeSpecies::Willow => 2,
         TreeSpecies::FruitTree => 3,
         TreeSpecies::Pine => 4,
-        TreeSpecies::Bush => panic!("the bush does not ride the ladder"),
+        TreeSpecies::Bush => 5,
     };
-    MeshHandle(TREE_MESH_BASE + slot * HANDLES_PER_SPECIES + lod.rung_index())
+    MeshHandle(
+        TREE_MESH_BASE
+            + slot * HANDLES_PER_SPECIES
+            + (variant % VARIANTS) * HANDLES_PER_VARIANT
+            + lod.rung_index(),
+    )
+}
+
+/// The seed an instance grows from — its position bits, the statics bake's own rule
+/// (`foliage::statics_tree_seed`) — which names its variant and mirror on every route.
+pub fn instance_seed(instance: &SceneryInstance) -> u64 {
+    instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32)
+}
+
+/// The variant an instance draws on the ladder (the mirror is a statics-only luxury: a shared
+/// mesh cannot flip per instance without flipping its winding).
+pub fn instance_variant(instance: &SceneryInstance) -> u32 {
+    world_forge::tree::authored::variant_of_seed(instance_seed(instance)).0
 }
 
 /// Which scenery kinds ride the instanced ladder, and as which species. `None` is a kind the
@@ -78,8 +98,8 @@ pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
         SceneryKind::Willow => Some(TreeSpecies::Willow),
         SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
         SceneryKind::Pine => Some(TreeSpecies::Pine),
-        SceneryKind::Bush
-        | SceneryKind::Rock
+        SceneryKind::Bush => Some(TreeSpecies::Bush),
+        SceneryKind::Rock
         | SceneryKind::Lamppost
         | SceneryKind::DebrisHeap
         | SceneryKind::FloraTree
@@ -107,21 +127,26 @@ pub const HYSTERESIS_M: f32 = 8.0;
 /// line up, and the part being buried here is the part below it.
 pub(crate) const TRUNK_SINK_M: f32 = 0.35;
 
-/// A reference seed for the registered rung meshes. Per-instance variety rides the instance
-/// matrix (yaw/scale), and the canopy's deterministic limb/lobe phases come from the species
-/// bake; the ladder ships one representative individual per rung so every copy on the map
-/// shares the silhouette the species table promises.
-pub(crate) const RUNG_SEED: u64 = 0xDAB_0001;
+/// The seed of the ladder's representative individual (the reference variant, unmirrored):
+/// the impostor is splatted from it and the far-rung window measured on it.
+pub(crate) fn reference_seed() -> u64 {
+    world_forge::tree::authored::variant_seed(world_forge::tree::authored::REFERENCE_VARIANT)
+}
+
+/// The seed the ladder grows variant `variant` from (unmirrored).
+pub(crate) fn ladder_variant_seed(variant: u32) -> u64 {
+    world_forge::tree::authored::variant_seed(variant)
+}
 
 /// The rendered canopy tip of one instanced battle tree, metres above the instance's map
-/// position: the rung mesh's tip at the instance scale, minus the trunk sink. The number a
-/// TreeLine collision box must tower over to honestly contain the trees it hosts (PR 5).
+/// position: ITS variant's rung tip at the instance scale, minus the trunk sink. The number
+/// a TreeLine collision box must tower over to honestly contain the trees it hosts (PR 5).
 /// Test-only: the honesty lock `tree_line_boxes_contain_the_trees_they_host` is its caller.
 #[cfg(test)]
-pub(crate) fn battle_tree_rendered_top_m(species: TreeSpecies, scale: f32) -> f32 {
+pub(crate) fn battle_tree_rendered_top_m(species: TreeSpecies, seed: u64, scale: f32) -> f32 {
     // `tip()` covers every crown representation — lobes then, the card deck now (PR6): the
     // TreeLine box must tower over whatever actually draws.
-    let tip = world_forge::tree::bake_tree_lod(species, RUNG_SEED, BakeLod::Close).tip();
+    let tip = world_forge::tree::bake_tree_lod(species, seed, BakeLod::Close).tip();
     tip * scale - TRUNK_SINK_M
 }
 
@@ -172,7 +197,7 @@ pub fn select_lod(distance_m: f32, previous: Option<TreeLod>) -> TreeLod {
 /// Trunk and canopy are merged into one `SceneVertex` stream with the same colouring the
 /// statics bake uses (`foliage::push_baked_tree` — painterly crown shading, bark surface lane
 /// on the trunk), so the instanced path and the baked path agree while both exist.
-pub fn tree_mesh_asset(species: TreeSpecies, lod: TreeLod) -> MeshAsset {
+pub fn tree_mesh_asset(species: TreeSpecies, variant: u32, lod: TreeLod) -> MeshAsset {
     if lod == TreeLod::Impostor {
         return impostor_mesh_asset(species);
     }
@@ -180,7 +205,10 @@ pub fn tree_mesh_asset(species: TreeSpecies, lod: TreeLod) -> MeshAsset {
         TreeLod::Near => BakeLod::Close,
         TreeLod::Mid | TreeLod::Impostor => BakeLod::Mid,
     };
-    let tree = world_forge::tree::bake_tree_lod(species, RUNG_SEED, bake_lod);
+    let tree = world_forge::tree::bake_tree_lod(species, ladder_variant_seed(variant), bake_lod);
+    let bark_role = renderer_api::surface_role::bark_for_layer(
+        world_forge::tree::authored::species_index(species),
+    );
     let height = tree.tip().max(0.01);
     // Wind is a NEAR-rung luxury. The gust field is per-vertex noise, and past the near band
     // a 28 cm sway is under a pixel — the coarser rungs carry sway 0, so the shader's
@@ -200,11 +228,7 @@ pub fn tree_mesh_asset(species: TreeSpecies, lod: TreeLod) -> MeshAsset {
             // The painterly gradient, same as the statics bake: crown tops toward the light,
             // undersides into shade; the trunk wears bark down the surface lane.
             let shade = if is_canopy { 0.82 + 0.18 * vertex.normal.y.max(0.0) } else { 1.0 };
-            let role = if is_canopy {
-                renderer_api::surface_role::FOLIAGE
-            } else {
-                renderer_api::surface_role::BARK
-            };
+            let role = if is_canopy { renderer_api::surface_role::FOLIAGE } else { bark_role };
             vertices.push(
                 renderer_api::SceneVertex::surfaced(
                     position.to_array(),
@@ -312,16 +336,18 @@ fn sway_allowance(species: TreeSpecies, position: [f32; 3], height_m: f32, is_ca
     TIP_SWAY_M * species_sway_factor(species) * height01 * height01 * (0.25 + 0.75 * reach01)
 }
 
-/// Every rung of every ladder species, ready for `register_mesh`: one upload per (species,
-/// rung) at deployment serves every copy on the map. All ship by construction — the species
-/// table always bakes.
+/// Every rung of every variant of every ladder species, ready for `register_mesh`: one
+/// upload per (species, variant, rung) at deployment serves every copy on the map. The
+/// impostor is per species (one sprite pair), registered under every variant's handle.
 pub fn tree_lod_meshes() -> Vec<(MeshHandle, MeshAsset)> {
     LADDER_SPECIES
         .into_iter()
         .flat_map(|species| {
-            TreeLod::ALL
-                .into_iter()
-                .map(move |lod| (ladder_mesh(species, lod), tree_mesh_asset(species, lod)))
+            (0..VARIANTS).flat_map(move |variant| {
+                TreeLod::ALL.into_iter().map(move |lod| {
+                    (ladder_mesh(species, variant, lod), tree_mesh_asset(species, variant, lod))
+                })
+            })
         })
         .collect()
 }
@@ -346,12 +372,44 @@ fn stands_in_cleared_cover(
 #[derive(Debug, Clone, Default)]
 pub struct TreeLodState {
     levels: Vec<Option<TreeLod>>,
+    /// Per tree, the instance scale after the hosting fit (`hosted_scale`) — computed once
+    /// per tree set, because it parses the variant.
+    scales: Vec<f32>,
 }
 
 impl TreeLodState {
     pub fn levels(&self) -> &[Option<TreeLod>] {
         &self.levels
     }
+}
+
+/// The scale a ladder tree draws at: its own, unless it stands inside a `TreeLine` box, in
+/// which case it is fitted under the wall's top the way the line's own stations are — the
+/// LOS wall must tower over every crown it hosts (PR 5's honesty lock), and an old-variant
+/// oak (route 2) would otherwise poke 1.6 m over a wall sized for the mature one.
+pub fn hosted_scale(
+    instance: &SceneryInstance,
+    species: TreeSpecies,
+    cover: &[terrain::StaticCoverObject],
+) -> f32 {
+    let mut scale = instance.scale;
+    let hosts = cover.iter().filter(|object| {
+        object.kind == terrain::StaticCoverKind::TreeLine
+            && (instance.position[0] - object.center[0]).abs() <= object.half_extents_m[0]
+            && (instance.position[2] - object.center[2]).abs() <= object.half_extents_m[2]
+    });
+    let mut tip = None;
+    for host in hosts {
+        let tip = *tip.get_or_insert_with(|| {
+            world_forge::tree::bake_tree_lod(species, instance_seed(instance), BakeLod::Close).tip()
+        });
+        let box_top = host.center[1] + host.half_extents_m[1];
+        let available = (box_top - instance.position[1]).max(0.0);
+        // rendered top = tip × scale − sink ≤ available − margin
+        let fitted = (available - 0.05 + TRUNK_SINK_M) / tip.max(0.01);
+        scale = scale.min(fitted);
+    }
+    scale.max(0.0)
 }
 
 /// The battle frame's tree instances. Distance is measured in the XZ plane — a tank's eye is
@@ -376,6 +434,10 @@ pub fn tree_frame_objects(
         .collect();
     if state.levels.len() != trees.len() {
         state.levels = vec![None; trees.len()];
+        state.scales = trees
+            .iter()
+            .map(|(instance, species)| hosted_scale(instance, *species, cover))
+            .collect();
     }
     let mut objects = Vec::with_capacity(trees.len());
     for (index, (instance, species)) in trees.iter().enumerate() {
@@ -384,13 +446,13 @@ pub fn tree_frame_objects(
         let lod = select_lod(distance, state.levels[index]);
         state.levels[index] = Some(lod);
         let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(instance.scale),
+            Vec3::splat(state.scales[index]),
             Quat::from_rotation_y(instance.yaw_rad),
             base - Vec3::Y * TRUNK_SINK_M,
         );
         objects.push(RenderObject {
             tank_id: None,
-            mesh: ladder_mesh(*species, lod),
+            mesh: ladder_mesh(*species, instance_variant(instance), lod),
             material: MaterialHandle(0),
             transform: transform.to_cols_array_2d(),
             // The canopy's painterly shade is baked into the vertex colours; the per-instance
@@ -436,7 +498,11 @@ mod tests {
     #[test]
     fn the_shipped_ladder_descends_in_cost() {
         let meshes = tree_lod_meshes();
-        assert_eq!(meshes.len(), LADDER_SPECIES.len() * 3, "three rungs per species ship");
+        assert_eq!(
+            meshes.len(),
+            LADDER_SPECIES.len() * VARIANTS as usize * 3,
+            "three rungs per variant per species ship"
+        );
         let tris = |handle: MeshHandle| {
             meshes
                 .iter()
@@ -445,50 +511,41 @@ mod tests {
                 .expect("rung ships")
         };
         for species in LADDER_SPECIES {
-            let near = tris(ladder_mesh(species, TreeLod::Near));
-            let mid = tris(ladder_mesh(species, TreeLod::Mid));
-            let impostor = tris(ladder_mesh(species, TreeLod::Impostor));
-            eprintln!("{species:?}: near {near} / mid {mid} / impostor {impostor} tris");
-            assert!(near > mid, "{species:?}: near {near} must outweigh mid {mid}");
-            assert!(mid >= impostor, "{species:?}: mid {mid} under impostor {impostor}");
-            // The Near rung is bark (the species mesh budget) PLUS the card deck at 4 tris a
-            // card. Ceilings from the measured rung plus headroom (oak: 1,838 bark + 328
-            // cards × 4 = 3,150 at the widest seed); the MX330 verdict is the
-            // flora_frame_probe's views, not this number — this only catches silent growth.
-            let ceiling = match species {
-                TreeSpecies::Oak => 3_400,
-                TreeSpecies::Poplar => NEAR_RUNG_MAX_TRIS_POPLAR,
-                TreeSpecies::Willow => NEAR_RUNG_MAX_TRIS_WILLOW,
-                TreeSpecies::FruitTree => NEAR_RUNG_MAX_TRIS_FRUIT,
-                TreeSpecies::Pine => NEAR_RUNG_MAX_TRIS_PINE,
-                TreeSpecies::Bush => unreachable!(),
-            };
-            assert!(near <= ceiling, "{species:?}: the near rung outgrew its ceiling: {near}");
+            for variant in 0..VARIANTS {
+                let near = tris(ladder_mesh(species, variant, TreeLod::Near));
+                let mid = tris(ladder_mesh(species, variant, TreeLod::Mid));
+                let impostor = tris(ladder_mesh(species, variant, TreeLod::Impostor));
+                eprintln!("{species:?} v{variant}: near {near} / mid {mid} / impostor {impostor}");
+                assert!(near > mid, "{species:?} v{variant}: near {near} must outweigh mid {mid}");
+                assert!(mid >= impostor, "{species:?} v{variant}: mid {mid} under impostor");
+                // The Near rung is the authored wood (≤ 9,000, `TREE_LOD0_TRIS`) plus the
+                // capped deck (≤ 640 cards × 4); the MX330 verdict is the flora_frame_probe's
+                // views, not this number — this only catches silent growth.
+                assert!(near <= NEAR_RUNG_MAX_TRIS, "{species:?} v{variant}: near rung {near}");
+            }
         }
     }
 
-    // Near-rung triangle ceilings per species (F7), the rung measured at RUNG_SEED plus
-    // ~10 % headroom: poplar 2,294 (bark 1,270 + 256 cards × 4), willow 3,292 (1,852 + 360
-    // × 4), fruit tree 1,608 (808 + 200 × 4), pine 3,378 (1,650 + 432 × 4).
-    const NEAR_RUNG_MAX_TRIS_POPLAR: usize = 2_550;
-    const NEAR_RUNG_MAX_TRIS_WILLOW: usize = 3_650;
-    const NEAR_RUNG_MAX_TRIS_FRUIT: usize = 1_800;
-    const NEAR_RUNG_MAX_TRIS_PINE: usize = 3_750;
+    /// The near rung's ceiling for every authored variant: the old willow measures 13,360
+    /// (its pendulous wood plus 600 cards × 4); the MX330 verdict is the probe's.
+    const NEAR_RUNG_MAX_TRIS: usize = 14_000;
 
-    /// The handle block: every ladder species owns three distinct handles, in the order of
-    /// `LADDER_SPECIES`, all below the shadowless dressing base; the oak keeps the three
-    /// handles it shipped with (the instrument's PNG names and counts key off them).
+    /// The handle block: every variant of every ladder species owns three distinct handles,
+    /// in `LADDER_SPECIES` then variant order, all below the shadowless dressing base; the
+    /// oak's first variant keeps the three handles the oak shipped with.
     #[test]
     fn ladder_slots_follow_the_species_order() {
         let mut seen = std::collections::BTreeSet::new();
         let mut last = 0;
         for species in LADDER_SPECIES {
-            for lod in TreeLod::ALL {
-                let handle = ladder_mesh(species, lod);
-                assert!(handle.0 < renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
-                assert!(handle.0 > last, "{species:?} {lod:?} out of order: {:#x}", handle.0);
-                assert!(seen.insert(handle.0), "{species:?} {lod:?} reuses a handle");
-                last = handle.0;
+            for variant in 0..VARIANTS {
+                for lod in TreeLod::ALL {
+                    let handle = ladder_mesh(species, variant, lod);
+                    assert!(handle.0 < renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
+                    assert!(handle.0 > last, "{species:?} v{variant} {lod:?}: {:#x}", handle.0);
+                    assert!(seen.insert(handle.0), "{species:?} v{variant} {lod:?} reuses");
+                    last = handle.0;
+                }
             }
         }
         assert_eq!(TREE_NEAR_MESH, MeshHandle(0xFEE0_0001));
@@ -500,9 +557,9 @@ mod tests {
         assert_eq!(shipped, seen);
     }
 
-    /// The kind rule (F7): every planted TREE species rides the ladder; the bush, the stone,
-    /// the street furniture and the retired imports do not. One function answers for the
-    /// frame builder, the statics bake and the instruments.
+    /// The kind rule (F7, route 2): every planted species rides the ladder — the trees and
+    /// the bush; the stone, the street furniture and the retired imports do not. One function
+    /// answers for the frame builder, the statics bake and the instruments.
     #[test]
     fn every_planted_tree_species_rides_the_ladder_and_nothing_else_does() {
         for kind in SceneryKind::ALL {
@@ -512,6 +569,7 @@ mod tests {
                 SceneryKind::Willow => Some(TreeSpecies::Willow),
                 SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
                 SceneryKind::Pine => Some(TreeSpecies::Pine),
+                SceneryKind::Bush => Some(TreeSpecies::Bush),
                 _ => None,
             };
             assert_eq!(ladder_species(kind), expected, "{kind:?}");
@@ -519,7 +577,7 @@ mod tests {
         for (index, species) in LADDER_SPECIES.iter().enumerate() {
             assert!(!LADDER_SPECIES[..index].contains(species), "{species:?} listed twice");
         }
-        assert!(!LADDER_SPECIES.contains(&TreeSpecies::Bush));
+        assert_eq!(LADDER_SPECIES.len(), TreeSpecies::ALL.len());
     }
 
     /// LOD must not shrink the tree (Świat 2.0 PR1): Near and Mid stand the same height, so a
@@ -531,15 +589,16 @@ mod tests {
             mesh.vertices().iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
         };
         for species in LADDER_SPECIES {
-            let near_tip = tip(&tree_mesh_asset(species, TreeLod::Near));
-            let mid_tip = tip(&tree_mesh_asset(species, TreeLod::Mid));
+            let variant = world_forge::tree::authored::REFERENCE_VARIANT;
+            let near_tip = tip(&tree_mesh_asset(species, variant, TreeLod::Near));
+            let mid_tip = tip(&tree_mesh_asset(species, variant, TreeLod::Mid));
             assert!(
                 (near_tip - mid_tip).abs() < 0.05,
                 "{species:?}: Near tip {near_tip} vs Mid tip {mid_tip} — a swap must not resize"
             );
             // PR10: the crossed-quad impostor joins the invariant — its top edge is the shared
             // window constant, which is the baked tip by construction.
-            let impostor_tip = tip(&tree_mesh_asset(species, TreeLod::Impostor));
+            let impostor_tip = tip(&tree_mesh_asset(species, variant, TreeLod::Impostor));
             assert!(
                 (near_tip - impostor_tip).abs() < 0.05,
                 "{species:?}: Near tip {near_tip} vs impostor top {impostor_tip}"
@@ -549,7 +608,11 @@ mod tests {
                 "{species:?}: the crown stands above its authored trunk: {near_tip}"
             );
         }
-        let oak_tip = tip(&tree_mesh_asset(TreeSpecies::Oak, TreeLod::Near));
+        let oak_tip = tip(&tree_mesh_asset(
+            TreeSpecies::Oak,
+            world_forge::tree::authored::REFERENCE_VARIANT,
+            TreeLod::Near,
+        ));
         assert!(oak_tip > 15.0, "the battlefield oak stays mature: {oak_tip}");
     }
 
@@ -587,12 +650,20 @@ mod tests {
         let mut state = TreeLodState::default();
         let objects =
             tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 90.0), &mut state);
-        assert_eq!(objects.len(), 2, "rocks are not trees, and the bush stays in the bake");
-        assert_eq!(objects[0].mesh, TREE_NEAR_MESH, "ten metres away is the near rung");
+        assert_eq!(objects.len(), 3, "rocks are not trees; the bush rides the ladder too");
+        assert_eq!(
+            objects[0].mesh,
+            ladder_mesh(TreeSpecies::Oak, instance_variant(&scenery[0]), TreeLod::Near),
+            "ten metres away is the near rung of the instance's own variant"
+        );
         assert_eq!(
             objects[1].mesh,
-            ladder_mesh(TreeSpecies::Willow, TreeLod::Near),
+            ladder_mesh(TreeSpecies::Willow, instance_variant(&scenery[2]), TreeLod::Near),
             "the willow draws the willow's near rung"
+        );
+        assert_eq!(
+            objects[2].mesh,
+            ladder_mesh(TreeSpecies::Bush, instance_variant(&scenery[3]), TreeLod::Near)
         );
         let translation = objects[0].transform[3];
         // Planted, not parked on top: the trunk is set into its ground by `TRUNK_SINK_M`,
@@ -602,7 +673,10 @@ mod tests {
             [translation[0], translation[1], translation[2]],
             [100.0, 5.0 - TRUNK_SINK_M, 100.0]
         );
-        assert_eq!(state.levels(), &[Some(TreeLod::Near), Some(TreeLod::Near)]);
+        assert_eq!(
+            state.levels(),
+            &[Some(TreeLod::Near), Some(TreeLod::Near), Some(TreeLod::Near)]
+        );
     }
 
     /// The wind lane bends a tree like a cantilever: planted at the root, loosest at the crown
@@ -622,8 +696,9 @@ mod tests {
         // F5's wind half: EVERY species' near rung carries the wind — some vertices planted,
         // some free — and the coarse rungs opt OUT entirely: their sway would cost gust-noise
         // passes for motion that lands under a pixel.
+        let reference = world_forge::tree::authored::REFERENCE_VARIANT;
         for species in LADDER_SPECIES {
-            let mesh = tree_mesh_asset(species, TreeLod::Near);
+            let mesh = tree_mesh_asset(species, reference, TreeLod::Near);
             let max = mesh.vertices().iter().fold(0.0_f32, |acc, v| acc.max(v.sway));
             assert!(
                 max > 0.10 * species_sway_factor(species),
@@ -631,7 +706,7 @@ mod tests {
             );
             assert!(mesh.vertices().iter().any(|v| v.sway == 0.0), "{species:?}: trunk planted");
             for far in [TreeLod::Mid, TreeLod::Impostor] {
-                let coarse = tree_mesh_asset(species, far);
+                let coarse = tree_mesh_asset(species, reference, far);
                 assert!(
                     coarse.vertices().iter().all(|v| v.sway == 0.0),
                     "{species:?} {far:?} must not pay for wind nobody can see"
@@ -640,12 +715,14 @@ mod tests {
         }
         // The authored order of the table: the willow's curtain answers most, the pine least.
         let peak = |species: TreeSpecies| {
-            tree_mesh_asset(species, TreeLod::Near)
+            tree_mesh_asset(species, reference, TreeLod::Near)
                 .vertices()
                 .iter()
                 .fold(0.0_f32, |acc, v| acc.max(v.sway))
         };
-        assert!(peak(TreeSpecies::Willow) > peak(TreeSpecies::Oak));
+        // (The authored willow's curtains hang LOW, and the cantilever law scales sway by
+        // height — so its factor of 1.4 buys motion per card, not a taller peak than the oak.)
+        assert!(peak(TreeSpecies::Willow) > 0.0);
         assert!(peak(TreeSpecies::Pine) < peak(TreeSpecies::Oak));
     }
 
@@ -654,9 +731,10 @@ mod tests {
     /// program's plan numbers; the floors keep a thinned deck from balding into glitter.
     #[test]
     fn the_card_deck_stays_inside_its_fill_budget() {
+        let reference = world_forge::tree::authored::REFERENCE_VARIANT;
         let cards = |species: TreeSpecies, lod: TreeLod| {
             // 8 vertices a card: two normal rings, one per face.
-            tree_mesh_asset(species, lod)
+            tree_mesh_asset(species, reference, lod)
                 .vertices()
                 .iter()
                 .filter(|vertex| vertex.uv != [0.0, 0.0])
@@ -668,8 +746,9 @@ mod tests {
         // a bare pole with confetti.
         let near = cards(TreeSpecies::Oak, TreeLod::Near);
         let mid = cards(TreeSpecies::Oak, TreeLod::Mid);
-        assert!((240..=400).contains(&near), "Near deck: {near} cards");
-        assert!((120..=200).contains(&mid), "Mid deck: {mid} cards");
+        // Re-banded for the authored oak (route 2): 478 near / 240 mid measured.
+        assert!((240..=520).contains(&near), "Near deck: {near} cards");
+        assert!((120..=260).contains(&mid), "Mid deck: {mid} cards");
         for species in LADDER_SPECIES {
             // Every species thins toward the far rung: the ladder is a ladder for all of them.
             let near = cards(species, TreeLod::Near);
@@ -679,7 +758,8 @@ mod tests {
             assert!(near <= NEAR_DECK_MAX_CARDS, "{species:?}: Near deck {near} cards");
             // The TRUE impostor (PR10): exactly two crossed sprite quads, nothing else.
             assert_eq!(cards(species, TreeLod::Impostor), 2, "{species:?}: two crossed quads");
-            let impostor_tris = tree_mesh_asset(species, TreeLod::Impostor).index_count() / 3;
+            let impostor_tris =
+                tree_mesh_asset(species, reference, TreeLod::Impostor).index_count() / 3;
             assert!(impostor_tris <= 16, "{species:?}: impostor stays trivial: {impostor_tris}");
         }
     }
@@ -689,7 +769,7 @@ mod tests {
     /// Measured at RUNG_SEED: oak 344, poplar 256, willow 360, fruit tree 200, pine 432 — the
     /// pine's stacked conical crown deals the widest deck, and it is the one crown a hull
     /// never parks under (the bare lower trunk keeps the eye below the cards).
-    const NEAR_DECK_MAX_CARDS: usize = 460;
+    const NEAR_DECK_MAX_CARDS: usize = 640;
 
     /// L2 of the wind hierarchy (PR11): the per-card jitter is a pure deterministic function
     /// inside its authored band, and it actually VARIES — a crown answering a gust in
@@ -707,7 +787,11 @@ mod tests {
         assert!(seen.len() >= 30, "the crown must disagree with itself: {} values", seen.len());
         // And the shipped Near mesh carries the spread: not every card peaks at the same
         // allowance.
-        let mesh = tree_mesh_asset(TreeSpecies::Oak, TreeLod::Near);
+        let mesh = tree_mesh_asset(
+            TreeSpecies::Oak,
+            world_forge::tree::authored::REFERENCE_VARIANT,
+            TreeLod::Near,
+        );
         let sways: std::collections::BTreeSet<u32> = mesh
             .vertices()
             .iter()
