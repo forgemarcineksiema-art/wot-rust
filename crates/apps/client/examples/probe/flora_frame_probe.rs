@@ -23,7 +23,9 @@ const SIXTY_FPS_FRAME_MS: f64 = 1_000.0 / 60.0;
 pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let full = map_forge::battlefield(terrain::MapId::Ostrogorsk);
     let mut without_trees = full.clone();
-    without_trees.scenery.retain(|instance| instance.kind != terrain::SceneryKind::Oak);
+    without_trees
+        .scenery
+        .retain(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_none());
     let tree_count = full.scenery.len() - without_trees.scenery.len();
     let born = terrain::initial_cover_phase_bytes(&full.static_cover);
     let ((ground_vertices, ground_indices), (full_vertices, full_indices)) =
@@ -39,8 +41,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         info.name, info.backend, info.device_type, info.driver
     );
     println!(
-        "scene: Ostrogorsk, {WIDTH}x{HEIGHT}, {tree_count} battlefield oaks, \
-         full {} vertices vs baseline {}",
+        "scene: Ostrogorsk, {WIDTH}x{HEIGHT}, {tree_count} ladder trees (every planted \
+         species, F7), full {} vertices vs baseline {}",
         full_vertices.len(),
         baseline_vertices.len()
     );
@@ -162,7 +164,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         println!("[{name}] baseline median: {baseline_ms:.3} ms/frame  {baseline_samples:?}");
         println!("[{name}] full flora median: {flora_ms:.3} ms/frame  {flora_samples:?}");
         println!(
-            "[{name}] battlefield-oak delta: {overhead_ms:+.3} ms/frame; 60 FPS gate \
+            "[{name}] ladder-tree delta: {overhead_ms:+.3} ms/frame; 60 FPS gate \
              ({SIXTY_FPS_FRAME_MS:.3} ms): {}",
             if flora_ms <= SIXTY_FPS_FRAME_MS { "PASS" } else { "FAIL" }
         );

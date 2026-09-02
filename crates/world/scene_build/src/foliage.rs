@@ -331,10 +331,11 @@ mod baked_tree_tests {
 
     use super::*;
 
-    /// B2's on-screen contract for the species that still bake into the statics (the oak is
-    /// instanced): a battlefield tree is the BAKED species (real geometry, canopy normals bent
-    /// from the crown centroid), deterministic per position — the scene bake is identical every
-    /// time, yet no two shelterbelt trees repeat.
+    /// B2's on-screen contract for the trees the statics bake still grows — the planted tree
+    /// line's stations (`tree_line`), which call this route directly; every free-standing tree
+    /// species rides the instanced ladder since F7: a baked tree is the BAKED species (real
+    /// geometry, canopy normals bent from the crown centroid), deterministic per position — the
+    /// scene bake is identical every time, yet no two shelterbelt trees repeat.
     #[test]
     fn battlefield_trees_are_baked_species_deterministic_per_position() {
         let instance = |x: f32| SceneryInstance {
@@ -346,7 +347,7 @@ mod baked_tree_tests {
         let build = |instance: &SceneryInstance| {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
-            push_scenery_instance(&mut vertices, &mut indices, instance, StoneTone::NEUTRAL);
+            push_baked_tree(&mut vertices, &mut indices, instance);
             (vertices, indices)
         };
         let (vertices_a, indices_a) = build(&instance(10.0));
@@ -447,21 +448,28 @@ mod baked_tree_tests {
             );
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
-        // A migrated species' statics instance is Mid bark PLUS its thinned card deck at
-        // 4 tris a card — re-raised with the user's quality verdict (2026-08-22: Mid keeps
-        // the LIMBS and every second cross-pair cluster; measured worst: pine 976 bark +
-        // 242 cards × 4 = 1,944). The fill verdict stays the flora_frame_probe's; this
-        // catches silent geometric growth.
-        const MIGRATED_STATICS_MAX_TRIS: usize = 2_100;
+        // Every tree species rides the instanced ladder (F7), so the near bake owes it
+        // NOTHING — a species baked here too would draw twice. The tree line's stations still
+        // bake through `push_baked_tree` directly and keep their own budget in `tree_line`.
+        for kind in SceneryKind::ALL {
+            let on_ladder = crate::tree_lod::ladder_species(kind).is_some();
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance(
+                &mut vertices,
+                &mut indices,
+                &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
+                StoneTone::NEUTRAL,
+            );
+            if on_ladder {
+                assert!(indices.is_empty(), "{kind:?} rides the ladder and must not bake near");
+            }
+        }
         // The bush bakes at CLOSE (its Mid deck vanished at 200 m and took the steppe's dark
         // plane with it), so its ceiling is its own: full card deck + 4-sided stick bark.
         const BUSH_STATICS_MAX_TRIS: usize = 1_000;
         for (kind, ceiling) in [
-            (SceneryKind::Poplar, MIGRATED_STATICS_MAX_TRIS),
-            (SceneryKind::Willow, MIGRATED_STATICS_MAX_TRIS),
-            (SceneryKind::FruitTree, MIGRATED_STATICS_MAX_TRIS),
             (SceneryKind::Bush, BUSH_STATICS_MAX_TRIS),
-            (SceneryKind::Pine, MIGRATED_STATICS_MAX_TRIS),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.
             (SceneryKind::Rock, 108),
             // The masonry spill, raised from the old 60 with its construction: a 7-sided mass,

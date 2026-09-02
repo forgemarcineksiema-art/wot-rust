@@ -59,20 +59,24 @@ pub fn push_scenery_instance(
     stone: StoneTone,
 ) {
     match instance.kind {
-        // The battlefield oak left the statics bake (phase 2): it draws from the instanced mesh
-        // path with runtime LOD (`crate::tree_lod`), so baking it here too would draw every tree
-        // twice — once at full detail regardless of distance, which is the cost the ladder
-        // exists to end.
-        SceneryKind::Oak => {}
+        // Every planted TREE species left the statics bake (the oak in hero-flora phase 2,
+        // the rest in Inny Poziom F7): they draw from the instanced mesh path with runtime LOD
+        // (`crate::tree_lod`), so baking them here too would draw every tree twice — once at
+        // full detail regardless of distance, which is the cost the ladder exists to end. The
+        // arm and `tree_lod::ladder_species` are held to the same answer by
+        // `the_near_bake_skips_exactly_the_ladder_species`.
+        SceneryKind::Oak
+        | SceneryKind::Poplar
+        | SceneryKind::Willow
+        | SceneryKind::FruitTree
+        | SceneryKind::Pine => {}
         // Retired imported kinds (procedural-only decision, Świat 2.0) bake to NOTHING: falling
         // through to the painted far frusta would resurrect the retired silhouette at close
         // range.
         SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
-        SceneryKind::Poplar
-        | SceneryKind::Willow
-        | SceneryKind::FruitTree
-        | SceneryKind::Bush
-        | SceneryKind::Pine => push_baked_tree(vertices, indices, instance),
+        // The bush is the one plant the bake keeps: at CLOSE it is a tenth of a tree, and the
+        // steppe's dark value plane rides on its tufts at every distance.
+        SceneryKind::Bush => push_baked_tree(vertices, indices, instance),
         SceneryKind::Rock => {
             push_rock(vertices, indices, instance, stone, world_forge::rock::RockForm::Erratic)
         }

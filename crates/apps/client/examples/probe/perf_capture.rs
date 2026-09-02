@@ -83,14 +83,17 @@ pub(crate) fn run() {
     // ladder, so they are NOT in the statics bake — their bake cost is the ladder's uploads,
     // and their FRAME cost is in `frame_time_capture` below, which submits them.
     let city = map_forge::battlefield(terrain::MapId::Ostrogorsk);
-    let battlefield_oaks =
-        city.scenery.iter().filter(|instance| instance.kind == terrain::SceneryKind::Oak).count();
+    let ladder_trees = city
+        .scenery
+        .iter()
+        .filter(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_some())
+        .count();
     let born = terrain::initial_cover_phase_bytes(&city.static_cover);
     let t = Instant::now();
     let mut city_buckets = client::battlefield_statics_buckets(&city, &born, &[]);
     let (cv, ci) = client::assemble_statics_mesh(&city_buckets);
     println!(
-        "ostrogorsk statics bake ({} boxes, {battlefield_oaks} oaks off-bake): {:.1} ms ({} v / {} i)",
+        "ostrogorsk statics bake ({} boxes, {ladder_trees} ladder trees off-bake): {:.1} ms ({} v / {} i)",
         city.static_cover.len(),
         t.elapsed().as_secs_f64() * 1000.0,
         cv.len(),
