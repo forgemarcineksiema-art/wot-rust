@@ -73,3 +73,38 @@ fn every_shipped_map_is_dressed_enough_for_the_species_gate() {
         );
     }
 }
+
+/// Inny Poziom Z3: every shipped map ships its destruction, counted. The per-map floor in
+/// `DESTRUCTIBLE_FLOOR` is what the map has today; the count prints for the dossiers, and a map
+/// that falls under its floor is refused by the report (`destructible_floor`).
+#[test]
+fn every_shipped_map_keeps_its_destructible_floor() {
+    let mut judged = 0usize;
+    for id in MapId::SHIPPED {
+        let map = battlefield(*id);
+        let count = map_forge::destructible_count(&map);
+        let mut by_kind: Vec<(String, usize)> = Vec::new();
+        for object in &map.static_cover {
+            if object.kind.max_health().is_none() {
+                continue;
+            }
+            let name = format!("{:?}", object.kind);
+            match by_kind.iter_mut().find(|(kind, _)| *kind == name) {
+                Some((_, n)) => *n += 1,
+                None => by_kind.push((name, 1)),
+            }
+        }
+        println!("DESTRUCTIBLE {}: {count} {by_kind:?}", map.id);
+        let (_, floor) = map_forge::DESTRUCTIBLE_FLOOR
+            .iter()
+            .find(|(name, _)| *name == map.id.as_str())
+            .unwrap_or_else(|| panic!("{} has no destructible floor", map.id));
+        assert!(
+            count >= *floor,
+            "{}: {count} destructible objects under the floor {floor}",
+            map.id
+        );
+        judged += 1;
+    }
+    assert_eq!(judged, MapId::SHIPPED.len());
+}

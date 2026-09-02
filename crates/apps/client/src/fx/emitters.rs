@@ -94,6 +94,36 @@ impl FxSystem {
         }
     }
 
+    /// Dust shaken off the hull by the shot (Inny Poziom S4): the deck around the turret ring
+    /// sheds what it carried — a low, brief lift of sandy motes that settle back onto the
+    /// plates, more of them for a heavier round. `deck` is the turret ring on the hull roof in
+    /// world space; the puffs spread along and across the hull's heading.
+    pub fn hull_dust(&mut self, deck: Vec3, hull_yaw_rad: f32, recoil_scale: f32) {
+        let scale = recoil_scale.clamp(0.4, 2.0);
+        let count = (6.0 * scale).round().max(2.0) as usize;
+        let forward = Vec3::new(hull_yaw_rad.sin(), 0.0, hull_yaw_rad.cos());
+        let right = Vec3::new(forward.z, 0.0, -forward.x);
+        for _ in 0..count {
+            let spread = forward * (self.rand_signed() * 1.8) + right * (self.rand_signed() * 1.1);
+            let lift = (0.5 + self.rand_unit() * 0.7) * scale.sqrt();
+            let ttl = 0.5 + self.rand_unit() * 0.5;
+            let alpha = 0.30;
+            self.spawn(Particle {
+                position: deck + spread + Vec3::Y * 0.05,
+                velocity_mps: Vec3::Y * lift + spread * 0.2,
+                gravity_factor: 0.10,
+                drag_per_s: 3.5,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.35,
+                size_end_m: 1.1 * scale.sqrt(),
+                color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
+        }
+    }
+
     /// The blast-pressure dust ring under a low muzzle: dirt-colored puffs thrown radially
     /// outward at ground level, heavier than smoke (they drag down, not up).
     fn ground_dust_ring(&mut self, center: Vec3, scale: f32) {
@@ -436,6 +466,28 @@ mod tests {
         fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), 1.0);
         // 2 flash + 8 smoke + 10 dust.
         assert_eq!(fx.live_particles(), 20);
+    }
+
+    /// Inny Poziom S4: the shot shakes dust off the deck, and a heavier round shakes more —
+    /// and every mote lifts off the plates, none falls through them.
+    #[test]
+    fn a_shot_shakes_dust_off_the_deck_in_proportion_to_its_recoil() {
+        let deck = Vec3::new(0.0, 1.6, 0.0);
+        let mut light = FxSystem::default();
+        light.hull_dust(deck, 0.0, 0.67);
+        let mut heavy = FxSystem::default();
+        heavy.hull_dust(deck, 0.0, 1.36);
+        assert!(light.live_particles() >= 2, "even a 75 mm shakes the deck");
+        assert!(
+            heavy.live_particles() > light.live_particles(),
+            "a 128 mm shakes more than a 75 mm: {} vs {}",
+            heavy.live_particles(),
+            light.live_particles()
+        );
+        assert!(
+            heavy.particles.iter().all(|p| p.position.y >= deck.y && p.velocity_mps.y > 0.0),
+            "dust lifts off the plates"
+        );
     }
 
     #[test]

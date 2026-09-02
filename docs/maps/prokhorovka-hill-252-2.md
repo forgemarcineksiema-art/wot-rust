@@ -107,3 +107,11 @@ Open in the editor / playtest:
 cargo run -p editor -- crates/world/map_forge/blueprints/prokhorovka-hill-252-2.map.ron
 $env:WOT_MAP = "prokhorovka-hill-252-2"; cargo run -p client
 ```
+
+## Destructible cover (Inny Poziom Z3, 2026-09-02)
+
+36 destructible cover objects on the compiled map — 6 farm buildings, 4 wooden fences, 4 tree lines, 4 wrecks, 18 oak boles — and the map report refuses a
+compile under that floor (`destructible_floor`; `DESTRUCTIBLE_FLOOR` in `map_forge::report`).
+Wrecks are damageable since Z3 (500 hp, shelled down to a hull-line mound at 0.45 of their
+height, then to scrap); rail covers and crags stay indestructible. The floor is today's count;
+the target above it is this dossier's to raise.

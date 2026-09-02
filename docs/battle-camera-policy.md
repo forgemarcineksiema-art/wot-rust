@@ -153,3 +153,12 @@ Four laws bind every present and future channel:
    `every_feel_channel_retires_when_motion_freezes` excites every channel at
    once and asserts the presented camera settles to bit-stability — a future
    channel with unretired state fails it by construction.
+
+## Being hit (Inny Poziom S2 / S5, 2026-09-02)
+
+Third person feels the strike twice: the follow rig is shoved along the push and settles
+down through its spring, and the struck hull itself rocks on its attitude springs from the
+side the shell came in (`HullAttitude::hit_impulse`, every tank in view). The sniper scope
+does not move at all — the picture under the player's hand never moves, on a hit as on a
+shot. In the scope the hit reaches the player as the HUD's direction arc with its verdict
+(HELD or PEN, with the millimetres), and as sound.

@@ -166,3 +166,11 @@ Open in the editor:
 ```powershell
 cargo run -p editor -- crates/world/map_forge/blueprints/ostrogorsk.map.ron
 ```
+
+## Destructible cover (Inny Poziom Z3, 2026-09-02)
+
+125 destructible cover objects on the compiled map — 70 city buildings, 16 stone walls, 5 farm buildings, 4 tree lines, 4 wrecks, 26 oak boles — and the map report refuses a
+compile under that floor (`destructible_floor`; `DESTRUCTIBLE_FLOOR` in `map_forge::report`).
+Wrecks are damageable since Z3 (500 hp, shelled down to a hull-line mound at 0.45 of their
+height, then to scrap); rail covers and crags stay indestructible. The floor is today's count;
+the target above it is this dossier's to raise.

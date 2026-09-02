@@ -116,3 +116,11 @@ The bots respect deep water: the route brain probes its drive line and detours t
 `Crossing` points, and the per-tick survival check escapes a hull that is in the channel — or
 carries too much momentum to stop short of it. Locked by `server/tests/bot_water.rs`. What is
 still open here is HUMAN playtesting; the map has never met a second player.
+
+## Destructible cover (Inny Poziom Z3, 2026-09-02)
+
+68 destructible cover objects on the compiled map — 20 farm buildings, 8 kamienice, 8 tree lines, 2 stone walls, 2 wooden fences, 2 wrecks, 26 oak boles — and the map report refuses a
+compile under that floor (`destructible_floor`; `DESTRUCTIBLE_FLOOR` in `map_forge::report`).
+Wrecks are damageable since Z3 (500 hp, shelled down to a hull-line mound at 0.45 of their
+height, then to scrap); rail covers and crags stay indestructible. The floor is today's count;
+the target above it is this dossier's to raise.

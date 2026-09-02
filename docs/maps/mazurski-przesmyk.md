@@ -125,3 +125,11 @@ Playtest directly:
 ```powershell
 $env:WOT_MAP = "mazurski-przesmyk"; cargo run -p client
 ```
+
+## Destructible cover (Inny Poziom Z3, 2026-09-02)
+
+30 destructible cover objects on the compiled map — 12 farm buildings, 4 tree lines, 2 wrecks, 12 oak boles — and the map report refuses a
+compile under that floor (`destructible_floor`; `DESTRUCTIBLE_FLOOR` in `map_forge::report`).
+Wrecks are damageable since Z3 (500 hp, shelled down to a hull-line mound at 0.45 of their
+height, then to scrap); rail covers and crags stay indestructible. The floor is today's count;
+the target above it is this dossier's to raise.

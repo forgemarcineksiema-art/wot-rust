@@ -99,7 +99,13 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
             }),
             reseat: [Some(0.35), None],
         },
-        incoming_hits: vec![IncomingHit { bearing_rad: 2.1, age_s: 0.3, penetrated: false }],
+        incoming_hits: vec![IncomingHit {
+            bearing_rad: 2.1,
+            age_s: 0.3,
+            penetrated: false,
+            effective_armor_mm: 0.0,
+            shell_penetration_mm: 0.0,
+        }],
         ammo: Some(AmmoHudModel::new(
             [
                 game_core::ShellType::ArmorPiercing,

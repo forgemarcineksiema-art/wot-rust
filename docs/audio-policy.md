@@ -34,6 +34,12 @@ camera eye/facing), the player powerplant state (RPM / load / ground speed)
 and the scene wind level (open field vs sheltered hangar). Headless, the
 queue drains to nowhere; gameplay behaves identically with and without ears.
 
+The player's own shot is two voices (Inny Poziom S4): the report, and the machine
+behind it — `BreechCycle`: the stroke, the buffer, the run-out, battery, the case
+and the floor, timed and pitched by caliber and spawned listener-local a step
+under the report. A remote gun is the report alone: the mechanics belong to the
+crew's seat, not to the field.
+
 The same per-frame flush carries the weight beds (Inna Liga D3): the turret
   drive's whine fed from the authoritative `turret_yaw_velocity_rad_s` on the
   wire (normalized by the spec's top slew, off when dead), the rain patter bed

@@ -309,3 +309,52 @@ fn a_fire_event_for_an_unknown_tank_is_dropped_quietly() {
     world.apply_fire_recoil(TankId(42), 0.0, 1.0);
     assert_eq!(world.tank_count(), 0);
 }
+
+/// Inny Poziom S5: an incoming shell rocks the STRUCK tank's hull on its springs from the
+/// side it came in — a frontal strike lifts the nose, a strike on the right side rolls the
+/// hull, a heavier round further — and the hull settles level again in one nod. The cue
+/// reaches any tank in view, not only the player's.
+#[test]
+fn an_incoming_hit_rocks_the_struck_hull_from_the_side_it_came_in() {
+    let dt = 1.0 / 60.0;
+    let rock = |bearing: f32, energy: f32| {
+        let mut world = PresentationWorld::default();
+        world.advance_time(dt);
+        world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+        for _ in 0..120 {
+            world.advance_time(dt);
+            world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+        }
+        world.apply_hit_impulse(TankId(1), bearing, energy);
+        let (mut pitch, mut roll) = (0.0_f32, 0.0_f32);
+        for _ in 0..60 {
+            world.advance_time(dt);
+            world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+            let tank = world.presentation_tanks()[0].clone();
+            if tank.attitude_pitch_rad.abs() > pitch.abs() {
+                pitch = tank.attitude_pitch_rad;
+            }
+            if tank.attitude_roll_rad.abs() > roll.abs() {
+                roll = tank.attitude_roll_rad;
+            }
+        }
+        for _ in 0..240 {
+            world.advance_time(dt);
+            world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+        }
+        let settled = world.presentation_tanks()[0].attitude_pitch_rad;
+        (pitch, roll, settled)
+    };
+    let (front_pitch, front_roll, settled) = rock(0.0, 1.0);
+    assert!(front_pitch > 0.004, "a frontal strike lifts the nose: {front_pitch}");
+    assert!(front_roll.abs() < front_pitch * 0.2, "and barely rolls: {front_roll}");
+    assert!(settled.abs() < 1.0e-3, "the hull settles level again: {settled}");
+    let (side_pitch, side_roll, _) = rock(std::f32::consts::FRAC_PI_2, 1.0);
+    assert!(side_roll > 0.004, "a strike on the right side rolls the hull: {side_roll}");
+    assert!(side_pitch.abs() < side_roll * 0.2, "and barely pitches: {side_pitch}");
+    let (heavy_pitch, _, _) = rock(0.0, 1.36);
+    assert!(heavy_pitch > front_pitch * 1.2, "a heavier round rocks further: {heavy_pitch}");
+    // A tank the world does not know takes no cue and panics nothing.
+    let mut world = PresentationWorld::default();
+    world.apply_hit_impulse(TankId(9), 0.0, 1.0);
+}

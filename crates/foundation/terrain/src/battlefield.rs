@@ -142,7 +142,12 @@ impl StaticCoverKind {
             // A freestanding tower is less structure than a city block but thicker-walled
             // than a farmhouse: 1.5 farm buildings' worth of shellfire fells it.
             StaticCoverKind::StoneTower => Some(900),
-            StaticCoverKind::RailCover | StaticCoverKind::Wreck | StaticCoverKind::Crag => None,
+            // A knocked-out hull is steel, not scenery (Inny Poziom Z3): shellfire opens its
+            // superstructure and brings it down to a hull-line mound, then to scrap. It was
+            // indestructible forever — "pre-placed decorative" — on maps where the wrecks are
+            // a third of the cover.
+            StaticCoverKind::Wreck => Some(500),
+            StaticCoverKind::RailCover | StaticCoverKind::Crag => None,
         }
     }
 
@@ -168,6 +173,8 @@ impl StaticCoverKind {
             StaticCoverKind::FarmBuilding
                 | StaticCoverKind::CityBuilding
                 | StaticCoverKind::StoneTower
+                // A shelled wreck keeps its hull as a mound (Inny Poziom Z3).
+                | StaticCoverKind::Wreck
         )
     }
 
@@ -185,6 +192,10 @@ impl StaticCoverKind {
             // line (2.53 m), above the hull-down floor (1.49 m). The felled landmark
             // becomes a fighting mound, locked by `sim`'s Orliny tests.
             StaticCoverKind::StoneTower => 0.11,
+            // A shelled wreck keeps its hull: the turret and the superstructure go, and a
+            // 2.7 m hulk becomes a 1.2 m mound — still a thing to sit behind, no longer a
+            // thing to hide a turret behind.
+            StaticCoverKind::Wreck => 0.45,
             _ => 0.4,
         }
     }
@@ -192,8 +203,9 @@ impl StaticCoverKind {
 
 /// The phase byte a cover object is BORN in (urban-map program PR-07, doctrine decision 4):
 /// an id containing `"ruin"` spawns already collapsed — rubble (1) if its kind leaves rubble,
-/// gone (2) otherwise — while indestructible kinds ignore the tag (a "ruined" decorative
-/// wreck is still just a wreck). The bytes speak the shared phase encoding every consumer
+/// gone (2) otherwise — while indestructible kinds ignore the tag (a "ruined" rail cover is
+/// still just a rail cover; a "ruined" wreck, steel since Z3, is born as its mound). The bytes
+/// speak the shared phase encoding every consumer
 /// already reads (0 intact / 1 rubble / 2 gone), so the rule lives HERE, below both the sim
 /// and every renderer-side baker, and all of them agree at birth.
 pub fn born_cover_phase_byte(object: &StaticCoverObject) -> u8 {
@@ -348,7 +360,7 @@ mod born_phase_tests {
         assert_eq!(born_cover_phase_byte(&object("ruined_barn", StaticCoverKind::FarmBuilding)), 1);
         assert_eq!(born_cover_phase_byte(&object("yard_wall_ruin", StaticCoverKind::StoneWall)), 2);
         assert_eq!(born_cover_phase_byte(&object("ruined_hedge", StaticCoverKind::TreeLine)), 2);
-        assert_eq!(born_cover_phase_byte(&object("ruined_wreck", StaticCoverKind::Wreck)), 0);
+        assert_eq!(born_cover_phase_byte(&object("ruined_wreck", StaticCoverKind::Wreck)), 1);
         assert_eq!(born_cover_phase_byte(&object("ruin_wall", StaticCoverKind::RailCover)), 0);
         assert_eq!(born_cover_phase_byte(&object("tenement_a", StaticCoverKind::CityBuilding)), 0);
         assert_eq!(
