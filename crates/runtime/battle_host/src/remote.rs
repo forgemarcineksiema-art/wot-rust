@@ -49,6 +49,9 @@ struct RemoteClient {
     events: RemoteEventQueue,
     event_overflowed: bool,
     last_heard_ms: u64,
+    /// The order this crew finished its FIRST handshake in (N10): seats go out by it, never
+    /// by the table's iteration order. 0 = never established.
+    hello_seq: u64,
 }
 
 impl RemoteClient {
@@ -64,6 +67,7 @@ impl RemoteClient {
             events: RemoteEventQueue::default(),
             event_overflowed: false,
             last_heard_ms: now_ms,
+            hello_seq: 0,
         }
     }
 
@@ -129,6 +133,8 @@ pub struct RemoteBattleServer {
     clients: HashMap<SocketAddr, RemoteClient>,
     free_seats: FreeSeats,
     phase: Phase,
+    /// The next handshake's hello order (N10).
+    next_hello_seq: u64,
 }
 
 impl RemoteBattleServer {
@@ -144,6 +150,7 @@ impl RemoteBattleServer {
             clients: HashMap::new(),
             free_seats: FreeSeats::default(),
             phase: Phase::Lobby { deadline_ms: now_ms + lobby_wait_ms },
+            next_hello_seq: 1,
         }
     }
 
@@ -198,8 +205,16 @@ impl RemoteBattleServer {
             };
             match message {
                 ProtocolMessage::ClientHello { session_id, .. } => {
+                    let was_established = client.is_established();
                     if !client.begin_session(from, session_id, now_ms) {
                         continue;
+                    }
+                    // Seats go out in HELLO order (N10): the first crew to finish a handshake
+                    // sits first. The table is a HashMap whose iteration order is random per
+                    // process; `start_battle` sorts by this and never walks the map for seats.
+                    if !was_established {
+                        client.hello_seq = self.next_hello_seq;
+                        self.next_hello_seq += 1;
                     }
                     // The version gate already ran in decode (a stale client cannot even parse).
                     let hello = ProtocolMessage::ServerHello {
@@ -506,12 +521,20 @@ impl RemoteBattleServer {
         // entry let a spoofed datagram consume a human seat that then answered to nobody.
         // ONE snapshot of the seated order carries both the count and each crew's garage pick,
         // so the wish list and the tank hand-out below cannot disagree about who sits where.
-        let seats: Vec<(std::net::SocketAddr, Option<game_core::VehicleKind>)> = self
-            .clients
-            .iter()
-            .filter(|(_, client)| client.is_established())
+        let mut established: Vec<(u64, std::net::SocketAddr, Option<game_core::VehicleKind>)> =
+            self.clients
+                .iter()
+                .filter(|(_, client)| client.is_established())
+                .map(|(address, client)| (client.hello_seq, *address, client.requested_vehicle))
+                .collect();
+        // Hello order, not HashMap order (N10): who sits, and in which seat, is decided by the
+        // handshake sequence — the same on every run of the same lobby, and with more crews
+        // than seats the ones who came first play.
+        established.sort_by_key(|(seq, _, _)| *seq);
+        let seats: Vec<(std::net::SocketAddr, Option<game_core::VehicleKind>)> = established
+            .into_iter()
             .take(LOBBY_FULL_PLAYERS)
-            .map(|(address, client)| (*address, client.requested_vehicle))
+            .map(|(_, address, wish)| (address, wish))
             .collect();
         let wishes: Vec<Option<game_core::VehicleKind>> =
             seats.iter().map(|(_, wish)| *wish).collect();

@@ -512,3 +512,63 @@ fn local_server_replication_carries_absorbed_shell_impacts_to_next_snapshot() {
     assert_eq!(impact.owner, Some(player_tank));
     assert_eq!(impact.surface, game_core::ImpactSurface::Terrain);
 }
+
+/// Inny Poziom N10: a player whose radio is shot out still sees the hull in front of their own
+/// eyes. The sim's team mask carries no sighting from a radio-dead observer (the net is what the
+/// radio is for), so the plain team-mask cut the local host used to take hid exactly that hull;
+/// the honest cut — the one the remote host always applied — puts the crew's own eyes back.
+/// Geometry first: the player and one enemy alone on open ground 40 m apart, every other hull
+/// a kilometre away, so the only eyes on that enemy are the radio-dead player's.
+#[test]
+fn a_radio_dead_player_still_sees_the_hull_in_front_of_their_own_eyes() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::TigerII),
+    );
+    let player = server.player_tank();
+    let player_team = server.tanks().iter().find(|t| t.id == player).expect("player").team;
+    let enemy = server.tanks().iter().find(|t| t.team != player_team).expect("an enemy").id;
+    let others: Vec<game_core::TankId> =
+        server.tanks().iter().map(|t| t.id).filter(|id| *id != player && *id != enemy).collect();
+
+    server.place_for_test(player, glam::Vec3::new(150.0, 0.0, 150.0));
+    server.place_for_test(enemy, glam::Vec3::new(190.0, 0.0, 150.0));
+    for tank in others {
+        server.place_for_test(tank, glam::Vec3::new(850.0, 0.0, 850.0));
+    }
+    server.destroy_module_for_test(player, game_core::ModuleSlot::Radio);
+
+    let mut cut = None;
+    for client_tick in 0..6 {
+        let tick = server.tick_with_player_input(ClientInputCommand {
+            client_tick,
+            tank_id: player,
+            command: TankCommand::idle(),
+        });
+        if let Some(snapshot) = tick.snapshot {
+            cut = Some(snapshot);
+        }
+    }
+    let cut = cut.expect("a snapshot inside six ticks");
+    let me =
+        cut.tanks.iter().find(|t| t.tank_id == player).expect("the player is in their own cut");
+    assert!(
+        me.destroyed_modules_mask & game_core::ModuleSlot::Radio.destroyed_mask_bit() != 0,
+        "precondition: the radio is shot out"
+    );
+
+    // The precondition the rule is measured against: the player's OWN eyes do see the enemy.
+    let tanks = server.tanks();
+    let player_index = tanks.iter().position(|t| t.id == player).expect("player index");
+    let enemy_index = tanks.iter().position(|t| t.id == enemy).expect("enemy index");
+    let masks = server.observer_masks();
+    assert!(
+        masks[enemy_index] & ((1 as sim::ObserverMask) << player_index) != 0,
+        "precondition: on open ground at 40 m the player's own eyes see the enemy"
+    );
+    assert!(
+        cut.tanks.iter().any(|t| t.tank_id == enemy),
+        "the radio-dead player's cut carries the hull in front of their own eyes; it carried {:?}",
+        cut.tanks.iter().map(|t| t.tank_id).collect::<Vec<_>>()
+    );
+}

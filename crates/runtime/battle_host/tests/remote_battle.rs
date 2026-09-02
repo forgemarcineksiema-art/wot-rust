@@ -462,3 +462,84 @@ fn the_lobby_seats_each_crew_in_its_garage_pick() {
         "crew B fights in the hull it picked"
     );
 }
+
+/// Inny Poziom N10: seats go out in HELLO order, never in the seat table's (HashMap) order. The
+/// k-th crew to finish a handshake gets the k-th human seat — the same seat on every run of the
+/// same lobby, whatever the addresses and whatever the map happens to iterate first. Three
+/// crews hello in five different orders, twice each: the seat follows the hello position, not
+/// the address, and never varies between runs.
+#[test]
+fn seats_go_out_in_hello_order_not_table_order() {
+    /// One lobby; `hello_order[k]` is the client that finishes its handshake k-th. Returns the
+    /// tank each HELLO POSITION received.
+    fn seats_by_hello_position(hello_order: [usize; 3]) -> [Option<game_core::TankId>; 3] {
+        let hub = MemoryHub::new();
+        let server_addr = "10.0.0.1:40000".parse().expect("addr");
+        let mut server_port = hub.port(server_addr);
+        let mut ports: Vec<_> = ["10.0.0.2:5000", "10.0.0.3:5000", "10.0.0.4:5000"]
+            .iter()
+            .map(|address| hub.port(address.parse().expect("addr")))
+            .collect();
+        let battle = RandomBattleConfig {
+            seed: BattleSeed::fixed(21),
+            player_vehicle: game_core::VehicleKind::T54_1951,
+            map: terrain::MapId::default(),
+        };
+        // A long lobby: every crew hellos inside it, none is a late joiner.
+        let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 2_000, 0);
+        let mut clients: [Option<ClientSession>; 3] = [None, None, None];
+        let mut assigned: [Option<game_core::TankId>; 3] = [None, None, None];
+        let mut input_sequence = [0_u64; 3];
+
+        for step in 0..300_u64 {
+            let now_ms = step * 16;
+            // The k-th hello starts at step 30·k: 480 ms apart, past any handshake round trip.
+            for (position, &client_index) in hello_order.iter().enumerate() {
+                if step == 30 * position as u64 {
+                    clients[client_index] = Some(ClientSession::connect(server_addr, now_ms));
+                }
+            }
+            for index in 0..3 {
+                let Some(client) = clients[index].as_mut() else { continue };
+                for message in client.tick(now_ms, &mut ports[index]).expect("client tick") {
+                    if let ProtocolMessage::StartBattle { assigned_tank, .. } = message {
+                        assigned[index] = Some(assigned_tank);
+                    }
+                }
+                if let Some(tank) = assigned[index] {
+                    let batch = ProtocolMessage::InputBatch {
+                        session_id: client.session_id(),
+                        commands: vec![net::ClientInputCommand {
+                            client_tick: input_sequence[index],
+                            tank_id: tank,
+                            command: sim::TankCommand::idle(),
+                        }],
+                    };
+                    client.endpoint.send(&mut ports[index], &batch).expect("input batch");
+                    input_sequence[index] += 1;
+                }
+            }
+            host.pump(now_ms, &mut server_port);
+            host.tick(now_ms, &mut server_port);
+        }
+        assert!(host.is_running(), "the lobby started");
+
+        let mut by_position = [None; 3];
+        for (position, &client_index) in hello_order.iter().enumerate() {
+            by_position[position] = Some(assigned[client_index].expect("every crew seated"));
+        }
+        by_position
+    }
+
+    let reference = seats_by_hello_position([0, 1, 2]);
+    assert!(reference.iter().all(|seat| seat.is_some()));
+    for order in [[2, 0, 1], [1, 2, 0], [0, 1, 2], [2, 1, 0], [1, 0, 2]] {
+        for _ in 0..2 {
+            assert_eq!(
+                seats_by_hello_position(order),
+                reference,
+                "hello order {order:?}: the k-th hello gets the k-th seat, on every run"
+            );
+        }
+    }
+}
