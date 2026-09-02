@@ -41,9 +41,13 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let ground_maps = bake_terrain_ground_maps(&battlefield);
 
-    for (states, label, eye_lift) in
-        [(vec![0u8, 0u8], "intact", 4.0f32), (vec![1u8, 0u8], "rubble", 3.0f32)]
-    {
+    // Three frames: standing, rubble, and the fall itself — the collapse theatre (Inny Poziom
+    // Z1) 0.45 s in, when the curtain is down the walls and the settle wave has just landed.
+    for (states, label, eye_lift, collapse_s) in [
+        (vec![0u8, 0u8], "intact", 4.0f32, None),
+        (vec![1u8, 0u8], "rubble", 3.0f32, None),
+        (vec![1u8, 0u8], "collapse", 3.0f32, Some(0.45f32)),
+    ] {
         let ((ground_v, ground_i), (statics_v, statics_i)) =
             battlefield_ground_and_statics_meshes(&battlefield, &states);
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
@@ -62,6 +66,16 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let look = [500.0, ground_y + 5.0, 505.0];
         renderer.shadow_focus = Some(look);
         let camera = Camera { eye, target: look, vertical_fov_degrees: 55.0 };
+        if let Some(seconds) = collapse_s {
+            let fx = client::collapse_theatre_vertices(
+                [500.0, ground_y + 6.0, 500.0],
+                [4.6, 6.0, 6.0],
+                seconds,
+                eye,
+                look,
+            );
+            renderer.set_fx(&ctx, &fx);
+        }
         let projection = CameraProjectionPolicy::webgpu_default();
         let view_proj = view_projection_matrix(
             &camera,

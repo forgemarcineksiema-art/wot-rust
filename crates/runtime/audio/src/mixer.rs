@@ -14,6 +14,7 @@ use crate::voice::Voice;
 use crate::voices::ambience::{RainAmbience, WindAmbience};
 use crate::voices::blast::HeBlast;
 use crate::voices::cannon::CannonShot;
+use crate::voices::collapse::Collapse;
 use crate::voices::engine::EngineVoice;
 use crate::voices::hangar::HangarAmbience;
 use crate::voices::impact::{ArmorHit, GroundImpact};
@@ -176,6 +177,13 @@ impl AudioEngine {
                 };
                 let gain = if high_explosive { 0.95 } else { 0.7 };
                 self.spawn_at(voice, position, gain, true, occlusion);
+            }
+            AudioEvent::CoverCollapse { position, footprint_m2, height_m } => {
+                // A structure coming down (Z1): the fracture, the rumble, the second wave and
+                // the rain, all sized by the box. Louder than any single shell — tons moving.
+                let voice =
+                    Box::new(Collapse::new(footprint_m2, height_m, self.sample_rate_hz, seed));
+                self.spawn_at(voice, position, 1.15, true, occlusion);
             }
             AudioEvent::ShellFlyby { position, caliber_mm, miss_distance_m } => {
                 let voice = Box::new(crate::voices::flyby::FlybyCrack::new(

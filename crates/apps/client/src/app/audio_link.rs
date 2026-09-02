@@ -290,7 +290,8 @@ fn audio_event_position(event: &audio::AudioEvent) -> Option<glam::Vec3> {
         audio::AudioEvent::CannonFired { own_shot: true, .. } => None,
         audio::AudioEvent::CannonFired { position, .. }
         | audio::AudioEvent::ArmorStruck { position, .. }
-        | audio::AudioEvent::ShellAbsorbed { position, .. } => Some(*position),
+        | audio::AudioEvent::ShellAbsorbed { position, .. }
+        | audio::AudioEvent::CoverCollapse { position, .. } => Some(*position),
         _ => None,
     }
 }

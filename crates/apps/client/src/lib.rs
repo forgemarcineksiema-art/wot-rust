@@ -21,8 +21,8 @@ pub use camera::{
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
 pub use fx::TerrainScars;
-pub use fx::shell_tracer_vertices;
 pub use fx::{append_decal_quads, decal_from_damage_event};
+pub use fx::{collapse_theatre_vertices, shell_tracer_vertices};
 pub use hud::demo::demo_battle_hud;
 pub use hud::demo_strip::demo_reticle_strip;
 pub use hud::font::hud_font_atlas;
