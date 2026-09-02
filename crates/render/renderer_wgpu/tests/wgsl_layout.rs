@@ -742,3 +742,28 @@ fn camera_uniform_uses_camera_view_bind_group_slot() {
 
     assert!(report.has_uniform_binding("camera", camera_group, 0));
 }
+
+/// Every shader the renderer ships parses and validates as WGSL — ALL of them, not the three
+/// the earlier tests happened to name. The vehicle shader had no such test, so a broken edit
+/// (a literal `$1` left by a script) reached the probe as "uncaptured GPU error: parsing error"
+/// and a frame with no vehicles; here it is a failed test (Q7, diet step 2).
+#[test]
+fn every_shipped_shader_validates() {
+    let shaders: [(&str, String); 10] = [
+        ("basic_tank", basic_tank_shader_source().to_string()),
+        ("fx", renderer_wgpu::fx_shader_source()),
+        ("rain", renderer_wgpu::rain_shader_source()),
+        ("scene", scene_shader_source()),
+        ("shadow", renderer_wgpu::shadow_shader_source()),
+        ("sky", sky_shader_source()),
+        ("ssao", renderer_wgpu::ssao_shader_source()),
+        ("terrain", terrain_shader_source()),
+        ("vehicle", renderer_wgpu::vehicle_shader_source()),
+        ("water", renderer_wgpu::water_shader_source()),
+    ];
+    for (label, source) in &shaders {
+        let report = validate_wgsl_shader(*label, source)
+            .unwrap_or_else(|error| panic!("{label} shader must validate: {error}"));
+        assert!(!report.entry_points.is_empty(), "{label} shader exposes an entry point");
+    }
+}
