@@ -26,18 +26,13 @@
 //! the frame has left and drop their oldest to fit (`TerrainScars::append_quads_within`).
 //! Between them the frame is bounded by construction rather than by hope.
 
-use game_core::{TankId, TeamId, VehicleKind};
 use glam::Vec3;
-use net::TankSnapshot;
 use terrain::HeightMap;
 
 use super::FxSystem;
 use super::particle::{MAX_PARTICLES, Particle};
 use super::terrain_scars::{MAX_TERRAIN_SCARS, TerrainScars};
 use super::track_marks::{MAX_TRACK_MARKS, TrackMarks};
-use crate::vehicle::variation::{
-    DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
-};
 
 /// The battle roster the budget is sized for: 7v7.
 const BATTLE_TANKS: usize = 14;
@@ -56,42 +51,6 @@ const FX_GROUND_VERTEX_BUDGET: usize = 43_668;
 /// shells (4 s lifetime x fire cadence), not by a pool. Three stretched quads per shell, 18
 /// vertices, and a 7v7 cannot plausibly hold more than two rounds per tank in the air at once.
 const FX_TRACER_ALLOWANCE: usize = BATTLE_TANKS * 2 * 18;
-
-fn snapshot() -> TankSnapshot {
-    let spec = VehicleKind::BENCHMARK.spec();
-    TankSnapshot {
-        tank_id: TankId(9),
-        team: TeamId(2),
-        vehicle: spec.kind,
-        position: [40.0, 2.0, 60.0],
-        yaw_rad: 0.0,
-        hull_pitch_rad: 0.0,
-        hull_roll_rad: 0.0,
-        turret_yaw_rad: 0.0,
-        turret_yaw_velocity_rad_s: 0.0,
-        gun_pitch_rad: 0.0,
-        hit_points: spec.hit_points,
-        reload_remaining_s: 0.0,
-        aim_dispersion_mrad: 1.0,
-        module_hit_points: spec.module_health.hit_points_by_slot(),
-        destroyed_modules_mask: 0,
-        track_damage_mask: 0,
-        track_hp: [game_core::TRACK_HP_MAX; 2],
-        ammo_counts: game_core::AmmoLoadout::default().counts,
-        selected_ammo: 0,
-        spotted_by_teams_mask: 0,
-        armor_breaches: Default::default(),
-        track_break_t: [None, None],
-        engine_fire: false,
-        fuel_fire: false,
-        rack_fire_remaining_s: None,
-        crew_unconscious_mask: 0,
-        crew_weakened_mask: 0,
-        crew_down_remaining_s: Default::default(),
-        hull_pitch_velocity_rad_s: 0.0,
-        hull_roll_velocity_rad_s: 0.0,
-    }
-}
 
 fn puff(position: Vec3) -> Particle {
     Particle {
