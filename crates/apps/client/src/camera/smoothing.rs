@@ -104,18 +104,14 @@ impl BattleCameraController {
     /// Taking a hit rocks the rig. `push` is the direction the impact shoves the hull (hit point
     /// toward hull centre; only its horizontal part is used) and `severity` is the damage relative
     /// to the full health pool — a 0-damage bounce still lands a readable clang. Third person gets
-    /// a directional shove plus a downward settle through the follow spring; sniper keeps only the
-    /// vertical channel, which its micro-damper caps at [`SNIPER_Y_MAX_M`] — the scope dips for a
-    /// beat but the aim never smears sideways.
+    /// a directional shove plus a downward settle through the follow spring; the sniper scope
+    /// does not move at all (the S2 decision): the hit reaches it through the HUD and sound.
     pub fn damage_shudder(&mut self, push: Vec3, severity: f32) {
         let severity = severity.clamp(0.0, 1.0);
         if self.mode() == BattleCameraMode::Sniper {
-            // Displace the damped anchor directly: at omega 45 a velocity impulse is eaten within
-            // a frame, but a displacement reads as a dip the damper then recovers from.
-            if let Some(anchor) = self.smoothing.anchor.as_mut() {
-                anchor.y -= 0.035 + 0.075 * severity;
-            }
-            self.smoothing.anchor_vel.y -= 0.4 + 0.8 * severity;
+            // The scope is rigid (the S2 decision, 2026-09-02: in the scope the picture under
+            // the player's hand never moves). Being hit reaches the sniper through the HUD's
+            // direction arc and its verdict, the hull's own rock in third person, and sound.
             return;
         }
         let horizontal = Vec3::new(push.x, 0.0, push.z).normalize_or_zero();

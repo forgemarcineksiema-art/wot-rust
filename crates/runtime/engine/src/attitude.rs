@@ -33,6 +33,10 @@ const ACCEL_SMOOTH_PER_S: f32 = 6.0;
 /// spring at ~1.1 Hz this peaks around 0.8 degrees of deflection and settles in one visible nod —
 /// tonnes of hull rocking on its torsion bars, not a flinch.
 const FIRE_IMPULSE_RAD_S: f32 = 0.16;
+/// Angular velocity (rad/s) an incoming shell injects into the sprung hull at energy 1.0 (the
+/// D-10's round, Inny Poziom S5): the strike lands on the same springs the shot and the
+/// terrain do, a touch harder than the gun's own recoil — a hit is felt before it is read.
+const HIT_IMPULSE_RAD_S: f32 = 0.22;
 /// Spring frequency scale at a fully drained suspension pool: 1.0 at full HP easing to this
 /// floor at 0 HP, so a wounded suspension is a visibly softer spring (the hull wallows).
 const WOUNDED_OMEGA_FLOOR: f32 = 0.6;
@@ -189,6 +193,18 @@ impl HullAttitude {
             dt,
         );
         self.heave_m = (self.smoothed_y - translation[1]).clamp(-MAX_HEAVE_DOWN_M, MAX_HEAVE_UP_M);
+    }
+
+    /// An incoming shell rocks the sprung hull from the side it came in (Inny Poziom S5).
+    /// `bearing_hull_rad` is where the hit landed on the hull, hull-relative: 0 the front
+    /// plate, positive the right side, ±π the rear. A frontal strike shoves the upper hull
+    /// back and lifts the nose; one on the right side rolls the hull away from it; a rear
+    /// strike dips the nose. `energy` is the shooter's round on the S3 momentum scale (1.0 for
+    /// the D-10), a bounce as hard as a penetration — the plate held, the shell still pushed.
+    pub fn hit_impulse(&mut self, bearing_hull_rad: f32, energy: f32) {
+        let impulse = HIT_IMPULSE_RAD_S * energy.clamp(0.3, 2.5);
+        self.pitch_vel += bearing_hull_rad.cos() * impulse;
+        self.roll_vel += bearing_hull_rad.sin() * impulse;
     }
 
     /// One main-gun shot rocks the sprung hull through the same spring that absorbs terrain: the
@@ -470,5 +486,70 @@ mod recoil_scale_locks {
             heavy.pitch_vel,
             light.pitch_vel
         );
+    }
+}
+
+/// Inny Poziom S5: the hit in the body. A strike lands on the sprung hull from the side the
+/// shell came in, scaled by the shooter's round, on the same springs as the shot and the
+/// terrain — and it settles the same way, in one visible nod.
+#[cfg(test)]
+mod hit_impulse_locks {
+    use super::*;
+
+    fn seeded() -> HullAttitude {
+        let mut att = HullAttitude::default();
+        let sample = AttitudeSample { terrain_pitch_rad: 0.0, terrain_roll_rad: 0.0 };
+        for _ in 0..120 {
+            att.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, 1.0 / 60.0);
+        }
+        att
+    }
+
+    fn peak_after(att: &mut HullAttitude) -> (f32, f32) {
+        let sample = AttitudeSample { terrain_pitch_rad: 0.0, terrain_roll_rad: 0.0 };
+        let (mut pitch, mut roll) = (0.0_f32, 0.0_f32);
+        for _ in 0..60 {
+            att.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, 1.0 / 60.0);
+            pitch = if pitch.abs() < att.pitch_rad.abs() { att.pitch_rad } else { pitch };
+            roll = if roll.abs() < att.roll_rad.abs() { att.roll_rad } else { roll };
+        }
+        (pitch, roll)
+    }
+
+    #[test]
+    fn a_frontal_hit_lifts_the_nose_a_side_hit_rolls_the_hull_and_a_rear_hit_dips_it() {
+        let mut front = seeded();
+        front.hit_impulse(0.0, 1.0);
+        let (front_pitch, front_roll) = peak_after(&mut front);
+        assert!(front_pitch > 0.004, "a frontal strike lifts the nose: {front_pitch}");
+        assert!(front_roll.abs() < front_pitch * 0.2, "and barely rolls: {front_roll}");
+
+        let mut right = seeded();
+        right.hit_impulse(std::f32::consts::FRAC_PI_2, 1.0);
+        let (right_pitch, right_roll) = peak_after(&mut right);
+        assert!(right_roll > 0.004, "a strike on the right side rolls the hull: {right_roll}");
+        assert!(right_pitch.abs() < right_roll * 0.2, "and barely pitches: {right_pitch}");
+
+        let mut rear = seeded();
+        rear.hit_impulse(std::f32::consts::PI, 1.0);
+        let (rear_pitch, _) = peak_after(&mut rear);
+        assert!(rear_pitch < -0.004, "a rear strike dips the nose: {rear_pitch}");
+    }
+
+    #[test]
+    fn a_heavier_round_rocks_the_hull_further_and_the_hull_settles_level_again() {
+        let mut light = seeded();
+        light.hit_impulse(0.0, 0.67);
+        let (light_pitch, _) = peak_after(&mut light);
+        let mut heavy = seeded();
+        heavy.hit_impulse(0.0, 1.36);
+        let (heavy_pitch, _) = peak_after(&mut heavy);
+        assert!(heavy_pitch > light_pitch * 1.5, "Pak 80 {heavy_pitch} vs KwK 42 {light_pitch}");
+
+        let sample = AttitudeSample { terrain_pitch_rad: 0.0, terrain_roll_rad: 0.0 };
+        for _ in 0..240 {
+            heavy.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, 1.0 / 60.0);
+        }
+        assert!(heavy.pitch_rad.abs() < 1.0e-3, "the hull settles level: {}", heavy.pitch_rad);
     }
 }

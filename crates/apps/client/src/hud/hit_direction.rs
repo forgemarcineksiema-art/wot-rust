@@ -19,6 +19,15 @@ pub(crate) const HIT_ARC_RADIUS: f32 = 0.30;
 /// Angular width of one bearing arc.
 const HIT_ARC_SWEEP_RAD: f32 = 0.55;
 
+/// The verdict beside the arc (Inny Poziom S5): the plate HELD, in amber, with the millimetres
+/// that held it — effective armour against the shell's penetration — or PEN, in the arc's
+/// red, with the millimetres that did not. The exactly-once damage lane carries both numbers
+/// for every strike on the player, bounce or not; this is where they are said.
+pub(crate) const HIT_HELD_COLOR: [f32; 4] = [0.98, 0.84, 0.36, 0.90];
+pub(crate) const HIT_PEN_COLOR: [f32; 4] = [0.95, 0.30, 0.22, 0.90];
+/// Text size of the verdict line, and how far outside the ring it sits.
+const HIT_VERDICT_SIZE: f32 = 0.030;
+const HIT_VERDICT_OFFSET: f32 = 0.045;
 /// One incoming hit, already resolved to a screen bearing: `0` = the attacker is dead ahead of
 /// the camera, positive = to the right (clockwise on screen).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,6 +35,10 @@ pub(crate) struct IncomingHit {
     pub bearing_rad: f32,
     pub age_s: f32,
     pub penetrated: bool,
+    /// The plate's effective thickness along the shell's path, and the shell's penetration —
+    /// the numbers the verdict is made of.
+    pub effective_armor_mm: f32,
+    pub shell_penetration_mm: f32,
 }
 
 /// App-side store: hits keep their world direction and are resolved to a screen bearing each
@@ -41,6 +54,8 @@ struct WorldHit {
     direction_xz: [f32; 2],
     age_s: f32,
     penetrated: bool,
+    effective_armor_mm: f32,
+    shell_penetration_mm: f32,
 }
 
 impl IncomingHitFeed {
@@ -78,6 +93,8 @@ impl IncomingHitFeed {
                 direction_xz: [dx / len, dz / len],
                 age_s: 0.0,
                 penetrated: event.penetrated,
+                effective_armor_mm: event.effective_armor_mm,
+                shell_penetration_mm: event.shell_penetration_mm,
             });
         }
     }
@@ -103,7 +120,13 @@ impl IncomingHitFeed {
                 while bearing < -std::f32::consts::PI {
                     bearing += std::f32::consts::TAU;
                 }
-                IncomingHit { bearing_rad: bearing, age_s: hit.age_s, penetrated: hit.penetrated }
+                IncomingHit {
+                    bearing_rad: bearing,
+                    age_s: hit.age_s,
+                    penetrated: hit.penetrated,
+                    effective_armor_mm: hit.effective_armor_mm,
+                    shell_penetration_mm: hit.shell_penetration_mm,
+                }
             })
             .collect()
     }
@@ -130,6 +153,17 @@ pub(crate) fn push_hit_direction(vertices: &mut Vec<HudVertex>, hits: &[Incoming
             aspect,
             color,
         );
+        // The verdict beside the arc (S5): just outside the ring at the same bearing, HELD in
+        // amber with the millimetres that held, PEN in red with the millimetres that did not.
+        let (label, verdict) =
+            if hit.penetrated { ("PEN", HIT_PEN_COLOR) } else { ("HELD", HIT_HELD_COLOR) };
+        let mut verdict_color = verdict;
+        verdict_color[3] *= fade;
+        let text = format!("{label} {:.0}/{:.0}", hit.effective_armor_mm, hit.shell_penetration_mm);
+        let radius = HIT_ARC_RADIUS + HIT_VERDICT_OFFSET;
+        let x = center_angle.cos() * radius / aspect - 0.06;
+        let y = center_angle.sin() * radius + HIT_VERDICT_SIZE / 2.0;
+        crate::hud::font::push_text(vertices, &text, x, y, HIT_VERDICT_SIZE, aspect, verdict_color);
     }
 }
 
@@ -207,6 +241,8 @@ mod tests {
             bearing_rad: std::f32::consts::FRAC_PI_2,
             age_s: 0.0,
             penetrated: true,
+            effective_armor_mm: 0.0,
+            shell_penetration_mm: 0.0,
         }];
         let mut v = Vec::new();
         push_hit_direction(&mut v, &hits, 16.0 / 9.0);
@@ -222,8 +258,20 @@ mod tests {
 
     #[test]
     fn arcs_fade_with_age_and_expire_from_the_feed() {
-        let fresh = [IncomingHit { bearing_rad: 0.0, age_s: 0.0, penetrated: true }];
-        let old = [IncomingHit { bearing_rad: 0.0, age_s: 1.2, penetrated: true }];
+        let fresh = [IncomingHit {
+            bearing_rad: 0.0,
+            age_s: 0.0,
+            penetrated: true,
+            effective_armor_mm: 0.0,
+            shell_penetration_mm: 0.0,
+        }];
+        let old = [IncomingHit {
+            bearing_rad: 0.0,
+            age_s: 1.2,
+            penetrated: true,
+            effective_armor_mm: 0.0,
+            shell_penetration_mm: 0.0,
+        }];
         let (mut v_fresh, mut v_old) = (Vec::new(), Vec::new());
         push_hit_direction(&mut v_fresh, &fresh, 16.0 / 9.0);
         push_hit_direction(&mut v_old, &old, 16.0 / 9.0);
@@ -235,5 +283,44 @@ mod tests {
         feed.ingest(&[hit_on_player(2)], TankId(1), &tanks);
         feed.tick(HIT_DIRECTION_TTL_S + 0.1);
         assert!(feed.screen_hits([0.0, 1.0]).is_empty(), "expired hits leave the feed");
+    }
+
+    /// Inny Poziom S5: the verdict rides the arc. A bounce says the plate HELD with the
+    /// millimetres that held it; a penetration says PEN with the millimetres that did not —
+    /// both from the exactly-once damage lane, each drawn in its own colour beside the arc.
+    #[test]
+    fn a_bounce_says_the_plate_held_and_a_pen_says_its_own_millimetres() {
+        let tanks = [tank_at(1, 0.0, 0.0), tank_at(2, 0.0, 50.0)];
+        let bounce = DamageEvent {
+            penetrated: false,
+            damage_hp: 0,
+            effective_armor_mm: 162.0,
+            shell_penetration_mm: 150.0,
+            ..hit_on_player(2)
+        };
+        let mut feed = IncomingHitFeed::default();
+        feed.ingest(&[bounce], TankId(1), &tanks);
+        let hits = feed.screen_hits([0.0, 1.0]);
+        assert_eq!(hits.len(), 1, "a bounce still earns its arc");
+        assert!(!hits[0].penetrated);
+        assert_eq!((hits[0].effective_armor_mm, hits[0].shell_penetration_mm), (162.0, 150.0));
+        let mut v = Vec::new();
+        push_hit_direction(&mut v, &hits, 16.0 / 9.0);
+        assert!(v.iter().any(|vert| vert.color == HIT_HELD_COLOR), "HELD is drawn in amber");
+        assert!(!v.iter().any(|vert| vert.color == HIT_PEN_COLOR), "no PEN on a bounce");
+
+        let pen = DamageEvent {
+            penetrated: true,
+            effective_armor_mm: 122.0,
+            shell_penetration_mm: 150.0,
+            ..hit_on_player(2)
+        };
+        let mut feed = IncomingHitFeed::default();
+        feed.ingest(&[pen], TankId(1), &tanks);
+        let hits = feed.screen_hits([0.0, 1.0]);
+        let mut v = Vec::new();
+        push_hit_direction(&mut v, &hits, 16.0 / 9.0);
+        assert!(v.iter().any(|vert| vert.color == HIT_PEN_COLOR), "PEN is drawn in red");
+        assert!(!v.iter().any(|vert| vert.color == HIT_HELD_COLOR), "no HELD on a pen");
     }
 }
