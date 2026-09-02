@@ -59,6 +59,54 @@ pub(crate) struct GroundResources {
     pub binding: Option<GroundBinding>,
 }
 
+/// The ground bind group's layout AS DATA: which stage may read each of the four bindings. A
+/// binding the shader reads from a stage the layout did not grant is not a compile error and
+/// not a panic — wgpu refuses the whole pipeline at creation, logs one line nobody reads, and
+/// the ground simply stops drawing (Q7's first cold sandwich measured a 0.0 ms battle frame for
+/// exactly that: the field quilt moved into the vertex stage, the materials stayed
+/// fragment-only). `ground_layout_matches_the_shader` pins this table to `terrain.wgsl`.
+pub(crate) fn ground_bind_group_layout_entries() -> [wgpu::BindGroupLayoutEntry; 4] {
+    let texture = wgpu::BindingType::Texture {
+        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+        view_dimension: wgpu::TextureViewDimension::D2,
+        multisampled: false,
+    };
+    [
+        // The splat map: per-pixel layer weights.
+        wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: texture,
+            count: None,
+        },
+        // The macro normal map.
+        wgpu::BindGroupLayoutEntry {
+            binding: 1,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: texture,
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: 2,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        },
+        // The material set: the fragment stage reads the layers, the vertex stage reads the
+        // field-quilt strength (Q7 — the quilt is evaluated once per vertex).
+        wgpu::BindGroupLayoutEntry {
+            binding: 3,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        },
+    ]
+}
+
 impl GroundResources {
     pub fn new(
         device: &wgpu::Device,
@@ -69,44 +117,7 @@ impl GroundResources {
     ) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("terrain_ground_bgl"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
+            entries: &ground_bind_group_layout_entries(),
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("terrain_shader"),
@@ -348,6 +359,7 @@ impl SceneRenderer {
 
 #[cfg(test)]
 mod tests {
+    use super::{ground_bind_group_layout_entries, terrain_shader_source};
     use renderer_api::{MipMode, Rgba8MipChain, Rgba8MipLevel};
 
     /// The lock for D3's structural cousin: the ground maps upload a FULL mip chain, so the
@@ -369,5 +381,49 @@ mod tests {
         ];
         let chain = Rgba8MipChain::build(Rgba8MipLevel::new(2, 2, bytes), MipMode::Box);
         assert_eq!(chain.levels()[1].rgba(), &[40, 0, 100, 255], "the 2x2 rounded box mean");
+    }
+
+    /// Every binding `terrain.wgsl` reads at group 1 is granted to THAT stage by the ground
+    /// layout. wgpu would otherwise refuse the pipeline at creation and log one line — no
+    /// panic, no ground, a 0.0 ms battle frame (Q7's first sandwich). The vertex stage does
+    /// read the material set now: the field quilt is evaluated per vertex.
+    #[test]
+    fn ground_layout_matches_the_shader() {
+        let entries = ground_bind_group_layout_entries();
+        let uses =
+            crate::shader_validation::wgsl_stage_binding_uses("terrain", &terrain_shader_source())
+                .expect("terrain.wgsl validates");
+        let stage_bit = |stage: naga::ShaderStage| match stage {
+            naga::ShaderStage::Vertex => wgpu::ShaderStages::VERTEX,
+            naga::ShaderStage::Fragment => wgpu::ShaderStages::FRAGMENT,
+            _ => wgpu::ShaderStages::COMPUTE,
+        };
+        let ground_uses: Vec<_> = uses.iter().filter(|item| item.group == 1).collect();
+        assert!(!ground_uses.is_empty(), "the ground shader reads its group-1 bindings");
+        for item in &ground_uses {
+            let entry =
+                entries.iter().find(|entry| entry.binding == item.binding).unwrap_or_else(|| {
+                    panic!(
+                        "{} reads group 1 binding {} ({}) that the layout does not declare",
+                        item.entry_point, item.binding, item.name
+                    )
+                });
+            assert!(
+                entry.visibility.contains(stage_bit(item.stage)),
+                "{} ({:?}) reads `{}` (binding {}) but the layout grants it only {:?}: wgpu \
+                 would refuse the pipeline silently",
+                item.entry_point,
+                item.stage,
+                item.name,
+                item.binding,
+                entry.visibility
+            );
+        }
+        assert!(
+            ground_uses
+                .iter()
+                .any(|item| item.stage == naga::ShaderStage::Vertex && item.binding == 3),
+            "the field quilt reads the material set in the vertex stage (Q7)"
+        );
     }
 }

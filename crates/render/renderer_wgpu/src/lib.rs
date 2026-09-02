@@ -50,7 +50,8 @@ pub use scene_renderer::{
 };
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
-    WgslUniformBinding, WgslValidationReport, basic_tank_shader_source, validate_wgsl_shader,
+    WgslStageBindingUse, WgslUniformBinding, WgslValidationReport, basic_tank_shader_source,
+    validate_wgsl_shader, wgsl_stage_binding_uses,
 };
 pub use sky_pipeline::sky_shader_source;
 pub use surface_config::select_present_mode;

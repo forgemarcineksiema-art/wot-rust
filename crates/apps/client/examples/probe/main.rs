@@ -135,6 +135,12 @@ const PROBES: &[ProbeEntry] = &[
 ];
 
 fn main() -> ProbeResult {
+    // A lost device or an uncaptured GPU error is a `tracing::error!` in the renderer; without a
+    // subscriber a probe measures a 0.0 ms frame and says nothing (Q7's first cold sandwich).
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init()
+        .ok();
     let name = std::env::args().nth(1).unwrap_or_default();
     if let Some((_, run)) = PROBES.iter().find(|(n, _)| *n == name) {
         return run();
