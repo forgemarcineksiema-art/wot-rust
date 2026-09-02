@@ -56,8 +56,7 @@ struct VsOut {
     @location(12) @interpolate(flat) damage_index: u32,
 };
 
-@vertex
-fn vs_main(input: VsIn) -> VsOut {
+fn vs_body(input: VsIn) -> VsOut {
     var out: VsOut;
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
     let world_position = model * vec4<f32>(input.position, 1.0);
@@ -75,6 +74,24 @@ fn vs_main(input: VsIn) -> VsOut {
     out.mapping_mode = input.mapping_mode;
     out.shade = input.shade;
     out.damage_index = input.damage_index;
+    return out;
+}
+
+@vertex
+fn vs_main(input: VsIn) -> VsOut {
+    return vs_body(input);
+}
+
+// The interior shell (Inny Poziom Z6): the same castings drawn once more with FRONT faces
+// culled, so the inside of the outer skin — the far wall a breach reveals — exists on screen
+// and is shaded as a cavity by `fs_main` (`front_facing` false). An intact hull has no hole to
+// look through: its instance collapses outside the clip volume and costs no fragment.
+@vertex
+fn vs_interior(input: VsIn) -> VsOut {
+    var out = vs_body(input);
+    if (input.damage_index == 0u) {
+        out.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+    }
     return out;
 }
 
@@ -177,9 +194,16 @@ fn armor_interior_radiance(
         let plate_normal = normalize(aperture.normal_minor.xyz);
         let to_hole = aperture.center_major.xyz - world_pos;
         let depth = dot(to_hole, plate_normal);
-        if (depth > 0.01) {
+        // Light through a hole reaches a surface in proportion to how squarely that surface
+        // FACES the hole (Z6): the inside of the plate that carries the hole lies in the
+        // hole's own plane and sees nothing through it, and a fragment inside the plate's
+        // own band (a rim, a tongue) is not behind the hole at all. Without this the skin
+        // around a breach shone sky-blue through its own opening.
+        let facing = max(dot(surface_normal, normalize(to_hole)), 0.0);
+        if (depth > 0.06 && facing > 0.0) {
             let area = 3.14159265 * aperture.center_major.w * aperture.normal_minor.w;
-            let solid_angle = clamp(area / (dot(to_hole, to_hole) + area), 0.0, 0.45);
+            let solid_angle =
+                clamp(area / (dot(to_hole, to_hole) + area), 0.0, 0.45) * facing;
             // A first diffuse bounce keeps a small opening readable after exposure without adding
             // any light through intact armor. The sqrt term approximates nearby painted surfaces
             // spreading sky energy beyond the aperture's direct projected solid angle.
@@ -193,7 +217,7 @@ fn armor_interior_radiance(
                 let plane_hit = world_pos + sun * ray_t;
                 if (ray_t > 0.0 && aperture_contains_world(aperture, plane_hit)) {
                     let diffuse = max(dot(surface_normal, sun), 0.0);
-                    radiance += camera.key_rgb * (0.18 + diffuse * 0.82);
+                    radiance += camera.key_rgb * (0.18 * facing + diffuse * 0.82);
                 }
             }
         }
@@ -283,7 +307,7 @@ fn material_layer(id: u32) -> i32 {
 }
 
 @fragment
-fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
+fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
         discard;
     }
@@ -316,6 +340,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
     }
 
+    // A back face is the inside of the skin (the interior shell, Z6): its normal faces the
+    // cavity, not the viewer.
+    if (!front) {
+        world_n = -world_n;
+    }
     let mat = material_params(input.material_id);
     // Armour takes the per-instance team tint; detail materials keep their absolute albedo.
     let tinted = mix(vec3<f32>(1.0, 1.0, 1.0), input.team_tint, input.tint_mask);
@@ -350,8 +379,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     var albedo = mat.albedo * baked_albedo * tinted * albedo_var * mix(1.0, 0.85, wet);
     let fractured_steel = input.material_id == 8u;
-    let heat_band = 1.0 - smoothstep(0.52, 0.86, input.shade);
-    let fracture_tone = mix(vec3<f32>(0.34, 0.29, 0.23), vec3<f32>(0.19, 0.12, 0.075), heat_band);
+    // Torn steel by the tear lane the rim mesh writes into `shade` (Z6): the scorched root of
+    // a tongue is near-black, the plate's section is dark warm steel, the torn tip is BRIGHT
+    // bare metal — fresh steel is silver at the break; rust is weeks away.
+    let tear = clamp(input.shade, 0.0, 1.0);
+    let torn_tip = smoothstep(0.72, 0.97, tear);
+    let fracture_tone = mix(
+        mix(vec3<f32>(0.12, 0.09, 0.07), vec3<f32>(0.30, 0.27, 0.24), smoothstep(0.25, 0.60, tear)),
+        vec3<f32>(0.58, 0.56, 0.53),
+        torn_tip,
+    );
     albedo = select(albedo, fracture_tone * albedo_var, fractured_steel);
     albedo = mix(albedo, dust_tone * albedo_var, dust * 0.30 * (1.0 - wet * 0.5));
     // Field dust (Hala 3.0 J2): the film a battle leaves on every up-facing surface — decks,
@@ -390,7 +427,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // every term so the turret-ring seam, running-gear recess and grille wells read as real
     // cavities. SCREEN-space AO is different — it rides inside light_radiance on the indirect
     // terms only, so a sunlit hull keeps its full key.
-    let contact = clamp(input.shade, 0.0, 1.0);
+    // The shade lane is contact AO for every casting; on torn steel it is the tear lane
+    // instead, so the rim takes a flat contact term.
+    let contact = select(clamp(input.shade, 0.0, 1.0), 0.85, fractured_steel);
     let screen = screen_ao(input.clip);
 
     // THREE ESTIMATES OF ONE QUANTITY, so the most occluded wins instead of all three
@@ -434,10 +473,19 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // INTERIOR roles only (5 primer, 6 machinery, 7 ammunition). Canvas, glass and timber are
     // exterior fittings that happen to sit above them in the id order, and an unbounded `>= 5`
     // lit a tarpaulin as though it were inside the fighting compartment.
-    if (input.material_id >= 5u && input.material_id <= 7u) {
-        lit += albedo
-            * armor_interior_radiance(input.world_pos, world_n, input.damage_index)
-            * surface_occlusion;
+    // The hull's inside is a CAVITY (Z6): no key, fill or rim light reaches it and the sky
+    // ambient is a whisper; what lights it is the light through its own holes.
+    // The inside of the outer skin (a back face, drawn by the interior shell) is the far wall
+    // a breach reveals: primer, not paint, and a cavity like the interior materials.
+    let inside_skin = !front;
+    let enclosed = (input.material_id >= 5u && input.material_id <= 7u) || inside_skin;
+    if (enclosed) {
+        let interior_albedo =
+            select(albedo, mix(albedo, vec3<f32>(0.30, 0.33, 0.26), 0.75), inside_skin);
+        lit = interior_albedo
+            * (hemi_ambient(world_n) * indirect_occlusion * 0.08
+                + armor_interior_radiance(input.world_pos, world_n, input.damage_index)
+                    * surface_occlusion);
     }
 
     // Roughness-driven specular off the key light, evaluated against the real world-space view
@@ -447,7 +495,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let key_dir = normalize(camera.key_direction);
     let half_v = normalize(key_dir + view_dir);
     // Micro-variation and dust roughen the finish; rain tightens it; charring caps it matte.
-    let role_roughness = select(mat.roughness, 0.78, fractured_steel);
+    let role_roughness = select(mat.roughness, mix(0.78, 0.42, torn_tip), fractured_steel);
     let rough_base = role_roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet)
         * (1.0 - wound.bare * 0.25);
     let roughness = clamp(
@@ -465,7 +513,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // thing on a tank meant to catch the sun still catches it.
     let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * pow(1.0 - roughness, 3.0) * 0.6;
     // The specular is the key light's highlight, so it is occluded by the same shadow.
-    let spec_color = camera.key_rgb * spec * shadow * contact;
+    let spec_color = camera.key_rgb * spec * shadow * contact * select(1.0, 0.15, enclosed);
 
     // Analytic-sky environment reflection: the smoother the finish, the more the hull mirrors
     // the sky along the reflected view ray — strongest at grazing angles (Fresnel), dampened in
@@ -483,11 +531,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // only reflects at grazing angles, so F0 rides the lane: worn track metal catches the sky at
     // any angle instead of only silhouette-on, which is most of what separates a steel belt from
     // a rubber one at battle range.
-    let metal = max(ao_rough.b, wound.bare * 0.4);
+    let metal = max(max(ao_rough.b, wound.bare * 0.4), select(0.0, torn_tip * 0.6, fractured_steel));
     let f0 = mix(0.04, 0.32, metal);
     let fresnel = f0 + (1.0 - f0) * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
-    let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
+    let interior_env = select(1.0, 0.02, enclosed);
     let fracture_env = select(1.0, 0.32, fractured_steel);
     // D1: in the garage the hull mirrors the ROOM (the baked cubemap, mip by smoothness);
     // on the battlefield it keeps the analytic sky. Same helper the scene gloss path uses,

@@ -54,7 +54,7 @@ pub fn build_vehicle_pipeline(
     sample_count: u32,
     shadow_bgl: &wgpu::BindGroupLayout,
     camera_bgl: &wgpu::BindGroupLayout,
-) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
+) -> (wgpu::RenderPipeline, wgpu::RenderPipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("vehicle_shader"),
         source: wgpu::ShaderSource::Wgsl(vehicle_shader_source().into()),
@@ -66,54 +66,60 @@ pub fn build_vehicle_pipeline(
         bind_group_layouts: &[Some(camera_bgl), Some(&material_bgl), Some(shadow_bgl)],
         immediate_size: 0,
     });
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("vehicle_pipeline"),
-        layout: Some(&layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            buffers: &[
-                wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &VEHICLE_VERTEX_ATTRIBUTES,
-                },
-                wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<SceneInstance>() as u64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &VEHICLE_INSTANCE_ATTRIBUTES,
-                },
-            ],
-        },
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
-            ..Default::default()
-        },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: DEPTH_FORMAT,
-            depth_write_enabled: Some(true),
-            depth_compare: Some(wgpu::CompareFunction::Less),
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState { count: sample_count, ..Default::default() },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        multiview_mask: None,
-        cache: None,
-    });
-    (pipeline, material_bgl)
+    // Two variants of one descriptor: the skin (back faces culled) and the interior shell
+    // (front faces culled, `vs_interior` collapses intact hulls — Inny Poziom Z6).
+    let make = |label: &str, vs_entry: &str, cull: Option<wgpu::Face>| {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some(vs_entry),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &VEHICLE_VERTEX_ATTRIBUTES,
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<SceneInstance>() as u64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &VEHICLE_INSTANCE_ATTRIBUTES,
+                    },
+                ],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: cull,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState { count: sample_count, ..Default::default() },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: color_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        })
+    };
+    let pipeline = make("vehicle_pipeline", "vs_main", Some(wgpu::Face::Back));
+    let interior = make("vehicle_interior_pipeline", "vs_interior", Some(wgpu::Face::Front));
+    (pipeline, interior, material_bgl)
 }
 
 fn material_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {

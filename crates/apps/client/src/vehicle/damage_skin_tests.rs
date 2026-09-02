@@ -181,8 +181,16 @@ fn a_destroyed_engine_chars_its_bay_in_the_per_instance_skin() {
 
     let healthy = bake(&mut catalog, 0);
     let charred = bake(&mut catalog, engine_bit);
+    // The char lane, on everything but torn steel: the breach rim writes the TEAR lane into
+    // `shade` (a scorched tongue root reads 0.30 and its underside 0.24 — Z6), which is not
+    // char and sits in both bakes alike.
     let min_shade = |asset: &renderer_api::VehicleMeshAsset| {
-        asset.vertices().iter().map(|v| v.shade).fold(f32::MAX, f32::min)
+        asset
+            .vertices()
+            .iter()
+            .filter(|v| v.material_id != 8)
+            .map(|v| v.shade)
+            .fold(f32::MAX, f32::min)
     };
     assert!(
         min_shade(&charred) < 0.30,

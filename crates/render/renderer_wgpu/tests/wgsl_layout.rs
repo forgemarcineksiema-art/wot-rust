@@ -718,7 +718,7 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     // validation errors — the pipeline is real, not just WGSL-parsed.
     let shadow_bgl = build_shadow_bind_group_layout(&ctx.device);
     let camera_bgl = build_camera_bind_group_layout(&ctx.device);
-    let (_, material_bgl) = build_vehicle_pipeline(
+    let (_, _, material_bgl) = build_vehicle_pipeline(
         &ctx.device,
         wgpu::TextureFormat::Rgba8UnormSrgb,
         1,

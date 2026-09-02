@@ -9,7 +9,11 @@ use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
 const SEGMENTS: usize = 24;
-pub(crate) const DAMAGE_BAKE_VERSION: u64 = 3;
+/// How many tongues a kinetic tear folds back around the hole (Z6): photographs show a torn
+/// plate breaking into many narrow curled strips, never four wide flaps.
+const PETALS_MIN: usize = 8;
+const PETALS_MAX: usize = 14;
+pub(crate) const DAMAGE_BAKE_VERSION: u64 = 4;
 
 pub(crate) fn build_rim_mesh(breaches: &ArmorBreachSet, frame: ArmorFrame) -> Option<GeometryMesh> {
     let mut vertices = Vec::new();
@@ -131,9 +135,9 @@ fn append_lobe(
         indices.extend_from_slice(&[edge_a, mid_a, mid_b, edge_a, mid_b, edge_b]);
         indices.extend_from_slice(&[mid_a, tunnel_a, tunnel_b, mid_a, tunnel_b, mid_b]);
     }
-    // Petaling (Fizyczny Świat P7): a full-calibre KINETIC punch does not drill — it TEARS,
-    // folding the plate back into discrete flaps around the hole. Photographs show 4-6 bent
-    // petals; a HEAT jet melts and an HE blast slaps, so neither petals. Deterministic from
+    // Petaling (Fizyczny Świat P7, reshaped by Z6): a full-calibre KINETIC punch does not
+    // drill — it TEARS, folding the plate back into narrow curled tongues around the hole.
+    // A HEAT jet melts and an HE blast slaps, so neither petals. Deterministic from
     // the replicated fracture seed — every client bends the same steel the same way.
     if matches!(shell, ShellType::ArmorPiercing | ShellType::Apcr) {
         append_petals(vertices, indices, lobe, face, normal, u, v);
@@ -156,39 +160,75 @@ fn append_petals(
         seed ^= seed << 17;
         (seed >> 40) as f32 / ((1u64 << 24) - 1) as f32
     };
-    let count = 4 + (next() * 2.99) as usize;
-    // Exit petals flare hard with the shell; entry petals fold back shallower.
-    let flare = if face == BreachFace::Egress { 0.75 } else { 0.5 };
+    // Steel tears along MANY short lines (Z6): eight to fourteen narrow tongues around the
+    // hole, not four wide flaps. Each tongue is a three-station strip that narrows toward a
+    // torn tip and CURLS — the lift grows with the square of the distance along it, so the
+    // root lies on the plate and the tip stands off it. Exit tongues flare hard with the shell;
+    // entry tongues fold back shallower.
+    let count = PETALS_MIN + (next() * (PETALS_MAX - PETALS_MIN + 1) as f32 * 0.999) as usize;
+    let flare = if face == BreachFace::Egress { 0.85 } else { 0.55 };
     let reach = lobe.outer.major_radius_m.max(lobe.outer.minor_radius_m);
+    const STATIONS: usize = 3;
+    // The tear lane the shader reads: a scorched root, dark section, a bright torn tip.
+    const SHADES: [f32; STATIONS + 1] = [0.30, 0.55, 0.78, 0.97];
     for petal in 0..count {
         let angle = petal as f32 / count as f32 * std::f32::consts::TAU
-            + next() * 0.8
+            + next() * 0.35
             + lobe.outer.rotation_rad;
-        let half_width = 0.24 + next() * 0.14;
+        let half_width = 0.10 + next() * 0.09;
         let root_a2 = lobe.outer.point_at(angle - half_width, lobe.fracture_seed);
         let root_b2 = lobe.outer.point_at(angle + half_width, lobe.fracture_seed);
         let root_a = lobe.entry_local + u * root_a2.x + v * root_a2.y;
         let root_b = lobe.entry_local + u * root_b2.x + v * root_b2.y;
         let radial = (u * angle.cos() + v * angle.sin()).normalize_or_zero();
-        let length = reach * (0.38 + next() * 0.3);
-        let lift = length * flare * (0.8 + next() * 0.4);
-        let tip_mid =
-            (root_a + root_b) * 0.5 + radial * length * (1.0 - flare * 0.5) + normal * lift;
-        let across = (root_b - root_a) * 0.22;
-        let tip_a = tip_mid - across;
-        let tip_b = tip_mid + across;
-        let petal_normal = (root_b - root_a).cross(tip_mid - root_a).normalize_or(normal);
-        let base = vertices.len() as u32;
-        // The torn face (outward) and its underside — a flap of real steel, visible from
-        // every angle the fight shows it at.
-        for (position, shade) in [(root_a, 0.62), (root_b, 0.62), (tip_a, 0.74), (tip_b, 0.74)] {
-            vertices.push(vertex(position, petal_normal, MaterialRole::ExposedSteel, shade));
+        let length = reach * (0.22 + next() * 0.22);
+        let curl = flare * (0.7 + next() * 0.6);
+        let mut stations: Vec<(Vec3, Vec3)> = Vec::with_capacity(STATIONS + 1);
+        stations.push((root_a, root_b));
+        let root_mid = (root_a + root_b) * 0.5;
+        let half = (root_b - root_a) * 0.5;
+        for station in 1..=STATIONS {
+            let t = station as f32 / STATIONS as f32;
+            let width = 1.0 - 0.55 * t;
+            let along = radial * (length * t * (1.0 - curl * 0.35 * t));
+            let lift = normal * (length * curl * t * t * 2.0);
+            let center = root_mid + along + lift;
+            stations.push((center - half * width, center + half * width));
         }
-        for (position, shade) in [(root_a, 0.46), (root_b, 0.46), (tip_a, 0.52), (tip_b, 0.52)] {
-            vertices.push(vertex(position, -petal_normal, MaterialRole::ExposedSteel, shade));
+        // Per-station normals follow the curl; the underside is the same strip turned over.
+        let mut station_normals = Vec::with_capacity(STATIONS + 1);
+        for station in 0..=STATIONS {
+            let (a, b) = stations[station];
+            let (na, nb) =
+                if station < STATIONS { stations[station + 1] } else { stations[station - 1] };
+            let dir = if station < STATIONS {
+                (na + nb) * 0.5 - (a + b) * 0.5
+            } else {
+                (a + b) * 0.5 - (na + nb) * 0.5
+            };
+            station_normals.push((b - a).cross(dir).normalize_or(normal));
         }
-        indices.extend_from_slice(&[base, base + 1, base + 3, base, base + 3, base + 2]);
-        indices.extend_from_slice(&[base + 4, base + 7, base + 5, base + 4, base + 6, base + 7]);
+        for side in [1.0_f32, -1.0] {
+            let base = vertices.len() as u32;
+            for station in 0..=STATIONS {
+                let (a, b) = stations[station];
+                let n = station_normals[station] * side;
+                let shade = SHADES[station] * if side > 0.0 { 1.0 } else { 0.8 };
+                vertices.push(vertex(a, n, MaterialRole::ExposedSteel, shade));
+                vertices.push(vertex(b, n, MaterialRole::ExposedSteel, shade));
+            }
+            for station in 0..STATIONS as u32 {
+                let a0 = base + station * 2;
+                let b0 = a0 + 1;
+                let a1 = a0 + 2;
+                let b1 = a0 + 3;
+                if side > 0.0 {
+                    indices.extend_from_slice(&[a0, b0, b1, a0, b1, a1]);
+                } else {
+                    indices.extend_from_slice(&[a0, b1, b0, a0, a1, b1]);
+                }
+            }
+        }
     }
 }
 
@@ -257,9 +297,10 @@ mod tests {
             lobe,
         ));
         let mesh = build_rim_mesh(&set, ArmorFrame::Hull).expect("rim");
-        // The ring plus 4..=6 kinetic petals at 2 triangles per side (P7).
+        // The ring plus 8..=14 kinetic tongues of three two-sided quads each (Z6).
         assert!(
-            (SEGMENTS * 6 + 16..=SEGMENTS * 6 + 24).contains(&mesh.triangle_count()),
+            (SEGMENTS * 6 + PETALS_MIN * 12..=SEGMENTS * 6 + PETALS_MAX * 12)
+                .contains(&mesh.triangle_count()),
             "ring + petals, got {} triangles",
             mesh.triangle_count()
         );
@@ -311,11 +352,63 @@ mod tests {
         let heat = build(ShellType::Heat);
         assert_eq!(heat.triangle_count(), SEGMENTS * 6, "a HEAT melt has no petals");
         assert!(kinetic.triangle_count() > heat.triangle_count(), "the AP tear grows petals");
-        // Petals stand OFF the plate: some vertex rises clearly above the lip's ~9 mm raise.
+        // Tongues stand OFF the plate: some vertex rises clearly above the lip's ~9 mm raise.
         let peak = kinetic.vertices().iter().map(|v| v.position.z).fold(f32::MIN, f32::max);
-        assert!(peak > 0.02, "bent steel has height: peak z {peak}");
+        assert!(peak > 0.014, "bent steel has height: peak z {peak}");
         // Determinism: the same seed bends the same steel.
         let twin = build(ShellType::ArmorPiercing);
         assert_eq!(kinetic.vertices().len(), twin.vertices().len());
+    }
+
+    /// Z6: a tongue is torn steel — its root scorched (a low tear lane), its tip BRIGHT bare
+    /// metal (a high lane), and it CURLS: the tip stands further off the plate than the middle
+    /// station, by more than the linear share.
+    #[test]
+    fn tongues_curl_and_end_in_bright_torn_steel() {
+        let lobe = ApertureLobe {
+            entry_local: Vec3::ZERO,
+            exit_local: Vec3::new(0.0, 0.0, -0.1),
+            entry_normal_local: Vec3::Z,
+            exit_normal_local: Vec3::NEG_Z,
+            direction_local: Vec3::NEG_Z,
+            thickness_m: 0.1,
+            outer: BreachContour::new(0.06, 0.05, 0.2, 0.1),
+            inner: BreachContour::new(0.09, 0.075, 0.3, 0.14),
+            fracture_seed: 4242,
+        };
+        let mut set = ArmorBreachSet::default();
+        set.add(ArmorBreach::new(
+            game_core::ArmorBreachDescriptor {
+                breach_id: 3,
+                surface: ArmorSurfaceId::new(ArmorFrame::Hull, ArmorZone::HullSide),
+                frame: ArmorFrame::Hull,
+                zone: ArmorZone::HullSide,
+                material: ArmorMaterial::RolledSteel,
+                face: BreachFace::Ingress,
+                shell_type: ShellType::ArmorPiercing,
+                created_tick: 1,
+                impact_angle_degrees: 0.0,
+                impact_energy_kj: 500.0,
+                projectile_diameter_m: 0.1,
+                residual_penetration_mm: 50.0,
+            },
+            lobe,
+        ));
+        let mesh = build_rim_mesh(&set, ArmorFrame::Hull).expect("rim");
+        let steel: Vec<_> =
+            mesh.vertices().iter().filter(|v| v.material == MaterialRole::ExposedSteel).collect();
+        let tips: Vec<_> = steel.iter().filter(|v| v.surface_shade >= 0.95).collect();
+        let roots: Vec<_> = steel.iter().filter(|v| v.surface_shade <= 0.31).collect();
+        let mids: Vec<_> = steel.iter().filter(|v| (v.surface_shade - 0.55).abs() < 0.02).collect();
+        assert!(tips.len() >= PETALS_MIN * 2, "every tongue ends in bright torn steel");
+        assert!(roots.len() >= PETALS_MIN * 2, "every tongue roots in scorched steel");
+        let peak =
+            |set: &[&&GeometryVertex]| set.iter().map(|v| v.position.z).fold(f32::MIN, f32::max);
+        assert!(
+            peak(&tips) > peak(&mids) * 2.0,
+            "the tongue curls: tip {} vs middle {}",
+            peak(&tips),
+            peak(&mids)
+        );
     }
 }

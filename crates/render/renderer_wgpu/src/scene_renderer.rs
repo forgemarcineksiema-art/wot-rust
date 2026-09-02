@@ -94,6 +94,9 @@ pub struct SceneRenderer {
     frame_draws: Vec<SceneObjectDraw>,
     static_meshes: SceneMeshRegistry,
     vehicle_pipeline: wgpu::RenderPipeline,
+    /// The interior shell (Z6): the castings' back faces, drawn after the skin for breached
+    /// hulls only (intact ones collapse in the vertex stage).
+    vehicle_interior_pipeline: wgpu::RenderPipeline,
     vehicle_materials: vehicle_materials::VehicleMaterialRegistry,
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
@@ -439,7 +442,7 @@ impl SceneRenderer {
             sample_count,
             &camera_bgl,
         );
-        let (vehicle_pipeline, vehicle_material_bgl) =
+        let (vehicle_pipeline, vehicle_interior_pipeline, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl, &camera_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
         // One-look policy: every adapter renders the canonical profile; WOT_QUALITY=high is
@@ -562,6 +565,7 @@ impl SceneRenderer {
             frame_draws: Vec::new(),
             static_meshes: SceneMeshRegistry::default(),
             vehicle_pipeline,
+            vehicle_interior_pipeline,
             vehicle_materials,
             vehicle_instances: buffers.vehicle_instances,
             vehicle_instance_count: 0,
