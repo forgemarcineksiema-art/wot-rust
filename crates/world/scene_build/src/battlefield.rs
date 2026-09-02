@@ -809,37 +809,6 @@ struct FacePlate {
 }
 
 /// One single-sided quad flush on a cover face: half-size `half_m` along both in-plane axes.
-fn push_face_quad(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    plate: FacePlate,
-    half_m: f32,
-    color: [f32; 3],
-) {
-    let FacePlate { center, u: u_axis, v: v_axis, normal } = plate;
-    let base = vertices.len() as u32;
-    for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-        let position = center + u_axis * (half_m * su) + v_axis * (half_m * sv);
-        vertices.push(SceneVertex {
-            position: position.to_array(),
-            normal: normal.to_array(),
-            color,
-            tint_weight: 0.0,
-            gloss: 0.03,
-            surface: 0.0,
-            sway: 0.0,
-            uv: [0.0, 0.0],
-            bounce: [0.0; 3],
-        });
-    }
-    // Winding agrees with the face normal; the scene pipeline lights it like the wall it marks.
-    if (u_axis.cross(v_axis)).dot(normal) >= 0.0 {
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    } else {
-        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
-    }
-}
-
 fn append_cover_box(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
