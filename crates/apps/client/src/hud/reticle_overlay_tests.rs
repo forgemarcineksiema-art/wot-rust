@@ -838,3 +838,44 @@ fn the_dispersion_ring_is_honest_brightens_when_converged_and_carries_its_arc() 
         "the reload arc rides the bloomed ring, not a fixed small circle"
     );
 }
+
+/// Inny Poziom A3: the ARC's refusal wears its own form in BOTH modes — a stop bar on the side
+/// the gun cannot travel to, and a label in words — where a wall's refusal is the broken form
+/// alone. A target under the crest the T-54's -5° cannot reach and a wall in the way used to be
+/// the same picture.
+#[test]
+fn an_arc_limit_wears_a_stop_bar_and_a_label_in_both_modes() {
+    let ring = 0.08;
+    for mode in [super::reticle::ReticleMode::ThirdPerson, super::reticle::ReticleMode::Sniper] {
+        let wall =
+            HudReticle { mode, aim_radius_clip: ring, ..reticle_at(ReticleStatus::Blocked, None) };
+        let depression = HudReticle { arc_limit: Some(crate::aim::ArcLimit::Depression), ..wall };
+        let elevation = HudReticle { arc_limit: Some(crate::aim::ArcLimit::Elevation), ..wall };
+        let (wall_hud, depression_hud, elevation_hud) =
+            (hud_with(wall), hud_with(depression), hud_with(elevation));
+
+        let bar_below = |hud: &[HudVertex]| {
+            hud.iter()
+                .filter(|v| v.color == RETICLE_BLOCKED && v.position[1] < -(ring + 0.02))
+                .count()
+        };
+        let bar_above = |hud: &[HudVertex]| {
+            hud.iter().filter(|v| v.color == RETICLE_BLOCKED && v.position[1] > ring + 0.02).count()
+        };
+        assert_eq!(bar_below(&wall_hud), 0, "{mode:?}: a wall's refusal draws no stop bar");
+        assert!(
+            bar_below(&depression_hud) >= 4,
+            "{mode:?}: a depression limit draws its stop bar UNDER the ring"
+        );
+        assert!(
+            bar_above(&elevation_hud) >= 4,
+            "{mode:?}: an elevation limit draws its stop bar OVER the ring"
+        );
+        // The label is words: glyph quads sample the atlas, a wall's form is solid quads only.
+        let glyphs = |hud: &[HudVertex]| hud.iter().filter(|v| v.uv[0] >= 0.0).count();
+        assert!(
+            glyphs(&depression_hud) > glyphs(&wall_hud),
+            "{mode:?}: the arc's refusal names its end in words"
+        );
+    }
+}

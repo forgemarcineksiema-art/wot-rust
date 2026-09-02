@@ -113,6 +113,11 @@ pub(crate) struct HudReticle {
     /// Metres to whatever eats the round, when the shot dies short of the crosshair. Drawn under
     /// the range in the BLOCKED grey, so a refusal says WHERE instead of only "no".
     pub block_distance_m: Option<f32>,
+    /// The end of the gun arc that refused the shot, when the ARC did (Inny Poziom A3). Drawn
+    /// in both modes as the arc's own form — a stop bar under (or over) the crosshair and its
+    /// label — because it reports the player's own gun, not the target: "you cannot depress
+    /// onto that" is a fact about this hull on this slope.
+    pub arc_limit: Option<crate::aim::ArcLimit>,
     pub status: ReticleStatus,
     pub penetration_hint: Option<PenetrationHint>,
     /// Reload progress in `[0, 1]` (1 = ready). Below 1 the reticle arc shows what remains.
@@ -128,6 +133,32 @@ pub(crate) struct HudReticle {
     /// Whether the gun has settled to its minimum dispersion (aim fully taken): the ring
     /// brightens as the ready-to-fire signal. Server truth via the replicated dispersion.
     pub converged: bool,
+}
+
+/// The arc's stop bar (Inny Poziom A3): a short horizontal bar just outside the dispersion
+/// ring on the side the gun cannot travel to — under the crosshair for a depression limit,
+/// over it for an elevation limit — joined to the ring by a stub. It reads as "the barrel
+/// stopped here", which is exactly what happened; a wall's broken form says "something out
+/// there stops the shell", and the two are no longer the same picture.
+pub(crate) fn push_arc_limit_stop(
+    vertices: &mut Vec<HudVertex>,
+    aim_clip: [f32; 2],
+    ring_radius: f32,
+    limit: crate::aim::ArcLimit,
+    aspect: f32,
+) {
+    let sign = match limit {
+        crate::aim::ArcLimit::Depression => -1.0,
+        crate::aim::ArcLimit::Elevation => 1.0,
+    };
+    let bar_y = aim_clip[1] + sign * (ring_radius + 0.022);
+    // The stub from the ring to the bar, then the bar itself: both in the BLOCKED grey, both
+    // backed like the crosshair arms so they survive bright ground.
+    let stub_y = aim_clip[1] + sign * (ring_radius + 0.011);
+    push_quad(vertices, [aim_clip[0], stub_y], [0.0034 / aspect, 0.011], RETICLE_RING_OUTLINE);
+    push_quad(vertices, [aim_clip[0], stub_y], [0.0018 / aspect, 0.010], RETICLE_BLOCKED);
+    push_quad(vertices, [aim_clip[0], bar_y], [0.030 / aspect, 0.0044], RETICLE_RING_OUTLINE);
+    push_quad(vertices, [aim_clip[0], bar_y], [0.028 / aspect, 0.0026], RETICLE_BLOCKED);
 }
 
 /// Draw the aiming overlay: dispersion ring, reload arc, gun marker, the single center marker,
@@ -150,7 +181,27 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     );
 
     match reticle.status {
-        ReticleStatus::Blocked => push_blocked_marker(vertices, reticle.aim_clip, aspect),
+        ReticleStatus::Blocked => {
+            push_blocked_marker(vertices, reticle.aim_clip, aspect);
+            // The arc's refusal is not a wall's: the stop bar says which end of the arc bit,
+            // and the label under the range says it in words, in both modes.
+            if let Some(limit) = reticle.arc_limit {
+                push_arc_limit_stop(
+                    vertices,
+                    reticle.aim_clip,
+                    reticle.aim_radius_clip,
+                    limit,
+                    aspect,
+                );
+                super::reticle_readouts::push_arc_limit_label(
+                    vertices,
+                    reticle.aim_clip,
+                    reticle.aim_radius_clip,
+                    limit,
+                    aspect,
+                );
+            }
+        }
         ReticleStatus::Clear => {
             // Third person never speaks armor: the eased colour is computed from the matrix,
             // which answers neutral there even with a pen hint in hand (the hint keeps flowing

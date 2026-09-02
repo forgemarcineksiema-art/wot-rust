@@ -56,6 +56,7 @@ millimeter duel is the skill loop.
 | Pen/armor mm readout | never | yes |
 | Real-impact marker (amber X) | never | yes, fades in as it separates |
 | BLOCKED broken form | yes | yes |
+| Arc-limit stop bar + label (refusals by the gun arc) | yes | yes |
 | Target distance | yes | yes |
 | Block range (refusals only) | yes | yes |
 | Reload arc / hit confirm | yes | yes |
