@@ -127,6 +127,52 @@ const REVIEW_FOV_DEGREES: f32 = scene_build::review_views::CHASE_REVIEW_FOV_DEGR
 ///
 /// The whole world is built for the map first (ground, statics, water, the card meadow, the
 /// foliage atlas), then each view swaps in its own lighting, sky, shadow focus and grass scatter.
+/// Register every instanced mesh the battlefield's per-frame dressing can ask for — the grass
+/// species and the tree ladder's rungs — on a renderer, exactly as the battle registers them at
+/// deployment. One function for the goldens, the frame instrument and the view probes.
+pub fn register_battlefield_dressing_meshes(ctx: &GpuContext, renderer: &mut SceneRenderer) {
+    for (handle, mesh) in crate::grass_species_meshes() {
+        renderer.register_mesh(ctx, handle, &mesh);
+    }
+    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        renderer.register_mesh(ctx, handle, &mesh);
+    }
+}
+
+/// The instanced dressing the battle submits around an eye, in ONE call: the near grass ring
+/// AND the tree ladder's rung per tree for this eye. The battle path appends the trees to its
+/// grass cache every frame (`app::render`); a review or a measurement that submitted the grass
+/// alone drew a map with no oaks on it — which is exactly what every battlefield golden and
+/// every `perf_capture` "full scene" number did until this function existed (the fifth
+/// instrument-fidelity defect, after MSAA, the missing adapter, the fleet on the scenery path
+/// and the garage block measuring the old room). `cover_states` are the sim's phase bytes;
+/// an empty slice is "everything intact", the same reading the statics bake gives it.
+pub fn battlefield_dressing_objects(
+    battlefield: &terrain::BattlefieldMap,
+    ground_maps: &renderer_api::TerrainGroundMaps,
+    materials: &renderer_api::TerrainMaterialSet,
+    cover_states: &[u8],
+    eye: glam::Vec3,
+    tree_lod_state: &mut scene_build::tree_lod::TreeLodState,
+) -> Vec<renderer_api::RenderObject> {
+    let mut objects = crate::grass_frame_objects(
+        &battlefield.heightmap,
+        battlefield.water_view(),
+        &battlefield.static_cover,
+        ground_maps,
+        materials,
+        eye,
+    );
+    objects.extend(scene_build::tree_lod::tree_frame_objects(
+        &battlefield.scenery,
+        &battlefield.static_cover,
+        cover_states,
+        eye,
+        tree_lod_state,
+    ));
+    objects
+}
+
 /// The render is a pure function of scene + profile + the fixed clock, which is what lets the
 /// goldens compare byte-exactly on one machine.
 pub fn render_review_views(
@@ -169,9 +215,7 @@ pub fn render_review_views_with_fov(
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.set_dressing(&ctx, &dressing_vertices, &dressing_indices);
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
-    for (handle, mesh) in crate::grass_species_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
-    }
+    register_battlefield_dressing_meshes(&ctx, &mut renderer);
     // The procedural leaf atlas rides the SAME entry the battle uses (Drzewa 3.0 PR5) — the
     // harness header documents how the review path once lost the atlas bind and locked white
     // trees; wiring it here keeps the goldens honest about what the player sees.
@@ -208,15 +252,20 @@ pub fn render_review_views_with_fov(
             &crate::render_frame_from_objects(vehicle_objects.unwrap_or_default()),
         );
 
-        let grass = crate::grass_frame_objects(
-            &battlefield.heightmap,
-            battlefield.water_view(),
-            &battlefield.static_cover,
+        // The grass ring AND the tree ladder, as the battle submits them. A fresh LOD state
+        // per view: a review frame has no previous frame, so every tree takes the plain band
+        // for its distance — deterministic, which is what the goldens need.
+        let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
+        let dressing = battlefield_dressing_objects(
+            &battlefield,
             &ground_maps,
             &materials,
+            &[],
             glam::Vec3::from_array(view.eye),
+            &mut tree_lod_state,
         );
-        renderer.set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
+        renderer
+            .set_render_frame(&ctx, &RenderFrame { objects: dressing, ..RenderFrame::default() });
         renderer.scene_lighting = view.lighting;
         renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
         // A view with a subject focuses the near shadow cascade on the SUBJECT, not on the
@@ -443,5 +492,46 @@ fn review_snapshot(vehicle: &ReviewVehicle) -> TankSnapshot {
         crew_down_remaining_s: Default::default(),
         hull_pitch_velocity_rad_s: 0.0,
         hull_roll_velocity_rad_s: 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The instrument's promise: the dressing a review frame (and the frame instrument)
+    /// submits carries every ladder tree the battle would draw at that eye — not the grass
+    /// alone. Every battlefield golden and every "full scene" frame time recorded before this
+    /// function existed described a map without its oaks.
+    #[test]
+    fn the_review_dressing_draws_every_ladder_tree_the_battle_draws() {
+        let map = MapId::ProkhorovkaHill252_2;
+        let battlefield = map_forge::battlefield(map);
+        let ground_maps = crate::bake_terrain_ground_maps(&battlefield);
+        let materials = crate::terrain_material_set_for(map);
+        let eye = glam::Vec3::new(500.0, 8.0, 470.0);
+        let mut state = scene_build::tree_lod::TreeLodState::default();
+        let dressing = battlefield_dressing_objects(
+            &battlefield,
+            &ground_maps,
+            &materials,
+            &[],
+            eye,
+            &mut state,
+        );
+
+        let ladder: Vec<renderer_api::MeshHandle> = scene_build::tree_lod::tree_lod_meshes()
+            .into_iter()
+            .map(|(handle, _)| handle)
+            .collect();
+        let trees_drawn = dressing.iter().filter(|object| ladder.contains(&object.mesh)).count();
+        let trees_planted = battlefield
+            .scenery
+            .iter()
+            .filter(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_some())
+            .count();
+        assert!(trees_planted > 0, "prokhorovka plants battlefield trees");
+        assert_eq!(trees_drawn, trees_planted, "every planted ladder tree draws, intact cover");
+        assert!(dressing.len() > trees_drawn, "the grass ring is still in the frame");
     }
 }

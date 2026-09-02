@@ -2583,8 +2583,10 @@ mod tests {
                     let Some(species) = tree_species_for_scenery(instance.kind) else {
                         continue;
                     };
-                    let rendered_top = if instance.kind == terrain::SceneryKind::Oak {
-                        crate::tree_lod::battle_tree_rendered_top_m(instance.scale)
+                    let rendered_top = if let Some(ladder_species) =
+                        crate::tree_lod::ladder_species(instance.kind)
+                    {
+                        crate::tree_lod::battle_tree_rendered_top_m(ladder_species, instance.scale)
                     } else {
                         // The statics-bake path: per-position seed, Mid rung, no sink.
                         let seed = instance.position[0].to_bits() as u64

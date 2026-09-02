@@ -33,9 +33,11 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         // The retired imported kinds: they draw nothing, on purpose.
         plant(SceneryKind::FloraTree, 498.0, 490.0),
         plant(SceneryKind::FloraPine, 508.0, 490.0),
-        // Back row: EVERY statics-bake species, spread wide enough that none hides behind
-        // the front row — the lineup is the accept/reject frame, and a species it cannot
-        // show is a species nobody reviewed (the fruit tree was missing entirely).
+        // Back row: EVERY other species, spread wide enough that none hides behind the
+        // front row — the lineup is the accept/reject frame, and a species it cannot show is
+        // a species nobody reviewed (the fruit tree was missing entirely). Since F7 every
+        // tree species draws from the ladder at its rung for THIS eye; the bush alone is
+        // the statics bake's.
         plant(SceneryKind::Poplar, 464.0, 516.0),
         plant(SceneryKind::Pine, 476.0, 516.0),
         plant(SceneryKind::Willow, 492.0, 516.0),
