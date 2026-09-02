@@ -54,11 +54,37 @@ impl VoiceSlot {
         occlusion: f32,
         sample_rate_hz: f32,
     ) -> Option<Self> {
+        Self::positioned_with_reference(
+            voice,
+            listener,
+            position,
+            gain,
+            travel_delay,
+            occlusion,
+            REFERENCE_DISTANCE_M,
+            sample_rate_hz,
+        )
+    }
+
+    /// [`Self::positioned`] with the source's own reference distance (Inny Poziom S11): the
+    /// distance at which its gain is its nominal value. A plate clang carries further than a
+    /// footfall, so it is not one number for every voice.
+    #[allow(clippy::too_many_arguments)]
+    pub fn positioned_with_reference(
+        voice: Box<dyn Voice>,
+        listener: &Listener,
+        position: Vec3,
+        gain: f32,
+        travel_delay: bool,
+        occlusion: f32,
+        reference_m: f32,
+        sample_rate_hz: f32,
+    ) -> Option<Self> {
         let occlusion = occlusion.clamp(0.0, 1.0);
         let offset = position - listener.position;
         let distance = offset.length();
-        let gain = gain * REFERENCE_DISTANCE_M / (REFERENCE_DISTANCE_M + distance)
-            * (1.0 - 0.55 * occlusion);
+        let reference_m = reference_m.max(1.0);
+        let gain = gain * reference_m / (reference_m + distance) * (1.0 - 0.55 * occlusion);
         if gain < AUDIBLE_GAIN_FLOOR {
             return None;
         }

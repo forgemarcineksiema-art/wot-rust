@@ -878,3 +878,50 @@ fn a_heavier_round_nudges_the_rig_further() {
     let (heavy, light) = (kick_back(1.36), kick_back(0.67));
     assert!(heavy > light * 1.5, "128 mm {heavy} vs 75 mm {light}");
 }
+
+/// Inny Poziom S12: the shooter's landed penetration is felt. Third person: the rig nudges
+/// forward and down by the share of the target's pool the round took, a heavier share further,
+/// and recovers; sniper: the eye does not move (S2) — the scope's hit marker is the answer.
+#[test]
+fn a_landed_penetration_nudges_the_shooters_rig_and_leaves_sniper_rigid() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    let nudge = |share: f32| {
+        let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+        camera.set_mode(BattleCameraMode::ThirdPerson);
+        for _ in 0..240 {
+            camera.advance(position, 0.0, 1.0 / 60.0);
+        }
+        let settled = camera.render_camera(&subject, &environment).eye;
+        camera.pen_kick(subject.view_yaw_rad, share);
+        let (mut max_forward, mut max_down) = (0.0_f32, 0.0_f32);
+        for _ in 0..30 {
+            camera.advance(position, 0.0, 1.0 / 60.0);
+            let eye = camera.render_camera(&subject, &environment).eye;
+            max_forward = max_forward.max(eye[2] - settled[2]);
+            max_down = max_down.max(settled[1] - eye[1]);
+        }
+        for _ in 0..240 {
+            camera.advance(position, 0.0, 1.0 / 60.0);
+        }
+        let recovered = camera.render_camera(&subject, &environment).eye;
+        assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers");
+        (max_forward, max_down)
+    };
+    // A 300-HP pen on a 1 000-HP pool, and a near-kill.
+    let (light_forward, light_down) = nudge(0.3);
+    let (heavy_forward, _) = nudge(0.9);
+    assert!(light_forward > 0.0015, "a landed pen nudges the rig forward: {light_forward}");
+    assert!(light_down > 0.0006, "and slightly down: {light_down}");
+    assert!(heavy_forward > light_forward * 2.5, "a bigger share nudges further");
+
+    let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
+    sniper.set_mode(BattleCameraMode::Sniper);
+    sniper.advance(position, 0.0, 1.0 / 60.0);
+    let before = sniper.render_camera(&subject, &environment).eye;
+    sniper.pen_kick(subject.view_yaw_rad, 1.0);
+    sniper.advance(position, 0.0, 1.0 / 60.0);
+    assert_eq!(before, sniper.render_camera(&subject, &environment).eye, "the scope stays rigid");
+}

@@ -7,8 +7,8 @@ use net::TankSnapshot;
 use crate::attitude::{HullAttitude, TankMotion};
 use crate::components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
-    RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TurretYaw, Vehicle,
-    VehicleDamage,
+    RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TurretJerk, TurretYaw,
+    Vehicle, VehicleDamage,
 };
 use crate::sync_cues::{attitude_sample, suspension_pool_fraction};
 
@@ -108,10 +108,14 @@ impl PresentationWorld {
                     let mut recoil =
                         self.world.get::<GunRecoil>(entity).copied().unwrap_or_default();
                     recoil.step(dt);
+                    let mut jerk =
+                        self.world.get::<TurretJerk>(entity).copied().unwrap_or_default();
+                    jerk.step(dt);
                     self.world.entity_mut(entity).insert(bundle);
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
                     self.world.entity_mut(entity).insert(recoil);
+                    self.world.entity_mut(entity).insert(jerk);
                 }
                 None => {
                     let mut anim = TrackAnimation::default();
@@ -123,6 +127,7 @@ impl PresentationWorld {
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
                     self.world.entity_mut(entity).insert(GunRecoil::default());
+                    self.world.entity_mut(entity).insert(TurretJerk::default());
                     self.entities.insert(tank.tank_id, entity);
                 }
             }
@@ -184,6 +189,7 @@ impl PresentationWorld {
             &TrackAnimation,
             &HullAttitude,
             &GunRecoil,
+            &TurretJerk,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
@@ -203,6 +209,7 @@ impl PresentationWorld {
                     track,
                     attitude,
                     recoil,
+                    jerk,
                 )| {
                     PresentationTank {
                         id: entity.id,
@@ -210,7 +217,7 @@ impl PresentationWorld {
                         vehicle: vehicle.0,
                         translation: transform.translation,
                         hull_yaw_rad: transform.hull_yaw_rad,
-                        turret_yaw_rad: turret.0,
+                        turret_yaw_rad: turret.0 + jerk.offset_rad,
                         gun_pitch_rad: pitch.0,
                         hit_points: health.hit_points,
                         destroyed_modules_mask: destroyed.0,

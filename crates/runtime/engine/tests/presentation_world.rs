@@ -358,3 +358,35 @@ fn an_incoming_hit_rocks_the_struck_hull_from_the_side_it_came_in() {
     let mut world = PresentationWorld::default();
     world.apply_hit_impulse(TankId(9), 0.0, 1.0);
 }
+
+/// Inny Poziom S8: a blow on the turret flinches it on its ring. The presented turret yaw
+/// leaves the authoritative yaw by a visible fraction of a degree in the direction of the
+/// push, and the ring brings it back within a second; a hull that never was flinches nothing.
+#[test]
+fn a_turret_hit_flinches_the_presented_turret_and_the_ring_brings_it_back() {
+    let dt = 1.0 / 60.0;
+    let mut world = PresentationWorld::default();
+    world.advance_time(dt);
+    world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+    let authoritative = world.presentation_tanks()[0].turret_yaw_rad;
+    world.apply_turret_jerk(TankId(1), -1.0);
+    let mut peak = 0.0_f32;
+    for _ in 0..30 {
+        world.advance_time(dt);
+        world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+        let off = world.presentation_tanks()[0].turret_yaw_rad - authoritative;
+        if off.abs() > peak.abs() {
+            peak = off;
+        }
+    }
+    assert!(peak < -0.005, "the turret flinches away from the blow: {peak} rad");
+    assert!(peak > -0.07, "a flinch, never a spin: {peak} rad");
+    for _ in 0..60 {
+        world.advance_time(dt);
+        world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
+    }
+    let back = world.presentation_tanks()[0].turret_yaw_rad - authoritative;
+    assert!(back.abs() < 0.001, "the ring brings the turret back: {back} rad");
+    let mut empty = PresentationWorld::default();
+    empty.apply_turret_jerk(TankId(9), 1.0);
+}

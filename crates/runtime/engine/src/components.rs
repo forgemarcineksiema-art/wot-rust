@@ -175,6 +175,44 @@ impl GunRecoil {
     }
 }
 
+/// The turret's flinch on a turret hit (Inny Poziom S8): a yaw offset on a critically damped
+/// spring, kicked by the strike's tangential push and back to zero in a beat. The authoritative
+/// turret yaw is untouched — this is the presentation of tonnes of turret on its ring taking a
+/// blow off-centre, and it is what the shooter sees land.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Component)]
+pub struct TurretJerk {
+    /// Radians the turret currently sits off its authoritative yaw (signed).
+    pub offset_rad: f32,
+    velocity_rad_s: f32,
+}
+
+/// Jerk spring frequency (rad/s): the blow lands inside a frame, the ring damps it in ~0.3 s.
+const JERK_OMEGA: f32 = 12.0;
+/// Yaw rate (rad/s) a full-energy strike square on the turret's side injects. With critical
+/// damping the offset peaks at `v0 / (omega * e)` ≈ 0.9° — visible on a 300 m silhouette,
+/// never a spin.
+const JERK_IMPULSE_RAD_S: f32 = 0.5;
+/// The ring never lets the flinch past this (a barrage stays a flinch).
+const MAX_JERK_RAD: f32 = 0.06;
+
+impl TurretJerk {
+    /// One strike: `signed_energy` is the tangential push on the S3 momentum scale, positive
+    /// turning the turret toward +yaw — a hit on the turret's right cheek pushes it left.
+    pub fn kick(&mut self, signed_energy: f32) {
+        self.velocity_rad_s += JERK_IMPULSE_RAD_S * signed_energy.clamp(-2.5, 2.5);
+    }
+
+    /// Advance the ring spring one presented frame.
+    pub fn step(&mut self, dt: f32) {
+        let dt = dt.clamp(0.0, 0.05);
+        let accel =
+            -JERK_OMEGA * JERK_OMEGA * self.offset_rad - 2.0 * JERK_OMEGA * self.velocity_rad_s;
+        self.velocity_rad_s += accel * dt;
+        self.offset_rad =
+            (self.offset_rad + self.velocity_rad_s * dt).clamp(-MAX_JERK_RAD, MAX_JERK_RAD);
+    }
+}
+
 /// Flat view of a presentation entity handed to the renderer and HUD. The render path reads this
 /// instead of `net::TankSnapshot`, so the persistent ECS — not the raw snapshot buffer — is the
 /// presentation source of truth.

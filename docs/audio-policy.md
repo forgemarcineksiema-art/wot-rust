@@ -115,3 +115,8 @@ bursts too — kinetic rounds keep the surface thud.
 
 - Surface-dependent track noise.
 - A volume/mixer options surface; master gain is a constant today.
+
+A source carries its own reference distance (Inny Poziom S11): every voice wears
+the 18 m default except the armour strike, which wears 60 m — steel on steel
+carries, so a 300 m hit sits at −17 dB instead of −27 and the pen thunk and the
+ricochet whine stay two sounds under the engine bed.

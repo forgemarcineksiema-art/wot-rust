@@ -72,4 +72,16 @@ impl PresentationWorld {
             attitude.hit_impulse(bearing_hull_rad, energy);
         }
     }
+
+    /// A strike on the turret flinches it on its ring (Inny Poziom S8): `signed_energy` is the
+    /// tangential push on the S3 momentum scale, positive toward +yaw. The authoritative yaw is
+    /// untouched; the presentation carries the blow and the ring damps it in a beat.
+    pub fn apply_turret_jerk(&mut self, tank_id: TankId, signed_energy: f32) {
+        let Some(entity) = self.entity_of(tank_id) else {
+            return;
+        };
+        if let Some(mut jerk) = self.world_mut().get_mut::<crate::TurretJerk>(entity) {
+            jerk.kick(signed_energy);
+        }
+    }
 }

@@ -12,6 +12,6 @@ pub use armor_breach_store::ArmorBreachStore;
 pub use attitude::{AttitudeSample, HullAttitude, TankMotion};
 pub use components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
-    RenderTransform, TankEntity, Team, Time, TurretYaw, Vehicle, VehicleDamage,
+    RenderTransform, TankEntity, Team, Time, TurretJerk, TurretYaw, Vehicle, VehicleDamage,
 };
 pub use world::PresentationWorld;

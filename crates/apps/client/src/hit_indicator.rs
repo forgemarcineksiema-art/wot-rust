@@ -7,9 +7,13 @@ mod draw;
 use crate::hud::reticle::world_to_clip_xy;
 use draw::{MarkerOutcome, color_for, fade, push_marker, push_module_icon};
 
-const FEEDBACK_TTL: f32 = 2.5;
-const FADE_DURATION: f32 = 0.8;
+/// Inny Poziom S7: the number is demoted under the world it reports on — a beat on screen,
+/// smaller than the penetration flash it sits beside, gone before the smoke is.
+const FEEDBACK_TTL: f32 = 1.2;
+const FADE_DURATION: f32 = 0.5;
 const FLOAT_UP: f32 = 0.06;
+/// Height of the damage number in clip units (S7: 0.045 — under the 0.065 it used to wear).
+pub(crate) const DAMAGE_NUMBER_EM: f32 = 0.045;
 
 #[derive(Debug, Clone)]
 struct HitFeedback {
@@ -131,7 +135,7 @@ impl HitIndicator {
             let num_w = match hit_label(entry.damage_hp, outcome, entry.module) {
                 HitLabel::Damage(damage) => {
                     let num_digits = crate::hud::number::digit_count(damage);
-                    let num_h = 0.065;
+                    let num_h = DAMAGE_NUMBER_EM;
                     let num_w = num_digits as f32 * num_h * 0.6;
                     crate::hud::number::push_number(
                         &mut verts,
@@ -186,6 +190,9 @@ impl HitIndicator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const IDENTITY: [[f32; 4]; 4] =
+        [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
 
     fn outcome(pen: bool, ric: bool, near_pen: bool, shattered: bool) -> MarkerOutcome {
         MarkerOutcome { pen, ric, near_pen, shattered }
@@ -260,5 +267,41 @@ mod tests {
             vertices.iter().any(|vertex| vertex.uv[0] >= 0.0 && vertex.uv != [0.0, 0.0]),
             "a word is glyphs sampling the atlas, not a digit's solid quads"
         );
+    }
+
+    /// Inny Poziom S7: the number is demoted under the world. At 300 m in an 8° scope the
+    /// penetration flash (1.4 → 2.4 m, `fx/impacts.rs`) projects to a known clip-space area;
+    /// a three-digit damage number's ink must be at most twice that, and it must be gone
+    /// (TTL) well inside the flash-and-smoke's own life.
+    #[test]
+    fn the_damage_number_stays_under_twice_the_penetration_flash_and_dies_first() {
+        let aspect = 16.0 / 9.0;
+        // Clip height of a sphere of `size_m` at `range_m` in a scope of `fov_deg` vertical.
+        let clip_height = |size_m: f32, range_m: f32, fov_deg: f32| {
+            size_m / (2.0 * range_m * (fov_deg.to_radians() / 2.0).tan()) * 2.0
+        };
+        let flash = clip_height(1.4, 300.0, 8.0);
+        let flash_area = flash * flash / aspect;
+        let digits = 3.0;
+        let number_area = DAMAGE_NUMBER_EM * (digits * DAMAGE_NUMBER_EM * 0.6);
+        assert!(
+            number_area <= 2.0 * flash_area,
+            "number ink {number_area:.5} vs flash {flash_area:.5}: the number out-pixels the world"
+        );
+        // And it is gone inside a beat: a landed hit of the player's still draws at half a
+        // second and draws nothing at 1.2 s, while the flash-and-smoke of the world outlives it.
+        let mut indicator = HitIndicator::default();
+        let hit = game_core::DamageEvent {
+            source: TankId(1),
+            target: TankId(2),
+            damage_hp: 300,
+            penetrated: true,
+            ..Default::default()
+        };
+        indicator.ingest_damage_events(&[hit], TankId(1));
+        indicator.tick(0.5);
+        assert!(!indicator.render_vertices(IDENTITY, aspect).is_empty(), "drawn at half a second");
+        indicator.tick(0.71);
+        assert!(indicator.render_vertices(IDENTITY, aspect).is_empty(), "gone inside a beat");
     }
 }
