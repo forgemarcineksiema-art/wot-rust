@@ -466,18 +466,33 @@ mod tests {
         );
     }
 
+    /// Rail embankments and crags never change; a wreck is steel (Inny Poziom Z3): shellfire
+    /// brings the hulk down to a hull-line mound that still blocks a shell below its crest.
     #[test]
-    fn rail_and_wreck_cover_are_indestructible() {
+    fn rail_and_crag_cover_are_indestructible_and_a_wreck_is_steel() {
         let cover = vec![
             object("rail", StaticCoverKind::RailCover, [0.0, 1.0, 0.0], [3.0, 1.0, 1.0]),
-            object("hulk", StaticCoverKind::Wreck, [9.0, 1.0, 0.0], [2.0, 1.0, 3.0]),
+            object("hulk", StaticCoverKind::Wreck, [9.0, 1.35, 0.0], [2.0, 1.35, 3.0]),
+            object("crag", StaticCoverKind::Crag, [20.0, 2.0, 0.0], [2.0, 2.0, 2.0]),
         ];
         let mut states = cover_states_for(&cover);
         damage_cover(&mut states, &cover, 0, u32::MAX);
-        damage_cover(&mut states, &cover, 1, u32::MAX);
-        assert_eq!(states[0].phase, CoverPhase::Intact);
-        assert_eq!(states[1].phase, CoverPhase::Intact);
-        assert_eq!(live_cover_for_sight_and_shells(&cover, &states).len(), 2);
+        damage_cover(&mut states, &cover, 2, u32::MAX);
+        assert_eq!(states[0].phase, CoverPhase::Intact, "a rail embankment is earth");
+        assert_eq!(states[2].phase, CoverPhase::Intact, "a crag is the hill");
+
+        let full = StaticCoverKind::Wreck.max_health().expect("a wreck has hit points");
+        damage_cover(&mut states, &cover, 1, full / 2);
+        assert_eq!(states[1].phase, CoverPhase::Intact, "half its health: still a hulk");
+        damage_cover(&mut states, &cover, 1, full / 2);
+        assert_eq!(states[1].phase, CoverPhase::Rubble, "shelled down to its hull line");
+        let live = live_cover_for_sight_and_shells(&cover, &states);
+        let mound = live.iter().find(|object| object.id == "hulk").expect("the mound still blocks");
+        assert!(
+            mound.half_extents_m[1] < 1.35 * 0.5 && mound.half_extents_m[1] > 0.3,
+            "a hull-line mound, not the full hulk and not nothing: {}",
+            mound.half_extents_m[1]
+        );
     }
 
     #[test]

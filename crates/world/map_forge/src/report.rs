@@ -88,6 +88,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     check_roads(map, &mut report);
     check_scenery(map, &mut report);
     check_species_mix(blueprint, map, &mut report);
+    check_destructible_floor(map, &mut report);
     if blueprint.symmetry.is_some() {
         check_symmetry(blueprint, map, &mut report);
     }
@@ -1112,6 +1113,39 @@ fn check_species_mix(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mu
                 );
             }
         }
+    }
+}
+
+/// Inny Poziom Z3: how many cover objects on a compiled map can be shot or crushed into a
+/// different shape — everything with a `max_health`, the derived oak boles included.
+pub fn destructible_count(map: &BattlefieldMap) -> usize {
+    map.static_cover.iter().filter(|object| object.kind.max_health().is_some()).count()
+}
+
+/// The destructible floor per shipped map (Inny Poziom Z3). "Three of five maps are static
+/// battlefields": the floor is what each map ships today, so a map edit cannot quietly take
+/// the destruction out; the target above it is each dossier's to raise. A map not in the
+/// table (a fixture, the scratch vessel) is not judged.
+pub const DESTRUCTIBLE_FLOOR: &[(&str, usize)] = &[
+    ("bystra_valley", 68),
+    ("prokhorovka_hill_252_2", 36),
+    ("orliny_pereval", 36),
+    ("ostrogorsk", 125),
+    ("mazurski_przesmyk", 30),
+];
+
+fn check_destructible_floor(map: &BattlefieldMap, report: &mut MapReport) {
+    let Some((_, floor)) = DESTRUCTIBLE_FLOOR.iter().find(|(id, _)| *id == map.id) else {
+        return;
+    };
+    let count = destructible_count(map);
+    if count < *floor {
+        report.push(
+            "destructible_floor",
+            Severity::Error,
+            format!("{count} destructible cover objects; the map shipped with {floor} and may not lose them"),
+            None,
+        );
     }
 }
 

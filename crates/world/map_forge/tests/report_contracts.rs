@@ -721,3 +721,32 @@ fn species_mix_refuses_a_monoculture_and_a_horizon_the_map_does_not_plant() {
         "a horizon species the map does not plant is refused: {errors:?}"
     );
 }
+
+/// Inny Poziom Z3: a shipped map may not lose the destructible cover it shipped with. The
+/// floor is per map id (`DESTRUCTIBLE_FLOOR`); a synthetic map wearing a shipped id with no
+/// cover at all trips it, and a map the list does not know is never judged. This test IS the
+/// documentation of what the check means.
+#[test]
+fn destructible_floor_refuses_a_shipped_map_that_lost_its_cover() {
+    let destructible_floor = |report: &map_forge::MapReport| -> Vec<String> {
+        report
+            .errors()
+            .filter(|entry| entry.check == "destructible_floor")
+            .map(|entry| entry.message.clone())
+            .collect()
+    };
+
+    let (_, report) = compile(&flat_square());
+    assert!(destructible_floor(&report).is_empty(), "an unlisted map is never judged");
+
+    let (id, floor) = map_forge::DESTRUCTIBLE_FLOOR[0];
+    let mut stripped = flat_square();
+    stripped.meta.id = id.into();
+    let (map, report) = compile(&stripped);
+    assert_eq!(map_forge::destructible_count(&map), 0, "the probe ships no cover");
+    let errors = destructible_floor(&report);
+    assert!(
+        errors.iter().any(|message| message.contains(&format!("shipped with {floor}"))),
+        "a shipped map with no destructible cover is refused: {errors:?}"
+    );
+}
