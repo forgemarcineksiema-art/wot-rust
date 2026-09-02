@@ -24,7 +24,7 @@ pub use decals::{append_decal_quads, decal_from_damage_event};
 pub(crate) use fire::{FireEvent, resolve_shots};
 pub(crate) use particle::{MAX_PARTICLES, Particle};
 pub use terrain_scars::TerrainScars;
-pub(crate) use tracer::append_shell_tracers;
+pub(crate) use tracer::{ShellTrails, append_shell_tracers};
 pub(crate) use track_marks::{TRACK_MARK_SPACING_M, TrackMarks};
 
 /// One frame's tracer batch for a bare shell list — the offscreen/screenshot path, which renders
@@ -39,6 +39,8 @@ pub fn shell_tracer_vertices(shells: &[net::ShellSnapshot], eye: [f32; 3]) -> Ve
 #[derive(Debug, Default)]
 pub(crate) struct FxSystem {
     particles: Vec<Particle>,
+    /// The paths every seen shell has flown, kept under a second after it passed (A8).
+    shell_trails: ShellTrails,
     rng_state: u64,
     /// Fractional spawn budget of the hangar's dust-mote trickle (E1), so the rate stays
     /// framerate-independent.
@@ -124,6 +126,18 @@ impl FxSystem {
     /// A deterministic uniform sample in `[-1, 1)`.
     pub fn rand_signed(&mut self) -> f32 {
         self.rand_unit() * 2.0 - 1.0
+    }
+}
+
+impl FxSystem {
+    /// Note where every live shell is this frame and age the remembered paths (Inny Poziom A8).
+    pub fn record_shells(&mut self, shells: &[net::ShellSnapshot], dt_s: f32) {
+        self.shell_trails.record(shells, dt_s);
+    }
+
+    /// The remembered shell paths as dimming lines, appended to this frame's FX batch.
+    pub fn append_shell_trails(&self, vertices: &mut Vec<FxVertex>, eye: Vec3) {
+        self.shell_trails.append(vertices, eye);
     }
 }
 

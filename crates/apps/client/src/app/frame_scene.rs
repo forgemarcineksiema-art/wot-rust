@@ -8,7 +8,7 @@ use sim::DEFAULT_SNAPSHOT_HZ;
 
 use super::ClientApp;
 
-const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
+pub(super) const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
 
 impl ClientApp {
     /// This frame's rendered tanks, each paired with its tick-domain motion: remote tanks carry
@@ -94,6 +94,8 @@ impl ClientApp {
         live.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
         crate::fx::append_shell_tracers(live, &shells, eye);
+        // The paths behind the streaks (A8): where every seen shell has been, dimming out.
+        self.fx.append_shell_trails(live, eye);
         self.append_scar_quads(live);
 
         let ground = budget.saturating_sub(live.len());

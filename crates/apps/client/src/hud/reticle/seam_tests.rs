@@ -239,8 +239,12 @@ fn per_ten_thousand(part: usize, whole: usize) -> usize {
 fn what_the_sniper_eye_reaches_the_gun_can_reach() {
     // The out-of-arc ceilings (A4, measured 2026-09-02: Bystra 126, Prokhorovka 364 per ten
     // thousand sight-reachable hulls) carry the same half-again headroom as the other two.
+    // Bystra's refusal ceiling re-pinned 10 → 20 with gravity at 9.81 (A8, measured 15): a flatter
+    // arc hugs the sight line and clips one more crest per thousand than the 12.0 arc rose over.
+    // Those refusals are honest (the sight says BLOCKED and prints the metres); the UNCUT count,
+    // the one with no defence, did not move.
     for (map, refused_ceiling, uncut_ceiling, out_of_arc_ceiling) in
-        [(MapId::BystraValley, 10, 4, 190), (MapId::ProkhorovkaHill252_2, 40, 12, 550)]
+        [(MapId::BystraValley, 20, 4, 190), (MapId::ProkhorovkaHill252_2, 40, 12, 550)]
     {
         let seam = measure(map);
         assert!(
