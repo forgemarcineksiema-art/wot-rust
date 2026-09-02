@@ -526,6 +526,16 @@ impl ClientApp {
             view_proj,
             aspect,
         );
+        // A spotted enemy is marked in the scope (Inny Poziom A9): corner brackets on the
+        // projected hitbox, sniper mode only, the same visibility bit as the floating bar.
+        let spot_brackets = crate::hud::spot_bracket::spotted_enemy_brackets(
+            &presentation_tanks,
+            self.player_tank,
+            self.player_team(),
+            view_proj,
+            aspect,
+            self.camera_controller.mode() == crate::camera::BattleCameraMode::Sniper,
+        );
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
@@ -640,6 +650,7 @@ impl ClientApp {
             if spectating { Vec::new() } else { crate::hud::build_battle_hud(&hud_model, aspect) };
         if !spectating {
             hud.extend(enemy_bars);
+            hud.extend(spot_brackets);
             hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
         }
         // Reused scratch (recovered after `set_fx` below), so the ~1 MiB FX batch is not

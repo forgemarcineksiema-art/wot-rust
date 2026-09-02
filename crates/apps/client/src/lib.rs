@@ -26,6 +26,7 @@ pub use fx::{collapse_theatre_vertices, shell_tracer_vertices};
 pub use hud::demo::demo_battle_hud;
 pub use hud::demo_strip::demo_reticle_strip;
 pub use hud::font::hud_font_atlas;
+pub use hud::spot_bracket::spot_bracket_for_hull;
 pub use hud::{HudVitals, build_hud};
 // The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
