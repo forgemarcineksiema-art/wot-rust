@@ -2,6 +2,7 @@
 //! gravity + exponential drag) and size/color ramps over its lifetime. Premultiplied colors,
 //! so a particle can be authored anywhere between additive glow (alpha 0) and opaque smoke.
 
+use game_core::TankId;
 use game_core::math::GRAVITY_MPS2;
 use glam::Vec3;
 
@@ -28,6 +29,11 @@ pub(crate) struct Particle {
     /// Velocity stretch (seconds of motion the quad elongates over): 0 stays round, larger
     /// values streak the quad along its velocity — sparks and embers.
     pub stretch_s: f32,
+    /// Seated FX (Inny Poziom S10): `Some(tank)` means `position` and `velocity_mps` are in that
+    /// hull's local frame, and the batch draws the particle through the hull's INTERPOLATED pose
+    /// — so sparks and the penetration signature ride a crossing hull instead of hanging in the
+    /// air 50 ms behind it. `None` is a world-space particle.
+    pub seat: Option<TankId>,
 }
 
 impl Particle {
@@ -78,6 +84,7 @@ mod tests {
             color_begin: [1.0, 1.0, 1.0, 1.0],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,
+            seat: None,
         }
     }
 

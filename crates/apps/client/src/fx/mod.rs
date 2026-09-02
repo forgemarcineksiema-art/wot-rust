@@ -15,6 +15,8 @@ mod fire;
 mod impacts;
 mod lights;
 mod particle;
+#[cfg(test)]
+mod seated_tests;
 mod terrain_scars;
 mod tracer;
 mod track_marks;
@@ -22,8 +24,11 @@ mod track_marks;
 use glam::Vec3;
 use renderer_api::FxVertex;
 
+use crate::vehicle::pose::VehiclePose;
+pub(crate) use decals::pose_of;
 pub use decals::{append_decal_quads, decal_from_damage_event};
 pub(crate) use fire::{FireEvent, resolve_shots};
+use game_core::TankId;
 pub(crate) use particle::{MAX_PARTICLES, Particle};
 pub use terrain_scars::TerrainScars;
 pub(crate) use tracer::{ShellTrails, append_shell_tracers};
@@ -54,7 +59,7 @@ pub fn collapse_theatre_vertices(
     for _ in 0..steps {
         fx.tick(seconds / steps as f32);
     }
-    fx.vertices(Vec3::from_array(eye), Vec3::from_array(target))
+    fx.vertices(Vec3::from_array(eye), Vec3::from_array(target), &|_| None)
 }
 
 #[derive(Debug, Default)]
@@ -76,12 +81,56 @@ pub(crate) struct FxSystem {
     staged: Vec<collapse::StagedEmission>,
     /// The shot and the hit as light (S1): transient pulses feeding the profile's local slots.
     lights: Vec<lights::LightPulse>,
+    /// While set, every spawn is seated in this hull's local frame (S10) — see [`Self::seated`].
+    seat_context: Option<(TankId, VehiclePose)>,
 }
 
 impl FxSystem {
+    /// Run `emit` with every spawn seated in `tank`'s hull frame (Inny Poziom S10): the emitters
+    /// keep speaking world space at the SIM pose the hit was resolved in, and the spawn converts
+    /// each particle into hull-local position and velocity, so the batch can draw it through the
+    /// hull's interpolated pose every frame — the same frame the hit decal rides.
+    pub fn seated<R>(
+        &mut self,
+        tank: TankId,
+        pose: &VehiclePose,
+        emit: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let previous = self.seat_context.replace((tank, *pose));
+        let out = emit(self);
+        self.seat_context = previous;
+        out
+    }
+
+    /// The world position and velocity a particle draws at this frame: seated particles ride
+    /// `seat_pose`; a seat whose hull is gone this frame draws nothing (`None`).
+    fn world_of(
+        particle: &Particle,
+        seat_pose: &dyn Fn(TankId) -> Option<VehiclePose>,
+    ) -> Option<(Vec3, Vec3)> {
+        match particle.seat {
+            None => Some((particle.position, particle.velocity_mps)),
+            Some(tank) => {
+                let pose = seat_pose(tank)?;
+                Some((
+                    pose.hull_point(particle.position),
+                    pose.hull_basis() * particle.velocity_mps,
+                ))
+            }
+        }
+    }
+
     /// Add one particle, recycling the particle nearest death once the pool is full: a barrage
     /// degrades by dropping the oldest smoke, never by unbounded growth.
-    pub fn spawn(&mut self, particle: Particle) {
+    pub fn spawn(&mut self, mut particle: Particle) {
+        if let Some((tank, pose)) = &self.seat_context {
+            // World → hull-local, the exact inverse of `world_of`: the seat is the pose the hit
+            // was resolved in, so the particle lands where the decal does.
+            let inverse = pose.hull_basis().transpose();
+            particle.position = inverse * (particle.position - pose.hull_translation());
+            particle.velocity_mps = inverse * particle.velocity_mps;
+            particle.seat = Some(*tank);
+        }
         if self.particles.len() < MAX_PARTICLES {
             self.particles.push(particle);
             return;
@@ -106,36 +155,47 @@ impl FxSystem {
     }
 
     /// Build this frame's FX vertex batch: billboarded (or velocity-stretched) soft quads,
-    /// sorted back-to-front so premultiplied smoke composites correctly over itself.
-    pub fn vertices(&self, eye: Vec3, target: Vec3) -> Vec<FxVertex> {
+    /// sorted back-to-front so premultiplied smoke composites correctly over itself. Seated
+    /// particles (S10) are placed through `seat_pose` — the hull's interpolated pose this frame,
+    /// the same one the hit decals ride — and a seat whose hull is gone draws nothing.
+    pub fn vertices(
+        &self,
+        eye: Vec3,
+        target: Vec3,
+        seat_pose: &dyn Fn(TankId) -> Option<VehiclePose>,
+    ) -> Vec<FxVertex> {
         let (right, up) = billboard::view_plane_basis(eye, target);
-        // Depth keys are computed ONCE per particle, not per comparison — a full 2048-particle
-        // pool pays ~2k distance evaluations instead of ~45k inside the comparator.
-        let mut order: Vec<(f32, usize)> = self
+        // World placement and depth keys are computed ONCE per particle, not per comparison —
+        // a full 2048-particle pool pays ~2k distance evaluations instead of ~45k inside the
+        // comparator.
+        let mut order: Vec<(f32, usize, Vec3, Vec3)> = self
             .particles
             .iter()
             .enumerate()
-            .map(|(index, particle)| (particle.position.distance_squared(eye), index))
+            .filter_map(|(index, particle)| {
+                let (position, velocity) = Self::world_of(particle, seat_pose)?;
+                Some((position.distance_squared(eye), index, position, velocity))
+            })
             .collect();
         order.sort_by(|a, b| b.0.total_cmp(&a.0));
 
         let mut vertices = Vec::with_capacity(self.particles.len() * 6);
-        for (_, index) in order {
+        for (_, index, position, velocity) in order {
             let particle = &self.particles[index];
             let color = particle.color();
             let size = particle.size_m();
-            let streak_half = particle.velocity_mps * particle.stretch_s * 0.5;
+            let streak_half = velocity * particle.stretch_s * 0.5;
             if streak_half.length_squared() > (size * 0.5) * (size * 0.5) {
                 billboard::push_stretched(
                     &mut vertices,
-                    particle.position,
+                    position,
                     streak_half,
                     size * 0.5,
                     color,
                     eye,
                 );
             } else {
-                billboard::push_billboard(&mut vertices, particle.position, size, color, right, up);
+                billboard::push_billboard(&mut vertices, position, size, color, right, up);
             }
         }
         vertices
@@ -187,6 +247,7 @@ mod tests {
             color_begin: [1.0; 4],
             color_end: [0.0; 4],
             stretch_s: 0.0,
+            seat: None,
         }
     }
 
@@ -280,7 +341,7 @@ mod tests {
         fx.spawn(puff(Vec3::new(0.0, 0.0, 5.0), 1.0)); // near
         fx.spawn(puff(Vec3::new(0.0, 0.0, 50.0), 1.0)); // far
 
-        let vertices = fx.vertices(eye, Vec3::Z);
+        let vertices = fx.vertices(eye, Vec3::Z, &|_| None);
 
         assert_eq!(vertices.len(), 12);
         let first_quad_z = vertices[0].position[2];
@@ -299,7 +360,7 @@ mod tests {
         spark.stretch_s = 0.05; // 2 m streak at 40 m/s vs a 1 m round size
         fx.spawn(spark);
 
-        let vertices = fx.vertices(Vec3::new(5.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 10.0));
+        let vertices = fx.vertices(Vec3::new(5.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 10.0), &|_| None);
 
         let max_z = vertices.iter().map(|v| v.position[2]).fold(f32::MIN, f32::max);
         let min_z = vertices.iter().map(|v| v.position[2]).fold(f32::MAX, f32::min);

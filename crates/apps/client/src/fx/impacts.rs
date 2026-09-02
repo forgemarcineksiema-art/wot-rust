@@ -41,6 +41,7 @@ impl FxSystem {
                 color_begin: [0.72 * alpha, 0.78 * alpha, 0.82 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.08,
+                seat: None,
             });
         }
         // The ring: fast, flat, short-lived spray skating outward on the surface.
@@ -62,6 +63,7 @@ impl FxSystem {
                 color_begin: [0.60 * alpha, 0.68 * alpha, 0.72 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.05,
+                seat: None,
             });
         }
         // The mist: a soft pale veil hanging where the column collapsed.
@@ -119,6 +121,7 @@ impl FxSystem {
             color_begin: [1.0, 0.62, 0.22, 0.0],
             color_end: [0.25, 0.06, 0.02, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
         // The smoke ring: a hemisphere facing back along the approach, heavier than gun smoke.
         let side = if back.abs().dot(Vec3::Y) > 0.9 {
@@ -146,6 +149,7 @@ impl FxSystem {
                 color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
         self.spark_fan(position, 8);
@@ -176,6 +180,7 @@ impl FxSystem {
                 color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -200,6 +205,7 @@ impl FxSystem {
                 color_begin: [0.30 * alpha, 0.24 * alpha, 0.16 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.05,
+                seat: None,
             });
         }
         self.dust_pall(position, [0.40, 0.34, 0.24], 6);
@@ -233,6 +239,7 @@ impl FxSystem {
                 color_begin: [tone[0] * alpha, tone[1] * alpha, tone[2] * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -280,6 +287,7 @@ impl FxSystem {
             color_begin: [1.0, 0.75, 0.35, 0.0],
             color_end: [0.4, 0.12, 0.02, 0.0],
             stretch_s: 0.04,
+            seat: None,
         });
     }
 
@@ -300,6 +308,7 @@ impl FxSystem {
             color_begin: [1.0, 0.72, 0.30, 0.0],
             color_end: [0.3, 0.08, 0.02, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
         let smoke = (7.0 * scale).round() as usize;
         for _ in 0..smoke {
@@ -323,6 +332,7 @@ impl FxSystem {
                 color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -361,13 +371,13 @@ mod tests {
         assert!(pen.live_particles() > bounce.live_particles());
         // Inny Poziom S9: a bounce is no longer sparks alone — the plate answers with at least
         // one occluding row of spall; the penetration still carries its dark smoke rows.
-        let bounce_vertices = bounce.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO);
+        let bounce_vertices = bounce.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO, &|_| None);
         assert!(bounce_vertices.iter().any(|vertex| vertex.color[3] > 0.0), "spall occludes");
         assert!(
             bounce_vertices.iter().any(|vertex| vertex.color[3] == 0.0),
             "sparks stay additive"
         );
-        let pen_vertices = pen.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO);
+        let pen_vertices = pen.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO, &|_| None);
         assert!(pen_vertices.iter().any(|vertex| vertex.color[3] > 0.0));
     }
 
