@@ -42,6 +42,10 @@ struct Seam {
     /// the target looks completely open and the shot is refused anyway. This is the count that
     /// has no honest defence: every other refusal at least cuts the tank in the picture.
     refused_while_uncut: usize,
+    /// Placements whose sight ray reached the enemy hull but whose firing solution left the gun
+    /// arc (the eye sees a hull the gun cannot depress or elevate onto). Outside `believable`
+    /// by definition; counted and ceilinged so a map cannot quietly grow them.
+    out_of_arc: usize,
 }
 
 /// One pass of the seam over a shipped map.
@@ -160,13 +164,20 @@ fn measure(map: MapId) -> Seam {
                 limits,
                 muzzle_velocity,
                 drag,
+                spec.has_fixed_casemate(),
             );
             let Some(solved) = solution else { break };
             gun_pitch = solved.gun_pitch_rad;
         }
-        // Out of arc is an honest refusal with its own signal (the gun visibly cannot get there),
-        // and it is a vehicle/map question, not a sight one.
-        let Some(solution) = solution.filter(|solution| solution.in_arc) else { continue };
+        // Out of arc is an honest refusal with its own signal (the arc's own form, A3) — a
+        // vehicle/map question rather than a sight one, so it stays outside `believable`. It is
+        // COUNTED all the same (Inny Poziom A4): a map that parks the eye on ridges the gun
+        // cannot fire from is a defect too, and one this sweep used to throw away.
+        let Some(solution) = solution else { continue };
+        if !solution.in_arc {
+            seam.out_of_arc += 1;
+            continue;
+        }
         seam.believable += 1;
 
         let outcome = crate::hud::reticle_sweep::reticle_trace(
@@ -226,8 +237,10 @@ fn per_ten_thousand(part: usize, whole: usize) -> usize {
 /// comes with a fresh measurement, never a way to get a run green.
 #[test]
 fn what_the_sniper_eye_reaches_the_gun_can_reach() {
-    for (map, refused_ceiling, uncut_ceiling) in
-        [(MapId::BystraValley, 10, 4), (MapId::ProkhorovkaHill252_2, 40, 12)]
+    // The out-of-arc ceilings (A4, measured 2026-09-02: Bystra 126, Prokhorovka 364 per ten
+    // thousand sight-reachable hulls) carry the same half-again headroom as the other two.
+    for (map, refused_ceiling, uncut_ceiling, out_of_arc_ceiling) in
+        [(MapId::BystraValley, 10, 4, 190), (MapId::ProkhorovkaHill252_2, 40, 12, 550)]
     {
         let seam = measure(map);
         assert!(
@@ -237,10 +250,14 @@ fn what_the_sniper_eye_reaches_the_gun_can_reach() {
         );
         let refused = per_ten_thousand(seam.refused, seam.believable);
         let uncut = per_ten_thousand(seam.refused_while_uncut, seam.believable);
+        let out_of_arc = per_ten_thousand(seam.out_of_arc, seam.believable + seam.out_of_arc);
         // Printed, not just asserted: re-measuring after a terrain or ballistics change is the
         // point of this instrument, and `cargo test -- --nocapture` is how the ceilings above
         // were taken.
-        eprintln!("{map:?}: {seam:?}  refused={refused}/10000  uncut={uncut}/10000");
+        eprintln!(
+            "{map:?}: {seam:?}  refused={refused}/10000  uncut={uncut}/10000  \
+             out_of_arc={out_of_arc}/10000"
+        );
         assert!(
             refused <= refused_ceiling,
             "{map:?}: {}/{} sight-reachable hulls the gun cannot reach = {refused} per ten \
@@ -255,6 +272,14 @@ fn what_the_sniper_eye_reaches_the_gun_can_reach() {
              the player has no way to know is refused",
             seam.refused_while_uncut,
             seam.believable,
+        );
+        assert!(
+            out_of_arc <= out_of_arc_ceiling,
+            "{map:?}: {}/{} sight-reachable hulls the gun ARC cannot reach = {out_of_arc} per \
+             ten thousand, over the {out_of_arc_ceiling} ceiling — the map parks the eye where \
+             the gun cannot fire from",
+            seam.out_of_arc,
+            seam.believable + seam.out_of_arc,
         );
     }
 }

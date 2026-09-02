@@ -123,6 +123,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
         query.gun_pitch_limits_rad,
         query.muzzle_velocity_mps,
         query.drag_per_s,
+        query.player_spec.has_fixed_casemate(),
     );
     // Sight point on the muzzle (no bearing to solve): fall back to the live barrel.
     let fired_direction = solution.map_or(query.gun_direction, |s| s.world_direction);
@@ -192,9 +193,12 @@ fn feedback_from_outcome(
     // range is a fact about the shell's lifetime rather than about the battlefield.
     let reach = actual_impact_world_point.distance(query.muzzle);
     let block_distance_m = (status == ReticleStatus::Blocked && reach < distance).then_some(reach);
-    // The arc's refusal names its end. A clamped solution is always BLOCKED (the shell leaves
-    // along the clamped barrel and lands elsewhere), so the limit rides only a blocked sight.
-    let arc_limit = solution.and_then(|solution| solution.arc_limit);
+    // The arc's refusal names its end, and only a refusal does: a casemate's hull line a hair
+    // off the sight point still ARRIVES (the trace says so), and a sight that arrives owes the
+    // player no excuse.
+    let arc_limit = solution
+        .and_then(|solution| solution.arc_limit)
+        .filter(|_| status == ReticleStatus::Blocked);
 
     ReticleFeedback {
         status,

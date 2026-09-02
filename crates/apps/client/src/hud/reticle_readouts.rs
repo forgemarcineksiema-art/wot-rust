@@ -175,6 +175,7 @@ pub(super) fn push_arc_limit_label(
     let text = match limit {
         crate::aim::ArcLimit::Depression => crate::ui_strings::battle::ARC_LIMIT_DEPRESSION,
         crate::aim::ArcLimit::Elevation => crate::ui_strings::battle::ARC_LIMIT_ELEVATION,
+        crate::aim::ArcLimit::Traverse => crate::ui_strings::battle::ARC_LIMIT_TRAVERSE,
     };
     let width = crate::hud::font::text_width(text, HEIGHT, aspect);
     let [right_x, top_y] = readout_anchor(aim_clip, ring_radius, 0.155, width, aspect);

@@ -103,6 +103,7 @@ fn the_reticle_and_the_server_agree_on_ten_thousand_traced_impacts() {
             limits,
             shell.muzzle_velocity_mps,
             shell.drag_per_s(),
+            player_spec.has_fixed_casemate(),
         );
         let fired = solution.map_or(gun_direction, |s| s.world_direction);
         let outcome = reticle_trace(ReticleTraceQuery {

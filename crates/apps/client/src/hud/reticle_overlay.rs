@@ -150,6 +150,26 @@ pub(crate) fn push_arc_limit_stop(
     let sign = match limit {
         crate::aim::ArcLimit::Depression => -1.0,
         crate::aim::ArcLimit::Elevation => 1.0,
+        crate::aim::ArcLimit::Traverse => {
+            // A casemate stopped on its hull line: two vertical stop bars bracket the ring,
+            // one each side — the gun cannot swing either way.
+            for side in [-1.0, 1.0] {
+                let bar_x = aim_clip[0] + side * (ring_radius + 0.022) / aspect;
+                push_quad(
+                    vertices,
+                    [bar_x, aim_clip[1]],
+                    [0.0044 / aspect, 0.030],
+                    RETICLE_RING_OUTLINE,
+                );
+                push_quad(
+                    vertices,
+                    [bar_x, aim_clip[1]],
+                    [0.0026 / aspect, 0.028],
+                    RETICLE_BLOCKED,
+                );
+            }
+            return;
+        }
     };
     let bar_y = aim_clip[1] + sign * (ring_radius + 0.022);
     // The stub from the ring to the bar, then the bar itself: both in the BLOCKED grey, both
