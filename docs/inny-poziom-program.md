@@ -137,6 +137,52 @@ Two mechanisms keep it invisible:
 - **Night, snow and lightning stay absent.** No shipped map is a night or winter map; adding one is
   a map decision, not a renderer row.
 
+### The owner's design brief (2026-09-02)
+
+Given mid-playtest, after A10–A12. Recorded as the owner's DECISIONS; each says what the repo
+already has and which rows carry the rest.
+
+- **Fire.** "A shell that penetrated does not vanish: it flies on through the interior as a ray,
+  losing energy, damaging what it cuts — racks, engine, fuel, crew. The HP pool stays (this is
+  half-arcade, not War Thunder), but through the interior not every 300 damage is equal." —
+  **Standing** (Honest Steel): every vehicle carries a damage layout of components, a penetrating
+  round continues through the plate, exits, spalls, wounds crew stations; the pool stays. Owed:
+  nothing structural; the theatre of it is the S lane.
+- **Spotting.** "Keep the idea, throw out the table. A bush is a VOLUME with an optical density;
+  the line of sight from the observer to the target's spotting points integrates occlusion the
+  way a shell integrates armour. One raymarch, two questions. View range and camouflage are two
+  scalars that move the threshold. Deterministic and explicit in the UI: I see my visibility
+  budget and what eats it. Sixth sense for everyone from the first battle. Auto-spot at 50 m
+  stays — a tank invisible behind a bush at the muzzle is absurd." — **Not built.** Today:
+  per-vehicle view range (400/440), LOS through cover boxes (a TreeLine blocks, scenery never
+  does), no camouflage stat, no density, no budget on the HUD. The **V lane** below.
+- **Movement.** "A tank must weigh. Multi-raycast suspension gives the hull's sway on braking and
+  over bumps — what tells the player '45 tons' without a HUD. Terrain resistance from the ground
+  material." — **Planned as G7** (W2, first): the sprung hull in the sim; the ground's grip per
+  material partly stands (the mud belt). G7 owes the sway.
+- **Aiming and camera.** "Third person plus sniper — exactly WoT, because that is why WoT is
+  more approachable than WT. The reticle blooms with hull and turret motion and converges with
+  aim time. One reticle, the server's — with an authoritative server and rewind there are not
+  two truths. Dispersion concentrated in the centre, not uniform." — **Standing**: server-owned
+  dispersion with bloom and aim-time recovery, replicated to the reticle; the centre-biased draw
+  (`r·u²`, floor 0.15); one penetration resolver shared by reticle and server (A1); the gun
+  lands on the crosshair without controller lag (A10).
+- **Progression.** "Horizontal, in the WWII band: class 1–4 (roughly 1939–40, 41–42, 43–44, 45),
+  matchmaking ±1. The tree stays — a collector's hook veterans love — but the whole band is
+  ~100 hours, not a thousand. Crew: one counter per tank, capped at ~10 hours, small bonuses.
+  Equipment: 3 slots from one set, free swaps. Consumables free. No credits — they existed to
+  sell premium. There is XP and there are tanks." — **Product decisions**: the repo has
+  nations/lines/tiers, the tech tree and the loadout editor, a crew proficiency pinned at 1.0
+  (R4), no economy (as decided). Owed: the class bands and the crew counter — the R lane,
+  after W2.
+- **Honesty as a feature.** "After every hit the game says what happened: pen 150 vs effective
+  162, the angle, the point. In the garage an armour inspector with the same raymarch — point,
+  see thickness. A battle log with every shot. Replays from the server's input log. WoT players
+  use three external tools for this; here it is a screen in the game." — **Partly standing**:
+  the scope's verdict with the millimetres (sniper mode), replays as the sim's own fixtures.
+  Owed: the inspector's thickness-at-a-point through the shared resolver, the per-shot battle
+  log screen, the in-game replay viewer — the **L lane** (the ledger) below.
+
 ## Defect register
 
 Columns: the defect, the evidence, the wave, and what closes it. IDs by area: K kernels and fleet,
@@ -339,6 +385,28 @@ K6. D4 (no dark mass on the steppe) closes with N1 and B1; D18 (Orliny's borrowe
 |---|---|---|---|---|
 | O1 | **The card meadow reads as a wavy moiré** in the mid-field band, most visible at grazing light | `target/flora_lineup.png`, `target/prokhorovka_evening_contact.png` | W4 | a metric derived from a frame judged good (look-metric-validation rule), then a floor |
 
+### V — visibility as a resource
+
+The owner's brief (2026-09-02): spotting is the hidden core of the genre — the whole map design
+and the whole light class stand on visibility being a resource. Keep the idea, throw out the
+table: one raymarch, two questions (a shell integrates armour, a sight line integrates
+occlusion), deterministic and explicit.
+
+| # | defect | where | wave | done means |
+|---|---|---|---|---|
+| V1 | **A bush hides nothing and a tree line hides everything.** Spotting is a LOS ray against cover boxes: binary. Scenery — every bush, every crown — is transparent to spotting; a TreeLine box is opaque. No optical density anywhere | `sim` spotting, `terrain::scenery` | W2 | foliage `SceneryKind`s carry an optical density per metre; the spotting ray integrates density along its length (the shell's own march, the second question); a target is spotted when the integral stays under the observer's budget; scenery still never blocks a shell; locks on a bush at 5 m vs 50 m and on shell/LOS parity |
+| V2 | **No camouflage stat, one view range.** Every tank is equally visible; view range is 400/440 by era | `TankSpec::view_range_m` | W2 | `TankSpec::camouflage` (the scalar the threshold moves by) per vehicle from the dossiers — a T-34-85 is not a Tiger II — locked per vehicle like traverse |
+| V3 | **The budget is invisible.** The player cannot see how far they can be seen or what eats it | HUD | W2 | a HUD readout of the visibility budget (the range at which the nearest observer resolves you) and its eaters (moving, firing, no bush); deterministic and explicit |
+| V4 | **No sixth sense; auto-spot at 50 m unverified** | `sim` spotting | W2 | sixth sense for everyone from the first battle (the spotted flag reaches its target with a delay the register measures); a lock that a tank at 50 m is always spotted whatever the density |
+
+### L — the ledger (honesty as a feature)
+
+| # | defect | where | wave | done means |
+|---|---|---|---|---|
+| L1 | **The garage inspector does not answer "how thick, here"** | `garage/panels/inspector` | W4 | point at the hull, read the effective thickness through the SAME resolver the shell uses (`resolve_traced_impact`), with the angle; lock: inspector == shell on 1 000 points |
+| L2 | **No battle log** | client | W4 | a post-battle screen listing every shot fired and received — shell, distance, pen vs effective, zone, result — fed by the battle-event stream, nothing invented |
+| L3 | **Replays are fixtures, not a screen** | `sim` replays | W5 | the server's input log saved per battle; an in-game viewer that replays it through the same sim; the replay-exact lock is the feature |
+
 ## Wave plan
 
 **W1 — Widok.** Everything the player sees first, none of it touching the authoritative hull.
@@ -350,9 +418,13 @@ gone; the lights' cost recorded.
 
 **W2 — Jazda.** The authoritative hull and everything that reads it. G7 first (the sprung hull,
 with G1's one ground truth folded in), then G4, G3, G2 (the wire), G5, G6, K10, then the camera
-C1, C2, C3 (re-measured on the sprung hull), C4, then R1–R3 and the water sim H1–H4. Gate: the
-crest-walk continuity lock, the per-vehicle wallow lock, `mobility_baseline` byte-identical,
-replays re-pinned once for the wire bump.
+C1, C2, C3 (re-measured on the sprung hull), C4, then R1–R3 and the water sim H1–H4, then
+**visibility as a resource** — V1 (the density march), V2 (camouflage per vehicle), V4 (sixth
+sense and the 50 m floor), V3 (the budget on the HUD) — the owner's brief of 2026-09-02, placed
+after the hull because the light class's whole reason to exist is this lane and it must be
+measured on the hull that ships. Gate: the crest-walk continuity lock, the per-vehicle wallow
+lock, `mobility_baseline` byte-identical, replays re-pinned once for the wire bump; the spotting
+parity lock (shell march == sight march) green on every map.
 
 **W3 — Kuźnia 2.0.** K7 first (the documents), then the seam (K1, K2), then the benchmark to the
 bar (K0, K9, K11–K15), then seven vehicle migrations — one PR each, with its dossier, its P1 parity
@@ -362,13 +434,16 @@ migration. Gate: the K3 inventory gate and the K0 overlay green for every roster
 D8/D9/D15/D17 closed in the light's register.
 
 **W4 — Obraz.** The sky and the air first (N6, N2, N3, N1, N4, N8, N5, N7), then the ground's
-distance (T3, T4), the water's look (H5, H6), the flora's density and variety (F4, F5), O1, D18.
-Gate: every look golden at its target; each renderer row with its own measured delta.
+distance (T3, T4), the water's look (H5, H6), the flora's density and variety (F4, F5, F7), O1,
+D18, and the ledger's first two screens — L1 (the inspector answers "how thick, here") and L2
+(the battle log). Gate: every look golden at its target; each renderer row with its own measured
+delta; the inspector == the shell on a thousand points.
 
 **W5 — Miasto i Ziemia.** Buildings and the terrain's structure: B3 first (the kit and the
 instanced path — it pays for everything after it), then B1, B2, B4, B5, B6; T2 (erosion in the
-editor), T1 (the 2.5 m ring, measured), T5. Gate: `building_views` per style at three distances,
-the footprint-shape histogram, the map-swap and frame measurements.
+editor), T1 (the 2.5 m ring, measured), T5; L3 (the replay viewer over the server's input log).
+Gate: `building_views` per style at three distances, the footprint-shape histogram, the map-swap
+and frame measurements; a saved battle replays bit-identically in the viewer.
 
 **Q — the frame**, a lane from day one, in parallel with W1: Q2 (the instrument) first, then Q3
 (the fresh number and the per-item deficit), Q1 (the uploads), Q4. Every renderer row in every wave
