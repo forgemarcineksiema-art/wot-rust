@@ -592,3 +592,38 @@ fn fog_thickens_with_distance_and_thins_with_height() {
     // Density 0 (interior) is fully clear regardless of distance.
     assert_eq!(SceneLighting::garage_studio().fog_factor(900.0, 0.0), 0.0);
 }
+
+/// Inny Poziom S1: the shot's and the hit's lights are pools sized by the round — reach with
+/// the square root of its recoil scale, energy linearly — a flash decays in energy and never
+/// in reach, and a burned-out flash is the OFF slot's twin in everything that matters.
+#[test]
+fn the_flash_pools_scale_with_the_round_and_go_out_by_energy() {
+    use renderer_api::LocalLight;
+
+    let d10 = LocalLight::muzzle_flash([0.0, 1.8, 0.0], 1.0);
+    let pak80 = LocalLight::muzzle_flash([0.0, 1.8, 0.0], 1.36);
+    let kwk42 = LocalLight::muzzle_flash([0.0, 1.8, 0.0], 0.67);
+    assert!(pak80.radius_m > d10.radius_m && d10.radius_m > kwk42.radius_m);
+    assert!(pak80.intensity > d10.intensity && d10.intensity > kwk42.intensity);
+    // The ground 1.8 m under the muzzle sits well inside the D-10's pool.
+    assert!(d10.attenuation_at(1.8) > 0.7, "{}", d10.attenuation_at(1.8));
+    // The pool ends: nothing past the radius.
+    assert_eq!(d10.attenuation_at(d10.radius_m + 0.1), 0.0);
+
+    let burst = LocalLight::impact_flash([0.0; 3], 2.0);
+    let spark = LocalLight::impact_flash([0.0; 3], 1.0);
+    let soil = LocalLight::impact_flash([0.0; 3], 0.3);
+    assert!(burst.radius_m > spark.radius_m && spark.radius_m > soil.radius_m);
+    assert!(burst.intensity > spark.intensity && spark.intensity > soil.intensity);
+
+    let dying = d10.at_energy(0.25);
+    assert_eq!(dying.radius_m, d10.radius_m, "the reach stays");
+    assert!((dying.intensity - d10.intensity * 0.25).abs() < 1.0e-6, "the energy goes");
+    let out = d10.at_energy(0.0);
+    assert_eq!(out.intensity, 0.0);
+    assert_eq!(
+        out.attenuation_at(0.0),
+        1.0,
+        "a slot with reach but no energy adds nothing but costs one read"
+    );
+}

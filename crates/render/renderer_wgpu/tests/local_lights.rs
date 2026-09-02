@@ -96,3 +96,55 @@ fn a_warm_pool_brightens_its_floor_and_all_off_is_a_byte_identical_noop() {
     let all_off = render_floor(&ctx, dark_rig());
     assert_eq!(baseline, all_off, "an all-off pool array must not perturb the image");
 }
+
+/// Inny Poziom S1: the muzzle flash as light. Under a real low-sun outdoor rig (Prokhorovka's
+/// golden evening — the dusk the register named) the ground under a D-10's flash must rise
+/// by a measured floor against the same frame with the flash gone, and the flash gone must be
+/// byte-identical to the profile alone: no shot, no regression on any outdoor look.
+#[test]
+fn a_muzzle_flash_lights_the_dusk_ground_under_it_and_goes_out_clean() {
+    let Some(ctx) = headless() else {
+        return;
+    };
+    let evening = SceneLighting::prokhorovka_golden_evening();
+    let baseline = render_floor(&ctx, evening);
+
+    let mut flashing = evening;
+    flashing.local_lights[0] = LocalLight::muzzle_flash([0.0, 1.8, 0.0], 1.0);
+    let lit = render_floor(&ctx, flashing);
+
+    let sample = |pixels: &[u8], x: usize, y: usize| -> f32 {
+        let index = (y * 128 + x) * 4;
+        luma(&pixels[index..index + 4])
+    };
+    let before = sample(&baseline, 64, 64);
+    let after = sample(&lit, 64, 64);
+    let rise = after - before;
+    eprintln!("muzzle flash on dusk ground: {before:.3} -> {after:.3} (+{rise:.3})");
+    // Measured 2026-09-02 on the headless adapter: 0.582 -> 0.907, +0.325; the floor is set
+    // well under it so a tuning of the rig or the pool cannot pass by rounding.
+    assert!(rise > 0.25, "the flash must light the ground under the muzzle: +{rise:.3}");
+    // The corner is out past the pool: the flash is a POOL, not a second sun.
+    let corner_before = sample(&baseline, 6, 6);
+    let corner_after = sample(&lit, 6, 6);
+    assert!(
+        (corner_after - corner_before).abs() < 0.02,
+        "the flash stays local: corner {corner_before:.3} -> {corner_after:.3}"
+    );
+
+    let out = render_floor(&ctx, flashing.local_lights[0].at_energy(0.0).pipe_into(evening));
+    assert_eq!(baseline, out, "a burned-out flash is byte-identical to the profile alone");
+}
+
+/// The decayed pulse goes back into the profile it lit, so the byte-identity check above
+/// exercises the exact array the client hands the renderer once a flash has burned out.
+trait PipeInto {
+    fn pipe_into(self, profile: SceneLighting) -> SceneLighting;
+}
+
+impl PipeInto for LocalLight {
+    fn pipe_into(self, mut profile: SceneLighting) -> SceneLighting {
+        profile.local_lights[0] = self;
+        profile
+    }
+}

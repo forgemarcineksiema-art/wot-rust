@@ -38,6 +38,41 @@ impl LocalLight {
     }
 }
 
+impl LocalLight {
+    /// The muzzle flash as a light (Inny Poziom S1): an amber-white pool at the muzzle whose
+    /// reach and energy follow the round's recoil scale (S3) — the D-10's shot at 1.0, a
+    /// 128 mm further and harder, a 75 mm less. The flash lives a frame or two; the caller
+    /// decays it through [`Self::at_energy`].
+    pub fn muzzle_flash(position: [f32; 3], recoil_scale: f32) -> Self {
+        let scale = recoil_scale.clamp(0.4, 2.0);
+        Self {
+            position,
+            radius_m: 6.0 * scale.sqrt(),
+            rgb: [1.0, 0.74, 0.40],
+            intensity: 2.5 * scale,
+        }
+    }
+
+    /// A shell's death as a light: `strength` 1.0 is a kinetic round's spark fan on steel or
+    /// masonry, ~0.3 the dull spark of one into soil, ~2.0 an HE detonation — reach with the
+    /// square root, energy linearly, the same law as the muzzle.
+    pub fn impact_flash(position: [f32; 3], strength: f32) -> Self {
+        let strength = strength.clamp(0.1, 3.0);
+        Self {
+            position,
+            radius_m: 4.5 * strength.sqrt(),
+            rgb: [1.0, 0.80, 0.52],
+            intensity: 1.8 * strength,
+        }
+    }
+
+    /// The same pool at a fraction of its energy: the reach stays, the light dims. A flash
+    /// decays this way — the pool does not shrink, it goes out.
+    pub fn at_energy(self, energy: f32) -> Self {
+        Self { intensity: self.intensity * energy.clamp(0.0, 1.0), ..self }
+    }
+}
+
 /// The all-off local light array every outdoor profile carries: zero radius = disabled slots.
 pub const NO_LOCAL_LIGHTS: [LocalLight; MAX_LOCAL_LIGHTS] = [LocalLight::OFF; MAX_LOCAL_LIGHTS];
 

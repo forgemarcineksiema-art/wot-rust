@@ -211,6 +211,10 @@ struct Config {
     fleet: Option<FleetGear>,
     shadows: bool,
     ssao: bool,
+    /// Inny Poziom S1: six shot lights live in the frame's local slots — the barrage worst
+    /// case, since every lit pass pays the per-fragment pool loop for a live slot whether or
+    /// not the pool reaches the pixel.
+    shot_lights: bool,
 }
 
 impl Config {
@@ -225,6 +229,7 @@ impl Config {
             fleet: None,
             shadows: true,
             ssao: true,
+            shot_lights: false,
         }
     }
 }
@@ -426,6 +431,11 @@ fn frame_time_capture() {
         Config { grass: false, ..Config::named("no near ring") },
         Config { fov: 18.0, ..Config::named("scope 18deg") },
         Config { fleet: Some(FleetGear::FromEye), ..Config::named("full + 7v7") },
+        Config {
+            fleet: Some(FleetGear::FromEye),
+            shot_lights: true,
+            ..Config::named("full + 7v7 + 6 shot lights")
+        },
         Config { fleet: Some(FleetGear::ForcedNear), ..Config::named("7v7 gear NEAR forced") },
         Config { fleet: Some(FleetGear::ForcedFar), ..Config::named("7v7 gear FAR forced") },
         Config { shadows: false, ..Config::named("no shadows") },
@@ -433,7 +443,7 @@ fn frame_time_capture() {
     ];
     // The per-config arrays below are fixed-size, so a row added to the table without this
     // number moving would silently drop off the end of the report.
-    const CONFIGS: usize = 9;
+    const CONFIGS: usize = 10;
     assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
@@ -452,6 +462,7 @@ fn frame_time_capture() {
     // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
     // authority, which is the exact reading the rotation exists to prevent.
     let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
+    let base_lighting = renderer.scene_lighting;
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -488,6 +499,19 @@ fn frame_time_capture() {
             }
             renderer.set_shadows_enabled(cfg.shadows);
             renderer.set_ssao_enabled(cfg.ssao);
+            // The shot's light (S1): six D-10 flashes strung along the eye path, or the
+            // profile's own all-off slots. Set outside the timed frames like every toggle.
+            let mut lighting = base_lighting;
+            if cfg.shot_lights {
+                for (index, slot) in lighting.local_lights.iter_mut().enumerate() {
+                    let along = index as f32;
+                    *slot = renderer_api::LocalLight::muzzle_flash(
+                        [432.0 + along * 5.0, 8.0, 396.0 + along * 14.0],
+                        1.0,
+                    );
+                }
+            }
+            renderer.scene_lighting = lighting;
             for block_frame in 0..(BLOCK_WARMUP + block_frames) {
                 // Every block walks the SAME eye path: configs are compared on identical
                 // content, and nothing that caches per-position flatters a moving camera.
