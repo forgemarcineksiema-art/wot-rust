@@ -35,13 +35,18 @@ pub fn is3_reference_pack() -> ReferencePack {
                 "Gameplay translation and source summary.",
             ),
         ],
-        // TODO(W2-is3): zaciśnij tolerancje przy konwersji Shape locks na DimensionTargets.
+        // Tolerances tightened 2026-08-23 around the measured bake (Studio report: deltas
+        // 0.001 / 0.001 / 0.000 / 0.153 / 0.004) — ~3x the measured delta with a 0.02–0.03
+        // floor. Four ratios sit ON their targets; the exception is turret-height/hull-height,
+        // which measures 0.633 against the dossier's 0.480 — the flattened frying-pan dome
+        // question is a SHAPE gap, so its 0.20 band is a ratchet around today's bake, not an
+        // endorsement. Reconciling dome height vs dossier belongs to the shape pass.
         silhouette_ratios(
-            (2.15, 0.18),
-            (0.239, 0.06),
-            (0.73, 0.14),
-            (0.48, 0.25),
-            (0.45, 0.16),
+            (2.15, 0.03),
+            (0.239, 0.02),
+            (0.73, 0.03),
+            (0.48, 0.20),
+            (0.45, 0.03),
             [
                 "Hull plan reads long and wide — a heavy, but lower-slung than the Germans.",
                 "The LOW heavy: hull roof at 1.62 m on a 6.77 m hull.",
