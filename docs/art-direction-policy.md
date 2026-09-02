@@ -138,6 +138,11 @@ What the set must cover, because a look this policy cannot see is a look it cann
   cannot catch a hero that fails to separate from its ground.
 - **the player's own eye height.** A panorama shot from above the chase camera judges a
   frame nobody plays.
+- **the scope.** Most aimed shots are taken through it, at a lens the chase camera never
+  uses; `prokhorovka_sniper_contact` looks through the sniper eye at an enemy 300 m out at
+  8°, and its subject crop is locked like the chase frames' (Inny Poziom A7). A view may
+  bring its own lens (`ReviewView::vertical_fov_degrees`); the three-plane rule judges
+  pictures, and a scope frame is a crop, so it answers to its subject box instead.
 - **the garage.** It is the first thirty seconds of contact with the game and grades through
   the same display transform as rule 7 demands; it belongs under the same locks.
 
