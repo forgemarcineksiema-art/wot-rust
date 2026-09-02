@@ -514,12 +514,26 @@ fn append_rubble_mound(
     }
 }
 
+/// The masonry a wound exposes under the plaster: brick red-brown. Shared with the wound test.
+pub(crate) const KINETIC_EXPOSED_TONE: [f32; 3] = [0.46, 0.31, 0.24];
+pub(crate) const HE_EXPOSED_TONE: [f32; 3] = [0.42, 0.29, 0.22];
+/// The recess's broken-masonry floor and lit side walls, and the rubbed plaster around it.
+pub(crate) const WOUND_FLOOR_TONE: [f32; 3] = [0.19, 0.13, 0.10];
+pub(crate) const WOUND_SIDE_TONE: [f32; 3] = [0.33, 0.22, 0.16];
+pub(crate) const WOUND_SHED_TONE: [f32; 3] = [0.60, 0.57, 0.50];
+
 /// Every visual stays INSIDE the collision AABB — a building may look like walls and a roof,
 /// but nothing it shows can be shot through or hidden behind that the sim box does not honor
 /// (locked by `cover_visuals_never_leave_the_collision_box`).
-/// One shell wound on a standing cover face (protocol v32). Photo reference: a kinetic hit on
-/// masonry is a small dark inset inside a pale burst of shed plaster; an HE hit is a wide
-/// irregular bite with the spalled material heaped at the wall's foot below it.
+/// One shell wound on a standing cover face (protocol v32; rebuilt for Inny Poziom Z5 — the
+/// owner's "co to za ślady?"). A wound is a RECESS dug into the box, never a stamp proud of it:
+/// an irregular rim on the wall plane, a dark broken-masonry floor `depth` behind it, and lit
+/// side walls between them whose normals lean into the cavity, so the sun shades the bite as a
+/// hole and not as a black square. Around it the shed render: an irregular fan of exposed
+/// brick and rubbed plaster whose rim vertices carry the wall's own tone, so the mark fades
+/// into the wall instead of ending at a hard edge. Sizes come from the calibre through the
+/// ledger's radius; a kinetic round is a small deep inset in a wide burst of shed plaster, a
+/// high-explosive round a wide shallow bite with its spall heaped at the wall's foot.
 fn append_cover_scar(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -540,7 +554,6 @@ fn append_cover_scar(
         + normal * half_n
         + u_axis * (unpack(scar.u_q) * half_u)
         + v_axis * (unpack(scar.v_q) * half_v);
-    let r = scar.radius_m();
     let mut seed = 0x9E37_79B9_u64
         ^ (u64::from(scar.cover) << 24)
         ^ (u64::from(scar.u_q) << 16)
@@ -552,72 +565,191 @@ fn append_cover_scar(
         seed ^= seed << 17;
         (seed >> 40) as f32 / ((1u64 << 24) - 1) as f32
     };
-    if scar.kind == terrain::COVER_SCAR_KIND_KINETIC {
-        // The pale plaster burst first, then the dark calibre inset proud of it.
-        push_face_quad(
-            vertices,
-            indices,
-            FacePlate { center: mark + normal * 0.015, u: u_axis, v: v_axis, normal },
-            r * 2.6,
-            [0.52, 0.50, 0.45],
-        );
-        push_face_quad(
-            vertices,
-            indices,
-            FacePlate { center: mark + normal * 0.03, u: u_axis, v: v_axis, normal },
-            r,
-            [0.06, 0.055, 0.05],
-        );
+    let ledger_r = scar.radius_m();
+    let kinetic = scar.kind == terrain::COVER_SCAR_KIND_KINETIC;
+    // The bite the shell dug and the plaster it shed. A 100 mm AP round leaves ~6 cm of hole
+    // in a burst of ~35 cm; a 100 mm HE round a ~45 cm bite (the ledger's 0.8 m is the blast's
+    // reach, not the crater) with plaster gone for another third of that around it.
+    let (bite_r, shed_r, depth) = if kinetic {
+        (ledger_r, (ledger_r * 3.0).clamp(0.18, 0.45), (ledger_r * 1.2).clamp(0.03, 0.10))
     } else {
-        // The HE bite: pale shed-render halo, then two overlapping rotated dark sheets — an
-        // irregular wound, not a stencil circle.
-        push_face_quad(
-            vertices,
-            indices,
-            FacePlate { center: mark + normal * 0.015, u: u_axis, v: v_axis, normal },
-            r * 1.8,
-            [0.50, 0.47, 0.42],
-        );
-        let angle = 0.5 + next() * 0.6;
-        let (sin, cos) = angle.sin_cos();
-        let ru = u_axis * cos + v_axis * sin;
-        let rv = v_axis * cos - u_axis * sin;
-        push_face_quad(
-            vertices,
-            indices,
-            FacePlate { center: mark + normal * 0.03, u: u_axis, v: v_axis, normal },
-            r * 0.9,
-            [0.09, 0.08, 0.07],
-        );
-        push_face_quad(
-            vertices,
-            indices,
-            FacePlate { center: mark + normal * 0.04, u: ru, v: rv, normal },
-            r * 0.75,
-            [0.07, 0.06, 0.055],
-        );
-        // Spalled masonry heaped at the wall's foot below the bite (wall faces only).
-        if scar.face <= 3 {
-            let ground_y = center.y - half.y;
-            let foot = Vec3::new(mark.x, 0.0, mark.z) + Vec3::new(normal.x, 0.0, normal.z) * 0.35;
-            let chunks = 2 + (next() * 1.99) as usize;
-            for _ in 0..chunks {
-                let size = r * (0.16 + next() * 0.16);
-                let chunk_half =
-                    Vec3::new(size * (0.8 + next() * 0.7), size, size * (0.8 + next() * 0.7));
-                let offset = u_axis * ((next() - 0.5) * r * 1.6)
-                    + Vec3::new(normal.x, 0.0, normal.z) * (next() * 0.4);
-                let chunk_center = Vec3::new(foot.x, ground_y + chunk_half.y, foot.z) + offset;
-                push_surfaced_box(
-                    vertices,
-                    indices,
-                    chunk_center,
-                    chunk_half,
-                    [0.44, 0.41, 0.36],
-                    0.08,
-                );
-            }
+        let bite = (ledger_r * 0.55).clamp(0.22, 0.7);
+        (bite, bite * 1.35, (bite * 0.45).clamp(0.10, 0.24))
+    };
+    // Never through the box: the floor stays a hand's width short of the plate behind.
+    let depth = depth.min((half_n * 2.0 - 0.05).max(0.02));
+    let phase_a = next() * std::f32::consts::TAU;
+    let phase_b = next() * std::f32::consts::TAU;
+    let rough = if kinetic { 0.18 } else { 0.32 };
+    // An irregular radius: three and five lobes phased per scar, the same on every rebuild.
+    let ring_radius = |base: f32, angle: f32| {
+        base * (1.0
+            + rough * ((angle * 3.0 + phase_a).sin() * 0.62 + (angle * 5.0 + phase_b).sin() * 0.38))
+    };
+    const SEGMENTS: usize = 16;
+    let plate = FacePlate { center: mark, u: u_axis, v: v_axis, normal };
+
+    // 1. The shed render: a fan from the bite's rim to the shed radius. Inner vertices are
+    //    the exposed masonry (brick red-brown under plaster, grey-tan under stone), outer
+    //    vertices the wall's own tone so the mark fades into the wall.
+    let exposed = if kinetic { KINETIC_EXPOSED_TONE } else { HE_EXPOSED_TONE };
+    let shed_tone = WOUND_SHED_TONE;
+    push_face_ring(
+        vertices,
+        indices,
+        plate,
+        SEGMENTS,
+        0.004,
+        |angle| ring_radius(bite_r, angle) * 1.02,
+        |angle| ring_radius(shed_r, angle),
+        exposed,
+        shed_tone,
+        1.0,
+    );
+
+    // 2. The recess: the rim polygon on the wall plane, the floor polygon `depth` behind it
+    //    and a little smaller, the side walls between them. Floor and sides are the broken
+    //    masonry's dark core; the sides' normals lean into the cavity.
+    let floor_tone = if kinetic { [0.16, 0.11, 0.09] } else { WOUND_FLOOR_TONE };
+    let side_tone = if kinetic { [0.30, 0.20, 0.15] } else { WOUND_SIDE_TONE };
+    let rim: Vec<Vec3> = (0..SEGMENTS)
+        .map(|i| {
+            let angle = i as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
+            let r = ring_radius(bite_r, angle);
+            mark + u_axis * (r * angle.cos()) + v_axis * (r * angle.sin())
+        })
+        .collect();
+    let floor: Vec<Vec3> = rim.iter().map(|p| mark + (*p - mark) * 0.62 - normal * depth).collect();
+    // Floor fan.
+    let floor_base = vertices.len() as u32;
+    let floor_center = mark - normal * depth;
+    push_scene_vertex(vertices, floor_center, normal, floor_tone, 0.02, 0.0);
+    for p in &floor {
+        push_scene_vertex(vertices, *p, normal, floor_tone, 0.02, 0.0);
+    }
+    for i in 0..SEGMENTS as u32 {
+        let a = floor_base + 1 + i;
+        let b = floor_base + 1 + (i + 1) % SEGMENTS as u32;
+        push_tri_facing(indices, vertices, floor_base, a, b, normal);
+    }
+    // Side walls: one quad per segment, its normal the outward-facing average of the wall's
+    // normal and the direction toward the cavity's axis — a lit lip on the sunward side, a
+    // shadowed one opposite.
+    for i in 0..SEGMENTS {
+        let j = (i + 1) % SEGMENTS;
+        let (r0, r1, f0, f1) = (rim[i], rim[j], floor[i], floor[j]);
+        let mid = (r0 + r1) * 0.5;
+        let inward = (mark - mid).normalize_or_zero();
+        let side_normal = (inward * 0.8 + normal * 0.6).normalize_or_zero();
+        let base = vertices.len() as u32;
+        for p in [r0, r1, f1, f0] {
+            push_scene_vertex(vertices, p, side_normal, side_tone, 0.03, 0.0);
         }
+        push_tri_facing(indices, vertices, base, base + 1, base + 2, side_normal);
+        push_tri_facing(indices, vertices, base, base + 2, base + 3, side_normal);
+    }
+
+    // 3. Spalled masonry heaped at the wall's foot below an HE bite (wall faces only).
+    if !kinetic && scar.face <= 3 {
+        let ground_y = center.y - half.y;
+        let foot = Vec3::new(mark.x, 0.0, mark.z) + Vec3::new(normal.x, 0.0, normal.z) * 0.35;
+        let chunks = 2 + (next() * 1.99) as usize;
+        for _ in 0..chunks {
+            let size = bite_r * (0.22 + next() * 0.2);
+            let chunk_half =
+                Vec3::new(size * (0.8 + next() * 0.7), size, size * (0.8 + next() * 0.7));
+            let offset = u_axis * ((next() - 0.5) * bite_r * 1.8)
+                + Vec3::new(normal.x, 0.0, normal.z) * (next() * 0.4);
+            let chunk_center = Vec3::new(foot.x, ground_y + chunk_half.y, foot.z) + offset;
+            push_surfaced_box(vertices, indices, chunk_center, chunk_half, exposed, 0.06);
+        }
+    }
+}
+
+/// One vertex of a wound, in the scene's material lanes (`surface` 1 = the plaster
+/// treatment's fine grain; rough matte).
+fn push_scene_vertex(
+    vertices: &mut Vec<SceneVertex>,
+    position: Vec3,
+    normal: Vec3,
+    color: [f32; 3],
+    gloss: f32,
+    surface: f32,
+) {
+    vertices.push(SceneVertex {
+        position: position.to_array(),
+        normal: normal.to_array(),
+        color,
+        tint_weight: 0.0,
+        gloss,
+        surface,
+        sway: 0.0,
+        uv: [0.0, 0.0],
+        bounce: [0.0; 3],
+    });
+}
+
+/// A triangle wound so that it faces `normal` whatever order its corners came in.
+fn push_tri_facing(
+    indices: &mut Vec<u32>,
+    vertices: &[SceneVertex],
+    a: u32,
+    b: u32,
+    c: u32,
+    normal: Vec3,
+) {
+    let p = |i: u32| Vec3::from_array(vertices[i as usize].position);
+    let face = (p(b) - p(a)).cross(p(c) - p(a));
+    if face.dot(normal) >= 0.0 {
+        indices.extend_from_slice(&[a, b, c]);
+    } else {
+        indices.extend_from_slice(&[a, c, b]);
+    }
+}
+
+/// An irregular flat ring on a face plate, `lift` proud of it, between an inner and an outer
+/// radius function of the angle; inner vertices carry `inner_tone`, outer ones `outer_tone`.
+#[allow(clippy::too_many_arguments)]
+fn push_face_ring(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    plate: FacePlate,
+    segments: usize,
+    lift: f32,
+    inner_radius: impl Fn(f32) -> f32,
+    outer_radius: impl Fn(f32) -> f32,
+    inner_tone: [f32; 3],
+    outer_tone: [f32; 3],
+    surface: f32,
+) {
+    let FacePlate { center, u, v, normal } = plate;
+    let base = vertices.len() as u32;
+    let origin = center + normal * lift;
+    for i in 0..segments {
+        let angle = i as f32 / segments as f32 * std::f32::consts::TAU;
+        let dir = u * angle.cos() + v * angle.sin();
+        push_scene_vertex(
+            vertices,
+            origin + dir * inner_radius(angle),
+            normal,
+            inner_tone,
+            0.03,
+            surface,
+        );
+        push_scene_vertex(
+            vertices,
+            origin + dir * outer_radius(angle),
+            normal,
+            outer_tone,
+            0.03,
+            surface,
+        );
+    }
+    for i in 0..segments as u32 {
+        let j = (i + 1) % segments as u32;
+        let (i0, o0, i1, o1) = (base + i * 2, base + i * 2 + 1, base + j * 2, base + j * 2 + 1);
+        push_tri_facing(indices, vertices, i0, o0, o1, normal);
+        push_tri_facing(indices, vertices, i0, o1, i1, normal);
     }
 }
 
@@ -677,37 +809,6 @@ struct FacePlate {
 }
 
 /// One single-sided quad flush on a cover face: half-size `half_m` along both in-plane axes.
-fn push_face_quad(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    plate: FacePlate,
-    half_m: f32,
-    color: [f32; 3],
-) {
-    let FacePlate { center, u: u_axis, v: v_axis, normal } = plate;
-    let base = vertices.len() as u32;
-    for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
-        let position = center + u_axis * (half_m * su) + v_axis * (half_m * sv);
-        vertices.push(SceneVertex {
-            position: position.to_array(),
-            normal: normal.to_array(),
-            color,
-            tint_weight: 0.0,
-            gloss: 0.03,
-            surface: 0.0,
-            sway: 0.0,
-            uv: [0.0, 0.0],
-            bounce: [0.0; 3],
-        });
-    }
-    // Winding agrees with the face normal; the scene pipeline lights it like the wall it marks.
-    if (u_axis.cross(v_axis)).dot(normal) >= 0.0 {
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    } else {
-        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
-    }
-}
-
 fn append_cover_box(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -2136,18 +2237,64 @@ mod tests {
             clean.0.len()
         );
 
-        // The spalled masonry lies at the wall's FOOT: rubble-toned vertices near ground
+        // The spalled masonry lies at the wall's FOOT: exposed-brick vertices near ground
         // level that the clean bake does not have (scars append inside the cover loop, so
         // the tail of the buffer is backdrop — hunt by the chunk's tone instead).
         let object = &map.static_cover[building];
         let ground_y = object.center[1] - object.half_extents_m[1];
-        let rubble_tone = [0.44, 0.41, 0.36];
+        let rubble_tone = HE_EXPOSED_TONE;
         let count_rubble = |mesh: &[SceneVertex]| {
             mesh.iter().filter(|v| v.color == rubble_tone && v.position[1] < ground_y + 0.8).count()
         };
         assert!(
             count_rubble(&wounded.0) > count_rubble(&clean.0),
             "rubble heaps at the foot of the wall"
+        );
+
+        // Inny Poziom Z5: the wound is a RECESS dug into the box, never a stamp proud of it.
+        // Every wound vertex stays inside the collision box (a 1 cm lift for the shed-render
+        // fan against z-fighting), the bite's floor sits a real depth behind the face, and
+        // the rim is irregular — no square, no circle.
+        let center = glam::Vec3::from_array(object.center);
+        let half = glam::Vec3::from_array(object.half_extents_m);
+        let face_z = center.z + half.z;
+        // Scars append inside the cover loop, so hunt the recess by its own tones.
+        let wound: Vec<&SceneVertex> = wounded
+            .0
+            .iter()
+            .filter(|v| {
+                [WOUND_FLOOR_TONE, WOUND_SIDE_TONE, WOUND_SHED_TONE].contains(&v.color)
+                    || (v.color == HE_EXPOSED_TONE && v.position[1] > ground_y + 0.8)
+            })
+            .collect();
+        assert!(wound.len() >= 16 * 6, "the recess and its ring are there: {}", wound.len());
+        for v in &wound {
+            let p = glam::Vec3::from_array(v.position);
+            let d = (p - center).abs() - half;
+            assert!(d.max_element() <= 0.011, "a wound vertex left the box by {d}");
+        }
+        let deepest = wound
+            .iter()
+            .filter(|v| v.color == WOUND_FLOOR_TONE)
+            .map(|v| face_z - v.position[2])
+            .fold(0.0_f32, f32::max);
+        assert!(deepest >= 0.09, "the bite is dug into the wall, deepest {deepest} m");
+        let rim_radii: Vec<f32> = wound
+            .iter()
+            .filter(|v| (v.position[2] - face_z).abs() < 0.012 && v.color == HE_EXPOSED_TONE)
+            .map(|v| {
+                let p = glam::Vec3::from_array(v.position);
+                ((p.x - (center.x + (128.0 / 255.0 * 2.0 - 1.0) * half.x)).powi(2)
+                    + (p.y - (center.y + (100.0 / 255.0 * 2.0 - 1.0) * half.y)).powi(2))
+                .sqrt()
+            })
+            .collect();
+        let (rmin, rmax) =
+            rim_radii.iter().fold((f32::MAX, 0.0_f32), |(a, b), r| (a.min(*r), b.max(*r)));
+        assert!(
+            rim_radii.len() >= 12 && rmax / rmin > 1.15,
+            "an irregular rim, {rmin}..{rmax} over {} vertices",
+            rim_radii.len()
         );
 
         // A collapsed wall drops its scars with it: rubble phase ignores the ledger.
