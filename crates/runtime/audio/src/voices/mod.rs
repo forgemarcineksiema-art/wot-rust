@@ -4,6 +4,7 @@
 
 pub mod ambience;
 pub mod blast;
+pub mod breech;
 pub mod cannon;
 pub mod collapse;
 pub mod engine;

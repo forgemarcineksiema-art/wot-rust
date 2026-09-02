@@ -357,6 +357,7 @@ impl ClientApp {
             // One recoil momentum, every channel (Inny Poziom S3): the round's scale rides the
             // event into the blast, the barrel stroke, the hull rock and the camera nudge.
             self.fx.muzzle_blast(event.muzzle, event.direction, ground_y, event.recoil_scale);
+            self.fx.hull_dust(event.deck, event.hull_yaw_rad, event.recoil_scale);
             self.presentation.apply_fire_recoil(
                 event.tank_id,
                 event.turret_yaw_rad,

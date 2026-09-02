@@ -13,6 +13,7 @@ use crate::spatial::{Listener, VoiceSlot};
 use crate::voice::Voice;
 use crate::voices::ambience::{RainAmbience, WindAmbience};
 use crate::voices::blast::HeBlast;
+use crate::voices::breech::BreechCycle;
 use crate::voices::cannon::CannonShot;
 use crate::voices::collapse::Collapse;
 use crate::voices::engine::EngineVoice;
@@ -154,6 +155,11 @@ impl AudioEngine {
                     // The player's own gun: full presence, centered a touch by its true bearing
                     // (the muzzle sits meters ahead), and never delayed behind the muzzle flash.
                     self.spawn_at(voice, position, 1.0, false, 0.0);
+                    // The machine behind the report (Inny Poziom S4): the stroke, the run-out,
+                    // the breech and the case, heard from the crew's seat — listener-local, a
+                    // step under the report, and only for the gun the player is sitting in.
+                    let cycle = BreechCycle::new(caliber_mm, self.sample_rate_hz, seed ^ 0x5EED);
+                    self.spawn_flat(Box::new(cycle), 0.55);
                 } else {
                     self.spawn_at(voice, position, 1.05, true, occlusion);
                 }
@@ -562,6 +568,24 @@ mod tests {
         let out = stereo_chunks(&mut engine, 0.2);
         let start = out.iter().position(|s| s.abs() > 1.0e-4).expect("own shot audible") / 2;
         assert!(start < 64, "the player's gun must answer the trigger instantly, got {start}");
+    }
+
+    /// Inny Poziom S4: the player's own shot carries its mechanical layer — the breech cycle
+    /// as a second, listener-local voice — and a far gun's report does not: nobody hears a
+    /// stranger's breech across a field.
+    #[test]
+    fn the_players_own_shot_carries_its_breech_and_a_far_shot_does_not() {
+        let shot = |own_shot: bool| AudioEvent::CannonFired {
+            position: Vec3::new(0.0, 0.0, 25.0),
+            caliber_mm: 100.0,
+            own_shot,
+        };
+        let mut own = AudioEngine::new(SR);
+        own.push_event(shot(true));
+        assert_eq!(own.slots.len(), 2, "the report and the breech cycle");
+        let mut other = AudioEngine::new(SR);
+        other.push_event(shot(false));
+        assert_eq!(other.slots.len(), 1, "the report alone");
     }
 
     #[test]
