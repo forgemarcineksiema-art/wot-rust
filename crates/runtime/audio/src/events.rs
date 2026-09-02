@@ -16,6 +16,10 @@ pub enum AudioEvent {
     /// A shell died against the world instead of a target. A high-explosive round detonates
     /// (the burst voice) where kinetic rounds thud into the surface.
     ShellAbsorbed { position: Vec3, surface: GroundKind, high_explosive: bool },
+    /// A structure came down (Inny Poziom Z1): the fracture, a rumble that lasts as long as the
+    /// mass takes to settle, a second wave when the walls meet the ground, and a rain of masonry.
+    /// `footprint_m2` and `height_m` are the box's — an 18 m tenement is not a shed.
+    CoverCollapse { position: Vec3, footprint_m2: f32, height_m: f32 },
     /// The player's reload completed (breech clack at the ear).
     GunReady,
     /// A track band was damaged or thrown. `broken` picks the voice: a sharp metallic snap for a

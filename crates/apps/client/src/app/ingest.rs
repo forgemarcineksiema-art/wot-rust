@@ -330,9 +330,17 @@ impl ClientApp {
                     && let Some(object) = self.battlefield.static_cover.get(index)
                 {
                     let center = glam::Vec3::from_array(object.center);
-                    // Masonry/timber dust at the wreck of the object.
-                    self.fx.impact_burst(center, game_core::ImpactSurface::Cover);
-                    self.fx.track_dust(center);
+                    let half = glam::Vec3::from_array(object.half_extents_m);
+                    // The collapse theatre (Inny Poziom Z1): a staged sequence sized by the
+                    // box — curtain and chunks now, the settle wave, the haze — and the audio
+                    // hit sized the same way. One burst at the centre was eleven particles for
+                    // an 18 m tenement.
+                    self.fx.cover_collapse(center, half);
+                    self.queue_audio(audio::AudioEvent::CoverCollapse {
+                        position: center,
+                        footprint_m2: 4.0 * half.x * half.z,
+                        height_m: 2.0 * half.y,
+                    });
                 }
             }
         }

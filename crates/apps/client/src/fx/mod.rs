@@ -6,6 +6,7 @@
 mod billboard;
 #[cfg(test)]
 mod budget;
+mod collapse;
 #[cfg(test)]
 mod contact_lock;
 mod decals;
@@ -36,6 +37,25 @@ pub fn shell_tracer_vertices(shells: &[net::ShellSnapshot], eye: [f32; 3]) -> Ve
     vertices
 }
 
+/// The collapse theatre `seconds` after a cover box came down, as one FX vertex batch — the
+/// offscreen probe path (`tenement_probe` renders the mid-collapse frame with it). The in-game
+/// path is `FxSystem::cover_collapse` on the live system.
+pub fn collapse_theatre_vertices(
+    center: [f32; 3],
+    half_extents_m: [f32; 3],
+    seconds: f32,
+    eye: [f32; 3],
+    target: [f32; 3],
+) -> Vec<FxVertex> {
+    let mut fx = FxSystem::default();
+    fx.cover_collapse(Vec3::from_array(center), Vec3::from_array(half_extents_m));
+    let steps = (seconds / 0.05).round().max(1.0) as usize;
+    for _ in 0..steps {
+        fx.tick(seconds / steps as f32);
+    }
+    fx.vertices(Vec3::from_array(eye), Vec3::from_array(target))
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct FxSystem {
     particles: Vec<Particle>,
@@ -49,6 +69,10 @@ pub(crate) struct FxSystem {
     steam_budget: f32,
     /// Fractional spawn budget of the welding arc's spark fountain (K1).
     spark_budget: f32,
+    /// The FX clock, seconds of presented time, that staged sequences are scheduled on (Z1).
+    stage_clock_s: f32,
+    /// Beats of a collapse waiting on the clock (`collapse`).
+    staged: Vec<collapse::StagedEmission>,
 }
 
 impl FxSystem {
@@ -69,6 +93,7 @@ impl FxSystem {
     pub fn tick(&mut self, dt: f32) {
         let dt = dt.clamp(0.0, 0.1);
         self.particles.retain_mut(|particle| particle.tick(dt));
+        self.fire_staged(dt);
     }
 
     #[cfg(test)]
