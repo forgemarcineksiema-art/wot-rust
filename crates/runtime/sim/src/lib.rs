@@ -65,7 +65,7 @@ pub use spotting::{
     STATIONARY_SPEED_MPS, STATIONARY_SPOT_FACTOR, VIEW_RANGE_M, compute_observer_masks,
     compute_spotted_masks, line_of_sight, tank_line_of_sight, terrain_sight_step_m,
 };
-pub use state::SimulationState;
+pub use state::{SimulationState, cover_damage_hp};
 pub use tank_drive::{
     DrivePhase, TankDriveState, TankDriveWorld, advance_tank_drive, braking_deceleration_mps2,
     settle_tank_drive, step_tank_drive,
