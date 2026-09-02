@@ -420,3 +420,43 @@ fn an_open_sky_shot_is_not_blocked_just_targetless() {
 
     assert_eq!(feedback.status, ReticleStatus::Clear);
 }
+
+/// Inny Poziom A4: a casemate's sight is honest about its hull line. On the line the shot
+/// arrives and the sight is CLEAR; 30° off it the shell leaves down the hull line anyway —
+/// the sim forces the yaw — so the sight is BLOCKED and names the traverse limit, instead of
+/// the green it used to show while the round left for the wrong bearing.
+#[test]
+fn a_casemates_sight_is_blocked_off_the_hull_line_and_clear_on_it() {
+    let heightmap = HeightMap::flat(200, 200, 5.0, 0.0).unwrap();
+    let jagdtiger = VehicleKind::Jagdtiger.spec();
+    assert!(jagdtiger.has_fixed_casemate(), "precondition: the Jagdtiger is a casemate");
+    let muzzle = Vec3::new(500.0, 2.0, 100.0);
+    let on_line = tank_snapshot(TankId(2), [500.0, 0.0, 400.0]);
+    let off_line = tank_snapshot(TankId(3), [500.0 + 300.0 * 0.5, 0.0, 100.0 + 300.0 * 0.866]);
+
+    let clear = reticle_report(query_with_player(
+        &heightmap,
+        std::slice::from_ref(&on_line),
+        muzzle,
+        Vec3::new(500.0, 1.4, 400.0),
+        0.0,
+        &jagdtiger,
+    ));
+    assert_eq!(clear.feedback.status, ReticleStatus::Clear, "on the hull line the shot arrives");
+    assert_eq!(clear.feedback.arc_limit, None);
+
+    let blocked = reticle_report(query_with_player(
+        &heightmap,
+        std::slice::from_ref(&off_line),
+        muzzle,
+        Vec3::new(500.0 + 300.0 * 0.5, 1.4, 100.0 + 300.0 * 0.866),
+        0.0,
+        &jagdtiger,
+    ));
+    assert_eq!(
+        blocked.feedback.status,
+        ReticleStatus::Blocked,
+        "30° off the hull line the casemate's round does not arrive"
+    );
+    assert_eq!(blocked.feedback.arc_limit, Some(crate::aim::ArcLimit::Traverse));
+}

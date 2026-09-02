@@ -856,11 +856,13 @@ fn an_arc_limit_wears_a_stop_bar_and_a_label_in_both_modes() {
 
         let bar_below = |hud: &[HudVertex]| {
             hud.iter()
-                .filter(|v| v.color == RETICLE_BLOCKED && v.position[1] < -(ring + 0.02))
+                .filter(|v| v.color == RETICLE_BLOCKED && v.position[1] < -(ring + 0.012))
                 .count()
         };
         let bar_above = |hud: &[HudVertex]| {
-            hud.iter().filter(|v| v.color == RETICLE_BLOCKED && v.position[1] > ring + 0.02).count()
+            hud.iter()
+                .filter(|v| v.color == RETICLE_BLOCKED && v.position[1] > ring + 0.012)
+                .count()
         };
         assert_eq!(bar_below(&wall_hud), 0, "{mode:?}: a wall's refusal draws no stop bar");
         assert!(
@@ -878,4 +880,25 @@ fn an_arc_limit_wears_a_stop_bar_and_a_label_in_both_modes() {
             "{mode:?}: the arc's refusal names its end in words"
         );
     }
+}
+
+/// Inny Poziom A4: a casemate stopped on its hull line brackets the ring with two vertical
+/// stop bars — the gun can swing neither way — and names it in words.
+#[test]
+fn a_traverse_limit_brackets_the_ring_on_both_sides() {
+    let ring = 0.08;
+    let aspect = 16.0 / 9.0;
+    let wall = HudReticle { aim_radius_clip: ring, ..reticle_at(ReticleStatus::Blocked, None) };
+    let traverse = HudReticle { arc_limit: Some(crate::aim::ArcLimit::Traverse), ..wall };
+    let (wall_hud, traverse_hud) = (hud_with(wall), hud_with(traverse));
+    let bars = |hud: &[HudVertex], side: f32| {
+        hud.iter()
+            .filter(|v| v.color == RETICLE_BLOCKED && v.position[0] * side > (ring + 0.01) / aspect)
+            .count()
+    };
+    assert_eq!(bars(&wall_hud, -1.0) + bars(&wall_hud, 1.0), 0, "a wall brackets nothing");
+    assert!(bars(&traverse_hud, -1.0) >= 4, "a stop bar on the left of the ring");
+    assert!(bars(&traverse_hud, 1.0) >= 4, "a stop bar on the right of the ring");
+    let glyphs = |hud: &[HudVertex]| hud.iter().filter(|v| v.uv[0] >= 0.0).count();
+    assert!(glyphs(&traverse_hud) > glyphs(&wall_hud), "the refusal is named in words");
 }

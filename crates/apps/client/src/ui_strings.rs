@@ -39,6 +39,8 @@ pub(crate) mod battle {
     /// The arc's refusal in words (Inny Poziom A3): which end of the gun arc bit.
     pub const ARC_LIMIT_DEPRESSION: &str = "DEPRESSION LIMIT";
     pub const ARC_LIMIT_ELEVATION: &str = "ELEVATION LIMIT";
+    /// A fixed casemate stopped on its hull line (Inny Poziom A4).
+    pub const ARC_LIMIT_TRAVERSE: &str = "TRAVERSE LIMIT";
     /// The outcome a landed shot prints when it dealt no damage (Inny Poziom A6) — never a "0".
     pub const HIT_RICOCHET: &str = "RICOCHET";
     pub const HIT_SHATTER: &str = "SHATTER";
