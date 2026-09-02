@@ -3,19 +3,7 @@
 //! client's copy of the server's rule and fanned out in the same fixed tick, and the replicated
 //! shot that follows is matched by count and skipped.
 
-use super::ClientApp;
-
-/// Enough fixed ticks to cross at least one 20 Hz snapshot boundary at the 60 Hz sim rate.
-const TICKS_PAST_SNAPSHOT: u32 = 6;
-
-fn battle_ready_app() -> ClientApp {
-    let mut app = ClientApp::new();
-    app.confirm_garage_selection();
-    app.run_fixed_ticks(TICKS_PAST_SNAPSHOT);
-    app.presentation.advance_time(1.0 / 60.0);
-    app.project_render_tanks(1.0);
-    app
-}
+use super::fire_fx_tests::{TICKS_PAST_SNAPSHOT, battle_ready_app};
 
 /// The first tick after the trigger already carries the shot: the muzzle FX pool is lit, the
 /// shot's light is in the frame's slots, the barrel is in recoil — before any snapshot could

@@ -4,9 +4,9 @@
 use super::ClientApp;
 
 /// Run enough fixed ticks to cross at least one 20 Hz snapshot boundary at the 60 Hz sim rate.
-const TICKS_PAST_SNAPSHOT: u32 = 6;
+pub(super) const TICKS_PAST_SNAPSHOT: u32 = 6;
 
-fn battle_ready_app() -> ClientApp {
+pub(super) fn battle_ready_app() -> ClientApp {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
     // Seed prediction + land the first snapshots, then project the presentation entities the
