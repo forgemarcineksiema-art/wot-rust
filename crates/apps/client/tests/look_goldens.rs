@@ -388,6 +388,13 @@ fn recorded_goldens_hold_the_value_structure() {
     for map in REVIEWED_MAPS {
         let battlefield = map_forge::battlefield(map);
         for view in review_views_for(map, &battlefield) {
+            // A view through its own lens (the sniper frame, A7) is a CROP of the picture — a
+            // few metres of field around one hull at 8° — and three value planes are a claim
+            // about a picture, not a crop. It is judged inside its subject box, where the tank
+            // is, by `the_vehicle_stays_readable_on_the_side_the_sun_never_touches`.
+            if view.vertical_fov_degrees.is_some() {
+                continue;
+            }
             let pixels = read_png(&golden_path(&view.name));
             let stats = frame_stats(&pixels);
             // RULE 1, in FLOOR/TARGET form. FLOOR is what the recorded picture achieves today
@@ -773,6 +780,17 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         median_floor: 0.060,
         dark_ceiling: 0.76,
         form_floor: 0.0070,
+    },
+    // THE SNIPER FRAME (Inny Poziom A7): an enemy T-54 300 m out, backlit, through the scope's
+    // 8°. Recorded at first bless 2026-09-02: p50 0.344 / dark 27.9% / form 0.0217 — the crop
+    // is a third hull and two thirds field, and the hull carries MORE structure than the chase
+    // frame's reference (0.0167), which is the scope doing its job. Floors and ceiling carry the
+    // usual ~6-10% slack. Before this entry no locked frame was a scope frame at all.
+    SubjectBounds {
+        view: "prokhorovka_sniper_contact",
+        median_floor: 0.320,
+        dark_ceiling: 0.32,
+        form_floor: 0.0200,
     },
     // median_floor re-derived 0.110 -> 0.102 at the 2026-08-14 re-bless, openly: the T-54
     // repair + track-tension waves (#563-#570 — fender band raised to the drawing, fittings

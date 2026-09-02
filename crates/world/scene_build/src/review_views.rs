@@ -50,6 +50,10 @@ pub struct ReviewView {
     /// read as three healthy value planes. Measuring INSIDE this box is what makes "you cannot
     /// see half the tank" a failing test instead of a remark on a screenshot.
     pub subject_box: Option<[f32; 4]>,
+    /// The lens, when this view is not the chase camera's (Inny Poziom A7): the sniper review
+    /// frame looks through the scope's own field of view, because a readability floor measured
+    /// at 55° says nothing about a tank that is 3 % of the frame at 8°.
+    pub vertical_fov_degrees: Option<f32>,
 }
 
 /// The player's own eye, derived from the battle chase camera rather than guessed: 12 m back at
@@ -321,6 +325,7 @@ pub fn review_views_for(map: MapId, battlefield: &BattlefieldMap) -> Vec<ReviewV
                 sky: look.sky,
                 vehicle: None,
                 subject_box: None,
+                vertical_fov_degrees: None,
             }
         })
         .collect();
@@ -399,6 +404,7 @@ fn identity_views(
         sky: default_look.sky,
         vehicle: None,
         subject_box: None,
+        vertical_fov_degrees: None,
     };
 
     match map {
@@ -452,6 +458,7 @@ fn prokhorovka_identity_views(
             sky: evening.sky,
             vehicle: None,
             subject_box: None,
+            vertical_fov_degrees: None,
         },
         // Żywy Step P2: a hull-height eye across 300 m of open field — the view that judges the
         // card meadow's band (blades -> cards -> ground) and its seams.
@@ -463,6 +470,7 @@ fn prokhorovka_identity_views(
             sky: noon.sky,
             vehicle: None,
             subject_box: None,
+            vertical_fov_degrees: None,
         },
         // THE READABILITY FRAME. `battlefield_default`'s key points toward +X/+Z, so a camera
         // placed on the -X/-Z side sees the faces the sun never touches — the exact situation a
@@ -490,6 +498,7 @@ fn prokhorovka_identity_views(
             // a box that swallowed it would measure the cast shadow while claiming to measure the
             // vehicle.
             subject_box: Some([0.28, 0.46, 0.78, 0.72]),
+            vertical_fov_degrees: None,
         },
         // The subject, from the seat the player actually occupies.
         ReviewView {
@@ -517,8 +526,70 @@ fn prokhorovka_identity_views(
             // spent paying for the other. Framed on the hull and running gear at the distance a
             // player actually sits, so "the fix did not flatten the good frame" is a number.
             subject_box: Some([0.37, 0.62, 0.62, 0.83]),
+            vertical_fov_degrees: None,
+        },
+        // THE SNIPER FRAME (Inny Poziom A7). Every readability floor above is measured at the
+        // chase camera's 55°, and the player takes most aimed shots through the scope, where a
+        // tank 300 m out is three per cent of the frame at 8°. The eye is the T-54's own sniper
+        // eye (the trunnion line plus the sight offset, `client::camera::sniper` — the client
+        // locks this frame's eye against that function), 300 m south-west of an ENEMY hull —
+        // the one bearing with a clear line over this ground, and the backlit one — wearing
+        // the enemy's paint (locked against `vehicle::render_frame::ENEMY_HULL` the same way),
+        // through the zoom ladder's middle step. Nothing about the light or the scope may make
+        // that tank harder to read than the chase frame reads it.
+        ReviewView {
+            name: "prokhorovka_sniper_contact".to_string(),
+            eye: {
+                let [x, z] = sniper_review_eye_xz(tank_x, tank_z);
+                [x, ground(x, z) + sniper_review_eye_height_m(), z]
+            },
+            target: [tank_x, tank_ground + 1.2, tank_z],
+            lighting: noon.lighting,
+            sky: noon.sky,
+            vehicle: Some(ReviewVehicle {
+                kind: VehicleKind::T54_1951,
+                position: [tank_x, tank_ground, tank_z],
+                // Flank to the shooter, a shade off square: the read a player actually gets.
+                yaw_rad: SNIPER_REVIEW_TARGET_YAW_RAD,
+                turret_yaw_rad: 0.0,
+                hull_color: SNIPER_REVIEW_ENEMY_PAINT,
+            }),
+            // The hull and turret at frame centre, with the scope's own margin around them.
+            subject_box: Some([0.43, 0.40, 0.57, 0.60]),
+            vertical_fov_degrees: Some(SNIPER_REVIEW_FOV_DEGREES),
         },
     ]
+}
+
+/// The sniper review frame's range and lens (A7): a tank at the middle of the engagement band,
+/// through the middle step of the zoom ladder (`client::camera::zoom::SNIPER_FOV_STEPS_DEGREES`).
+/// The chase camera's lens every review frame looks through unless it brings its own — the
+/// client's look harness reads this constant, so the two cannot drift.
+pub const CHASE_REVIEW_FOV_DEGREES: f32 = 55.0;
+pub const SNIPER_REVIEW_RANGE_M: f32 = 300.0;
+pub const SNIPER_REVIEW_FOV_DEGREES: f32 = 8.0;
+/// Where the shooter stands, as a bearing from the target: 240° puts the eye south-west, on the
+/// one line over Prokhorovka's rise that reaches the hull at 300 m (the lock below walks the
+/// ground), and on the backlit side — the worst read, which is the one worth locking.
+pub const SNIPER_REVIEW_BEARING_RAD: f32 = 4.188_790_2;
+/// The target's heading: flank to the shooter, twenty degrees off square.
+pub const SNIPER_REVIEW_TARGET_YAW_RAD: f32 = -0.35;
+
+pub fn sniper_review_eye_xz(tank_x: f32, tank_z: f32) -> [f32; 2] {
+    [
+        tank_x + SNIPER_REVIEW_RANGE_M * SNIPER_REVIEW_BEARING_RAD.sin(),
+        tank_z + SNIPER_REVIEW_RANGE_M * SNIPER_REVIEW_BEARING_RAD.cos(),
+    ]
+}
+/// The enemy's paint as the battle tints it — the client locks this against its own constant.
+pub const SNIPER_REVIEW_ENEMY_PAINT: [f32; 3] = [0.46, 0.29, 0.25];
+/// The sniper eye above the hull origin: the gun trunnion line plus the sight's stand-off (the
+/// client's `SNIPER_SIGHT_ABOVE_TRUNNION_M`, locked equal from that side).
+pub const SNIPER_REVIEW_SIGHT_ABOVE_TRUNNION_M: f32 = 0.12;
+
+pub fn sniper_review_eye_height_m() -> f32 {
+    game_core::MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation.y
+        + SNIPER_REVIEW_SIGHT_ABOVE_TRUNNION_M
 }
 
 #[cfg(test)]
@@ -592,9 +663,13 @@ mod tests {
             let vehicle = view.vehicle.expect("filtered to Some");
             let range =
                 glam::Vec3::from_array(view.eye).distance(glam::Vec3::from_array(vehicle.position));
+            // Judged through the view's own lens: 300 m at the scope's 8° puts as many pixels on
+            // the hull as 44 m at the chase camera's 55° (A7).
+            let lens = view.vertical_fov_degrees.unwrap_or(CHASE_REVIEW_FOV_DEGREES);
+            let apparent = range * lens / CHASE_REVIEW_FOV_DEGREES;
             assert!(
-                (4.0..=200.0).contains(&range),
-                "{}: the vehicle is {range:.1} m from the eye — too far to judge its surface",
+                (4.0..=200.0).contains(&apparent),
+                "{}: the vehicle is {range:.1} m from the eye ({apparent:.1} m at the chase lens) — \n                 too far to judge its surface",
                 view.name
             );
         }
@@ -677,5 +752,41 @@ mod tests {
                 assert!(seen.insert(view.name.clone()), "duplicate review view name {}", view.name);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod sniper_frame_tests {
+    use super::*;
+
+    /// The sniper frame's eye SEES the hull (A7): the line from the eye to the target clears
+    /// Prokhorovka's ground the whole way, by at least half a metre. The first bearing tried
+    /// (due east) had the rise in the way and the golden recorded a field with no tank in it —
+    /// a subject crop measuring grass. Never again without this saying so.
+    #[test]
+    fn the_sniper_frames_eye_sees_the_hull_over_the_ground() {
+        let battlefield = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
+        let views = review_views_for(MapId::ProkhorovkaHill252_2, &battlefield);
+        let view = views
+            .iter()
+            .find(|view| view.name == "prokhorovka_sniper_contact")
+            .expect("the sniper frame is in the review set");
+        let vehicle = view.vehicle.expect("the sniper frame has its target");
+        let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(5.0);
+        let eye = glam::Vec3::from_array(view.eye);
+        let target = glam::Vec3::from_array(view.target);
+        assert!((eye.distance(target) - SNIPER_REVIEW_RANGE_M).abs() < 5.0, "300 m out");
+        assert_eq!(vehicle.hull_color, SNIPER_REVIEW_ENEMY_PAINT, "an enemy, in the enemy's paint");
+        let mut worst = f32::MIN;
+        for i in 1..300 {
+            let t = i as f32 / 300.0;
+            let point = eye.lerp(target, t);
+            worst = worst.max(ground(point.x, point.z) - point.y);
+        }
+        assert!(
+            worst < -0.5,
+            "the ground rises to {worst:+.2} m of the sight line — the eye cannot see the hull"
+        );
+        assert_eq!(view.vertical_fov_degrees, Some(SNIPER_REVIEW_FOV_DEGREES));
     }
 }

@@ -121,7 +121,7 @@ pub fn welding_glow_vertices(seconds: f32) -> Vec<renderer_api::FxVertex> {
 /// The vertical FOV the review camera reads the world through. Kept at 55° on purpose: the
 /// look goldens predate the Świat 2.0 battle lens (48°) and stay a stable instrument — the
 /// battle FOV verdict renders through the `fov_probe` before/after pair instead.
-const REVIEW_FOV_DEGREES: f32 = 55.0;
+const REVIEW_FOV_DEGREES: f32 = scene_build::review_views::CHASE_REVIEW_FOV_DEGREES;
 
 /// Render `views` on `map` at `width` x `height`, returning one RGBA8 buffer per view in order.
 ///
@@ -224,7 +224,12 @@ pub fn render_review_views_with_fov(
         // exists, and off-centre it falls outside the crisp box.
         renderer.shadow_focus = Some(view.vehicle.map_or(view.target, |v| v.position));
 
-        let camera = Camera { eye: view.eye, target: view.target, vertical_fov_degrees };
+        let camera = Camera {
+            eye: view.eye,
+            target: view.target,
+            // A view may bring its own lens (the sniper review frame, A7).
+            vertical_fov_degrees: view.vertical_fov_degrees.unwrap_or(vertical_fov_degrees),
+        };
         let view_proj = view_projection_matrix(
             &camera,
             width as f32 / height as f32,

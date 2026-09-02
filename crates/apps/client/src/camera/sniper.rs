@@ -174,3 +174,27 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod review_frame_tests {
+    use super::*;
+
+    /// Inny Poziom A7: the sniper review frame's eye IS this function's eye. The world layer
+    /// cannot call the client, so it carries the sight offset as its own constant; this lock
+    /// is what keeps the two from drifting apart.
+    #[test]
+    fn the_sniper_review_frame_looks_through_the_players_own_eye() {
+        let kind = game_core::VehicleKind::T54_1951;
+        let eye = sniper_eye_from_base(kind, Vec3::ZERO, game_core::math::HullPose::level(0.0));
+        assert!(
+            (eye.y - scene_build::review_views::sniper_review_eye_height_m()).abs() < 1.0e-4,
+            "the review frame's eye height {} drifted from the sight's {}",
+            scene_build::review_views::sniper_review_eye_height_m(),
+            eye.y
+        );
+        assert_eq!(
+            SNIPER_SIGHT_ABOVE_TRUNNION_M,
+            scene_build::review_views::SNIPER_REVIEW_SIGHT_ABOVE_TRUNNION_M
+        );
+    }
+}

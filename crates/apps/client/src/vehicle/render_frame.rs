@@ -775,3 +775,13 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod review_paint_tests {
+    /// Inny Poziom A7: the sniper review frame's target wears the enemy's paint — the one the
+    /// battle tints the other team with — so the frame judges the read a player actually gets.
+    #[test]
+    fn the_sniper_review_frames_target_wears_the_enemys_paint() {
+        assert_eq!(super::ENEMY_HULL, scene_build::review_views::SNIPER_REVIEW_ENEMY_PAINT);
+    }
+}

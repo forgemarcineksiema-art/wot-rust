@@ -13,7 +13,11 @@ use renderer_api::HudVertex;
 use super::primitives::push_arc;
 use super::theme;
 
-/// Radius of the settled circular sight window, in clip-y units (x is aspect-corrected).
+/// Radius of the settled circular sight window, in clip-X units (y is aspect-corrected, so the
+/// window is a circle on screen). Measured in the frame's own aspect (Inny Poziom A7): the old
+/// radius was 0.94 of the HEIGHT, which on a 16:9 frame reached only 0.53 of the width and put
+/// 61 % of the picture under near-black housing — the enemy the scope exists to read sat in a
+/// porthole. A circle 0.94 of the WIDTH fits the frame; only its corners darken.
 const WINDOW_RADIUS: f32 = 0.94;
 /// Window radius at the start of the iris (fade 0): mostly off-screen, barely a shadow.
 const WINDOW_RADIUS_OPEN: f32 = 1.6;
@@ -33,8 +37,10 @@ pub(crate) fn push_scope_overlay(vertices: &mut Vec<HudVertex>, aspect: f32, fad
     // The vignette: an annulus from the window edge to well past the screen corners, built as a
     // triangle strip of quads (two triangles per segment).
     let outer = 3.0;
+    // Radius in clip-x; the y leg is scaled UP by the aspect so the window stays circular on a
+    // wide frame instead of shrinking to the height.
     let point = |radius: f32, angle: f32| -> [f32; 2] {
-        [angle.cos() * radius / aspect, angle.sin() * radius]
+        [angle.cos() * radius, angle.sin() * radius * aspect]
     };
     for segment in 0..SEGMENTS {
         let a0 = segment as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
@@ -87,12 +93,37 @@ mod tests {
             "the rim ring and the stadia ticks draw on top of the vignette"
         );
         // Nothing may intrude into the sight window: every vignette vertex sits on or outside
-        // the window radius (y-normalized: undo the aspect correction on x).
+        // the window radius (x-normalized: undo the aspect scaling on y).
         let aspect = 16.0f32 / 9.0;
         for vertex in vertices.iter().filter(|v| v.color == VIGNETTE_COLOR) {
-            let r = ((vertex.position[0] * aspect).powi(2) + vertex.position[1].powi(2)).sqrt();
+            let r = (vertex.position[0].powi(2) + (vertex.position[1] / aspect).powi(2)).sqrt();
             assert!(r >= WINDOW_RADIUS - 1.0e-4, "vignette must stay outside the window: {r}");
         }
+    }
+
+    /// Inny Poziom A7: the housing is measured in the frame's aspect. On a 16:9 frame the
+    /// settled window spans 0.94 of the WIDTH, so the vignette covers only the corners — well
+    /// under a fifth of the picture — where the height-based window buried 61 % of it.
+    #[test]
+    fn the_settled_housing_leaves_most_of_a_wide_frame_to_the_picture() {
+        let aspect = 16.0f32 / 9.0;
+        let mut vertices = Vec::new();
+        push_scope_overlay(&mut vertices, aspect, 1.0);
+        // The window edge is a circle of `WINDOW_RADIUS` in clip-x; a clip point is under the
+        // housing when its x-normalized radius exceeds it. Sample the frame on a grid.
+        let steps = 200;
+        let mut covered = 0usize;
+        for iy in 0..steps {
+            for ix in 0..steps {
+                let x = -1.0 + (ix as f32 + 0.5) / steps as f32 * 2.0;
+                let y = -1.0 + (iy as f32 + 0.5) / steps as f32 * 2.0;
+                if (x * x + (y / aspect) * (y / aspect)).sqrt() > WINDOW_RADIUS {
+                    covered += 1;
+                }
+            }
+        }
+        let share = covered as f32 / (steps * steps) as f32;
+        assert!(share < 0.20, "the housing covers {:.1}% of a 16:9 frame", share * 100.0);
     }
 
     /// Mid-transition the housing is wider (iris still opening onto the eyepiece) and more
@@ -106,7 +137,7 @@ mod tests {
             push_scope_overlay(&mut vertices, aspect, fade);
             vertices
                 .iter()
-                .map(|v| ((v.position[0] * aspect).powi(2) + v.position[1].powi(2)).sqrt())
+                .map(|v| (v.position[0].powi(2) + (v.position[1] / aspect).powi(2)).sqrt())
                 .fold(f32::MAX, f32::min)
         };
         assert!(
