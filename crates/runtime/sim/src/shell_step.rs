@@ -109,6 +109,19 @@ pub(crate) fn step_shells(
                 let direct_target = event.target;
                 let splashes = !event.penetrated;
                 events.push_damage(event);
+                // The hull's own impact (Inny Poziom S9): the shell's death on armour is a
+                // `ShellImpact` too, so the client can draw an HE round's blast where the
+                // charge went off — the AP path used to leave the client only the plate's clang.
+                events.push_impact(ShellImpact {
+                    owner: Some(shells[index].owner),
+                    position: hit_position,
+                    surface: ImpactSurface::Hull,
+                    shell_type: shells[index].shell.shell_type,
+                    direction: shells[index].velocity_mps.normalize_or_zero(),
+                    caliber_mm: shells[index].shell.caliber_mm,
+                    shell_id: shells[index].id,
+                    ..Default::default()
+                });
                 if splashes {
                     burst_he_splash(
                         &shells[index],

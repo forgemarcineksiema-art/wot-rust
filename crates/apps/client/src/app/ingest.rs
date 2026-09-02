@@ -120,6 +120,16 @@ impl ClientApp {
         // died against, armor strikes answer with sparks (plus the penetration signature). A
         // shell the ground swallowed also digs a crater that outlives the dust.
         for impact in &snapshot.shell_impacts {
+            // A shell's death on ARMOUR (Inny Poziom S9) is the damage lane's to draw — the
+            // sparks, the signature, the light and the clang all ride the damage event — except
+            // an HE round's blast, which is the charge going off on the plate and needs the
+            // impact's approach. Nothing else below applies to a hull: no soil, no scar.
+            if impact.surface == game_core::ImpactSurface::Hull {
+                if impact.shell_type == game_core::ShellType::HighExplosive {
+                    self.fx.he_burst_on_armour(impact.position, impact.direction);
+                }
+                continue;
+            }
             self.fx.impact_burst(impact.position, impact.surface);
             self.fx.impact_light(
                 impact.position,
@@ -177,11 +187,18 @@ impl ClientApp {
             } else {
                 None
             };
+            // The signature grows with the share of the pool the round took (S9).
+            let pool = snapshot
+                .tanks
+                .iter()
+                .find(|t| t.tank_id == event.target)
+                .map_or(1_000.0, |t| t.vehicle.spec_ref().hit_points.max(1) as f32);
             self.fx.armor_hit_directed(
                 event.hit_position,
                 event.penetrated,
                 event.ricocheted,
                 departure,
+                event.damage_hp as f32 / pool,
             );
             self.fx.armor_hit_light(
                 event.hit_position,

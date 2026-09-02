@@ -72,25 +72,111 @@ impl FxSystem {
     /// shallower (the shell skips away), and a penetration adds the entry flash and a column of
     /// dark smoke out of the hole.
     pub fn armor_hit(&mut self, position: Vec3, penetrated: bool, ricocheted: bool) {
-        self.armor_hit_directed(position, penetrated, ricocheted, None);
+        self.armor_hit_directed(position, penetrated, ricocheted, None, 0.4);
     }
 
     /// A hit with the deflection direction known (from the wire's plate normal + shell
     /// direction): a ricochet's sparks leave ALONG the departure, not in an anonymous dome —
     /// the glance is readable at range from where the steel sprays.
+    /// `damage_fraction` is the share of the target's pool the round took (Inny Poziom S9): the
+    /// penetration signature grows with it, so a 900-HP hole reads bigger than a 120-HP graze.
+    /// A non-penetration has its own answer now — a spall cloud of occluding grey off the
+    /// plate — instead of sparks alone.
     pub fn armor_hit_directed(
         &mut self,
         position: Vec3,
         penetrated: bool,
         ricocheted: bool,
         departure: Option<Vec3>,
+        damage_fraction: f32,
     ) {
         match departure.map(glam::Vec3::normalize_or_zero).filter(|d| d.length_squared() > 0.5) {
             Some(direction) if ricocheted => self.spark_fan_directed(position, 14, direction),
             _ => self.spark_fan(position, if ricocheted { 14 } else { 10 }),
         }
         if penetrated {
-            self.penetration_signature(position);
+            self.penetration_signature(position, damage_fraction);
+        } else {
+            self.bounce_spall(position);
+        }
+    }
+
+    /// An HE round bursting on armour (S9): the charge goes off on the plate — a hot core that
+    /// swells and dies inside a tenth of a second, a ring of occluding smoke thrown back along
+    /// the shell's approach, and a few sparks. The plate's own clang and the damage event's
+    /// sparks come with the strike; this is the blast the AP path never had.
+    pub fn he_burst_on_armour(&mut self, position: Vec3, direction: Vec3) {
+        let back = -direction.normalize_or_zero();
+        self.spawn(Particle {
+            position: position + back * 0.4,
+            velocity_mps: back * 3.0,
+            gravity_factor: 0.0,
+            drag_per_s: 6.0,
+            age_s: 0.0,
+            ttl_s: 0.12,
+            size_begin_m: 2.0,
+            size_end_m: 4.5,
+            color_begin: [1.0, 0.62, 0.22, 0.0],
+            color_end: [0.25, 0.06, 0.02, 0.0],
+            stretch_s: 0.0,
+        });
+        // The smoke ring: a hemisphere facing back along the approach, heavier than gun smoke.
+        let side = if back.abs().dot(Vec3::Y) > 0.9 {
+            Vec3::X
+        } else {
+            back.cross(Vec3::Y).normalize_or_zero()
+        };
+        let up = side.cross(back).normalize_or_zero();
+        for index in 0..10 {
+            let angle = index as f32 / 10.0 * std::f32::consts::TAU + self.rand_unit() * 0.4;
+            let radial = side * angle.cos() + up * angle.sin();
+            let speed = 5.0 + self.rand_unit() * 3.0;
+            let ttl = 1.4 + self.rand_unit() * 1.2;
+            let shade = 0.10 + self.rand_unit() * 0.06;
+            let alpha = 0.6;
+            self.spawn(Particle {
+                position: position + back * 0.3 + radial * 0.4,
+                velocity_mps: radial * speed + back * 2.0 + Vec3::Y * 0.8,
+                gravity_factor: -0.02,
+                drag_per_s: 2.4,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.9,
+                size_end_m: 3.4,
+                color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
+        }
+        self.spark_fan(position, 8);
+    }
+
+    /// The plate held (S9): what a bounce throws besides sparks — a short cloud of occluding
+    /// grey spall and paint off the plate, gone in a second. The world's answer to a non-pen,
+    /// readable at range where sparks are pixels.
+    fn bounce_spall(&mut self, position: Vec3) {
+        for _ in 0..5 {
+            let drift = Vec3::new(
+                self.rand_signed() * 2.0,
+                0.6 + self.rand_unit() * 1.2,
+                self.rand_signed() * 2.0,
+            );
+            let ttl = 0.6 + self.rand_unit() * 0.5;
+            let shade = 0.32 + self.rand_unit() * 0.10;
+            let alpha = 0.45;
+            self.spawn(Particle {
+                position: position + Vec3::Y * 0.05,
+                velocity_mps: drift,
+                gravity_factor: 0.08,
+                drag_per_s: 3.0,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.5,
+                size_end_m: 1.6,
+                color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
         }
     }
 
@@ -199,7 +285,9 @@ impl FxSystem {
 
     /// The penetration signature: one hard entry flash plus dark propellant/fuel smoke rolling
     /// out of the hole — the read-at-range cue that the shell went inside.
-    fn penetration_signature(&mut self, position: Vec3) {
+    fn penetration_signature(&mut self, position: Vec3, damage_fraction: f32) {
+        // 0.6 at a graze, 1.0 at the 40 % a typical pen takes, 1.5 at a near-kill.
+        let scale = (0.6 + damage_fraction.clamp(0.0, 1.0)).clamp(0.6, 1.5);
         self.spawn(Particle {
             position,
             velocity_mps: Vec3::ZERO,
@@ -207,13 +295,14 @@ impl FxSystem {
             drag_per_s: 0.0,
             age_s: 0.0,
             ttl_s: 0.09,
-            size_begin_m: 1.4,
-            size_end_m: 2.4,
+            size_begin_m: 1.4 * scale,
+            size_end_m: 2.4 * scale,
             color_begin: [1.0, 0.72, 0.30, 0.0],
             color_end: [0.3, 0.08, 0.02, 0.0],
             stretch_s: 0.0,
         });
-        for _ in 0..7 {
+        let smoke = (7.0 * scale).round() as usize;
+        for _ in 0..smoke {
             let drift = Vec3::new(
                 self.rand_signed() * 1.2,
                 1.2 + self.rand_unit() * 1.4,
@@ -270,9 +359,14 @@ mod tests {
         pen.armor_hit(Vec3::ZERO, true, false);
 
         assert!(pen.live_particles() > bounce.live_particles());
-        // The bounce is all additive sparks; the penetration carries occluding smoke rows.
+        // Inny Poziom S9: a bounce is no longer sparks alone — the plate answers with at least
+        // one occluding row of spall; the penetration still carries its dark smoke rows.
         let bounce_vertices = bounce.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO);
-        assert!(bounce_vertices.iter().all(|vertex| vertex.color[3] == 0.0));
+        assert!(bounce_vertices.iter().any(|vertex| vertex.color[3] > 0.0), "spall occludes");
+        assert!(
+            bounce_vertices.iter().any(|vertex| vertex.color[3] == 0.0),
+            "sparks stay additive"
+        );
         let pen_vertices = pen.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO);
         assert!(pen_vertices.iter().any(|vertex| vertex.color[3] > 0.0));
     }
@@ -284,7 +378,7 @@ mod tests {
     fn directed_ricochet_sparks_leave_along_the_departure() {
         let departure = Vec3::X;
         let mut fx = FxSystem::default();
-        fx.armor_hit_directed(Vec3::ZERO, false, true, Some(departure));
+        fx.armor_hit_directed(Vec3::ZERO, false, true, Some(departure), 0.0);
         let mean: Vec3 =
             fx.particles.iter().map(|p| p.velocity_mps.normalize_or_zero()).sum::<Vec3>()
                 / fx.particles.len() as f32;
@@ -296,7 +390,7 @@ mod tests {
 
         // Without the direction the fan stays the old anonymous dome.
         let mut blind = FxSystem::default();
-        blind.armor_hit_directed(Vec3::ZERO, false, true, None);
+        blind.armor_hit_directed(Vec3::ZERO, false, true, None, 0.0);
         let blind_mean: Vec3 =
             blind.particles.iter().map(|p| p.velocity_mps.normalize_or_zero()).sum::<Vec3>()
                 / blind.particles.len() as f32;
@@ -314,6 +408,42 @@ mod tests {
         let mut ricochet = FxSystem::default();
         ricochet.armor_hit(Vec3::ZERO, false, true);
         assert!(ricochet.live_particles() > bounce.live_particles());
+    }
+
+    #[test]
+    /// Inny Poziom S9: the penetration signature grows with the share of the pool the round
+    /// took, and even the smallest pen out-areas the bounce's spark fan by the register's 4×.
+    fn the_penetration_signature_scales_with_damage_and_dwarfs_the_spark_fan() {
+        let area = |fx: &FxSystem| -> f32 {
+            fx.particles.iter().map(|p| p.size_begin_m * p.size_begin_m).sum()
+        };
+        let mut sparks = FxSystem::default();
+        sparks.spark_fan(Vec3::ZERO, 10);
+        let mut graze = FxSystem::default();
+        graze.armor_hit_directed(Vec3::ZERO, true, false, None, 0.05);
+        let mut kill = FxSystem::default();
+        kill.armor_hit_directed(Vec3::ZERO, true, false, None, 0.9);
+        assert!(area(&graze) >= 4.0 * area(&sparks), "{} vs {}", area(&graze), area(&sparks));
+        assert!(area(&kill) > area(&graze) * 1.5, "a near-kill flashes bigger than a graze");
+        assert!(kill.live_particles() > graze.live_particles(), "and rolls more smoke");
+    }
+
+    /// Inny Poziom S9: an HE round bursting on armour is a blast — a hot additive core, an
+    /// occluding smoke ring thrown back along the approach, sparks — not the AP path's fan.
+    #[test]
+    fn an_he_round_on_armour_bursts_instead_of_sparking() {
+        let mut he = FxSystem::default();
+        he.he_burst_on_armour(Vec3::new(0.0, 1.5, 50.0), Vec3::Z);
+        let mut ap = FxSystem::default();
+        ap.impact_burst(Vec3::new(0.0, 1.5, 50.0), ImpactSurface::Hull);
+        assert!(he.live_particles() > 2 * ap.live_particles());
+        let core = he.particles.iter().map(|p| p.size_begin_m).fold(0.0_f32, f32::max);
+        assert!(core >= 2.0, "the fireball core is metres across: {core}");
+        let smoke: Vec<&Particle> =
+            he.particles.iter().filter(|p| p.color_begin[3] > 0.0).collect();
+        assert!(smoke.len() >= 8, "an occluding smoke ring: {}", smoke.len());
+        let back = smoke.iter().map(|p| p.velocity_mps.z).sum::<f32>() / smoke.len() as f32;
+        assert!(back < 0.0, "the ring is thrown back along the approach: mean z {back}");
     }
 
     #[test]

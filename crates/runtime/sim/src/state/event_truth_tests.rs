@@ -67,10 +67,22 @@ fn lethal_attribution_and_event_ids_survive_snapshot_windows() {
     assert_eq!(events[1].source, second_attacker);
     assert_eq!(events[1].shell_id, Some(lethal_shell_id));
     assert!(events[1].target_destroyed, "only the alive-to-dead transition owns the kill");
+    // Each strike owns two events since Inny Poziom S9 — the damage event, then the shell's
+    // impact on the hull — so the ids interleave: damage 1, hull impact 2, damage 3, impact 4.
     assert_eq!(
         events.iter().map(|event| event.event_id).collect::<Vec<_>>(),
-        [BattleEventId(1), BattleEventId(2)]
+        [BattleEventId(1), BattleEventId(3)]
     );
+    let hull_impacts: Vec<_> = state
+        .shell_impacts()
+        .iter()
+        .filter(|impact| impact.surface == game_core::ImpactSurface::Hull)
+        .collect();
+    assert_eq!(hull_impacts.len(), 2, "each strike also lands as a hull impact");
+    assert_eq!(hull_impacts[0].event_id, BattleEventId(2));
+    assert_eq!(hull_impacts[0].shell_id, first_shell_id);
+    assert_eq!(hull_impacts[1].event_id, BattleEventId(4));
+    assert_eq!(hull_impacts[1].shell_id, lethal_shell_id);
     assert!(events.iter().all(|event| event.occurred_tick == 0));
 
     let impact_shell_id = ShellId(303);
@@ -85,7 +97,8 @@ fn lethal_attribution_and_event_ids_survive_snapshot_windows() {
     state.apply_commands_on_terrain(&[], step, &ground);
 
     let impact = state.shell_impacts().first().copied().expect("ground impact");
-    assert_eq!(impact.event_id, BattleEventId(3));
+    assert_eq!(impact.surface, game_core::ImpactSurface::Terrain);
+    assert_eq!(impact.event_id, BattleEventId(5));
     assert_eq!(impact.occurred_tick, 1);
     assert_eq!(impact.shell_id, impact_shell_id);
 
@@ -93,7 +106,7 @@ fn lethal_attribution_and_event_ids_survive_snapshot_windows() {
     let mut restored: SimulationState = serde_json::from_str(&encoded).expect("restore simulation");
     assert_eq!(
         restored.shell_impacts().first().map(|event| event.event_id),
-        Some(BattleEventId(3)),
+        Some(BattleEventId(5)),
         "an event keeps its identity while snapshots repeat or state is restored"
     );
 
@@ -107,7 +120,7 @@ fn lethal_attribution_and_event_ids_survive_snapshot_windows() {
     ));
     restored.apply_commands_on_terrain(&[], step, &ground);
     let next = restored.shell_impacts().first().expect("next ground impact");
-    assert_eq!(next.event_id, BattleEventId(4));
+    assert_eq!(next.event_id, BattleEventId(6));
     assert_eq!(next.occurred_tick, 2);
     assert_eq!(next.shell_id, next_shell_id);
 }

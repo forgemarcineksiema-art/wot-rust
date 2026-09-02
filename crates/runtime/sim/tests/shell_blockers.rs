@@ -89,7 +89,7 @@ fn wreck_blocks_the_shell_and_protects_the_target_behind_it() {
 }
 
 #[test]
-fn clean_enemy_hit_emits_damage_and_no_impact_event() {
+fn clean_enemy_hit_emits_damage_and_its_own_hull_impact() {
     let (mut state, shooter) = shooter_state();
     let enemy = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 90.0));
     state.tank_mut(enemy).expect("enemy").yaw_rad = PI;
@@ -98,10 +98,14 @@ fn clean_enemy_hit_emits_damage_and_no_impact_event() {
 
     let event = state.damage_events().last().expect("clean shot must damage the enemy");
     assert_eq!(event.target, enemy);
-    assert!(
-        state.shell_impacts().is_empty(),
-        "an enemy hit is damage feedback, not an absorption impact"
-    );
+    // Inny Poziom S9: the strike is damage feedback AND the shell's own death on the hull —
+    // one impact, surface Hull, at the plate's hit point, the same shell as the event — so the
+    // client can draw an HE round's blast from it. Never an absorption on a blocker.
+    assert_eq!(state.shell_impacts().len(), 1, "one hull impact beside the damage event");
+    let impact = state.shell_impacts()[0];
+    assert_eq!(impact.surface, ImpactSurface::Hull);
+    assert_eq!(impact.shell_id, event.shell_id.expect("the event names its shell"));
+    assert!((impact.position - event.hit_position).length() < 1.0e-3, "at the plate's hit point");
 }
 
 #[test]
