@@ -1,0 +1,59 @@
+{
+  "species": "oak",
+  "kind": "leaf clusters",
+  "authoring": "in-house, Blender 5.2.0 LTS, scripts/flora/bake_oak_clusters.py",
+  "license": "project-owned (no third-party assets)",
+  "sprite_px": 512,
+  "grid": [
+    4,
+    2
+  ],
+  "window_m": 1.5,
+  "seed": 1,
+  "samples": 96,
+  "sprites": [
+    {
+      "index": 0,
+      "seed": 1000,
+      "leaves": 269
+    },
+    {
+      "index": 1,
+      "seed": 1001,
+      "leaves": 270
+    },
+    {
+      "index": 2,
+      "seed": 1002,
+      "leaves": 253
+    },
+    {
+      "index": 3,
+      "seed": 1003,
+      "leaves": 251
+    },
+    {
+      "index": 4,
+      "seed": 1004,
+      "leaves": 246
+    },
+    {
+      "index": 5,
+      "seed": 1005,
+      "leaves": 250
+    },
+    {
+      "index": 6,
+      "seed": 1006,
+      "leaves": 242
+    },
+    {
+      "index": 7,
+      "seed": 1007,
+      "leaves": 274
+    }
+  ],
+  "color": "clusters_color.png",
+  "normal": "clusters_normal.png",
+  "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at bottom centre of each slot"
+}

@@ -43,6 +43,44 @@ struct VsOut {
 // The tangent-normal page: same regions, same UVs as the colour atlas (hero flora). When
 // nothing shipped normals this is a 1x1 flat texel and the maths below is a no-op.
 @group(1) @binding(2) var foliage_normal_atlas: texture_2d<f32>;
+// The bark pair (route 2, trees as data): a CC0 photographic tile, 1 m wide and 2 m tall,
+// projected triplanar in world space onto every BARK fragment — no UVs on the wood, so a
+// Sapling trunk and a procedural bole wear the same bark. Sampled through a REPEAT sampler.
+@group(1) @binding(3) var bark_albedo: texture_2d<f32>;
+@group(1) @binding(4) var bark_normal: texture_2d<f32>;
+@group(1) @binding(5) var bark_sampler: sampler;
+
+// Triplanar bark: weights from the geometric normal (sharpened so a trunk's side reads one
+// projection, not a blend), the tile's 2 m axis along world up. Returns albedo, and bends
+// the normal by the tile's tangent normals (the UDN blend, one term per projection).
+struct BarkSample {
+    albedo: vec3<f32>,
+    normal: vec3<f32>,
+}
+
+fn bark_triplanar(world: vec3<f32>, n: vec3<f32>) -> BarkSample {
+    var w = pow(abs(n), vec3<f32>(4.0));
+    w = w / max(w.x + w.y + w.z, 1.0e-4);
+    let sx = sign(n.x + 1.0e-5);
+    let sz = sign(n.z + 1.0e-5);
+    let uv_x = vec2<f32>(world.z * sx, -world.y * 0.5);
+    let uv_z = vec2<f32>(-world.x * sz, -world.y * 0.5);
+    let uv_y = vec2<f32>(world.x, world.z * 0.5);
+    let ax = textureSample(bark_albedo, bark_sampler, uv_x).rgb;
+    let az = textureSample(bark_albedo, bark_sampler, uv_z).rgb;
+    let ay = textureSample(bark_albedo, bark_sampler, uv_y).rgb;
+    let tx = textureSample(bark_normal, bark_sampler, uv_x).xyz * 2.0 - vec3<f32>(1.0);
+    let tz = textureSample(bark_normal, bark_sampler, uv_z).xyz * 2.0 - vec3<f32>(1.0);
+    let ty = textureSample(bark_normal, bark_sampler, uv_y).xyz * 2.0 - vec3<f32>(1.0);
+    // Each projection's tangent frame in world axes (u right, v up on the face).
+    let bend = w.x * (tx.x * vec3<f32>(0.0, 0.0, sx) + tx.y * vec3<f32>(0.0, 1.0, 0.0))
+        + w.z * (tz.x * vec3<f32>(-sz, 0.0, 0.0) + tz.y * vec3<f32>(0.0, 1.0, 0.0))
+        + w.y * (ty.x * vec3<f32>(1.0, 0.0, 0.0) + ty.y * vec3<f32>(0.0, 0.0, 1.0));
+    var out: BarkSample;
+    out.albedo = ax * w.x + ay * w.y + az * w.z;
+    out.normal = normalize(n + bend * 0.85);
+    return out;
+}
 
 // The costume hand-off (Jedna Trawa P4): near tufts fold down EXACTLY where far tufts
 // stand up, per place. The radius is not a circle but a coastline — world-anchored noise
@@ -408,11 +446,21 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         detail = surface_treatment(input.surface, input.world_pos, geometric_n);
     }
     var albedo = input.color * detail * foliage.rgb;
+    var lit_n = n;
+    // Bark (route 2): the photographic tile owns the wood's colour and relief; the vertex
+    // tone only tints it, normalised around the authored trunk tone so the tile's own
+    // value stands. The procedural striations stay in the impostor's CPU splat.
+    if (abs(input.surface - 4.0) < 0.5) {
+        let bark = bark_triplanar(input.world_pos, geometric_n);
+        let tint = input.color / vec3<f32>(0.30, 0.22, 0.14);
+        albedo = bark.albedo * clamp(tint, vec3<f32>(0.5), vec3<f32>(1.5)) * foliage.rgb;
+        lit_n = bark.normal;
+    }
     albedo *= mix(1.0, 0.62, wet);
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
-    var radiance = light_radiance(input.world_pos, n, shadow, ao);
+    var radiance = light_radiance(input.world_pos, lit_n, shadow, ao);
     // Canopy cards trade the hard lambert for the wrapped/transmissive foliage model, and
     // the bark takes its relief from the normal page.
     if (abs(input.surface - 7.0) < 0.5) {

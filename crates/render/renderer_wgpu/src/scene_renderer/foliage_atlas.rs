@@ -1,10 +1,20 @@
 //! One sRGB foliage atlas shared by scene color, shadow and SSAO depth pipelines.
 //! The startup chain is a bit-exact opaque-white 1x1 no-op for procedural UV (0, 0).
+//!
+//! Route 2 (2026-09-02, trees as data): the same bind group carries the BARK pair — an
+//! albedo and a tangent-normal tile, sampled triplanar in world space by every bark
+//! fragment (`surface_role::BARK`) through a REPEAT sampler. The startup default is one
+//! texel of the authored trunk tone and one flat normal, so an unbound path keeps the
+//! pre-texture look instead of a white trunk.
 
 use renderer_api::{Rgba8MipChain, Rgba8MipLevel};
 
 pub(crate) struct FoliageAtlas {
     pub bind_group: wgpu::BindGroup,
+    /// The atlas pages last set, kept so a bark set can rebuild the bind group (and the
+    /// other way round) without the caller re-sending both.
+    atlas: (Rgba8MipChain, Option<Rgba8MipChain>),
+    bark: Option<(Rgba8MipChain, Rgba8MipChain)>,
 }
 
 pub(crate) fn build_foliage_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -40,14 +50,47 @@ pub(crate) fn build_foliage_bind_group_layout(device: &wgpu::Device) -> wgpu::Bi
                 },
                 count: None,
             },
+            // The bark pair (route 2): albedo (sRGB) and tangent normals, world-triplanar.
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            // A REPEAT sampler: bark tiles along a trunk, the atlas never wraps.
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
         ],
     })
 }
 
+/// The startup bark texel: the authored trunk tone (scene_build's `TRUNK_TONE`, linear
+/// (0.30, 0.22, 0.14)) in sRGB, so an unbound bark reads as it did before textures.
+const DEFAULT_BARK_SRGB: [u8; 4] = [149, 130, 105, 255];
+
 impl FoliageAtlas {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout) -> Self {
         let chain = Rgba8MipChain::new(vec![Rgba8MipLevel::new(1, 1, vec![255, 255, 255, 255])], 0);
-        Self { bind_group: upload_foliage_atlas(device, queue, layout, &chain, None) }
+        let bind_group = upload_foliage_atlas(device, queue, layout, &chain, None, None);
+        Self { bind_group, atlas: (chain, None), bark: None }
     }
 
     pub fn set(
@@ -58,7 +101,36 @@ impl FoliageAtlas {
         chain: &Rgba8MipChain,
         normals: Option<&Rgba8MipChain>,
     ) {
-        self.bind_group = upload_foliage_atlas(device, queue, layout, chain, normals);
+        self.atlas = (chain.clone(), normals.cloned());
+        self.rebuild(device, queue, layout);
+    }
+
+    pub fn set_bark(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+        albedo: &Rgba8MipChain,
+        normals: &Rgba8MipChain,
+    ) {
+        self.bark = Some((albedo.clone(), normals.clone()));
+        self.rebuild(device, queue, layout);
+    }
+
+    fn rebuild(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+    ) {
+        self.bind_group = upload_foliage_atlas(
+            device,
+            queue,
+            layout,
+            &self.atlas.0,
+            self.atlas.1.as_ref(),
+            self.bark.as_ref().map(|(albedo, normals)| (albedo, normals)),
+        );
     }
 }
 
@@ -68,6 +140,7 @@ fn upload_foliage_atlas(
     layout: &wgpu::BindGroupLayout,
     chain: &Rgba8MipChain,
     normals: Option<&Rgba8MipChain>,
+    bark: Option<(&Rgba8MipChain, &Rgba8MipChain)>,
 ) -> wgpu::BindGroup {
     let base = &chain.levels()[0];
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -136,6 +209,24 @@ fn upload_foliage_atlas(
     let flat_normal =
         Rgba8MipChain::new(vec![Rgba8MipLevel::new(1, 1, vec![128, 128, 255, 255])], 0);
     let normal_view = upload_page("foliage_normal_atlas", normals.unwrap_or(&flat_normal), false);
+    let default_bark =
+        Rgba8MipChain::new(vec![Rgba8MipLevel::new(1, 1, DEFAULT_BARK_SRGB.to_vec())], 0);
+    let (bark_albedo, bark_normal) = bark.unwrap_or((&default_bark, &flat_normal));
+    let bark_albedo_view = upload_page("bark_albedo", bark_albedo, true);
+    let bark_normal_view = upload_page("bark_normal", bark_normal, false);
+    let bark_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("bark_sampler"),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        address_mode_w: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        lod_min_clamp: 0.0,
+        lod_max_clamp: bark_albedo.max_sampled_level().max(bark_normal.max_sampled_level()) as f32,
+        anisotropy_clamp: 8,
+        ..Default::default()
+    });
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("foliage_atlas"),
         size: wgpu::Extent3d {
@@ -180,6 +271,18 @@ fn upload_foliage_atlas(
             wgpu::BindGroupEntry {
                 binding: 2,
                 resource: wgpu::BindingResource::TextureView(&normal_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(&bark_albedo_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&bark_normal_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::Sampler(&bark_sampler),
             },
         ],
     })

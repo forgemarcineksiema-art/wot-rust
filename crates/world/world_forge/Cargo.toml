@@ -8,6 +8,7 @@ version.workspace = true
 [dependencies]
 game_core.workspace = true
 glam.workspace = true
+png.workspace = true
 ron.workspace = true
 serde.workspace = true
 sweep.workspace = true

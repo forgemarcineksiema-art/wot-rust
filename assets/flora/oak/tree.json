@@ -1,0 +1,173 @@
+{
+  "species": "oak",
+  "generator": "Sapling Tree Gen (Blender extension) + scripts/flora/bake_oak_tree.py",
+  "blender": "5.2.0 LTS",
+  "license": "project-owned output; Sapling is GPL tooling, not shipped",
+  "params": {
+    "seed": 7,
+    "levels": 3,
+    "length": [
+      1.0,
+      0.55,
+      0.45,
+      0.4
+    ],
+    "lengthV": [
+      0.0,
+      0.08,
+      0.12,
+      0.0
+    ],
+    "branches": [
+      0,
+      22,
+      9,
+      0
+    ],
+    "curveRes": [
+      8,
+      5,
+      3,
+      1
+    ],
+    "curve": [
+      0.0,
+      -30.0,
+      -25.0,
+      0.0
+    ],
+    "curveV": [
+      30.0,
+      90.0,
+      110.0,
+      0.0
+    ],
+    "curveBack": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "baseSplits": 2,
+    "segSplits": [
+      0.0,
+      0.25,
+      0.2,
+      0.0
+    ],
+    "splitAngle": [
+      0.0,
+      30.0,
+      25.0,
+      0.0
+    ],
+    "splitAngleV": [
+      0.0,
+      10.0,
+      10.0,
+      0.0
+    ],
+    "scale": 15.0,
+    "scaleV": 0.0,
+    "attractUp": [
+      0.0,
+      -0.3,
+      0.2,
+      0.0
+    ],
+    "attractOut": [
+      0.0,
+      0.2,
+      0.3,
+      0.0
+    ],
+    "shape": "2",
+    "shapeS": "4",
+    "branchDist": 1.2,
+    "baseSize": 0.38,
+    "baseSize_s": 0.2,
+    "splitHeight": 0.3,
+    "ratio": 0.032,
+    "minRadius": 0.004,
+    "closeTip": false,
+    "rootFlare": 1.25,
+    "autoTaper": true,
+    "taper": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "radiusTweak": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ratioPower": 1.25,
+    "downAngle": [
+      90.0,
+      60.0,
+      50.0,
+      45.0
+    ],
+    "downAngleV": [
+      0.0,
+      -30.0,
+      15.0,
+      10.0
+    ],
+    "useParentAngle": true,
+    "rotate": [
+      137.5,
+      137.5,
+      137.5,
+      137.5
+    ],
+    "rotateV": [
+      0.0,
+      20.0,
+      20.0,
+      0.0
+    ],
+    "scale0": 1.0,
+    "scaleV0": 0.0,
+    "leaves": 2,
+    "leafDownAngle": 40.0,
+    "leafDownAngleV": 15.0,
+    "leafRotate": 137.5,
+    "leafRotateV": 20.0,
+    "leafScale": 1.3,
+    "leafScaleX": 1.0,
+    "leafScaleT": 0.0,
+    "leafScaleV": 0.15,
+    "leafShape": "rect",
+    "horzLeaves": false,
+    "leafDist": "6",
+    "showLeaves": true,
+    "bevel": true,
+    "prune": false,
+    "useArm": false,
+    "makeMesh": false
+  },
+  "rungs": {
+    "near": {
+      "wood_vertices": 1194,
+      "wood_triangles": 2104,
+      "limbs_kept": 29,
+      "cards": 322,
+      "tip_wood_m": 16.227,
+      "tip_cards_m": 17.777,
+      "butt_radius_m": 0.6
+    },
+    "mid": {
+      "wood_vertices": 268,
+      "wood_triangles": 456,
+      "limbs_kept": 10,
+      "cards": 162,
+      "tip_wood_m": 15.876,
+      "tip_cards_m": 17.777,
+      "butt_radius_m": 0.6
+    }
+  }
+}

@@ -69,6 +69,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     baseline.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
     flora.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
+    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
+    baseline.set_bark_textures(&ctx, &bark_albedo, &bark_normal);
+    flora.set_bark_textures(&ctx, &bark_albedo, &bark_normal);
 
     let ground = |x: f32, z: f32| full.heightmap.sample_height(x, z).unwrap_or(0.0);
     // The under-crown worst case: nose against a battlefield oak, the Near-rung crown filling
