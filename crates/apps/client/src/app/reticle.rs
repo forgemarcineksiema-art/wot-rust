@@ -71,7 +71,7 @@ impl ClientApp {
         let Some(solution) = solution else { return 0.0 };
         crate::aim::rate_command_to_land(
             solution.pitch_rad - self.player_gun_pitch(),
-            sim::GUN_ELEVATION_RATE_RAD_S,
+            self.player_spec().gun.elevation_rate_rad_s,
             1.0 / sim::DEFAULT_SERVER_TICK_HZ as f32,
         )
     }

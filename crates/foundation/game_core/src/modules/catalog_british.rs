@@ -46,6 +46,7 @@ pub(crate) fn centurion_loadout() -> VehicleModules {
             rear_mm: 90.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.63 },
+            vertical_stabilizer: 1.0,
             // British optics: the best view range in the Cold War park.
             max_gun_caliber_mm: 84.0,
         },
@@ -73,6 +74,7 @@ pub(crate) fn gun_20pdr_type_a() -> GunModule {
             // ridgeline - the arc, the APDS and the 152 mm turret face are one identity.
             depression_deg: 10.0,
             elevation_deg: 18.0,
+            elevation_rate_rad_s: 0.9,
             // APDS was the gun's NORMAL load with APCBC "rarely used" — the inverted
             // stock/special relationship is the Centurion's own identity. Sourcing and the HE
             // GAPs live with the numbers in `RoundId::spec`.
@@ -102,6 +104,7 @@ pub(crate) fn gun_20pdr_type_b() -> GunModule {
             // Same mount as the Type A.
             depression_deg: 10.0,
             elevation_deg: 18.0,
+            elevation_rate_rad_s: 0.9,
             // Same ammunition as the Type A — the same `RoundId`s; the bore evacuator does not
             // change the shell.
             shell: RoundId::TwentyPdrApcbc.spec(),

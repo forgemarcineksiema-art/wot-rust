@@ -309,6 +309,12 @@ pub struct GunSpec {
     /// How far the gun ELEVATES above horizontal, in degrees.
     #[serde(default = "default_gun_elevation_deg")]
     pub elevation_deg: f32,
+    /// How fast the gun elevates and depresses (rad/s): the gunner's handwheel or power
+    /// elevation, per gun (Inny Poziom A12). The whole fleet used to share one sim constant,
+    /// 0.5 rad/s = 28.7 deg/s, slower than every hull's pitch rate; the default keeps old
+    /// fixtures loading at that value.
+    #[serde(default = "default_gun_elevation_rate_rad_s")]
+    pub elevation_rate_rad_s: f32,
     pub shell: ShellSpec,
     /// The gun's AUTHORED special round for rack slot 1 — the second round this weapon actually
     /// fielded, when it fielded one.
@@ -338,6 +344,10 @@ fn default_gun_depression_deg() -> f32 {
 
 fn default_gun_elevation_deg() -> f32 {
     20.1
+}
+
+fn default_gun_elevation_rate_rad_s() -> f32 {
+    0.5
 }
 
 fn default_barrel_length_m() -> f32 {

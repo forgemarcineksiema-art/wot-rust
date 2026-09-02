@@ -103,3 +103,13 @@ Regenerate it with:
 ```powershell
 cargo run -p tools -- generate-vehicle --vehicle centurion-mk3 --output assets/vehicles/centurion_mk3.vehicle.json
 ```
+
+## Fire control (Inny Poziom A12, 2026-09-02)
+
+- The Mk 3 carries a **vertical gun stabilizer** (the FVRDE Metadyne stabilizer under the
+  20-pounder): in the sim the mount cancels every hull pitch change the same tick, so the gun
+  holds its world elevation inside its −10/+18 arc while the hull works a furrow. It is the
+  only stabilized vehicle in the roster — the wartime hulls and the T-54 obr. 1951 ride their
+  hulls (`TankSpec::vertical_stabilizer`, locked by name in `game_core/tests/modules.rs`).
+- The 20-pounder elevates at 0.9 rad/s (52 deg/s), its own number since A12; turret traverse
+  36 deg/s since A11.

@@ -129,6 +129,9 @@ pub fn settle_tank_drive(
     phase: DrivePhase,
     dt: f32,
 ) -> GroundStep {
+    // The hull's pitch change over this tick is what a vertical stabilizer cancels (Inny Poziom
+    // A12); measured around the attitude advance, so the gun sees exactly what the hull did.
+    let pitch_before = drive.kinematic.pitch_rad;
     let ground = physics::settle_tank_on_world(
         &mut drive.kinematic,
         &phase.settings,
@@ -138,7 +141,8 @@ pub fn settle_tank_drive(
         world.footprint,
         dt,
     );
-    finish_tank_drive(drive, spec, modules, command, dt);
+    let hull_pitch_delta = drive.kinematic.pitch_rad - pitch_before;
+    finish_tank_drive(drive, spec, modules, command, dt, hull_pitch_delta);
     ground
 }
 
@@ -226,6 +230,7 @@ fn finish_tank_drive(
     modules: DriveModuleStatus,
     command: TankCommand,
     dt: f32,
+    hull_pitch_delta_rad: f32,
 ) {
     // A destroyed turret cannot traverse, but the gun can still elevate.
     let mut aim_command = command;
@@ -233,7 +238,7 @@ fn finish_tank_drive(
         aim_command.turret_yaw_delta = 0.0;
         drive.aiming.turret_yaw_velocity_rad_s = 0.0;
     }
-    step_aiming(&mut drive.aiming, spec, aim_command, dt);
+    step_aiming(&mut drive.aiming, spec, aim_command, dt, hull_pitch_delta_rad);
 
     // Bloom reads the hull's world velocity magnitude. The rigid-body state already carries the
     // velocity vector, so this is the same value the server stores in `velocity_mps`.

@@ -93,6 +93,10 @@ pub struct TankSpec {
     pub max_reverse_speed_mps: f32,
     pub turn_rate_rad_s: f32,
     pub turret_rotation_rad_s: f32,
+    /// Vertical gun stabilizer, 0..1 (Inny Poziom A12): the share of every hull pitch change
+    /// the mount cancels the same tick, so the gun holds its WORLD elevation within its arc.
+    #[serde(default)]
+    pub vertical_stabilizer: f32,
     pub hull: ArmorProfile,
     pub gun: GunSpec,
     /// Rounds carried into battle per ammo slot (`AmmoLoadout`); the garage clamps the sum to

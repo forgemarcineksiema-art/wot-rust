@@ -6,7 +6,8 @@
   "max_forward_speed_mps": 11.1,
   "max_reverse_speed_mps": 3.9,
   "turn_rate_rad_s": 0.58,
-  "turret_rotation_rad_s": 0.36,
+  "turret_rotation_rad_s": 0.49,
+  "vertical_stabilizer": 0.0,
   "hull": {
     "hull_front_mm": 110.0,
     "hull_side_mm": 90.0,
@@ -60,6 +61,7 @@
     "barrel_length_m": 5.5,
     "depression_deg": 3.0,
     "elevation_deg": 20.0,
+    "elevation_rate_rad_s": 0.7,
     "shell": {
       "shell_type": "ArmorPiercing",
       "caliber_mm": 122.0,

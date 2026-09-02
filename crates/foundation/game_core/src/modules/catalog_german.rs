@@ -39,6 +39,7 @@ pub(crate) fn tiger_i_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.45 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 90.0,
         },
         gun: gun_kwk36(),
@@ -81,6 +82,7 @@ pub(crate) fn tiger_ii_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.40 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 90.0,
         },
         gun: gun_kwk43(),
@@ -140,6 +142,7 @@ pub(crate) fn gun_kwk36() -> GunModule {
             // The production Tiger turret: -8 of depression, +16 of elevation (some sources +15).
             depression_deg: 8.0,
             elevation_deg: 16.0,
+            elevation_rate_rad_s: 0.9,
             // The Sprgr L/4.5 is the SAME `RoundId` the KwK 43 fires — which is why their HE
             // damage matches and their AP damage does not. Sourcing and GAP notes live with the
             // numbers in `RoundId::spec`.
@@ -166,6 +169,7 @@ pub(crate) fn gun_kwk43() -> GunModule {
             // The Serienturm: -8 / +15.
             depression_deg: 8.0,
             elevation_deg: 15.0,
+            elevation_rate_rad_s: 0.8,
             // HE is the shared L/4.5 `RoundId` — same 300 HP as the Tiger I's, because it is
             // the same shell, which the old multiplier could never say.
             shell: RoundId::Pzgr39_43.spec(),

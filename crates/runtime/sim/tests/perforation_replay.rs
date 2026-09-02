@@ -78,8 +78,12 @@ fn a_penetration_carves_the_same_perforation_on_every_run() {
     assert_eq!(first.aperture_group_count(), 1);
     assert_eq!(breach.frame, game_core::ArmorFrame::Hull);
     assert_eq!(breach.zone, game_core::ArmorZone::UpperGlacis);
+    // Re-pinned 2026-09-02 (Inny Poziom A12, the gun's own elevation rate): the fixture depresses
+    // the D-10 for one tick at full command, and 0.9 rad/s instead of the old fleet constant
+    // 0.5 depresses it 1.8x further, so the round meets the target 0.33 m lower and 0.58 m
+    // deeper along the hull — the same shell, a lower lay.
     assert!(
-        (lobe.entry_local - Vec3::new(-0.001_623, 1.294_74, 2.606_99)).length() < 1.0e-3,
+        (lobe.entry_local - Vec3::new(-0.001_603, 0.962_26, 3.182_86)).length() < 1.0e-3,
         "the entry point drifted: {:?}",
         lobe.entry_local
     );

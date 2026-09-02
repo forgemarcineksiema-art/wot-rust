@@ -83,11 +83,22 @@ turret module (`crates/foundation/game_core/src/modules/loadout.rs:87`,
 at genre-class values since Inny Poziom A11 (T-54 48 deg/s, T-34-85 46,
 Centurion 36, Panther II 30, IS-3 28, Tiger I 26, Tiger II 23; locked: no rotating
 turret under 22 deg/s, every turret at least 0.75 of its hull's turn rate, and a
-fleet spread of at least 2×). Gun elevation speed is NOT: the whole fleet shares
-`GUN_ELEVATION_RATE_RAD_S = 0.5` (`crates/runtime/sim/src/aiming.rs:6,43-45`) —
-register row A12 owes the per-gun rate and the stabilizer.
+fleet spread of at least 2×). Gun elevation speed is the GUN's
+(`GunSpec::elevation_rate_rad_s`, Inny Poziom A12: 0.6 rad/s for the 12.8 cm Pak 80
+up to 1.0 for the 85 mm ZiS-S-53; the fleet used to share one sim constant of 0.5).
 Crew and module modifiers may layer on top later, but they must feed the same
 command path rather than bypassing it.
+
+**The stabilizer is a vehicle property with a historical answer** (A12).
+`TankSpec::vertical_stabilizer` (0..1, from the turret module) is the share of
+every hull pitch change the mount cancels the same tick, so the gun holds its
+world elevation inside its arc while the hull works the ground; the drive step
+measures the hull's pitch delta around the attitude advance and `step_aiming`
+applies it before the gunner's command, on the server and in the client
+predictor alike (no wire change). The Centurion Mk 3 carries one; the wartime
+hulls and the T-54 obr. 1951 do not (the STP-1 came with the T-54A in 1955) —
+their gunners recover the hull's pitch at the gun's own elevation rate through
+the time-optimal command. Locked by name in `game_core/tests/modules.rs`.
 
 **The gun runs at its full rate until it lands** (Inny Poziom A10). The sim's
 `step_aiming` is a pure rate limiter with no inertia, so the client's turret and

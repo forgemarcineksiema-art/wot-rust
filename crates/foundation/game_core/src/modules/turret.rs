@@ -41,6 +41,11 @@ pub struct TurretModule {
     #[serde(default)]
     pub roof_mm: Option<f32>,
     pub traverse: TurretTraverse,
+    /// Vertical gun stabilizer, 0 (none) to 1 (holds the gun's world elevation against every
+    /// hull pitch change, within the arc). Inny Poziom A12: the Centurion Mk 3 carried one;
+    /// the wartime hulls and the T-54 obr. 1951 did not (the T-54A's STP-1 came in 1955).
+    #[serde(default)]
+    pub vertical_stabilizer: f32,
     /// Largest gun caliber (mm) this turret accepts — the gun-mount compatibility gate.
     pub max_gun_caliber_mm: f32,
 }

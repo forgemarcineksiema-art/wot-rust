@@ -39,6 +39,7 @@ pub(crate) fn jagdtiger_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Fixed,
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 130.0,
         },
         gun: gun_pak80(),
@@ -81,6 +82,7 @@ pub(crate) fn panther_loadout() -> VehicleModules {
             rear_mm: 45.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.52 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 80.0,
         },
         gun: gun_kwk42(),
@@ -131,6 +133,7 @@ pub(crate) fn gun_pak43_l71() -> GunModule {
             // the gun, sets the arc; marked low-confidence in the dossier).
             depression_deg: 7.5,
             elevation_deg: 15.0,
+            elevation_rate_rad_s: 0.8,
             // The same weapon as the KwK 43 in a different mount, so the same `RoundId`s.
             shell: RoundId::Pzgr39_43.spec(),
             special_shell: Some(RoundId::Pzgr40_43.spec()),
@@ -156,6 +159,7 @@ pub(crate) fn gun_pak80() -> GunModule {
             // -7.5, and that half-degree is in the sources by name.
             depression_deg: 7.5,
             elevation_deg: 15.0,
+            elevation_rate_rad_s: 0.6,
             shell: RoundId::Pzgr43.spec(),
             // NO SPECIAL ROUND. The 12.8 cm never fielded a tungsten shell — the shortage that
             // ended Pzgr 40 production is a fact about this gun, not an oversight — so it
@@ -183,6 +187,7 @@ pub(crate) fn gun_kwk42() -> GunModule {
             // The Schmalturm mount: -8 / +20 (KwK 44/1 figures for the same turret).
             depression_deg: 8.0,
             elevation_deg: 20.0,
+            elevation_rate_rad_s: 1.0,
             // Sourcing (the Pzgr 40/42's fully-sourced 1,120 m/s, the Sprgr 42's filler GAP)
             // lives with the numbers in `RoundId::spec`.
             shell: RoundId::Pzgr39_42.spec(),
