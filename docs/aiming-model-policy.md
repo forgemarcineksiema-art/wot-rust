@@ -79,11 +79,28 @@ vehicle gun and shell velocity.
 
 Turret traverse speed is a vehicle property — it comes from the installed
 turret module (`crates/foundation/game_core/src/modules/loadout.rs:87`,
-`turret.traverse.rate_rad_s()` assembled into `TankSpec::turret_rotation_rad_s`).
-Gun elevation speed is NOT: the whole fleet shares
-`GUN_ELEVATION_RATE_RAD_S = 0.5` (`crates/runtime/sim/src/aiming.rs:6,43-45`).
+`turret.traverse.rate_rad_s()` assembled into `TankSpec::turret_rotation_rad_s`),
+at genre-class values since Inny Poziom A11 (T-54 48 deg/s, T-34-85 46,
+Centurion 36, Panther II 30, IS-3 28, Tiger I 26, Tiger II 23; locked: no rotating
+turret under 22 deg/s, every turret at least 0.75 of its hull's turn rate, and a
+fleet spread of at least 2×). Gun elevation speed is NOT: the whole fleet shares
+`GUN_ELEVATION_RATE_RAD_S = 0.5` (`crates/runtime/sim/src/aiming.rs:6,43-45`) —
+register row A12 owes the per-gun rate and the stabilizer.
 Crew and module modifiers may layer on top later, but they must feed the same
 command path rather than bypassing it.
+
+**The gun runs at its full rate until it lands** (Inny Poziom A10). The sim's
+`step_aiming` is a pure rate limiter with no inertia, so the client's turret and
+elevation commands are time-optimal: full rate while the remaining error is
+more than one tick of travel, then exactly the remainder
+(`client/src/aim.rs::rate_command_to_land`). The gun arrives in
+`ceil(error / (rate·dt))` ticks without overshoot, and a sight sweeping slower
+than the turret is tracked with at most one tick of lag. The proportional gain
+that stood here (`error × 5`) ran full rate only above 11.5° of error and left a
+permanent, range-independent lag of `crossing speed ÷ (rate × gain)` against a
+moving target — 7 m for a T-54 tracking a 54 km/h crosser, more than the
+ballistic lead. The player's own gun is locally predicted and carries no
+network delay; the controller was the whole of the felt lag.
 
 ## Aim Time And Dispersion
 

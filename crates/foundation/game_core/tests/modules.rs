@@ -72,3 +72,38 @@ fn jagdtiger_turret_is_a_fixed_casemate() {
     assert!(modules.turret.traverse.is_fixed());
     assert_eq!(modules.assemble(VehicleKind::Jagdtiger).turret_rotation_rad_s, 0.0);
 }
+
+/// Inny Poziom A11: the fleet's turrets traverse at genre-class rates. They shipped at half of
+/// them (16–25 deg/s, a 1.57× spread) and every rotating turret was out-turned by its own hull,
+/// so steering stripped the world bearing faster than the gunner recovered it. Three floors, so
+/// a re-tune cannot slide back: no rotating turret under 22 deg/s, every turret at least three
+/// quarters of its hull's turn rate, and a fleet spread of at least 2× (traverse is a stat that
+/// tells vehicles apart, not a constant with noise on it).
+#[test]
+fn every_rotating_turret_is_genre_fast_and_keeps_up_with_its_hull() {
+    let mut slowest = f32::MAX;
+    let mut fastest = 0.0_f32;
+    let mut walked = 0usize;
+    for kind in VehicleKind::ALL {
+        let spec = kind.default_loadout().assemble(kind);
+        if spec.has_fixed_casemate() {
+            continue;
+        }
+        let turret = spec.turret_rotation_rad_s.to_degrees();
+        let hull = spec.turn_rate_rad_s.to_degrees();
+        walked += 1;
+        assert!(turret >= 22.0, "{kind:?}: turret {turret:.1} deg/s is under the 22 deg/s floor");
+        assert!(
+            turret >= 0.75 * hull,
+            "{kind:?}: turret {turret:.1} deg/s cannot keep up with a hull turning {hull:.1} deg/s"
+        );
+        slowest = slowest.min(turret);
+        fastest = fastest.max(turret);
+    }
+    assert!(
+        walked >= 7,
+        "the fleet walk checked {walked} turrets of {} vehicles",
+        VehicleKind::ALL.len()
+    );
+    assert!(fastest / slowest >= 2.0, "fleet spread {fastest:.1}/{slowest:.1} tells nobody apart");
+}

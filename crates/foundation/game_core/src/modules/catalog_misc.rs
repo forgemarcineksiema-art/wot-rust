@@ -80,7 +80,7 @@ pub(crate) fn panther_loadout() -> VehicleModules {
             side_mm: 60.0,
             rear_mm: 45.0,
             roof_mm: None,
-            traverse: TurretTraverse::Rotating { rate_rad_s: 0.38 },
+            traverse: TurretTraverse::Rotating { rate_rad_s: 0.52 },
             max_gun_caliber_mm: 80.0,
         },
         gun: gun_kwk42(),
