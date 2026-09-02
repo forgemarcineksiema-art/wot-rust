@@ -30,6 +30,7 @@ mod grass_costumes;
 mod is3_studio;
 mod jagdtiger_profile_probe;
 mod muzzle_probe;
+mod oak_probe;
 mod orliny_views;
 mod ostrogorsk_views;
 mod panther_ii_profile_probe;
@@ -110,6 +111,7 @@ const PROBES: &[ProbeEntry] = &[
     ("is3_studio", is3_studio::run),
     ("jagdtiger_profile_probe", jagdtiger_profile_probe::run),
     ("muzzle_probe", muzzle_probe::run),
+    ("oak_probe", oak_probe::run),
     ("orliny_views", orliny_views::run),
     ("ostrogorsk_views", ostrogorsk_views::run),
     ("panther_ii_profile_probe", panther_ii_profile_probe::run),

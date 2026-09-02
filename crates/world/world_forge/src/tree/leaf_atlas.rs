@@ -96,7 +96,7 @@ pub const SLOT_WHITE: u8 = 0;
 /// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
 /// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
 /// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0x57bc_8fe1_2799_82f4;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0x0e8a_0603_2b65_8cb5;
 
 /// The slots a species' cards are dealt from: the authored cluster block when the species
 /// has authored clusters (route 2), else its two procedural mask variants.

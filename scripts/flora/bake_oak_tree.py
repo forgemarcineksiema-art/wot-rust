@@ -36,7 +36,7 @@ OAK = dict(
     levels=3,
     length=(1.0, 0.55, 0.45, 0.4),
     lengthV=(0.0, 0.08, 0.12, 0.0),
-    branches=(0, 22, 9, 0),
+    branches=(0, 24, 12, 0),
     curveRes=(8, 5, 3, 1),
     curve=(0.0, -30.0, -25.0, 0.0),
     curveV=(30.0, 90.0, 110.0, 0.0),
@@ -70,7 +70,7 @@ OAK = dict(
     rotateV=(0.0, 20.0, 20.0, 0.0),
     scale0=1.0,
     scaleV0=0.0,
-    leaves=2,
+    leaves=4,
     leafDownAngle=40.0,
     leafDownAngleV=15.0,
     leafRotate=137.5,
@@ -90,13 +90,13 @@ OAK = dict(
 )
 # Bevel and curve resolution per rung.
 RUNGS = {
-    "near": dict(bevelRes=1, resU=2, limb_min_radius_m=0.10, twig_min_radius_m=0.065),
+    "near": dict(bevelRes=1, resU=2, limb_min_radius_m=0.10, twig_min_radius_m=0.045),
     "mid": dict(bevelRes=0, resU=1, limb_min_radius_m=0.14, twig_min_radius_m=0.14),
 }
 # A cluster's stem may hang at most this far from the wood that carries it; farther cards
 # are pulled onto the nearest kept spline (the twig they grew on was not exported).
 CARD_REACH_M = 0.35
-CARD_HALF_M = 0.72
+CARD_HALF_M = 0.85
 
 
 def parse_args():

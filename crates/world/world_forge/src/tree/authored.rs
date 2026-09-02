@@ -77,7 +77,7 @@ pub fn sprite_origin(sprite: u32) -> (u32, u32) {
 /// The golden hash of the oak's cluster pages as baked on 2026-09-02 (seed 1, 96 samples,
 /// Blender 5.2.0 LTS, Cycles on the MX330). A re-bake changes the picture: bless deliberately
 /// and say what changed about the LEAVES.
-pub const OAK_CLUSTERS_GOLDEN: u64 = 0xb804_134c_2fc1_e7b4;
+pub const OAK_CLUSTERS_GOLDEN: u64 = 0xde88_4b37_8202_081d;
 
 static OAK_COLOR_PNG: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -195,7 +195,7 @@ static OAK_TREE_MID: &[u8] =
 /// The golden hashes of the oak's two rung files (FNV over the bytes). A re-export changes the
 /// tree: bless deliberately and say what changed about the SHAPE.
 pub const OAK_TREE_GOLDENS: [(TreeLod, u64); 2] =
-    [(TreeLod::Close, 0x5a00_d920_2303_3a9b), (TreeLod::Mid, 0x400f_3fbc_bf76_9c99)];
+    [(TreeLod::Close, 0xb1ec_a836_1182_26fa), (TreeLod::Mid, 0x3cde_941e_4fa3_ec4e)];
 
 /// The shade lane of an authored deck: rim cards at 1.0, core cards down to this — the same
 /// one-mass law the procedural dealer applies (`leaves::CORE_SHADE`).
@@ -348,11 +348,11 @@ mod tests {
         }
         let near = tree(TreeSpecies::Oak, 0, TreeLod::Close).expect("authored oak");
         let mid = tree(TreeSpecies::Oak, 0, TreeLod::Mid).expect("authored oak");
-        // Measured 2,104 at the second export (13 limbs at eight sides + 16 twigs at four).
-        assert!(near.trunk.triangle_count() <= 2_400, "near wood {}", near.trunk.triangle_count());
+        // Measured 3,128 at the dense export (limbs at eight sides + 57 twigs at four).
+        assert!(near.trunk.triangle_count() <= 3_500, "near wood {}", near.trunk.triangle_count());
         assert!(mid.trunk.triangle_count() <= 700, "mid wood {}", mid.trunk.triangle_count());
         assert!(mid.trunk.triangle_count() < near.trunk.triangle_count());
-        assert!((240..=400).contains(&near.leaves.len()), "near deck {}", near.leaves.len());
+        assert!((240..=520).contains(&near.leaves.len()), "near deck {}", near.leaves.len());
         assert!(mid.leaves.len() < near.leaves.len() && mid.leaves.len() >= 120);
         assert!(near.leaves.len().is_multiple_of(2), "cross pairs come in twos");
         assert!(near.tip() > 15.0, "the oak stays mature: {}", near.tip());

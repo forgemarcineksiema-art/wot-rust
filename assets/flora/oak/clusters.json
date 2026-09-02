@@ -15,42 +15,42 @@
     {
       "index": 0,
       "seed": 1000,
-      "leaves": 269
+      "leaves": 434
     },
     {
       "index": 1,
       "seed": 1001,
-      "leaves": 270
+      "leaves": 387
     },
     {
       "index": 2,
       "seed": 1002,
-      "leaves": 253
+      "leaves": 446
     },
     {
       "index": 3,
       "seed": 1003,
-      "leaves": 251
+      "leaves": 443
     },
     {
       "index": 4,
       "seed": 1004,
-      "leaves": 246
+      "leaves": 433
     },
     {
       "index": 5,
       "seed": 1005,
-      "leaves": 250
+      "leaves": 441
     },
     {
       "index": 6,
       "seed": 1006,
-      "leaves": 242
+      "leaves": 424
     },
     {
       "index": 7,
       "seed": 1007,
-      "leaves": 274
+      "leaves": 384
     }
   ],
   "color": "clusters_color.png",

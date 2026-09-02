@@ -224,7 +224,7 @@ def build_cluster(seed, leaf_count, bark, rng):
     main_obj, _ = twig_curve(main, 0.014, f"twig_main_{seed}")
     main_obj.data.materials.append(bark)
     twigs = [main]
-    for side in range(rng.randint(9, 12)):
+    for side in range(rng.randint(13, 16)):
         t0 = rng.uniform(0.12, 0.9)
         p, tangent = spline_frame(main, t0)
         yaw = rng.uniform(0.0, 2 * math.pi)
@@ -241,7 +241,7 @@ def build_cluster(seed, leaf_count, bark, rng):
         twig = twigs[rng.randrange(len(twigs))]
         t = rng.uniform(0.1, 1.0) if twig is not main else rng.uniform(0.3, 1.0)
         p, tangent = spline_frame(twig, t)
-        length = rng.uniform(0.13, 0.20)
+        length = rng.uniform(0.15, 0.23)
         mesh = leaf_mesh(f"leaf_{seed}_{i}", length, rng)
         leaf = bpy.data.objects.new(f"leaf_{seed}_{i}", mesh)
         leaf.data.materials.append(leaf_material(f"leaf_mat_{seed}_{i}", rng))
@@ -301,7 +301,7 @@ def bake_sprite(index, seed, out_dir, samples):
     ortho_camera()
     rng = random.Random(seed)
     bark = bark_material()
-    leaf_count = rng.randint(220, 280)
+    leaf_count = rng.randint(380, 460)
     leaves = build_cluster(seed, leaf_count, bark, rng)
     color_path = os.path.join(out_dir, f"sprite_{index}_color.png")
     render(color_path)

@@ -20,8 +20,8 @@
     ],
     "branches": [
       0,
-      22,
-      9,
+      24,
+      12,
       0
     ],
     "curveRes": [
@@ -132,7 +132,7 @@
     ],
     "scale0": 1.0,
     "scaleV0": 0.0,
-    "leaves": 2,
+    "leaves": 4,
     "leafDownAngle": 40.0,
     "leafDownAngleV": 15.0,
     "leafRotate": 137.5,
@@ -152,21 +152,21 @@
   },
   "rungs": {
     "near": {
-      "wood_vertices": 1194,
-      "wood_triangles": 2104,
-      "limbs_kept": 29,
-      "cards": 322,
-      "tip_wood_m": 16.227,
-      "tip_cards_m": 17.777,
+      "wood_vertices": 1872,
+      "wood_triangles": 3128,
+      "limbs_kept": 70,
+      "cards": 478,
+      "tip_wood_m": 16.756,
+      "tip_cards_m": 18.475,
       "butt_radius_m": 0.6
     },
     "mid": {
       "wood_vertices": 268,
       "wood_triangles": 456,
       "limbs_kept": 10,
-      "cards": 162,
-      "tip_wood_m": 15.876,
-      "tip_cards_m": 17.777,
+      "cards": 240,
+      "tip_wood_m": 14.997,
+      "tip_cards_m": 18.475,
       "butt_radius_m": 0.6
     }
   }

@@ -456,7 +456,9 @@ mod tests {
             // cards × 4 = 3,150 at the widest seed); the MX330 verdict is the
             // flora_frame_probe's views, not this number — this only catches silent growth.
             let ceiling = match species {
-                TreeSpecies::Oak => 3_400,
+                // The authored oak (route 2): 3,128 of wood + 478 cards × 4 = 5,040 measured;
+                // the fill verdict is the flora_frame_probe's under-crown view.
+                TreeSpecies::Oak => 5_500,
                 TreeSpecies::Poplar => NEAR_RUNG_MAX_TRIS_POPLAR,
                 TreeSpecies::Willow => NEAR_RUNG_MAX_TRIS_WILLOW,
                 TreeSpecies::FruitTree => NEAR_RUNG_MAX_TRIS_FRUIT,
@@ -668,8 +670,9 @@ mod tests {
         // a bare pole with confetti.
         let near = cards(TreeSpecies::Oak, TreeLod::Near);
         let mid = cards(TreeSpecies::Oak, TreeLod::Mid);
-        assert!((240..=400).contains(&near), "Near deck: {near} cards");
-        assert!((120..=200).contains(&mid), "Mid deck: {mid} cards");
+        // Re-banded for the authored oak (route 2): 478 near / 240 mid measured.
+        assert!((240..=520).contains(&near), "Near deck: {near} cards");
+        assert!((120..=260).contains(&mid), "Mid deck: {mid} cards");
         for species in LADDER_SPECIES {
             // Every species thins toward the far rung: the ladder is a ladder for all of them.
             let near = cards(species, TreeLod::Near);
@@ -689,7 +692,7 @@ mod tests {
     /// Measured at RUNG_SEED: oak 344, poplar 256, willow 360, fruit tree 200, pine 432 — the
     /// pine's stacked conical crown deals the widest deck, and it is the one crown a hull
     /// never parks under (the bare lower trunk keeps the eye below the cards).
-    const NEAR_DECK_MAX_CARDS: usize = 460;
+    const NEAR_DECK_MAX_CARDS: usize = 520;
 
     /// L2 of the wind hierarchy (PR11): the per-card jitter is a pure deterministic function
     /// inside its authored band, and it actually VARIES — a crown answering a gust in
