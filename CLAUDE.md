@@ -29,6 +29,9 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided
+- `docs/game-design.md` — **the top-level design: the owner's design document verbatim + the
+  reconciliation table (2026-09-02). Every design decision cites a chapter of it or adds a dated
+  row to that table; where the table and the text disagree, the table wins.**
 - `docs/ROADMAP.md` — **the whole picture: systems inventory and the honest gap list, start here**.
 - `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
   the target look, its 7 rules and their locks.

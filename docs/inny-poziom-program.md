@@ -139,6 +139,9 @@ Two mechanisms keep it invisible:
 
 ### The owner's design brief (2026-09-02)
 
+The full design document is `docs/game-design.md` (adopted the same day, with its reconciliation
+table); this brief is its mid-playtest precursor and the two agree.
+
 Given mid-playtest, after A10–A12. Recorded as the owner's DECISIONS; each says what the repo
 already has and which rows carry the rest.
 
@@ -182,6 +185,32 @@ already has and which rows carry the rest.
   the scope's verdict with the millimetres (sniper mode), replays as the sim's own fixtures.
   Owed: the inspector's thickness-at-a-point through the shared resolver, the per-shot battle
   log screen, the in-game replay viewer — the **L lane** (the ledger) below.
+
+### The two bars (2026-09-02)
+
+Set by the owner the same afternoon, above every lane: **"the best-shooting tank in history, and
+the best physics and destruction in history."** Neither is a row; each is a bar with an instrument,
+and a row in its lanes closes only when its number moves. Both instruments are owed — the first
+lands with S1, the second with the next Z row — and are named here so the rows build toward them
+rather than past them.
+
+- **Bar 1 — the shot.** Instrument `shot_probe` (a `client` example probe, then a test): every
+  gun of the fleet fires once at rest and the probe reads the FIRST frame after the trigger. The
+  bar: all channels are present in that frame — flash and its light (S1), smoke, the dust ring,
+  the barrel stroke, the hull rock, the camera nudge, the report's onset — every one scaled by
+  the round's recoil momentum (S3), monotonic across the fleet from the 75 mm to the 128 mm; the
+  player's own shot leaves the muzzle with no network delay (standing); the reticle's verdict is
+  the server's (A1); the turret arrives time-optimally (A10) and the gun holds through the pitch
+  of the hull (A12). Rows: S1, S4, S5, S7–S12 owe their channel; a shot that is late, missing a
+  channel, or the same for two calibres is the bar failing, not a polish item.
+- **Bar 2 — the world after five minutes.** Instrument `world_marks` (a deterministic 7v7 bot
+  battle of five minutes on each shipped map, replayed from its input log): the probe counts the
+  marks the battle left — craters and their gameplay slopes, ruts, felled trees and stumps, walls
+  and buildings brought down and their mounds, scorched ground, wrecks — and the physics the
+  battle showed: hull settle and rock under fire and braking (G7, "45 tons"), track–ground
+  contact, wreck and rubble as terrain. The bar: a per-map floor of marks that only ratchets up,
+  and no mark that is a decal where it should be a slope. Rows: Z1–Z3 done; G7, the rest of Z,
+  the B lane (buildings) and the P lane owe their number.
 
 ## Defect register
 
