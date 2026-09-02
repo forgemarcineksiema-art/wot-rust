@@ -201,6 +201,16 @@ pub fn battlefield_statics_bucket_mesh(
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => {
                 append_cover_box(&mut vertices, &mut indices, cover);
+                // The standing tree line is PLANTED (Inny Poziom F3): real trees from the
+                // map's species mix, fitted to the box, over the undergrowth mass the cover
+                // box bake keeps. The box bake stays battlefield-free for its callers; the
+                // planting needs the map for its mix.
+                crate::tree_line::push_tree_line_trees(
+                    &mut vertices,
+                    &mut indices,
+                    battlefield,
+                    cover,
+                );
                 for scar in cover_scars.iter().filter(|scar| scar.cover as usize == index) {
                     append_cover_scar(&mut vertices, &mut indices, cover, scar);
                 }
@@ -303,15 +313,18 @@ fn append_felled_tree_line(
     let half = Vec3::from_array(cover.half_extents_m);
     let ground_y = center.y - half.y;
 
-    // Stumps: one at the foot of every tree the cleared box swallowed. Rocks and furniture
-    // standing in the footprint are not trees and do not leave a stump.
-    for instance in &battlefield.scenery {
+    // Stumps: one at the foot of every tree the cleared box swallowed — the scenery it
+    // hosted AND the trees it was planted with (Inny Poziom F3: the same stations the
+    // standing line grew from, so the wreckage stands where the trees stood). Rocks and
+    // furniture standing in the footprint are not trees and do not leave a stump.
+    let hosted = battlefield.scenery.iter().filter(|instance| {
         let p = instance.position;
-        if (p[0] - cover.center[0]).abs() > cover.half_extents_m[0]
-            || (p[2] - cover.center[2]).abs() > cover.half_extents_m[2]
-        {
-            continue;
-        }
+        (p[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
+            && (p[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+    });
+    let planted = crate::tree_line::tree_line_stations(battlefield, cover);
+    for instance in hosted.chain(planted.iter().map(|station| &station.instance)) {
+        let p = instance.position;
         let Some(species) = tree_species_for_scenery(instance.kind) else {
             continue;
         };
@@ -952,10 +965,18 @@ fn append_tree_line(
     indices: &mut Vec<u32>,
     cover: &StaticCoverObject,
 ) {
+    // The hedge body is all this bake draws (Inny Poziom F3); the trees are PLANTED over it by
+    // `tree_line::push_tree_line_trees` from the map's species mix, each with a crown hull.
+    // The two rows of stick boles under a run of crown-coloured boxes that stood here read as
+    // what they were, while the map's own species stood fully grown twenty metres away.
+    //
+    // The body is the dense shrub layer every hedgerow and windbreak has under its trees —
+    // a mass to `TREE_LINE_BODY_HEIGHT` of the wall (6.2–8.8 m on the shipped boxes: over
+    // the tallest hull in the fleet, so a tank behind the wall is hidden by the wall the sim
+    // hides it with), inset from the box faces so the silhouette stays leafy, not slab-sided.
+    // The crown hulls take over from `tree_line::HULL_BOTTOM` up, so the wall is opaque from
+    // the ground to the crowns' tips.
     const UNDERGROWTH: [f32; 3] = [0.10, 0.17, 0.09];
-    const BOLE: [f32; 3] = [0.27, 0.21, 0.14];
-    const CROWN: [f32; 3] = [0.13, 0.22, 0.10];
-    const CROWN_LIT: [f32; 3] = [0.17, 0.27, 0.12];
     let center = Vec3::from_array(cover.center);
     let half = Vec3::from_array(cover.half_extents_m);
     let ground_y = center.y - half.y;
@@ -963,99 +984,21 @@ fn append_tree_line(
     let run = if along_x { half.x } else { half.z };
     let thin = if along_x { half.z } else { half.x };
     let box_top = half.y * 2.0;
-
-    // The undergrowth: a dense knee-to-hull mass along the whole run, inset from the box
-    // faces so the silhouette stays leafy, not slab-sided.
-    let undergrowth_h = (box_top * 0.13).clamp(1.8, 2.6);
+    let body_h = (box_top * TREE_LINE_BODY_HEIGHT).clamp(2.6, 9.0);
     let (ux, uz) = if along_x { (run - 0.15, thin - 0.22) } else { (thin - 0.22, run - 0.15) };
     push_surfaced_box(
         vertices,
         indices,
-        Vec3::new(center.x, ground_y + undergrowth_h * 0.5, center.z),
-        Vec3::new(ux, undergrowth_h * 0.5, uz),
+        Vec3::new(center.x, ground_y + body_h * 0.5, center.z),
+        Vec3::new(ux, body_h * 0.5, uz),
         UNDERGROWTH,
         0.04,
     );
-
-    // Two rows of boles up to the crown line, the second row offset by half a spacing so the
-    // gaps of one row stand behind the trunks of the other. Per-trunk height and girth vary
-    // by the cover-id hash — a planted row, not a fence of clones.
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in cover.id.bytes() {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
-    }
-    let mut next = move || {
-        hash ^= hash << 13;
-        hash ^= hash >> 7;
-        hash ^= hash << 17;
-        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
-    };
-    let crown_base = box_top * 0.55;
-    let spacing = 2.4_f32;
-    let trunks_per_row = ((run * 2.0 - 1.0) / spacing).floor().max(1.0) as usize;
-    for row in 0..2usize {
-        let across = (if row == 0 { -0.38_f32 } else { 0.38 }) * (thin - 0.2);
-        let stagger = if row == 0 { 0.0_f32 } else { spacing * 0.5 };
-        for index in 0..trunks_per_row {
-            let along = -run + 0.55 + stagger + index as f32 * spacing;
-            if along > run - 0.55 {
-                break;
-            }
-            let girth = 0.14 + next() * 0.07;
-            let bole_h = crown_base * (0.92 + next() * 0.12);
-            let (tx, tz) = if along_x {
-                (center.x + along, center.z + across)
-            } else {
-                (center.x + across, center.z + along)
-            };
-            push_surfaced_box(
-                vertices,
-                indices,
-                Vec3::new(tx, ground_y + bole_h * 0.5, tz),
-                Vec3::new(girth, bole_h * 0.5, girth),
-                BOLE,
-                0.05,
-            );
-        }
-    }
-
-    // The crown run: not a slab but a rhythm of masses — one segment over roughly every two
-    // boles, each with its own seeded top (88–100 % of the box top, never above it) and a
-    // narrow gap to its neighbours, so the skyline undulates like a planted row.
-    // The lit cap reads as the sun-struck upper foliage.
-    let crown_lo = box_top * 0.45;
-    let seg_step = spacing * 1.8;
-    let segments = ((run * 2.0 - 1.2) / seg_step).floor().max(1.0) as usize;
-    for segment in 0..segments {
-        let seg_lo = -run + 0.6 + segment as f32 * seg_step;
-        let seg_half = seg_step * (0.40 + next() * 0.08);
-        let seg_top = box_top * (0.88 + next() * 0.12);
-        let seg_across = thin - 0.12 - next() * 0.25;
-        let seg_mid = seg_lo + seg_step * 0.5;
-        let (sx, sz, hx, hz) = if along_x {
-            (center.x + seg_mid, center.z, seg_half, seg_across)
-        } else {
-            (center.x, center.z + seg_mid, seg_across, seg_half)
-        };
-        push_surfaced_box(
-            vertices,
-            indices,
-            Vec3::new(sx, ground_y + (crown_lo + seg_top) * 0.5, sz),
-            Vec3::new(hx, (seg_top - crown_lo) * 0.5, hz),
-            CROWN,
-            0.06,
-        );
-        push_surfaced_box(
-            vertices,
-            indices,
-            Vec3::new(sx, ground_y + seg_top - 0.3, sz),
-            Vec3::new(hx * 0.82, 0.3, hz * 0.82),
-            CROWN_LIT,
-            0.07,
-        );
-    }
 }
+
+/// The hedge body reaches this fraction of the box height (clamped to 2.6–9 m): above the
+/// crown hulls' bottom (`tree_line::HULL_BOTTOM`, 0.30), so body and hulls overlap; 0.35 left a sight line through where the hulls still taper.
+pub(crate) const TREE_LINE_BODY_HEIGHT: f32 = 0.40;
 
 /// RailCover 2.0 (Świat 2.0 PR 7): not a bare slab. Elongated boxes become a revetment —
 /// battered stone face, earth fill behind, coping course, buttresses on the longer runs.
@@ -2293,6 +2236,71 @@ mod tests {
                 vertex.position[1] < ground_top,
                 "wreckage lies LOW — nothing pokes above the old canopy box: y {}",
                 vertex.position[1]
+            );
+        }
+    }
+
+    /// Inny Poziom F3: the standing line is trees over the hedge body, not boxes on sticks.
+    /// The cover-box bake draws the body alone (one surfaced box, 24 vertices) — a shrub mass
+    /// over the tallest hull in the fleet and up to the crown hulls' bottom, never the old
+    /// crown slab; every other vertex in the intact line's footprint is a planted tree — bark
+    /// or foliage by surface role — and there are many of them.
+    #[test]
+    fn a_standing_tree_line_is_planted_trees_over_the_hedge_body_and_no_slab() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        for cover in map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
+        {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            append_cover_box(&mut vertices, &mut indices, cover);
+            assert_eq!(vertices.len(), 24, "{}: the box bake is the hedge body alone", cover.id);
+            let floor = cover.center[1] - cover.half_extents_m[1];
+            let box_height = cover.half_extents_m[1] * 2.0;
+            let body_top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - floor;
+            assert!(
+                body_top >= 3.1 && body_top <= box_height * TREE_LINE_BODY_HEIGHT + 1.0e-3,
+                "{}: the body hides a Tiger II (3.09 m) and stops under the crowns: {body_top:.2}",
+                cover.id
+            );
+            assert!(
+                body_top >= box_height * crate::tree_line::HULL_BOTTOM,
+                "{}: the body reaches the crown hulls, so the wall has no window between them",
+                cover.id
+            );
+
+            let mut planted = Vec::new();
+            let mut planted_indices = Vec::new();
+            crate::tree_line::push_tree_line_trees(&mut planted, &mut planted_indices, &map, cover);
+            assert!(planted.len() > 24 * 8, "{}: the line is planted, not sketched", cover.id);
+            for vertex in &planted {
+                assert!(
+                    vertex.surface == renderer_api::surface_role::BARK
+                        || vertex.surface == renderer_api::surface_role::FOLIAGE,
+                    "{}: a planted line is bark and foliage — a vertex with role {} is a slab",
+                    cover.id,
+                    vertex.surface
+                );
+            }
+        }
+    }
+
+    /// Inny Poziom F3: a felled line leaves a stump at every station it was planted from
+    /// (the heartwood cap counts them), on top of the stumps of any scenery it hosted.
+    #[test]
+    fn a_felled_tree_line_leaves_a_stump_where_each_planted_tree_stood() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let heartwood = [0.45, 0.36, 0.24];
+        for cover in map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
+        {
+            let stations = crate::tree_line::tree_line_stations(&map, cover).len();
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            append_felled_tree_line(&mut vertices, &mut indices, &map, cover);
+            let caps = vertices.iter().filter(|v| v.color == heartwood).count() / 24;
+            assert!(
+                caps >= stations && stations >= 5,
+                "{}: {stations} trees planted, {caps} stumps left",
+                cover.id
             );
         }
     }

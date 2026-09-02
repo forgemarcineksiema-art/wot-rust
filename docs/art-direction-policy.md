@@ -182,7 +182,7 @@ hangar view belongs in the canonical review set above.
 
 1. Change the profile / shader / content with its own tests.
 2. `cargo test -p renderer_api --test look_locks` — the bible still holds.
-3. `WOT_UPDATE_GOLDENS=1 cargo test -p client --test look_goldens` — re-record, then eyeball
+3. `WOT_UPDATE_GOLDENS=1 cargo test -p client --test look_goldens -- --test-threads=1` — re-record, then eyeball
    the new PNGs against the old ones in the diff.
 4. The always-on golden statistics re-run in verify — if the new picture lost its value
    structure, the gate fails regardless of what the diff author thought of it.

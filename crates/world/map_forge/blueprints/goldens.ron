@@ -127,9 +127,24 @@
     // the program's only GAMEPLAY-shaping wave, shipped behind the user's eye verdict with
     // the before/after probes and the LOS-delta report in the PR. Census, playability BFS,
     // symmetry and the rubble-sightline band all held un-relaxed.
-    ("bystra_valley", "3161e30ae33d03ed"),
-    ("orliny_pereval", "d77bdb0815a7c23a"),
-    ("ostrogorsk", "f4cd7a1809c1d9ba"),
+    // Re-blessed 2026-09-02 (Inny Poziom F2 — the monoculture ends), ALL FIVE MAPS: every
+    // map planted Oak and Bush and nothing else while Poplar, Willow, FruitTree and Pine
+    // stood fully grown and placed nowhere (the pass named "pine belt" had no pine). Each
+    // map now plants the species its own horizon mix names: Bystra willows on the river
+    // banks + a poplar windbreak by the valley road + the orchard behind its screen
+    // (26 oak / 12 poplar / 18 willow / 12 fruit); Prokhorovka a poplar windbreak on the
+    // farm road, willows in both balkas, the Oktyabrskiy orchard (18 / 14 / 18 / 10);
+    // Orliny pines on three slopes + hamlet fruit trees (16 oak / 44 pine / 6 fruit);
+    // Ostrogorsk poplars down the promenade + two orchards (26 oak / 16 poplar / 20 fruit);
+    // Mazurski pines on the eskers and the erratic field, willows on the dry shore band
+    // (12 oak / 28 pine / 12 willow). The compile REPORT gates it from here
+    // (`species_mix`: ≥ 3 species, none over 70 %, every horizon species ≥ 0.10 planted;
+    // `DRESSED_MAP_TREES` keeps fixtures out and the goldens test keeps shipped maps in).
+    // Dressing only: cover, terrain, roads and gameplay stand untouched; scatters keep
+    // 3 m off cover and roads, spawn circles and crossing lanes as their neighbours do.
+    ("bystra_valley", "f0e6e7f2cdd96a32"),
+    ("orliny_pereval", "2e256db696d1b1f1"),
+    ("ostrogorsk", "a2c826a699d227bf"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
     // firsts at once: the first Rot180 half-turn map (each team sees the SAME battlefield
     // turned around - lake on the left, moraine on the right, twin mills dead ahead) and
@@ -139,6 +154,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "42cc56e9c3e19c66"),
-    ("prokhorovka_hill_252_2", "d50a5abfda23e7d5"),
+    ("mazurski_przesmyk", "971d61da09809506"),
+    ("prokhorovka_hill_252_2", "df2beb7a8fb0f7c7"),
 ]

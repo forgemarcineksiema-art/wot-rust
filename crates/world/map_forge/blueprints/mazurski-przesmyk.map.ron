@@ -289,6 +289,48 @@ MapBlueprint(
         ),
     ],
     scenery: [
+        // Inny Poziom F2 — the isthmus grows what its horizon says (Pine 0.50 / Oak 0.30 /
+        // Willow 0.20; the map planted oaks alone): pines on the eskers and over the erratic
+        // field, willows on the dry shore band above the reeds.
+        Scatter(
+            seed: 4501010,
+            kind: Pine,
+            pairs: 8,
+            region: ScatterRect(
+                x: (120.0, 360.0),
+                z: (120.0, 320.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 4501011,
+            kind: Pine,
+            pairs: 6,
+            region: ScatterRect(
+                x: (420.0, 610.0),
+                z: (80.0, 400.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 4501012,
+            kind: Willow,
+            pairs: 6,
+            region: ScatterRect(
+                x: (60.0, 340.0),
+                z: (540.0, 600.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
         // Reeds and brush thicken every shoreline; the scatter twin machinery lands the
         // rot pairs.
         // Reed belts hug the DRY shore bands (the rects stop where the water begins);

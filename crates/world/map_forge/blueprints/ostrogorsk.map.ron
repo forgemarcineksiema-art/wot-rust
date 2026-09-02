@@ -609,6 +609,49 @@ MapBlueprint(
         ),
     ],
     scenery: [
+        // Inny Poziom F2 — the town's own species (horizon: Poplar 0.50 / Oak 0.35 /
+        // FruitTree 0.15; the map planted oaks alone): poplars down the boulevard promenade
+        // beyond the oak pair, fruit trees in the west orchard and behind the elevator.
+        Row(
+            kind: Poplar,
+            xs: [
+                448.0,
+                472.0,
+            ],
+            z_start_m: 300.0,
+            z_step_m: 36.0,
+            count: 4,
+            yaw_rad: 0.3,
+            scale: 1.0,
+        ),
+        Scatter(
+            seed: 4310010,
+            kind: FruitTree,
+            pairs: 6,
+            region: ScatterRect(
+                x: (55.0, 115.0),
+                z: (250.0, 460.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 4310011,
+            kind: FruitTree,
+            pairs: 4,
+            region: ScatterRect(
+                x: (880.0, 960.0),
+                z: (180.0, 300.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
         // Orchard and park behind the west edge of the city.
         Scatter(
             seed: 4310001,

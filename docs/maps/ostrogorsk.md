@@ -66,7 +66,11 @@ graph still runs through the three open gates only, so the new doors are EARNED.
 - Flora (Świat 2.0): procedural oaks in the orchard/park behind the west edge and the
   **boulevard avenue** (mirrored rows with a deliberate gap at the axis road — instanced
   LOD ladder + trunk cover), procedural field brush on both sides of the berm. Retired
-  imported kinds (`FloraTree`/`FloraPine`/`FloraBush`) are never authored.
+  imported kinds (`FloraTree`/`FloraPine`/`FloraBush`) are never authored. Inny Poziom F2
+  (2026-09-02): 16 poplars continue the promenade beyond the oak pair (z 300–408, mirrored),
+  20 fruit trees in the west orchard and behind the elevator, 26 oaks; the field screens
+  are planted with poplars (the species that fills a 16–18 m wall), fitted inside their boxes
+  over a hedge body (F3).
 
 ## Gameplay Layer
 

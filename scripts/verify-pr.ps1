@@ -7,6 +7,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# `-Crates a,b,c` is a PowerShell array at a PowerShell prompt and ONE string "a,b,c" when the
+# script is run through `powershell -File` from another shell (the detached gate runs do exactly
+# that). Split either form into crate names.
+if ($Crates) {
+    $Crates = @($Crates | ForEach-Object { $_ -split "," } | Where-Object { $_ -ne "" })
+}
+
 # THE PER-PR GATE (Inny Poziom, 2026-09-02). `verify.ps1` compiles every example and bench with
 # codegen and runs every test binary — 25-35 minutes a run on the MX330 laptop, most of it the
 # probe binary's forty modules and the client's test targets being rebuilt for a change that

@@ -5,7 +5,7 @@
 //! The report is the editor's early warning; the gameplay-side contract tests (river
 //! physics constants, battle setup) stay in `sim`/`server` as the authoritative gate.
 
-use terrain::{BattlefieldMap, StaticCoverObject};
+use terrain::{BattlefieldMap, StaticCoverKind, StaticCoverObject};
 
 use crate::blueprint::{MapBlueprint, TerrainOp, XCoord};
 
@@ -87,6 +87,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     check_spawns(map, &mut report);
     check_roads(map, &mut report);
     check_scenery(map, &mut report);
+    check_species_mix(blueprint, map, &mut report);
     if blueprint.symmetry.is_some() {
         check_symmetry(blueprint, map, &mut report);
     }
@@ -998,10 +999,20 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
     // to be warned about. Grounding is the stronger guarantee, and a branch nothing can take is
     // not a promise (the `data_contracts` gate's own words). What survives is the guard that can
     // still fire: a scatter with too small a `cover_margin_m` growing a tree through a barn.
+    // A hero oak stands in its OWN `TreeTrunk` box by construction (the bole cover is derived
+    // from the instance), so that kind is not "cover the tree grew through" — with it counted,
+    // every oak on every map warned, and a warning that fires on everything is read by no
+    // one (Inny Poziom F2 found 104 of them, all oaks in their own boles, while looking for
+    // the one that mattered).
+    // Likewise a TREE inside a `TreeLine` box is hosted, not grown through: the box exists to
+    // contain it (Świat 2.0 PR 5 raised every line to tower over the oaks standing in it).
     for instance in &map.scenery {
         let [x, _, z] = instance.position;
+        let is_tree = TREE_KINDS.contains(&instance.kind);
         if map.static_cover.iter().any(|c| {
-            (x - c.center[0]).abs() < c.half_extents_m[0]
+            c.kind != StaticCoverKind::TreeTrunk
+                && !(is_tree && c.kind == StaticCoverKind::TreeLine)
+                && (x - c.center[0]).abs() < c.half_extents_m[0]
                 && (z - c.center[2]).abs() < c.half_extents_m[2]
         }) {
             report.push(
@@ -1010,6 +1021,96 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
                 format!("{:?} grows through a cover footprint", instance.kind),
                 Some(instance.position),
             );
+        }
+    }
+}
+
+/// The tree kinds the species gate counts — the map's trees, not its shrubs, stones or
+/// street furniture. Retired imported kinds are never authored and never counted.
+pub const TREE_KINDS: [terrain::SceneryKind; 5] = [
+    terrain::SceneryKind::Oak,
+    terrain::SceneryKind::Poplar,
+    terrain::SceneryKind::Willow,
+    terrain::SceneryKind::FruitTree,
+    terrain::SceneryKind::Pine,
+];
+/// A dressed map plants at least this many species...
+pub const SPECIES_MIN: usize = 3;
+/// ...and no one species is more than this share of its trees.
+pub const SPECIES_SHARE_MAX: f32 = 0.70;
+/// A horizon species at or above this weight must also stand inside the map.
+pub const HORIZON_SPECIES_MIN_WEIGHT: f32 = 0.10;
+/// Below this many trees a map is undressed, not a monoculture: a contract fixture with three
+/// oaks or a scratch vessel gets a warning, never an error. Every shipped map clears it
+/// (`goldens::every_shipped_map_is_dressed_enough_for_the_species_gate`), so the rule cannot
+/// be dodged by planting less.
+pub const DRESSED_MAP_TREES: usize = 12;
+
+/// How many of each tree kind a compiled map plants, in `TREE_KINDS` order.
+pub fn species_counts(map: &BattlefieldMap) -> Vec<(terrain::SceneryKind, usize)> {
+    TREE_KINDS
+        .iter()
+        .map(|kind| (*kind, map.scenery.iter().filter(|instance| instance.kind == *kind).count()))
+        .collect()
+}
+
+/// Inny Poziom F2 — the monoculture gate. Every shipped map placed Oak and Bush and nothing
+/// else while four grown species (Poplar, Willow, FruitTree, Pine) stood placed nowhere; the
+/// pass named "pine belt" had no pine. A dressed map plants at least `SPECIES_MIN` species,
+/// no species exceeds `SPECIES_SHARE_MAX` of its trees, and every species its horizon mix
+/// names at `HORIZON_SPECIES_MIN_WEIGHT` or more also stands INSIDE the map: the ring past
+/// the border continues the map, it does not invent one.
+fn check_species_mix(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
+    let counts = species_counts(map);
+    let total: usize = counts.iter().map(|(_, count)| count).sum();
+    if total < DRESSED_MAP_TREES {
+        report.push(
+            "species_mix",
+            Severity::Warning,
+            format!("{total} trees on the map — undressed; the species rule bites at {DRESSED_MAP_TREES}"),
+            None,
+        );
+        return;
+    }
+    let planted = counts.iter().filter(|(_, count)| *count > 0).count();
+    if planted < SPECIES_MIN {
+        report.push(
+            "species_mix",
+            Severity::Error,
+            format!(
+                "{planted} tree species planted; a map grows at least {SPECIES_MIN} ({counts:?})"
+            ),
+            None,
+        );
+    }
+    for (kind, count) in &counts {
+        let share = *count as f32 / total as f32;
+        if share > SPECIES_SHARE_MAX {
+            report.push(
+                "species_mix",
+                Severity::Error,
+                format!(
+                    "{kind:?} is {:.0} % of the map's {total} trees; no species exceeds {:.0} % (monoculture)",
+                    share * 100.0,
+                    SPECIES_SHARE_MAX * 100.0
+                ),
+                None,
+            );
+        }
+    }
+    if let Some(horizon) = &blueprint.horizon {
+        for (kind, weight) in &horizon.flora {
+            let planted_here = counts.iter().any(|(k, count)| k == kind && *count > 0);
+            if *weight >= HORIZON_SPECIES_MIN_WEIGHT && TREE_KINDS.contains(kind) && !planted_here {
+                report.push(
+                    "species_mix",
+                    Severity::Error,
+                    format!(
+                        "the horizon grows {kind:?} at {weight:.2} and the map plants none — the ring must continue the map"
+                    ),
+                    None,
+                );
+            }
         }
     }
 }
