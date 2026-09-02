@@ -59,7 +59,11 @@ into a pool is down through its surface.
   of **glacial erratics** as honest `Crag` boulders.
 - Scenery: reed `Bush` belts on the dry shore bands, oaks on the eskers, and an erratic
   `Rock` field over the open moraine — every scatter's rot twin dresses the other half
-  by the machinery.
+  by the machinery. Inny Poziom F2 (2026-09-02): 28 pines on the eskers and over the
+  erratic field, 12 willows on the dry shore band above the reeds, 12 oaks; the reed-belt
+  and far-shore TreeLine screens are planted with pines (the species of the mix that fills a
+  17 m wall), fitted inside their boxes over a hedge body (F3) — they were "alder screens"
+  in name and slabs in the bake.
 
 ## Atlas verdict (v1, measured 2026-08-26)
 

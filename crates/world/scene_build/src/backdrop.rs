@@ -90,7 +90,7 @@ pub fn backdrop_tree_instances(battlefield: &BattlefieldMap) -> Vec<SceneryInsta
 }
 
 /// The species at `pick` (in `0..total_weight`) along the cumulative weight line.
-fn weighted_kind(flora: &[(SceneryKind, f32)], pick: f32) -> SceneryKind {
+pub(crate) fn weighted_kind(flora: &[(SceneryKind, f32)], pick: f32) -> SceneryKind {
     let mut accumulated = 0.0_f32;
     for (kind, weight) in flora {
         accumulated += weight.max(0.0);

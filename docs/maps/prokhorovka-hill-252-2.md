@@ -39,7 +39,11 @@ WoT map anatomy as the genre reference.
   westernmost walk of the bare flank is now a slow one, and the wading physics engage.
 - Flora (Świat 2.0): farm and field broadleaf scatters are procedural oaks (instanced LOD +
   trunk cover); procedural bushes retain the steppe's lowland vocabulary. Retired imported
-  kinds are never authored.
+  kinds are never authored. Inny Poziom F2 (2026-09-02): 18 oaks, 14 poplars in a loose
+  windbreak along the farm road's west run, 18 willows down in the two balkas, 10 fruit trees
+  in the Oktyabrskiy orchard; the four TreeLine boxes (Psel treeline, steppe shelterbelt) are
+  planted with the mix's poplars — the species that fills a 19–22 m wall 6 m thick — fitted
+  inside their boxes over a hedge body, around the oaks the Psel line hosts (F3).
 - **The balkas (drawn Valley strokes — what the rebuild adds):**
   - The **anti-tank ditch** is a meandering balka ~110 m before the axis (x 330→700,
     3.5 m deep): the covered east–west rotation of each half. A tank in it is in FULL

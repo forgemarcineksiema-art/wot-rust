@@ -511,6 +511,65 @@ MapBlueprint(
         ),
     ],
     scenery: [
+        // Inny Poziom F2 — the valley's own species beside its oaks (the horizon mix says
+        // Oak 0.40 / Willow 0.30 / Poplar 0.20 / FruitTree 0.10, and the map planted oaks
+        // alone): willows on the river banks (bank-loving — within 22 m of the water, never
+        // in it), a loose poplar windbreak beside the valley road, and the orchard behind
+        // its screen.
+        Scatter(
+            seed: 3044695280,
+            kind: Willow,
+            pairs: 9,
+            region: ScatterRect(
+                x: (440.0, 720.0),
+                z: (60.0, 460.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: Some(3.0),
+                river_max_m: Some(22.0),
+                crossing_lanes: Some(CrossingLanes(band_margin_m: 30.0, windows: [(0.0, 16.0), (180.0, 26.0), (320.0, 14.0)])),
+                axis_band_m: None,
+                exclusion_circles: [(400.0, 150.0, 70.0), (400.0, 850.0, 70.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 3044695281,
+            kind: Poplar,
+            pairs: 6,
+            region: ScatterRect(
+                x: (405.0, 470.0),
+                z: (170.0, 440.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: Some(3.0),
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: None,
+                exclusion_circles: [(400.0, 150.0, 70.0), (400.0, 850.0, 70.0)],
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 3044695282,
+            kind: FruitTree,
+            pairs: 6,
+            region: ScatterRect(
+                x: (600.0, 660.0),
+                z: (262.0, 292.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: Some(3.0),
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: None,
+                exclusion_circles: [(400.0, 150.0, 70.0), (400.0, 850.0, 70.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.0),
+            ),
+        ),
         Scatter(
             seed: 3044695274,
             kind: Oak,

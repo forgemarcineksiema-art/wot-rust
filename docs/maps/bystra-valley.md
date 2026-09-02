@@ -17,9 +17,13 @@ splitting the map into two flanks with different games; five crossings decide th
 | 650–840 | **town of Kamienna**: 4×3 mirrored block grid on a flattened bench ramp, church + market square on-axis | the brawl; streets hold a constant honest grade |
 | 860–1000 | quarry ridge (+9 m), mirrored perches (`x≈915, z=500±160`), quarry bowl on-axis | eastern overwatch and the sheltered rotation |
 
-FL-5 replaces the broadleaf and orchard scatters (plus Kamienna's fixed orchard trees) with
-the accepted imported textured tree. Procedural willows and poplar rows stay species-specific;
-the rejected imported bush is not authored.
+Flora (Inny Poziom F2, 2026-09-02): the valley plants its horizon's species — 26 oaks
+(scatters + Kamienna's fixed trees), 18 willows on the river banks (bank-loving, within 22 m of
+the water and never in it), 12 poplars in a loose windbreak beside the valley road, 12 fruit
+trees in the orchard behind `orchard_screen`; reed and field bushes as before. The eight
+bocage TreeLine boxes are planted (F3) with the mix's poplars — the one species that fills a
+16–17 m wall 6 m thick; an oak fits such a wall only at half size — every tree fitted inside
+its box over a hedge body. Retired imported kinds are never authored.
 
 ## Crossings (all heightmap features, not cover boxes)
 

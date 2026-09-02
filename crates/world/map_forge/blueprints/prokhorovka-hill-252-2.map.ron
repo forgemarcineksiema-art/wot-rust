@@ -386,6 +386,82 @@ MapBlueprint(
         ),
     ],
     scenery: [
+        // Inny Poziom F2 — the steppe's own species beside its oaks (horizon: Oak 0.50 /
+        // Poplar 0.40 / Willow 0.10; the map planted oaks alone): a loose poplar windbreak
+        // along the farm road's west run, willows down in the two balkas, and the
+        // Oktyabrskiy orchard behind the farm.
+        Scatter(
+            seed: 2617976130,
+            kind: Poplar,
+            pairs: 7,
+            region: ScatterRect(
+                x: (70.0, 230.0),
+                z: (316.0, 358.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: None,
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: Some(22.0),
+                exclusion_circles: [(500.0, 150.0, 80.0), (500.0, 850.0, 80.0)],
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 2617976131,
+            kind: Willow,
+            pairs: 5,
+            region: ScatterRect(
+                x: (600.0, 760.0),
+                z: (160.0, 300.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: None,
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: Some(22.0),
+                exclusion_circles: [(500.0, 150.0, 80.0), (500.0, 850.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 2617976132,
+            kind: Willow,
+            pairs: 4,
+            region: ScatterRect(
+                x: (40.0, 220.0),
+                z: (390.0, 470.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: None,
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: Some(22.0),
+                exclusion_circles: [(500.0, 150.0, 80.0), (500.0, 850.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 2617976133,
+            kind: FruitTree,
+            pairs: 5,
+            region: ScatterRect(
+                x: (430.0, 545.0),
+                z: (420.0, 466.0),
+            ),
+            exclude: Exclusion(
+                river_margin_m: None,
+                river_max_m: None,
+                crossing_lanes: None,
+                axis_band_m: Some(22.0),
+                exclusion_circles: [(500.0, 150.0, 80.0), (500.0, 850.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
         Scatter(
             seed: 2617976106,
             kind: Bush,

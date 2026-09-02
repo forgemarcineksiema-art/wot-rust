@@ -313,6 +313,65 @@ MapBlueprint(
         ),
     ],
     scenery: [
+        // Inny Poziom F2 — the pass is pine country (horizon: Pine 0.70 / Oak 0.30, and the
+        // "pine belt" had no pine): pines on the south face, the east shoulder and the west
+        // slope, and a few fruit trees in the hamlet's gardens.
+        Scatter(
+            seed: 7811020,
+            kind: Pine,
+            pairs: 10,
+            region: ScatterRect(
+                x: (300.0, 700.0),
+                z: (80.0, 300.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 7811021,
+            kind: Pine,
+            pairs: 7,
+            region: ScatterRect(
+                x: (700.0, 880.0),
+                z: (80.0, 460.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 7811022,
+            kind: Pine,
+            pairs: 5,
+            region: ScatterRect(
+                x: (140.0, 300.0),
+                z: (80.0, 440.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
+                road_margin_m: Some(4.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
+        Scatter(
+            seed: 7811023,
+            kind: FruitTree,
+            pairs: 3,
+            region: ScatterRect(
+                x: (430.0, 570.0),
+                z: (420.0, 455.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(3.0),
+            ),
+        ),
         Scatter(
             seed: 7811001,
             kind: Rock,

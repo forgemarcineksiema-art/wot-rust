@@ -61,7 +61,10 @@ decide the mid-game").
   worked plots this high).
 - Flora (Świat 2.0): procedural oaks on the Dolina floor and crest-walk shoulders (Fixed
   mirrored pair); procedural bushes remain render-only. Retired imported kinds are never
-  authored.
+  authored. Inny Poziom F2 (2026-09-02): 44 pines on the south face, the east shoulder and
+  the west slope — the pass is pine country inside the map as on its ring — 16 oaks, 6 fruit
+  trees in the hamlet's gardens; the Dolina screens are planted with pines (the species that fills a 17 m wall), fitted
+  inside their boxes over a hedge body (F3).
 
 ## Gameplay Layer
 

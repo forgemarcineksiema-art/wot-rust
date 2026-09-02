@@ -33,9 +33,16 @@ pub(crate) fn tree_species(kind: SceneryKind) -> Option<world_forge::tree::TreeS
     }
 }
 
+/// The seed a statics-baked tree grows from: the instance's position bits, so a scatter never
+/// repeats a tree yet every scene bake is identical. One function, because the planted tree
+/// line (`tree_line`) measures a tree for its fit BEFORE the bake draws it, and the two must
+/// grow the same tree.
+pub(crate) fn statics_tree_seed(position: [f32; 3]) -> u64 {
+    position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32)
+}
+
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
-/// from the instance's position bits, so a shelterbelt never repeats a tree yet every scene
-/// bake is identical. A non-tree kind draws nothing.
+/// from the instance's position bits (`statics_tree_seed`). A non-tree kind draws nothing.
 pub(crate) fn push_baked_tree(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -45,8 +52,7 @@ pub(crate) fn push_baked_tree(
         return;
     };
     let base = Vec3::from_array(instance.position);
-    let seed =
-        instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
+    let seed = statics_tree_seed(instance.position);
     // The bush bakes at CLOSE: its whole body is card mass, and the Mid thinning that a tall
     // tree hides inside its silhouette makes a knee-high tuft nearly vanish at 200 m — the
     // steppe's dark value plane (rule 1) rode on exactly those tufts. A bush is a tenth of a

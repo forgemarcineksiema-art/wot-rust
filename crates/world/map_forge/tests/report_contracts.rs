@@ -630,3 +630,94 @@ fn the_census_rise_floor_is_the_fleet_measurement() {
     assert!(lowest_centre > 1.0, "the fleet fields real hulls (got {lowest_centre})");
     assert_eq!(map_forge::hull_down_rise_min_m(), lowest_centre + game_core::SIGHT_GRAZE_SLACK_M);
 }
+
+/// Inny Poziom F2 — the monoculture gate (`species_mix`), tripped three ways and cleared once.
+/// A dressed map plants at least three tree species, no species is more than 70 % of its
+/// trees, and every species its horizon names at a tenth or more stands inside the map. Below
+/// `DRESSED_MAP_TREES` the check warns instead of failing: a fixture with five oaks is
+/// undressed, not a monoculture. This test IS the documentation of what the check means.
+#[test]
+fn species_mix_refuses_a_monoculture_and_a_horizon_the_map_does_not_plant() {
+    use map_forge::blueprint::{HorizonSpec, SceneryOp};
+    use terrain::SceneryKind;
+
+    let spots = |count: usize, x: f32| -> Vec<[f32; 2]> {
+        (0..count).map(|index| [x, 40.0 + 18.0 * index as f32]).collect()
+    };
+    let fixed = |kind: SceneryKind, spots: Vec<[f32; 2]>| SceneryOp::Fixed {
+        kind,
+        spots,
+        yaw_rad: 0.0,
+        scale: 1.0,
+    };
+    let species_mix = |report: &map_forge::MapReport| -> Vec<String> {
+        report
+            .errors()
+            .filter(|entry| entry.check == "species_mix")
+            .map(|entry| entry.message.clone())
+            .collect()
+    };
+
+    // Undressed: five oaks warn and never fail — the rule bites at DRESSED_MAP_TREES.
+    let mut sparse = flat_square();
+    sparse.scenery.push(fixed(SceneryKind::Oak, spots(5, 60.0)));
+    let (map, report) = compile(&sparse);
+    assert!(map.scenery.len() < map_forge::DRESSED_MAP_TREES, "five spots stay undressed");
+    assert!(species_mix(&report).is_empty(), "an undressed map is not a monoculture");
+    assert!(
+        report.warnings().any(|entry| entry.check == "species_mix"),
+        "...but the author is told it is undressed"
+    );
+
+    // A dressed monoculture: fourteen oaks and nothing else — too few species AND one over 70 %.
+    let mut mono = flat_square();
+    mono.scenery.push(fixed(SceneryKind::Oak, spots(14, 60.0)));
+    let (_, report) = compile(&mono);
+    let errors = species_mix(&report);
+    assert!(
+        errors.iter().any(|message| message.contains("tree species planted")),
+        "fewer than three species is refused: {errors:?}"
+    );
+    assert!(
+        errors.iter().any(|message| message.contains("Oak is 100 %")),
+        "a species over 70 % is refused: {errors:?}"
+    );
+
+    // Dressed and mixed: six oaks, five poplars, four willows — clean, and the shape every
+    // shipped map now has.
+    let mixed = || {
+        let mut blueprint = flat_square();
+        blueprint.scenery.push(fixed(SceneryKind::Oak, spots(6, 60.0)));
+        blueprint.scenery.push(fixed(SceneryKind::Poplar, spots(5, 120.0)));
+        blueprint.scenery.push(fixed(SceneryKind::Willow, spots(4, 180.0)));
+        blueprint
+    };
+    let (map, report) = compile(&mixed());
+    assert!(map.scenery.len() >= map_forge::DRESSED_MAP_TREES, "fifteen spots dress the map");
+    assert!(
+        !report.entries.iter().any(|entry| entry.check == "species_mix"),
+        "three species under 70 % each is the contract: {:?}",
+        species_mix(&report)
+    );
+
+    // The horizon grows pines at half weight and the map plants none: the ring past the
+    // border would invent a country the map does not have.
+    let mut ring = mixed();
+    ring.horizon = Some(HorizonSpec {
+        hills_base_m: 20.0,
+        swell: [0.0; 4],
+        x_roll: [0.0; 2],
+        z_roll: [0.0; 2],
+        closure_start_m: 40.0,
+        closure_span_m: 80.0,
+        river_gap_half_m: 0.0,
+        river_gap_falloff_m: 1.0,
+        flora: vec![(SceneryKind::Pine, 0.5), (SceneryKind::Oak, 0.5)],
+    });
+    let (_, report) = compile(&ring);
+    let errors = species_mix(&report);
+    assert!(
+        errors.iter().any(|message| message.contains("Pine")),
+        "a horizon species the map does not plant is refused: {errors:?}"
+    );
+}
