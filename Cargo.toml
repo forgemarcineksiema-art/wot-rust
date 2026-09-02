@@ -26,6 +26,11 @@ glam = { version = "0.30", features = ["serde"] }
 gltf = "1.4"
 meshopt = "0.6.2"
 naga = { version = "29.0.3", features = ["wgsl-in"] }
+# Pinned to `std` on purpose (Inny Poziom Q5): `parry3d` pulls `num-traits` with `libm` only, so the
+# dedicated server graph computed its `Float` trigonometry through `libm` while the client graph,
+# which enables `std` elsewhere, used the intrinsics. One arithmetic on both ends of the wire —
+# `quality/tests/math_backend_parity.rs` holds it.
+num-traits = { version = "0.2", features = ["std"] }
 png = "0.18"
 parry3d = { version = "0.26.1", default-features = false, features = ["dim3", "f32"] }
 pollster = "0.4"

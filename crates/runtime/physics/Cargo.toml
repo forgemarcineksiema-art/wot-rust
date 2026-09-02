@@ -9,6 +9,8 @@ rust-version.workspace = true
 game_core.workspace = true
 glam.workspace = true
 parry3d.workspace = true
+# The arithmetic pin (Q5): every graph that carries `physics` carries `num-traits/std`.
+num-traits.workspace = true
 serde.workspace = true
 terrain.workspace = true
 
