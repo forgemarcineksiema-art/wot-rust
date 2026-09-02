@@ -347,3 +347,30 @@ fn ridge_heightmap() -> HeightMap {
     }
     HeightMap::new(40, 40, 1.0, samples).expect("ridge heightmap")
 }
+
+/// Inny Poziom S9: a strike on armour is also a `ShellImpact` on the hull — the shell's death
+/// where the client draws the blast an HE round makes on a plate — carrying the round's type,
+/// its approach and its calibre, at the plate's hit point. The plate's own damage event still
+/// rides beside it.
+#[test]
+fn a_strike_on_armour_is_also_a_shell_impact_on_the_hull() {
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
+    state.tank_mut(target).expect("target").yaw_rad = PI;
+    state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.007;
+
+    run_until_shell_resolved(&mut state, shooter);
+
+    let event = state.damage_events().last().expect("the strike's damage event");
+    let impact = state
+        .shell_impacts()
+        .iter()
+        .find(|impact| impact.surface == game_core::ImpactSurface::Hull)
+        .expect("the strike's impact on the hull");
+    assert_eq!(impact.owner, Some(shooter));
+    assert!((impact.position - event.hit_position).length() < 1.0e-3, "at the plate's hit point");
+    assert_eq!(impact.shell_type, event.shell_type);
+    assert!(impact.direction.z > 0.9, "the approach rides the impact: {:?}", impact.direction);
+    assert!(impact.caliber_mm > 90.0, "the D-10's calibre: {}", impact.caliber_mm);
+}

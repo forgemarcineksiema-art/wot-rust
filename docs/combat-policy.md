@@ -78,7 +78,10 @@ wreck are *blockers* — they absorb the shell without taking damage, so a dead
 hull is hard cover and a friendly hull cannot be shot through. Every absorbed
 shell (terrain, cover, or a blocking hull) emits a replicated `ShellImpact`
 with its surface and position, so the firing client always learns where a shot
-died instead of the shell silently vanishing between snapshots. Shells that
+died instead of the shell silently vanishing between snapshots. A strike on a
+live enemy emits one too (surface `Hull`, Inny Poziom S9), beside its damage
+event: the client draws an HE round's blast from the impact's approach, and
+everything else about the strike from the damage event. Shells that
 expire into open sky emit nothing.
 
 ## Shared Shell Trace
