@@ -134,7 +134,7 @@ pub(crate) fn reference_seed() -> u64 {
 }
 
 /// The seed the ladder grows variant `variant` from (unmirrored).
-pub(crate) fn variant_seed(variant: u32) -> u64 {
+pub(crate) fn ladder_variant_seed(variant: u32) -> u64 {
     world_forge::tree::authored::variant_seed(variant)
 }
 
@@ -205,7 +205,7 @@ pub fn tree_mesh_asset(species: TreeSpecies, variant: u32, lod: TreeLod) -> Mesh
         TreeLod::Near => BakeLod::Close,
         TreeLod::Mid | TreeLod::Impostor => BakeLod::Mid,
     };
-    let tree = world_forge::tree::bake_tree_lod(species, variant_seed(variant), bake_lod);
+    let tree = world_forge::tree::bake_tree_lod(species, ladder_variant_seed(variant), bake_lod);
     let bark_role = renderer_api::surface_role::bark_for_layer(
         world_forge::tree::authored::species_index(species),
     );

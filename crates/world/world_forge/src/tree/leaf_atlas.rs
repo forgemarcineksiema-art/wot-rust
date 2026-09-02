@@ -63,15 +63,10 @@ const _: () =
 // The second row starts under the leaf grid, never inside it.
 const _: () = assert!(IMPOSTOR_SPRITE_H >= LEAF_GRID_PX);
 
-/// The species' position in [`TreeSpecies::ALL`] — the row-major sprite index rides on it.
-fn species_index(species: TreeSpecies) -> u32 {
-    TreeSpecies::ALL.iter().position(|&s| s == species).expect("every species is in ALL") as u32
-}
-
 /// Where azimuth `which` (0 or 1 — 0° and 90°) of `species`' impostor lives, as texel
 /// origin. The paint side splats the sprite here; the crossed quads sample it.
 pub fn impostor_origin(species: TreeSpecies, which: u32) -> (u32, u32) {
-    let index = species_index(species) * 2 + which.min(1);
+    let index = super::authored::species_index(species) * 2 + which.min(1);
     if index < IMPOSTOR_ROW0_SPRITES {
         (LEAF_GRID_PX + index * IMPOSTOR_SPRITE_W, 0)
     } else {
