@@ -95,3 +95,36 @@ fn client_vehicle_rendering_has_no_dynamic_fallback_mesh_path() {
         offenders.join("\n")
     );
 }
+
+/// Inny Poziom N11 (the owner's directive of 2026-09-02, `docs/game-design.md` reconciliation
+/// row 9): weather is PRESENTATION ONLY. `game_core::weather` promises it in a doc comment —
+/// "the simulation never reads it: spotting ranges, ballistics and traction are identical in
+/// every variant" — and a promise in a comment is not a rule. The rule: the authoritative
+/// simulation and its physics never name a weather type. The identity enum may ride the wire
+/// (`net`, `server`, `battle_host` tell the client which look to draw); it may not reach a
+/// number the game is decided by.
+#[test]
+fn weather_never_reaches_the_authoritative_simulation() {
+    let root = workspace_root();
+    let mut offenders = Vec::new();
+
+    for crate_name in ["sim", "physics"] {
+        for source in rust_files(&quality::crate_src_dir(&root, crate_name)) {
+            let text = fs::read_to_string(&source).expect("source should be readable");
+            for forbidden in
+                ["WeatherVariant", "MatchWeather", "WeatherLook", "weather_look", "weather_params"]
+            {
+                if text.contains(forbidden) {
+                    offenders.push(format!("{} contains {forbidden}", source.display()));
+                }
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "weather is presentation only — the simulation and its physics must not read a weather \
+         type (no view-range cut, no traction multiplier, no fog in spotting):\n{}",
+        offenders.join("\n")
+    );
+}
