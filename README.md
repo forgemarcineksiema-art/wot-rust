@@ -36,7 +36,8 @@ release, and where the center of gravity should go next. Individual program docs
 ## Daily commands
 
 ```powershell
-./scripts/verify.ps1                  # THE merge gate: fmt + clippy -D warnings + all tests
+./scripts/verify-pr.ps1 -Crates client   # the PR gate: fmt + clippy -D warnings (all targets) + the touched crates' tests
+./scripts/verify.ps1                     # THE full gate, once a day over what landed: every example, bench and test
 cargo run --release -p client         # play (release; a 14-tank battle needs the optimized build)
 $env:WOT_MAP = "ostrogorsk"           # pick a map (prokhorovka-hill-252-2 | bystra-valley | orliny-pereval | ostrogorsk)
 cargo run -p editor                   # the map editor (or pass a blueprint path)

@@ -1,7 +1,10 @@
 param(
     # Include the release-profile bench compile (a second, optimized build of the whole workspace).
     # Off by default — it roughly doubles wall time. Run with -Release before cutting a release / tag.
-    [switch] $Release
+    [switch] $Release,
+    # Compile without incremental state. Off by default (see below); run with -Deep when a number
+    # looks wrong for no reason in the diff, after a killed build, and for the daily full run.
+    [switch] $Deep
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,15 +18,19 @@ if (-not $env:CARGO_BUILD_JOBS) {
 }
 Write-Host "Using CARGO_BUILD_JOBS=$($env:CARGO_BUILD_JOBS)"
 
-# The gate compiles WITHOUT incremental state (Inny Poziom Q5). On 2026-09-02 a stale incremental
-# cache (the main tree's, dated 2026-08-22) produced a client test binary whose physics disagreed
-# with the same source compiled fresh: the ramming parity lock failed three runs out of three on
-# clean master and passed after one non-incremental rebuild, incremental runs agreeing from then
-# on. Killed builds were already known to corrupt incremental state into link errors; this was
-# the quieter failure, wrong numbers and no error. The gate's answer must not depend on what a
-# previous build left behind, so it pays the full recompile of every changed crate. The inner
-# loop (verify-quick.ps1) keeps incremental compilation.
-$env:CARGO_INCREMENTAL = "0"
+# Incremental state and the gate (Inny Poziom Q5, amended 2026-09-02). On 2026-09-02 a stale
+# incremental cache (the main tree's, dated 2026-08-22, left by killed builds) produced a client
+# test binary whose physics disagreed with the same source compiled fresh: the ramming parity lock
+# failed three runs out of three on clean master and passed after one non-incremental rebuild.
+# The first answer was to compile the gate without incremental state always; that cost a full
+# recompile of every changed crate per run (the client alone: minutes instead of seconds) on a
+# gate that already took half an hour. The rule is now: builds are never killed mid-flight (they
+# run detached and are waited for), a killed build is followed by `cargo clean -p <crate>`, and
+# `-Deep` pays the full recompile when the cache is in doubt or once a day over what landed.
+if ($Deep) {
+    $env:CARGO_INCREMENTAL = "0"
+    Write-Host "Deep run: CARGO_INCREMENTAL=0"
+}
 
 function Invoke-Checked {
     param(

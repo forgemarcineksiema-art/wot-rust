@@ -5,11 +5,16 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 
 ## Non-negotiable rules
 - **Every change lands with a locking test.** Gameplay promises live in tests, not comments.
-- **Merge gate = local `scripts/verify.ps1`** (fmt + clippy `-D warnings` + full workspace
-  tests). CI billing is blocked; there is no other gate (`.github/workflows/ci.yml` stays
-  dormant on purpose — `architecture_rules.rs` requires the file). Long runs: stage
-  fmt/clippy/test separately, or `scripts/verify-quick.ps1` for the inner loop (no
-  examples/benches — full verify before pushing; a cold full run exceeds 10 min).
+- **Two gates, local, no CI** (billing blocked; `.github/workflows/ci.yml` stays dormant on
+  purpose — `architecture_rules.rs` requires the file). PR gate = `scripts/verify-pr.ps1
+  -Crates <touched>` (fmt + clippy `-D warnings` over all targets + `quality` + the touched
+  crates' tests). Full gate = `scripts/verify.ps1` (+ every example/bench/test): once a day
+  over what landed, and before any merge touching examples, benches, wire, replays or physics
+  numbers; `-Deep` after a killed build. A cold full run exceeds 25 min — run gates detached
+  (log to a file, wait for the exit line) and never kill a build mid-flight.
+- **One worktree per session, for the whole session** (`git worktree add ../wot-work -b <branch>
+  master`, then branch inside it per PR). Cargo keys workspace artifacts by path: a fresh
+  worktree per PR recompiles all 33 crates every time.
 - **One look policy**: min spec MX330 @ 60 FPS, no quality options. Frame drops are a game
   bug. Budgets are raised per-item with a measurement, never fleet-wide.
 - **Honesty doctrine**: what blocks the shell blocks the eye; collision boxes ARE the visual
