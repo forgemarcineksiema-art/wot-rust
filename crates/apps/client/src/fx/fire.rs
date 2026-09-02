@@ -31,6 +31,11 @@ pub(crate) struct FireEvent {
     /// channel of the shot — flash, smoke, dust, barrel stroke, hull rock, camera nudge —
     /// scales through this one number, so a 128 mm is felt as more than a 75 mm everywhere.
     pub recoil_scale: f32,
+    /// The turret ring on the hull roof, world space — where the shot shakes the deck's dust
+    /// off (Inny Poziom S4).
+    pub deck: Vec3,
+    /// The hull's heading: the dust spreads along and across it.
+    pub hull_yaw_rad: f32,
 }
 
 /// Resolve this tick's replicated shots against the tanks that fired them. `player` fires from its
@@ -66,12 +71,17 @@ pub(crate) fn resolve_shots(
             let gun = tank.vehicle.spec().gun;
             let rounds = gun.ammo_options();
             let round = rounds.get(usize::from(tank.selected_ammo)).copied().unwrap_or(gun.shell);
+            // The deck the shot shakes (S4): the turret ring on the hull roof, posed with the hull.
+            let deck = Vec3::from_array(tank.position)
+                + tank.hull_pose().basis() * mounts.turret_ring.translation;
             Some(FireEvent {
                 tank_id: tank.tank_id,
                 turret_yaw_rad: tank.turret_yaw_rad,
                 muzzle,
                 direction,
                 recoil_scale: round.recoil_scale(),
+                deck,
+                hull_yaw_rad: tank.yaw_rad,
             })
         })
         .collect()
@@ -135,6 +145,18 @@ mod tests {
         assert!(offset.length() > 2.0, "muzzle is out on the barrel: {offset}");
         assert!((event.direction.length() - 1.0).abs() < 1.0e-4);
         assert!(event.direction.dot(offset.normalize()) > 0.95, "direction points out the barrel");
+    }
+
+    /// Inny Poziom S4: the deck the shot shakes is the turret ring on the hull roof, posed
+    /// with the hull — under the muzzle, within the hull's footprint of the origin.
+    #[test]
+    fn the_deck_sits_on_the_hull_roof_under_the_muzzle() {
+        let tanks = vec![snapshot(1, 8.4, 1000)];
+        let event = resolve_shots(&[shot(1)], &tanks, TankId(1), 1.0)[0];
+        let origin = Vec3::new(10.0, 2.0, 20.0);
+        assert!(event.deck.y > origin.y && event.deck.y < event.muzzle.y + 0.5, "{}", event.deck);
+        assert!((event.deck - origin).length() < 3.0, "the ring is on the hull: {}", event.deck);
+        assert_eq!(event.hull_yaw_rad, 0.3);
     }
 
     /// THE HOLE THE PROXY COULD NOT CLOSE. A tank that fires and dies inside one snapshot window
