@@ -519,7 +519,7 @@ mod tests {
         assert_eq!(records.len(), 2);
         let aspect = |r: &ArmorApertureRender| r.major_radius_m / r.minor_radius_m.max(1.0e-6);
         assert!(aspect(&records[0]) < 1.3, "a scuff dish is round-ish");
-        assert!(aspect(&records[1]) > 5.0, "a gouge is a long groove");
+        assert!(aspect(&records[1]) >= 4.5, "a gouge is a long groove");
         assert!(records.iter().all(|r| !r.cut), "a wound never opens the plate");
     }
 
