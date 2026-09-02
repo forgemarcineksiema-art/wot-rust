@@ -153,7 +153,7 @@ fn prediction_tracks_turret_and_gun_pitch_from_local_commands() {
 
     let full_rate_step = spec.turret_rotation_rad_s * dt;
     let expected_turret = 0.10 + full_rate_step;
-    let expected_pitch = -0.02 + sim::GUN_ELEVATION_RATE_RAD_S * dt;
+    let expected_pitch = -0.02 + spec.gun.elevation_rate_rad_s * dt;
     assert!(
         (predictor.turret_yaw() - expected_turret).abs() < 1.0e-5,
         "predicted turret yaw = {}",

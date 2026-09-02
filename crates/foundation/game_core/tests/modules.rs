@@ -107,3 +107,44 @@ fn every_rotating_turret_is_genre_fast_and_keeps_up_with_its_hull() {
     );
     assert!(fastest / slowest >= 2.0, "fleet spread {fastest:.1}/{slowest:.1} tells nobody apart");
 }
+
+/// Inny Poziom A12: gun elevation is a per-gun rate, not one fleet constant. Every stock gun
+/// declares one in the band a hand- or power-elevated mount of the era gives (0.5–1.5 rad/s),
+/// and the fleet differs: the 122 mm and 128 mm breeches elevate slower than an 85 mm.
+#[test]
+fn every_stock_gun_declares_its_own_elevation_rate() {
+    let mut rates = Vec::new();
+    for spec in game_core::known_tank_specs() {
+        let rate = spec.gun.elevation_rate_rad_s;
+        assert!(
+            (0.5..=1.5).contains(&rate),
+            "{}: elevation rate {rate} rad/s is outside the era's band",
+            spec.gun.name
+        );
+        rates.push(rate);
+    }
+    assert!(rates.len() >= 8, "the fleet walk checked {} guns", rates.len());
+    let slowest = rates.iter().copied().fold(f32::MAX, f32::min);
+    let fastest = rates.iter().copied().fold(0.0_f32, f32::max);
+    assert!(fastest / slowest >= 1.5, "elevation rate tells nobody apart: {slowest}..{fastest}");
+}
+
+/// Inny Poziom A12: the vertical stabilizer is a vehicle property with a historical answer.
+/// The Centurion Mk 3 carried one (the FVRDE Metadyne stabilizer under its 20-pounder); the
+/// wartime hulls did not, and neither did the T-54 obr. 1951 — the STP-1 came with the T-54A
+/// in 1955, which the dossier says this model deliberately is not. Locked by name so a
+/// "let's just stabilize everyone" tuning pass has to say so here.
+#[test]
+fn the_centurion_is_the_stabilized_tank_and_the_others_ride_their_hulls() {
+    let mut walked = 0usize;
+    for kind in VehicleKind::ALL {
+        let spec = kind.default_loadout().assemble(kind);
+        walked += 1;
+        if kind == VehicleKind::Centurion {
+            assert!((spec.vertical_stabilizer - 1.0).abs() < 1.0e-6, "{kind:?} is stabilized");
+        } else {
+            assert_eq!(spec.vertical_stabilizer, 0.0, "{kind:?} rides its hull");
+        }
+    }
+    assert_eq!(walked, VehicleKind::ALL.len());
+}

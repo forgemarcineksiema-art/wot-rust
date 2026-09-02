@@ -52,8 +52,10 @@ Invoke-Checked "clippy (whole workspace, all targets, check mode)" {
     cargo clippy --workspace --all-targets -- -D warnings
 }
 if ($Crates -and $Crates.Count -gt 0) {
-    # The ratchet rides along whatever the PR names — once, not twice when it is named too.
-    $tested = @("quality") + @($Crates | Where-Object { $_ -ne "quality" })
+    # The ratchet AND the tools crate ride along whatever the PR names (once each): `tools` holds the
+    # vehicle-asset parity lock, which fails the moment a catalog number moves — the full gate caught
+    # A11 changing the traverse rates without the snapshots (2026-09-02).
+    $tested = @("quality", "tools") + @($Crates | Where-Object { $_ -ne "quality" -and $_ -ne "tools" })
     $packages = @()
     foreach ($crate in $tested) { $packages += @("-p", $crate) }
     Invoke-Checked "tests ($($tested -join ', '))" { cargo test @packages }

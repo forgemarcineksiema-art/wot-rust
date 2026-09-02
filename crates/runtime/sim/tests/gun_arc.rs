@@ -28,7 +28,7 @@ fn pitch_at_stop(spec: &TankSpec, direction: f32) -> f32 {
         select_ammo: None,
     };
     for _ in 0..600 {
-        step_aiming(&mut aiming, spec, command, 1.0 / 60.0);
+        step_aiming(&mut aiming, spec, command, 1.0 / 60.0, 0.0);
     }
     aiming.gun_pitch_rad
 }

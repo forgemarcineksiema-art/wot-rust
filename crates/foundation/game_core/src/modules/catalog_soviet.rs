@@ -43,6 +43,7 @@ pub(crate) fn t54_loadout() -> VehicleModules {
             rear_mm: 65.0,
             roof_mm: Some(30.0),
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.84 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 105.0,
         },
         gun: gun_d10t(),
@@ -89,6 +90,7 @@ pub(crate) fn t34_85_loadout() -> VehicleModules {
             rear_mm: 52.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.80 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 85.0,
         },
         gun: gun_zis_s53(),
@@ -113,6 +115,7 @@ pub(crate) fn gun_zis_s53() -> GunModule {
             // The T-34-85 turret: -5 / +22. Soviet depression pays for the low silhouette.
             depression_deg: 5.0,
             elevation_deg: 22.0,
+            elevation_rate_rad_s: 1.0,
             // The concrete rounds live in `RoundId::spec` (ammo_catalog.rs) — the ONE authoring
             // point. The research notes (O-365K as the fleet's HE anchor, the BR-365P's sourced
             // 1,050 m/s) moved there with the numbers.
@@ -160,6 +163,7 @@ pub(crate) fn is3_loadout() -> VehicleModules {
             rear_mm: 110.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.49 },
+            vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 130.0,
         },
         gun: gun_d25t(),
@@ -186,6 +190,7 @@ pub(crate) fn gun_d25t() -> GunModule {
             // nose-on, which is exactly what its armour layout wants anyway.
             depression_deg: 3.0,
             elevation_deg: 20.0,
+            elevation_rate_rad_s: 0.7,
             shell: RoundId::Br471B.spec(),
             // NO SPECIAL ROUND: the D-25T fielded no tungsten shell, so two slots. The OF-471's
             // sourcing notes live with its numbers in `RoundId::spec`.
@@ -242,6 +247,7 @@ pub(crate) fn gun_d10t() -> GunModule {
             // ridge like a Centurion, and now it cannot in the game either.
             depression_deg: 5.0,
             elevation_deg: 18.0,
+            elevation_rate_rad_s: 0.9,
             // BR-412 stock; BK-5 HEAT and OF-412 HE are the D-10 FAMILY's rounds — the D-10T2S
             // loads the same two, expressed by sharing the same `RoundId`s below.
             shell: RoundId::Br412.spec(),
@@ -271,6 +277,7 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             // ridge like a Centurion, and now it cannot in the game either.
             depression_deg: 5.0,
             elevation_deg: 18.0,
+            elevation_rate_rad_s: 0.9,
             // BR-412D: the sidegrade stock round (more penetration, less alpha than BR-412).
             // BK-5 and OF-412 are the SAME rounds the D-10T loads — one physical shell for the
             // whole gun family, which the shared `RoundId` now states instead of a comment.

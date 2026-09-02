@@ -154,7 +154,8 @@ fn the_pr_gate_fronts_every_target_and_the_full_gate_tests_every_target() {
     }
 
     assert!(
-        pr_gate.contains("@(\"quality\")") && pr_gate.contains("cargo test --workspace --lib"),
+        pr_gate.contains("@(\"quality\", \"tools\")")
+            && pr_gate.contains("cargo test --workspace --lib"),
         "the PR gate always runs the ratchet: prepended to whatever crates the PR names, and \
          carried by `--workspace` when it names none"
     );

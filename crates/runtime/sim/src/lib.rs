@@ -29,9 +29,7 @@ mod timestep;
 mod wreck;
 
 pub use aim_dispersion::{base_dispersion_mrad, recover_dispersion};
-pub use aiming::{
-    AimingState, GUN_ELEVATION_RATE_RAD_S, MAX_GUN_PITCH_RAD, MIN_GUN_PITCH_RAD, step_aiming,
-};
+pub use aiming::{AimingState, MAX_GUN_PITCH_RAD, MIN_GUN_PITCH_RAD, step_aiming};
 pub use clock::{
     DEFAULT_SERVER_TICK_HZ, DEFAULT_SIMULATION_TICK_HZ, DEFAULT_SNAPSHOT_HZ, SimulationClock,
 };

@@ -6,9 +6,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 ## Non-negotiable rules
 - **Every change lands with a locking test.** Gameplay promises live in tests, not comments.
 - **Two gates, local, no CI** (billing blocked; `.github/workflows/ci.yml` stays dormant on
-  purpose — `architecture_rules.rs` requires the file). PR gate = `scripts/verify-pr.ps1
-  -Crates <touched>` (fmt + clippy `-D warnings` over all targets + `quality` + the touched
-  crates' tests). Full gate = `scripts/verify.ps1` (+ every example/bench/test): once a day
+  purpose — `architecture_rules.rs` requires the file). `scripts/preflight.ps1` first (30 s:
+  fmt + the `quality` ratchet — four gate reruns in one day died on it). PR gate =
+  `scripts/verify-pr.ps1 -Crates <touched>` (fmt + clippy `-D warnings` over all targets +
+  `quality` + `tools` + the touched crates' tests). Full gate = `scripts/verify.ps1` (+ every example/bench/test): once a day
   over what landed, and before any merge touching examples, benches, wire, replays or physics
   numbers; `-Deep` after a killed build. A cold full run exceeds 25 min — run gates detached
   (log to a file, wait for the exit line) and never kill a build mid-flight.

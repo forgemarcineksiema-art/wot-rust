@@ -41,7 +41,8 @@ The **PR gate**, `scripts/verify-pr.ps1 [-Crates a,b,...]`:
   `cargo test --workspace --lib --bins --tests` (no example or bench codegen)
 
 ```powershell
-./scripts/verify-pr.ps1 -Crates client,scene_build   # before a PR
+./scripts/preflight.ps1                               # thirty seconds: rustfmt + the quality ratchet
+./scripts/verify-pr.ps1 -Crates client,scene_build   # before a PR (quality and tools ride along)
 ./scripts/verify.ps1                                  # once a day over what landed, and before
                                                       # any merge that touches examples, benches,
                                                       # the wire, replay fixtures or physics numbers

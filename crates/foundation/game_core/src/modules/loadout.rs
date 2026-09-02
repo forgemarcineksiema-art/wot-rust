@@ -85,6 +85,7 @@ impl VehicleModules {
             max_reverse_speed_mps: self.hull.max_reverse_speed_mps,
             turn_rate_rad_s: self.suspension.turn_rate_rad_s,
             turret_rotation_rad_s: self.turret.traverse.rate_rad_s(),
+            vertical_stabilizer: self.turret.vertical_stabilizer,
             hull: armor_profile_for(kind, self),
             gun: self.gun.spec.clone(),
             ammo: crate::AmmoLoadout::default_for_slots(
