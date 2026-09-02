@@ -149,13 +149,12 @@ impl WindowRenderer {
         self.scene.set_foliage_atlas(&self.ctx, chain, normals);
     }
 
-    /// Bind the bark pair (route 2) — see [`crate::SceneRenderer::set_bark_textures`].
+    /// Bind the bark array (route 2) — see [`crate::SceneRenderer::set_bark_textures`].
     pub fn set_bark_textures(
         &mut self,
-        albedo: &renderer_api::Rgba8MipChain,
-        normals: &renderer_api::Rgba8MipChain,
+        layers: &[(renderer_api::Rgba8MipChain, renderer_api::Rgba8MipChain)],
     ) {
-        self.scene.set_bark_textures(&self.ctx, albedo, normals);
+        self.scene.set_bark_textures(&self.ctx, layers);
     }
 
     pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {

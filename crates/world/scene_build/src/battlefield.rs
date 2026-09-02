@@ -2421,7 +2421,7 @@ mod tests {
             assert!(planted.len() > 24 * 8, "{}: the line is planted, not sketched", cover.id);
             for vertex in &planted {
                 assert!(
-                    vertex.surface == renderer_api::surface_role::BARK
+                    renderer_api::surface_role::is_bark(vertex.surface)
                         || vertex.surface == renderer_api::surface_role::FOLIAGE,
                     "{}: a planted line is bark and foliage — a vertex with role {} is a slab",
                     cover.id,
@@ -2586,7 +2586,15 @@ mod tests {
                     let rendered_top = if let Some(ladder_species) =
                         crate::tree_lod::ladder_species(instance.kind)
                     {
-                        crate::tree_lod::battle_tree_rendered_top_m(ladder_species, instance.scale)
+                        crate::tree_lod::battle_tree_rendered_top_m(
+                            ladder_species,
+                            crate::tree_lod::instance_seed(instance),
+                            crate::tree_lod::hosted_scale(
+                                instance,
+                                ladder_species,
+                                &map.static_cover,
+                            ),
+                        )
                     } else {
                         // The statics-bake path: per-position seed, Mid rung, no sink.
                         let seed = instance.position[0].to_bits() as u64

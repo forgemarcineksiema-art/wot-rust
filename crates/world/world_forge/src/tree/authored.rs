@@ -1,19 +1,28 @@
 //! Authored flora data (route 2, the owner's call of 2026-09-02: "trees as data, authored
-//! offline in Blender, baked into our format, runtime unchanged").
+//! offline in Blender, baked into our format, runtime unchanged"), for EVERY species, in
+//! VARIANTS (the owner's second call the same evening: "leaves denser, branches better made,
+//! the same technology for the other species, a natural generator of sizes — small to big,
+//! thin to thick, low to tall, dense or not").
 //!
-//! The first authored piece is the oak's leaf-CLUSTER pages: eight sprites of a twig with a
-//! few dozen individual leaves, rendered orthographically by Cycles under a uniform white
-//! world (`scripts/flora/bake_oak_clusters.py`), so the colour page stores ALBEDO × local
-//! occlusion — the same convention the procedural SDF slots stored, and the engine's FOLIAGE
-//! path lights it live. The normal page is the camera-space normal, `n * 0.5 + 0.5`, which
-//! is the atlas' tangent-space "dome" convention (right, up, toward the viewer).
+//! Per species (`assets/flora/<species>/`):
+//! - the leaf-CLUSTER pages: four sprites of a twig with a few hundred individual leaves
+//!   (needle fascicles for the pine), rendered orthographically by Cycles under a uniform white
+//!   world (`scripts/flora/bake_clusters.py`), so the colour page stores ALBEDO × local
+//!   occlusion — the convention the procedural SDF slots stored, and the engine's FOLIAGE path
+//!   lights it live. The normal page is the camera-space normal, `n * 0.5 + 0.5` (the atlas'
+//!   tangent-space "dome" convention: right, up, toward the viewer). One 2048×512 row per
+//!   species, pasted under the procedural page by `leaf_atlas`.
+//! - four skeleton VARIANTS (young / mature / old / sparse), two rungs each, grown by Sapling
+//!   Tree Gen (`scripts/flora/bake_tree.py`): trunk, limbs and twigs as wood, every Sapling
+//!   leaf quad as a cross pair of cluster cards.
+//! - a CC0 bark tile (Poly Haven; the licence file sits beside it), albedo + tangent normals,
+//!   one layer of the renderer's bark array.
 //!
-//! The pages ship INSIDE the binary (`include_bytes!` from `assets/flora/<species>/`) — an
-//! asset that is missing at runtime would draw a tree with no leaves, and a picture that
-//! depends on a working directory is not a deterministic picture. Their identity is a golden
-//! hash: a re-bake is a deliberate diff, never drift. No third-party asset is involved (the
-//! manifest next to the pages says so); the procedural-only rule of map-forge policy #10 is
-//! amended by this module, not silently broken.
+//! Everything ships INSIDE the binary (`include_bytes!`): an asset missing at runtime would
+//! draw a tree with no leaves, and a picture that depends on a working directory is not a
+//! deterministic picture. Every asset's identity is a golden hash — a re-bake is a deliberate
+//! diff, never drift. The procedural-only rule of map-forge policy #10 is amended by this
+//! module, not silently broken.
 
 use std::io::Cursor;
 use std::sync::OnceLock;
@@ -25,14 +34,21 @@ use super::leaves::LeafCard;
 use super::{BakedTree, TreeLod, TreeSpecies};
 use crate::WorldMaterial;
 
-/// The cluster block's page: a `CLUSTER_GRID_W` × `CLUSTER_GRID_H` grid of square sprites.
+/// A species' cluster block: `CLUSTER_GRID_W` × `CLUSTER_GRID_H` square sprites in one row.
 pub const CLUSTER_SPRITE_PX: u32 = 512;
 pub const CLUSTER_GRID_W: u32 = 4;
-pub const CLUSTER_GRID_H: u32 = 2;
+pub const CLUSTER_GRID_H: u32 = 1;
 pub const CLUSTER_PAGE_W: u32 = CLUSTER_GRID_W * CLUSTER_SPRITE_PX;
 pub const CLUSTER_PAGE_H: u32 = CLUSTER_GRID_H * CLUSTER_SPRITE_PX;
 /// Sprites per species block.
 pub const CLUSTER_SPRITES: u32 = CLUSTER_GRID_W * CLUSTER_GRID_H;
+/// Skeleton variants per species, in the exporter's order: young, mature, old, sparse.
+pub const VARIANTS: u32 = 4;
+/// The variant the ladder's representative individual and the impostor stand on.
+pub const REFERENCE_VARIANT: u32 = 1;
+/// A bark layer's size: 1 m × 2 m at 1024 × 2048 (square tiles are stacked twice).
+pub const BARK_W: u32 = 1024;
+pub const BARK_H: u32 = 2048;
 
 /// Both authored pages of one species' clusters, tightly packed RGBA8, row 0 at the TOP.
 /// `color` is albedo·occlusion with the cutout alpha; `normal` is the dome page with alpha
@@ -74,35 +90,145 @@ pub fn sprite_origin(sprite: u32) -> (u32, u32) {
     ((sprite % CLUSTER_GRID_W) * CLUSTER_SPRITE_PX, (sprite / CLUSTER_GRID_W) * CLUSTER_SPRITE_PX)
 }
 
-/// The golden hash of the oak's cluster pages as baked on 2026-09-02 (seed 1, 96 samples,
-/// Blender 5.2.0 LTS, Cycles on the MX330). A re-bake changes the picture: bless deliberately
-/// and say what changed about the LEAVES.
-pub const OAK_CLUSTERS_GOLDEN: u64 = 0xde88_4b37_8202_081d;
+/// One decoded bark page: tightly packed RGBA8, row 0 at the top, `BARK_W` × `BARK_H`.
+#[derive(Debug, Clone)]
+pub struct BarkPage {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
 
-static OAK_COLOR_PNG: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../assets/flora/oak/clusters_color.png"
-));
-static OAK_NORMAL_PNG: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../assets/flora/oak/clusters_normal.png"
-));
+/// The raw files of one species, straight from the binary.
+struct SpeciesAssets {
+    dir: &'static str,
+    bark_dir: &'static str,
+    cluster_color: &'static [u8],
+    cluster_normal: &'static [u8],
+    /// `[variant][rung]`: rung 0 = Close (near), 1 = Mid.
+    trees: [[&'static [u8]; 2]; VARIANTS as usize],
+    bark_albedo: &'static [u8],
+    bark_normal: &'static [u8],
+}
 
-/// The authored cluster pages of a species, if it has them. Decoded once per process.
-pub fn clusters(species: TreeSpecies) -> Option<&'static ClusterPages> {
+macro_rules! flora_file {
+    ($dir:literal, $file:literal) => {
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/flora/", $dir, $file))
+    };
+}
+
+macro_rules! flora {
+    ($dir:literal, $bark:literal) => {
+        SpeciesAssets {
+            dir: $dir,
+            bark_dir: $bark,
+            cluster_color: flora_file!($dir, "/clusters_color.png"),
+            cluster_normal: flora_file!($dir, "/clusters_normal.png"),
+            trees: [
+                [flora_file!($dir, "/v0/tree_near.bin"), flora_file!($dir, "/v0/tree_mid.bin")],
+                [flora_file!($dir, "/v1/tree_near.bin"), flora_file!($dir, "/v1/tree_mid.bin")],
+                [flora_file!($dir, "/v2/tree_near.bin"), flora_file!($dir, "/v2/tree_mid.bin")],
+                [flora_file!($dir, "/v3/tree_near.bin"), flora_file!($dir, "/v3/tree_mid.bin")],
+            ],
+            bark_albedo: include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../assets/flora/bark/",
+                $bark,
+                "/diff_1k.png"
+            )),
+            bark_normal: include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../assets/flora/bark/",
+                $bark,
+                "/nor_gl_1k.png"
+            )),
+        }
+    };
+}
+
+static OAK: SpeciesAssets = flora!("oak", "jolcham_oak_bark_01");
+static POPLAR: SpeciesAssets = flora!("poplar", "bark_brown_02");
+static WILLOW: SpeciesAssets = flora!("willow", "bark_willow_02");
+static FRUIT: SpeciesAssets = flora!("fruit", "sakura_bark");
+static BUSH: SpeciesAssets = flora!("bush", "tree_bark_03");
+static PINE: SpeciesAssets = flora!("pine", "pine_bark");
+
+fn assets(species: TreeSpecies) -> &'static SpeciesAssets {
     match species {
-        TreeSpecies::Oak => Some(oak_clusters()),
-        TreeSpecies::Poplar
-        | TreeSpecies::Willow
-        | TreeSpecies::FruitTree
-        | TreeSpecies::Bush
-        | TreeSpecies::Pine => None,
+        TreeSpecies::Oak => &OAK,
+        TreeSpecies::Poplar => &POPLAR,
+        TreeSpecies::Willow => &WILLOW,
+        TreeSpecies::FruitTree => &FRUIT,
+        TreeSpecies::Bush => &BUSH,
+        TreeSpecies::Pine => &PINE,
     }
 }
 
-fn oak_clusters() -> &'static ClusterPages {
-    static PAGES: OnceLock<ClusterPages> = OnceLock::new();
-    PAGES.get_or_init(|| decode_pages(OAK_COLOR_PNG, OAK_NORMAL_PNG))
+/// The species' position in `TreeSpecies::ALL`: its cluster row and its bark layer.
+pub fn species_index(species: TreeSpecies) -> u32 {
+    TreeSpecies::ALL.iter().position(|&s| s == species).expect("every species is in ALL") as u32
+}
+
+/// The asset directory names (species, bark), for reports and tests.
+pub fn asset_dirs(species: TreeSpecies) -> (&'static str, &'static str) {
+    let a = assets(species);
+    (a.dir, a.bark_dir)
+}
+
+/// The golden hashes per species: (clusters, the eight tree files, the bark pair). A re-bake
+/// changes the picture: bless deliberately and say what changed about the LEAVES, the SHAPE
+/// or the BARK.
+pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64); 6] = [
+    (TreeSpecies::Oak, 0x9589_9f13_6788_6aa6, 0xc331_0ccc_446a_23b5, 0x42fd_61ea_222f_dd31),
+    (TreeSpecies::Poplar, 0xd426_f283_936a_4735, 0x73d9_a96c_aa6c_f683, 0x9114_1fd6_45f4_f3b1),
+    (TreeSpecies::Willow, 0x3cba_2693_d88b_7b33, 0x5806_ed76_1308_6f4f, 0x69d3_ab60_3d49_f2a1),
+    (TreeSpecies::FruitTree, 0xeae0_1018_e1d2_b111, 0xe786_8cc2_b1a9_2398, 0x14d1_95fa_d5c6_ec4d),
+    (TreeSpecies::Bush, 0xf651_19f7_6c42_fc81, 0x2b95_10f3_dccb_0f40, 0x16db_0350_dcc4_d74d),
+    (TreeSpecies::Pine, 0xac91_6545_a0ad_d895, 0xcd2b_ce5e_6424_da87, 0x0f83_122c_b8de_75f1),
+];
+
+fn fnv_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        crate::fnv(hash, u64::from(*byte));
+    }
+}
+
+/// FNV over a species' eight tree files.
+pub fn trees_hash(species: TreeSpecies) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for rungs in &assets(species).trees {
+        for bytes in rungs {
+            fnv_bytes(&mut hash, bytes);
+        }
+    }
+    hash
+}
+
+/// FNV over a species' decoded bark pair.
+pub fn bark_hash(species: TreeSpecies) -> u64 {
+    let (albedo, normal) = bark_pages(species);
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    fnv_bytes(&mut hash, &albedo.rgba);
+    fnv_bytes(&mut hash, &normal.rgba);
+    hash
+}
+
+/// The authored cluster pages of a species (every species has them). Decoded once per
+/// process.
+pub fn clusters(species: TreeSpecies) -> Option<&'static ClusterPages> {
+    static PAGES: [OnceLock<ClusterPages>; 6] = [const { OnceLock::new() }; 6];
+    let a = assets(species);
+    Some(
+        PAGES[species_index(species) as usize]
+            .get_or_init(|| decode_cluster_pages(a.cluster_color, a.cluster_normal)),
+    )
+}
+
+/// The bark pair (albedo, normals) of a species, `BARK_W` × `BARK_H`, decoded once.
+pub fn bark_pages(species: TreeSpecies) -> &'static (BarkPage, BarkPage) {
+    static PAGES: [OnceLock<(BarkPage, BarkPage)>; 6] = [const { OnceLock::new() }; 6];
+    let a = assets(species);
+    PAGES[species_index(species) as usize]
+        .get_or_init(|| (decode_bark(a.bark_albedo), decode_bark(a.bark_normal)))
 }
 
 /// Decode one PNG to tightly packed RGBA8 (8-bit, alpha expanded).
@@ -121,7 +247,7 @@ fn decode_rgba(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
     (info.width, info.height, rgba)
 }
 
-fn decode_pages(color_png: &[u8], normal_png: &[u8]) -> ClusterPages {
+fn decode_cluster_pages(color_png: &[u8], normal_png: &[u8]) -> ClusterPages {
     let (width, height, color) = decode_rgba(color_png);
     let (normal_w, normal_h, raw_normal) = decode_rgba(normal_png);
     assert_eq!((width, height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H), "cluster colour page size");
@@ -137,81 +263,71 @@ fn decode_pages(color_png: &[u8], normal_png: &[u8]) -> ClusterPages {
     ClusterPages { width, height, color, normal }
 }
 
-// ---------------------------------------------------------------------------------------
-// The BARK pair: a CC0 photographic tile (Poly Haven `jolcham_oak_bark_01`, 1 m × 2 m,
-// licence in `assets/flora/bark/jolcham_oak_bark_01/LICENSE.md`), albedo and OpenGL-convention
-// tangent normals, re-encoded to 8-bit PNG by `scripts/flora/convert_bark.py`.
-
-static BARK_ALBEDO_PNG: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../assets/flora/bark/jolcham_oak_bark_01/diff_1k.png"
-));
-static BARK_NORMAL_PNG: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../assets/flora/bark/jolcham_oak_bark_01/nor_gl_1k.png"
-));
-
-/// One decoded bark page: tightly packed RGBA8, row 0 at the top.
-#[derive(Debug, Clone)]
-pub struct BarkPage {
-    pub width: u32,
-    pub height: u32,
-    pub rgba: Vec<u8>,
+/// A bark tile as one `BARK_W` × `BARK_H` layer: a 1 × 2 source as is, a square source
+/// stacked twice (the tile is 1 m wide and 2 m tall on the trunk either way).
+fn decode_bark(bytes: &[u8]) -> BarkPage {
+    let (width, height, rgba) = decode_rgba(bytes);
+    assert_eq!(width, BARK_W, "bark tile width");
+    let rgba = if height == BARK_H {
+        rgba
+    } else {
+        assert_eq!(height * 2, BARK_H, "bark tile is 1:2 or square");
+        let mut stacked = rgba.clone();
+        stacked.extend_from_slice(&rgba);
+        stacked
+    };
+    BarkPage { width: BARK_W, height: BARK_H, rgba }
 }
-
-/// The golden hash of the bark pair as embedded on 2026-09-02.
-pub const BARK_GOLDEN: u64 = 0x42fd_61ea_222f_dd31;
-
-/// The bark pair (albedo, normals), decoded once per process.
-pub fn bark_pages() -> &'static (BarkPage, BarkPage) {
-    static PAGES: OnceLock<(BarkPage, BarkPage)> = OnceLock::new();
-    PAGES.get_or_init(|| {
-        let (w, h, rgba) = decode_rgba(BARK_ALBEDO_PNG);
-        let (nw, nh, nrgba) = decode_rgba(BARK_NORMAL_PNG);
-        assert_eq!((w, h), (nw, nh), "bark albedo and normal pages agree in size");
-        (BarkPage { width: w, height: h, rgba }, BarkPage { width: nw, height: nh, rgba: nrgba })
-    })
-}
-
-/// FNV over both bark pages.
-pub fn bark_hash() -> u64 {
-    let (albedo, normal) = bark_pages();
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in albedo.rgba.iter().chain(normal.rgba.iter()) {
-        crate::fnv(&mut hash, u64::from(*byte));
-    }
-    hash
-}
-
-// ---------------------------------------------------------------------------------------
-// The authored TREE: skeleton wood and cluster-card anchors grown by Sapling Tree Gen in
-// Blender (`scripts/flora/bake_oak_tree.py`), two rungs from one seed.
-
-static OAK_TREE_NEAR: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/flora/oak/tree_near.bin"));
-static OAK_TREE_MID: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../assets/flora/oak/tree_mid.bin"));
-
-/// The golden hashes of the oak's two rung files (FNV over the bytes). A re-export changes the
-/// tree: bless deliberately and say what changed about the SHAPE.
-pub const OAK_TREE_GOLDENS: [(TreeLod, u64); 2] =
-    [(TreeLod::Close, 0xb1ec_a836_1182_26fa), (TreeLod::Mid, 0x3cde_941e_4fa3_ec4e)];
 
 /// The shade lane of an authored deck: rim cards at 1.0, core cards down to this — the same
-/// one-mass law the procedural dealer applies (`leaves::CORE_SHADE`).
+/// one-mass law the procedural dealer applied (`leaves::CORE_SHADE`).
 const CORE_SHADE: f32 = 0.68;
 
-/// The authored tree of a species at a rung, if the species has one. ONE individual was
-/// grown; the seed buys the only variety a file can give cheaply — odd seeds mirror it
-/// across X (winding flipped with it), so a shelterbelt of authored oaks is two trees under
-/// their own yaws and scales, not one tree stamped. The ladder ships the unmirrored one.
+/// Which variant and mirror a seed names. The ladder passes `variant_seed(v)`; the statics
+/// bake and the tree line pass position bits, so a shelterbelt is a population, not one
+/// tree stamped. A mixed hash, because raw position bits share their low bits.
+pub fn variant_of_seed(seed: u64) -> (u32, bool) {
+    // A splitmix64 finaliser: small seeds (the ladder's, the tests') and position bits alike
+    // spread over every variant and both mirrors.
+    let mut x = seed ^ 0x9e37_79b9_7f4a_7c15;
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
+    x ^= x >> 31;
+    (((x >> 8) % u64::from(VARIANTS)) as u32, (x >> 20) & 1 == 1)
+}
+
+/// The seed that names variant `variant`, unmirrored — found by search, because the seed's
+/// hash decides. Cheap (a handful of FNV rounds) and deterministic.
+pub fn variant_seed(variant: u32) -> u64 {
+    seed_for(variant, false)
+}
+
+/// The seed that names (`variant`, `mirrored`), found by search.
+pub fn seed_for(variant: u32, mirrored: bool) -> u64 {
+    (0..4096u64)
+        .find(|&seed| variant_of_seed(seed) == (variant % VARIANTS, mirrored))
+        .expect("every (variant, mirror) has a seed under 4096")
+}
+
+/// The authored tree of a species at a rung: the variant and mirror the seed names.
 pub fn tree(species: TreeSpecies, seed: u64, lod: TreeLod) -> Option<BakedTree> {
-    let bytes = tree_bytes(species, lod)?;
-    let mut tree = parse_tree(species, bytes);
-    if seed & 1 == 1 {
+    let (variant, mirrored) = variant_of_seed(seed);
+    let mut tree = tree_variant(species, variant, lod);
+    if mirrored {
         mirror_authored_tree_across_x(&mut tree);
     }
     Some(tree)
+}
+
+/// One named variant, unmirrored.
+pub fn tree_variant(species: TreeSpecies, variant: u32, lod: TreeLod) -> BakedTree {
+    let rung = match lod {
+        TreeLod::Close => 0,
+        TreeLod::Mid => 1,
+    };
+    parse_tree(species, assets(species).trees[(variant % VARIANTS) as usize][rung])
 }
 
 fn mirror_authored_tree_across_x(tree: &mut BakedTree) {
@@ -232,24 +348,6 @@ fn mirror_authored_tree_across_x(tree: &mut BakedTree) {
         card.half_up = flip(card.half_up);
         card.normal = flip(card.normal);
     }
-}
-
-fn tree_bytes(species: TreeSpecies, lod: TreeLod) -> Option<&'static [u8]> {
-    match (species, lod) {
-        (TreeSpecies::Oak, TreeLod::Close) => Some(OAK_TREE_NEAR),
-        (TreeSpecies::Oak, TreeLod::Mid) => Some(OAK_TREE_MID),
-        _ => None,
-    }
-}
-
-/// FNV over a rung file's bytes.
-pub fn tree_file_hash(species: TreeSpecies, lod: TreeLod) -> Option<u64> {
-    let bytes = tree_bytes(species, lod)?;
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in bytes {
-        crate::fnv(&mut hash, u64::from(*byte));
-    }
-    Some(hash)
 }
 
 struct Reader<'a> {
@@ -310,9 +408,9 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
         raw.push((center, half_right, half_up, normal, sprite));
     }
     assert_eq!(r.at, bytes.len(), "authored tree: trailing bytes");
-    // The shade lane from the deck's own geometry: rim 1.0, core CORE_SHADE.
     let centroid = raw.iter().map(|c| c.0).sum::<Vec3>() / (ncards.max(1) as f32);
     let reach = raw.iter().map(|c| c.0.distance(centroid)).fold(0.01_f32, f32::max);
+    let slot_base = super::leaf_atlas::cluster_slot_base(species);
     let leaves = raw
         .into_iter()
         .map(|(center, half_right, half_up, normal, sprite)| LeafCard {
@@ -320,7 +418,7 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
             half_right,
             half_up,
             normal: normal.normalize_or_zero(),
-            slot: super::leaf_atlas::CLUSTER_SLOT_BASE + sprite % (CLUSTER_SPRITES as u8),
+            slot: slot_base + sprite % (CLUSTER_SPRITES as u8),
             shade: CORE_SHADE
                 + (1.0 - CORE_SHADE) * (center.distance(centroid) / reach).clamp(0.0, 1.0),
         })
@@ -328,7 +426,7 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
     BakedTree {
         species,
         trunk: GeometryMesh::new(vertices, indices),
-        // Tall trees keep an empty occlusion hull — their crowns honestly show sky.
+        // Authored crowns are their own mass; no occlusion hull.
         canopy: GeometryMesh::new(Vec::new(), Vec::new()),
         leaves,
     }
@@ -338,140 +436,174 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
 mod tests {
     use super::*;
 
-    /// The authored oak: both rung files on their goldens, the wood under the ladder's budget,
-    /// the cards a cross-pair deck on the cluster block, the tree mature and grounded.
+    /// Every species: the three asset hashes on their goldens.
     #[test]
-    fn the_authored_oak_is_on_its_goldens_and_inside_its_budget() {
-        for (lod, golden) in OAK_TREE_GOLDENS {
-            let hash = tree_file_hash(TreeSpecies::Oak, lod).expect("oak rung file");
-            assert_eq!(hash, golden, "oak {lod:?}: the tree file changed — bless (0x{hash:016x})");
-        }
-        let near = tree(TreeSpecies::Oak, 0, TreeLod::Close).expect("authored oak");
-        let mid = tree(TreeSpecies::Oak, 0, TreeLod::Mid).expect("authored oak");
-        // Measured 3,128 at the dense export (limbs at eight sides + 57 twigs at four).
-        assert!(near.trunk.triangle_count() <= 3_500, "near wood {}", near.trunk.triangle_count());
-        assert!(mid.trunk.triangle_count() <= 700, "mid wood {}", mid.trunk.triangle_count());
-        assert!(mid.trunk.triangle_count() < near.trunk.triangle_count());
-        assert!((240..=520).contains(&near.leaves.len()), "near deck {}", near.leaves.len());
-        assert!(mid.leaves.len() < near.leaves.len() && mid.leaves.len() >= 120);
-        assert!(near.leaves.len().is_multiple_of(2), "cross pairs come in twos");
-        assert!(near.tip() > 15.0, "the oak stays mature: {}", near.tip());
-        assert!((near.tip() - mid.tip()).abs() < 1.0, "the rungs agree in height");
-        let low = near.trunk.vertices().iter().map(|v| v.position.y).fold(f32::MAX, f32::min);
-        assert!(low.abs() < 0.2, "grounded at y = 0: {low}");
-        for card in &near.leaves {
-            assert!(card.slot >= super::super::leaf_atlas::CLUSTER_SLOT_BASE);
-            assert!((0.68..=1.0).contains(&card.shade));
-            assert!(card.half_right.length() > 0.5 && card.half_up.length() > 0.5);
-            // A cross pair: the two quads through one centre stand perpendicular.
-        }
-        for pair in near.leaves.chunks_exact(2) {
-            assert_eq!(pair[0].center, pair[1].center);
-            assert!(pair[0].normal.dot(pair[1].normal).abs() < 0.05, "perpendicular cross");
-        }
-        assert!(
-            near.trunk.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).is_ok(),
-            "the authored wood is a valid mesh"
-        );
-        // Seed 1 is the mirror: same tip, same counts, a different individual, still valid.
-        let mirrored = tree(TreeSpecies::Oak, 1, TreeLod::Close).expect("authored oak");
-        assert_eq!(mirrored.leaves.len(), near.leaves.len());
-        assert!((mirrored.tip() - near.tip()).abs() < 1.0e-3);
-        assert_ne!(mirrored.leaves[0].center, near.leaves[0].center);
-        assert!(
-            mirrored.trunk.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).is_ok(),
-            "the mirrored wood keeps its winding"
-        );
-    }
-
-    /// The bark pair: on its golden, a 1:2 tile (1 m × 2 m), the normal page a real normal
-    /// map (mostly pointing out of the tile) and the albedo a bark, not a white.
-    #[test]
-    fn the_bark_pair_is_on_its_golden_and_is_a_bark() {
-        let (albedo, normal) = bark_pages();
-        assert_eq!(albedo.height, albedo.width * 2, "a 1 m × 2 m tile");
-        assert_eq!(
-            bark_hash(),
-            BARK_GOLDEN,
-            "the bark pair changed — bless (0x{:016x})",
-            bark_hash()
-        );
-        let mean = |page: &BarkPage, channel: usize| {
-            page.rgba.chunks_exact(4).map(|t| u32::from(t[channel])).sum::<u32>() as f32
-                / (page.width * page.height) as f32
-        };
-        assert!(mean(normal, 2) > 200.0, "normals point out of the tile: {}", mean(normal, 2));
-        assert!(
-            (100.0..=132.0).contains(&mean(normal, 0))
-                && (100.0..=132.0).contains(&mean(normal, 1))
-        );
-        let (r, g, b) = (mean(albedo, 0), mean(albedo, 1), mean(albedo, 2));
-        assert!(r < 160.0 && r > b, "bark is a brown, not a white or a blue: ({r}, {g}, {b})");
-    }
-
-    /// The asset's identity: the shipped oak pages are the ones blessed, byte for byte.
-    #[test]
-    fn the_oak_cluster_pages_are_on_their_golden() {
-        let pages = oak_clusters();
-        assert_eq!((pages.width, pages.height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H));
-        assert_eq!(
-            pages.deterministic_hash(),
-            OAK_CLUSTERS_GOLDEN,
-            "the oak's cluster pages changed — bless deliberately (0x{:016x})",
-            pages.deterministic_hash()
-        );
-    }
-
-    /// Every sprite is a real but sparse cluster: leaves cover a band of its slot, never a
-    /// pancake and never a bare twig — the band the SDF slots were held to, widened for
-    /// authored clusters that carry their own depth.
-    #[test]
-    fn every_oak_sprite_is_a_real_but_sparse_cluster() {
-        let pages = oak_clusters();
-        for sprite in 0..CLUSTER_SPRITES {
-            let coverage = pages.sprite_coverage(sprite);
-            assert!(
-                (0.12..=0.70).contains(&coverage),
-                "oak sprite {sprite}: coverage {coverage:.3}"
+    fn every_species_is_on_its_goldens() {
+        for (species, clusters_golden, trees_golden, bark_golden) in SPECIES_GOLDENS {
+            let pages = clusters(species).expect("clusters");
+            assert_eq!(
+                pages.deterministic_hash(),
+                clusters_golden,
+                "{species:?} clusters changed — bless (0x{:016x})",
+                pages.deterministic_hash()
+            );
+            assert_eq!(
+                trees_hash(species),
+                trees_golden,
+                "{species:?} trees changed — bless (0x{:016x})",
+                trees_hash(species)
+            );
+            assert_eq!(
+                bark_hash(species),
+                bark_golden,
+                "{species:?} bark changed — bless (0x{:016x})",
+                bark_hash(species)
             );
         }
     }
 
-    /// The card's stem hangs at −half_up (the bottom of the slot): every sprite has its twig
-    /// rooted in the bottom band, centred, so a card never floats its cluster off its twig.
+    /// Every sprite of every species is a real but sparse cluster, rooted at its bottom
+    /// centre (the card's stem), the normal page flat outside the leaves and bent inside.
     #[test]
-    fn every_oak_sprite_is_rooted_at_the_bottom_centre() {
-        let pages = oak_clusters();
-        for sprite in 0..CLUSTER_SPRITES {
-            let (x0, y0) = sprite_origin(sprite);
-            let mut rooted = false;
-            for y in (y0 + CLUSTER_SPRITE_PX - 40)..(y0 + CLUSTER_SPRITE_PX) {
-                for x in (x0 + CLUSTER_SPRITE_PX / 2 - 48)..(x0 + CLUSTER_SPRITE_PX / 2 + 48) {
-                    rooted |= pages.color[((y * pages.width + x) * 4 + 3) as usize] >= 128;
+    fn every_species_cluster_block_is_well_formed() {
+        for species in TreeSpecies::ALL {
+            let pages = clusters(species).expect("clusters");
+            assert_eq!((pages.width, pages.height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H));
+            for sprite in 0..CLUSTER_SPRITES {
+                let coverage = pages.sprite_coverage(sprite);
+                assert!(
+                    (0.06..=0.75).contains(&coverage),
+                    "{species:?} sprite {sprite}: coverage {coverage:.3}"
+                );
+                let (x0, y0) = sprite_origin(sprite);
+                let mut rooted = false;
+                for y in (y0 + CLUSTER_SPRITE_PX - 40)..(y0 + CLUSTER_SPRITE_PX) {
+                    for x in (x0 + CLUSTER_SPRITE_PX / 2 - 48)..(x0 + CLUSTER_SPRITE_PX / 2 + 48) {
+                        rooted |= pages.color[((y * pages.width + x) * 4 + 3) as usize] >= 128;
+                    }
+                }
+                assert!(rooted, "{species:?} sprite {sprite} is not rooted at its bottom centre");
+            }
+            let mut inside = 0u32;
+            let mut bent = 0u32;
+            for (c, n) in pages.color.chunks_exact(4).zip(pages.normal.chunks_exact(4)) {
+                if c[3] < 8 {
+                    assert_eq!(&n[..3], &[128, 128, 255], "{species:?}: cut texel must be flat");
+                } else if c[3] >= 128 {
+                    inside += 1;
+                    bent += u32::from(
+                        (i32::from(n[0]) - 128).abs() + (i32::from(n[1]) - 128).abs() > 12,
+                    );
                 }
             }
-            assert!(rooted, "oak sprite {sprite} is not rooted at its bottom centre");
+            assert!(inside > 0);
+            assert!(bent * 100 >= inside * 15, "{species:?}: real normals: {bent}/{inside}");
         }
     }
 
-    /// The normal page is flat wherever the colour page is cut, and a real normal where it
-    /// is not — the dome convention the SDF slots follow, so the mips stay sane.
+    /// Every variant of every species: valid wood inside the budget, a cross-pair deck on
+    /// the species' cluster block, the rungs agreeing in height, grounded; the variants
+    /// really differ in size (young under mature under old) and the mirror keeps its winding.
     #[test]
-    fn the_normal_page_is_flat_outside_the_leaves_and_bent_inside() {
-        let pages = oak_clusters();
-        let mut inside = 0u32;
-        let mut bent = 0u32;
-        for (c, n) in pages.color.chunks_exact(4).zip(pages.normal.chunks_exact(4)) {
-            if c[3] < 8 {
-                assert_eq!(&n[..3], &[128, 128, 255], "cut texel must be flat");
-            } else if c[3] >= 128 {
-                inside += 1;
-                bent +=
-                    u32::from((i32::from(n[0]) - 128).abs() + (i32::from(n[1]) - 128).abs() > 12);
+    fn every_variant_of_every_species_is_a_valid_tree() {
+        for species in TreeSpecies::ALL {
+            let mut tips = Vec::new();
+            for variant in 0..VARIANTS {
+                let near = tree_variant(species, variant, TreeLod::Close);
+                let mid = tree_variant(species, variant, TreeLod::Mid);
+                assert!(
+                    near.trunk.triangle_count() <= 12_000,
+                    "{species:?} v{variant}: near wood {}",
+                    near.trunk.triangle_count()
+                );
+                assert!(mid.trunk.triangle_count() <= near.trunk.triangle_count());
+                assert!(
+                    (60..=640).contains(&near.leaves.len()),
+                    "{species:?} v{variant}: near deck {}",
+                    near.leaves.len()
+                );
+                assert!(mid.leaves.len() <= near.leaves.len());
+                assert!(near.leaves.len().is_multiple_of(2), "cross pairs come in twos");
+                assert!(
+                    (near.tip() - mid.tip()).abs() < 0.05,
+                    "{species:?} v{variant}: rung tips {} vs {}",
+                    near.tip(),
+                    mid.tip()
+                );
+                let low =
+                    near.trunk.vertices().iter().map(|v| v.position.y).fold(f32::MAX, f32::min);
+                assert!(low.abs() < 0.25, "{species:?} v{variant}: grounded at y = 0: {low}");
+                let slot_base = super::super::leaf_atlas::cluster_slot_base(species);
+                for card in &near.leaves {
+                    assert!((slot_base..slot_base + CLUSTER_SPRITES as u8).contains(&card.slot));
+                    assert!((0.68..=1.0).contains(&card.shade));
+                }
+                for pair in near.leaves.chunks_exact(2) {
+                    assert_eq!(pair[0].center, pair[1].center);
+                    assert!(pair[0].normal.dot(pair[1].normal).abs() < 0.05, "perpendicular cross");
+                }
+                assert!(
+                    near.trunk.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).is_ok(),
+                    "{species:?} v{variant}: the authored wood is a valid mesh"
+                );
+                tips.push(near.tip());
             }
-            assert_eq!(n[3], 255);
+            assert!(
+                tips[0] < tips[1] && tips[1] < tips[2],
+                "{species:?}: young < mature < old: {tips:?}"
+            );
+            let plain =
+                tree(species, variant_seed(REFERENCE_VARIANT), TreeLod::Close).expect("tree");
+            assert_eq!(
+                plain.leaves.len(),
+                tree_variant(species, REFERENCE_VARIANT, TreeLod::Close).leaves.len()
+            );
+            let mut mirrored_seed = 0;
+            while variant_of_seed(mirrored_seed) != (REFERENCE_VARIANT, true) {
+                mirrored_seed += 1;
+            }
+            let mirrored = tree(species, mirrored_seed, TreeLod::Close).expect("tree");
+            assert!((mirrored.tip() - plain.tip()).abs() < 1.0e-3);
+            assert_ne!(mirrored.leaves[0].center, plain.leaves[0].center);
+            assert!(
+                mirrored.trunk.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).is_ok(),
+                "{species:?}: the mirrored wood keeps its winding"
+            );
         }
-        assert!(inside > 0);
-        assert!(bent * 100 >= inside * 20, "the leaves carry real normals: {bent}/{inside}");
+    }
+
+    /// The seed → variant map spreads position seeds over every variant and both mirrors.
+    #[test]
+    fn position_seeds_spread_over_the_variants() {
+        let mut seen = std::collections::BTreeSet::new();
+        for x in 0..40 {
+            let position = [10.0 + x as f32 * 7.3, 0.0, 4.0 + x as f32 * 3.1];
+            let seed = position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32);
+            seen.insert(variant_of_seed(seed));
+        }
+        assert!(seen.len() >= 7, "variants × mirrors reached: {seen:?}");
+        for variant in 0..VARIANTS {
+            assert_eq!(variant_of_seed(variant_seed(variant)), (variant, false));
+        }
+    }
+
+    /// Every bark layer: a 1 × 2 tile, the normal page a real normal map, the albedo a bark.
+    #[test]
+    fn every_bark_layer_is_a_bark() {
+        for species in TreeSpecies::ALL {
+            let (albedo, normal) = bark_pages(species);
+            assert_eq!((albedo.width, albedo.height), (BARK_W, BARK_H));
+            assert_eq!((normal.width, normal.height), (BARK_W, BARK_H));
+            let mean = |page: &BarkPage, channel: usize| {
+                page.rgba.chunks_exact(4).map(|t| u32::from(t[channel])).sum::<u32>() as f32
+                    / (page.width * page.height) as f32
+            };
+            assert!(mean(normal, 2) > 190.0, "{species:?}: normals point out: {}", mean(normal, 2));
+            let (r, g, b) = (mean(albedo, 0), mean(albedo, 1), mean(albedo, 2));
+            assert!(
+                r < 190.0 && r >= b,
+                "{species:?}: bark is a brown/grey, not a white or a blue: ({r}, {g}, {b})"
+            );
+        }
     }
 }

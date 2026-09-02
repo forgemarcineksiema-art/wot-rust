@@ -40,6 +40,7 @@ mod reticle_strip;
 mod screenshot;
 mod shadow_probe;
 mod sky_probe;
+mod species_probe;
 mod t34_85_probe;
 mod t54_battle_views;
 mod t54_bow_probe;
@@ -73,8 +74,7 @@ pub(crate) fn bind_battle_foliage_atlas(
 ) {
     let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
     renderer.set_foliage_atlas(ctx, &color, Some(&normal));
-    let (bark_albedo, bark_normal) = scene_build::foliage_atlas_paint::bark_texture_chains();
-    renderer.set_bark_textures(ctx, &bark_albedo, &bark_normal);
+    renderer.set_bark_textures(ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
 }
 
 type ProbeResult = Result<(), Box<dyn std::error::Error>>;
@@ -123,6 +123,7 @@ const PROBES: &[ProbeEntry] = &[
     ("reticle_strip", reticle_strip::run),
     ("screenshot", screenshot::run),
     ("shadow_probe", shadow_probe::run),
+    ("species_probe", species_probe::run),
     ("sky_probe", sky_probe::run),
     ("t34_85_probe", t34_85_probe::run),
     ("t54_battle_views", t54_battle_views::run),

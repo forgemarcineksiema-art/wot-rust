@@ -11,3 +11,4 @@
 *.ilk
 *.exe
 /output/
+assets/flora/*/sprites/

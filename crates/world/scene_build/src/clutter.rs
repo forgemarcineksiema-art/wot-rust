@@ -16,7 +16,7 @@ use glam::{Mat3, Vec3};
 use renderer_api::{SceneVertex, surface_role};
 use terrain::{BattlefieldMap, SceneryInstance, SceneryKind};
 
-use crate::foliage::{push_baked_tree, push_frustum, push_impostor_tree};
+use crate::foliage::{push_frustum, push_impostor_tree};
 use crate::tank_mesh::push_oriented_box;
 
 /// The stone a map is built from: linear albedo plus the specular lane, straight off its ground
@@ -69,14 +69,12 @@ pub fn push_scenery_instance(
         | SceneryKind::Poplar
         | SceneryKind::Willow
         | SceneryKind::FruitTree
-        | SceneryKind::Pine => {}
+        | SceneryKind::Pine
+        | SceneryKind::Bush => {}
         // Retired imported kinds (procedural-only decision, Świat 2.0) bake to NOTHING: falling
         // through to the painted far frusta would resurrect the retired silhouette at close
         // range.
         SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
-        // The bush is the one plant the bake keeps: at CLOSE it is a tenth of a tree, and the
-        // steppe's dark value plane rides on its tufts at every distance.
-        SceneryKind::Bush => push_baked_tree(vertices, indices, instance),
         SceneryKind::Rock => {
             push_rock(vertices, indices, instance, stone, world_forge::rock::RockForm::Erratic)
         }

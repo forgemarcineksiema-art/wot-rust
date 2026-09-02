@@ -48,11 +48,21 @@ pub(crate) fn push_baked_tree(
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
 ) {
+    push_baked_tree_seeded(vertices, indices, instance, statics_tree_seed(instance.position));
+}
+
+/// The same bake from a caller-chosen seed — the planted tree line names each station's
+/// variant (the one that fills its wall) instead of taking the position's.
+pub(crate) fn push_baked_tree_seeded(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    instance: &SceneryInstance,
+    seed: u64,
+) {
     let Some(species) = tree_species(instance.kind) else {
         return;
     };
     let base = Vec3::from_array(instance.position);
-    let seed = statics_tree_seed(instance.position);
     // The bush bakes at CLOSE: its whole body is card mass, and the Mid thinning that a tall
     // tree hides inside its silhouette makes a knee-high tuft nearly vanish at 200 m — the
     // steppe's dark value plane (rule 1) rode on exactly those tufts. A bush is a tenth of a
@@ -83,7 +93,9 @@ pub(crate) fn push_baked_tree(
             let role = if lit_by_sky {
                 renderer_api::surface_role::FOLIAGE
             } else {
-                renderer_api::surface_role::BARK
+                renderer_api::surface_role::bark_for_layer(
+                    world_forge::tree::authored::species_index(species),
+                )
             };
             vertices.push(
                 SceneVertex::surfaced(
@@ -371,19 +383,25 @@ mod baked_tree_tests {
             "a baked poplar is real geometry, not a frustum stack: {} tris",
             indices_a.len() / 3
         );
-        let (vertices_c, _) = build(&instance(50.0));
-        assert_ne!(
-            vertices_a.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
-            vertices_c.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
-            "two poplars at different spots are different individuals"
+        // A population, not a stamp: over a handful of spots the position seed reaches
+        // several of the eight looks (four variants × mirror), so no two neighbours must
+        // match — but any two may (route 2).
+        let looks: std::collections::BTreeSet<u64> = [10.0, 50.0, 90.0, 130.0, 170.0, 210.0]
+            .into_iter()
+            .map(|x| {
+                let (vertices, _) = build(&instance(x));
+                vertices.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>()
+            })
+            .collect();
+        assert!(
+            looks.len() >= 3,
+            "poplars at different spots are different individuals: {looks:?}"
         );
         // Materia Świata 3 + Drzewa 3.0 PR1: the trunk wears bark down the surface lane, the
         // canopy wears FOLIAGE — the statics bake and the instanced ladder must answer the sun
         // with the same lighting model, and nothing may slide back to LEGACY.
-        let barked = vertices_a
-            .iter()
-            .filter(|v| (v.surface - renderer_api::surface_role::BARK).abs() < 0.01)
-            .count();
+        let barked =
+            vertices_a.iter().filter(|v| renderer_api::surface_role::is_bark(v.surface)).count();
         let leafed = vertices_a
             .iter()
             .filter(|v| (v.surface - renderer_api::surface_role::FOLIAGE).abs() < 0.01)
@@ -478,11 +496,7 @@ mod baked_tree_tests {
                 assert!(indices.is_empty(), "{kind:?} rides the ladder and must not bake near");
             }
         }
-        // The bush bakes at CLOSE (its Mid deck vanished at 200 m and took the steppe's dark
-        // plane with it), so its ceiling is its own: full card deck + 4-sided stick bark.
-        const BUSH_STATICS_MAX_TRIS: usize = 1_000;
         for (kind, ceiling) in [
-            (SceneryKind::Bush, BUSH_STATICS_MAX_TRIS),
             // The forged field stone: 80 triangles of displaced body plus its two frost chips.
             (SceneryKind::Rock, 108),
             // The masonry spill, raised from the old 60 with its construction: a 7-sided mass,
