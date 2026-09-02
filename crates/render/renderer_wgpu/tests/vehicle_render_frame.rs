@@ -459,3 +459,196 @@ fn a_scuff_and_a_gouge_mark_the_plate_without_opening_it() {
         );
     }
 }
+
+/// Z6: the hull's inside is a cavity. An interior material (primer, id 5) under the same sun as
+/// the painted plate (id 0) renders far darker — no key, fill or rim light reaches it, only a
+/// whisper of ambient and whatever comes through its own apertures (none here).
+#[test]
+fn an_interior_material_is_a_cavity_lit_only_through_the_apertures() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let render = |mesh: MeshHandle, material_id: u32| {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle_of(material_id));
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+                armor_damage: Vec::new(),
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+    let center = (32 * 64 + 32) * 4;
+    let plate = render(MeshHandle(95), 0);
+    let cavity = render(MeshHandle(96), 5);
+    let plate_luma = luma_255(&plate[center..center + 4]);
+    let cavity_luma = luma_255(&cavity[center..center + 4]);
+    assert!(
+        cavity_luma < plate_luma * 0.45,
+        "the interior is a cavity: {cavity_luma} vs the plate's {plate_luma}"
+    );
+}
+
+/// The test triangle with a chosen material id.
+fn vehicle_triangle_of(material_id: u32) -> VehicleMeshAsset {
+    VehicleMeshAsset::new(
+        vec![
+            VehicleVertex {
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..VehicleVertex::new(
+                    [-0.6, -0.4, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [0.0, 0.0],
+                    material_id,
+                    1.0,
+                )
+            },
+            VehicleVertex {
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..VehicleVertex::new(
+                    [0.6, -0.4, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0],
+                    material_id,
+                    1.0,
+                )
+            },
+            VehicleVertex {
+                tangent: [1.0, 0.0, 0.0, 1.0],
+                ..VehicleVertex::new([0.0, 0.6, 0.0], [0.0, 0.0, 1.0], [0.5, 1.0], material_id, 1.0)
+            },
+        ],
+        vec![0, 1, 2],
+    )
+}
+
+/// Z6: through a breach the eye meets the INSIDE of the far wall — dark, a cavity — not the
+/// background behind the hull. A closed painted box with a breach cut through its front face:
+/// the centre pixel is neither the front face (that is cut) nor the clear colour (the interior
+/// shell draws the far wall's back face), and it is far darker than the intact front face.
+#[test]
+fn a_breach_reveals_the_dark_inside_of_the_far_wall_not_the_background() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let render = |mesh: MeshHandle, armor_damage| {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_box());
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+                armor_damage,
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+    let breach = vec![ArmorDamageInstance {
+        tank_id: TankId(1),
+        apertures: vec![ArmorApertureRender {
+            center: [0.0, 0.0, 0.5],
+            normal: [0.0, 0.0, 1.0],
+            tangent: [1.0, 0.0, 0.0],
+            major_radius_m: 0.16,
+            minor_radius_m: 0.14,
+            rotation_rad: 0.0,
+            irregularity: 0.1,
+            phase_a: 0.7,
+            phase_b: 2.1,
+            half_depth_m: 0.15,
+            glow: 0.0,
+            glow_tightness: 1.0,
+            cut: true,
+            kind: ArmorMarkKind::Breach,
+        }],
+    }];
+    let intact = render(MeshHandle(99), Vec::new());
+    let holed = render(MeshHandle(100), breach);
+    let center = (32 * 64 + 32) * 4;
+    let corner = 4;
+    let front = luma_255(&intact[center..center + 4]);
+    let inside = luma_255(&holed[center..center + 4]);
+    assert_ne!(
+        &holed[center..center + 4],
+        &holed[corner..corner + 4],
+        "the breach does not show the background: the interior shell draws the far wall"
+    );
+    assert!(
+        inside < front * 0.45,
+        "the far wall's inside is a cavity: {inside} vs the front face's {front}"
+    );
+}
+
+/// A closed painted box (1 m wide, 1 m tall, 1 m deep), outward normals, CCW faces.
+fn vehicle_box() -> VehicleMeshAsset {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    let faces: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
+        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+        ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+        ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    ];
+    for (normal, u, v) in faces {
+        let base = vertices.len() as u32;
+        for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            let position = [
+                normal[0] * 0.5 + u[0] * 0.5 * su + v[0] * 0.5 * sv,
+                normal[1] * 0.5 + u[1] * 0.5 * su + v[1] * 0.5 * sv,
+                normal[2] * 0.5 + u[2] * 0.5 * su + v[2] * 0.5 * sv,
+            ];
+            vertices.push(VehicleVertex {
+                tangent: [u[0], u[1], u[2], 1.0],
+                ..VehicleVertex::new(position, normal, [0.0, 0.0], 0, 1.0)
+            });
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+    VehicleMeshAsset::new(vertices, indices)
+}

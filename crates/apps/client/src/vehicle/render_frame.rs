@@ -242,7 +242,11 @@ pub fn armor_damage_instance(
                 irregularity: lobe.outer.irregularity,
                 phase_a,
                 phase_b,
-                half_depth_m: (lobe.thickness_m + 0.025).clamp(0.04, 0.45),
+                // The cut reaches through the plate AND the skin behind it (Z6): a hybrid hull
+                // carries a second surface some tens of centimetres inside the part-aware
+                // plates, and a hole that stopped at the plate showed that surface, lit as an
+                // exterior, filling the breach. Never past the far wall: 45 cm at most.
+                half_depth_m: (lobe.thickness_m + 0.025).max(0.30).clamp(0.04, 0.45),
                 glow,
                 glow_tightness: breach_glow_tightness(breach.shell_type),
                 cut,

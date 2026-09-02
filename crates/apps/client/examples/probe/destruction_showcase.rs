@@ -9,6 +9,8 @@
 //!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
 //!   `_surface_wounds.png` — the same tank two metres off: a bounce's dish and a ricochet's gouge
 //!                            as material on the plate (Z5).
+//!   `_breach_close.png`   — the glacis penetration from 1.4 m: curled torn tongues with bright
+//!                            edges around a dark cavity (Z6).
 //!   `_interior_detail.png` — a close side perforation exposing physical internal assemblies.
 //!   `_wreck.png`          — a knocked-out hull: charred, gun drooped off the aim, scarred.
 //!   `_turret_popoff.png`  — an ammo-rack kill: the turret flung off and settled beside the hull.
@@ -308,6 +310,27 @@ fn vehicle_shots(
         height,
     )?;
     write_png(ctx, target, width, height, &format!("{prefix}_surface_wounds.png"))?;
+    // The breach up close (Z6): the glacis penetration from under a metre, ten seconds old so
+    // the thermal glow has cooled and the torn tongues and the dark cavity are what is seen —
+    // the frame the owner judged the old flaps in.
+    let mut cold_damage: Vec<renderer_api::ArmorDamageInstance> =
+        client::armor_damage_instance(&live, 30 + 600).into_iter().collect();
+    append_hit_wounds_to(&mut cold_damage, &battle_decals(catalog, &live, cx, ground, cz), &live);
+    let breach_eye = [cx + 3.45, ground + 1.62, cz - 0.55];
+    let breach_look = [cx + 2.7, ground + 1.17, cz - 0.15];
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        live_objects.clone(),
+        cold_damage,
+        &live_fx,
+        breach_eye,
+        breach_look,
+        width,
+        height,
+    )?;
+    write_png(ctx, target, width, height, &format!("{prefix}_breach_close.png"))?;
     draw_vehicle(
         ctx,
         target,

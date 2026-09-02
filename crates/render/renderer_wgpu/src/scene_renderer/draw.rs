@@ -477,6 +477,23 @@ impl super::SceneRenderer {
                 draw.instance_start..draw.instance_start + draw.instance_count,
             );
         }
+        // The interior shell (Z6): the same draws once more with front faces culled, so a
+        // breach shows the inside of the far wall instead of the running gear and the ground
+        // beyond it. Intact hulls collapse in `vs_interior` and cost no fragment.
+        pass.set_pipeline(&self.vehicle_interior_pipeline);
+        for draw in &self.vehicle_draws {
+            pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
+            let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
+                continue;
+            };
+            pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(
+                0..mesh.index_count,
+                0,
+                draw.instance_start..draw.instance_start + draw.instance_count,
+            );
+        }
     }
 
     /// The river surface into the current pass. `grab` supplied (refraction path) selects the
