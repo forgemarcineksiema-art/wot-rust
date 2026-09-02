@@ -26,6 +26,10 @@ use crate::voices::workshop::RatchetWork;
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
 const MAX_VOICES: usize = 40;
+/// A plate clang's reference distance (Inny Poziom S11): the 18 m every other voice wears put a
+/// 300 m hit at −27 dB under the engine bed, where the pen thunk and the ricochet whine were one
+/// sound. Steel on steel carries; at 60 m the same hit sits at −17 dB and keeps its two voices.
+const ARMOR_STRUCK_REFERENCE_M: f32 = 60.0;
 
 /// The one object the platform audio callback owns: push events and control state from the game
 /// thread, pull interleaved stereo from the audio thread.
@@ -172,7 +176,17 @@ impl AudioEngine {
                     Box::new(ArmorHit::new(penetrated, ricocheted, self.sample_rate_hz, seed))
                 };
                 let gain = if high_explosive { 1.0 } else { 0.8 };
-                self.spawn_at(voice, position, gain, true, occlusion);
+                // A plate clang carries (Inny Poziom S11): its own reference distance, so at
+                // 300 m the pen thunk and the ricochet whine are still two sounds, not one
+                // murmur under the engine bed.
+                self.spawn_at_reference(
+                    voice,
+                    position,
+                    gain,
+                    true,
+                    occlusion,
+                    ARMOR_STRUCK_REFERENCE_M,
+                );
             }
             AudioEvent::ShellAbsorbed { position, surface, high_explosive } => {
                 // HE detonates against the world; kinetic rounds thud into it.
@@ -228,6 +242,30 @@ impl AudioEngine {
                 let voice = Box::new(RatchetWork::new(seconds, self.sample_rate_hz, seed));
                 self.spawn_flat(voice, 0.5);
             }
+        }
+    }
+
+    /// [`Self::spawn_at`] with the source's own reference distance (S11).
+    fn spawn_at_reference(
+        &mut self,
+        voice: Box<dyn Voice>,
+        position: Vec3,
+        gain: f32,
+        travel_delay: bool,
+        occlusion: f32,
+        reference_m: f32,
+    ) {
+        if let Some(slot) = VoiceSlot::positioned_with_reference(
+            voice,
+            &self.listener,
+            position,
+            gain,
+            travel_delay,
+            occlusion,
+            reference_m,
+            self.sample_rate_hz,
+        ) {
+            self.push_slot(slot);
         }
     }
 
@@ -336,7 +374,7 @@ impl AudioEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::voice::rms;
+    use crate::voice::{rms, zero_crossing_rate_hz};
     use crate::voices::impact::GroundKind;
 
     const SR: f32 = 48_000.0;
@@ -659,5 +697,46 @@ mod tests {
         let (left, right) = split(&out);
         assert!((rms(&left) - rms(&right)).abs() < 1.0e-4, "UI cues sit dead center");
         assert!(rms(&left) > 1.0e-4, "and must be audible");
+    }
+
+    /// Inny Poziom S11: at 300 m a pen and a ricochet on armour are still two sounds. Both
+    /// claim a slot (audible at all), and the ricochet's departing whine keeps it brighter than
+    /// the pen's interior thunk — the zero-crossing rate tells them apart at range.
+    #[test]
+    fn a_pen_and_a_ricochet_are_still_two_sounds_at_three_hundred_metres() {
+        let strike = |penetrated: bool, ricocheted: bool| {
+            let mut engine = AudioEngine::new(SR);
+            engine.set_listener(Listener { position: Vec3::ZERO, forward: Vec3::Z });
+            engine.push_event(AudioEvent::ArmorStruck {
+                position: Vec3::new(0.0, 0.0, 300.0),
+                penetrated,
+                ricocheted,
+                high_explosive: false,
+            });
+            assert_eq!(engine.slots.len(), 1, "a 300 m plate hit is audible");
+            // Past the 0.87 s of travel: a second of the strike itself.
+            let out = stereo_chunks(&mut engine, 2.0);
+            let mono: Vec<f32> = out.chunks(2).map(|lr| 0.5 * (lr[0] + lr[1])).collect();
+            let from = (1.0 * SR) as usize;
+            mono[from..].to_vec()
+        };
+        let pen = strike(true, false);
+        let ric = strike(false, true);
+        let (pen_zcr, ric_zcr) = (zero_crossing_rate_hz(&pen, SR), zero_crossing_rate_hz(&ric, SR));
+        // Measured 2026-09-02 at the 60 m reference: pen 0.0080 RMS / 944 Hz, ricochet
+        // 0.0055 / 868 Hz. At the old 18 m reference the same pen sat at 0.0027 RMS — under
+        // the floor below, which is the point of the row.
+        assert!(rms(&pen) > 3.0e-3, "a 300 m pen is above the bed, not under it: {}", rms(&pen));
+        assert!(rms(&ric) > 3.0e-3, "and so is a ricochet: {}", rms(&ric));
+        assert!(
+            rms(&pen) > rms(&ric) * 1.25,
+            "the interior thunk makes a pen the louder answer: {} vs {}",
+            rms(&pen),
+            rms(&ric)
+        );
+        assert!(
+            (pen_zcr - ric_zcr).abs() > 0.05 * pen_zcr.max(ric_zcr),
+            "and the two timbres stay apart at range: {pen_zcr} vs {ric_zcr} Hz"
+        );
     }
 }

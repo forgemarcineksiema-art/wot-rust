@@ -552,4 +552,21 @@ mod hit_impulse_locks {
         }
         assert!(heavy.pitch_rad.abs() < 1.0e-3, "the hull settles level: {}", heavy.pitch_rad);
     }
+
+    /// The register's S8 lock: a landed round of the reference calibre deflects the target at
+    /// least as far as the target's own shot rocks it — being hit is never less than firing.
+    #[test]
+    fn a_landed_hit_deflects_the_hull_at_least_as_far_as_its_own_shot() {
+        let mut struck = seeded();
+        struck.hit_impulse(0.0, 1.0);
+        let (hit_pitch, _) = peak_after(&mut struck);
+        let mut firing = seeded();
+        firing.fire_impulse(0.0, 1.0);
+        let (fire_pitch, _) = peak_after(&mut firing);
+        assert!(
+            hit_pitch.abs() >= fire_pitch.abs(),
+            "hit {hit_pitch} rad vs the gun's own {fire_pitch} rad"
+        );
+        assert!(fire_pitch.abs() > 0.003, "the fire impulse is the 0.8° it was tuned to");
+    }
 }

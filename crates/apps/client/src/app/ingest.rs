@@ -205,6 +205,29 @@ impl ClientApp {
                 let charge =
                     if event.shell_type == game_core::ShellType::HighExplosive { 1.3 } else { 1.0 };
                 self.presentation.apply_hit_impulse(event.target, bearing, round * charge);
+                // A blow on the turret flinches it on its ring (S8): the tangential part of the
+                // push, relative to where the turret points — square on the front turns nothing,
+                // a cheek hit turns it away from the shell.
+                let turret_zone = matches!(
+                    event.armor_zone,
+                    game_core::ArmorZone::TurretFront
+                        | game_core::ArmorZone::Mantlet
+                        | game_core::ArmorZone::TurretSide
+                        | game_core::ArmorZone::TurretRear
+                );
+                if turret_zone {
+                    let bearing_turret = bearing - target.turret_yaw_rad;
+                    self.presentation
+                        .apply_turret_jerk(event.target, -bearing_turret.sin() * round * charge);
+                }
+                // The shooter feels a landed penetration (S12): a small forward nudge of the
+                // third-person rig, by the share of the target's pool it took; the scope stays
+                // rigid (S2) and keeps its hit marker.
+                if event.source == self.player_tank && event.penetrated {
+                    let pool = target.vehicle.spec_ref().hit_points.max(1) as f32;
+                    self.camera_controller
+                        .pen_kick(self.desired_aim.yaw_rad(), event.damage_hp as f32 / pool);
+                }
             }
             // And rings: the struck plate's clang (or the HE charge's own burst), with the
             // outcome (penetration thunk / ricochet whine) layered in by the voice itself.

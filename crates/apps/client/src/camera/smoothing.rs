@@ -70,6 +70,11 @@ const MAX_KICK_MPS: f32 = 1.5;
 /// the recoil) plus a smaller settle-down component. One firm nudge, not a screen shake.
 const FIRE_KICK_BACK_MPS: f32 = 0.9;
 const FIRE_KICK_DOWN_MPS: f32 = 0.5;
+/// The shooter's landed penetration (Inny Poziom S12): a small forward-and-down nudge of the
+/// third-person rig — the round went IN — scaled by the share of the target's pool it took.
+/// Deliberately a fraction of the shot's own kick: a confirmation, not a second recoil.
+const PEN_KICK_FORWARD_MPS: f32 = 0.6;
+const PEN_KICK_DOWN_MPS: f32 = 0.3;
 /// Fixed follow-spring substep (seconds), the 60 Hz tick the spring was tuned at. A slow frame is
 /// integrated as a whole number of these plus a remainder, so the rig advances by the real time
 /// elapsed instead of a single clamped step whose clock ran slower than the world (the rig
@@ -132,6 +137,19 @@ impl BattleCameraController {
         let forward = game_core::math::horizontal_forward(view_yaw_rad);
         self.smoothing.anchor_vel -= forward * FIRE_KICK_BACK_MPS * scale;
         self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS * scale;
+    }
+
+    /// The shooter's landed penetration nudges the third-person rig forward and down (S12) —
+    /// the round went in, by `damage_fraction` of the target's pool. Sniper stays rigid (S2):
+    /// the scope's hit marker is the confirmation there.
+    pub fn pen_kick(&mut self, view_yaw_rad: f32, damage_fraction: f32) {
+        if self.mode() == BattleCameraMode::Sniper {
+            return;
+        }
+        let share = damage_fraction.clamp(0.05, 1.0);
+        let forward = game_core::math::horizontal_forward(view_yaw_rad);
+        self.smoothing.anchor_vel += forward * PEN_KICK_FORWARD_MPS * share;
+        self.smoothing.anchor_vel.y -= PEN_KICK_DOWN_MPS * share;
     }
 
     /// Step the camera feel once per presented frame: the follow anchor springs after the hull

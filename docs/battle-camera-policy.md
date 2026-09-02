@@ -162,3 +162,7 @@ side the shell came in (`HullAttitude::hit_impulse`, every tank in view). The sn
 does not move at all — the picture under the player's hand never moves, on a hit as on a
 shot. In the scope the hit reaches the player as the HUD's direction arc with its verdict
 (HELD or PEN, with the millimetres), and as sound.
+
+The shooter's landed penetration is felt the same way (S12): a small forward-and-down nudge of
+the third-person rig by the share of the target's pool the round took, a fraction of the shot's
+own kick; the scope stays rigid and keeps its hit marker.
