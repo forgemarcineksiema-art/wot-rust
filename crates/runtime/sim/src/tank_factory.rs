@@ -35,6 +35,8 @@ pub(crate) fn fresh_tank(
         hull_yaw_velocity_rad_s: 0.0,
         hull_pitch_rad: 0.0,
         hull_roll_rad: 0.0,
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
         reload_remaining_s: 0.0,
         fire_buffered: false,
         aim_dispersion_mrad,

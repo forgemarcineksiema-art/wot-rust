@@ -139,7 +139,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v48: the test-only `VehicleKind::PrototypeMedium` (wire discriminant 0) is deleted outright,
 /// shifting every remaining vehicle down by one — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones", and ALL must name every variant). Same class as v33.
-pub const PROTOCOL_VERSION: u16 = 49;
+pub const PROTOCOL_VERSION: u16 = 50;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -277,6 +277,13 @@ pub struct TankSnapshot {
     /// the HUD countdown, and the predictor's seed for ticking the bandage between snapshots.
     #[serde(default)]
     pub crew_down_remaining_s: [Option<f32>; game_core::CREW_ROLE_COUNT],
+    /// v50: the sprung hull's state (Inny Poziom G7) — the pitch and roll springs' velocities,
+    /// so the owner's predictor and every interpolating client settle the same hull the server
+    /// does instead of chasing its position with a spring of their own.
+    #[serde(default)]
+    pub hull_pitch_velocity_rad_s: f32,
+    #[serde(default)]
+    pub hull_roll_velocity_rad_s: f32,
 }
 
 impl TankSnapshot {
@@ -326,6 +333,8 @@ impl From<&TankState> for TankSnapshot {
             crew_unconscious_mask: tank.crew.unconscious_mask(),
             crew_weakened_mask: tank.crew.weakened_mask(),
             crew_down_remaining_s: tank.crew.down_remaining_s(),
+            hull_pitch_velocity_rad_s: tank.hull_pitch_velocity_rad_s,
+            hull_roll_velocity_rad_s: tank.hull_roll_velocity_rad_s,
         }
     }
 }
@@ -433,6 +442,11 @@ impl From<&SimulationState> for Snapshot {
 pub struct AuthoritativeMotion {
     pub velocity_mps: [f32; 3],
     pub hull_yaw_velocity_rad_s: f32,
+    /// v50: the attitude springs' velocities (G7), so a rewind replays the hull's nod exactly.
+    #[serde(default)]
+    pub hull_pitch_velocity_rad_s: f32,
+    #[serde(default)]
+    pub hull_roll_velocity_rad_s: f32,
 }
 
 /// Per-recipient delivery metadata. ACK state belongs to a connection, not to the battle world,

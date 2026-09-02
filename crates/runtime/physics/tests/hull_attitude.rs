@@ -5,7 +5,7 @@
 use game_core::{ContactFootprint, TankSpec, VehicleKind};
 use glam::Vec3;
 use physics::{
-    TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState,
+    MAX_HULL_TILT_RAD, TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState,
     TankWorldObstacles, step_tank_on_world_with_tanks,
 };
 use terrain::HeightMap;
@@ -138,4 +138,51 @@ fn attitude_is_bit_deterministic_across_runs() {
     assert_eq!(a.pitch_rad.to_bits(), b.pitch_rad.to_bits());
     assert_eq!(a.roll_rad.to_bits(), b.roll_rad.to_bits());
     assert_eq!(a.position, b.position);
+}
+
+/// Inny Poziom G7, lock (1) — crest-walk continuity. On the 1.2 m × 12 m hill the 5 m grid turns
+/// into a tent, and the rigid beam's rate limiter answered the apex with a square wave of pitch
+/// rate (223 °/s demanded, 18.9 ticks of saturation). A sprung hull cannot: its pitch
+/// acceleration is bounded by the spring, `ω²·(target − pitch)` plus the damper, so the pitch
+/// rate changes by at most that per tick, and the crest is a nod, not a snap.
+#[test]
+fn crest_walk_pitch_acceleration_is_bounded_by_the_spring() {
+    let map = map_from(|_, z| {
+        let t = ((z - 30.0) / 6.0).clamp(-1.0, 1.0);
+        5.0 + 1.2 * (1.0 - t * t)
+    });
+    let spec = TankSpec::t54_1951();
+    let settings = TankControllerSettings::from_spec(&spec);
+    let spring = settings.hull_spring;
+    let footprint = ContactFootprint::for_vehicle(VehicleKind::T54_1951);
+    let obstacles = TankFootprint::from_hitbox(spec.hitbox);
+    let mut state =
+        TankKinematicState { position: Vec3::new(30.0, 5.0, 8.0), ..TankKinematicState::default() };
+    let drive = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    // The spring's own ceiling on a tick's change of pitch rate, with a margin for the
+    // weight-transfer term and the clamp's velocity kill.
+    let bound = (spring.omega_rad_s * spring.omega_rad_s * (MAX_HULL_TILT_RAD + 0.1)
+        + 2.0 * spring.zeta * spring.omega_rad_s * 12.0)
+        * DT;
+    let (mut previous_vel, mut worst_jump, mut crossed) = (0.0_f32, 0.0_f32, false);
+    for _ in 0..720 {
+        step_tank_on_world_with_tanks(
+            &mut state,
+            drive,
+            &settings,
+            Some(&map),
+            TankWorldObstacles::new(&[], obstacles),
+            Some(&footprint),
+            DT,
+        );
+        worst_jump = worst_jump.max((state.pitch_vel_rad_s - previous_vel).abs());
+        previous_vel = state.pitch_vel_rad_s;
+        crossed |= state.position.z > 34.0;
+    }
+    assert!(crossed, "the hull must actually cross the crest: z {}", state.position.z);
+    assert!(worst_jump > 0.0, "and the crest must move the hull at all");
+    assert!(
+        worst_jump <= bound,
+        "the pitch rate changes at most what the spring allows per tick: {worst_jump} vs {bound}"
+    );
 }

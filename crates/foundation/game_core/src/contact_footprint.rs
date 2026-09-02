@@ -45,6 +45,18 @@ impl ContactFootprint {
     }
 
     /// Footprint from a blueprint running gear — the authored path.
+    /// The wheelbase: from the first road-wheel station to the last, the lever the sprung hull
+    /// pitches over (Inny Poziom G7). Zero for a footprint with fewer than two stations.
+    pub fn wheelbase_m(&self) -> f32 {
+        if self.station_count < 2 {
+            return 0.0;
+        }
+        let stations = &self.stations[..self.station_count];
+        let first = stations.iter().copied().fold(f32::INFINITY, f32::min);
+        let last = stations.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        (last - first).max(0.0)
+    }
+
     pub fn from_track(track: &TrackShape) -> Self {
         Self::from_stations(
             &track.wheel_stations(),

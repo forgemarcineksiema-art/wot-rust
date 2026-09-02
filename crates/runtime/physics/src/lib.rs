@@ -17,11 +17,15 @@ pub use contact::{GroundScales, TerrainContact, sample_tank_terrain_contact};
 pub use contact_impulse::{
     ContactBody, ContactCache, ContactImpulse, ContactPair, ContactReport, resolve_contacts,
 };
+pub use controller_settings::hull_spring_for_spec;
 pub use controller_settings::{BeltDrive, TankControllerSettings};
 pub use cover::{
     footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
 };
-pub use hull_attitude::{HULL_ATTITUDE_RATE_RAD_S, MAX_HULL_TILT_RAD, advance_hull_attitude};
+pub use hull_attitude::{
+    ATTITUDE_REST_EPSILON, HullSpring, MAX_HULL_TILT_RAD, MAX_WEIGHT_TRANSFER_RAD,
+    advance_hull_attitude,
+};
 pub use movement::{
     TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
     step_custom_tank_controller, step_custom_tank_controller_on_contact,

@@ -36,6 +36,8 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             crew_unconscious_mask: 0,
             crew_weakened_mask: 0,
             crew_down_remaining_s: Default::default(),
+            hull_pitch_velocity_rad_s: 0.0,
+            hull_roll_velocity_rad_s: 0.0,
         }],
         shells: vec![ShellSnapshot {
             owner: Some(TankId(1)),

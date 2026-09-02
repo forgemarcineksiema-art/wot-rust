@@ -14,7 +14,8 @@
 //! Nothing new is stored to do it. The excursion is added to the authoritative roll, and the
 //! attitude system's existing rate limit walks it back. A spring would have carried oscillation
 //! state into the authoritative simulation, and every attitude in this game is deliberately
-//! spring-free so replays and the client predictor stay exact.
+//! sprung (Inny Poziom G7): the excursion lands on the authoritative attitude spring, whose state
+//! is on the wire, so replays and the client predictor stay exact through it.
 
 use game_core::{TankSpec, TeamId};
 use glam::Vec3;

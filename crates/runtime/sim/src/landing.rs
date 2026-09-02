@@ -32,10 +32,9 @@ const MAX_LANDING_ROLL_FRACTION: f32 = 0.9;
 /// `hull_roll_rad`.
 ///
 /// Nothing new is stored for it. The excursion is ADDED to the authoritative roll, and the
-/// attitude system's existing rate limit (`physics::HULL_ATTITUDE_RATE_RAD_S`, 1.4 rad/s) walks it
-/// back to the support plane over the following half second. That is deliberate: a spring would
-/// carry oscillation state into the authoritative simulation, and every other attitude in this
-/// game is rate-limited and spring-free precisely so replays and the client predictor stay exact.
+/// attitude spring (`physics::HullSpring`, Inny Poziom G7) settles it back to the support plane
+/// in one nod — the spring's state is authoritative and on the wire, so replays and the client
+/// predictor stay exact through it.
 ///
 /// The size comes from the fall, not from taste. The landing impulse acts at the track that
 /// touches first, a half-gauge out from the centreline, and the hull resists it with its own

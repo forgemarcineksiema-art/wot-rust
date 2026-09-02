@@ -225,6 +225,8 @@ impl LocalAuthoritativeServer {
         Some(net::AuthoritativeMotion {
             velocity_mps: tank.velocity_mps.to_array(),
             hull_yaw_velocity_rad_s: tank.hull_yaw_velocity_rad_s,
+            hull_pitch_velocity_rad_s: tank.hull_pitch_velocity_rad_s,
+            hull_roll_velocity_rad_s: tank.hull_roll_velocity_rad_s,
         })
     }
 

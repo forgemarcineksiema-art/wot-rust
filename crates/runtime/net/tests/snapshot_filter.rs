@@ -287,6 +287,8 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
         crew_unconscious_mask: 0,
         crew_weakened_mask: 0,
         crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
     }
 }
 

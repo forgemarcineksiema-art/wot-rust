@@ -26,14 +26,21 @@ pub struct TankKinematicState {
     pub velocity: Vec3,
     pub yaw_rad: f32,
     pub yaw_rate_rad_s: f32,
-    /// Authoritative hull pitch (+nose up), derived kinematically from the support plane and
-    /// rate-limited (see `hull_attitude`). Frozen while airborne. `serde(default)` keeps older
+    /// Authoritative hull pitch (+nose up), the sprung hull on its support plane (Inny Poziom G7),
+    /// see `hull_attitude`. Frozen while airborne. `serde(default)` keeps older
     /// fixtures loading level.
     #[serde(default)]
     pub pitch_rad: f32,
     /// Authoritative hull roll (+right side up); same lifecycle as `pitch_rad`.
     #[serde(default)]
     pub roll_rad: f32,
+    /// The pitch spring's velocity (rad/s) — the sprung hull's state (Inny Poziom G7), carried
+    /// through the tick, the snapshot and the predictor so all three settle the same hull.
+    #[serde(default)]
+    pub pitch_vel_rad_s: f32,
+    /// The roll spring's velocity (rad/s); same lifecycle as `pitch_vel_rad_s`.
+    #[serde(default)]
+    pub roll_vel_rad_s: f32,
 }
 
 impl Default for TankKinematicState {
@@ -45,6 +52,8 @@ impl Default for TankKinematicState {
             yaw_rate_rad_s: 0.0,
             pitch_rad: 0.0,
             roll_rad: 0.0,
+            pitch_vel_rad_s: 0.0,
+            roll_vel_rad_s: 0.0,
         }
     }
 }

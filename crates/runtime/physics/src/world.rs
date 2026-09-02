@@ -106,6 +106,9 @@ pub struct TankStepContact {
     previous: Vec3,
     previous_yaw_rad: f32,
     drive_velocity: Vec3,
+    /// The velocity the hull carried INTO the tick: the settle reads the tick's acceleration off
+    /// it, and the sprung hull transfers that weight (Inny Poziom G7).
+    previous_velocity: Vec3,
 }
 
 /// PHASE 1 of a tick: sample the ground, decide the hull's velocity and heading — and do not move
@@ -157,6 +160,7 @@ pub fn advance_tank_on_world(
     let was_grounded = is_grounded(state.position.y, contact.height_m);
 
     let previous_yaw_rad = state.yaw_rad;
+    let previous_velocity = state.velocity;
     advance_hull_drive(state, input, settings, contact, dt_seconds);
     TankStepContact {
         contact,
@@ -164,6 +168,7 @@ pub fn advance_tank_on_world(
         previous,
         previous_yaw_rad,
         drive_velocity: state.velocity,
+        previous_velocity,
     }
 }
 
@@ -182,8 +187,16 @@ pub fn settle_tank_on_world(
         previous,
         previous_yaw_rad: previous_yaw,
         drive_velocity,
+        previous_velocity,
         ..
     } = step;
+    // The tick's acceleration in the hull frame, off the velocity the hull carried in: what the
+    // sprung hull transfers as weight — braking dives the nose, a turn leans it (G7). A wall or
+    // a ram is in here too, which is the point: a jolt is felt in the body.
+    let (sin_yaw, cos_yaw) = state.yaw_rad.sin_cos();
+    let accel = (state.velocity - previous_velocity) / dt_seconds.max(1.0e-4);
+    let accel_long_mps2 = (accel.x * sin_yaw + accel.z * cos_yaw).clamp(-40.0, 40.0);
+    let accel_lat_mps2 = (accel.x * cos_yaw - accel.z * sin_yaw).clamp(-40.0, 40.0);
     integrate_hull_position(state, dt_seconds);
     // Rotation is collision-resolved against COVER like translation is: a pivot that would grind
     // the hull's corners into a wall is refused (yaw reverts, the rotation rate dies), exactly as
@@ -258,11 +271,28 @@ pub fn settle_tank_on_world(
             if step.landing_impact_mps > 0.0 {
                 step.landing_roll_mismatch_rad = target_roll - airborne_roll;
             }
-            advance_hull_attitude(state, target_pitch, target_roll, dt_seconds);
+            advance_hull_attitude(
+                state,
+                target_pitch,
+                target_roll,
+                accel_long_mps2,
+                accel_lat_mps2,
+                &settings.hull_spring,
+                dt_seconds,
+            );
         }
         return step;
     }
-    // Terrain-free mode: level ground, so the attitude settles back to level.
-    advance_hull_attitude(state, 0.0, 0.0, dt_seconds);
+    // Terrain-free mode: level ground, so the attitude settles back to level — through the same
+    // springs, so braking still dives the nose on a bare floor.
+    advance_hull_attitude(
+        state,
+        0.0,
+        0.0,
+        accel_long_mps2,
+        accel_lat_mps2,
+        &settings.hull_spring,
+        dt_seconds,
+    );
     GroundStep { drive_velocity, ..GroundStep::resting() }
 }
