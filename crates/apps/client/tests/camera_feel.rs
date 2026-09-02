@@ -24,7 +24,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
         camera.advance(position, 0.0, 1.0 / 60.0);
     }
     let settled = camera.render_camera(&subject, &environment).eye;
-    camera.fire_kick(subject.view_yaw_rad);
+    camera.fire_kick(subject.view_yaw_rad, 1.0);
     let mut max_back = 0.0_f32;
     let mut max_down = 0.0_f32;
     for _ in 0..30 {
@@ -47,7 +47,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     sniper.set_mode(BattleCameraMode::Sniper);
     sniper.advance(position, 0.0, 1.0 / 60.0);
     let before = sniper.render_camera(&subject, &environment).eye;
-    sniper.fire_kick(subject.view_yaw_rad);
+    sniper.fire_kick(subject.view_yaw_rad, 1.0);
     sniper.advance(position, 0.0, 1.0 / 60.0);
     let after = sniper.render_camera(&subject, &environment).eye;
     assert_eq!(before, after, "sniper eye stays rigid through the shot");
@@ -434,7 +434,7 @@ fn the_shots_rock_reaches_the_presented_camera_through_the_spring() {
         attitude.step([0.0, 0.0, 0.0], still, level, 1.0, 1.0 / 60.0);
     }
     let settled = attitude.pitch_rad;
-    attitude.fire_impulse(0.0); // over the bow: the nose answers in pitch
+    attitude.fire_impulse(0.0, 1.0); // over the bow: the nose answers in pitch
     for _ in 0..5 {
         attitude.step([0.0, 0.0, 0.0], still, level, 1.0, 1.0 / 60.0);
     }
@@ -527,7 +527,7 @@ fn every_feel_channel_retires_when_motion_freezes() {
         rig.advance(position, 12.0, 1.0 / 60.0);
         rig.present(&excited, &environment, 1.0 / 60.0);
     }
-    rig.fire_kick(0.0);
+    rig.fire_kick(0.0, 1.0);
     rig.damage_shudder(glam::Vec3::new(1.0, 0.0, -1.0), 0.8);
     rig.impact_kick(5.0);
     rig.present(&excited, &environment, 1.0 / 60.0);
@@ -853,4 +853,32 @@ fn a_leash_ride_settles_without_a_windup_kick() {
     let overshoot =
         trace[lowest_at..].iter().fold(0.0_f32, |worst, &v| worst.max(v - final_y - 1.0e-4));
     assert!(overshoot <= 0.02, "the anchor rebounded {overshoot:.3} m past its rest");
+}
+
+/// Inny Poziom S3: the camera's nudge scales with the round like every other channel of the
+/// shot — a 128 mm pushes the rig further back than a 75 mm, the D-10 exactly as before.
+#[test]
+fn a_heavier_round_nudges_the_rig_further() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+    let kick_back = |scale: f32| {
+        let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+        camera.set_mode(BattleCameraMode::ThirdPerson);
+        for _ in 0..240 {
+            camera.advance(position, 0.0, 1.0 / 60.0);
+        }
+        let settled = camera.render_camera(&subject, &environment).eye;
+        camera.fire_kick(subject.view_yaw_rad, scale);
+        let mut max_back = 0.0_f32;
+        for _ in 0..30 {
+            camera.advance(position, 0.0, 1.0 / 60.0);
+            let eye = camera.render_camera(&subject, &environment).eye;
+            max_back = max_back.max(settled[2] - eye[2]);
+        }
+        max_back
+    };
+    let (heavy, light) = (kick_back(1.36), kick_back(0.67));
+    assert!(heavy > light * 1.5, "128 mm {heavy} vs 75 mm {light}");
 }

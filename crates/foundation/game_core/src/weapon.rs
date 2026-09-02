@@ -216,6 +216,29 @@ impl ShellSpec {
         0.0005 * self.mass_kg * speed_mps * speed_mps
     }
 
+    /// The round's recoil momentum at the muzzle, kg·m/s (`mass × muzzle velocity`) — what the
+    /// gun throws back into the mount, the hull and the ground. `0.0` for a legacy spec without
+    /// a mass; consumers use [`Self::recoil_scale`], which falls back to the reference.
+    pub fn recoil_momentum_kg_mps(self) -> f32 {
+        self.mass_kg * self.muzzle_velocity_mps
+    }
+
+    /// Every channel of the shot's feel scales through THIS ONE number (Inny Poziom S3): the
+    /// muzzle flash and its smoke, the dust ring, the barrel's recoil stroke, the hull's rock,
+    /// the camera's nudge — where each used to be a constant identical for a 75 mm and a
+    /// 128 mm. The reference is the D-10's BR-412 (15.7 kg at 895 m/s), so the T-54's shot
+    /// keeps the numbers every channel was tuned on; the square root keeps the 12.8 cm Pak 80
+    /// (1.9× the momentum) at ~1.36× and the 7.5 cm KwK 42 (0.45×) at ~0.67× — felt, not
+    /// cartoonish — inside a clamp no fielded gun reaches.
+    pub fn recoil_scale(self) -> f32 {
+        const REFERENCE_MOMENTUM_KG_MPS: f32 = 15.7 * 895.0;
+        let momentum = self.recoil_momentum_kg_mps();
+        if momentum <= 0.0 {
+            return 1.0;
+        }
+        (momentum / REFERENCE_MOMENTUM_KG_MPS).sqrt().clamp(0.5, 1.8)
+    }
+
     /// Linear aerodynamic drag, in speed lost per second of flight. With `dv/dt = -c·v` a shell
     /// loses speed LINEARLY with distance (`v(s) = v0 − c·s`), so the flight integration
     /// ([`crate::math::integrate_shell_step`]), the HUD's penetration readout, and the server's

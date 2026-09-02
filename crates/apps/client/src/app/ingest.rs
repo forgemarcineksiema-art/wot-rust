@@ -354,10 +354,16 @@ impl ClientApp {
     fn apply_fire_events(&mut self, events: &[crate::fx::FireEvent]) {
         for event in events {
             let ground_y = self.battlefield.heightmap.sample_height(event.muzzle.x, event.muzzle.z);
-            self.fx.muzzle_blast(event.muzzle, event.direction, ground_y);
-            self.presentation.apply_fire_recoil(event.tank_id, event.turret_yaw_rad);
+            // One recoil momentum, every channel (Inny Poziom S3): the round's scale rides the
+            // event into the blast, the barrel stroke, the hull rock and the camera nudge.
+            self.fx.muzzle_blast(event.muzzle, event.direction, ground_y, event.recoil_scale);
+            self.presentation.apply_fire_recoil(
+                event.tank_id,
+                event.turret_yaw_rad,
+                event.recoil_scale,
+            );
             if event.tank_id == self.player_tank {
-                self.camera_controller.fire_kick(self.desired_aim.yaw_rad());
+                self.camera_controller.fire_kick(self.desired_aim.yaw_rad(), event.recoil_scale);
             }
             // The report, sized by the firing gun's caliber. The player's own shot answers the
             // trigger instantly; everyone else's arrives at the speed of sound.

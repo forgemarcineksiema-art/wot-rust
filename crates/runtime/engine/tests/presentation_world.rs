@@ -251,7 +251,7 @@ fn a_fire_event_throws_the_barrel_back_and_the_spring_returns_it_to_battery() {
     world.advance_time(1.0 / 60.0);
     world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
 
-    world.apply_fire_recoil(TankId(1), 0.0);
+    world.apply_fire_recoil(TankId(1), 0.0, 1.0);
 
     // The stroke grows over the first frames, peaks visibly, then returns to battery.
     let mut peak = 0.0_f32;
@@ -282,7 +282,7 @@ fn firing_over_the_bow_pitches_the_hull_and_over_the_side_rolls_it() {
             world.advance_time(dt);
             world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
         }
-        world.apply_fire_recoil(TankId(1), turret_yaw);
+        world.apply_fire_recoil(TankId(1), turret_yaw, 1.0);
         let (mut max_pitch, mut max_roll) = (0.0_f32, 0.0_f32);
         for _ in 0..60 {
             world.advance_time(dt);
@@ -306,6 +306,6 @@ fn firing_over_the_bow_pitches_the_hull_and_over_the_side_rolls_it() {
 #[test]
 fn a_fire_event_for_an_unknown_tank_is_dropped_quietly() {
     let mut world = PresentationWorld::default();
-    world.apply_fire_recoil(TankId(42), 0.0);
+    world.apply_fire_recoil(TankId(42), 0.0, 1.0);
     assert_eq!(world.tank_count(), 0);
 }

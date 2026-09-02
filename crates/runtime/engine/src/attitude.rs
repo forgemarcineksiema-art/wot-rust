@@ -194,9 +194,12 @@ impl HullAttitude {
     /// One main-gun shot rocks the sprung hull through the same spring that absorbs terrain: the
     /// recoil moment decomposes by the turret's hull-relative heading, so firing over the bow
     /// lifts the nose while firing over the side rolls the hull away from the muzzle.
-    pub fn fire_impulse(&mut self, turret_yaw_rad: f32) {
-        self.pitch_vel += turret_yaw_rad.cos() * FIRE_IMPULSE_RAD_S;
-        self.roll_vel += turret_yaw_rad.sin() * FIRE_IMPULSE_RAD_S;
+    /// `recoil_scale` is the round's (`ShellSpec::recoil_scale`, Inny Poziom S3): the impulse
+    /// this spring was tuned on is the D-10's; heavier guns rock the hull further.
+    pub fn fire_impulse(&mut self, turret_yaw_rad: f32, recoil_scale: f32) {
+        let impulse = FIRE_IMPULSE_RAD_S * recoil_scale.clamp(0.4, 2.0);
+        self.pitch_vel += turret_yaw_rad.cos() * impulse;
+        self.roll_vel += turret_yaw_rad.sin() * impulse;
     }
 }
 
@@ -442,6 +445,30 @@ mod tests {
             "wounded {} must lag below healthy {}",
             wounded.heave_m,
             healthy.heave_m
+        );
+    }
+}
+
+/// Inny Poziom S3: the hull's rock scales with the round's recoil like every other channel.
+#[cfg(test)]
+mod recoil_scale_locks {
+    use super::*;
+
+    #[test]
+    fn a_heavier_round_rocks_the_hull_harder_and_the_reference_keeps_its_impulse() {
+        let mut reference = HullAttitude::default();
+        reference.fire_impulse(0.0, 1.0);
+        assert!((reference.pitch_vel - FIRE_IMPULSE_RAD_S).abs() < 1.0e-6, "the D-10 keeps 0.16");
+        let mut heavy = HullAttitude::default();
+        heavy.fire_impulse(0.0, 1.36);
+        let mut light = HullAttitude::default();
+        light.fire_impulse(0.0, 0.67);
+        assert!(heavy.pitch_vel > reference.pitch_vel && reference.pitch_vel > light.pitch_vel);
+        assert!(
+            heavy.pitch_vel > light.pitch_vel * 1.8,
+            "{} vs {}",
+            heavy.pitch_vel,
+            light.pitch_vel
         );
     }
 }

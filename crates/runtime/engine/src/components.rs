@@ -158,9 +158,11 @@ const RECOIL_IMPULSE_MPS: f32 = 12.0;
 
 impl GunRecoil {
     /// One shot: throw the barrel rearward. Stacks (a fast autoloader keeps it dancing) but the
-    /// spring's stroke stays bounded by the clamp in [`GunRecoil::step`].
-    pub fn kick(&mut self) {
-        self.velocity_mps += RECOIL_IMPULSE_MPS;
+    /// spring's stroke stays bounded by the clamp in [`GunRecoil::step`]. `recoil_scale` is
+    /// the round's (`ShellSpec::recoil_scale`, Inny Poziom S3): the D-10 keeps the stroke this
+    /// spring was tuned on, a 12.8 cm Pak 80 throws ~1.36× as far, a 7.5 cm KwK 42 ~0.67×.
+    pub fn kick(&mut self, recoil_scale: f32) {
+        self.velocity_mps += RECOIL_IMPULSE_MPS * recoil_scale.clamp(0.4, 2.0);
     }
 
     /// Advance the recoil spring one presented frame (critically damped return to battery).
