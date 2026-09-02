@@ -5,7 +5,7 @@ use sim::DEFAULT_SERVER_TICK_HZ;
 
 use super::ClientApp;
 
-const TICK_DT: f32 = 1.0 / DEFAULT_SERVER_TICK_HZ as f32;
+pub(super) const TICK_DT: f32 = 1.0 / DEFAULT_SERVER_TICK_HZ as f32;
 
 impl ClientApp {
     pub(super) fn seed_prediction(&mut self) {

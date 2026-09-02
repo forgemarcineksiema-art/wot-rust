@@ -22,6 +22,9 @@ mod live_cover_tests;
 mod loop_step;
 mod minimap_build;
 pub(crate) mod motion_fx;
+mod own_shot;
+#[cfg(test)]
+mod own_shot_tests;
 mod prediction;
 mod reconcile;
 mod remote_events;
@@ -477,6 +480,12 @@ pub(crate) struct ClientApp {
     presentation: engine::PresentationWorld,
     last_render_time: Instant,
     hit_indicator: HitIndicator,
+    /// The player's own shot predicted into the frame after the trigger (Inny Poziom S13):
+    /// what was fanned out locally, what is still waiting for its replicated twin, what is held.
+    own_shot: own_shot::OwnShotPrediction,
+    /// Test-only: how many fire events reached the fan-out (S13: nothing plays twice).
+    #[cfg(test)]
+    fire_events_applied: u32,
     /// Rolling dealt/taken damage feed for the left-edge battle log.
     damage_log: crate::hud::damage_log::DamageLog,
     track_feedback: crate::hud::track_callout::TrackFeedback,
@@ -802,6 +811,9 @@ impl ClientApp {
             presentation: engine::PresentationWorld::default(),
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
+            own_shot: own_shot::OwnShotPrediction::default(),
+            #[cfg(test)]
+            fire_events_applied: 0,
             damage_log: crate::hud::damage_log::DamageLog::default(),
             track_feedback: crate::hud::track_callout::TrackFeedback::default(),
             incoming_hits: crate::hud::hit_direction::IncomingHitFeed::default(),

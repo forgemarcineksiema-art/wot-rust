@@ -320,6 +320,9 @@ impl ClientApp {
         self.render_state.accept_authoritative_snapshot(snapshot);
         // The remote interpolation phase restarts with the window it measures.
         self.ticks_since_snapshot = 0;
+        // The player's own shots that were already fanned out from a prediction (S13) are
+        // matched by count and skipped here, so nothing plays twice.
+        let fired = self.own_shot.reconcile(fired, self.player_tank);
         self.apply_fire_events(&fired);
         if let Some(tank) = player {
             if let Some(reconciliation) = reconciliation {
@@ -446,7 +449,11 @@ impl ClientApp {
 
     /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets
     /// muzzle FX, barrel recoil, and the hull rock; the player's own shot also kicks the camera.
-    fn apply_fire_events(&mut self, events: &[crate::fx::FireEvent]) {
+    pub(super) fn apply_fire_events(&mut self, events: &[crate::fx::FireEvent]) {
+        #[cfg(test)]
+        {
+            self.fire_events_applied += events.len() as u32;
+        }
         for event in events {
             let ground_y = self.battlefield.heightmap.sample_height(event.muzzle.x, event.muzzle.z);
             // One recoil momentum, every channel (Inny Poziom S3): the round's scale rides the
