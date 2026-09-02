@@ -42,11 +42,62 @@ fn a_shell_strike_records_a_scar_on_the_target_in_its_local_frame() {
         "the scar lives in the target's local frame, got {local}"
     );
 
-    // Penetration presentation belongs to analytical clipping plus the rim/remesh path. Recreating
-    // a flat FX quad here would put the black stamp back over the real opening.
-    let mut vertices = Vec::new();
-    app.append_scar_quads(&mut vertices);
-    assert!(vertices.is_empty(), "penetrations must not emit a flat FX stamp over the aperture");
+    // Penetration presentation belongs to the breach path (analytic clipping plus the rim
+    // mesh). A penetration is never a surface-wound record either.
+    let mut damage = Vec::new();
+    app.append_hit_wounds(&mut damage);
+    assert!(damage.is_empty(), "a penetration is the breach path's, never a wound record");
+}
+
+/// Inny Poziom Z5: a bounce and a ricochet leave WOUND RECORDS on the struck hull — a scuff and
+/// a gouge in the frame's armor-damage list, which the vehicle shader shades as material on the
+/// plate. Nothing flat is drawn over the hull for them any more.
+#[test]
+fn a_bounce_and_a_ricochet_record_wounds_the_shader_shades() {
+    let mut app = ClientApp::new();
+    let player = app.player_tank;
+    let target_id = TankId(78);
+    let target_pos = glam::Vec3::new(20.0, 0.0, 30.0);
+    let mut snapshot = snapshot_at(player, 3);
+    snapshot.tanks.push(tank_at(target_id, target_pos.to_array()));
+    for (ricocheted, hit) in
+        [(false, glam::Vec3::new(1.05, 1.0, 0.5)), (true, glam::Vec3::new(1.05, 1.1, -0.4))]
+    {
+        snapshot.damage_events.push(DamageEvent {
+            source: player,
+            target: target_id,
+            hit_position: target_pos + hit,
+            damage_hp: 0,
+            penetrated: false,
+            ricocheted,
+            cause: DamageCause::Shell,
+            armor_zone: ArmorZone::HullSide,
+            plate_normal: glam::Vec3::X,
+            shell_direction: glam::Vec3::new(-0.7, -0.2, 0.68).normalize(),
+            ..Default::default()
+        });
+    }
+
+    app.accept_and_sync(snapshot);
+
+    let mut damage = Vec::new();
+    app.append_hit_wounds(&mut damage);
+    let instance =
+        damage.iter().find(|d| d.tank_id == target_id).expect("the target carries wounds");
+    let kinds: Vec<_> = instance.apertures.iter().map(|a| a.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![renderer_api::ArmorMarkKind::Scuff, renderer_api::ArmorMarkKind::Gouge],
+        "a bounce is a scuff, a ricochet a gouge"
+    );
+    assert!(instance.apertures.iter().all(|a| !a.cut), "a wound never opens the plate");
+    let gouge = &instance.apertures[1];
+    assert!(
+        gouge.major_radius_m > 2.0 * gouge.minor_radius_m,
+        "a gouge is a long groove, {} by {}",
+        gouge.major_radius_m,
+        gouge.minor_radius_m
+    );
 }
 
 #[test]

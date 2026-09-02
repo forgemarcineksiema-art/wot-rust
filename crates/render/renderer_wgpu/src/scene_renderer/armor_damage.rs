@@ -123,7 +123,7 @@ impl ArmorDamageBuffers {
                         aperture.glow,
                         aperture.glow_tightness.max(0.25),
                         if aperture.cut { 1.0 } else { 0.0 },
-                        0.0,
+                        aperture.kind.as_lane(),
                     ],
                 });
             }

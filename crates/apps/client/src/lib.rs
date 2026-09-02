@@ -21,7 +21,7 @@ pub use camera::{
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
 pub use fx::TerrainScars;
-pub use fx::{append_decal_quads, decal_from_damage_event};
+pub use fx::{append_hit_wounds_to, decal_from_damage_event, hit_wound_records};
 pub use fx::{collapse_theatre_vertices, shell_tracer_vertices};
 pub use hud::demo::demo_battle_hud;
 pub use hud::demo_strip::demo_reticle_strip;
@@ -85,5 +85,5 @@ pub use vehicle::render_objects_draw::tank_render_objects;
 pub use vehicle::track_ribbon::{TrackRibbon, ribbon_render_objects, thrown_remnant_objects};
 pub use vehicle::turret_popoff::TurretPopoff;
 pub use vehicle::variation::{
-    CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
+    CamoPattern, DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
 };

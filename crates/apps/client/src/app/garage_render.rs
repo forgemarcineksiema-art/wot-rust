@@ -104,7 +104,14 @@ impl ClientApp {
                 * glam::Mat4::from_scale(glam::Vec3::new(1.0, 1.0, barrel_scale));
             gun.transform = scaled.to_cols_array_2d();
         }
-        let render_frame = render_frame_from_objects(objects);
+        let mut render_frame = render_frame_from_objects(objects);
+        // The battle's scuffs and gouges ride the parked hull/turret exactly as they rode it in
+        // the fight (L1): the same wound records, driven by the merged snapshot's pose (Z5).
+        crate::fx::append_hit_wounds_to(
+            &mut render_frame.armor_damage,
+            variation.decals(),
+            &snapshot,
+        );
         let hud = self.garage.overlay_vertices(aspect);
 
         // Dust streams off the tracks while the tank rolls in; the pool ages out once it parks.
@@ -140,13 +147,6 @@ impl ClientApp {
                 Vec3::new(0.0, crate::TURNTABLE_TOP_M, pose.z),
                 pose.yaw_rad,
             ));
-        }
-        // The battle's hit decals ride the parked hull/turret exactly as they rode it in the
-        // fight (L1) — same quad builder, driven by the merged snapshot's pose.
-        if let Some(wear) =
-            self.garage.field_wear().filter(|wear| wear.vehicle() == snapshot.vehicle)
-        {
-            crate::fx::append_decal_quads(&mut fx_vertices, wear.decals(), &snapshot);
         }
 
         let scene_time_s = self.presented_time_s();

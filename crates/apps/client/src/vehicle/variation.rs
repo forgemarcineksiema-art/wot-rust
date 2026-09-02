@@ -16,7 +16,6 @@ use vehicle_geometry::DecalPatch;
 /// Hit decals beyond this are the oldest and get recycled — keeps per-tank state bounded.
 pub const MAX_HIT_DECALS: usize = 16;
 /// Seconds a hit decal takes to fully fade and be dropped.
-pub const DECAL_FADE_S: f32 = 30.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CamoPattern {
@@ -52,6 +51,10 @@ pub struct HitDecal {
     pub local_position: [f32; 3],
     /// Outward plate normal in the same local frame — the mark is drawn flat on this plane.
     pub local_normal: [f32; 3],
+    /// In-plane direction of the mark in the same local frame: a gouge's groove runs along
+    /// it (the ricochet's departure projected onto the plate); a scuff only needs it to be
+    /// perpendicular to the normal.
+    pub local_tangent: [f32; 3],
     pub radius: f32,
     pub age_s: f32,
     pub kind: DecalKind,
@@ -63,15 +66,11 @@ pub struct HitDecal {
 }
 
 impl HitDecal {
-    /// 1.0 when fresh; scuffs and gouges fade to 0.0 at [`DECAL_FADE_S`], penetration holes
-    /// never fade (they can still be recycled by [`MAX_HIT_DECALS`]).
+    /// Every mark stays for the battle (Inny Poziom Z5, game-design §13.1: the oldest merge
+    /// into general wear, none vanishes); only [`MAX_HIT_DECALS`] recycles them. Always 1.0 —
+    /// kept as the one place a future "weathers back over" rule would live.
     pub fn opacity(&self) -> f32 {
-        match self.kind {
-            DecalKind::Penetration => 1.0,
-            DecalKind::Scuff | DecalKind::Gouge => {
-                (1.0 - self.age_s / DECAL_FADE_S).clamp(0.0, 1.0)
-            }
-        }
+        1.0
     }
 }
 
@@ -159,12 +158,11 @@ impl VehicleVariation {
         self.decals.push(HitDecal { radius: decal.radius.max(0.0), age_s: 0.0, ..decal });
     }
 
-    /// Age decals and drop any that have fully faded (penetration holes never do).
+    /// Age the marks (their age is presentation history; no mark fades away).
     pub fn tick(&mut self, dt_s: f32) {
         for decal in &mut self.decals {
             decal.age_s += dt_s.max(0.0);
         }
-        self.decals.retain(|decal| decal.opacity() > 0.0);
     }
 
     /// Adopt the replicated damage state from the latest snapshot while keeping the accumulated

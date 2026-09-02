@@ -1,5 +1,5 @@
 use client::{
-    CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, EquipmentAnchor, HitDecal, MAX_HIT_DECALS,
+    CamoPattern, DecalFrame, DecalKind, EquipmentAnchor, HitDecal, MAX_HIT_DECALS,
     VehicleAssetCatalog, VehicleVariation, equipment_points, tank_vehicle_render_objects,
     tank_vehicle_render_objects_with_variation,
 };
@@ -28,6 +28,7 @@ fn decal(x: f32, kind: DecalKind) -> HitDecal {
     HitDecal {
         local_position: [x, 0.0, 0.0],
         local_normal: [1.0, 0.0, 0.0],
+        local_tangent: [0.0, 1.0, 0.0],
         radius: 0.2,
         age_s: 0.0,
         kind,
@@ -37,7 +38,7 @@ fn decal(x: f32, kind: DecalKind) -> HitDecal {
 }
 
 #[test]
-fn hit_decals_are_capped_and_scuffs_fade_while_holes_persist() {
+fn hit_decals_are_capped_and_every_mark_stays_for_the_battle() {
     let mut v = VehicleVariation::default();
     for i in 0..(MAX_HIT_DECALS + 4) {
         v.record_hit(decal(i as f32 * 0.1, DecalKind::Scuff));
@@ -45,13 +46,14 @@ fn hit_decals_are_capped_and_scuffs_fade_while_holes_persist() {
     assert_eq!(v.decals().len(), MAX_HIT_DECALS, "decal count must stay bounded");
     assert!((v.decals()[0].opacity() - 1.0).abs() < 1.0e-6, "fresh decal is fully opaque");
 
+    // A battle later: every scuff is still there at full strength (Inny Poziom Z5, game-design
+    // §13.1 — marks stay for the battle, the oldest merge into wear). Only the cap recycles.
+    v.tick(900.0);
+    assert_eq!(v.decals().len(), MAX_HIT_DECALS, "no mark fades away");
+    assert!(v.decals().iter().all(|d| (d.opacity() - 1.0).abs() < 1.0e-6));
     v.record_hit(decal(9.0, DecalKind::Penetration));
-    v.tick(DECAL_FADE_S * 0.5);
-    assert!(v.decals()[0].opacity() < 0.6, "scuffs fade as they age");
-    v.tick(DECAL_FADE_S);
-    assert_eq!(v.decals().len(), 1, "only the penetration hole survives the fade");
-    assert_eq!(v.decals()[0].kind, DecalKind::Penetration);
-    assert!((v.decals()[0].opacity() - 1.0).abs() < 1.0e-6, "battle scars stay for the battle");
+    assert_eq!(v.decals().len(), MAX_HIT_DECALS, "the cap recycles the oldest");
+    assert_eq!(v.decals().last().map(|d| d.kind), Some(DecalKind::Penetration));
 }
 
 #[test]

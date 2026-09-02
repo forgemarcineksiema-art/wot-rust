@@ -104,7 +104,8 @@ struct ArmorAperture {
     tangent_rotation: vec4<f32>,
     // x irregularity, yz deterministic phases, w plane half-depth.
     shape: vec4<f32>,
-    // x glow intensity now (CPU-cooled), y glow tightness, zw reserved.
+    // x glow intensity now (CPU-cooled), y glow tightness, z cut truth, w the mark kind
+    // (0 breach, 1 scuff, 2 gouge — Inny Poziom Z5).
     thermal: vec4<f32>,
 };
 
@@ -174,7 +175,7 @@ fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
             break;
         }
         let aperture = armor_apertures[header.start + slot];
-        if (aperture.thermal.z < 0.5) {
+        if (aperture.thermal.z < 0.5 || aperture.thermal.w > 0.5) {
             // A scorch-only aperture (legacy hull without cut truth) never opens the mesh.
             slot += 1u;
             continue;
@@ -214,6 +215,10 @@ fn armor_aperture_thermal(world_pos: vec3<f32>, damage_index: u32) -> vec2<f32> 
         }
         let aperture = armor_apertures[header.start + slot];
         slot += 1u;
+        if (aperture.thermal.w > 0.5) {
+            // A scuff or gouge is a surface wound (`armor_surface_wound`), not a breach.
+            continue;
+        }
         let normal = normalize(aperture.normal_minor.xyz);
         let delta = world_pos - aperture.center_major.xyz;
         if (abs(dot(delta, normal)) > aperture.shape.w) {
@@ -234,4 +239,86 @@ fn armor_aperture_thermal(world_pos: vec3<f32>, damage_index: u32) -> vec2<f32> 
         scorch = max(scorch, max(lip, halo * halo * 0.45));
     }
     return vec2<f32>(glow, min(scorch, 1.0));
+}
+
+/// What a non-penetrating strike left on the plate, as MATERIAL (Inny Poziom Z5): a bounce's
+/// shallow dish (`dent`, with the normal it bends), the steel it bared at the centre (`bare`),
+/// the paint it scorched around the rim (`soot`), and a ricochet's bright scrape along its
+/// groove (`scrape`). Records of kind 1 (scuff) and 2 (gouge) in the same aperture list the
+/// breaches ride; the breaches (kind 0) keep their own cut and soot path.
+struct ArmorWound {
+    dent: f32,
+    bare: f32,
+    soot: f32,
+    scrape: f32,
+    bend: vec3<f32>,
+};
+
+fn armor_surface_wound(world_pos: vec3<f32>, damage_index: u32) -> ArmorWound {
+    var wound: ArmorWound;
+    wound.dent = 0.0;
+    wound.bare = 0.0;
+    wound.soot = 0.0;
+    wound.scrape = 0.0;
+    wound.bend = vec3<f32>(0.0, 0.0, 0.0);
+    if (damage_index == 0u) {
+        return wound;
+    }
+    let header = armor_damage_headers[damage_index];
+    var slot = 0u;
+    loop {
+        if (slot >= header.count) {
+            break;
+        }
+        let aperture = armor_apertures[header.start + slot];
+        slot += 1u;
+        let kind = aperture.thermal.w;
+        if (kind < 0.5) {
+            // A breach: the cut and the thermal/soot path own it.
+            continue;
+        }
+        let normal = normalize(aperture.normal_minor.xyz);
+        let delta = world_pos - aperture.center_major.xyz;
+        if (abs(dot(delta, normal)) > aperture.shape.w) {
+            continue;
+        }
+        let local = aperture_plane_local(aperture, world_pos);
+        let metric = aperture_contour_metric(aperture, local);
+        let m = length(metric);
+        if (m > 2.2) {
+            continue;
+        }
+        let tangent = normalize(aperture.tangent_rotation.xyz);
+        let bitangent = normalize(cross(normal, tangent));
+        if (kind < 1.5) {
+            // Scuff: a shallow dish whose slope is steepest mid-radius and points at its own
+            // centre (a depression: the normal leans INWARD), scorched paint over the rim,
+            // steel bared where the round struck.
+            let inside = clamp(1.0 - m, 0.0, 1.0);
+            let dish = inside * inside * (3.0 - 2.0 * inside);
+            let slope = 4.0 * inside * (1.0 - inside);
+            let outward = normalize(tangent * local.x + bitangent * local.y + vec3<f32>(1.0e-5, 0.0, 0.0));
+            wound.dent = max(wound.dent, dish);
+            wound.bend = wound.bend - outward * slope * 1.1;
+            wound.bare = max(wound.bare, clamp((0.55 - m) / 0.35, 0.0, 1.0));
+            let rim = clamp((1.7 - m) / 0.9, 0.0, 1.0) * (1.0 - clamp((0.6 - m) / 0.3, 0.0, 1.0));
+            wound.soot = max(wound.soot, rim);
+        } else {
+            // Gouge: the major axis IS the departure — a narrow groove of torn bright steel
+            // along it, the plate broken across it (the normal leans into the groove), a
+            // scorched smear either side fading with the groove's length.
+            let sin_r = sin(aperture.tangent_rotation.w);
+            let cos_r = cos(aperture.tangent_rotation.w);
+            let minor_dir = bitangent * cos_r - tangent * sin_r;
+            let across = abs(metric.y);
+            let along = clamp(1.0 - abs(metric.x), 0.0, 1.0);
+            let groove = clamp(1.0 - across, 0.0, 1.0) * along;
+            wound.scrape = max(wound.scrape, groove);
+            wound.bare = max(wound.bare, groove);
+            wound.bend = wound.bend - minor_dir * sign(metric.y) * groove * (1.0 - groove) * 1.3;
+            let smear = clamp((2.2 - m) / 1.4, 0.0, 1.0) * along;
+            wound.soot = max(wound.soot, smear * 0.7);
+        }
+    }
+    return wound;
 }

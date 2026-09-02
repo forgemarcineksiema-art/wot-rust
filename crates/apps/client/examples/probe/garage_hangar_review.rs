@@ -107,7 +107,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         0.0,
         0.0,
     );
-    let render_frame = render_frame_from_objects(objects);
+    let mut render_frame = render_frame_from_objects(objects);
 
     // Hero orbit framing, READ from `scene_build::hangar` rather than copied out of it. This file
     // used to hard-code (0.60, 0.28, 14.0) and a 32 deg lens beside the constants that were moved
@@ -266,6 +266,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             client::HitDecal {
                 local_position: [-1.18, 0.95, 1.3],
                 local_normal: [-1.0, 0.0, 0.0],
+                local_tangent: [0.0, 1.0, 0.0],
                 radius: 0.18,
                 age_s: 0.0,
                 kind: client::DecalKind::Penetration,
@@ -274,7 +275,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             },
             client::HitDecal {
                 local_position: [-1.16, 0.42, 0.3],
-                local_normal: [-0.95, 0.1, 0.3],
+                local_normal: [-1.0, 0.0, 0.0],
+                local_tangent: [0.0, 1.0, 0.0],
                 radius: 0.22,
                 age_s: 4.0,
                 kind: client::DecalKind::Gouge,
@@ -283,7 +285,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             },
             client::HitDecal {
                 local_position: [-1.18, 0.8, -1.2],
-                local_normal: [-1.0, 0.05, 0.0],
+                local_normal: [-1.0, 0.0, 0.0],
+                local_tangent: [0.0, 1.0, 0.0],
                 radius: 0.3,
                 age_s: 8.0,
                 kind: client::DecalKind::Scuff,
@@ -291,7 +294,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
                 patch: None,
             },
         ];
-        client::append_decal_quads(&mut fx, &decals, &snapshot);
+        client::append_hit_wounds_to(&mut render_frame.armor_damage, &decals, &snapshot);
     }
     renderer.set_fx(&ctx, &fx);
     let (dyn_v, dyn_i) = client::hangar_dynamic_mesh_at(

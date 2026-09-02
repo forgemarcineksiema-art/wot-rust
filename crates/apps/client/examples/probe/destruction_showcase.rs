@@ -7,6 +7,8 @@
 //!                            line cleared, its trees gone with it.
 //!   `_cover_felled.png`   — the cleared tree line up close: stumps and fallen trunks (P11).
 //!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
+//!   `_surface_wounds.png` — the same tank two metres off: a bounce's dish and a ricochet's gouge
+//!                            as material on the plate (Z5).
 //!   `_interior_detail.png` — a close side perforation exposing physical internal assemblies.
 //!   `_wreck.png`          — a knocked-out hull: charred, gun drooped off the aim, scarred.
 //!   `_turret_popoff.png`  — an ammo-rack kill: the turret flung off and settled beside the hull.
@@ -18,7 +20,7 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    HitDecal, TrackRibbon, TurretPopoff, VehicleAssetCatalog, append_decal_quads,
+    HitDecal, TrackRibbon, TurretPopoff, VehicleAssetCatalog, append_hit_wounds_to,
     battlefield_scene_mesh, battlefield_scene_mesh_with_cover_states, render_frame_from_objects,
     tank_vehicle_render_objects,
 };
@@ -184,16 +186,23 @@ fn vehicle_shots(
         );
     }
     let live_objects = tank_vehicle_render_objects(catalog, &live, color);
-    let live_damage: Vec<renderer_api::ArmorDamageInstance> =
+    let mut live_damage: Vec<renderer_api::ArmorDamageInstance> =
         client::armor_damage_instance(&live, 30).into_iter().collect();
-    let mut live_fx = Vec::new();
-    append_decal_quads(&mut live_fx, &battle_decals(&live, cx, ground, cz), &live);
+    // The bounce's dish and the ricochet's gouge are material on the plate (Z5): wound records
+    // beside the breaches, nothing in the FX batch.
+    append_hit_wounds_to(&mut live_damage, &battle_decals(catalog, &live, cx, ground, cz), &live);
+    let live_fx: Vec<FxVertex> = Vec::new();
 
     let wreck = tank_snapshot(cx, ground, cz, 0, gun_dead);
     let wreck_objects = tank_vehicle_render_objects(catalog, &wreck, color);
-    let wreck_damage = client::armor_damage_instance(&wreck, 30).into_iter().collect();
-    let mut wreck_fx = Vec::new();
-    append_decal_quads(&mut wreck_fx, &battle_decals(&wreck, cx, ground, cz), &wreck);
+    let mut wreck_damage: Vec<renderer_api::ArmorDamageInstance> =
+        client::armor_damage_instance(&wreck, 30).into_iter().collect();
+    append_hit_wounds_to(
+        &mut wreck_damage,
+        &battle_decals(catalog, &wreck, cx, ground, cz),
+        &wreck,
+    );
+    let wreck_fx: Vec<FxVertex> = Vec::new();
 
     // The de-tracked flank (Fizyczny Świat): the live snapshot above already carries the
     // thrown LEFT track, so its side renders bare wheels — and the loop itself lies beside
@@ -282,6 +291,23 @@ fn vehicle_shots(
         height,
     )?;
     write_png(ctx, target, width, height, &format!("{prefix}_battle_damage.png"))?;
+    // The surface wounds up close (Z5): the bounce's dish on the glacis and the ricochet's
+    // gouge on the turret front, two metres off — the frame the owner judges them in.
+    let wounds_eye = [cx + 5.4, ground + 2.6, cz - 2.1];
+    let wounds_look = [cx + 2.4, ground + 1.45, cz - 0.4];
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        live_objects.clone(),
+        live_damage.clone(),
+        &live_fx,
+        wounds_eye,
+        wounds_look,
+        width,
+        height,
+    )?;
+    write_png(ctx, target, width, height, &format!("{prefix}_surface_wounds.png"))?;
     draw_vehicle(
         ctx,
         target,
@@ -325,41 +351,67 @@ fn vehicle_shots(
 }
 
 /// A few penetration holes on the front, side and turret of the tank at `(cx, ground, cz)`.
-fn battle_decals(tank: &TankSnapshot, cx: f32, ground: f32, cz: f32) -> Vec<HitDecal> {
+fn battle_decals(
+    catalog: &VehicleAssetCatalog,
+    tank: &TankSnapshot,
+    cx: f32,
+    ground: f32,
+    cz: f32,
+) -> Vec<HitDecal> {
+    // Seated on the visual mesh through the catalog's contact index, exactly as the battle
+    // seats them (a fallback seat lands on the hitbox plane, centimetres inside the casting).
+    let contact = catalog.contact_index(KIND);
     // yaw = FRAC_PI_2: nose points +X, right side is -Z-ish; pick surface points and outward normals.
+    // Two penetrations, one bounce (the hull side: a dished scuff) and one ricochet (the
+    // turret side: a gouge along the departure) — the four marks of game-design §13.1.
     let hits = [
-        (Vec3::new(cx + 2.6, ground + 1.25, cz), ArmorZone::UpperGlacis, Vec3::new(0.7, 0.6, 0.0)),
+        (
+            Vec3::new(cx + 2.6, ground + 1.25, cz),
+            ArmorZone::UpperGlacis,
+            Vec3::new(0.7, 0.6, 0.0),
+            true,
+            false,
+        ),
         (
             Vec3::new(cx + 1.9, ground + 1.9, cz + 0.2),
             ArmorZone::TurretFront,
             Vec3::new(0.6, 0.5, 0.3),
+            true,
+            false,
         ),
         (
-            Vec3::new(cx - 0.2, ground + 1.0, cz + 1.05),
-            ArmorZone::HullSide,
-            Vec3::new(0.0, 0.2, 1.0),
+            Vec3::new(cx + 2.7, ground + 1.18, cz - 0.55),
+            ArmorZone::UpperGlacis,
+            Vec3::new(0.866, 0.5, 0.0),
+            false,
+            false,
         ),
         (
-            Vec3::new(cx + 0.6, ground + 1.6, cz + 1.0),
-            ArmorZone::TurretSide,
-            Vec3::new(0.1, 0.3, 1.0),
+            Vec3::new(cx + 0.98, ground + 1.86, cz - 0.25),
+            ArmorZone::TurretFront,
+            Vec3::new(0.9, 0.35, -0.25),
+            false,
+            true,
         ),
     ];
     hits.into_iter()
-        .filter_map(|(hit, zone, normal)| {
+        .filter_map(|(hit, zone, normal, penetrated, ricocheted)| {
             let event = DamageEvent {
                 source: TankId(2),
                 target: tank.tank_id,
                 hit_position: hit,
                 damage_hp: 200,
-                penetrated: true,
+                penetrated,
+                ricocheted,
                 cause: DamageCause::Shell,
                 armor_zone: zone,
                 plate_normal: normal.normalize(),
-                shell_direction: (-normal).normalize(),
+                // A raking approach, so a ricochet has a departure to gouge along.
+                shell_direction: (-normal.normalize() * 0.6 + Vec3::new(0.0, -0.35, 0.7))
+                    .normalize(),
                 ..Default::default()
             };
-            client::decal_from_damage_event(&event, tank, None)
+            client::decal_from_damage_event(&event, tank, contact.as_deref())
         })
         .collect()
 }

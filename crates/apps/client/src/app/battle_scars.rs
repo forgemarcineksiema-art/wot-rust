@@ -4,7 +4,6 @@
 
 use game_core::{HitboxProfile, ModuleSlot};
 use glam::Vec3;
-use renderer_api::FxVertex;
 
 use super::ClientApp;
 
@@ -69,11 +68,13 @@ impl ClientApp {
         }
     }
 
-    /// Append every tank's accumulated hit decals to this frame's FX batch.
-    pub(super) fn append_scar_quads(&self, vertices: &mut Vec<FxVertex>) {
+    /// Merge every tank's accumulated scuffs and gouges into this frame's armor-damage list
+    /// as wound records (Inny Poziom Z5): the vehicle shader shades them as material on the
+    /// plate they sit on. Penetrations are already there from the breach path.
+    pub(super) fn append_hit_wounds(&self, damage: &mut Vec<renderer_api::ArmorDamageInstance>) {
         for tank in self.render_state.interpolated_tanks() {
             if let Some(variation) = self.tank_scars.get(&tank.tank_id) {
-                crate::fx::append_decal_quads(vertices, variation.decals(), tank);
+                crate::fx::append_hit_wounds_to(damage, variation.decals(), tank);
             }
         }
     }

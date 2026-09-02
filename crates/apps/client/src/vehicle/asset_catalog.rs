@@ -128,7 +128,7 @@ impl VehicleAssetCatalog {
     /// The visual-mesh contact index for a kind, if its assets have been built (they are, for
     /// every playable vehicle, by `prebake_playable_vehicle_assets` at startup). Cloned `Arc` so
     /// the caller drops the catalog borrow before posing the mark.
-    pub(crate) fn contact_index(&self, kind: VehicleKind) -> Option<Arc<VehicleContactIndex>> {
+    pub fn contact_index(&self, kind: VehicleKind) -> Option<Arc<VehicleContactIndex>> {
         self.contact_indices.get(&kind).cloned()
     }
 

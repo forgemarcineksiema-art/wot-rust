@@ -187,6 +187,7 @@ mod tests {
         variation.record_hit(HitDecal {
             local_position: [0.5, 1.0, 0.2],
             local_normal: [0.0, 0.0, 1.0],
+            local_tangent: [0.0, 1.0, 0.0],
             radius: 0.2,
             age_s: 0.0,
             kind: DecalKind::Penetration,

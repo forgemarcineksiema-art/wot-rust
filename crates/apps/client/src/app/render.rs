@@ -554,6 +554,8 @@ impl ClientApp {
             self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick),
             Some(camera.eye),
         );
+        // Scuffs and gouges are material on the plate (Z5): wound records beside the breaches.
+        self.append_hit_wounds(&mut vehicles.armor_damage);
         // A decapitated wreck flies its turret: replace that tank's turret and gun transforms with
         // the deterministic pop-off arc (the snapshot pose is ignored, freezing the turret yaw).
         self.apply_turret_popoffs(&mut vehicles.objects);
