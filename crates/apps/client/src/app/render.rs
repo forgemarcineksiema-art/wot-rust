@@ -469,6 +469,10 @@ impl ClientApp {
             .map(|age| age + frame_dt)
             .filter(|age| *age < crate::hud::kill_marker::KILL_CONFIRM_TTL_S);
         self.fx.tick(frame_dt);
+        // Where every live shell is this frame, remembered for the path it draws (A8).
+        let shells =
+            self.render_state.interpolated_shells(super::frame_scene::SNAPSHOT_INTERVAL_SECONDS);
+        self.fx.record_shells(&shells, frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.track_marks.tick(frame_dt);
         // Shed bands age: the freshly hung remnant over the sprocket slides off with time.

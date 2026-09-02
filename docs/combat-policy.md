@@ -90,7 +90,9 @@ client's straight aim-ray sweep. The per-segment collision (`segment_impact`:
 analytic ray versus two hull-local boxes per tank, a one metre stepped sweep for
 terrain, and slab tests for cover) and the ballistic integration (`trace_shell`:
 semi-implicit gravity-then-move at the simulation tick `dt`) are the same code for
-all of them.
+all of them. Shell gravity is Earth's (`game_core::math::SHELL_GRAVITY_MPS2 = 9.81`, Inny Poziom A8 —
+it was an undocumented 12.0 before); the arc reads at map scale because the shell's path stays
+drawn for most of a second after it passes, not because the shell falls faster than a shell.
 
 Blueprint vehicles resolve against BAKED CONVEX ARMOR VOLUMES
 (`game_core::vehicle_armor_volumes`, built from the same `VehicleBlueprint`

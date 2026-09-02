@@ -13,8 +13,19 @@ mod plates;
 
 pub use plates::plate_normal;
 
-/// Mildly exaggerated gravity so shell arcs read at map scale (real is ~9.81 m/s^2).
+/// The HULL's gravity: the value the 2.5D hull model's contracts were measured under — the
+/// climbing envelope, the fleet mobility table, trench bridging, the drive replay. It is not
+/// Earth's; it is the tuning the rigid-beam hull was balanced on, and it goes to 9.81 together
+/// with that model's rebuild (Inny Poziom G7), when those contracts are re-measured as a set.
+/// Shells stopped sharing it in A8 — see [`SHELL_GRAVITY_MPS2`].
 pub const GRAVITY_MPS2: f32 = 12.0;
+
+/// Earth's gravity, for the shell. It was the hull's 12.0 — "mildly exaggerated so shell arcs
+/// read at map scale" — and named in no policy file; an honest tank drops its shell at the real
+/// rate, and the arc reads at map scale because the shell's path stays drawn for most of a
+/// second after it passes (Inny Poziom A8). Every consumer integrates the one step below, so the
+/// sight's solver and the server's flight changed together.
+pub const SHELL_GRAVITY_MPS2: f32 = 9.81;
 
 /// One semi-implicit Euler step of shell flight: linear drag bleeds speed, then gravity pulls.
 /// This is the ONE integration every consumer shares — the authoritative server step, the
@@ -22,7 +33,7 @@ pub const GRAVITY_MPS2: f32 = 12.0;
 /// the arc the server flies.
 pub fn integrate_shell_step(velocity: &mut Vec3, drag_per_s: f32, dt_seconds: f32) {
     *velocity *= (1.0 - drag_per_s * dt_seconds).max(0.0);
-    velocity.y -= GRAVITY_MPS2 * dt_seconds;
+    velocity.y -= SHELL_GRAVITY_MPS2 * dt_seconds;
 }
 
 /// Horizontal unit heading for a yaw angle, in the XZ plane (+Z at yaw 0).
@@ -447,5 +458,22 @@ mod tests {
             segment_box_entry(Vec3::new(-3.0, 5.0, 0.0), Vec3::new(3.0, 5.0, 0.0), min, max),
             None
         );
+    }
+
+    /// Inny Poziom A8: the shell falls at Earth's gravity. One second of drag-free flight at
+    /// the simulation tick drops ~4.9 m — semi-implicit Euler at 60 Hz lands within its own
+    /// step error of ½·g·t², and nothing else is allowed to pull.
+    #[test]
+    fn a_shell_falls_at_earths_gravity() {
+        assert_eq!(SHELL_GRAVITY_MPS2, 9.81);
+        let mut velocity = Vec3::new(0.0, 0.0, 900.0);
+        let mut height = 0.0_f32;
+        let dt = 1.0 / 60.0;
+        for _ in 0..60 {
+            integrate_shell_step(&mut velocity, 0.0, dt);
+            height += velocity.y * dt;
+        }
+        assert!((height + 4.905).abs() < 0.1, "one second of fall came to {height} m");
+        assert!((velocity.z - 900.0).abs() < 1.0e-3, "gravity pulls only down");
     }
 }

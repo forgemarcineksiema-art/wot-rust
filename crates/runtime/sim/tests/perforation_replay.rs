@@ -70,13 +70,16 @@ fn a_penetration_carves_the_same_perforation_on_every_run() {
     // to 6.235, so the glacis plane it carries moved 0.1175 m forward and the same shot down the
     // same line meets it 0.116 m further out. The plate, the zone and the aperture size are
     // unchanged — only where the bow now is.
+    // Re-pinned 2026-09-02 (Inny Poziom A8, gravity 12.0 → 9.81): over the fixture's 55 m the
+    // round now drops 4 mm less, so it meets the same glacis 3.8 mm higher and 6.7 mm nearer
+    // the bow. Plate, zone and aperture size unchanged.
     let breach = &first.breaches()[0];
     let lobe = breach.lobes()[0];
     assert_eq!(first.aperture_group_count(), 1);
     assert_eq!(breach.frame, game_core::ArmorFrame::Hull);
     assert_eq!(breach.zone, game_core::ArmorZone::UpperGlacis);
     assert!(
-        (lobe.entry_local - Vec3::new(-0.001619, 1.29092, 2.613_61)).length() < 1.0e-3,
+        (lobe.entry_local - Vec3::new(-0.001_623, 1.294_74, 2.606_99)).length() < 1.0e-3,
         "the entry point drifted: {:?}",
         lobe.entry_local
     );

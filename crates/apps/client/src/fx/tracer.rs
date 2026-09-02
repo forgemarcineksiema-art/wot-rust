@@ -1,9 +1,13 @@
 //! Shell tracers: the in-flight shell drawn as what the eye actually sees at 900 m/s — a bright
 //! streak with its head at the shell's replicated position and its tail trailing down the
-//! flight path — instead of a floating marker. Stateless per frame: geometry derives purely
-//! from the interpolated `ShellSnapshot`s, so it needs no per-shell identity or history.
+//! flight path — instead of a floating marker. The streak itself is stateless per frame:
+//! geometry derives purely from the interpolated `ShellSnapshot`s. The PATH the shell leaves
+//! behind is not (Inny Poziom A8): [`ShellTrails`] remembers where each shell has been for
+//! under a second and draws it as a dimming line, so the eye can read the arc after the round
+//! has gone — the shot that fell short, the one that cleared the crest — instead of a 20 m
+//! streak that shows 5 % of a 400 m flight at any instant.
 
-use game_core::ShellType;
+use game_core::{ShellId, ShellType};
 use glam::Vec3;
 use net::ShellSnapshot;
 use renderer_api::FxVertex;
@@ -16,6 +20,121 @@ const TRAIL_SECONDS: f32 = 0.022;
 const MIN_LENGTH_M: f32 = 3.0;
 const MAX_LENGTH_M: f32 = 22.0;
 
+/// How long the eye keeps a shell's path after the shell has passed a point. Long enough to
+/// read a 400 m arc back from its landing, short enough that a firefight never carpets the
+/// field in old lines.
+pub(crate) const TRAIL_MEMORY_S: f32 = 0.9;
+/// Minimum flight between two remembered samples — a frame at 900 m/s is ~15 m, so the memory
+/// is a polyline of frame samples; the floor keeps a slow HE lob from spending a sample per
+/// centimetre.
+const TRAIL_SAMPLE_SPACING_M: f32 = 2.0;
+/// Samples one shell may keep: at the spacing floor that is ~200 m of the slowest lob, and
+/// far more than a second of the fastest round.
+const TRAIL_MAX_SAMPLES: usize = 96;
+/// The remembered line's brightness against the live streak's glow, before fading.
+const TRAIL_GLOW: f32 = 0.42;
+const TRAIL_WIDTH_M: f32 = 0.10;
+
+#[derive(Debug, Clone, Copy)]
+struct TrailSample {
+    position: Vec3,
+    age_s: f32,
+}
+
+#[derive(Debug, Clone)]
+struct ShellTrail {
+    id: ShellId,
+    shell_type: ShellType,
+    caliber_mm: f32,
+    samples: Vec<TrailSample>,
+}
+
+/// The paths of every shell the viewer has seen fly, remembered for [`TRAIL_MEMORY_S`] and
+/// keyed by `shell_id` (never by owner — a shell's owner is intel, its path is a world event).
+#[derive(Debug, Default)]
+pub(crate) struct ShellTrails {
+    trails: Vec<ShellTrail>,
+}
+
+impl ShellTrails {
+    /// Age every remembered sample by one presented frame, then note where each live shell is
+    /// now. A shell that has vanished (landed, expired) keeps its path until the path has faded.
+    pub(crate) fn record(&mut self, shells: &[ShellSnapshot], dt_s: f32) {
+        let dt_s = dt_s.clamp(0.0, 0.1);
+        for trail in &mut self.trails {
+            for sample in &mut trail.samples {
+                sample.age_s += dt_s;
+            }
+        }
+        for shell in shells {
+            let head = Vec3::from_array(shell.position);
+            match self.trails.iter_mut().find(|trail| trail.id == shell.shell_id) {
+                Some(trail) => {
+                    let moved = trail
+                        .samples
+                        .last()
+                        .is_none_or(|last| last.position.distance(head) >= TRAIL_SAMPLE_SPACING_M);
+                    if moved {
+                        trail.samples.push(TrailSample { position: head, age_s: 0.0 });
+                        if trail.samples.len() > TRAIL_MAX_SAMPLES {
+                            trail.samples.remove(0);
+                        }
+                    }
+                }
+                None => self.trails.push(ShellTrail {
+                    id: shell.shell_id,
+                    shell_type: shell.shell_type,
+                    caliber_mm: shell.caliber_mm,
+                    samples: vec![TrailSample { position: head, age_s: 0.0 }],
+                }),
+            }
+        }
+        for trail in &mut self.trails {
+            trail.samples.retain(|sample| sample.age_s < TRAIL_MEMORY_S);
+        }
+        // A path is forgotten only once every sample of it has faded; a fresh shell holds ONE
+        // sample until it has flown a spacing's worth, and that one sample is its anchor.
+        self.trails.retain(|trail| !trail.samples.is_empty());
+    }
+
+    /// The remembered paths as dimming lines: each segment carries the shell's own tracer glow
+    /// at [`TRAIL_GLOW`], fading with the square of its age so the line dies from the far end
+    /// forward — the way a tracer's smoke thins.
+    pub(crate) fn append(&self, vertices: &mut Vec<FxVertex>, eye: Vec3) {
+        for trail in &self.trails {
+            let look = tracer_look_for(trail.shell_type, trail.caliber_mm);
+            for pair in trail.samples.windows(2) {
+                let (from, to) = (pair[0], pair[1]);
+                let axis_half = (to.position - from.position) * 0.5;
+                if axis_half.length_squared() < 1.0e-6 {
+                    continue;
+                }
+                let fade = (1.0 - to.age_s / TRAIL_MEMORY_S).clamp(0.0, 1.0);
+                let strength = TRAIL_GLOW * fade * fade;
+                let color = [
+                    look.glow[0] * strength,
+                    look.glow[1] * strength,
+                    look.glow[2] * strength,
+                    0.0,
+                ];
+                push_stretched(
+                    vertices,
+                    from.position + axis_half,
+                    axis_half,
+                    TRAIL_WIDTH_M * look.width_scale,
+                    color,
+                    eye,
+                );
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn remembered_shells(&self) -> usize {
+        self.trails.len()
+    }
+}
+
 /// All colors premultiplied with `alpha = 0`: tracers are pure additive glow, so overlapping
 /// streaks brighten instead of occluding, and draw order cannot matter.
 struct TracerLook {
@@ -27,8 +146,12 @@ struct TracerLook {
 }
 
 fn tracer_look(shell: &ShellSnapshot) -> TracerLook {
-    let caliber_scale = (shell.caliber_mm / 100.0).sqrt().clamp(0.72, 1.45);
-    let (core, glow, head, type_width, trail_scale) = match shell.shell_type {
+    tracer_look_for(shell.shell_type, shell.caliber_mm)
+}
+
+fn tracer_look_for(shell_type: ShellType, caliber_mm: f32) -> TracerLook {
+    let caliber_scale = (caliber_mm / 100.0).sqrt().clamp(0.72, 1.45);
+    let (core, glow, head, type_width, trail_scale) = match shell_type {
         ShellType::ArmorPiercing => {
             ([1.0, 0.93, 0.72, 0.0], [0.55, 0.30, 0.10, 0.0], [1.0, 0.98, 0.90, 0.0], 1.0, 1.0)
         }
@@ -149,5 +272,90 @@ mod tests {
             vertices.iter().all(|vertex| vertex.color[3] == 0.0),
             "alpha 0 everywhere: overlapping tracers brighten, never occlude"
         );
+    }
+}
+
+#[cfg(test)]
+mod trail_tests {
+    use game_core::TankId;
+
+    use super::*;
+
+    fn shell(id: u64, position: [f32; 3]) -> ShellSnapshot {
+        ShellSnapshot {
+            shell_id: ShellId(id),
+            owner: Some(TankId(1)),
+            position,
+            velocity_mps: [0.0, 0.0, 900.0],
+            caliber_mm: 100.0,
+            ..Default::default()
+        }
+    }
+
+    fn span_z(vertices: &[FxVertex]) -> (f32, f32) {
+        vertices.iter().fold((f32::MAX, f32::MIN), |(lo, hi), v| {
+            (lo.min(v.position[2]), hi.max(v.position[2]))
+        })
+    }
+
+    /// Inny Poziom A8: the path stays in the eye after the shell has passed — from where it was
+    /// first seen to where it was last seen — and dies within the memory, not before.
+    #[test]
+    fn a_shells_path_stays_in_the_eye_after_it_has_passed() {
+        let mut trails = ShellTrails::default();
+        let dt = 1.0 / 60.0;
+        for frame in 0..5 {
+            trails.record(&[shell(7, [0.0, 2.0, 15.0 * frame as f32])], dt);
+        }
+        // The shell lands; the snapshot stops carrying it.
+        trails.record(&[], dt);
+        let mut vertices = Vec::new();
+        trails.append(&mut vertices, Vec3::new(30.0, 5.0, 30.0));
+        assert!(!vertices.is_empty(), "the path outlives the shell");
+        let (lo, hi) = span_z(&vertices);
+        assert!(lo <= 0.5 && hi >= 59.5, "the line spans the flight: {lo}..{hi}");
+
+        // Half the memory later it is still there, dimmer; past the memory it is gone.
+        for _ in 0..25 {
+            trails.record(&[], dt);
+        }
+        let mut dimmer = Vec::new();
+        trails.append(&mut dimmer, Vec3::new(30.0, 5.0, 30.0));
+        assert!(!dimmer.is_empty(), "half a memory in, the path still reads");
+        let brightest = |v: &[FxVertex]| v.iter().map(|x| x.color[0]).fold(0.0_f32, f32::max);
+        assert!(brightest(&dimmer) < brightest(&vertices), "the line dims with age");
+        for _ in 0..40 {
+            trails.record(&[], dt);
+        }
+        let mut gone = Vec::new();
+        trails.append(&mut gone, Vec3::new(30.0, 5.0, 30.0));
+        assert!(gone.is_empty(), "past the memory the path is forgotten");
+        assert_eq!(trails.remembered_shells(), 0);
+    }
+
+    /// Paths are kept per shell id: two rounds in the air are two lines, and a round that has
+    /// not moved a sample's worth leaves no line at all.
+    #[test]
+    fn paths_are_kept_per_shell_and_a_still_shell_leaves_none() {
+        let mut trails = ShellTrails::default();
+        let dt = 1.0 / 60.0;
+        for frame in 0..4 {
+            let z = 15.0 * frame as f32;
+            trails.record(&[shell(1, [0.0, 2.0, z]), shell(2, [40.0, 2.0, z])], dt);
+        }
+        assert_eq!(trails.remembered_shells(), 2);
+        let mut vertices = Vec::new();
+        trails.append(&mut vertices, Vec3::new(20.0, 5.0, -20.0));
+        let on_left = vertices.iter().filter(|v| v.position[0] < 20.0).count();
+        let on_right = vertices.iter().filter(|v| v.position[0] > 20.0).count();
+        assert!(on_left > 0 && on_right > 0, "both rounds draw their own line");
+
+        let mut still = ShellTrails::default();
+        for _ in 0..200 {
+            still.record(&[shell(3, [5.0, 2.0, 5.0])], dt);
+        }
+        let mut none = Vec::new();
+        still.append(&mut none, Vec3::ONE);
+        assert!(none.is_empty(), "a shell that has not flown a sample's worth draws nothing");
     }
 }
