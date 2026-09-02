@@ -198,3 +198,54 @@ fn ramming_a_live_hull_does_not_buzz_the_camera() {
         );
     }
 }
+
+/// Inny Poziom G7, the lock written BEFORE the hull moves: the locally predicted hull attitude
+/// tracks the authoritative pitch and roll tick-for-tick on a slope that keeps both changing —
+/// the predictor and the server settle the same hull through the same step, so the reticle,
+/// the armour and the muzzle chain on the client hang off the pose the server is simulating.
+/// Today's rigid beam passes it; the sprung hull must keep passing it, spring state included.
+#[test]
+fn predictor_matches_the_server_hull_attitude_on_a_slope_tick_for_tick() {
+    // A dome: pitch and roll both change as the hull drives and steers across it.
+    let mut samples = Vec::with_capacity(61 * 61);
+    for z in 0..61 {
+        for x in 0..61 {
+            let (x, z) = (x as f32 - 30.0, z as f32 - 30.0);
+            samples.push(6.0 - (x * x + z * z) * 0.006);
+        }
+    }
+    let map = HeightMap::new(61, 61, 1.0, samples).expect("test heightmap dimensions are fixed");
+    let spec = TankSpec::t54_1951();
+    let step = FixedTimestep::from_hz(60);
+
+    let mut server = SimulationState::new();
+    let tank_id = server.spawn_tank(TeamId(1), spec.clone(), Vec3::new(20.0, 5.0, 20.0));
+    let mut predictor = LocalPredictor::new(&spec);
+    predictor.sync_to(&TankSnapshot::from(server.tank(tank_id).expect("spawned tank")));
+
+    let command = TankCommand::drive(1.0, 0.35);
+    let mut tilted = false;
+    for tick in 0..300 {
+        server.apply_commands_on_terrain(&[(tank_id, command)], step, &map);
+        predictor.step(command, &map, &[], &[], &[], None, step.dt_seconds());
+
+        let tank = server.tank(tank_id).expect("tank");
+        let pose = predictor.hull_pose();
+        assert!(
+            (pose.pitch_rad - tank.hull_pitch_rad).abs() < 1.0e-4,
+            "tick {tick}: pitch {} vs server {}",
+            pose.pitch_rad,
+            tank.hull_pitch_rad
+        );
+        assert!(
+            (pose.roll_rad - tank.hull_roll_rad).abs() < 1.0e-4,
+            "tick {tick}: roll {} vs server {}",
+            pose.roll_rad,
+            tank.hull_roll_rad
+        );
+        if tank.hull_pitch_rad.abs() > 0.02 || tank.hull_roll_rad.abs() > 0.02 {
+            tilted = true;
+        }
+    }
+    assert!(tilted, "the dome must actually tilt the hull, or the lock measures nothing");
+}
