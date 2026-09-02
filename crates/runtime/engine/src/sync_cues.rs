@@ -47,15 +47,17 @@ impl PresentationWorld {
     /// One replicated shot from `tank_id`: throw its barrel into recoil and rock its sprung hull
     /// by the turret's heading. Both cues are presentation-only springs; a fire event for a tank
     /// the world has not seen yet is dropped (its first frame has nothing to animate anyway).
-    pub fn apply_fire_recoil(&mut self, tank_id: TankId, turret_yaw_rad: f32) {
+    /// `recoil_scale` is the round's (Inny Poziom S3): both springs take it, so the barrel
+    /// stroke and the hull's rock grow with the gun together.
+    pub fn apply_fire_recoil(&mut self, tank_id: TankId, turret_yaw_rad: f32, recoil_scale: f32) {
         let Some(entity) = self.entity_of(tank_id) else {
             return;
         };
         if let Some(mut recoil) = self.world_mut().get_mut::<GunRecoil>(entity) {
-            recoil.kick();
+            recoil.kick(recoil_scale);
         }
         if let Some(mut attitude) = self.world_mut().get_mut::<crate::HullAttitude>(entity) {
-            attitude.fire_impulse(turret_yaw_rad);
+            attitude.fire_impulse(turret_yaw_rad, recoil_scale);
         }
     }
 }

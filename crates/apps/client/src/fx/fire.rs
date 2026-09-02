@@ -26,6 +26,11 @@ pub(crate) struct FireEvent {
     pub turret_yaw_rad: f32,
     pub muzzle: Vec3,
     pub direction: Vec3,
+    /// The round's recoil, as `ShellSpec::recoil_scale` (Inny Poziom S3): 1.0 for the D-10's
+    /// BR-412, ~0.67 for a 7.5 cm KwK 42, ~1.36 for a 12.8 cm Pak 80. Every presentation
+    /// channel of the shot — flash, smoke, dust, barrel stroke, hull rock, camera nudge —
+    /// scales through this one number, so a 128 mm is felt as more than a 75 mm everywhere.
+    pub recoil_scale: f32,
 }
 
 /// Resolve this tick's replicated shots against the tanks that fired them. `player` fires from its
@@ -56,11 +61,17 @@ pub(crate) fn resolve_shots(
             );
             let direction =
                 gun_direction_world(tank.hull_pose(), tank.turret_yaw_rad, tank.gun_pitch_rad);
+            // The round that left: the stock gun's slot the shooter had selected. A slot the
+            // gun does not carry (an old snapshot) falls back to the stock round.
+            let gun = tank.vehicle.spec().gun;
+            let rounds = gun.ammo_options();
+            let round = rounds.get(usize::from(tank.selected_ammo)).copied().unwrap_or(gun.shell);
             Some(FireEvent {
                 tank_id: tank.tank_id,
                 turret_yaw_rad: tank.turret_yaw_rad,
                 muzzle,
                 direction,
+                recoil_scale: round.recoil_scale(),
             })
         })
         .collect()
@@ -161,5 +172,64 @@ mod tests {
     #[test]
     fn a_shot_from_a_tank_with_no_pose_draws_nothing() {
         assert!(resolve_shots(&[shot(9)], &[snapshot(1, 8.4, 1000)], TankId(1), 1.0).is_empty());
+    }
+}
+
+/// Inny Poziom S3: one recoil momentum, every channel. Where each channel was a constant
+/// identical for a 75 mm and a 128 mm, the round's `recoil_scale` now sizes the flash, the
+/// smoke, the dust ring, the barrel's stroke, the hull's rock and the camera's nudge — and the
+/// 12.8 cm Pak 80 exceeds the 7.5 cm KwK 42 on every one of them, with the D-10 at 1.0 as the
+/// reference every channel was tuned on.
+#[cfg(test)]
+mod recoil_channel_locks {
+    use game_core::VehicleKind;
+    use glam::Vec3;
+
+    use crate::fx::FxSystem;
+
+    fn scale_of(kind: VehicleKind) -> f32 {
+        kind.spec().gun.shell.recoil_scale()
+    }
+
+    #[test]
+    fn a_128_mm_exceeds_a_75_mm_on_every_channel_of_the_shot() {
+        let big = scale_of(VehicleKind::Jagdtiger);
+        let small = scale_of(VehicleKind::PantherII);
+        let reference = scale_of(VehicleKind::T54_1951);
+        assert!(
+            (reference - 1.0).abs() < 1.0e-3,
+            "the D-10's BR-412 is the reference: {reference}"
+        );
+        assert!(big > 1.25 && small < 0.8, "Pak 80 {big} vs KwK 42 {small}");
+
+        // The blast: more particles and a larger flash for the bigger gun.
+        let blast = |scale: f32| {
+            let mut fx = FxSystem::default();
+            fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), scale);
+            let flash = fx
+                .particles
+                .iter()
+                .filter(|p| p.color_begin[3] == 0.0)
+                .map(|p| p.size_begin_m)
+                .fold(0.0_f32, f32::max);
+            (fx.live_particles(), flash)
+        };
+        let (big_count, big_flash) = blast(big);
+        let (small_count, small_flash) = blast(small);
+        assert!(big_count > small_count, "smoke and dust: {big_count} vs {small_count}");
+        assert!(big_flash > small_flash * 1.5, "flash: {big_flash} vs {small_flash}");
+
+        // The barrel: a longer stroke, measured as the spring's peak.
+        let stroke = |scale: f32| {
+            let mut recoil = engine::GunRecoil::default();
+            recoil.kick(scale);
+            let mut peak = 0.0_f32;
+            for _ in 0..40 {
+                recoil.step(1.0 / 60.0);
+                peak = peak.max(recoil.offset_m);
+            }
+            peak
+        };
+        assert!(stroke(big) > stroke(small) * 1.5, "stroke: {} vs {}", stroke(big), stroke(small));
     }
 }

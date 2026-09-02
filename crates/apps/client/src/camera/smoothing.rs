@@ -126,13 +126,16 @@ impl BattleCameraController {
     /// The player's own shot nudges the follow rig back along the aim and slightly down; the
     /// critically damped spring returns it in one settle. Sniper stays rigid — at 3 degrees of
     /// FOV even this nudge would smear the sight picture.
-    pub fn fire_kick(&mut self, view_yaw_rad: f32) {
+    /// `recoil_scale` is the round's (Inny Poziom S3): the nudge was tuned on the D-10 and
+    /// scales with the gun like every other channel of the shot.
+    pub fn fire_kick(&mut self, view_yaw_rad: f32, recoil_scale: f32) {
         if self.mode() == BattleCameraMode::Sniper {
             return;
         }
+        let scale = recoil_scale.clamp(0.4, 2.0);
         let forward = game_core::math::horizontal_forward(view_yaw_rad);
-        self.smoothing.anchor_vel -= forward * FIRE_KICK_BACK_MPS;
-        self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS;
+        self.smoothing.anchor_vel -= forward * FIRE_KICK_BACK_MPS * scale;
+        self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS * scale;
     }
 
     /// Step the camera feel once per presented frame: the follow anchor springs after the hull

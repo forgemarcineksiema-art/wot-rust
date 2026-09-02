@@ -13,42 +13,53 @@ impl FxSystem {
     /// The full muzzle event of a main-gun shot: a hot additive flash at the muzzle, a fast jet
     /// of smoke blown out along the bore, and — when the muzzle hangs low over the ground — the
     /// pressure-wave dust ring under it.
-    pub fn muzzle_blast(&mut self, muzzle: Vec3, direction: Vec3, ground_y: Option<f32>) {
+    /// `recoil_scale` is the round's (`ShellSpec::recoil_scale`, Inny Poziom S3): 1.0 keeps
+    /// the numbers every layer was tuned on for the D-10; the flash grows in size, the smoke
+    /// and the dust ring in count and speed, so a 128 mm blast is bigger than a 75 mm one in
+    /// the same way the sound already is.
+    pub fn muzzle_blast(
+        &mut self,
+        muzzle: Vec3,
+        direction: Vec3,
+        ground_y: Option<f32>,
+        recoil_scale: f32,
+    ) {
         let direction = direction.normalize_or_zero();
-        self.muzzle_flash(muzzle, direction);
-        self.muzzle_smoke(muzzle, direction);
+        let scale = recoil_scale.clamp(0.4, 2.0);
+        self.muzzle_flash(muzzle, direction, scale);
+        self.muzzle_smoke(muzzle, direction, scale);
         if let Some(ground_y) = ground_y
             && muzzle.y - ground_y < MUZZLE_DUST_HEIGHT_M
         {
-            self.ground_dust_ring(Vec3::new(muzzle.x, ground_y, muzzle.z) + direction * 1.2);
+            self.ground_dust_ring(Vec3::new(muzzle.x, ground_y, muzzle.z) + direction * 1.2, scale);
         }
     }
 
     /// Two-layer additive flash: a small white-hot core and a larger amber bloom, both gone in
     /// under a tenth of a second — the eye keeps the impression, not the sprite.
-    fn muzzle_flash(&mut self, muzzle: Vec3, direction: Vec3) {
+    fn muzzle_flash(&mut self, muzzle: Vec3, direction: Vec3, scale: f32) {
         self.spawn(Particle {
             position: muzzle + direction * 0.5,
-            velocity_mps: direction * 6.0,
+            velocity_mps: direction * 6.0 * scale,
             gravity_factor: 0.0,
             drag_per_s: 10.0,
             age_s: 0.0,
             ttl_s: 0.05,
-            size_begin_m: 1.0,
-            size_end_m: 1.6,
+            size_begin_m: 1.0 * scale,
+            size_end_m: 1.6 * scale,
             color_begin: [1.0, 0.95, 0.8, 0.0],
             color_end: [0.4, 0.3, 0.15, 0.0],
             stretch_s: 0.03,
         });
         self.spawn(Particle {
             position: muzzle + direction * 1.1,
-            velocity_mps: direction * 9.0,
+            velocity_mps: direction * 9.0 * scale,
             gravity_factor: 0.0,
             drag_per_s: 9.0,
             age_s: 0.0,
             ttl_s: 0.09,
-            size_begin_m: 1.7,
-            size_end_m: 2.6,
+            size_begin_m: 1.7 * scale,
+            size_end_m: 2.6 * scale,
             color_begin: [1.0, 0.62, 0.22, 0.0],
             color_end: [0.25, 0.1, 0.03, 0.0],
             stretch_s: 0.04,
@@ -57,14 +68,15 @@ impl FxSystem {
 
     /// Propellant smoke: a fast cone along the bore that drags to a stop and drifts up, thinning
     /// as it grows. Premultiplied gray so it genuinely occludes what's behind it while it lives.
-    fn muzzle_smoke(&mut self, muzzle: Vec3, direction: Vec3) {
-        for _ in 0..8 {
+    fn muzzle_smoke(&mut self, muzzle: Vec3, direction: Vec3, scale: f32) {
+        let count = (8.0 * scale).round().max(2.0) as usize;
+        for _ in 0..count {
             let spread = Vec3::new(self.rand_signed(), self.rand_signed(), self.rand_signed());
-            let speed = 5.0 + self.rand_unit() * 6.0;
+            let speed = (5.0 + self.rand_unit() * 6.0) * scale.sqrt();
             let ttl = 1.1 + self.rand_unit() * 1.2;
             let shade = 0.30 + self.rand_unit() * 0.10;
             let bore_offset = 0.8 + self.rand_unit() * 0.8;
-            let size_end = 2.6 + self.rand_unit();
+            let size_end = (2.6 + self.rand_unit()) * scale.sqrt();
             let alpha = 0.5;
             self.spawn(Particle {
                 position: muzzle + direction * bore_offset,
@@ -84,11 +96,13 @@ impl FxSystem {
 
     /// The blast-pressure dust ring under a low muzzle: dirt-colored puffs thrown radially
     /// outward at ground level, heavier than smoke (they drag down, not up).
-    fn ground_dust_ring(&mut self, center: Vec3) {
-        for index in 0..10 {
-            let angle = index as f32 / 10.0 * std::f32::consts::TAU + self.rand_unit() * 0.5;
+    fn ground_dust_ring(&mut self, center: Vec3, scale: f32) {
+        let count = (10.0 * scale).round().max(4.0) as usize;
+        for index in 0..count {
+            let angle =
+                index as f32 / count as f32 * std::f32::consts::TAU + self.rand_unit() * 0.5;
             let radial = Vec3::new(angle.cos(), 0.0, angle.sin());
-            let speed = 3.5 + self.rand_unit() * 3.0;
+            let speed = (3.5 + self.rand_unit() * 3.0) * scale.sqrt();
             let ttl = 0.9 + self.rand_unit() * 0.9;
             let lift = 0.8 + self.rand_unit();
             let alpha = 0.45;
@@ -100,7 +114,7 @@ impl FxSystem {
                 age_s: 0.0,
                 ttl_s: ttl,
                 size_begin_m: 0.8,
-                size_end_m: 2.4,
+                size_end_m: 2.4 * scale.sqrt(),
                 color_begin: [0.42 * alpha, 0.36 * alpha, 0.26 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
@@ -419,7 +433,7 @@ mod tests {
     #[test]
     fn a_low_muzzle_blast_spawns_flash_smoke_and_ground_dust() {
         let mut fx = FxSystem::default();
-        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0));
+        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), 1.0);
         // 2 flash + 8 smoke + 10 dust.
         assert_eq!(fx.live_particles(), 20);
     }
@@ -427,18 +441,18 @@ mod tests {
     #[test]
     fn a_high_muzzle_skips_the_ground_dust_ring() {
         let mut fx = FxSystem::default();
-        fx.muzzle_blast(Vec3::new(0.0, 8.0, 0.0), Vec3::Z, Some(0.0));
+        fx.muzzle_blast(Vec3::new(0.0, 8.0, 0.0), Vec3::Z, Some(0.0), 1.0);
         assert_eq!(fx.live_particles(), 10, "flash + smoke only");
 
         let mut no_ground = FxSystem::default();
-        no_ground.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, None);
+        no_ground.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, None, 1.0);
         assert_eq!(no_ground.live_particles(), 10, "no heightmap, no dust");
     }
 
     #[test]
     fn the_blast_is_over_in_seconds_not_minutes() {
         let mut fx = FxSystem::default();
-        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0));
+        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), 1.0);
         for _ in 0..80 {
             fx.tick(1.0 / 20.0); // 4 s of frames
         }
@@ -448,7 +462,7 @@ mod tests {
     #[test]
     fn flash_rows_are_additive_and_smoke_rows_occlude() {
         let mut fx = FxSystem::default();
-        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0));
+        fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), 1.0);
         let vertices = fx.vertices(Vec3::new(0.0, 2.0, -10.0), Vec3::new(0.0, 1.8, 0.0));
         let additive = vertices.iter().filter(|v| v.color[3] == 0.0).count();
         let occluding = vertices.iter().filter(|v| v.color[3] > 0.0).count();
