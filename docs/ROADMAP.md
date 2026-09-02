@@ -14,6 +14,8 @@ The honest tank: **no ±25% damage RNG**, an aiming envelope that is a hard maxi
 tiers and lines like World of Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is
 test-locked, not marketing.
 
+**The queue and the engine's fundamental problem (2026-09-02): `docs/inny-poziom-program.md`, section "The queue and the fundamentals" — everything still to do, in order, and the three one-sentence remedies.**
+
 ## Systems inventory
 
 **DONE and test-locked** — meaning: the MECHANICS work and their promises sit in regression
