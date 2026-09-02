@@ -43,14 +43,6 @@ pub(crate) fn statics_tree_seed(position: [f32; 3]) -> u64 {
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
 /// from the instance's position bits (`statics_tree_seed`). A non-tree kind draws nothing.
-pub(crate) fn push_baked_tree(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    instance: &SceneryInstance,
-) {
-    push_baked_tree_seeded(vertices, indices, instance, statics_tree_seed(instance.position));
-}
-
 /// The same bake from a caller-chosen seed — the planted tree line names each station's
 /// variant (the one that fills its wall) instead of taking the position's.
 pub(crate) fn push_baked_tree_seeded(
@@ -372,7 +364,12 @@ mod baked_tree_tests {
         let build = |instance: &SceneryInstance| {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
-            push_baked_tree(&mut vertices, &mut indices, instance);
+            push_baked_tree_seeded(
+                &mut vertices,
+                &mut indices,
+                instance,
+                statics_tree_seed(instance.position),
+            );
             (vertices, indices)
         };
         let (vertices_a, indices_a) = build(&instance(10.0));
