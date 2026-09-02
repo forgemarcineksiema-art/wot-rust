@@ -131,6 +131,7 @@ impl FxSystem {
                 color_begin: [MASONRY[0] * alpha, MASONRY[1] * alpha, MASONRY[2] * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -168,6 +169,7 @@ impl FxSystem {
                 ],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.03,
+                seat: None,
             });
         }
     }
@@ -207,6 +209,7 @@ impl FxSystem {
                 ],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -235,6 +238,7 @@ impl FxSystem {
                 color_begin: [MASONRY[0] * alpha, MASONRY[1] * alpha, MASONRY[2] * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }

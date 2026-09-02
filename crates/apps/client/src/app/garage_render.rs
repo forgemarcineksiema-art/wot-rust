@@ -124,8 +124,11 @@ impl ClientApp {
         let welding = scene_build::hangar::welding_burn_at(self.presented_time_s());
         self.fx.welding_sparks(Vec3::from_array(scene_build::hangar::WELDING_CORNER), welding, dt);
         self.fx.tick(dt);
-        let mut fx_vertices =
-            self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
+        let mut fx_vertices = self.fx.vertices(
+            Vec3::from_array(camera.eye),
+            Vec3::from_array(camera.target),
+            &|_| None,
+        );
         fx_vertices.extend(crate::fx::FxSystem::hangar_shaft_vertices(&blades));
         // The welding glow (K1), on the same deterministic clock the sparks burn to.
         fx_vertices.extend(crate::look_harness::welding_glow_vertices(self.presented_time_s()));

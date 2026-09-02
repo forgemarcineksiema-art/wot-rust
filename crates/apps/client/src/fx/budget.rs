@@ -105,6 +105,7 @@ fn puff(position: Vec3) -> Particle {
         color_begin: [1.0; 4],
         color_end: [0.0; 4],
         stretch_s: 0.0,
+        seat: None,
     }
 }
 
@@ -135,7 +136,7 @@ fn essential_particle_vertices() -> usize {
     for index in 0..MAX_PARTICLES {
         fx.spawn(puff(Vec3::new(index as f32 * 0.5, 1.0, 30.0)));
     }
-    fx.vertices(Vec3::ZERO, Vec3::Z).len()
+    fx.vertices(Vec3::ZERO, Vec3::Z, &|_| None).len()
 }
 
 /// Every tank in the roster battered to its decal cap.

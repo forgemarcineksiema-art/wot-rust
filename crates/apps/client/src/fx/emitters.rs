@@ -50,6 +50,7 @@ impl FxSystem {
             color_begin: [1.0, 0.95, 0.8, 0.0],
             color_end: [0.4, 0.3, 0.15, 0.0],
             stretch_s: 0.03,
+            seat: None,
         });
         self.spawn(Particle {
             position: muzzle + direction * 1.1,
@@ -63,6 +64,7 @@ impl FxSystem {
             color_begin: [1.0, 0.62, 0.22, 0.0],
             color_end: [0.25, 0.1, 0.03, 0.0],
             stretch_s: 0.04,
+            seat: None,
         });
     }
 
@@ -90,6 +92,7 @@ impl FxSystem {
                 color_begin: [shade * alpha, shade * alpha, (shade + 0.02) * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -120,6 +123,7 @@ impl FxSystem {
                 color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -148,6 +152,7 @@ impl FxSystem {
                 color_begin: [0.42 * alpha, 0.36 * alpha, 0.26 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -177,6 +182,7 @@ impl FxSystem {
             color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
     }
 
@@ -199,6 +205,7 @@ impl FxSystem {
             color_begin: [0.30 * alpha, 0.34 * alpha, 0.36 * alpha, alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.03,
+            seat: None,
         });
         let mist_ttl = 0.8 + self.rand_unit() * 0.5;
         let mist_alpha = 0.10 + 0.10 * intensity;
@@ -214,6 +221,7 @@ impl FxSystem {
             color_begin: [0.26 * mist_alpha, 0.30 * mist_alpha, 0.32 * mist_alpha, mist_alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
     }
 
@@ -236,6 +244,7 @@ impl FxSystem {
             color_begin: [0.16 * alpha, 0.17 * alpha, 0.19 * alpha, alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
     }
 
@@ -310,6 +319,7 @@ impl FxSystem {
                 color_begin: [glow, glow * 0.92, glow * 0.75, 0.0],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -339,6 +349,7 @@ impl FxSystem {
                 color_begin: [0.72 * alpha, 0.73 * alpha, 0.75 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -373,6 +384,7 @@ impl FxSystem {
                 color_begin: [1.0, 0.92, 0.72, 0.0],
                 color_end: [0.55, 0.16, 0.02, 0.0],
                 stretch_s: 0.05,
+                seat: None,
             });
         }
     }
@@ -397,6 +409,7 @@ impl FxSystem {
                 color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
                 color_end: [0.0, 0.0, 0.0, 0.0],
                 stretch_s: 0.0,
+                seat: None,
             });
         }
     }
@@ -427,6 +440,7 @@ impl FxSystem {
             color_begin: [1.0, 0.42, 0.10, 0.0],
             color_end: [0.35, 0.05, 0.01, 0.0],
             stretch_s: 0.04,
+            seat: None,
         });
     }
 
@@ -452,6 +466,7 @@ impl FxSystem {
             color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,
+            seat: None,
         });
     }
 }
@@ -515,7 +530,7 @@ mod tests {
     fn flash_rows_are_additive_and_smoke_rows_occlude() {
         let mut fx = FxSystem::default();
         fx.muzzle_blast(Vec3::new(0.0, 1.8, 0.0), Vec3::Z, Some(0.0), 1.0);
-        let vertices = fx.vertices(Vec3::new(0.0, 2.0, -10.0), Vec3::new(0.0, 1.8, 0.0));
+        let vertices = fx.vertices(Vec3::new(0.0, 2.0, -10.0), Vec3::new(0.0, 1.8, 0.0), &|_| None);
         let additive = vertices.iter().filter(|v| v.color[3] == 0.0).count();
         let occluding = vertices.iter().filter(|v| v.color[3] > 0.0).count();
         assert!(additive > 0, "flash quads blend additively (alpha 0)");

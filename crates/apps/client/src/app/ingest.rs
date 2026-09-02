@@ -126,7 +126,24 @@ impl ClientApp {
             // impact's approach. Nothing else below applies to a hull: no soil, no scar.
             if impact.surface == game_core::ImpactSurface::Hull {
                 if impact.shell_type == game_core::ShellType::HighExplosive {
-                    self.fx.he_burst_on_armour(impact.position, impact.direction);
+                    // Seated in the struck hull's frame (S10): the damage event of the same
+                    // shell names the target; without it the burst stays in world space.
+                    let seat = snapshot
+                        .damage_events
+                        .iter()
+                        .find(|event| event.shell_id == Some(impact.shell_id))
+                        .and_then(|event| {
+                            snapshot.tanks.iter().find(|t| t.tank_id == event.target)
+                        });
+                    let emit = |fx: &mut crate::fx::FxSystem| {
+                        fx.he_burst_on_armour(impact.position, impact.direction);
+                    };
+                    match seat {
+                        Some(target) => {
+                            self.fx.seated(target.tank_id, &crate::fx::pose_of(target), emit)
+                        }
+                        None => emit(&mut self.fx),
+                    }
                 }
                 continue;
             }
@@ -193,13 +210,23 @@ impl ClientApp {
                 .iter()
                 .find(|t| t.tank_id == event.target)
                 .map_or(1_000.0, |t| t.vehicle.spec_ref().hit_points.max(1) as f32);
-            self.fx.armor_hit_directed(
-                event.hit_position,
-                event.penetrated,
-                event.ricocheted,
-                departure,
-                event.damage_hp as f32 / pool,
-            );
+            // Seated in the struck hull's frame (Inny Poziom S10): the sparks and the signature
+            // ride the hull's interpolated pose — the frame the breach decal already rides —
+            // instead of hanging in the air 50 ms behind a crossing target.
+            let seat = snapshot.tanks.iter().find(|t| t.tank_id == event.target);
+            let emit = |fx: &mut crate::fx::FxSystem| {
+                fx.armor_hit_directed(
+                    event.hit_position,
+                    event.penetrated,
+                    event.ricocheted,
+                    departure,
+                    event.damage_hp as f32 / pool,
+                );
+            };
+            match seat {
+                Some(target) => self.fx.seated(target.tank_id, &crate::fx::pose_of(target), emit),
+                None => emit(&mut self.fx),
+            }
             self.fx.armor_hit_light(
                 event.hit_position,
                 event.penetrated,

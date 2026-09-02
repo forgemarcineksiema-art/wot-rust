@@ -309,7 +309,7 @@ pub(super) fn premul(tone: [f32; 3], alpha: f32) -> [f32; 4] {
 /// The shared pose both ingest and render use, so the local frame round-trips exactly. Attitude
 /// carries the authoritative hull pitch/roll; the presentation spring's extra theatrics are a
 /// couple of degrees and not worth a divergent frame.
-fn pose_of(tank: &TankSnapshot) -> VehiclePose {
+pub(crate) fn pose_of(tank: &TankSnapshot) -> VehiclePose {
     VehiclePose::new_with_attitude(
         tank.vehicle,
         Vec3::from_array(tank.position),

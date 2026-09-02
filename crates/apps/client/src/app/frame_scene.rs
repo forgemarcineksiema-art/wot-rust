@@ -91,7 +91,9 @@ impl ClientApp {
         let budget = renderer_wgpu::fx_vertex_budget();
         // Built first to learn their size, appended last to keep their place in the composite.
         live.clear();
-        live.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
+        live.extend(self.fx.vertices(eye, glam::Vec3::from_array(target), &|id| {
+            self.render_state.interpolated_tank(id).map(|tank| crate::fx::pose_of(&tank))
+        }));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
         crate::fx::append_shell_tracers(live, &shells, eye);
         // The paths behind the streaks (A8): where every seen shell has been, dimming out.
