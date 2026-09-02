@@ -36,6 +36,15 @@ pub(crate) mod battle {
     pub const SPEED_UNIT: &str = "KM/H";
     /// Unit tag beside the target-distance readout at the reticle.
     pub const DISTANCE_UNIT: &str = "M";
+    /// The arc's refusal in words (Inny Poziom A3): which end of the gun arc bit.
+    pub const ARC_LIMIT_DEPRESSION: &str = "DEPRESSION LIMIT";
+    pub const ARC_LIMIT_ELEVATION: &str = "ELEVATION LIMIT";
+    /// The outcome a landed shot prints when it dealt no damage (Inny Poziom A6) — never a "0".
+    pub const HIT_RICOCHET: &str = "RICOCHET";
+    pub const HIT_SHATTER: &str = "SHATTER";
+    pub const HIT_TRACKED: &str = "TRACKED";
+    pub const HIT_NO_PEN: &str = "NO PEN";
+    pub const HIT_PEN: &str = "PEN";
     /// Prefix of the sniper magnification readout ("X6.9", WT-style).
     pub const ZOOM_PREFIX: &str = "X";
     /// Center banner after the player's team wins a local battle.

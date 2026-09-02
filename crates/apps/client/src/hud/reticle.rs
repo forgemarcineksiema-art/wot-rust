@@ -58,6 +58,10 @@ pub(crate) struct ReticleFeedback {
     /// whenever it dies BEYOND the sight point (an over-shot that expires downrange is a miss,
     /// not an obstruction, and printing its range would be noise).
     pub block_distance_m: Option<f32>,
+    /// The end of the gun arc that refused the shot, when the refusal is the ARC's and not the
+    /// world's (Inny Poziom A3): a target below the crest the T-54's -5° cannot reach is a
+    /// different answer from a wall, and used to wear the same broken form.
+    pub arc_limit: Option<crate::aim::ArcLimit>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -188,6 +192,9 @@ fn feedback_from_outcome(
     // range is a fact about the shell's lifetime rather than about the battlefield.
     let reach = actual_impact_world_point.distance(query.muzzle);
     let block_distance_m = (status == ReticleStatus::Blocked && reach < distance).then_some(reach);
+    // The arc's refusal names its end. A clamped solution is always BLOCKED (the shell leaves
+    // along the clamped barrel and lands elsewhere), so the limit rides only a blocked sight.
+    let arc_limit = solution.and_then(|solution| solution.arc_limit);
 
     ReticleFeedback {
         status,
@@ -195,6 +202,7 @@ fn feedback_from_outcome(
         gun_world_point,
         actual_impact_world_point,
         block_distance_m,
+        arc_limit,
     }
 }
 

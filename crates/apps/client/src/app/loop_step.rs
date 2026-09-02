@@ -51,6 +51,13 @@ impl ClientApp {
             self.input.deploy_fire_shield_ticks =
                 self.input.deploy_fire_shield_ticks.saturating_sub(1);
             if !self.session.prepare_player_tick() {
+                // A click into a session that cannot take it is REFUSED out loud (Inny Poziom
+                // A5): the knock and the red pulse, exactly like a click during a reload —
+                // never swallowed. The edge used to be retired before any feedback ran.
+                if fire {
+                    self.fire_denied_age_s = Some(0.0);
+                    self.queue_audio(audio::AudioEvent::UiReject);
+                }
                 // Keep pumping/rendering, camera look and G-to-garage alive, but stop inventing
                 // authoritative motion. Retire one-shot edges rather than firing them next match.
                 fire = false;
@@ -212,5 +219,38 @@ mod tests {
         );
         assert!(!app.input.fire_pending);
         assert!(app.input.pending_ammo_select.is_none());
+    }
+
+    /// Inny Poziom A5: a fire click into a session that cannot take it (the battle is over,
+    /// the world is stalled) is refused OUT LOUD — the red pulse arms — instead of being
+    /// retired silently before any feedback ran.
+    #[test]
+    fn a_fire_click_into_a_session_that_cannot_take_it_is_refused_out_loud() {
+        let mut app = ClientApp::new_seeded(0x51_0A_D1);
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(30);
+        let stop_tick = match &mut app.session {
+            super::super::session::BattleSessionKind::Local(server) => {
+                let stop_tick = server.authoritative_tick() + 1;
+                server.override_battle_time_limit_ticks(Some(stop_tick));
+                stop_tick
+            }
+            super::super::session::BattleSessionKind::Remote(_) => {
+                unreachable!("seeded app is local")
+            }
+        };
+        app.run_fixed_ticks(2);
+        assert!(app.session.authoritative_tick() >= stop_tick);
+        assert!(app.battle_outcome.is_some(), "precondition: the battle is over");
+        app.fire_denied_age_s = None;
+
+        app.input.fire_pending = true;
+        app.run_fixed_ticks(1);
+
+        assert!(!app.input.fire_pending, "the edge is retired");
+        assert!(
+            app.fire_denied_age_s.is_some(),
+            "a click the session cannot take must arm the refusal pulse, never vanish"
+        );
     }
 }

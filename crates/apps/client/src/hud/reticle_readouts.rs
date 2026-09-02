@@ -161,6 +161,34 @@ pub(super) fn push_block_distance(
     );
 }
 
+/// The arc's refusal in words, under the block distance in the same grey (Inny Poziom A3):
+/// "DEPRESSION LIMIT" is the T-54 on a ridge learning what -5° buys; "ELEVATION LIMIT" the
+/// roof it cannot reach. Both modes — it names the player's own gun, never the target.
+pub(super) fn push_arc_limit_label(
+    vertices: &mut Vec<HudVertex>,
+    aim_clip: [f32; 2],
+    ring_radius: f32,
+    limit: crate::aim::ArcLimit,
+    aspect: f32,
+) {
+    const HEIGHT: f32 = 0.030;
+    let text = match limit {
+        crate::aim::ArcLimit::Depression => crate::ui_strings::battle::ARC_LIMIT_DEPRESSION,
+        crate::aim::ArcLimit::Elevation => crate::ui_strings::battle::ARC_LIMIT_ELEVATION,
+    };
+    let width = crate::hud::font::text_width(text, HEIGHT, aspect);
+    let [right_x, top_y] = readout_anchor(aim_clip, ring_radius, 0.155, width, aspect);
+    crate::hud::font::push_text(
+        vertices,
+        text,
+        right_x - width,
+        top_y,
+        HEIGHT,
+        aspect,
+        crate::hud::reticle_overlay::RETICLE_BLOCKED,
+    );
+}
+
 pub(super) fn push_target_distance(
     vertices: &mut Vec<HudVertex>,
     aim_clip: [f32; 2],

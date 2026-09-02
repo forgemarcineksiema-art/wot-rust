@@ -167,6 +167,19 @@ pub(crate) struct FiringSolution {
     /// Whether the arc could reach the ballistic solution at all — false means the clamp bit,
     /// and no amount of waiting will put a shell on that point from this hull.
     pub in_arc: bool,
+    /// WHICH end of the arc bit, when one did (Inny Poziom A3). A gun that cannot depress onto
+    /// a target below the crest and a gun that cannot elevate onto a roof are two different
+    /// lessons for the player, and both used to wear the same broken form as a wall.
+    pub arc_limit: Option<ArcLimit>,
+}
+
+/// The end of the gun arc a clamped solution ran into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArcLimit {
+    /// The sight point sits below what this hull, on this slope, can depress to.
+    Depression,
+    /// The sight point sits above what the gun can elevate to.
+    Elevation,
 }
 
 /// `None` when the sight point sits on the muzzle itself: there is no bearing to solve, so the
@@ -188,11 +201,20 @@ pub(crate) fn firing_solution(
     let (turret_yaw_rad, solved_pitch) = world_direction_to_turret(hull, world_direction);
     let (min_pitch, max_pitch) = gun_pitch_limits_rad;
     let gun_pitch_rad = solved_pitch.clamp(min_pitch, max_pitch);
+    let in_arc = (gun_pitch_rad - solved_pitch).abs() <= 1.0e-6;
+    let arc_limit = if in_arc {
+        None
+    } else if solved_pitch < min_pitch {
+        Some(ArcLimit::Depression)
+    } else {
+        Some(ArcLimit::Elevation)
+    };
     Some(FiringSolution {
         world_direction: gun_direction_world(hull, turret_yaw_rad, gun_pitch_rad),
         gun_pitch_rad,
         turret_yaw_rad,
-        in_arc: (gun_pitch_rad - solved_pitch).abs() <= 1.0e-6,
+        in_arc,
+        arc_limit,
     })
 }
 

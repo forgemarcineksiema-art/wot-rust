@@ -154,6 +154,7 @@ impl ClientApp {
             // answers "how far is what I am pointing at", which while blocked is a distance to
             // something this gun cannot reach.
             block_distance_m: feedback.block_distance_m,
+            arc_limit: feedback.arc_limit,
             status: feedback.status,
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
