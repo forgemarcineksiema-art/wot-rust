@@ -209,12 +209,12 @@ pub fn tree(species: TreeSpecies, seed: u64, lod: TreeLod) -> Option<BakedTree> 
     let bytes = tree_bytes(species, lod)?;
     let mut tree = parse_tree(species, bytes);
     if seed & 1 == 1 {
-        mirror_x(&mut tree);
+        mirror_authored_tree_across_x(&mut tree);
     }
     Some(tree)
 }
 
-fn mirror_x(tree: &mut BakedTree) {
+fn mirror_authored_tree_across_x(tree: &mut BakedTree) {
     let flip = |v: Vec3| Vec3::new(-v.x, v.y, v.z);
     let mut vertices: Vec<GeometryVertex> = tree.trunk.vertices().to_vec();
     for vertex in &mut vertices {
