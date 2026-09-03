@@ -121,8 +121,10 @@ a scattering-LUT sky and per-vehicle fording depth.
 The open picture work is `docs/art-direction-program.md`, and it is on the marketing
 critical path, because a store page is made of frames. One standing verdict outlived its
 documents: the world reads too small. The garage's rebuild verdict was answered by Hala 3.0
-(PR #536–#557, closed 2026-08-10); what the room still owes is itemized in
-`docs/hala-4-program/plan.md` — at the shipped 1× the garage frame is ~0.5 ms over the MX330
-budget after the P2+P4+P5 diet (the 4× MSAA candidate stays parked ~3.5 ms short, with the
-deck reflection behind it), and the product shell around the garage (battle results,
-settings, PL glyphs) does not exist yet.
+(PR #536–#557, closed 2026-08-10); what the room still owes is the frame budget and the product
+shell. At the shipped 1× the garage frame measures ~17.2 ms GPU-instrument against the 16.67 ms
+MX330 budget after the hero-first / 6-tap penumbra / one-octave grain diet, and the 4× MSAA
+candidate ~20.2 ms — recorded NO-GO on 2026-08-15, ~3.5 ms short, with the deck reflection
+parked behind it; the product shell (battle results, battle history, settings, PL glyphs) does
+not exist yet. The hala-4 register that itemized all of it was retired 2026-09-03 and lives in
+git history (`git show d2c6fcaa:docs/hala-4-program/plan.md`).

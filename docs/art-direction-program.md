@@ -226,8 +226,12 @@ remains") outlived its own fix by four days. Hala 3.0 E3 (#547, the gate curtain
 hoist foreground) took the hero's dark plane under the bound for the first time, and the #554
 relight held it there: the table above measures `garage_hero` at **72.8% dark against the 75%
 bound**, 4.1% bright against the 2% target, spread 0.543. What the garage still owes is not a
-value — it is the frame budget (~0.5 ms over at the shipped 1× after the hala-4 diet; the 4×
-MSAA candidate stays ~3.5 ms short), owned by `docs/hala-4-program/plan.md`.
+value — it is the frame budget, and these are its numbers. After the hala-4 diet (hero-first
+draw order, a 6-tap penumbra kernel, one-octave interior grain) the shipped 1× garage frame
+measures ~17.2 ms GPU-instrument against the 16.67 ms MX330 budget, and the 4× MSAA candidate
+~20.2 ms — the F2 gate recorded NO-GO on 2026-08-15, ~3.5 ms short, and the only lever left at
+that size is a depth prepass at 4×. The register that owned the measurement — retired
+2026-09-03 — lives in git history (`git show d2c6fcaa:docs/hala-4-program/plan.md`).
 
 Its lowest-local-contrast standing is WITHDRAWN as a finding, because local contrast cannot
 measure what it was being read as measuring. It is the mean step between horizontally adjacent
@@ -433,10 +437,12 @@ crop now, and it measures **median 0.161 against the room's 0.089, 1.83x at E3**
 by `the_vehicle_stays_readable_on_the_side_the_sun_never_touches`.
 
 The dark plane closed with the wave (D20 — 72.8% against the 75% bound in the table above). What
-the garage still owes is the frame budget and the product shell, both itemized in
-[hala-4-program/plan.md](hala-4-program/plan.md), which absorbed the 2026-08-09 pipeline audit's
-surviving findings (G7 → its R4, G9 → its P8, G12 parked by decision). Also outstanding: the
-`SIGNAL` red of the Battle button falling outside the palette.
+the garage still owes is the frame budget (measured above) and the product shell — a battle
+results screen, a local battle history, a SETTINGS screen and Latin-2 glyphs, none of which
+exist. Two findings of the 2026-08-09 pipeline audit are still open alongside them: the phase law
+on hall and prop edges (G7), and the golden parity that only bites once 4× MSAA lands (G9 — the
+garage goldens must render what the game ships); G12, six full light slots, stays parked by
+decision. Also outstanding: the `SIGNAL` red of the Battle button falling outside the palette.
 
 **The claim that the garage UI "is the strongest work in the game and is not to be touched" was
 made without a measurement and did not survive one.** It rested on a review render from
