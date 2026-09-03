@@ -42,7 +42,7 @@ const _: () = assert!(
         && super::authored::CLUSTER_PAGE_W * 2 <= ATLAS_WIDTH
 );
 // The cluster block sits under the impostor rows, never inside them.
-const _: () = assert!(IMPOSTOR_SPRITE_H * 2 <= CLUSTER_BLOCK_Y);
+const _: () = assert!(IMPOSTOR_SPRITE_H * IMPOSTOR_ROWS <= CLUSTER_BLOCK_Y);
 /// The leaf-slot grid's edge, texels (the top-left square).
 pub const LEAF_GRID_PX: u32 = 512;
 /// Slots per grid edge.
@@ -55,31 +55,43 @@ const SLOT_MARGIN_PX: f32 = 6.0;
 /// One impostor sprite's region, texels: two azimuths per species. 512×1024 since the
 /// impostor is RENDERED from the authored tree (2026-09-03, `scripts/flora/bake_impostor.py`)
 /// instead of splatted on the CPU from its deck.
-pub const IMPOSTOR_SPRITE_W: u32 = 512;
-pub const IMPOSTOR_SPRITE_H: u32 = 1_024;
-/// Sprites per row: the first row starts past the leaf grid, the second row is whole.
+pub const IMPOSTOR_SPRITE_W: u32 = super::authored::IMPOSTOR_VIEW_W;
+pub const IMPOSTOR_SPRITE_H: u32 = super::authored::IMPOSTOR_VIEW_H;
+/// Sprites per row: the first row starts past the leaf grid, the others are whole; the rows
+/// stack from the top of the page down to the cluster block.
 const IMPOSTOR_ROW0_SPRITES: u32 = (ATLAS_WIDTH - LEAF_GRID_PX) / IMPOSTOR_SPRITE_W;
-const IMPOSTOR_ROW1_SPRITES: u32 = ATLAS_WIDTH / IMPOSTOR_SPRITE_W;
-// Every species' two azimuths fit the two rows, by construction.
-const _: () =
-    assert!((TreeSpecies::ALL.len() as u32) * 2 <= IMPOSTOR_ROW0_SPRITES + IMPOSTOR_ROW1_SPRITES);
-// The second row starts under the leaf grid, never inside it.
+const IMPOSTOR_ROW_SPRITES: u32 = ATLAS_WIDTH / IMPOSTOR_SPRITE_W;
+const IMPOSTOR_ROWS: u32 = CLUSTER_BLOCK_Y / IMPOSTOR_SPRITE_H;
+/// Sprites per species: one per variant per azimuth.
+pub const IMPOSTOR_SPRITES_PER_SPECIES: u32 = super::authored::VARIANTS * 2;
+// Every species' variants' two azimuths fit the rows, by construction.
+const _: () = assert!(
+    (TreeSpecies::ALL.len() as u32) * IMPOSTOR_SPRITES_PER_SPECIES
+        <= IMPOSTOR_ROW0_SPRITES + (IMPOSTOR_ROWS - 1) * IMPOSTOR_ROW_SPRITES
+);
+// The first row's sprites stand beside the leaf grid, never inside it.
 const _: () = assert!(IMPOSTOR_SPRITE_H >= LEAF_GRID_PX);
 
-/// Where azimuth `which` (0 or 1 — 0° and 90°) of `species`' impostor lives, as texel
-/// origin. The paint side splats the sprite here; the crossed quads sample it.
-pub fn impostor_origin(species: TreeSpecies, which: u32) -> (u32, u32) {
-    let index = super::authored::species_index(species) * 2 + which.min(1);
+/// Where azimuth `which` (0 or 1 — 0° and 90°) of `variant` of `species`' impostor lives,
+/// as texel origin. The paint side pastes the sprite here; the quads sample it.
+pub fn impostor_origin(species: TreeSpecies, variant: u32, which: u32) -> (u32, u32) {
+    let index = super::authored::species_index(species) * IMPOSTOR_SPRITES_PER_SPECIES
+        + (variant % super::authored::VARIANTS) * 2
+        + which.min(1);
     if index < IMPOSTOR_ROW0_SPRITES {
         (LEAF_GRID_PX + index * IMPOSTOR_SPRITE_W, 0)
     } else {
-        ((index - IMPOSTOR_ROW0_SPRITES) * IMPOSTOR_SPRITE_W, IMPOSTOR_SPRITE_H)
+        let rest = index - IMPOSTOR_ROW0_SPRITES;
+        (
+            (rest % IMPOSTOR_ROW_SPRITES) * IMPOSTOR_SPRITE_W,
+            (1 + rest / IMPOSTOR_ROW_SPRITES) * IMPOSTOR_SPRITE_H,
+        )
     }
 }
 
 /// The impostor sampling rectangle as `[u0, v0, u1, v1]`, inset by the bleed margin.
-pub fn impostor_rect(species: TreeSpecies, which: u32) -> [f32; 4] {
-    let (x, y) = impostor_origin(species, which);
+pub fn impostor_rect(species: TreeSpecies, variant: u32, which: u32) -> [f32; 4] {
+    let (x, y) = impostor_origin(species, variant, which);
     [
         (x as f32 + SLOT_MARGIN_PX) / ATLAS_WIDTH as f32,
         (y as f32 + SLOT_MARGIN_PX) / ATLAS_HEIGHT as f32,
@@ -97,7 +109,7 @@ pub const SLOT_WHITE: u8 = 0;
 /// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
 /// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
 /// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0x45bd_894b_acad_2e3c;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0xfae1_904b_0326_8547;
 
 /// The first cluster slot of a species' block.
 pub fn cluster_slot_base(species: TreeSpecies) -> u8 {
@@ -224,16 +236,16 @@ fn paste_authored_clusters(rgba: &mut [u8], normal: &mut [u8]) {
 }
 
 /// Paste every species' RENDERED impostor pair (route 2, LOD honesty): view `which` of the
-/// 1024×1024 page (two 512×1024 views side by side) into `impostor_origin(species, which)`.
+/// 2048×512 page (eight 256×512 views: variant × 2 + azimuth) into `impostor_origin`.
 fn paste_authored_impostors(rgba: &mut [u8], normal: &mut [u8]) {
     for species in TreeSpecies::ALL {
         let Some(pages) = super::authored::impostor_pages(species) else {
             continue;
         };
-        for which in 0..2u32 {
-            let (x0, y0) = impostor_origin(species, which);
+        for slot in 0..IMPOSTOR_SPRITES_PER_SPECIES {
+            let (x0, y0) = impostor_origin(species, slot / 2, slot % 2);
             for y in 0..IMPOSTOR_SPRITE_H {
-                let src = ((y * pages.width + which * IMPOSTOR_SPRITE_W) * 4) as usize;
+                let src = ((y * pages.width + slot * IMPOSTOR_SPRITE_W) * 4) as usize;
                 let dst = (((y0 + y) * ATLAS_WIDTH + x0) * 4) as usize;
                 let row = (IMPOSTOR_SPRITE_W * 4) as usize;
                 rgba[dst..dst + row].copy_from_slice(&pages.color[src..src + row]);
@@ -688,7 +700,7 @@ mod tests {
             assert_eq!(slots[0], cluster_slot_base(species));
             for slot in slots {
                 let (x, y) = cluster_slot_origin(slot).expect("a cluster slot");
-                assert!(y >= CLUSTER_BLOCK_Y && y >= IMPOSTOR_SPRITE_H * 2);
+                assert!(y >= CLUSTER_BLOCK_Y && y >= IMPOSTOR_SPRITE_H * IMPOSTOR_ROWS);
                 assert!(x + CLUSTER_SLOT_PX <= ATLAS_WIDTH && y + CLUSTER_SLOT_PX <= ATLAS_HEIGHT);
                 assert!(seen.insert((x, y)), "{species:?} slot {slot} shares a sprite");
                 let [u0, v0, u1, v1] = atlas_rect(slot);
@@ -707,28 +719,35 @@ mod tests {
     }
 
     #[test]
-    fn every_species_owns_two_disjoint_impostor_sprites_outside_the_leaf_grid() {
-        let mut regions: Vec<(TreeSpecies, u32, u32, u32)> = Vec::new();
+    fn every_variant_owns_two_disjoint_impostor_sprites_outside_the_leaf_grid() {
+        let mut regions: Vec<(TreeSpecies, u32, u32, u32, u32)> = Vec::new();
         for species in TreeSpecies::ALL {
-            for which in 0..2u32 {
-                let (x, y) = impostor_origin(species, which);
-                assert!(
-                    x + IMPOSTOR_SPRITE_W <= ATLAS_WIDTH && y + IMPOSTOR_SPRITE_H <= ATLAS_HEIGHT
-                );
-                assert!(
-                    x >= LEAF_GRID_PX || y >= LEAF_GRID_PX,
-                    "{species:?}/{which}: sprite at ({x}, {y}) sits in the leaf grid"
-                );
-                let [u0, v0, u1, v1] = impostor_rect(species, which);
-                assert!(u0 < u1 && v0 < v1 && u0 >= 0.0 && v0 >= 0.0 && u1 <= 1.0 && v1 <= 1.0);
-                regions.push((species, which, x, y));
+            for variant in 0..super::super::authored::VARIANTS {
+                for which in 0..2u32 {
+                    let (x, y) = impostor_origin(species, variant, which);
+                    assert!(
+                        x + IMPOSTOR_SPRITE_W <= ATLAS_WIDTH
+                            && y + IMPOSTOR_SPRITE_H <= CLUSTER_BLOCK_Y
+                    );
+                    assert!(
+                        x >= LEAF_GRID_PX || y >= LEAF_GRID_PX,
+                        "{species:?} v{variant}/{which}: sprite at ({x}, {y}) sits in the leaf grid"
+                    );
+                    let [u0, v0, u1, v1] = impostor_rect(species, variant, which);
+                    assert!(u0 < u1 && v0 < v1 && u0 >= 0.0 && v0 >= 0.0 && u1 <= 1.0 && v1 <= 1.0);
+                    regions.push((species, variant, which, x, y));
+                }
             }
         }
         for (i, a) in regions.iter().enumerate() {
             for b in &regions[i + 1..] {
                 let apart =
-                    a.2 + IMPOSTOR_SPRITE_W <= b.2 || b.2 + IMPOSTOR_SPRITE_W <= a.2 || a.3 != b.3;
-                assert!(apart, "{:?}/{} and {:?}/{} share texels", a.0, a.1, b.0, b.1);
+                    a.3 + IMPOSTOR_SPRITE_W <= b.3 || b.3 + IMPOSTOR_SPRITE_W <= a.3 || a.4 != b.4;
+                assert!(
+                    apart,
+                    "{:?} v{}/{} and {:?} v{}/{} share texels",
+                    a.0, a.1, a.2, b.0, b.1, b.2
+                );
             }
         }
     }

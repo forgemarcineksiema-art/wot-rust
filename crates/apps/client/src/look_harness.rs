@@ -525,12 +525,12 @@ mod tests {
             .into_iter()
             .map(|(handle, _)| handle)
             .collect();
-        // A tree in the 300 m cross-fade band is TWO objects (its Mid rung with a negative
-        // lane, its impostor with the positive one); every tree has exactly one object whose
-        // lane is >= 0, so that is the count of trees drawn.
+        // A tree may be two or three objects (a cross-fade band, the impostor's two quads);
+        // their windows partition [0, 1), so exactly one per tree starts at 0 — that is the
+        // count of trees drawn.
         let trees_drawn = dressing
             .iter()
-            .filter(|object| ladder.contains(&object.mesh) && object.dither >= 0.0)
+            .filter(|object| ladder.contains(&object.mesh) && object.dither[0] == 0.0)
             .count();
         let trees_planted = battlefield
             .scenery
@@ -540,5 +540,167 @@ mod tests {
         assert!(trees_planted > 0, "prokhorovka plants battlefield trees");
         assert_eq!(trees_drawn, trees_planted, "every planted ladder tree draws, intact cover");
         assert!(dressing.len() > trees_drawn, "the grass ring is still in the frame");
+    }
+
+    /// Render the scene at `distance` m from the tree (the oak probe's eye rule) twice — with
+    /// the tree and without it — and read the TREE's pixels as the difference: the crown
+    /// (green-dominant) mean colour and count, and the wood (the rest) count. A colour mask
+    /// alone read the grass under the tree as crown.
+    fn tree_reading(
+        ctx: &renderer_wgpu::GpuContext,
+        renderer: &mut renderer_wgpu::SceneRenderer,
+        target: &renderer_wgpu::OffscreenTarget,
+        battlefield: &terrain::BattlefieldMap,
+        distance: f32,
+    ) -> ([f32; 3], usize, usize) {
+        let (width, height) = (1600u32, 900u32);
+        let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+        let (tx, tz) = (500.0_f32, 500.0_f32);
+        let (ex, ez) = (tx - 0.35 * distance, tz - 0.94 * distance);
+        let eye = [ex, ground(ex, ez) + 2.2, ez];
+        let look = [tx, ground(tx, tz) + 8.0, tz];
+        renderer.shadow_focus = Some(look);
+        let camera = renderer_api::Camera { eye, target: look, vertical_fov_degrees: 45.0 };
+        let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
+        let view_proj = renderer_api::view_projection_matrix(
+            &camera,
+            width as f32 / height as f32,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
+        let mut render = |objects: Vec<renderer_api::RenderObject>| {
+            let frame =
+                renderer_api::RenderFrame { objects, ..renderer_api::RenderFrame::default() };
+            renderer.set_render_frame(ctx, &frame);
+            renderer.render(ctx, target.render_target(), view_proj, camera.eye).expect("render");
+            target.read_rgba8(ctx).expect("readback")
+        };
+        let empty = render(Vec::new());
+        let mut state = scene_build::tree_lod::TreeLodState::default();
+        let objects = scene_build::tree_lod::tree_frame_objects(
+            &battlefield.scenery,
+            &battlefield.static_cover,
+            &[],
+            glam::Vec3::from_array(eye),
+            &mut state,
+        );
+        // Outside the bands: one rung, or the impostor's two quads sharing the window.
+        assert!(!objects.is_empty() && objects.len() <= 2, "a solid rung at {distance} m");
+        assert!(
+            objects.iter().any(|o| o.dither[0] == 0.0)
+                && objects.iter().any(|o| o.dither[1] == 1.0)
+        );
+        let with_tree = render(objects);
+        let (mut sum, mut crown, mut wood) = ([0.0_f32; 3], 0usize, 0usize);
+        for i in (0..(width * height * 4) as usize).step_by(4) {
+            let (r, g, b) = (with_tree[i] as f32, with_tree[i + 1] as f32, with_tree[i + 2] as f32);
+            let delta = (r - empty[i] as f32).abs()
+                + (g - empty[i + 1] as f32).abs()
+                + (b - empty[i + 2] as f32).abs();
+            if delta < 30.0 {
+                continue;
+            }
+            if g > r + 6.0 && g > b + 6.0 {
+                sum = [sum[0] + r, sum[1] + g, sum[2] + b];
+                crown += 1;
+            } else {
+                wood += 1;
+            }
+        }
+        let n = crown.max(1) as f32;
+        ([sum[0] / n, sum[1] / n, sum[2] / n], crown, wood)
+    }
+
+    /// LOD continuity, measured (the owner, 2026-09-03: "eliminate any place where I see a tree
+    /// change its graphics"): the impostor just past the 300 m band and the Mid rung just
+    /// before it are the SAME tree to the eye — mean crown colour within 15 % a channel,
+    /// crown coverage within 25 % of the perspective expectation, and the wood still there at
+    /// both distances (the far wood used to vanish under the alpha test).
+    #[test]
+    fn the_impostor_and_the_mid_rung_read_as_one_tree_across_the_band() {
+        let Ok(ctx) = renderer_wgpu::GpuContext::headless() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let map = MapId::ProkhorovkaHill252_2;
+        let mut battlefield = map_forge::battlefield(map);
+        battlefield.static_cover.clear();
+        let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+        battlefield.scenery = vec![terrain::SceneryInstance {
+            kind: terrain::SceneryKind::Oak,
+            position: [500.0, ground(500.0, 500.0), 500.0],
+            yaw_rad: 0.6,
+            scale: 1.0,
+        }];
+        let ((ground_v, ground_i), (statics_v, statics_i)) =
+            crate::battlefield_ground_and_statics_meshes(&battlefield, &[]);
+        let ground_maps = crate::bake_terrain_ground_maps(&battlefield);
+        let target = renderer_wgpu::OffscreenTarget::new(&ctx, 1600, 900).expect("target");
+        let mut renderer =
+            renderer_wgpu::SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)
+                .expect("renderer");
+        renderer.set_battlefield_ground(
+            &ctx,
+            &ground_v,
+            &ground_i,
+            &ground_maps,
+            &crate::terrain_material_set_for(map),
+        );
+        renderer.scene_lighting = renderer_api::SceneLighting::battlefield_default();
+        renderer.scene_time_s = 12.0;
+        for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+            renderer.register_mesh(&ctx, handle, &mesh);
+        }
+        let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
+        renderer.set_foliage_atlas(&ctx, &color, Some(&normal));
+        renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
+
+        let before =
+            scene_build::tree_lod::MID_MAX_M - scene_build::tree_lod::IMPOSTOR_FADE_HALF_M - 2.0;
+        let after =
+            scene_build::tree_lod::MID_MAX_M + scene_build::tree_lod::IMPOSTOR_FADE_HALF_M + 2.0;
+        // The Near rung at 100 m is the truth every other reading is held against: a crown
+        // shrinks with perspective and nothing else.
+        let near_at = 100.0_f32;
+        let (near_rgb, near_px, near_wood) =
+            tree_reading(&ctx, &mut renderer, &target, &battlefield, near_at);
+        let (mid_rgb, mid_px, mid_wood) =
+            tree_reading(&ctx, &mut renderer, &target, &battlefield, before);
+        let (imp_rgb, imp_px, imp_wood) =
+            tree_reading(&ctx, &mut renderer, &target, &battlefield, after);
+        let at_100 = |px: usize, d: f32| px as f32 * (d / near_at) * (d / near_at);
+        eprintln!(
+            "near {near_rgb:?} crown {near_px} wood {near_wood} | mid {mid_rgb:?} crown {mid_px} (={:.0} at 100 m) wood {mid_wood} (={:.0}) | impostor {imp_rgb:?} crown {imp_px} (={:.0}) wood {imp_wood} (={:.0})",
+            at_100(mid_px, before),
+            at_100(mid_wood, before),
+            at_100(imp_px, after),
+            at_100(imp_wood, after)
+        );
+        assert!(
+            near_px > 2000 && mid_px > 200 && imp_px > 200,
+            "every rung puts a crown on screen"
+        );
+        // Colour: the two far rungs sit in the same air, so they must agree with each other
+        // (the Near reading is 190 m closer and out of most of the haze).
+        for c in 0..3 {
+            let ratio = imp_rgb[c] / mid_rgb[c].max(1.0);
+            assert!((0.85..=1.15).contains(&ratio), "channel {c}: impostor/mid = {ratio:.3}");
+        }
+        // Coverage: each far rung's crown, brought to 100 m by perspective, is the Near
+        // rung's crown within a quarter — the impostor used to draw 1.8x of it (a solid lid
+        // from too few transparent bounces).
+        for (name, px, d) in [("mid", mid_px, before), ("impostor", imp_px, after)] {
+            let ratio = at_100(px, d) / near_px as f32;
+            assert!((0.75..=1.25).contains(&ratio), "{name} crown coverage vs near = {ratio:.3}");
+        }
+        // Wood: present at both far distances (it used to vanish under the alpha test) and
+        // not a forest of it (the thickened impostor used to draw 7x the Near wood).
+        for (name, px, d) in [("mid", mid_wood, before), ("impostor", imp_wood, after)] {
+            let ratio = at_100(px, d) / near_wood.max(1) as f32;
+            assert!(
+                px > 40 && (0.4..=3.0).contains(&ratio),
+                "{name} wood vs near = {ratio:.3} ({px} px)"
+            );
+        }
     }
 }

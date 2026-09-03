@@ -69,8 +69,8 @@ pub(crate) const PREPASS_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
         shader_location: 12,
     },
 ];
-const PREPASS_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
-        10 => Float32x4, 13 => Uint32];
+const PREPASS_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
+        10 => Float32x4, 13 => Uint32, 15 => Float32x2];
 
 /// A depth-only camera prepass pipeline over a position-first vertex layout of the given stride
 /// (the vehicle and scene formats both lead with `position`). The scene variant reads the UV

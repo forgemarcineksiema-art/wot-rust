@@ -93,7 +93,7 @@ SPECIES = {
     ),
     "pine": dict(  # a monopodial pole, whorls of near-horizontal branches, conical crown
         sapling=dict(seed=13, levels=3, length=(1.0, 0.36, 0.3, 0.4), lengthV=(0.0, 0.05, 0.1, 0.0),
-                     branches=(0, 44, 9, 0), curveRes=(10, 5, 3, 1), curve=(0.0, 0.0, 0.0, 0.0),
+                     branches=(0, 48, 14, 0), curveRes=(10, 5, 3, 1), curve=(0.0, 0.0, 0.0, 0.0),
                      curveV=(10.0, 30.0, 40.0, 0.0), baseSplits=0, segSplits=(0.0, 0.0, 0.0, 0.0),
                      splitAngle=(0.0, 0.0, 0.0, 0.0), splitAngleV=(0.0, 0.0, 0.0, 0.0), scale=21.0,
                      scaleV=0.0, attractUp=(0.0, 0.25, 0.35, 0.0), attractOut=(0.0, 0.0, 0.0, 0.0),
@@ -101,9 +101,11 @@ SPECIES = {
                      ratio=0.022, minRadius=0.003, rootFlare=1.1, ratioPower=1.3,
                      downAngle=(90.0, 80.0, 65.0, 45.0), downAngleV=(0.0, -10.0, 10.0, 10.0),
                      rotate=(137.5, 137.5, 137.5, 137.5), rotateV=(0.0, 15.0, 15.0, 0.0),
-                     leaves=4, leafDownAngle=30.0, leafDownAngleV=10.0, leafRotate=137.5, leafRotateV=20.0,
+                     leaves=8, leafDownAngle=30.0, leafDownAngleV=10.0, leafRotate=137.5, leafRotateV=20.0,
                      leafScale=1.0, leafShape="rect", horzLeaves=False, leafDist="6"),
-        card_half_m=0.6, hanging=False, limb_min_radius_m=0.07, twig_min_radius_m=0.035, max_pairs=240,
+        # The sparse crown (the owner, 2026-09-03): twice the cluster anchors per twig, more
+        # twigs, bigger cards, a fill budget to match — a pine is a dense dark cone, not a rack.
+        card_half_m=0.7, hanging=False, limb_min_radius_m=0.07, twig_min_radius_m=0.035, max_pairs=360,
     ),
     "bush": dict(  # a multi-stem shrub fanning from the ground
         sapling=dict(seed=17, levels=3, length=(1.0, 0.7, 0.55, 0.4), lengthV=(0.0, 0.1, 0.1, 0.0),

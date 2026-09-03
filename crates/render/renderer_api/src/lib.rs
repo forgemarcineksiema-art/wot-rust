@@ -201,10 +201,12 @@ pub struct RenderObject {
     pub transform: [[f32; 4]; 4],
     /// Per-instance team/ownership tint, multiplied into tint-weighted vertices by the shader.
     pub tint: [f32; 3],
-    /// Screen-door LOD cross-fade (0 = solid). Positive: keep the pixels whose Bayer
-    /// threshold lies below the value; negative: keep the complementary set — so two rungs of
-    /// one tree in one band are drawn with every pixel covered by exactly one of them.
-    pub dither: f32,
+    /// Screen-door LOD window `[lo, hi)` over the per-pixel Bayer threshold (0..1): the
+    /// object keeps the pixels whose threshold falls inside it; `[0, 1]` is solid. The rungs
+    /// of one tree partition the unit interval, so every pixel is drawn by exactly one of
+    /// them — a cross-fade band between rungs, and the impostor's two crossed quads sharing
+    /// one silhouette by view azimuth. The object whose window holds 0.5 casts the shadow.
+    pub dither: [f32; 2],
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

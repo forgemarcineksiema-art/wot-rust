@@ -1,15 +1,37 @@
 {
   "species": "poplar",
   "variant": 1,
-  "half_width_m": 5.2716,
+  "half_width_m": 5.2998,
   "top_m": 28.8668,
   "view_px": [
-    512,
-    1024
+    256,
+    512
   ],
   "views": [
     "azimuth 0: plane spans X",
     "azimuth 1: plane spans Z"
   ],
-  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw; the window is the quad `push_impostor_quads` spans: half_width_m across, 0..top_m up"
+  "variants": [
+    {
+      "variant": 0,
+      "half_width_m": 3.5793,
+      "top_m": 17.4531
+    },
+    {
+      "variant": 1,
+      "half_width_m": 5.2998,
+      "top_m": 28.8668
+    },
+    {
+      "variant": 2,
+      "half_width_m": 6.3262,
+      "top_m": 33.0511
+    },
+    {
+      "variant": 3,
+      "half_width_m": 4.4573,
+      "top_m": 25.642
+    }
+  ],
+  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw (crown normals); slot = variant * 2 + azimuth, 256 x 512 each; the window per variant is the quad `push_impostor_quad` spans: half_width_m across, 0..top_m up"
 }

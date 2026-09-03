@@ -1,15 +1,37 @@
 {
   "species": "bush",
   "variant": 1,
-  "half_width_m": 2.8893,
+  "half_width_m": 2.893,
   "top_m": 3.7883,
   "view_px": [
-    512,
-    1024
+    256,
+    512
   ],
   "views": [
     "azimuth 0: plane spans X",
     "azimuth 1: plane spans Z"
   ],
-  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw; the window is the quad `push_impostor_quads` spans: half_width_m across, 0..top_m up"
+  "variants": [
+    {
+      "variant": 0,
+      "half_width_m": 2.1009,
+      "top_m": 2.549
+    },
+    {
+      "variant": 1,
+      "half_width_m": 2.893,
+      "top_m": 3.7883
+    },
+    {
+      "variant": 2,
+      "half_width_m": 3.1515,
+      "top_m": 4.213
+    },
+    {
+      "variant": 3,
+      "half_width_m": 2.5916,
+      "top_m": 3.4465
+    }
+  ],
+  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw (crown normals); slot = variant * 2 + azimuth, 256 x 512 each; the window per variant is the quad `push_impostor_quad` spans: half_width_m across, 0..top_m up"
 }

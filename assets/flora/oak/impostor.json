@@ -4,12 +4,34 @@
   "half_width_m": 10.2685,
   "top_m": 18.8441,
   "view_px": [
-    512,
-    1024
+    256,
+    512
   ],
   "views": [
     "azimuth 0: plane spans X",
     "azimuth 1: plane spans Z"
   ],
-  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw; the window is the quad `push_impostor_quads` spans: half_width_m across, 0..top_m up"
+  "variants": [
+    {
+      "variant": 0,
+      "half_width_m": 7.3221,
+      "top_m": 11.8262
+    },
+    {
+      "variant": 1,
+      "half_width_m": 10.2685,
+      "top_m": 18.8441
+    },
+    {
+      "variant": 2,
+      "half_width_m": 12.3883,
+      "top_m": 21.1427
+    },
+    {
+      "variant": 3,
+      "half_width_m": 8.4839,
+      "top_m": 16.9678
+    }
+  ],
+  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw (crown normals); slot = variant * 2 + azimuth, 256 x 512 each; the window per variant is the quad `push_impostor_quad` spans: half_width_m across, 0..top_m up"
 }

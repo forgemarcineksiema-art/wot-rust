@@ -126,10 +126,10 @@ fn puddle_pool(world_xz: vec2<f32>, fill: f32) -> f32 {
 }
 
 // --- Screen-door LOD cross-fade ----------------------------------------------------------------
-// An ordered 4x4 Bayer threshold per screen pixel, 1/32 .. 31/32. `dither` is the instance's
-// fade lane (tint.w): 0 keeps every pixel; d > 0 keeps the pixels whose threshold is below d;
-// d < 0 keeps the complement (threshold >= -d). Two rungs of one tree, submitted with +w and
-// -w, cover every pixel exactly once — the swap becomes a 20 m grain instead of a pop.
+// An ordered 4x4 Bayer threshold per screen pixel, 1/32 .. 31/32. The instance's window
+// `[lo, hi)` is its share of it; the rungs (and the impostor's two quads) of one tree
+// partition [0, 1), so every pixel is drawn by exactly one of them — a swap becomes a 20 m
+// grain instead of a pop, and a crossed impostor never doubles its silhouette.
 fn bayer4_threshold(frag: vec2<f32>) -> f32 {
     let x = u32(frag.x) & 3u;
     let y = u32(frag.y) & 3u;
@@ -139,13 +139,11 @@ fn bayer4_threshold(frag: vec2<f32>) -> f32 {
     return (f32(index) + 0.5) / 16.0;
 }
 
-fn dither_keeps(dither: f32, frag: vec2<f32>) -> bool {
-    if (dither == 0.0) {
+// `window` is the instance's [lo, hi) share of the threshold; [0, 1] keeps every pixel.
+fn dither_keeps(window: vec2<f32>, frag: vec2<f32>) -> bool {
+    if (window.x <= 0.0 && window.y >= 1.0) {
         return true;
     }
     let threshold = bayer4_threshold(frag);
-    if (dither > 0.0) {
-        return threshold < dither;
-    }
-    return threshold >= -dither;
+    return threshold >= window.x && threshold < window.y;
 }
