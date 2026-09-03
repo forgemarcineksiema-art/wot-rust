@@ -5,7 +5,6 @@
 //! instances the battle does, from the same eye rule, so a tree in the viewport is the tree
 //! the game will draw at that distance.
 
-use glam::Vec3;
 use renderer_api::RenderObject;
 use scene_build::tree_lod::{TreeEye, TreeLodState, tree_frame_objects_with_backdrop};
 
@@ -27,6 +26,7 @@ pub fn planted_tree_objects(
 mod tests {
     use super::*;
     use crate::objects::{PaletteEntry, place_entry};
+    use glam::Vec3;
 
     /// Every ladder tree the palette can plant is a drawn instance in the editor's frame —
     /// the oak the owner places is the oak they see.
