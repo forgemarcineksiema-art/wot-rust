@@ -259,10 +259,34 @@ pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
         0x42fd_61ea_222f_dd31,
         0xa620_41ca_8ca8_11c9,
     ),
-    (TreeSpecies::Poplar, 0xd134_b90f_9756_9b3b, 0xa815_cd10_0a66_0103, 0x9114_1fd6_45f4_f3b1, 0x58ac_b364_b1de_abd3),
-    (TreeSpecies::FruitTree, 0x94c7_e4cc_7846_5a63, 0x8208_5969_3676_7c2b, 0x14d1_95fa_d5c6_ec4d, 0x05db_1a40_e8e9_47db),
-    (TreeSpecies::Bush, 0x57a8_ac57_d85f_75b6, 0xd32c_40fe_223b_1e10, 0x16db_0350_dcc4_d74d, 0xedcb_48a9_0b59_4eee),
-    (TreeSpecies::Pine, 0x78e4_7a5b_5cf9_e80a, 0x5afa_07f1_e66f_dc28, 0x0f83_122c_b8de_75f1, 0xad28_9ae7_3ecd_3473),
+    (
+        TreeSpecies::Poplar,
+        0xd134_b90f_9756_9b3b,
+        0xa815_cd10_0a66_0103,
+        0x9114_1fd6_45f4_f3b1,
+        0x58ac_b364_b1de_abd3,
+    ),
+    (
+        TreeSpecies::FruitTree,
+        0x94c7_e4cc_7846_5a63,
+        0x8208_5969_3676_7c2b,
+        0x14d1_95fa_d5c6_ec4d,
+        0x05db_1a40_e8e9_47db,
+    ),
+    (
+        TreeSpecies::Bush,
+        0x57a8_ac57_d85f_75b6,
+        0xd32c_40fe_223b_1e10,
+        0x16db_0350_dcc4_d74d,
+        0xedcb_48a9_0b59_4eee,
+    ),
+    (
+        TreeSpecies::Pine,
+        0x78e4_7a5b_5cf9_e80a,
+        0x5afa_07f1_e66f_dc28,
+        0x0f83_122c_b8de_75f1,
+        0xad28_9ae7_3ecd_3473,
+    ),
 ];
 
 fn fnv_bytes(hash: &mut u64, bytes: &[u8]) {
