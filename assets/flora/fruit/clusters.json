@@ -11,27 +11,27 @@
   "window_m": 1.1,
   "hanging": false,
   "seed": 1,
-  "samples": 80,
+  "samples": 96,
   "sprites": [
     {
       "index": 0,
       "seed": 56954,
-      "leaves": 382
+      "leaves": 1195
     },
     {
       "index": 1,
       "seed": 56955,
-      "leaves": 359
+      "leaves": 1237
     },
     {
       "index": 2,
       "seed": 56956,
-      "leaves": 364
+      "leaves": 1237
     },
     {
       "index": 3,
       "seed": 56957,
-      "leaves": 398
+      "leaves": 1158
     }
   ],
   "color": "clusters_color.png",

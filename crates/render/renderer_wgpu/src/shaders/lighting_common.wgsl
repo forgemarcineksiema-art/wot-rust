@@ -63,15 +63,26 @@ fn light_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> v
 // crown — plus a small transmission lobe when the sun stands behind the card. Both terms stay
 // inside the cast shadow, so a crown in a building's shade gains nothing. The asset's baked
 // vertex AO (COLOR_0) carries the deep-interior darkening; this keeps the SURFACE falloff soft.
-fn foliage_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> vec3<f32> {
+fn foliage_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow_in: f32, ao: f32) -> vec3<f32> {
     let key_dir = normalize(camera.key_direction);
-    let wrap = 0.4;
+    // A crown's shadow on its own leaves is POROUS: the shadow map sees an opaque lid of
+    // cards, a real canopy lets a good share of the sun through between and through the
+    // blades. Leaves receive the map at 60 % (Leaves 2.0) — the side of a crown under a high
+    // sun is a lit green wall, not the black underside of a lid.
+    let shadow = 0.4 + 0.6 * shadow_in;
+    let wrap = 0.6;
     let n_dot_key = dot(n, key_dir);
     let key = clamp((n_dot_key + wrap) / (1.0 + wrap), 0.0, 1.0) * shadow;
-    let transmit = max(-n_dot_key, 0.0) * 0.22 * shadow;
+    // Transmission is what lights the side of a crown that faces AWAY from the sun: the
+    // light comes through the leaves (a backlit crown glows, it does not go black), and it
+    // reaches a leaf its own crown shadows, which the shadow map cannot see — so the lobe is
+    // strong and keeps a floor in shade (Leaves 2.0, with the crown normals).
+    let transmit = max(-n_dot_key, 0.0) * 0.55 * (0.45 + 0.55 * shadow);
     let fill = max(dot(n, normalize(camera.fill_direction)), 0.0) * ao;
     let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
-    return hemi_ambient(n) * ao
+    // A leaf mass gathers more sky than an opaque surface of the same normal: light passes
+    // between and through the blades.
+    return hemi_ambient(n) * ao * 1.2
         + camera.key_rgb * (key + transmit)
         + camera.fill_rgb * fill
         + camera.rim_rgb * rim

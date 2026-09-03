@@ -444,26 +444,26 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // never the tree's anatomy.
     // Oak re-blessed 2026-09-02 (route 2): the AUTHORED oak — Sapling's skeleton (trunk and
     // 13 limbs as wood, 15.9 m), 161 cross pairs of Blender-rendered leaf clusters to 18.7 m.
-    (TreeSpecies::Oak, 0x0ce2_6287_5c68_8c8d),
+    (TreeSpecies::Oak, 0x98ac_31f9_3bd1_265f),
     // Poplar re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — one bole honestly
     // grown to 19.6 m, the Column envelope, hard up-tropism.
-    (TreeSpecies::Poplar, 0x1f55_74a5_e42c_7d1c),
+    (TreeSpecies::Poplar, 0xfeb5_328e_cc40_7fd7),
     // Willow re-blessed 2026-08-22 (Drzewa 3.0 PR8): the sweep showcase — rising limbs arced
     // over by negative tropism, level-2 curtains falling hard, elongated hanging cards.
     (TreeSpecies::Willow, 0xae22_ee7e_22cb_cd4f),
     // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
     // opening into a low orchard dome with heavy down-angles.
-    (TreeSpecies::FruitTree, 0xa198_90ab_2dcc_7cc8),
+    (TreeSpecies::FruitTree, 0x8357_5bf4_f133_e0ab),
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8): a one-level skeleton stub fanning wide
     // into dense small cards; still honestly concealing nothing.
     // Bush re-blessed 2026-08-22 (Drzewa 3.0 PR8, final): dense one-level skeleton, deep
     // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
     // its middle, and the steppe's rule-1 dark plane rides on that.
-    (TreeSpecies::Bush, 0xf0f1_858e_6502_e441),
+    (TreeSpecies::Bush, 0x7810_5693_e812_6a1c),
     // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
     // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
     // fronds on cards. The lobes died with this bless.
-    (TreeSpecies::Pine, 0x8212_3d9a_ed9a_c6a5),
+    (TreeSpecies::Pine, 0x1642_c6f6_79d9_7b8b),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —
