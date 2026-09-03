@@ -5,9 +5,8 @@
 //! instances the battle does, from the same eye rule, so a tree in the viewport is the tree
 //! the game will draw at that distance.
 
-use glam::Vec3;
 use renderer_api::RenderObject;
-use scene_build::tree_lod::{TreeLodState, tree_frame_objects_with_backdrop};
+use scene_build::tree_lod::{TreeEye, TreeLodState, tree_frame_objects_with_backdrop};
 
 use crate::CompiledMap;
 
@@ -17,7 +16,7 @@ use crate::CompiledMap;
 pub fn planted_tree_objects(
     compiled: &CompiledMap,
     born_phases: &[u8],
-    eye: Vec3,
+    eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
     tree_frame_objects_with_backdrop(&compiled.battlefield, born_phases, eye, state)
@@ -27,6 +26,7 @@ pub fn planted_tree_objects(
 mod tests {
     use super::*;
     use crate::objects::{PaletteEntry, place_entry};
+    use glam::Vec3;
 
     /// Every ladder tree the palette can plant is a drawn instance in the editor's frame —
     /// the oak the owner places is the oak they see.
@@ -48,8 +48,12 @@ mod tests {
         let compiled = document.recompile();
         let born = terrain::initial_cover_phase_bytes(&compiled.battlefield.static_cover);
         let mut state = TreeLodState::default();
-        let objects =
-            planted_tree_objects(&compiled, &born, Vec3::new(130.0, 2.0, 95.0), &mut state);
+        let objects = planted_tree_objects(
+            &compiled,
+            &born,
+            TreeEye::at(Vec3::new(130.0, 2.0, 95.0)),
+            &mut state,
+        );
         // Each placement is a tree AND its symmetry twin. A tree may be two or three objects
         // (a cross-fade band, the impostor's two quads) whose windows partition [0, 1): the
         // one starting at 0 counts the tree.

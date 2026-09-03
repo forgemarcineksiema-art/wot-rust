@@ -554,7 +554,7 @@ fn frame_time_capture() {
                 grass.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
                     &battlefield,
                     &[],
-                    eye,
+                    scene_build::tree_lod::TreeEye::at(eye),
                     &mut tree_lod_state,
                 ));
 
