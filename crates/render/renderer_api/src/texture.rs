@@ -83,10 +83,21 @@ impl Rgba8MipChain {
             let next = downsample_box(previous, mode);
             levels.push(next);
         }
-        if let MipMode::AlphaCoveragePreserving = mode {
-            for level in levels.iter_mut().skip(1) {
-                preserve_cutout_coverage(&mut level.rgba, base_coverage);
+        match mode {
+            MipMode::AlphaCoveragePreserving => {
+                for level in levels.iter_mut().skip(1) {
+                    preserve_cutout_coverage(&mut level.rgba, base_coverage);
+                }
             }
+            MipMode::AlphaCoverageGrowing { from_level, per_level_percent } => {
+                for (k, level) in levels.iter_mut().enumerate().skip(1) {
+                    let deep = (k as f32 - f32::from(from_level)).max(0.0);
+                    let growth = 1.0 + f32::from(per_level_percent) / 100.0 * deep;
+                    let target = (base_coverage * growth).min(MAX_GROWN_COVERAGE);
+                    preserve_cutout_coverage(&mut level.rgba, target);
+                }
+            }
+            MipMode::Box => {}
         }
         let max_sampled_level = levels.len() as u32 - 1;
         Self::new(levels, max_sampled_level)
@@ -106,7 +117,19 @@ pub enum MipMode {
     /// leaf mask must ride — the 55–150 m band samples deep mips, and a crown that keeps its
     /// coverage there is the difference between foliage and twigs.
     AlphaCoveragePreserving,
+    /// The coverage-preserving filter whose target coverage GROWS on the deep levels: from
+    /// `from_level` on, each level's cutout area is the base's × (1 + per_level_percent/100
+    /// × levels past it), capped at [`MAX_GROWN_COVERAGE`]. A leaf-cluster sprite is a twig
+    /// with gaps; held at its own coverage it thins into a cloud of DOTS at 200 m (the
+    /// owner, 2026-09-03: "leaves like dots, detached from the tree"), while a real crown
+    /// at that distance reads as a mass because its layers overlap below the eye's
+    /// resolution — and the impostor, rendered from every layer, IS that mass. Growing the
+    /// far mips is how a card deck becomes the same mass on the way there.
+    AlphaCoverageGrowing { from_level: u8, per_level_percent: u8 },
 }
+
+/// The ceiling a grown level's coverage stops at — never a solid slab.
+pub const MAX_GROWN_COVERAGE: f32 = 0.95;
 
 /// The alpha-cutout threshold the shaders discard under (`alpha < 0.5`), in u8 texels. The
 /// coverage-preserving mip mode holds area at THIS threshold; if a shader ever moves its
@@ -145,7 +168,7 @@ fn downsample_box(level: &Rgba8MipLevel, mode: MipMode) -> Rgba8MipLevel {
                         let sum: u32 = corners.iter().map(|&(cx, cy)| texel(cx, cy, c)).sum();
                         (sum + 2) / 4
                     }
-                    MipMode::AlphaCoveragePreserving => {
+                    MipMode::AlphaCoveragePreserving | MipMode::AlphaCoverageGrowing { .. } => {
                         let weighted: u32 = corners
                             .iter()
                             .map(|&(cx, cy)| texel(cx, cy, c) * texel(cx, cy, 3))
@@ -179,9 +202,16 @@ fn preserve_cutout_coverage(rgba: &mut [u8], base_coverage: f32) {
     alphas.sort_unstable_by(|a, b| b.cmp(a));
     // The alpha value the base coverage reaches down to when this level's texels are ranked
     // brightest-first — the threshold Castano's search would find.
-    let rank = ((base_coverage * texels as f32).round() as usize).clamp(1, texels);
+    // The target can reach no deeper than the texels that carry any alpha at all: past them
+    // the threshold would be 0 and nothing could be scaled (the growing mode used to fall
+    // through here unscaled and come out THINNER than the held chain).
+    let nonzero = alphas.iter().take_while(|&&alpha| alpha > 0).count();
+    if nonzero == 0 {
+        return;
+    }
+    let rank = ((base_coverage * texels as f32).round() as usize).clamp(1, nonzero);
     let threshold = alphas[rank - 1];
-    if threshold == 0 || threshold == ALPHA_CUTOUT {
+    if threshold == ALPHA_CUTOUT {
         return;
     }
     let scale = ALPHA_CUTOUT as f32 / threshold as f32;
@@ -199,6 +229,52 @@ fn preserve_cutout_coverage(rgba: &mut [u8], base_coverage: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A sparse mask (one texel in nine) held at its own coverage stays sparse; under the
+    /// growing mode the deep levels fill in — more area at each level past `from_level`,
+    /// never past the ceiling.
+    #[test]
+    fn the_growing_mode_fills_the_deep_levels_and_stops_at_the_ceiling() {
+        // A spatially random mask at one texel in five: no periodic ties, so the held chain
+        // really holds its coverage on every level and the growth is measurable against it.
+        let size = 256u32;
+        let mut rgba = vec![0u8; (size * size * 4) as usize];
+        for y in 0..size {
+            for x in 0..size {
+                let hash = (x.wrapping_mul(73_856_093) ^ y.wrapping_mul(19_349_663)) % 5;
+                if hash == 0 {
+                    let i = ((y * size + x) * 4) as usize;
+                    rgba[i..i + 4].copy_from_slice(&[40, 120, 30, 255]);
+                }
+            }
+        }
+        let base = Rgba8MipLevel::new(size, size, rgba);
+        let held = Rgba8MipChain::build(base.clone(), MipMode::AlphaCoveragePreserving);
+        let grown = Rgba8MipChain::build(
+            base,
+            MipMode::AlphaCoverageGrowing { from_level: 2, per_level_percent: 35 },
+        );
+        let coverage = |chain: &Rgba8MipChain, k: usize| cutout_coverage(&chain.levels()[k].rgba);
+        let base_c = coverage(&held, 0);
+        // Up to `from_level` the two chains are the same chain (a binary mask's first levels
+        // tie in alpha, so neither holds the base exactly — that is the held mode's own
+        // business, not this test's).
+        for k in 1..=2 {
+            assert_eq!(coverage(&grown, k), coverage(&held, k), "level {k}: the same as held");
+        }
+        let _ = base_c;
+        for k in 3..=6 {
+            let c = coverage(&grown, k);
+            assert!(c <= MAX_GROWN_COVERAGE + 0.02, "level {k}: {c:.3} under the ceiling");
+            assert!(c >= coverage(&held, k), "level {k}: never thinner than held");
+        }
+        assert!(
+            coverage(&grown, 5) > coverage(&held, 5) + 0.05,
+            "the deep levels fill in: grown {:.3} vs held {:.3}",
+            coverage(&grown, 5),
+            coverage(&held, 5)
+        );
+    }
 
     #[test]
     fn complete_chain_contract_accepts_the_one_pixel_tail() {
