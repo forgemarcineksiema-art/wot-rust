@@ -537,7 +537,13 @@ mod tests {
             .filter(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_some())
             .count();
         assert!(trees_planted > 0, "prokhorovka plants battlefield trees");
-        assert_eq!(trees_drawn, trees_planted, "every planted ladder tree draws, intact cover");
+        // Since F11 the horizon ring rides the same ladder: every ring tree draws too.
+        let ring = scene_build::backdrop::backdrop_tree_instances(&battlefield).len();
+        assert_eq!(
+            trees_drawn,
+            trees_planted + ring,
+            "every planted ladder tree and every ring tree draws, intact cover"
+        );
         assert!(dressing.len() > trees_drawn, "the grass ring is still in the frame");
     }
 
