@@ -52,9 +52,10 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // (name, distance from the trunk, eye height above ground, aim height on the tree)
     let views = [
         ("whole_22m", 22.0_f32, 2.2_f32, 8.5_f32),
-        ("close_9m", 9.0, 1.8, 6.0),
-        ("mid_90m", 90.0, 2.2, 8.0),
-        ("impostor_220m", 220.0, 2.2, 8.0),
+        ("near_100m", 100.0, 2.2, 8.0),
+        ("mid_140m", 140.0, 2.2, 8.0),
+        ("mid_280m", 280.0, 2.2, 8.0),
+        ("impostor_350m", 350.0, 2.2, 8.0),
     ];
     let projection = CameraProjectionPolicy::webgpu_default();
     for (name, distance, eye_up, aim_up) in views {

@@ -108,6 +108,9 @@ struct SpeciesAssets {
     trees: [[&'static [u8]; 2]; VARIANTS as usize],
     bark_albedo: &'static [u8],
     bark_normal: &'static [u8],
+    impostor_color: &'static [u8],
+    impostor_normal: &'static [u8],
+    impostor_manifest: &'static str,
 }
 
 macro_rules! flora_file {
@@ -141,8 +144,66 @@ macro_rules! flora {
                 $bark,
                 "/nor_gl_1k.png"
             )),
+            impostor_color: flora_file!($dir, "/impostor_color.png"),
+            impostor_normal: flora_file!($dir, "/impostor_normal.png"),
+            impostor_manifest: include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../assets/flora/",
+                $dir,
+                "/impostor.json"
+            )),
         }
     };
+}
+
+/// The impostor page size: two 512×1024 views side by side.
+pub const IMPOSTOR_PAGE_W: u32 = 1024;
+pub const IMPOSTOR_PAGE_H: u32 = 1024;
+
+/// The world window an impostor sprite spans, tree-local metres: `half_width_m` across the
+/// quad, `0..top_m` up — the exporter's numbers, so the crossed quads and the sprite agree by
+/// shared data, not tuning.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ImpostorWindow {
+    pub half_width_m: f32,
+    pub top_m: f32,
+}
+
+/// The rendered impostor pair of a species (colour with cutout alpha, dome normals flat
+/// where cut), decoded once.
+pub fn impostor_pages(species: TreeSpecies) -> &'static ClusterPages {
+    static PAGES: [OnceLock<ClusterPages>; 6] = [const { OnceLock::new() }; 6];
+    let a = assets(species);
+    PAGES[species_index(species) as usize].get_or_init(|| {
+        let pages = decode_pages_any(a.impostor_color, a.impostor_normal);
+        assert_eq!(
+            (pages.width, pages.height),
+            (IMPOSTOR_PAGE_W, IMPOSTOR_PAGE_H),
+            "impostor page"
+        );
+        pages
+    })
+}
+
+/// The impostor window from the species' `impostor.json` (two numbers, read without a JSON
+/// crate: `"half_width_m": <f>` and `"top_m": <f>`).
+pub fn impostor_window(species: TreeSpecies) -> ImpostorWindow {
+    let manifest = assets(species).impostor_manifest;
+    let number = |key: &str| -> f32 {
+        let start =
+            manifest.find(key).unwrap_or_else(|| panic!("impostor.json: {key}")) + key.len();
+        let rest = &manifest[start..];
+        let rest = rest.trim_start_matches(|c: char| c == ':' || c.is_whitespace());
+        let end =
+            rest.find(|c: char| c == ',' || c == '}' || c.is_whitespace()).unwrap_or(rest.len());
+        rest[..end].parse::<f32>().unwrap_or_else(|e| panic!("impostor.json: {key}: {e}"))
+    };
+    ImpostorWindow { half_width_m: number("\"half_width_m\""), top_m: number("\"top_m\"") }
+}
+
+/// FNV over a species' impostor pair.
+pub fn impostor_hash(species: TreeSpecies) -> u64 {
+    impostor_pages(species).deterministic_hash()
 }
 
 static OAK: SpeciesAssets = flora!("oak", "jolcham_oak_bark_01");
@@ -174,16 +235,52 @@ pub fn asset_dirs(species: TreeSpecies) -> (&'static str, &'static str) {
     (a.dir, a.bark_dir)
 }
 
-/// The golden hashes per species: (clusters, the eight tree files, the bark pair). A re-bake
-/// changes the picture: bless deliberately and say what changed about the LEAVES, the SHAPE
-/// or the BARK.
-pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64); 6] = [
-    (TreeSpecies::Oak, 0x9589_9f13_6788_6aa6, 0xc331_0ccc_446a_23b5, 0x42fd_61ea_222f_dd31),
-    (TreeSpecies::Poplar, 0xd426_f283_936a_4735, 0x73d9_a96c_aa6c_f683, 0x9114_1fd6_45f4_f3b1),
-    (TreeSpecies::Willow, 0x3cba_2693_d88b_7b33, 0x5806_ed76_1308_6f4f, 0x69d3_ab60_3d49_f2a1),
-    (TreeSpecies::FruitTree, 0xeae0_1018_e1d2_b111, 0xe786_8cc2_b1a9_2398, 0x14d1_95fa_d5c6_ec4d),
-    (TreeSpecies::Bush, 0xf651_19f7_6c42_fc81, 0x2b95_10f3_dccb_0f40, 0x16db_0350_dcc4_d74d),
-    (TreeSpecies::Pine, 0xac91_6545_a0ad_d895, 0xcd2b_ce5e_6424_da87, 0x0f83_122c_b8de_75f1),
+/// The golden hashes per species: (clusters, the eight tree files, the bark pair, the
+/// impostor pair). A re-bake changes the picture: bless deliberately and say what changed
+/// about the LEAVES, the SHAPE, the BARK or the FAR RUNG.
+pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 6] = [
+    (
+        TreeSpecies::Oak,
+        0x9589_9f13_6788_6aa6,
+        0x8163_ecf6_dce9_7b5d,
+        0x42fd_61ea_222f_dd31,
+        0x7a44_0755_fb88_3e29,
+    ),
+    (
+        TreeSpecies::Poplar,
+        0xd426_f283_936a_4735,
+        0xa815_cd10_0a66_0103,
+        0x9114_1fd6_45f4_f3b1,
+        0x28c9_6e92_f747_3594,
+    ),
+    (
+        TreeSpecies::Willow,
+        0x4644_570f_6bab_70ab,
+        0xa778_9f76_b86f_c186,
+        0x69d3_ab60_3d49_f2a1,
+        0xfbaf_fc6a_7f55_79d1,
+    ),
+    (
+        TreeSpecies::FruitTree,
+        0xeae0_1018_e1d2_b111,
+        0x8208_5969_3676_7c2b,
+        0x14d1_95fa_d5c6_ec4d,
+        0x96a6_1305_4c62_c9a6,
+    ),
+    (
+        TreeSpecies::Bush,
+        0xf651_19f7_6c42_fc81,
+        0xd32c_40fe_223b_1e10,
+        0x16db_0350_dcc4_d74d,
+        0xfd32_4b58_3319_55ac,
+    ),
+    (
+        TreeSpecies::Pine,
+        0xac91_6545_a0ad_d895,
+        0x5afa_07f1_e66f_dc28,
+        0x0f83_122c_b8de_75f1,
+        0x7527_45a5_3073_5a91,
+    ),
 ];
 
 fn fnv_bytes(hash: &mut u64, bytes: &[u8]) {
@@ -248,10 +345,17 @@ fn decode_rgba(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
 }
 
 fn decode_cluster_pages(color_png: &[u8], normal_png: &[u8]) -> ClusterPages {
+    let pages = decode_pages_any(color_png, normal_png);
+    assert_eq!((pages.width, pages.height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H), "cluster page size");
+    pages
+}
+
+/// A colour page with its normal page, any size: the normal page takes the flat dome texel
+/// wherever the colour page is cut.
+fn decode_pages_any(color_png: &[u8], normal_png: &[u8]) -> ClusterPages {
     let (width, height, color) = decode_rgba(color_png);
     let (normal_w, normal_h, raw_normal) = decode_rgba(normal_png);
-    assert_eq!((width, height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H), "cluster colour page size");
-    assert_eq!((normal_w, normal_h), (width, height), "cluster normal page size");
+    assert_eq!((normal_w, normal_h), (width, height), "normal page size");
     // The normal render's background is black; the atlas wants the flat dome texel there so
     // the box-filtered mips never pull a rim normal toward (−1, −1, −1). Alpha is opaque:
     // the normal page carries no cutout of its own.
@@ -436,10 +540,18 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
 mod tests {
     use super::*;
 
-    /// Every species: the three asset hashes on their goldens.
+    /// Every species: the four asset hashes on their goldens.
     #[test]
     fn every_species_is_on_its_goldens() {
-        for (species, clusters_golden, trees_golden, bark_golden) in SPECIES_GOLDENS {
+        for (species, clusters_golden, trees_golden, bark_golden, impostor_golden) in
+            SPECIES_GOLDENS
+        {
+            assert_eq!(
+                impostor_hash(species),
+                impostor_golden,
+                "{species:?} impostors changed — bless (0x{:016x})",
+                impostor_hash(species)
+            );
             let pages = clusters(species).expect("clusters");
             assert_eq!(
                 pages.deterministic_hash(),
@@ -518,7 +630,7 @@ mod tests {
                 );
                 assert!(mid.trunk.triangle_count() <= near.trunk.triangle_count());
                 assert!(
-                    (60..=640).contains(&near.leaves.len()),
+                    (60..=760).contains(&near.leaves.len()),
                     "{species:?} v{variant}: near deck {}",
                     near.leaves.len()
                 );
@@ -584,6 +696,40 @@ mod tests {
         assert!(seen.len() >= 7, "variants × mirrors reached: {seen:?}");
         for variant in 0..VARIANTS {
             assert_eq!(variant_of_seed(variant_seed(variant)), (variant, false));
+        }
+    }
+
+    /// Every impostor pair: two views of a tree — each view rooted at its bottom centre (the
+    /// trunk), covering a real share of its half of the page — and a window that stands the
+    /// tree at least as tall as it is wide.
+    #[test]
+    fn every_impostor_pair_is_a_tree_in_its_window() {
+        for species in TreeSpecies::ALL {
+            let pages = impostor_pages(species);
+            let window = impostor_window(species);
+            assert!(window.top_m > 1.0 && window.half_width_m > 0.3, "{species:?}: {window:?}");
+            assert!(
+                (window.top_m - window.half_width_m * 4.0).abs() < 0.05,
+                "{species:?}: a 1:2 window: {window:?}"
+            );
+            for which in 0..2u32 {
+                let x0 = which * IMPOSTOR_PAGE_W / 2;
+                let mut covered = 0u32;
+                let mut rooted = false;
+                for y in 0..IMPOSTOR_PAGE_H {
+                    for x in x0..x0 + IMPOSTOR_PAGE_W / 2 {
+                        let alpha = pages.color[((y * pages.width + x) * 4 + 3) as usize];
+                        covered += u32::from(alpha >= 128);
+                        if y >= IMPOSTOR_PAGE_H - 24 && (x0 + IMPOSTOR_PAGE_W / 4).abs_diff(x) < 48
+                        {
+                            rooted |= alpha >= 128;
+                        }
+                    }
+                }
+                let share = covered as f32 / (IMPOSTOR_PAGE_W / 2 * IMPOSTOR_PAGE_H) as f32;
+                assert!((0.05..=0.9).contains(&share), "{species:?} view {which}: {share:.3}");
+                assert!(rooted, "{species:?} view {which}: the trunk meets the bottom centre");
+            }
         }
     }
 

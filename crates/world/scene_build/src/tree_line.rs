@@ -635,7 +635,8 @@ mod tests {
         // Raised 120 k → 260 k with the authored stations (route 2): a Mid-rung authored
         // tree is 1–2 k of wood plus its deck; Bystra's 96 stations measure ~206 k. The frame
         // cost of the lines is F7b's measurement (the stations onto the ladder).
-        const MAP_LINES_MAX_TRIS: usize = 260_000;
+        // Raised again 260 k → 420 k on 2026-09-03: the Mid rung carries the Near deck now.
+        const MAP_LINES_MAX_TRIS: usize = 420_000;
         for id in MapId::SHIPPED {
             let map = map_forge::battlefield(*id);
             let mut vertices = Vec::new();

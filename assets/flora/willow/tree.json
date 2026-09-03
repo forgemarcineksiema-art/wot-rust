@@ -7,9 +7,9 @@
     "seed": 5,
     "levels": 3,
     "length": [
-      0.8,
-      0.65,
-      0.6,
+      0.85,
+      0.7,
+      0.45,
       0.4
     ],
     "lengthV": [
@@ -20,65 +20,65 @@
     ],
     "branches": [
       0,
+      22,
       18,
-      16,
       0
     ],
     "curveRes": [
       8,
       6,
-      5,
+      4,
       1
     ],
     "curve": [
       0.0,
-      50.0,
-      90.0,
+      25.0,
+      45.0,
       0.0
     ],
     "curveV": [
       20.0,
-      60.0,
-      80.0,
+      50.0,
+      70.0,
       0.0
     ],
-    "baseSplits": 2,
+    "baseSplits": 3,
     "segSplits": [
       0.0,
       0.3,
-      0.0,
+      0.1,
       0.0
     ],
     "splitAngle": [
       0.0,
       35.0,
-      0.0,
+      20.0,
       0.0
     ],
     "splitAngleV": [
       0.0,
       10.0,
-      0.0,
+      10.0,
       0.0
     ],
-    "scale": 17.5,
+    "scale": 16.0,
     "scaleV": 0.0,
     "attractUp": [
       0.0,
-      -0.9,
-      -1.6,
+      -0.4,
+      -1.1,
       0.0
     ],
     "attractOut": [
       0.0,
-      0.3,
-      0.0,
+      0.5,
+      0.2,
       0.0
     ],
     "shape": "2",
     "shapeS": "4",
     "branchDist": 1.1,
-    "baseSize": 0.25,
+    "baseSize": 0.22,
     "baseSize_s": 0.2,
     "splitHeight": 0.3,
     "ratio": 0.03,
@@ -87,8 +87,8 @@
     "ratioPower": 1.2,
     "downAngle": [
       90.0,
-      45.0,
-      70.0,
+      50.0,
+      60.0,
       60.0
     ],
     "downAngleV": [
@@ -109,7 +109,7 @@
       20.0,
       0.0
     ],
-    "leaves": 4,
+    "leaves": 5,
     "leafDownAngle": 60.0,
     "leafDownAngleV": 15.0,
     "leafRotate": 137.5,
@@ -133,24 +133,24 @@
       "seed": 106,
       "rungs": {
         "near": {
-          "wood_vertices": 2644,
-          "wood_triangles": 4736,
-          "wood_pieces": 50,
-          "cards": 302,
-          "cards_pulled": 140,
-          "tip_wood_m": 9.89,
-          "tip_cards_m": 8.991,
-          "butt_radius_m": 1.613
+          "wood_vertices": 2880,
+          "wood_triangles": 5120,
+          "wood_pieces": 56,
+          "cards": 616,
+          "cards_pulled": 294,
+          "tip_wood_m": 9.764,
+          "tip_cards_m": 8.767,
+          "butt_radius_m": 0.304
         },
         "mid": {
-          "wood_vertices": 728,
-          "wood_triangles": 1192,
-          "wood_pieces": 33,
-          "cards": 152,
+          "wood_vertices": 848,
+          "wood_triangles": 1352,
+          "wood_pieces": 43,
+          "cards": 616,
           "cards_pulled": 0,
-          "tip_wood_m": 9.89,
-          "tip_cards_m": 8.991,
-          "butt_radius_m": 0.0
+          "tip_wood_m": 9.764,
+          "tip_cards_m": 8.767,
+          "butt_radius_m": 0.304
         }
       }
     },
@@ -167,24 +167,24 @@
       "seed": 5,
       "rungs": {
         "near": {
-          "wood_vertices": 4364,
-          "wood_triangles": 7704,
-          "wood_pieces": 105,
-          "cards": 592,
-          "cards_pulled": 275,
-          "tip_wood_m": 17.4,
-          "tip_cards_m": 16.147,
-          "butt_radius_m": 4.001
+          "wood_vertices": 4514,
+          "wood_triangles": 7928,
+          "wood_pieces": 103,
+          "cards": 720,
+          "cards_pulled": 503,
+          "tip_wood_m": 15.403,
+          "tip_cards_m": 14.16,
+          "butt_radius_m": 1.836
         },
         "mid": {
-          "wood_vertices": 884,
-          "wood_triangles": 1472,
-          "wood_pieces": 37,
-          "cards": 298,
+          "wood_vertices": 1288,
+          "wood_triangles": 2064,
+          "wood_pieces": 64,
+          "cards": 720,
           "cards_pulled": 0,
-          "tip_wood_m": 17.4,
-          "tip_cards_m": 16.147,
-          "butt_radius_m": 0.0
+          "tip_wood_m": 15.404,
+          "tip_cards_m": 14.16,
+          "butt_radius_m": 0.576
         }
       }
     },
@@ -201,24 +201,24 @@
       "seed": 216,
       "rungs": {
         "near": {
-          "wood_vertices": 6208,
-          "wood_triangles": 10960,
-          "wood_pieces": 149,
-          "cards": 600,
-          "cards_pulled": 370,
-          "tip_wood_m": 19.253,
-          "tip_cards_m": 18.117,
-          "butt_radius_m": 7.064
+          "wood_vertices": 4686,
+          "wood_triangles": 8208,
+          "wood_pieces": 119,
+          "cards": 720,
+          "cards_pulled": 808,
+          "tip_wood_m": 17.816,
+          "tip_cards_m": 16.702,
+          "butt_radius_m": 0.894
         },
         "mid": {
-          "wood_vertices": 864,
-          "wood_triangles": 1440,
-          "wood_pieces": 36,
-          "cards": 300,
+          "wood_vertices": 1048,
+          "wood_triangles": 1744,
+          "wood_pieces": 44,
+          "cards": 720,
           "cards_pulled": 0,
-          "tip_wood_m": 19.254,
-          "tip_cards_m": 18.117,
-          "butt_radius_m": 0.0
+          "tip_wood_m": 17.813,
+          "tip_cards_m": 16.702,
+          "butt_radius_m": 0.894
         }
       }
     },
@@ -235,24 +235,24 @@
       "seed": 312,
       "rungs": {
         "near": {
-          "wood_vertices": 2860,
-          "wood_triangles": 5096,
-          "wood_pieces": 62,
-          "cards": 230,
-          "cards_pulled": 107,
-          "tip_wood_m": 14.048,
-          "tip_cards_m": 12.796,
-          "butt_radius_m": 2.85
+          "wood_vertices": 2840,
+          "wood_triangles": 5064,
+          "wood_pieces": 56,
+          "cards": 464,
+          "cards_pulled": 229,
+          "tip_wood_m": 13.931,
+          "tip_cards_m": 12.586,
+          "butt_radius_m": 0.492
         },
         "mid": {
-          "wood_vertices": 684,
-          "wood_triangles": 1144,
-          "wood_pieces": 28,
-          "cards": 118,
+          "wood_vertices": 860,
+          "wood_triangles": 1408,
+          "wood_pieces": 39,
+          "cards": 464,
           "cards_pulled": 0,
-          "tip_wood_m": 14.044,
-          "tip_cards_m": 12.796,
-          "butt_radius_m": 0.539
+          "tip_wood_m": 13.931,
+          "tip_cards_m": 12.586,
+          "butt_radius_m": 0.492
         }
       }
     }

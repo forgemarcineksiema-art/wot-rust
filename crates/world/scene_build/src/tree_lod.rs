@@ -111,9 +111,13 @@ pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
 /// Rung boundaries in metres, and the band a tree must re-cross before it swaps back. Without
 /// the hysteresis a tree parked exactly on a boundary would flicker between two meshes as the
 /// hull idles; 8 m is wider than any camera jitter and far narrower than a deliberate approach.
-pub const NEAR_MAX_M: f32 = 55.0;
-pub const MID_MAX_M: f32 = 150.0;
-pub const HYSTERESIS_M: f32 = 8.0;
+/// Re-set 2026-09-03 after the owner played (route 2): "approaching a tree it visibly changes
+/// — no game does that; from afar they look tragic; don't overdo the budgets". Near reaches
+/// 120 m and Mid 300 m; Mid draws the SAME card deck as Near (only the wood is coarser), so
+/// the first swap is invisible, and the impostor takes over where a 2D sprite reads.
+pub const NEAR_MAX_M: f32 = 120.0;
+pub const MID_MAX_M: f32 = 300.0;
+pub const HYSTERESIS_M: f32 = 15.0;
 
 /// How deep a trunk is set into the ground it stands on, metres.
 ///
@@ -126,12 +130,6 @@ pub const HYSTERESIS_M: f32 = 8.0;
 /// trunk's cover box is deliberately NOT moved with it: that column blocks from the ground
 /// line up, and the part being buried here is the part below it.
 pub(crate) const TRUNK_SINK_M: f32 = 0.35;
-
-/// The seed of the ladder's representative individual (the reference variant, unmirrored):
-/// the impostor is splatted from it and the far-rung window measured on it.
-pub(crate) fn reference_seed() -> u64 {
-    world_forge::tree::authored::variant_seed(world_forge::tree::authored::REFERENCE_VARIANT)
-}
 
 /// The seed the ladder grows variant `variant` from (unmirrored).
 pub(crate) fn ladder_variant_seed(variant: u32) -> u64 {
@@ -472,7 +470,8 @@ mod tests {
     #[test]
     fn rungs_switch_on_their_bands_and_stick_through_jitter() {
         assert_eq!(select_lod(10.0, None), TreeLod::Near);
-        assert_eq!(select_lod(90.0, None), TreeLod::Mid);
+        assert_eq!(select_lod(90.0, None), TreeLod::Near);
+        assert_eq!(select_lod(200.0, None), TreeLod::Mid);
         assert_eq!(select_lod(400.0, None), TreeLod::Impostor);
 
         // Sitting just past the near band: a tree already drawing Near holds it, while one
@@ -596,12 +595,13 @@ mod tests {
                 (near_tip - mid_tip).abs() < 0.05,
                 "{species:?}: Near tip {near_tip} vs Mid tip {mid_tip} — a swap must not resize"
             );
-            // PR10: the crossed-quad impostor joins the invariant — its top edge is the shared
-            // window constant, which is the baked tip by construction.
+            // The impostor quad spans the RENDERED sprite's window (route 2, 2026-09-03): a
+            // 1:2 frame that contains the tree with a little air above it, so the quad tops
+            // at or above the tip and never far above — the tree inside it is to scale.
             let impostor_tip = tip(&tree_mesh_asset(species, variant, TreeLod::Impostor));
             assert!(
-                (near_tip - impostor_tip).abs() < 0.05,
-                "{species:?}: Near tip {near_tip} vs impostor top {impostor_tip}"
+                impostor_tip >= near_tip - 0.05 && impostor_tip <= near_tip * 2.0,
+                "{species:?}: Near tip {near_tip} vs impostor window top {impostor_tip}"
             );
             assert!(
                 near_tip > species.trunk_height(),
@@ -746,15 +746,16 @@ mod tests {
         // a bare pole with confetti.
         let near = cards(TreeSpecies::Oak, TreeLod::Near);
         let mid = cards(TreeSpecies::Oak, TreeLod::Mid);
-        // Re-banded for the authored oak (route 2): 478 near / 240 mid measured.
-        assert!((240..=520).contains(&near), "Near deck: {near} cards");
-        assert!((120..=260).contains(&mid), "Mid deck: {mid} cards");
+        // Re-banded for the authored oak (route 2): 478 near, and Mid carries the same deck.
+        assert!((240..=640).contains(&near), "Near deck: {near} cards");
+        assert_eq!(mid, near, "Mid deck: {mid} cards");
         for species in LADDER_SPECIES {
             // Every species thins toward the far rung: the ladder is a ladder for all of them.
             let near = cards(species, TreeLod::Near);
             let mid = cards(species, TreeLod::Mid);
             eprintln!("{species:?}: near deck {near} / mid deck {mid} cards");
-            assert!(mid < near, "{species:?}: Mid deck {mid} must thin the Near deck {near}");
+            // Route 2 LOD honesty: Mid draws the SAME deck — the swap must not change the crown.
+            assert_eq!(mid, near, "{species:?}: Mid deck {mid} must equal the Near deck {near}");
             assert!(near <= NEAR_DECK_MAX_CARDS, "{species:?}: Near deck {near} cards");
             // The TRUE impostor (PR10): exactly two crossed sprite quads, nothing else.
             assert_eq!(cards(species, TreeLod::Impostor), 2, "{species:?}: two crossed quads");
@@ -769,7 +770,7 @@ mod tests {
     /// Measured at RUNG_SEED: oak 344, poplar 256, willow 360, fruit tree 200, pine 432 — the
     /// pine's stacked conical crown deals the widest deck, and it is the one crown a hull
     /// never parks under (the bare lower trunk keeps the eye below the cards).
-    const NEAR_DECK_MAX_CARDS: usize = 640;
+    const NEAR_DECK_MAX_CARDS: usize = 760;
 
     /// L2 of the wind hierarchy (PR11): the per-card jitter is a pure deterministic function
     /// inside its authored band, and it actually VARIES — a crown answering a gust in
