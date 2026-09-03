@@ -176,7 +176,7 @@ fn set_crater_view_grass(
         maps,
         materials,
         &[],
-        glam::Vec3::from_array(eye),
+        scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(eye)),
         &mut tree_lod_state,
     );
     renderer.set_render_frame(

@@ -68,7 +68,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
                 &scenery,
                 &[],
                 &[],
-                glam::Vec3::from_array(eye),
+                scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(eye)),
                 &mut lod_state,
             ),
             ..renderer_api::RenderFrame::default()

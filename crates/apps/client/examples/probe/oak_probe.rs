@@ -72,7 +72,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             objects: scene_build::tree_lod::tree_frame_objects_with_backdrop(
                 &battlefield,
                 &[],
-                glam::Vec3::from_array(eye),
+                scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(eye)),
                 &mut lod_state,
             ),
             ..renderer_api::RenderFrame::default()

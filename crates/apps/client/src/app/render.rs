@@ -691,6 +691,10 @@ impl ClientApp {
         // scene instancing path. The shader fades it continuously at 34–48 m; CPU population
         // reaches 54 m, so a four-metre planar cache step only streams invisible margin.
         let eye = glam::Vec3::from_array(camera.eye);
+        // The trees' eye: the lens's magnification and cone (a scope sees a tree at 300 m as
+        // the tree at 19 m it looks like, and only the trees inside its few degrees).
+        let tree_eye =
+            scene_build::tree_lod::TreeEye::from_camera(&camera, renderer.aspect_ratio());
         let crater_fingerprint =
             crater_ledger_fingerprint(self.battlefield.heightmap.crater_records());
         let moved = self.grass_cache_eye.is_none_or(|cached| {
@@ -718,7 +722,7 @@ impl ClientApp {
         self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
             &self.battlefield,
             self.live_cover.phase_bytes(),
-            eye,
+            tree_eye,
             &mut self.tree_lod_state,
         ));
         // `set_render_frame` reads the objects only synchronously. Move the allocation into

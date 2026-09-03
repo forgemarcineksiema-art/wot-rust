@@ -1478,7 +1478,10 @@ impl EditorApp {
         let objects = crate::trees::planted_tree_objects(
             &self.compiled,
             &self.born_phases,
-            Vec3::from_array(camera.eye),
+            scene_build::tree_lod::TreeEye::from_camera(
+                &camera,
+                (self.viewport_px[0] / self.viewport_px[1]).max(0.01),
+            ),
             &mut self.tree_lod,
         );
         renderer.set_render_frame(&RenderFrame { camera, objects, armor_damage: Vec::new() });

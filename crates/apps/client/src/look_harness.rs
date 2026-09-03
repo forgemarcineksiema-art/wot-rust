@@ -152,7 +152,7 @@ pub fn battlefield_dressing_objects(
     ground_maps: &renderer_api::TerrainGroundMaps,
     materials: &renderer_api::TerrainMaterialSet,
     cover_states: &[u8],
-    eye: glam::Vec3,
+    eye: scene_build::tree_lod::TreeEye,
     tree_lod_state: &mut scene_build::tree_lod::TreeLodState,
 ) -> Vec<renderer_api::RenderObject> {
     let mut objects = crate::grass_frame_objects(
@@ -161,7 +161,7 @@ pub fn battlefield_dressing_objects(
         &battlefield.static_cover,
         ground_maps,
         materials,
-        eye,
+        eye.position,
     );
     objects.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
         battlefield,
@@ -261,7 +261,7 @@ pub fn render_review_views_with_fov(
             &ground_maps,
             &materials,
             &[],
-            glam::Vec3::from_array(view.eye),
+            scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(view.eye)),
             &mut tree_lod_state,
         );
         renderer
@@ -516,7 +516,7 @@ mod tests {
             &ground_maps,
             &materials,
             &[],
-            eye,
+            scene_build::tree_lod::TreeEye::at(eye),
             &mut state,
         );
 
@@ -586,7 +586,7 @@ mod tests {
             &battlefield.scenery,
             &battlefield.static_cover,
             &[],
-            glam::Vec3::from_array(eye),
+            scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(eye)),
             &mut state,
         );
         // Outside the bands: one rung, or the impostor's two quads sharing the window.

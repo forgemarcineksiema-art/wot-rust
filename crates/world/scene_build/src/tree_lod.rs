@@ -480,6 +480,66 @@ pub fn hosted_scale(
     scale.max(0.0)
 }
 
+/// The default battle view's vertical field of view — the magnification the bands were
+/// tuned at. A narrower lens (the sniper scope, 16×) magnifies a tree exactly as much as it
+/// narrows, so the bands are judged at the APPARENT distance, `distance / magnification`.
+pub const LOD_REFERENCE_FOV_DEGREES: f32 = 48.0;
+/// A tree's bounding radius for the view-cone test, metres at instance scale 1 — generous:
+/// the tallest authored crown is 33 m, and a tree clipped by the cone's edge must still draw.
+pub const TREE_CULL_RADIUS_M: f32 = 24.0;
+
+/// Where and how the frame looks at the trees. The bands are judged at the apparent
+/// distance (the owner, 2026-09-03, in the scope at 16×: "some trees wear a grid, some leaves
+/// look detached and flat" — those were impostors and fade grains 300 m away shown as if at
+/// 19 m); trees outside the view cone are not submitted at all, which is what lets a scope
+/// draw every tree it sees as the Near rung without paying for the map behind it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TreeEye {
+    pub position: Vec3,
+    /// The view direction and the cosine of the cone's half angle (the frustum's diagonal,
+    /// with a margin); `None` submits every tree (the review instruments, the editor's
+    /// overview).
+    pub cone: Option<(Vec3, f32)>,
+    /// `tan(reference / 2) / tan(fov / 2)`, at least 1.
+    pub magnification: f32,
+}
+
+impl TreeEye {
+    /// Every tree, the reference lens: the instruments' eye.
+    pub fn at(position: Vec3) -> Self {
+        Self { position, cone: None, magnification: 1.0 }
+    }
+
+    /// The frame's camera: its position, its cone (the diagonal half angle plus a tree's
+    /// worth of margin) and its magnification against the reference lens.
+    pub fn from_camera(camera: &renderer_api::Camera, aspect: f32) -> Self {
+        let eye = Vec3::from_array(camera.eye);
+        let forward = (Vec3::from_array(camera.target) - eye).normalize_or_zero();
+        let tan_half_v = (camera.vertical_fov_degrees.to_radians() * 0.5).tan().max(1.0e-4);
+        let tan_half_diag = tan_half_v * (1.0 + aspect * aspect).sqrt();
+        let half_diag = tan_half_diag.atan();
+        let magnification =
+            ((LOD_REFERENCE_FOV_DEGREES.to_radians() * 0.5).tan() / tan_half_v).max(1.0);
+        let cone = (forward != Vec3::ZERO).then_some((forward, half_diag.cos()));
+        Self { position: eye, cone, magnification }
+    }
+
+    /// Whether a tree standing at `base` with a bounding radius `radius` can be in view.
+    fn sees(&self, base: Vec3, radius: f32) -> bool {
+        let Some((forward, cos_half)) = self.cone else {
+            return true;
+        };
+        let to = base + Vec3::Y * radius * 0.5 - self.position;
+        let distance = to.length();
+        if distance <= radius {
+            return true;
+        }
+        // The cone widened by the tree's angular radius: acos(dot) <= half + asin(r / d).
+        let angle = (to / distance).dot(forward).clamp(-1.0, 1.0).acos();
+        angle <= cos_half.acos() + (radius / distance).clamp(0.0, 1.0).asin()
+    }
+}
+
 /// The battle frame's trees AND the horizon ring's (LOD continuity, F11): the ring used to
 /// be baked into the statics as crossed quads with no screen-door window, so from an
 /// oblique eye every ring tree was two overlapping silhouettes; on the ladder it takes the
@@ -489,7 +549,7 @@ pub fn hosted_scale(
 pub fn tree_frame_objects_with_backdrop(
     battlefield: &terrain::BattlefieldMap,
     cover_states: &[u8],
-    eye: Vec3,
+    eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
     if state.ring.as_ref().is_none_or(|(id, _)| *id != battlefield.id) {
@@ -515,7 +575,7 @@ pub fn tree_frame_objects(
     scenery: &[SceneryInstance],
     cover: &[terrain::StaticCoverObject],
     cover_states: &[u8],
-    eye: Vec3,
+    eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
     let trees: Vec<(&SceneryInstance, TreeSpecies)> = scenery
@@ -533,7 +593,13 @@ pub fn tree_frame_objects(
     let mut objects = Vec::with_capacity(trees.len());
     for (index, (instance, species)) in trees.iter().enumerate() {
         let base = Vec3::from_array(instance.position);
-        let distance = (Vec3::new(base.x, 0.0, base.z) - Vec3::new(eye.x, 0.0, eye.z)).length();
+        // Out of the view cone: not submitted (a scope's cone is a few degrees wide).
+        if !eye.sees(base, TREE_CULL_RADIUS_M * state.scales[index].max(1.0)) {
+            continue;
+        }
+        let eye_xz = Vec3::new(eye.position.x, 0.0, eye.position.z);
+        // The APPARENT distance: what the lens makes of it.
+        let distance = (Vec3::new(base.x, 0.0, base.z) - eye_xz).length() / eye.magnification;
         // Both edges are fade bands (LOD continuity): the finer rung records as the level.
         let (lod, fading) = rungs_at(distance);
         state.levels[index] = Some(lod);
@@ -546,7 +612,7 @@ pub fn tree_frame_objects(
         // The impostor's two quads share its window by view azimuth in tree space: quad A
         // (spanning X) takes the share cos², quad B (spanning Z) sin² — one silhouette from
         // every eye, never two.
-        let local = Quat::from_rotation_y(-instance.yaw_rad) * (eye - base);
+        let local = Quat::from_rotation_y(-instance.yaw_rad) * (eye.position - base);
         let (x2, z2) = (local.x * local.x, local.z * local.z);
         let quad_b = x2 / (x2 + z2).max(1.0e-6);
         let mut push = |mesh: MeshHandle, window: [f32; 2]| {
@@ -782,8 +848,13 @@ mod tests {
             },
         ];
         let mut state = TreeLodState::default();
-        let objects =
-            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 90.0), &mut state);
+        let objects = tree_frame_objects(
+            &scenery,
+            &[],
+            &[],
+            TreeEye::at(Vec3::new(100.0, 3.0, 90.0)),
+            &mut state,
+        );
         assert_eq!(objects.len(), 3, "rocks are not trees; the bush rides the ladder too");
         assert_eq!(
             objects[0].mesh,
@@ -953,13 +1024,23 @@ mod tests {
         let variant = instance_variant(&scenery[0]);
         let far = MID_MAX_M + IMPOSTOR_FADE_HALF_M + 50.0;
         let mut state = TreeLodState::default();
-        let along_z =
-            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 100.0 + far), &mut state);
+        let along_z = tree_frame_objects(
+            &scenery,
+            &[],
+            &[],
+            TreeEye::at(Vec3::new(100.0, 3.0, 100.0 + far)),
+            &mut state,
+        );
         assert_eq!(along_z.len(), 1);
         assert_eq!(along_z[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor));
         assert_eq!(along_z[0].dither, [0.0, 1.0]);
-        let along_x =
-            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0 + far, 3.0, 100.0), &mut state);
+        let along_x = tree_frame_objects(
+            &scenery,
+            &[],
+            &[],
+            TreeEye::at(Vec3::new(100.0 + far, 3.0, 100.0)),
+            &mut state,
+        );
         assert_eq!(along_x.len(), 1);
         assert_eq!(along_x[0].mesh, impostor_quad_b_mesh(TreeSpecies::Oak, variant));
         assert_eq!(along_x[0].dither, [0.0, 1.0]);
@@ -968,7 +1049,7 @@ mod tests {
             &scenery,
             &[],
             &[],
-            Vec3::new(100.0 + d, 3.0, 100.0 + d),
+            TreeEye::at(Vec3::new(100.0 + d, 3.0, 100.0 + d)),
             &mut state,
         );
         assert_eq!(oblique.len(), 2);
@@ -987,7 +1068,7 @@ mod tests {
         assert!(ring.len() > 200, "a real ring: {}", ring.len());
         let mut state = TreeLodState::default();
         let eye = Vec3::new(map.size_m[0] * 0.5, 3.0, map.size_m[1] * 0.5);
-        let objects = tree_frame_objects_with_backdrop(&map, &[], eye, &mut state);
+        let objects = tree_frame_objects_with_backdrop(&map, &[], TreeEye::at(eye), &mut state);
         let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
         let planted = map.scenery.iter().filter(|i| ladder_species(i.kind).is_some()).count();
         assert_eq!(trees, planted + ring.len(), "every playfield tree and every ring tree");
@@ -1004,8 +1085,52 @@ mod tests {
             - objects.iter().rev().take_while(|o| ring_meshes.contains(&o.mesh.0)).count()..];
         assert!(ring_objects.len() >= ring.len(), "the ring's tail is impostor quads");
         // Cached: a second frame does not rebuild the ring.
-        let again = tree_frame_objects_with_backdrop(&map, &[], eye, &mut state);
+        let again = tree_frame_objects_with_backdrop(&map, &[], TreeEye::at(eye), &mut state);
         assert_eq!(again.len(), objects.len());
+    }
+
+    /// The scope (the owner, 2026-09-03): at 16× a tree 300 m away is the tree at 19 m it
+    /// looks like — the Near rung, solid, no impostor and no fade grain; and a tree behind the
+    /// eye, or far outside a scope's cone, is not submitted at all.
+    #[test]
+    fn the_scope_sees_near_rungs_at_apparent_distance_and_only_inside_its_cone() {
+        let scenery = vec![SceneryInstance {
+            kind: SceneryKind::Oak,
+            position: [100.0, 5.0, 100.0],
+            yaw_rad: 0.0,
+            scale: 1.0,
+        }];
+        let variant = instance_variant(&scenery[0]);
+        let mut state = TreeLodState::default();
+        let scope = renderer_api::Camera {
+            eye: [100.0, 3.0, 450.0],
+            target: [100.0, 8.0, 100.0],
+            vertical_fov_degrees: LOD_REFERENCE_FOV_DEGREES / 16.0,
+        };
+        let eye = TreeEye::from_camera(&scope, 16.0 / 9.0);
+        assert!((15.0..=18.0).contains(&eye.magnification), "{}", eye.magnification);
+        let seen = tree_frame_objects(&scenery, &[], &[], eye, &mut state);
+        assert_eq!(seen.len(), 1, "one solid rung in the scope");
+        assert_eq!(seen[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Near));
+        assert_eq!(seen[0].dither, [0.0, 1.0]);
+        // Turn the scope 90° away: the tree leaves the cone and the frame.
+        let away = renderer_api::Camera { target: [400.0, 8.0, 400.0], ..scope };
+        let eye = TreeEye::from_camera(&away, 16.0 / 9.0);
+        assert!(tree_frame_objects(&scenery, &[], &[], eye, &mut state).is_empty());
+        // The default lens at the same spot: 300 m is the impostor, and the tree is inside
+        // the wide cone.
+        let plain =
+            renderer_api::Camera { vertical_fov_degrees: LOD_REFERENCE_FOV_DEGREES, ..scope };
+        let eye = TreeEye::from_camera(&plain, 16.0 / 9.0);
+        assert_eq!(eye.magnification, 1.0);
+        let far = tree_frame_objects(&scenery, &[], &[], eye, &mut state);
+        assert!(
+            !far.is_empty()
+                && far
+                    .iter()
+                    .all(|o| o.mesh == ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor)
+                        || o.mesh == impostor_quad_b_mesh(TreeSpecies::Oak, variant))
+        );
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of
@@ -1027,9 +1152,13 @@ mod tests {
         }];
         let eye = Vec3::new(100.0, 3.0, 90.0);
         let mut state = TreeLodState::default();
-        assert_eq!(tree_frame_objects(&scenery, &cover, &[0], eye, &mut state).len(), 1, "intact");
+        assert_eq!(
+            tree_frame_objects(&scenery, &cover, &[0], TreeEye::at(eye), &mut state).len(),
+            1,
+            "intact"
+        );
         assert!(
-            tree_frame_objects(&scenery, &cover, &[2], eye, &mut state).is_empty(),
+            tree_frame_objects(&scenery, &cover, &[2], TreeEye::at(eye), &mut state).is_empty(),
             "a levelled box takes its dressing with it"
         );
     }
@@ -1048,7 +1177,13 @@ mod tests {
         let variant = instance_variant(&scenery[0]);
         let mut state = TreeLodState::default();
         let at = |distance: f32, state: &mut TreeLodState| {
-            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 100.0 + distance), state)
+            tree_frame_objects(
+                &scenery,
+                &[],
+                &[],
+                TreeEye::at(Vec3::new(100.0, 3.0, 100.0 + distance)),
+                state,
+            )
         };
         let below = at(MID_MAX_M - IMPOSTOR_FADE_HALF_M - 1.0, &mut state);
         assert_eq!(below.len(), 1);
@@ -1100,7 +1235,13 @@ mod tests {
         let variant = instance_variant(&scenery[0]);
         let mut state = TreeLodState::default();
         let at = |distance: f32, state: &mut TreeLodState| {
-            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 100.0 + distance), state)
+            tree_frame_objects(
+                &scenery,
+                &[],
+                &[],
+                TreeEye::at(Vec3::new(100.0, 3.0, 100.0 + distance)),
+                state,
+            )
         };
         let near = at(NEAR_MAX_M - NEAR_FADE_HALF_M - 1.0, &mut state);
         assert_eq!(near.len(), 1);
