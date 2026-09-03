@@ -97,7 +97,7 @@ pub const SLOT_WHITE: u8 = 0;
 /// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
 /// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
 /// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0x8673_cf77_36fc_6c96;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0x45bd_894b_acad_2e3c;
 
 /// The first cluster slot of a species' block.
 pub fn cluster_slot_base(species: TreeSpecies) -> u8 {

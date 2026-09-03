@@ -254,38 +254,38 @@ pub fn asset_dirs(species: TreeSpecies) -> Option<(&'static str, &'static str)> 
 pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
     (
         TreeSpecies::Oak,
-        0x9589_9f13_6788_6aa6,
+        0xa717_8958_c78e_edd5,
         0x8163_ecf6_dce9_7b5d,
         0x42fd_61ea_222f_dd31,
-        0x525b_e446_cd39_9d52,
+        0xa620_41ca_8ca8_11c9,
     ),
     (
         TreeSpecies::Poplar,
-        0xd426_f283_936a_4735,
+        0xd134_b90f_9756_9b3b,
         0xa815_cd10_0a66_0103,
         0x9114_1fd6_45f4_f3b1,
-        0xb79c_88ca_675d_94b8,
+        0x58ac_b364_b1de_abd3,
     ),
     (
         TreeSpecies::FruitTree,
-        0xeae0_1018_e1d2_b111,
+        0x94c7_e4cc_7846_5a63,
         0x8208_5969_3676_7c2b,
         0x14d1_95fa_d5c6_ec4d,
-        0x1696_a840_a75a_0eb2,
+        0x05db_1a40_e8e9_47db,
     ),
     (
         TreeSpecies::Bush,
-        0xf651_19f7_6c42_fc81,
+        0x57a8_ac57_d85f_75b6,
         0xd32c_40fe_223b_1e10,
         0x16db_0350_dcc4_d74d,
-        0xad89_df42_2096_8a1c,
+        0xedcb_48a9_0b59_4eee,
     ),
     (
         TreeSpecies::Pine,
-        0xac91_6545_a0ad_d895,
+        0x78e4_7a5b_5cf9_e80a,
         0x5afa_07f1_e66f_dc28,
         0x0f83_122c_b8de_75f1,
-        0xf968_da77_67fc_4ab1,
+        0xad28_9ae7_3ecd_3473,
     ),
 ];
 
@@ -496,6 +496,20 @@ impl Reader<'_> {
     }
 }
 
+/// A card's LIGHTING normal (Leaves 2.0, the owner 2026-09-03: "the leaves must be
+/// improved"): the crown's outward direction at the card — from the crown centroid, lifted a
+/// little toward the sky — blended with the quad's own facing, the facing flipped to the
+/// outward side first. The two quads of one cross-pair then shade as ONE mass and the crown
+/// shades as a VOLUME (top lit, underside and core in shade) instead of a tumble of lit and
+/// black cards, each answering the sun with its own plane. Every card-based tree since
+/// SpeedTree is lit this way; the geometry (the quad's plane) is untouched.
+pub fn bent_card_normal(center: Vec3, face: Vec3, centroid: Vec3, reach: f32) -> Vec3 {
+    let outward = ((center - centroid) / reach.max(0.01) + Vec3::Y * 0.3).normalize_or_zero();
+    let face = face.normalize_or_zero();
+    let face = if face.dot(outward) < 0.0 { -face } else { face };
+    (outward * 0.75 + face * 0.25).normalize_or_zero()
+}
+
 /// `WOTTREE1`: u32 nverts, nverts × (pos, normal), u32 nidx, nidx × u32, u32 ncards,
 /// ncards × (center, half_right, half_up, normal, u8 sprite). Engine space, Y up, grounded.
 fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
@@ -536,7 +550,7 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
             center,
             half_right,
             half_up,
-            normal: normal.normalize_or_zero(),
+            normal: bent_card_normal(center, normal, centroid, reach),
             slot: slot_base + sprite % (CLUSTER_SPRITES as u8),
             shade: CORE_SHADE
                 + (1.0 - CORE_SHADE) * (center.distance(centroid) / reach).clamp(0.0, 1.0),
@@ -667,7 +681,11 @@ mod tests {
                 }
                 for pair in near.leaves.chunks_exact(2) {
                     assert_eq!(pair[0].center, pair[1].center);
-                    assert!(pair[0].normal.dot(pair[1].normal).abs() < 0.05, "perpendicular cross");
+                    // The GEOMETRY is a perpendicular cross; the lighting normal is the
+                    // crown's, shared by the pair (Leaves 2.0).
+                    let (a, b) = (pair[0].half_right.normalize(), pair[1].half_right.normalize());
+                    assert!(a.dot(b).abs() < 0.05, "perpendicular cross");
+                    assert!(pair[0].normal.dot(pair[1].normal) > 0.8, "one crown normal a pair");
                 }
                 assert!(
                     near.trunk.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).is_ok(),
@@ -753,6 +771,38 @@ mod tests {
                 assert!(rooted, "{species:?} view {which}: the trunk meets the bottom centre");
             }
         }
+    }
+
+    /// Leaves 2.0: a cross-pair's two quads carry one crown normal (they shade as one mass),
+    /// every card's normal points out of the crown, and the crown's normals span the sphere
+    /// (a volume, not one plane).
+    #[test]
+    fn card_normals_are_the_crowns_not_the_quads() {
+        let tree = tree(TreeSpecies::Oak, variant_seed(REFERENCE_VARIANT), TreeLod::Close)
+            .expect("authored oak");
+        let cards = &tree.leaves;
+        assert!(cards.len() >= 100);
+        let centroid = cards.iter().map(|c| c.center).sum::<Vec3>() / cards.len() as f32;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        for pair in cards.chunks_exact(2) {
+            let (a, b) = (&pair[0], &pair[1]);
+            assert!(a.center.distance(b.center) < 1.0e-3, "a cross-pair shares its centre");
+            assert!(
+                a.normal.dot(b.normal) > 0.8,
+                "the pair shades as one: {} vs {}",
+                a.normal,
+                b.normal
+            );
+            let outward = (a.center - centroid + Vec3::Y * 0.3 * 3.0).normalize_or_zero();
+            assert!(a.normal.dot(outward) > 0.0, "a card faces out of its crown");
+            min_y = min_y.min(a.normal.y);
+            max_y = max_y.max(a.normal.y);
+        }
+        assert!(
+            max_y > 0.6 && min_y < 0.0,
+            "top cards look up, underside cards look down: {min_y}..{max_y}"
+        );
     }
 
     /// Every bark layer: a 1 × 2 tile, the normal page a real normal map, the albedo a bark.

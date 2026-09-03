@@ -39,27 +39,32 @@ SAMPLES = 96
 # leaves: count per sprite; leaf_m: blade length band; twigs: side twigs; colour: linear albedo
 # base and jitter; hanging: the twig hangs from the top (willow curtains); needles: the pine.
 SPECIES = {
-    "oak": dict(window_m=1.5, leaves=(380, 460), leaf_m=(0.15, 0.23), twigs=(13, 16),
-                albedo=(0.11, 0.26, 0.09), jitter=(0.04, 0.06, 0.03), cup=(0.10, 0.28),
-                outline="oak", hanging=False, needles=False, twig_len=(0.35, 0.62), aspect=1.0),
-    "poplar": dict(window_m=1.3, leaves=(460, 540), leaf_m=(0.09, 0.13), twigs=(15, 18),
-                   albedo=(0.15, 0.30, 0.08), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.10),
-                   outline="deltoid", hanging=False, needles=False, twig_len=(0.35, 0.6), aspect=1.0),
+    # Leaves 2.0 (the owner, 2026-09-03: "the leaves must be improved, corrected and refined"):
+    # blade sizes are the species' REAL ones (an oak leaf is 8-12 cm; the first bake's 15-23 cm
+    # read as lettuce at 22 m), at twice the count so the window stays full; `under` is the
+    # underside albedo (paler, matte); the outline carries lobes or teeth.
+    "oak": dict(window_m=1.5, leaves=(1050, 1200), leaf_m=(0.09, 0.13), twigs=(20, 26),
+                albedo=(0.085, 0.235, 0.065), under=(0.15, 0.25, 0.11), jitter=(0.03, 0.05, 0.03), cup=(0.08, 0.22),
+                outline="oak", hanging=False, needles=False, twig_len=(0.35, 0.62), aspect=1.0, gloss=0.35),
+    "poplar": dict(window_m=1.3, leaves=(1400, 1600), leaf_m=(0.07, 0.10), twigs=(24, 30),
+                   albedo=(0.14, 0.29, 0.07), under=(0.20, 0.30, 0.13), jitter=(0.03, 0.05, 0.03), cup=(0.02, 0.08),
+                   outline="deltoid", hanging=False, needles=False, twig_len=(0.35, 0.6), aspect=1.0, gloss=0.5),
     # The willow is a CURTAIN: a 2.6 m window of long parallel streamers, leaves close along
     # them — the card hangs the whole window from its twig (the owner, 2026-09-03: the short
     # brushes read as "retarded").
     "willow": dict(window_m=2.6, leaves=(1000, 1200), leaf_m=(0.13, 0.19), twigs=(9, 12),
                    albedo=(0.19, 0.32, 0.14), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.08),
                    outline="lanceolate", hanging=True, needles=False, twig_len=(1.6, 2.3), aspect=0.28),
-    "fruit": dict(window_m=1.1, leaves=(340, 420), leaf_m=(0.06, 0.09), twigs=(12, 15),
-                  albedo=(0.12, 0.28, 0.10), jitter=(0.04, 0.05, 0.03), cup=(0.05, 0.15),
-                  outline="oval", hanging=False, needles=False, twig_len=(0.3, 0.5), aspect=1.0),
-    "pine": dict(window_m=1.2, leaves=(280, 340), leaf_m=(0.08, 0.11), twigs=(10, 13),
-                 albedo=(0.07, 0.17, 0.10), jitter=(0.02, 0.04, 0.03), cup=(0.0, 0.0),
-                 outline="needle", hanging=False, needles=True, twig_len=(0.3, 0.5), aspect=1.0),
-    "bush": dict(window_m=0.9, leaves=(420, 520), leaf_m=(0.035, 0.055), twigs=(14, 18),
-                 albedo=(0.10, 0.22, 0.08), jitter=(0.03, 0.05, 0.03), cup=(0.05, 0.15),
-                 outline="oval", hanging=False, needles=False, twig_len=(0.25, 0.45), aspect=1.0),
+    "fruit": dict(window_m=1.1, leaves=(1100, 1300), leaf_m=(0.055, 0.085), twigs=(22, 28),
+                  albedo=(0.11, 0.27, 0.09), under=(0.19, 0.26, 0.15), jitter=(0.03, 0.05, 0.03), cup=(0.05, 0.15),
+                  outline="oval", hanging=False, needles=False, twig_len=(0.3, 0.5), aspect=1.0, gloss=0.25),
+    # A Scots pine: TWO needles a fascicle, 4-7 cm, blue-green, a brush of them along the shoot.
+    "pine": dict(window_m=1.2, leaves=(1000, 1200), leaf_m=(0.05, 0.08), twigs=(16, 20),
+                 albedo=(0.07, 0.16, 0.10), under=(0.09, 0.17, 0.12), jitter=(0.02, 0.03, 0.03), cup=(0.0, 0.0),
+                 outline="needle", hanging=False, needles=True, twig_len=(0.3, 0.5), aspect=1.0, gloss=0.3),
+    "bush": dict(window_m=0.9, leaves=(1300, 1500), leaf_m=(0.035, 0.055), twigs=(24, 30),
+                 albedo=(0.10, 0.22, 0.08), under=(0.16, 0.24, 0.13), jitter=(0.03, 0.05, 0.03), cup=(0.05, 0.15),
+                 outline="oval", hanging=False, needles=False, twig_len=(0.25, 0.45), aspect=1.0, gloss=0.3),
 }
 
 
@@ -135,18 +140,28 @@ def ortho_camera(window_m):
 def half_width(outline, t):
     """The blade's half-width as a fraction of its length at `t` along the midrib."""
     bell = max(math.sin(math.pi * t), 0.12)
+    teeth = 1.0 + 0.045 * (2.0 * abs((t * 26.0) % 1.0 - 0.5) - 0.5)  # a fine triangle-wave serration
     if outline == "oak":
-        return 0.30 * bell * (1.0 + 0.32 * math.sin(t * 14.5))
+        # Quercus robur: a short petiole, then 4-5 ROUNDED lobes a side with sinuses cutting
+        # almost half-way to the midrib, the blade widest past its middle, a rounded tip.
+        if t < 0.06:
+            return 0.03
+        u = (t - 0.06) / 0.94
+        body = math.sin(math.pi * u ** 0.8) ** 0.7
+        hump = 0.5 + 0.5 * math.cos(2.0 * math.pi * (u * 4.5 - 0.5))
+        lobe = 0.42 + 0.58 * hump ** 0.9
+        return 0.34 * body * lobe + 0.006
     if outline == "deltoid":
-        # Broad, rounded shoulders low on the blade, a drip tip: a poplar, not a paper dart.
+        # Broad, rounded shoulders low on the blade, a drip tip, crenate teeth: a poplar.
         shoulder = math.sin(math.pi * min(t / 0.45, 1.0) * 0.5) if t < 0.45 else 1.0
-        return 0.40 * shoulder * (1.0 - t) ** 0.85 * (1.0 + 0.05 * math.sin(t * 62.0)) + 0.02
+        crenate = 1.0 + 0.05 * math.sin(t * 52.0)
+        return 0.42 * shoulder * (1.0 - t) ** 0.85 * crenate + 0.02
     if outline == "lanceolate":
         return 0.10 * bell ** 0.7
     if outline == "oval":
-        return 0.28 * math.sin(math.pi * t ** 0.9) * (1.0 + 0.05 * math.sin(t * 44.0)) + 0.01
+        return 0.28 * math.sin(math.pi * t ** 0.9) * teeth + 0.01
     if outline == "needle":
-        return 0.05
+        return 0.06
     return 0.25 * bell
 
 
@@ -154,16 +169,19 @@ def leaf_mesh(name, outline, length, cup, rng):
     """One cupped blade, midrib along +Y from the petiole at the origin, blade in the XY plane."""
     mesh = bpy.data.meshes.new(name)
     bm = bmesh.new()
-    stations = 6 if outline == "needle" else 14
+    stations = 6 if outline == "needle" else (40 if outline == "oak" else 24)
     cup_amount = rng.uniform(*cup)
-    twist = rng.uniform(-0.15, 0.15)
+    twist = rng.uniform(-0.2, 0.2)
+    # The midrib is a crease: the blade rises from it to the margins (a real leaf is a shallow
+    # V in section), then curls at the very edge.
+    crease = rng.uniform(0.06, 0.16)
     left, mid, right = [], [], []
     for i in range(stations + 1):
         t = i / stations
         y = t * length
         w = max(half_width(outline, t) * length, 0.0005)
-        droop = -0.12 * length * t * t
-        z_edge = cup_amount * w
+        droop = -0.10 * length * t * t
+        z_edge = cup_amount * w + crease * w
         mid.append(bm.verts.new((0.0, y, droop)))
         left.append(bm.verts.new((-w, y, droop + z_edge + twist * w)))
         right.append(bm.verts.new((w, y, droop + z_edge - twist * w)))
@@ -177,33 +195,72 @@ def leaf_mesh(name, outline, length, cup, rng):
 
 
 def leaf_material(name, spec, rng):
+    """One pooled leaf material: two-sided, translucent, per-object hue (Object Info Random)."""
     material = bpy.data.materials.new(name)
     material.use_nodes = True
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     principled = nodes["Principled BSDF"]
+    output = nodes["Material Output"]
     base = spec["albedo"]
     jit = spec["jitter"]
     r = base[0] + rng.uniform(-jit[0], jit[0] * 1.3)
     g = base[1] + rng.uniform(-jit[1], jit[1] * 1.2)
     b = base[2] + rng.uniform(-jit[2], jit[2])
-    principled.inputs["Base Color"].default_value = (max(r, 0.01), max(g, 0.02), max(b, 0.01), 1.0)
-    principled.inputs["Roughness"].default_value = 0.62
+    top = (max(r, 0.01), max(g, 0.02), max(b, 0.01), 1.0)
+    ur, ug, ub = spec["under"]
+    under = (max(ur + (r - base[0]) * 0.6, 0.02), max(ug + (g - base[1]) * 0.6, 0.03), max(ub + (b - base[2]) * 0.6, 0.02), 1.0)
+    # A young leaf is yellower and lighter: the per-object random picks the age.
+    young = (min(top[0] * 1.55 + 0.05, 1.0), min(top[1] * 1.25 + 0.03, 1.0), top[2] * 0.7, 1.0)
+    info = nodes.new("ShaderNodeObjectInfo")
+    age = nodes.new("ShaderNodeMath")
+    age.operation = "POWER"
+    age.inputs[1].default_value = 3.0  # most leaves mature, a few young
+    links.new(info.outputs["Random"], age.inputs[0])
+    top_mix = nodes.new("ShaderNodeMix")
+    top_mix.data_type = "RGBA"
+    top_mix.inputs["A"].default_value = top
+    top_mix.inputs["B"].default_value = young
+    links.new(age.outputs[0], top_mix.inputs["Factor"])
+    side = nodes.new("ShaderNodeNewGeometry")
+    side_mix = nodes.new("ShaderNodeMix")
+    side_mix.data_type = "RGBA"
+    links.new(top_mix.outputs["Result"], side_mix.inputs["A"])
+    side_mix.inputs["B"].default_value = under
+    links.new(side.outputs["Backfacing"], side_mix.inputs["Factor"])
+    links.new(side_mix.outputs["Result"], principled.inputs["Base Color"])
+    rough = nodes.new("ShaderNodeMix")
+    rough.data_type = "FLOAT"
+    rough.inputs["A"].default_value = 1.0 - spec["gloss"] * 0.9
+    rough.inputs["B"].default_value = 0.85
+    links.new(side.outputs["Backfacing"], rough.inputs["Factor"])
+    links.new(rough.outputs["Result"], principled.inputs["Roughness"])
     try:
-        principled.inputs["Specular IOR Level"].default_value = 0.25
+        principled.inputs["Specular IOR Level"].default_value = 0.3
     except KeyError:
         pass
     if not spec["needles"]:
+        # Veins: a distorted band pattern across the midrib, as a bump.
         wave = nodes.new("ShaderNodeTexWave")
         wave.wave_type = "BANDS"
         wave.bands_direction = "Y"
-        wave.inputs["Scale"].default_value = 60.0
-        wave.inputs["Distortion"].default_value = 1.2
+        wave.inputs["Scale"].default_value = 140.0
+        wave.inputs["Distortion"].default_value = 2.0
+        wave.inputs["Detail"].default_value = 2.0
         bump = nodes.new("ShaderNodeBump")
-        bump.inputs["Strength"].default_value = 0.25
-        bump.inputs["Distance"].default_value = 0.002
+        bump.inputs["Strength"].default_value = 0.3
+        bump.inputs["Distance"].default_value = 0.0015
         links.new(wave.outputs["Fac"], bump.inputs["Height"])
         links.new(bump.outputs["Normal"], principled.inputs["Normal"])
+    # Translucency: a leaf passes a share of the light through — under the white world that
+    # is what keeps an occluded leaf green instead of black.
+    translucent = nodes.new("ShaderNodeBsdfTranslucent")
+    links.new(side_mix.outputs["Result"], translucent.inputs["Color"])
+    mix = nodes.new("ShaderNodeMixShader")
+    mix.inputs["Fac"].default_value = 0.0 if spec["needles"] else 0.28
+    links.new(principled.outputs["BSDF"], mix.inputs[1])
+    links.new(translucent.outputs["BSDF"], mix.inputs[2])
+    links.new(mix.outputs[0], output.inputs["Surface"])
     return material
 
 
@@ -284,37 +341,55 @@ def build_cluster(spec, seed, bark, rng):
 
     leaves = []
     count = rng.randint(*spec["leaves"])
+    materials = [leaf_material(f"leaf_mat_{seed}_{k}", spec, rng) for k in range(12)]
     for i in range(count):
         twig = twigs[rng.randrange(len(twigs))]
-        t = rng.uniform(0.1, 1.0) if twig is not main else rng.uniform(0.3, 1.0)
+        # Leaves crowd the shoot TIPS (an oak's rosettes), thin out toward the base.
+        u = rng.uniform(0.0, 1.0)
+        if spec["needles"]:
+            # Needles clothe the whole shoot (two or three years of them), tip to base.
+            t = rng.uniform(0.1, 1.0) if twig is not main else rng.uniform(0.25, 1.0)
+        else:
+            t = (0.1 + 0.9 * (1.0 - u * u)) if twig is not main else (0.3 + 0.7 * (1.0 - u * u))
         p, tangent = spline_frame(twig, t)
         length = rng.uniform(*spec["leaf_m"])
+        # The petiole: the blade sits OFF the twig, around it, not on its axis — a row of
+        # blades on the axis reads as a bottle brush.
+        if not spec["needles"] and not spec["hanging"]:
+            around0 = rng.uniform(0.0, 2 * math.pi)
+            off = Vector((math.cos(around0), math.sin(around0) * 0.6, rng.uniform(-0.3, 0.6))).normalized()
+            p = p + off * length * rng.uniform(0.25, 0.7)
         if spec["needles"]:
-            # A fascicle: five needles fanned around the shoot.
-            blades = 5
+            # A Scots pine fascicle: TWO needles, slightly splayed.
+            blades = 2
         else:
             blades = 1
+        material = materials[rng.randrange(len(materials))]
         for blade in range(blades):
             mesh = leaf_mesh(f"leaf_{seed}_{i}_{blade}", spec["outline"], length, spec["cup"], rng)
             leaf = bpy.data.objects.new(f"leaf_{seed}_{i}_{blade}", mesh)
-            leaf.data.materials.append(leaf_material(f"leaf_mat_{seed}_{i}_{blade}", spec, rng))
+            leaf.data.materials.append(material)
             bpy.context.scene.collection.objects.link(leaf)
             side = 1.0 if (i + blade) % 2 == 0 else -1.0
             around = rng.uniform(0.0, 2 * math.pi)
             radial = Vector((math.cos(around), math.sin(around), 0.0))
             if spec["needles"]:
-                spread = Vector((math.cos(around + blade * 1.25), math.sin(around + blade * 1.25), 0.0))
-                forward = (tangent * 0.55 + spread * 0.75 + Vector((0.0, -0.25, 0.1))).normalized()
+                spread = Vector((math.cos(around + blade * 0.35), math.sin(around + blade * 0.35), 0.0))
+                forward = (tangent * 0.6 + spread * 0.7 + Vector((0.0, -0.2, 0.15))).normalized()
             elif spec["hanging"]:
                 # Leaves lie ALONG the streamer, alternating sides, hugging it.
                 forward = (tangent * 0.85 + radial * side * 0.25 + Vector((0.0, -0.2, 0.0))).normalized()
             else:
-                forward = (tangent * 0.45 + radial * side * 0.7 + Vector((0.0, -0.35, 0.25))).normalized()
-            up_hint = Vector((0.0, -1.0, 0.6)).normalized()
+                # Out from the twig, alternating sides, a little toward the eye and up.
+                forward = (tangent * 0.4 + radial * side * 0.75 + Vector((0.0, -0.3, 0.2))).normalized()
+            # Phototropism: the blade's face turns UP (+Z) and toward the light, with a
+            # per-leaf tumble — the mass layers like shingles instead of a random scatter.
+            tumble = Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.5, 0.5), rng.uniform(-0.4, 0.4)))
+            up_hint = (Vector((0.0, -0.9, 0.8)) + tumble).normalized()
             right = forward.cross(up_hint).normalized()
             normal = right.cross(forward).normalized()
             rotation = Matrix((right, forward, normal)).transposed().to_4x4()
-            leaf.matrix_world = Matrix.Translation(p + normal * 0.004) @ rotation
+            leaf.matrix_world = Matrix.Translation(p + normal * 0.003) @ rotation
             leaves.append(leaf)
     return leaves, count
 

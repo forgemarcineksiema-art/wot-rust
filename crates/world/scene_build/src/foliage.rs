@@ -117,9 +117,10 @@ pub(crate) fn push_baked_tree_seeded(
 
 /// Expand a baked tree's card deck into `SceneVertex` quads — ONE expansion for both paths
 /// (the instanced ladder and the statics bake), so a card can never render differently by
-/// route. Each card is 8 vertices / 4 triangles: dual winding with a normal ring per face,
-/// or a card seen from behind lights only by the transmission lobe and reads as a black
-/// cutout. `place` maps a tree-local position into the output space, `rotate` maps a
+/// route. Each card is 8 vertices / 4 triangles: dual winding, and BOTH rings carry the
+/// card's crown normal (Leaves 2.0) — a card seen from behind is still a piece of the
+/// crown's surface, lit as the crown is, never a black cutout. `place` maps a tree-local
+/// position into the output space, `rotate` maps a
 /// direction, `sway` answers per-corner wind allowance given `(corner, card_center)` — the
 /// card center is what a per-CARD wind decision (the L2 branch jitter) keys off, so all
 /// eight vertices of one card agree and the quad never shears (the statics bake passes zero).
@@ -142,8 +143,8 @@ pub(crate) fn push_leaf_cards(
             (card.center + card.half_right + card.half_up, [rect[2], rect[1]]),
             (card.center - card.half_right + card.half_up, [rect[0], rect[1]]),
         ];
-        for face_normal in [card.normal, -card.normal] {
-            let normal = rotate(face_normal).normalize_or_zero();
+        let normal = rotate(card.normal).normalize_or_zero();
+        for _ring in 0..2 {
             for (local, uv) in corners {
                 vertices.push(
                     SceneVertex::surfaced(
