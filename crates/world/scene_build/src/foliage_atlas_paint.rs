@@ -53,9 +53,13 @@ pub fn impostor_quad_window(
 /// authored tone × shade × mask.
 pub fn foliage_atlas_chains() -> (Rgba8MipChain, Rgba8MipChain) {
     let image = bake_leaf_atlas();
+    // The far mips GROW their cutout coverage (from level 3 on, +35 % a level, see
+    // `MipMode::AlphaCoverageGrowing`): a card deck 200 m out reads as a mass, not dots — the
+    // mass the impostor already is. The near levels (a tree at 22 m samples level 2, the
+    // grass ring levels 1–2) keep the authored coverage.
     let color = Rgba8MipChain::build(
         Rgba8MipLevel::new(image.width, image.height, image.rgba),
-        MipMode::AlphaCoveragePreserving,
+        MipMode::AlphaCoverageGrowing { from_level: 2, per_level_percent: 35 },
     );
     let normal = Rgba8MipChain::build(
         Rgba8MipLevel::new(image.width, image.height, image.normal),
@@ -154,5 +158,40 @@ mod tests {
             normal.levels()[0].rgba().chunks_exact(4).all(|texel| texel[3] == 255),
             "the normal page grew transparent texels"
         );
+    }
+}
+
+#[cfg(test)]
+mod mip_probe {
+    /// The far mips of the cluster block GROW their cutout coverage (Leaves 2.0 / F11: a card
+    /// deck at 200 m is a mass, not dots): level 5 carries markedly more area than level 2,
+    /// and no level past the growth start carries less than the one before it.
+    #[test]
+    fn the_cluster_blocks_far_mips_grow_their_coverage() {
+        let (color, _) = super::foliage_atlas_chains();
+        let y0 = world_forge::tree::leaf_atlas::CLUSTER_BLOCK_Y;
+        let coverage = |k: usize| {
+            let level = &color.levels()[k];
+            let scale = 1u32 << k;
+            let (w, h) = (level.width(), level.height());
+            let row0 = (y0 / scale).min(h);
+            let mut covered = 0usize;
+            let mut total = 0usize;
+            for y in row0..h {
+                for x in 0..w {
+                    total += 1;
+                    covered += usize::from(level.rgba()[((y * w + x) * 4 + 3) as usize] >= 128);
+                }
+            }
+            covered as f32 / total.max(1) as f32
+        };
+        let c2 = coverage(2);
+        let mut last = c2;
+        for k in 3..=6 {
+            let c = coverage(k);
+            assert!(c >= last - 0.005, "level {k}: {c:.3} thinner than level {}: {last:.3}", k - 1);
+            last = c;
+        }
+        assert!(coverage(5) > c2 + 0.08, "level 5 {:.3} vs level 2 {c2:.3}", coverage(5));
     }
 }

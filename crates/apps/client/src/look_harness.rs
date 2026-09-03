@@ -558,6 +558,19 @@ mod tests {
         battlefield: &terrain::BattlefieldMap,
         distance: f32,
     ) -> ([f32; 3], usize, usize) {
+        tree_reading_at(ctx, renderer, target, battlefield, distance, 1.0)
+    }
+
+    /// The same reading with the lens's magnification forced: `magnification` 2 at 132 m
+    /// draws the Near rung where a Mid rung would stand — the two rungs at ONE distance.
+    fn tree_reading_at(
+        ctx: &renderer_wgpu::GpuContext,
+        renderer: &mut renderer_wgpu::SceneRenderer,
+        target: &renderer_wgpu::OffscreenTarget,
+        battlefield: &terrain::BattlefieldMap,
+        distance: f32,
+        magnification: f32,
+    ) -> ([f32; 3], usize, usize) {
         let (width, height) = (1600u32, 900u32);
         let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
         let (tx, tz) = (500.0_f32, 500.0_f32);
@@ -586,7 +599,11 @@ mod tests {
             &battlefield.scenery,
             &battlefield.static_cover,
             &[],
-            scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(eye)),
+            scene_build::tree_lod::TreeEye {
+                position: glam::Vec3::from_array(eye),
+                cone: None,
+                magnification,
+            },
             &mut state,
         );
         // Outside the bands: one rung, or the impostor's two quads sharing the window.
@@ -630,6 +647,16 @@ mod tests {
         let map = MapId::ProkhorovkaHill252_2;
         let mut battlefield = map_forge::battlefield(map);
         battlefield.static_cover.clear();
+        // FLAT ground: on the map's own relief a crest between the eye and the tree hid the
+        // trunk and the lower crown at some distances and the instrument read that as the
+        // rung thinning (2026-09-03: 26 % "lost" at 127 m was a hill).
+        battlefield.heightmap = terrain::HeightMap::flat(
+            battlefield.heightmap.width(),
+            battlefield.heightmap.height(),
+            battlefield.heightmap.cell_size_m(),
+            5.0,
+        )
+        .expect("a flat heightmap");
         let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
         battlefield.scenery = vec![terrain::SceneryInstance {
             kind: terrain::SceneryKind::Oak,
@@ -719,6 +746,13 @@ mod tests {
             tree_reading(&ctx, &mut renderer, &target, &battlefield, n_before);
         let (b_rgb, b_px, b_wood) =
             tree_reading(&ctx, &mut renderer, &target, &battlefield, n_after);
+        let (f_rgb, f_px, f_wood) =
+            tree_reading_at(&ctx, &mut renderer, &target, &battlefield, n_after, 2.0);
+        eprintln!("at {n_after} m forced Near: {f_rgb:?} crown {f_px} wood {f_wood}");
+        // The two rungs at ONE distance: the Near deck and the Mid deck are the same crown.
+        let same_spot = f_px as f32 / b_px.max(1) as f32;
+        assert!((0.9..=1.1).contains(&same_spot), "Near vs Mid at {n_after} m: {same_spot:.3}");
+        let _ = (f_rgb, f_wood);
         eprintln!(
             "120 m band: near {a_rgb:?} crown {a_px} (={:.0}) wood {a_wood} | mid {b_rgb:?} crown {b_px} (={:.0}) wood {b_wood}",
             at_100(a_px, n_before),

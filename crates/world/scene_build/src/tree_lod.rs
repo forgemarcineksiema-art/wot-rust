@@ -133,12 +133,12 @@ pub const HYSTERESIS_M: f32 = 15.0;
 /// are submitted, each with a complementary screen-door lane (`RenderObject::dither`), so a
 /// tree crossing the band grains from one to the other over 20 m of approach. A continuous
 /// band needs no hysteresis — there is no edge to flicker on.
-pub const IMPOSTOR_FADE_HALF_M: f32 = 10.0;
+pub const IMPOSTOR_FADE_HALF_M: f32 = 5.0;
 /// The Near → Mid swap at [`NEAR_MAX_M`] fades the same way (LOD continuity, the owner
 /// 2026-09-03: "a tree must never be seen changing its graphics"). The Mid rung draws the
 /// same deck, so the grain only ever mixes two versions of the wood — invisible by design,
 /// locked by the band anyway.
-pub const NEAR_FADE_HALF_M: f32 = 10.0;
+pub const NEAR_FADE_HALF_M: f32 = 5.0;
 
 /// A rung's share of the screen grid across a band: 0 below `edge - half`, 1 past
 /// `edge + half`, linear across.
@@ -1211,7 +1211,7 @@ mod tests {
         assert_eq!(below[0].dither, [0.0, 1.0], "solid below the band");
 
         let mut last_weight = 0.0;
-        for step in 1..20 {
+        for step in 1..(2.0 * IMPOSTOR_FADE_HALF_M) as i32 {
             let distance = MID_MAX_M - IMPOSTOR_FADE_HALF_M + step as f32;
             let pair = at(distance, &mut state);
             assert_eq!(pair.len(), 2, "both rungs at {distance} m");
