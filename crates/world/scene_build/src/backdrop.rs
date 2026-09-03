@@ -101,19 +101,15 @@ pub(crate) fn weighted_kind(flora: &[(SceneryKind, f32)], pick: f32) -> SceneryK
     flora.last().map(|(kind, _)| *kind).unwrap_or(SceneryKind::Oak)
 }
 
-/// Distant trees on the enclosing hills, baked as the species' impostors: dark silhouettes
-/// for the fog to work with, lit live like every leaf card in the world.
-pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
-    let mut vertices: Vec<SceneVertex> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-    for instance in backdrop_tree_instances(battlefield) {
-        crate::foliage::push_impostor_tree(&mut vertices, &mut indices, &instance);
-    }
-    (vertices, indices)
+/// The statics' share of the backdrop: NOTHING since F11 — the distant trees ride the
+/// instanced ladder (`tree_lod::tree_frame_objects_with_backdrop`), where each gets the
+/// screen-door azimuth window a crossed impostor needs; baked into the statics they were two
+/// overlapping silhouettes from every oblique eye. The function stays as the bucket's
+/// contract (the backdrop bucket bakes once and survives partial rebuilds).
+pub fn backdrop_scene_mesh(_battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
+    (Vec::new(), Vec::new())
 }
 
-/// The river's continuation: flat water strips along the extended centerline beyond both
-/// borders, rendered by the same water pipeline as the playfield's surface.
 pub fn backdrop_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, Vec<u32>) {
     let Some(blueprint) = backdrop_blueprint(battlefield) else {
         return (Vec::new(), Vec::new());
@@ -182,10 +178,9 @@ mod tests {
     fn every_map_grows_its_tree_ring_and_only_rivers_flow_past_the_border() {
         for id in MapId::SHIPPED.iter().copied() {
             let map = map_forge::battlefield(id);
-            let (vertices, indices) = backdrop_scene_mesh(&map);
             assert!(
-                !vertices.is_empty() && !indices.is_empty(),
-                "{id:?}: every horizon carries its tree ring"
+                !backdrop_tree_instances(&map).is_empty(),
+                "{id:?}: every horizon carries its tree ring (on the ladder since F11)"
             );
             let (water_vertices, _) = backdrop_water_mesh(&map);
             assert_eq!(
@@ -225,31 +220,18 @@ mod tests {
         }
     }
 
-    /// The ring is impostors and nothing else (F1): every vertex rides the FOLIAGE role with
-    /// a real atlas uv — no bark frusta, no painted cones — and the whole ring stays a
-    /// fraction of one playfield oak: eight triangles a tree (two crossed quads, two faces
-    /// each).
+    /// The ring is impostors and nothing else (F1), and since F11 it is NOT in the statics
+    /// at all: the bucket bakes empty, and the ring's instances are a real ring under budget
+    /// — each an impostor on the ladder, eight triangles a tree at most.
     #[test]
-    fn the_backdrop_is_impostor_trees_only_and_stays_under_budget() {
+    fn the_backdrop_statics_are_empty_and_the_ring_is_a_real_ring_under_budget() {
         let map = map_forge::battlefield(MapId::BystraValley);
         let (vertices, indices) = backdrop_scene_mesh(&map);
-        assert!(!indices.is_empty());
-        assert!(indices.len().is_multiple_of(3));
-        let tris = indices.len() / 3;
+        assert!(vertices.is_empty() && indices.is_empty(), "the ring left the statics (F11)");
         let trees = backdrop_tree_instances(&map).len();
-        assert_eq!(tris, trees * 8, "eight triangles a tree, no kit left over");
-        assert!(
-            (2_000..8_000).contains(&tris),
-            "the ring should be a real ring under budget, got {tris} tris"
-        );
-        assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
-        assert!(
-            vertices.iter().all(|vertex| vertex.surface == renderer_api::surface_role::FOLIAGE
-                && vertex.uv != [0.0, 0.0]),
-            "a ring vertex that is not a sprite-sampling foliage quad is the frustum kit"
-        );
+        assert!((250..1_000).contains(&trees), "a real ring under budget, got {trees} trees");
         // Determinism: the same map builds the same horizon.
-        assert_eq!(vertices.len(), backdrop_scene_mesh(&map).0.len());
+        assert_eq!(backdrop_tree_instances(&map), backdrop_tree_instances(&map));
     }
 
     /// The species mix is the map's own (F1): every ring tree is a kind the horizon names,

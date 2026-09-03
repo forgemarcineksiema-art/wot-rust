@@ -119,9 +119,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         // bake, which is the whole point of the second view.
         let mut lod_state = scene_build::tree_lod::TreeLodState::default();
         let tree_frame = renderer_api::RenderFrame {
-            objects: scene_build::tree_lod::tree_frame_objects(
-                &full.scenery,
-                &full.static_cover,
+            objects: scene_build::tree_lod::tree_frame_objects_with_backdrop(
+                &full,
                 &born,
                 glam::Vec3::from_array(camera.eye),
                 &mut lod_state,

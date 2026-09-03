@@ -116,6 +116,20 @@ fn vs_main(input: VsIn) -> VsOut {
     var world = model * vec4<f32>(input.position, 1.0);
     let root = model[3].xyz;
     let model_scale = length(model[1].xyz);
+    // The wood's PIXEL GUARD (LOD continuity, F11): a limb thinner than a screen pixel dies
+    // under rasterization long before the impostor takes over, so a Mid-rung crown at 250 m
+    // is leaves on nothing. Every bark surface is pushed out along its normal by up to a
+    // pixel's worth of world metres at its depth — nothing under 25 m (the guard is 0), a
+    // 0.14 m limb becomes 0.34 m at 300 m (one and a half pixels), which is exactly the
+    // thickening the impostor's wood was baked with. fog_params.w is the inverse target
+    // height, ssao_params.w the projection's Y scale.
+    if (abs(input.surface - 4.0) < 0.5) {
+        let depth = max((camera.view_proj * world).w, 0.0);
+        let pixel_world = 2.0 * depth * camera.fog_params.w / max(camera.ssao_params.w, 1.0e-3);
+        let guard = clamp(0.8 * pixel_world - 0.04, 0.0, 0.5);
+        let bark_n = normalize((model * vec4<f32>(input.normal, 0.0)).xyz);
+        world = vec4<f32>(world.xyz + bark_n * guard, world.w);
+    }
     // A far tuft (costume B) STANDS only in its band: it grows in exactly where the near
     // ring folds (the shared hand-off above; per-vertex anchor differs from the tuft's root
     // by at most its half-width, far inside the band) and folds back into the ground before

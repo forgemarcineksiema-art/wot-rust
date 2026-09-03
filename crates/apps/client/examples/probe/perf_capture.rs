@@ -551,9 +551,8 @@ fn frame_time_capture() {
                 } else {
                     Vec::new()
                 };
-                grass.extend(scene_build::tree_lod::tree_frame_objects(
-                    &battlefield.scenery,
-                    &battlefield.static_cover,
+                grass.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
+                    &battlefield,
                     &[],
                     eye,
                     &mut tree_lod_state,

@@ -715,9 +715,8 @@ impl ClientApp {
         // now. They are appended to the grass allocation and trimmed off again, so the
         // per-frame scene submission still costs no allocation.
         let grass_len = self.grass_cache.len();
-        self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects(
-            &self.battlefield.scenery,
-            &self.battlefield.static_cover,
+        self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
+            &self.battlefield,
             self.live_cover.phase_bytes(),
             eye,
             &mut self.tree_lod_state,

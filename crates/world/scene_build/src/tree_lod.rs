@@ -439,6 +439,10 @@ pub struct TreeLodState {
     /// Per tree, the instance scale after the hosting fit (`hosted_scale`) — computed once
     /// per tree set, because it parses the variant.
     scales: Vec<f32>,
+    /// The horizon ring's instances (`backdrop::backdrop_tree_instances`), built once per
+    /// map for [`tree_frame_objects_with_backdrop`]: the ring is a deterministic function of
+    /// the map, and it rides the ladder like every other tree since F11.
+    ring: Option<(String, Vec<SceneryInstance>)>,
 }
 
 impl TreeLodState {
@@ -474,6 +478,29 @@ pub fn hosted_scale(
         scale = scale.min(fitted);
     }
     scale.max(0.0)
+}
+
+/// The battle frame's trees AND the horizon ring's (LOD continuity, F11): the ring used to
+/// be baked into the statics as crossed quads with no screen-door window, so from an
+/// oblique eye every ring tree was two overlapping silhouettes; on the ladder it takes the
+/// same azimuth windows, the same rungs and the same fade bands as a playfield tree — a
+/// ring oak forty metres past the red line is a real oak. The ring is built once per map
+/// and cached in `state`.
+pub fn tree_frame_objects_with_backdrop(
+    battlefield: &terrain::BattlefieldMap,
+    cover_states: &[u8],
+    eye: Vec3,
+    state: &mut TreeLodState,
+) -> Vec<RenderObject> {
+    if state.ring.as_ref().is_none_or(|(id, _)| *id != battlefield.id) {
+        state.ring =
+            Some((battlefield.id.clone(), crate::backdrop::backdrop_tree_instances(battlefield)));
+    }
+    let ring = &state.ring.as_ref().expect("built above").1;
+    let mut all: Vec<SceneryInstance> = Vec::with_capacity(battlefield.scenery.len() + ring.len());
+    all.extend_from_slice(&battlefield.scenery);
+    all.extend_from_slice(ring);
+    tree_frame_objects(&all, &battlefield.static_cover, cover_states, eye, state)
 }
 
 /// The battle frame's tree instances. Distance is measured in the XZ plane — a tank's eye is
@@ -948,6 +975,37 @@ mod tests {
         assert!((oblique[0].dither[1] - 0.5).abs() < 1.0e-3, "{:?}", oblique[0].dither);
         assert_eq!(oblique[0].dither[1], oblique[1].dither[0]);
         assert_eq!(oblique[1].dither[1], 1.0);
+    }
+
+    /// The horizon ring rides the ladder (F11): every ring tree is drawn — from the map's
+    /// middle every one of them as an impostor whose two quads share one window — and the
+    /// playfield's own trees are still all there.
+    #[test]
+    fn the_horizon_ring_rides_the_ladder_as_windowed_impostors() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let ring = crate::backdrop::backdrop_tree_instances(&map);
+        assert!(ring.len() > 200, "a real ring: {}", ring.len());
+        let mut state = TreeLodState::default();
+        let eye = Vec3::new(map.size_m[0] * 0.5, 3.0, map.size_m[1] * 0.5);
+        let objects = tree_frame_objects_with_backdrop(&map, &[], eye, &mut state);
+        let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
+        let planted = map.scenery.iter().filter(|i| ladder_species(i.kind).is_some()).count();
+        assert_eq!(trees, planted + ring.len(), "every playfield tree and every ring tree");
+        // From the middle of a 1000 m map, the whole ring is past 300 m: impostors only.
+        let ring_meshes: std::collections::BTreeSet<u32> = LADDER_SPECIES
+            .iter()
+            .flat_map(|&s| {
+                (0..VARIANTS).flat_map(move |v| {
+                    [ladder_mesh(s, v, TreeLod::Impostor).0, impostor_quad_b_mesh(s, v).0]
+                })
+            })
+            .collect();
+        let ring_objects = &objects[objects.len()
+            - objects.iter().rev().take_while(|o| ring_meshes.contains(&o.mesh.0)).count()..];
+        assert!(ring_objects.len() >= ring.len(), "the ring's tail is impostor quads");
+        // Cached: a second frame does not rebuild the ring.
+        let again = tree_frame_objects_with_backdrop(&map, &[], eye, &mut state);
+        assert_eq!(again.len(), objects.len());
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of

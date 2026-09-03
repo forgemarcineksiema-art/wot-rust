@@ -7,7 +7,7 @@
 
 use glam::Vec3;
 use renderer_api::RenderObject;
-use scene_build::tree_lod::{TreeLodState, tree_frame_objects};
+use scene_build::tree_lod::{TreeLodState, tree_frame_objects_with_backdrop};
 
 use crate::CompiledMap;
 
@@ -20,8 +20,7 @@ pub fn planted_tree_objects(
     eye: Vec3,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
-    let battlefield = &compiled.battlefield;
-    tree_frame_objects(&battlefield.scenery, &battlefield.static_cover, born_phases, eye, state)
+    tree_frame_objects_with_backdrop(&compiled.battlefield, born_phases, eye, state)
 }
 
 #[cfg(test)]
