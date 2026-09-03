@@ -216,16 +216,35 @@ pub(crate) fn push_impostor_quads(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     species: world_forge::tree::TreeSpecies,
+    variant: u32,
     place: impl Fn(Vec3) -> Vec3,
     rotate: impl Fn(Vec3) -> Vec3,
 ) {
-    let window = crate::foliage_atlas_paint::impostor_quad_window(species);
-    let (_, gloss) = canopy_color_for_species(species);
     for which in 0..2u32 {
+        push_impostor_quad(vertices, indices, species, variant, which, &place, &rotate);
+    }
+}
+
+/// ONE of the impostor's quads (`which` 0 spans X and faces ±Z, 1 spans Z and faces ∓X).
+/// The instanced ladder registers the two as separate meshes and shares the tree's
+/// screen-door window between them by view azimuth (`tree_lod`), so an oblique eye never
+/// sees both silhouettes at once; the statics bake still draws the pair.
+pub(crate) fn push_impostor_quad(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    species: world_forge::tree::TreeSpecies,
+    variant: u32,
+    which: u32,
+    place: impl Fn(Vec3) -> Vec3,
+    rotate: impl Fn(Vec3) -> Vec3,
+) {
+    let window = crate::foliage_atlas_paint::impostor_quad_window(species, variant);
+    let (_, gloss) = canopy_color_for_species(species);
+    {
         // Azimuth 0 spans X and faces ±Z; azimuth 1 spans Z and faces ∓X — the two views the
         // paint side splatted.
         let (right, facing) = if which == 0 { (Vec3::X, Vec3::Z) } else { (Vec3::Z, -Vec3::X) };
-        let rect = world_forge::tree::leaf_atlas::impostor_rect(species, which);
+        let rect = world_forge::tree::leaf_atlas::impostor_rect(species, variant, which);
         let corners = [
             (right * -window.half_width_m + Vec3::Y * window.bottom_m, [rect[0], rect[3]]),
             (right * window.half_width_m + Vec3::Y * window.bottom_m, [rect[2], rect[3]]),
@@ -284,6 +303,7 @@ pub(crate) fn push_impostor_tree(
         vertices,
         indices,
         species,
+        crate::tree_lod::instance_variant(instance),
         |local| base + rotation * (local * scale),
         |direction| rotation * direction,
     );

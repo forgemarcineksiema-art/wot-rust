@@ -299,7 +299,7 @@ mod tests {
             material: MaterialHandle(0),
             transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
             tint: [0.3, 0.3, 0.3],
-            dither: 0.0,
+            dither: [0.0, 1.0],
         };
         // [hull, turret, gun] for the wreck; the override drives the turret and gun only.
         let mut objects = vec![object(0), object(1), object(2)];
@@ -373,7 +373,7 @@ mod tests {
             material: MaterialHandle(0),
             transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
             tint: [0.3, 0.3, 0.3],
-            dither: 0.0,
+            dither: [0.0, 1.0],
         }];
         app.apply_wreck_deform(&mut objects);
         assert_eq!(objects[0].mesh, handle, "the wreck's hull object draws the dented mesh");

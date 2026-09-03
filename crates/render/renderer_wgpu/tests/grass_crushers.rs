@@ -20,7 +20,7 @@ fn tank_object(id: u64, x: f32, z: f32) -> RenderObject {
         material: MaterialHandle(0),
         transform,
         tint: [1.0; 3],
-        dither: 0.0,
+        dither: [0.0, 1.0],
     }
 }
 

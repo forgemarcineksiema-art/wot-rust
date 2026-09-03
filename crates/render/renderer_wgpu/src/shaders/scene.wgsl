@@ -21,6 +21,7 @@ struct VsIn {
     @location(6) model_2: vec4<f32>,
     @location(7) model_3: vec4<f32>,
     @location(8) tint: vec4<f32>,
+    @location(15) dither: vec2<f32>,
 };
 
 struct VsOut {
@@ -33,7 +34,7 @@ struct VsOut {
     @location(5) uv: vec2<f32>,
     @location(6) bounce: vec3<f32>,
     // The LOD cross-fade lane (instance tint.w), see `dither_keeps`.
-    @location(7) @interpolate(flat) dither: f32,
+    @location(7) @interpolate(flat) dither: vec2<f32>,
 };
 
 // The foliage atlas (Imported Flora 2.0, FL-2): every scene fragment samples it at the UV
@@ -160,7 +161,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.uv = input.uv;
     // Baked light is light, not paint: the team tint never touches it.
     out.bounce = input.bounce;
-    out.dither = input.tint.w;
+    out.dither = input.dither;
     return out;
 }
 

@@ -104,8 +104,11 @@ pub(crate) fn build_hud_pipeline(
 pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
     0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32, 9 => Float32,
     10 => Float32, 11 => Float32, 12 => Float32x2, 13 => Float32x3];
-pub(crate) const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
-    4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4, 8 => Float32x4];
+// After the model and the tint: the damage index (u32, unread here but it keeps the offsets
+// honest) and the screen-door window at byte 84 (`SceneInstance::dither`).
+pub(crate) const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
+    4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4, 8 => Float32x4,
+    14 => Uint32, 15 => Float32x2];
 
 /// Build the lit scene pipeline (camera uniform at group 0, depth-tested triangles)
 /// plus its camera bind-group layout.

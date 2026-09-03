@@ -159,7 +159,7 @@ pub fn thrown_remnant_objects(
             material: entry.material,
             transform: (hull_transform * placement.transform).to_cols_array_2d(),
             tint: SHED_STEEL_TINT,
-            dither: 0.0,
+            dither: [0.0, 1.0],
         })
         .collect()
 }
@@ -186,7 +186,7 @@ pub fn ribbon_render_objects(
             material: entry.material,
             transform: transform.to_cols_array_2d(),
             tint: SHED_STEEL_TINT,
-            dither: 0.0,
+            dither: [0.0, 1.0],
         })
         .collect()
 }

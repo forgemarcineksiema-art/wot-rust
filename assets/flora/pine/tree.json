@@ -20,8 +20,8 @@
     ],
     "branches": [
       0,
-      44,
-      9,
+      48,
+      14,
       0
     ],
     "curveRes": [
@@ -109,7 +109,7 @@
       15.0,
       0.0
     ],
-    "leaves": 4,
+    "leaves": 8,
     "leafDownAngle": 30.0,
     "leafDownAngleV": 10.0,
     "leafRotate": 137.5,
@@ -133,23 +133,23 @@
       "seed": 114,
       "rungs": {
         "near": {
-          "wood_vertices": 906,
-          "wood_triangles": 1600,
-          "wood_pieces": 21,
-          "cards": 212,
-          "cards_pulled": 104,
-          "tip_wood_m": 13.303,
-          "tip_cards_m": 13.91,
+          "wood_vertices": 1056,
+          "wood_triangles": 1864,
+          "wood_pieces": 24,
+          "cards": 720,
+          "cards_pulled": 368,
+          "tip_wood_m": 13.296,
+          "tip_cards_m": 14.065,
           "butt_radius_m": 0.268
         },
         "mid": {
-          "wood_vertices": 196,
-          "wood_triangles": 320,
-          "wood_pieces": 9,
-          "cards": 212,
+          "wood_vertices": 252,
+          "wood_triangles": 408,
+          "wood_pieces": 12,
+          "cards": 720,
           "cards_pulled": 0,
-          "tip_wood_m": 13.303,
-          "tip_cards_m": 13.91,
+          "tip_wood_m": 13.297,
+          "tip_cards_m": 14.065,
           "butt_radius_m": 0.268
         }
       }
@@ -167,23 +167,23 @@
       "seed": 13,
       "rungs": {
         "near": {
-          "wood_vertices": 1326,
-          "wood_triangles": 2376,
-          "wood_pieces": 26,
-          "cards": 424,
-          "cards_pulled": 212,
-          "tip_wood_m": 21.451,
-          "tip_cards_m": 22.037,
+          "wood_vertices": 1566,
+          "wood_triangles": 2800,
+          "wood_pieces": 31,
+          "cards": 720,
+          "cards_pulled": 664,
+          "tip_wood_m": 21.455,
+          "tip_cards_m": 22.247,
           "butt_radius_m": 0.508
         },
         "mid": {
-          "wood_vertices": 260,
-          "wood_triangles": 432,
-          "wood_pieces": 11,
-          "cards": 424,
+          "wood_vertices": 316,
+          "wood_triangles": 520,
+          "wood_pieces": 14,
+          "cards": 720,
           "cards_pulled": 0,
-          "tip_wood_m": 21.451,
-          "tip_cards_m": 22.037,
+          "tip_wood_m": 21.455,
+          "tip_cards_m": 22.247,
           "butt_radius_m": 0.508
         }
       }
@@ -201,23 +201,23 @@
       "seed": 224,
       "rungs": {
         "near": {
-          "wood_vertices": 1590,
-          "wood_triangles": 2856,
-          "wood_pieces": 30,
-          "cards": 480,
-          "cards_pulled": 325,
-          "tip_wood_m": 24.639,
-          "tip_cards_m": 25.462,
+          "wood_vertices": 1872,
+          "wood_triangles": 3352,
+          "wood_pieces": 36,
+          "cards": 720,
+          "cards_pulled": 984,
+          "tip_wood_m": 24.657,
+          "tip_cards_m": 25.94,
           "butt_radius_m": 0.789
         },
         "mid": {
-          "wood_vertices": 356,
-          "wood_triangles": 592,
-          "wood_pieces": 15,
-          "cards": 480,
+          "wood_vertices": 428,
+          "wood_triangles": 704,
+          "wood_pieces": 19,
+          "cards": 720,
           "cards_pulled": 0,
-          "tip_wood_m": 24.639,
-          "tip_cards_m": 25.462,
+          "tip_wood_m": 24.656,
+          "tip_cards_m": 25.94,
           "butt_radius_m": 0.789
         }
       }
@@ -235,23 +235,23 @@
       "seed": 320,
       "rungs": {
         "near": {
-          "wood_vertices": 972,
-          "wood_triangles": 1744,
-          "wood_pieces": 19,
-          "cards": 178,
-          "cards_pulled": 88,
-          "tip_wood_m": 19.305,
-          "tip_cards_m": 20.142,
+          "wood_vertices": 1038,
+          "wood_triangles": 1856,
+          "wood_pieces": 21,
+          "cards": 542,
+          "cards_pulled": 262,
+          "tip_wood_m": 19.274,
+          "tip_cards_m": 20.056,
           "butt_radius_m": 0.435
         },
         "mid": {
-          "wood_vertices": 148,
-          "wood_triangles": 248,
-          "wood_pieces": 6,
-          "cards": 178,
+          "wood_vertices": 188,
+          "wood_triangles": 312,
+          "wood_pieces": 8,
+          "cards": 542,
           "cards_pulled": 0,
-          "tip_wood_m": 19.305,
-          "tip_cards_m": 20.142,
+          "tip_wood_m": 19.274,
+          "tip_cards_m": 20.056,
           "butt_radius_m": 0.435
         }
       }

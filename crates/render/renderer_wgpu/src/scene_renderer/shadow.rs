@@ -41,8 +41,8 @@ const SHADOW_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
         shader_location: 12,
     },
 ];
-const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
-        10 => Float32x4, 13 => Uint32];
+const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
+        10 => Float32x4, 13 => Uint32, 15 => Float32x2];
 
 /// The legal range for a scene's near-box half-size, shared by the `WOT_SHADOW_FOCUS` dev knob
 /// and the per-scene override. Below 4 m the box stops containing a vehicle; past 256 m the

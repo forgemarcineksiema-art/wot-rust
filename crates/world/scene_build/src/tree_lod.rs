@@ -76,6 +76,14 @@ pub const fn ladder_mesh(species: TreeSpecies, variant: u32, lod: TreeLod) -> Me
     )
 }
 
+/// The impostor's SECOND quad (the one spanning Z, facing ∓X) as its own mesh, in the
+/// variant's spare handle slot (rung index 0): the two crossed quads are two objects sharing
+/// the impostor's screen-door window by view azimuth, so an oblique eye never sees both
+/// silhouettes at once (measured: the cross drew twice the crown and seven times the wood).
+pub const fn impostor_quad_b_mesh(species: TreeSpecies, variant: u32) -> MeshHandle {
+    MeshHandle(ladder_mesh(species, variant, TreeLod::Impostor).0 - TreeLod::Impostor.rung_index())
+}
+
 /// The seed an instance grows from — its position bits, the statics bake's own rule
 /// (`foliage::statics_tree_seed`) — which names its variant and mirror on every route.
 pub fn instance_seed(instance: &SceneryInstance) -> u64 {
@@ -126,12 +134,47 @@ pub const HYSTERESIS_M: f32 = 15.0;
 /// tree crossing the band grains from one to the other over 20 m of approach. A continuous
 /// band needs no hysteresis — there is no edge to flicker on.
 pub const IMPOSTOR_FADE_HALF_M: f32 = 10.0;
+/// The Near → Mid swap at [`NEAR_MAX_M`] fades the same way (LOD continuity, the owner
+/// 2026-09-03: "a tree must never be seen changing its graphics"). The Mid rung draws the
+/// same deck, so the grain only ever mixes two versions of the wood — invisible by design,
+/// locked by the band anyway.
+pub const NEAR_FADE_HALF_M: f32 = 10.0;
+
+/// A rung's share of the screen grid across a band: 0 below `edge - half`, 1 past
+/// `edge + half`, linear across.
+fn band_weight(distance_m: f32, edge_m: f32, half_m: f32) -> f32 {
+    ((distance_m - (edge_m - half_m)) / (2.0 * half_m)).clamp(0.0, 1.0)
+}
 
 /// The impostor's share of the screen grid at `distance_m`: 0 below the band (Mid alone),
 /// 1 past it (impostor alone), linear across it.
 pub fn impostor_weight(distance_m: f32) -> f32 {
-    ((distance_m - (MID_MAX_M - IMPOSTOR_FADE_HALF_M)) / (2.0 * IMPOSTOR_FADE_HALF_M))
-        .clamp(0.0, 1.0)
+    band_weight(distance_m, MID_MAX_M, IMPOSTOR_FADE_HALF_M)
+}
+
+/// The Mid rung's share against the Near rung at `distance_m`, the same law at 120 m.
+pub fn mid_weight(distance_m: f32) -> f32 {
+    band_weight(distance_m, NEAR_MAX_M, NEAR_FADE_HALF_M)
+}
+
+/// What a tree at `distance_m` draws: one solid rung, or two rungs with complementary lanes
+/// (`(coarser, weight)` — the coarser rung takes `+weight`, the finer `-weight`). Both edges
+/// are fade bands; no edge keeps a hysteresis, because a continuous band has nothing to
+/// flicker on.
+pub fn rungs_at(distance_m: f32) -> (TreeLod, Option<(TreeLod, f32)>) {
+    let mid = mid_weight(distance_m);
+    let impostor = impostor_weight(distance_m);
+    if mid <= 0.0 {
+        (TreeLod::Near, None)
+    } else if mid < 1.0 {
+        (TreeLod::Near, Some((TreeLod::Mid, mid)))
+    } else if impostor <= 0.0 {
+        (TreeLod::Mid, None)
+    } else if impostor < 1.0 {
+        (TreeLod::Mid, Some((TreeLod::Impostor, impostor)))
+    } else {
+        (TreeLod::Impostor, None)
+    }
 }
 
 /// How deep a trunk is set into the ground it stands on, metres.
@@ -212,7 +255,7 @@ pub fn select_lod(distance_m: f32, previous: Option<TreeLod>) -> TreeLod {
 /// on the trunk), so the instanced path and the baked path agree while both exist.
 pub fn tree_mesh_asset(species: TreeSpecies, variant: u32, lod: TreeLod) -> MeshAsset {
     if lod == TreeLod::Impostor {
-        return impostor_mesh_asset(species);
+        return impostor_quad_asset(species, variant, 0);
     }
     let bake_lod = match lod {
         TreeLod::Near => BakeLod::Close,
@@ -302,13 +345,15 @@ pub(crate) fn card_wind_jitter(center: Vec3) -> f32 {
 /// backdrop ring's statics bake (Inny Poziom F1), so a far oak on the field and a far oak on
 /// the enclosing hills are the same quads over the same sprite. Here the tree stays in local
 /// space; position, yaw and scale ride the instance matrix.
-fn impostor_mesh_asset(species: TreeSpecies) -> MeshAsset {
+fn impostor_quad_asset(species: TreeSpecies, variant: u32, which: u32) -> MeshAsset {
     let mut vertices: Vec<renderer_api::SceneVertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
-    crate::foliage::push_impostor_quads(
+    crate::foliage::push_impostor_quad(
         &mut vertices,
         &mut indices,
         species,
+        variant,
+        which,
         |local| local,
         |direction| direction,
     );
@@ -357,9 +402,15 @@ pub fn tree_lod_meshes() -> Vec<(MeshHandle, MeshAsset)> {
         .into_iter()
         .flat_map(|species| {
             (0..VARIANTS).flat_map(move |variant| {
-                TreeLod::ALL.into_iter().map(move |lod| {
-                    (ladder_mesh(species, variant, lod), tree_mesh_asset(species, variant, lod))
-                })
+                TreeLod::ALL
+                    .into_iter()
+                    .map(move |lod| {
+                        (ladder_mesh(species, variant, lod), tree_mesh_asset(species, variant, lod))
+                    })
+                    .chain(std::iter::once((
+                        impostor_quad_b_mesh(species, variant),
+                        impostor_quad_asset(species, variant, 1),
+                    )))
             })
         })
         .collect()
@@ -456,13 +507,8 @@ pub fn tree_frame_objects(
     for (index, (instance, species)) in trees.iter().enumerate() {
         let base = Vec3::from_array(instance.position);
         let distance = (Vec3::new(base.x, 0.0, base.z) - Vec3::new(eye.x, 0.0, eye.z)).length();
-        // The Near edge keeps its hysteresis; the impostor edge is the fade band's.
-        let weight = impostor_weight(distance);
-        let lod = match select_lod(distance, state.levels[index]) {
-            TreeLod::Near => TreeLod::Near,
-            _ if weight >= 1.0 => TreeLod::Impostor,
-            _ => TreeLod::Mid,
-        };
+        // Both edges are fade bands (LOD continuity): the finer rung records as the level.
+        let (lod, fading) = rungs_at(distance);
         state.levels[index] = Some(lod);
         let transform = Mat4::from_scale_rotation_translation(
             Vec3::splat(state.scales[index]),
@@ -470,25 +516,44 @@ pub fn tree_frame_objects(
             base - Vec3::Y * TRUNK_SINK_M,
         );
         let variant = instance_variant(instance);
-        let mut push = |lod: TreeLod, dither: f32| {
+        // The impostor's two quads share its window by view azimuth in tree space: quad A
+        // (spanning X) takes the share cos², quad B (spanning Z) sin² — one silhouette from
+        // every eye, never two.
+        let local = Quat::from_rotation_y(-instance.yaw_rad) * (eye - base);
+        let (x2, z2) = (local.x * local.x, local.z * local.z);
+        let quad_b = x2 / (x2 + z2).max(1.0e-6);
+        let mut push = |mesh: MeshHandle, window: [f32; 2]| {
+            if window[0] >= window[1] {
+                return;
+            }
             objects.push(RenderObject {
                 tank_id: None,
-                mesh: ladder_mesh(*species, variant, lod),
+                mesh,
                 material: MaterialHandle(0),
                 transform: transform.to_cols_array_2d(),
                 // The canopy's painterly shade is baked into the vertex colours; the
                 // per-instance tint stays neutral (tint-weighted vertices are a vehicle-livery
                 // mechanism).
                 tint: [1.0, 1.0, 1.0],
-                dither,
+                dither: window,
             });
         };
-        if lod == TreeLod::Mid && weight > 0.0 {
-            // In the band: the Mid rung keeps the complement of the impostor's share.
-            push(TreeLod::Mid, -weight);
-            push(TreeLod::Impostor, weight);
-        } else {
-            push(lod, 0.0);
+        let mut push_rung = |rung: TreeLod, window: [f32; 2]| {
+            if rung == TreeLod::Impostor {
+                let split = window[0] + (window[1] - window[0]) * (1.0 - quad_b);
+                push(ladder_mesh(*species, variant, TreeLod::Impostor), [window[0], split]);
+                push(impostor_quad_b_mesh(*species, variant), [split, window[1]]);
+            } else {
+                push(ladder_mesh(*species, variant, rung), window);
+            }
+        };
+        match fading {
+            // In a band: the finer rung keeps the top of the interval, the coarser the bottom.
+            Some((coarser, weight)) => {
+                push_rung(lod, [weight, 1.0]);
+                push_rung(coarser, [0.0, weight]);
+            }
+            None => push_rung(lod, [0.0, 1.0]),
         }
     }
     objects
@@ -532,8 +597,8 @@ mod tests {
         let meshes = tree_lod_meshes();
         assert_eq!(
             meshes.len(),
-            LADDER_SPECIES.len() * VARIANTS as usize * 3,
-            "three rungs per variant per species ship"
+            LADDER_SPECIES.len() * VARIANTS as usize * 4,
+            "three rungs and the impostor's second quad per variant per species ship"
         );
         let tris = |handle: MeshHandle| {
             meshes
@@ -583,7 +648,15 @@ mod tests {
         assert_eq!(TREE_NEAR_MESH, MeshHandle(0xFEE0_0001));
         assert_eq!(TREE_MID_MESH, MeshHandle(0xFEE0_0002));
         assert_eq!(TREE_IMPOSTOR_MESH, MeshHandle(0xFEE0_0003));
-        // The registration ships exactly this set, nothing twice.
+        // The registration ships exactly this set plus the impostor's second quad in each
+        // variant's spare slot, nothing twice.
+        for species in LADDER_SPECIES {
+            for variant in 0..VARIANTS {
+                let quad_b = impostor_quad_b_mesh(species, variant);
+                assert_eq!(quad_b.0 + 1, ladder_mesh(species, variant, TreeLod::Near).0);
+                assert!(seen.insert(quad_b.0), "{species:?} v{variant} quad B reuses");
+            }
+        }
         let shipped: std::collections::BTreeSet<u32> =
             tree_lod_meshes().into_iter().map(|(handle, _)| handle.0).collect();
         assert_eq!(shipped, seen);
@@ -789,8 +862,14 @@ mod tests {
             // Route 2 LOD honesty: Mid draws the SAME deck — the swap must not change the crown.
             assert_eq!(mid, near, "{species:?}: Mid deck {mid} must equal the Near deck {near}");
             assert!(near <= NEAR_DECK_MAX_CARDS, "{species:?}: Near deck {near} cards");
-            // The TRUE impostor (PR10): exactly two crossed sprite quads, nothing else.
-            assert_eq!(cards(species, TreeLod::Impostor), 2, "{species:?}: two crossed quads");
+            // The TRUE impostor (PR10): two crossed sprite quads, nothing else — since the
+            // window split, ONE quad per mesh (quad B lives in the spare slot).
+            assert_eq!(cards(species, TreeLod::Impostor), 1, "{species:?}: one quad a mesh");
+            assert_eq!(
+                impostor_quad_asset(species, reference, 1).index_count() / 12,
+                1,
+                "{species:?}: the second quad is one quad"
+            );
             let impostor_tris =
                 tree_mesh_asset(species, reference, TreeLod::Impostor).index_count() / 3;
             assert!(impostor_tris <= 16, "{species:?}: impostor stays trivial: {impostor_tris}");
@@ -832,6 +911,43 @@ mod tests {
             .map(|vertex| vertex.sway.to_bits())
             .collect();
         assert!(sways.len() >= 40, "card sway values collapsed: {}", sways.len());
+    }
+
+    /// The impostor's two quads share one silhouette: straight along Z only quad A draws,
+    /// straight along X only quad B, and at 45° each takes half the screen grid.
+    #[test]
+    fn the_impostors_two_quads_share_one_silhouette_by_azimuth() {
+        let scenery = vec![SceneryInstance {
+            kind: SceneryKind::Oak,
+            position: [100.0, 5.0, 100.0],
+            yaw_rad: 0.0,
+            scale: 1.0,
+        }];
+        let variant = instance_variant(&scenery[0]);
+        let far = MID_MAX_M + IMPOSTOR_FADE_HALF_M + 50.0;
+        let mut state = TreeLodState::default();
+        let along_z =
+            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 100.0 + far), &mut state);
+        assert_eq!(along_z.len(), 1);
+        assert_eq!(along_z[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor));
+        assert_eq!(along_z[0].dither, [0.0, 1.0]);
+        let along_x =
+            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0 + far, 3.0, 100.0), &mut state);
+        assert_eq!(along_x.len(), 1);
+        assert_eq!(along_x[0].mesh, impostor_quad_b_mesh(TreeSpecies::Oak, variant));
+        assert_eq!(along_x[0].dither, [0.0, 1.0]);
+        let d = far / 2.0_f32.sqrt();
+        let oblique = tree_frame_objects(
+            &scenery,
+            &[],
+            &[],
+            Vec3::new(100.0 + d, 3.0, 100.0 + d),
+            &mut state,
+        );
+        assert_eq!(oblique.len(), 2);
+        assert!((oblique[0].dither[1] - 0.5).abs() < 1.0e-3, "{:?}", oblique[0].dither);
+        assert_eq!(oblique[0].dither[1], oblique[1].dither[0]);
+        assert_eq!(oblique[1].dither[1], 1.0);
     }
 
     /// The honesty rule: level the tree line and the oak dressing it goes with it, instead of
@@ -879,7 +995,7 @@ mod tests {
         let below = at(MID_MAX_M - IMPOSTOR_FADE_HALF_M - 1.0, &mut state);
         assert_eq!(below.len(), 1);
         assert_eq!(below[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Mid));
-        assert_eq!(below[0].dither, 0.0, "solid below the band");
+        assert_eq!(below[0].dither, [0.0, 1.0], "solid below the band");
 
         let mut last_weight = 0.0;
         for step in 1..20 {
@@ -889,21 +1005,72 @@ mod tests {
             let (mid, impostor) = (&pair[0], &pair[1]);
             assert_eq!(mid.mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Mid));
             assert_eq!(impostor.mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor));
-            assert!(impostor.dither > 0.0 && impostor.dither < 1.0, "{}", impostor.dither);
-            assert_eq!(mid.dither, -impostor.dither, "complementary lanes");
-            assert!(impostor.dither > last_weight, "the impostor's share rises with distance");
+            let weight = impostor.dither[1];
+            assert!(weight > 0.0 && weight < 1.0, "{weight}");
+            assert_eq!(
+                impostor.dither,
+                [0.0, weight],
+                "the impostor takes the bottom of the interval"
+            );
+            assert_eq!(mid.dither, [weight, 1.0], "the Mid rung keeps the rest");
+            assert!(weight > last_weight, "the impostor's share rises with distance");
             assert_eq!(mid.transform, impostor.transform, "one tree, one place");
-            last_weight = impostor.dither;
+            last_weight = weight;
         }
         assert!((impostor_weight(MID_MAX_M) - 0.5).abs() < 1.0e-6, "half-way at the edge");
 
         let past = at(MID_MAX_M + IMPOSTOR_FADE_HALF_M + 1.0, &mut state);
         assert_eq!(past.len(), 1);
         assert_eq!(past[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor));
-        assert_eq!(past[0].dither, 0.0, "solid past the band");
+        assert_eq!(past[0].dither, [0.0, 1.0], "solid past the band");
         // And back: the band is continuous, so returning is the same grain in reverse.
         let back = at(MID_MAX_M - IMPOSTOR_FADE_HALF_M - 1.0, &mut state);
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Mid));
+    }
+
+    /// The 120 m swap is the same law: Near alone below the band, Near (−w) + Mid (+w)
+    /// inside it, Mid alone past it — and no distance anywhere draws nothing or three rungs.
+    #[test]
+    fn the_near_swap_is_a_dithered_band_too_and_every_distance_draws_the_tree() {
+        let scenery = vec![SceneryInstance {
+            kind: SceneryKind::Oak,
+            position: [100.0, 5.0, 100.0],
+            yaw_rad: 0.0,
+            scale: 1.0,
+        }];
+        let variant = instance_variant(&scenery[0]);
+        let mut state = TreeLodState::default();
+        let at = |distance: f32, state: &mut TreeLodState| {
+            tree_frame_objects(&scenery, &[], &[], Vec3::new(100.0, 3.0, 100.0 + distance), state)
+        };
+        let near = at(NEAR_MAX_M - NEAR_FADE_HALF_M - 1.0, &mut state);
+        assert_eq!(near.len(), 1);
+        assert_eq!(near[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Near));
+        let pair = at(NEAR_MAX_M, &mut state);
+        assert_eq!(pair.len(), 2);
+        assert_eq!(pair[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Near));
+        assert_eq!(pair[1].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Mid));
+        assert_eq!(pair[1].dither, [0.0, 0.5]);
+        assert_eq!(pair[0].dither, [0.5, 1.0]);
+        let mid = at(NEAR_MAX_M + NEAR_FADE_HALF_M + 1.0, &mut state);
+        assert_eq!(mid.len(), 1);
+        assert_eq!(mid[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Mid));
+        // Sweep 1..600 m by the metre: the objects' windows PARTITION the unit interval —
+        // sorted by their start they touch end to end from 0 to 1, so every pixel is drawn by
+        // exactly one object, and exactly one object holds the shadow's threshold 0.5.
+        for metre in 1..600 {
+            let objects = at(metre as f32, &mut state);
+            assert!(!objects.is_empty() && objects.len() <= 3, "{metre} m: {}", objects.len());
+            let mut windows: Vec<[f32; 2]> = objects.iter().map(|o| o.dither).collect();
+            windows.sort_by(|a, b| a[0].total_cmp(&b[0]));
+            assert_eq!(windows[0][0], 0.0, "{metre} m starts at 0");
+            for pair in windows.windows(2) {
+                assert_eq!(pair[0][1], pair[1][0], "{metre} m: windows touch");
+            }
+            assert_eq!(windows.last().unwrap()[1], 1.0, "{metre} m ends at 1");
+            let casters = windows.iter().filter(|w| w[0] <= 0.5 && 0.5 < w[1]).count();
+            assert_eq!(casters, 1, "{metre} m: one shadow caster");
+        }
     }
 }

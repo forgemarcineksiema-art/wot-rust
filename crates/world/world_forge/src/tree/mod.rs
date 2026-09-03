@@ -463,7 +463,7 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
     // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
     // fronds on cards. The lobes died with this bless.
-    (TreeSpecies::Pine, 0x1642_c6f6_79d9_7b8b),
+    (TreeSpecies::Pine, 0xd650_8f9c_f565_b8f6),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —

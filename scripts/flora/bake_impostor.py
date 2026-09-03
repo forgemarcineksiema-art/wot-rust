@@ -24,7 +24,14 @@ from mathutils import Euler, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake_tree  # noqa: E402
 
-VIEW_W, VIEW_H = 512, 1024
+VIEW_W, VIEW_H = 256, 512
+VARIANTS = 4
+WOOD_THICKEN_M = 0.10
+# The cards' normal pass carries the CROWN normal the engine lights its cards with
+# (`authored::bent_card_normal`: outward from the crown centroid, lifted, 75/25 with the quad's
+# facing) — so the impostor and the Mid deck answer the sun with the same normal field.
+CROWN_NORMAL_LIFT = 0.3
+CROWN_NORMAL_OUTWARD = 0.75
 SAMPLES = 96
 
 
@@ -68,7 +75,7 @@ def scene_setup(samples):
         scene.cycles.device = "CPU"
     scene.cycles.samples = samples
     scene.cycles.use_denoising = True
-    scene.cycles.transparent_max_bounces = 16
+    scene.cycles.transparent_max_bounces = 128  # a crown is hundreds of cut-out cards deep; 8 made it a solid lid
     world = bpy.data.worlds.new("impostor_world")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
@@ -77,7 +84,7 @@ def scene_setup(samples):
     return scene
 
 
-def wood_object(positions, normals, indices, bark_path):
+def wood_object(positions, normals, indices, bark_path, wood_crown_base=0.0):
     mesh = bpy.data.meshes.new("impostor_wood")
     verts = [to_blender(p) for p in positions]
     faces = [tuple(indices[i : i + 3]) for i in range(0, len(indices), 3)]
@@ -105,6 +112,20 @@ def wood_object(positions, normals, indices, bark_path):
     obj.data.materials.append(material)
     for polygon in mesh.polygons:
         polygon.use_smooth = True
+    # The far wood must SURVIVE the alpha test at 300 m and beyond (the owner, 2026-09-03: "the
+    # tree itself is practically invisible from afar, only the leaves"): a limb of 0.14 m is
+    # half a pixel there and the cutout drops it. Every wood surface is pushed out along its
+    # normal by WOOD_THICKEN_M — a trunk of 0.5 m becomes 0.7 m (three pixels at 300 m), a limb
+    # of 0.14 m becomes 0.34 m (one and a half). Invisible as an error at that range, decisive
+    # for the silhouette.
+    # Per vertex, along the smooth normal: the full amount below the crown (the trunk), a
+    # third of it inside the crown (limbs and twigs — a twig thickened by 0.10 m would be a
+    # limb, and the far crown would fill with wood; measured: 7x the wood pixels).
+    crown_base = wood_crown_base
+    for vertex in mesh.vertices:
+        amount = WOOD_THICKEN_M if vertex.co.z < crown_base else WOOD_THICKEN_M * 0.3
+        vertex.co = vertex.co + vertex.normal * amount
+    mesh.update()
     return obj
 
 
@@ -206,13 +227,42 @@ def normal_material():
     return material
 
 
-def normal_material_cards(cluster_path):
-    """The cards' normal shader keeps the alpha cutout: transparent where the sprite is cut."""
+def normal_material_cards(cluster_path, centroid, reach):
+    """The cards' normal shader keeps the alpha cutout: transparent where the sprite is cut,
+    and writes the CROWN normal (see CROWN_NORMAL_*), not the quad's plane."""
     material = normal_material()
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     output = next(n for n in nodes if n.type == "OUTPUT_MATERIAL")
     emission = next(n for n in nodes if n.type == "EMISSION")
+    geometry = next(n for n in nodes if n.type == "NEW_GEOMETRY")
+    transform = next(n for n in nodes if n.type == "VECT_TRANSFORM")
+    # outward = normalize((position - centroid) / reach + (0, 0, lift)); crown = normalize(
+    # outward * 0.75 + geometric * 0.25)
+    sub = nodes.new("ShaderNodeVectorMath")
+    sub.operation = "SUBTRACT"
+    sub.inputs[1].default_value = (centroid.x, centroid.y, centroid.z)
+    links.new(geometry.outputs["Position"], sub.inputs[0])
+    scale = nodes.new("ShaderNodeVectorMath")
+    scale.operation = "SCALE"
+    scale.inputs["Scale"].default_value = 1.0 / max(reach, 0.01)
+    links.new(sub.outputs[0], scale.inputs[0])
+    lift = nodes.new("ShaderNodeVectorMath")
+    lift.operation = "ADD"
+    lift.inputs[1].default_value = (0.0, 0.0, CROWN_NORMAL_LIFT)
+    links.new(scale.outputs[0], lift.inputs[0])
+    outward = nodes.new("ShaderNodeVectorMath")
+    outward.operation = "NORMALIZE"
+    links.new(lift.outputs[0], outward.inputs[0])
+    mixed = nodes.new("ShaderNodeMix")
+    mixed.data_type = "VECTOR"
+    mixed.inputs["Factor"].default_value = 1.0 - CROWN_NORMAL_OUTWARD
+    links.new(outward.outputs[0], mixed.inputs[4])
+    links.new(geometry.outputs["Normal"], mixed.inputs[5])
+    crown = nodes.new("ShaderNodeVectorMath")
+    crown.operation = "NORMALIZE"
+    links.new(mixed.outputs[1], crown.inputs[0])
+    links.new(crown.outputs[0], transform.inputs[0])
     tex = nodes.new("ShaderNodeTexImage")
     tex.image = bpy.data.images.load(cluster_path)
     transparent = nodes.new("ShaderNodeBsdfTransparent")
@@ -251,9 +301,11 @@ def render_view(scene, azimuth, width_px, top, path):
     bpy.data.objects.remove(camera)
 
 
-def tile_pair(paths, out_path):
-    page = bpy.data.images.new("impostor_page", VIEW_W * 2, VIEW_H, alpha=True)
-    pixels = [0.0] * (VIEW_W * 2 * VIEW_H * 4)
+def tile_page(paths, out_path):
+    """Tile the views into one row: slot k = variant * 2 + azimuth, 256 x 512 each."""
+    slots = len(paths)
+    page = bpy.data.images.new("impostor_page", VIEW_W * slots, VIEW_H, alpha=True)
+    pixels = [0.0] * (VIEW_W * slots * VIEW_H * 4)
     for index, path in enumerate(paths):
         image = bpy.data.images.load(path)
         # The view was rendered at the crown's own aspect; the atlas slot is 1:2, and the quad
@@ -262,7 +314,7 @@ def tile_pair(paths, out_path):
             image.scale(VIEW_W, VIEW_H)
         src = list(image.pixels)
         for y in range(VIEW_H):
-            dst = (y * VIEW_W * 2 + index * VIEW_W) * 4
+            dst = (y * VIEW_W * slots + index * VIEW_W) * 4
             srow = y * VIEW_W * 4
             pixels[dst : dst + VIEW_W * 4] = src[srow : srow + VIEW_W * 4]
         bpy.data.images.remove(image)
@@ -272,62 +324,81 @@ def tile_pair(paths, out_path):
     page.save()
 
 
-def main():
-    args = parse_args()
-    table = bake_tree.SPECIES[args.species]
-    out = os.path.abspath(args.out)
-    reference = 1  # the mature variant, the ladder's representative individual
-    positions, normals, indices, cards = read_tree(os.path.join(out, f"v{reference}", "tree_near.bin"))
-    bark_dir = {
-        "oak": "jolcham_oak_bark_01", "poplar": "bark_brown_02", "willow": "bark_willow_02",
-        "fruit": "sakura_bark", "pine": "pine_bark", "bush": "tree_bark_03",
-    }[args.species]
-    bark_path = os.path.join(os.path.dirname(out), "bark", bark_dir, "diff_1k.png")
-    cluster_path = os.path.join(out, "clusters_color.png")
+def bake_variant(args, out, variant, bark_path, cluster_path, tmp):
+    """One variant's two views, colour and normal: returns (colour paths, normal paths, window)."""
+    positions, normals, indices, cards = read_tree(os.path.join(out, f"v{variant}", "tree_near.bin"))
     top = max([p[1] for p in positions] + [c[0][1] + abs(c[1][1]) + abs(c[2][1]) for c in cards])
     reach = max(math.hypot(c[0][0], c[0][2]) + math.hypot(c[1][0], c[1][2]) + math.hypot(c[2][0], c[2][2]) for c in cards)
     reach = max(reach, max(math.hypot(p[0], p[2]) for p in positions))
     # The window: the WHOLE crown. The first bake derived the width from the height (a 1:2
     # sprite, `half_width = top / 4`) and clipped every broad crown flat at both sides — the
-    # owner saw square trees at 300 m. The view now renders at the crown's own aspect
-    # (square pixels, `width_px` wide) and is squashed into the 1:2 slot afterwards; the quad
-    # spans `half_width_m` x `top_m`, so the tree keeps its shape and nothing is cut.
+    # owner saw square trees at 300 m. The view renders at the crown's own aspect (square
+    # pixels, `width_px` wide) and is squashed into the 1:2 slot afterwards; the quad spans
+    # `half_width_m` x `top_m`, so the tree keeps its shape and nothing is cut.
     top = top * 1.02
-    width_px = max(64, int(math.ceil(VIEW_H * 2.0 * reach * 1.04 / top / 2.0)) * 2)
+    width_px = max(32, int(math.ceil(VIEW_H * 2.0 * reach * 1.04 / top / 2.0)) * 2)
     half_width = top * width_px / (2.0 * VIEW_H)
-    tmp = os.path.join(out, "sprites")
-    os.makedirs(tmp, exist_ok=True)
     scene = scene_setup(args.samples)
-    wood = wood_object(positions, normals, indices, bark_path)
+    crown_base = min(to_blender(c[0]).z for c in cards) if cards else 0.0
+    wood = wood_object(positions, normals, indices, bark_path, crown_base)
     card_obj = card_objects(cards, cluster_path)
     colors = []
     for azimuth in (0, 1):
-        path = os.path.join(tmp, f"impostor_{azimuth}_color.png")
+        path = os.path.join(tmp, f"impostor_v{variant}_{azimuth}_color.png")
         render_view(scene, azimuth, width_px, top, path)
         colors.append(path)
     # The normal pass.
     wood.data.materials.clear()
     wood.data.materials.append(normal_material())
     card_obj.data.materials.clear()
-    card_obj.data.materials.append(normal_material_cards(cluster_path))
+    centroid = sum((to_blender(c[0]) for c in cards), Vector((0.0, 0.0, 0.0))) / max(len(cards), 1)
+    card_reach = max((to_blender(c[0]) - centroid).length for c in cards) if cards else 1.0
+    card_obj.data.materials.append(normal_material_cards(cluster_path, centroid, card_reach))
     scene.world.node_tree.nodes["Background"].inputs[0].default_value = (0.0, 0.0, 0.0, 1.0)
     scene.view_settings.view_transform = "Raw"
     scene.cycles.samples = 16
     scene.cycles.use_denoising = False
     normals_out = []
     for azimuth in (0, 1):
-        path = os.path.join(tmp, f"impostor_{azimuth}_normal.png")
+        path = os.path.join(tmp, f"impostor_v{variant}_{azimuth}_normal.png")
         render_view(scene, azimuth, width_px, top, path)
         normals_out.append(path)
-    tile_pair(colors, os.path.join(out, "impostor_color.png"))
-    tile_pair(normals_out, os.path.join(out, "impostor_normal.png"))
-    manifest = {"species": args.species, "variant": reference, "half_width_m": round(half_width, 4),
-                "top_m": round(top, 4), "view_px": [VIEW_W, VIEW_H], "views": ["azimuth 0: plane spans X", "azimuth 1: plane spans Z"],
-                "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw; "
-                              "the window is the quad `push_impostor_quads` spans: half_width_m across, 0..top_m up"}
+    return colors, normals_out, {"variant": variant, "half_width_m": round(half_width, 4), "top_m": round(top, 4)}
+
+
+def main():
+    args = parse_args()
+    out = os.path.abspath(args.out)
+    bark_dir = {
+        "oak": "jolcham_oak_bark_01", "poplar": "bark_brown_02", "willow": "bark_willow_02",
+        "fruit": "sakura_bark", "pine": "pine_bark", "bush": "tree_bark_03",
+    }[args.species]
+    bark_path = os.path.join(os.path.dirname(out), "bark", bark_dir, "diff_1k.png")
+    cluster_path = os.path.join(out, "clusters_color.png")
+    tmp = os.path.join(out, "sprites")
+    os.makedirs(tmp, exist_ok=True)
+    # One impostor PER VARIANT (LOD continuity, 2026-09-03): the ladder's Near and Mid rungs
+    # are the variant's own tree, so its far sprite must be too — a young oak that became the
+    # mature one at 300 m was "a tree changing its graphics" (measured: 1.9x the crown).
+    colors, normals_out, windows = [], [], []
+    for variant in range(VARIANTS):
+        c, n, window = bake_variant(args, out, variant, bark_path, cluster_path, tmp)
+        colors += c
+        normals_out += n
+        windows.append(window)
+        print("variant", variant, "done", window, flush=True)
+    tile_page(colors, os.path.join(out, "impostor_color.png"))
+    tile_page(normals_out, os.path.join(out, "impostor_normal.png"))
+    reference = windows[1]
+    manifest = {"species": args.species, "variant": 1, "half_width_m": reference["half_width_m"],
+                "top_m": reference["top_m"], "view_px": [VIEW_W, VIEW_H], "views": ["azimuth 0: plane spans X", "azimuth 1: plane spans Z"],
+                "variants": windows,
+                "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw (crown normals); "
+                              "slot = variant * 2 + azimuth, 256 x 512 each; the window per variant is the quad "
+                              "`push_impostor_quad` spans: half_width_m across, 0..top_m up"}
     with open(os.path.join(out, "impostor.json"), "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
-    print("IMPOSTOR DONE", args.species, manifest["half_width_m"], manifest["top_m"], flush=True)
+    print("IMPOSTOR DONE", args.species, [(w["half_width_m"], w["top_m"]) for w in windows], flush=True)
 
 
 if __name__ == "__main__":

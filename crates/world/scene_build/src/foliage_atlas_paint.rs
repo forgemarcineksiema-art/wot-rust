@@ -39,8 +39,11 @@ pub struct ImpostorWindow {
 
 /// The window of `species`' impostor: the exporter's numbers (`impostor.json`), the same
 /// the rendered sprite was framed with — the crossed quads and the sprite agree by shared data.
-pub fn impostor_quad_window(species: world_forge::tree::TreeSpecies) -> ImpostorWindow {
-    let window = world_forge::tree::authored::impostor_window(species);
+pub fn impostor_quad_window(
+    species: world_forge::tree::TreeSpecies,
+    variant: u32,
+) -> ImpostorWindow {
+    let window = world_forge::tree::authored::impostor_window(species, variant);
     ImpostorWindow { half_width_m: window.half_width_m, top_m: window.top_m, bottom_m: 0.0 }
 }
 

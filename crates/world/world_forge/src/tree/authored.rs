@@ -157,12 +157,16 @@ macro_rules! flora {
 }
 
 /// The impostor page size: two 512×1024 views side by side.
-pub const IMPOSTOR_PAGE_W: u32 = 1024;
-pub const IMPOSTOR_PAGE_H: u32 = 1024;
+/// The impostor page: `VARIANTS` × 2 views of 256 × 512, slot = variant × 2 + view.
+pub const IMPOSTOR_PAGE_W: u32 = 2048;
+pub const IMPOSTOR_PAGE_H: u32 = 512;
+pub const IMPOSTOR_VIEW_W: u32 = 256;
+pub const IMPOSTOR_VIEW_H: u32 = 512;
 
-/// The world window an impostor sprite spans, tree-local metres: `half_width_m` across the
-/// quad, `0..top_m` up — the exporter's numbers, so the crossed quads and the sprite agree by
-/// shared data, not tuning.
+/// The world window one VARIANT's impostor sprite spans, tree-local metres: `half_width_m`
+/// across the quad, `0..top_m` up — the exporter's numbers, so the crossed quads and the
+/// sprite agree by shared data, not tuning. One impostor per variant (LOD continuity,
+/// 2026-09-03): the far sprite is the same individual the Near and Mid rungs draw.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ImpostorWindow {
     pub half_width_m: f32,
@@ -188,15 +192,20 @@ pub fn impostor_pages(species: TreeSpecies) -> Option<&'static ClusterPages> {
 /// The impostor window from the species' `impostor.json` (two numbers, read without a JSON
 /// crate: `"half_width_m": <f>` and `"top_m": <f>`). A retired species gets a nominal window:
 /// nothing ever draws it.
-pub fn impostor_window(species: TreeSpecies) -> ImpostorWindow {
+pub fn impostor_window(species: TreeSpecies, variant: u32) -> ImpostorWindow {
     let Some(a) = assets(species) else {
         return ImpostorWindow { half_width_m: 4.0, top_m: 16.0 };
     };
+    // The manifest lists the reference window first, then one window per variant under
+    // "variants" — the (variant + 2)-th occurrence of each key is the variant's.
     let manifest = a.impostor_manifest;
     let number = |key: &str| -> f32 {
-        let start =
-            manifest.find(key).unwrap_or_else(|| panic!("impostor.json: {key}")) + key.len();
-        let rest = &manifest[start..];
+        let mut from = 0usize;
+        for _ in 0..(variant % VARIANTS) as usize + 2 {
+            let at = manifest[from..].find(key).unwrap_or_else(|| panic!("impostor.json: {key}"));
+            from += at + key.len();
+        }
+        let rest = &manifest[from..];
         let rest = rest.trim_start_matches(|c: char| c == ':' || c.is_whitespace());
         let end =
             rest.find(|c: char| c == ',' || c == '}' || c.is_whitespace()).unwrap_or(rest.len());
@@ -257,35 +266,35 @@ pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
         0xa717_8958_c78e_edd5,
         0x8163_ecf6_dce9_7b5d,
         0x42fd_61ea_222f_dd31,
-        0xa620_41ca_8ca8_11c9,
+        0xff77_aa40_ed3e_0145,
     ),
     (
         TreeSpecies::Poplar,
         0xd134_b90f_9756_9b3b,
         0xa815_cd10_0a66_0103,
         0x9114_1fd6_45f4_f3b1,
-        0x58ac_b364_b1de_abd3,
+        0xfd46_73d8_ff00_d9a1,
     ),
     (
         TreeSpecies::FruitTree,
         0x94c7_e4cc_7846_5a63,
         0x8208_5969_3676_7c2b,
         0x14d1_95fa_d5c6_ec4d,
-        0x05db_1a40_e8e9_47db,
+        0x84e4_7d83_8920_0b28,
     ),
     (
         TreeSpecies::Bush,
         0x57a8_ac57_d85f_75b6,
         0xd32c_40fe_223b_1e10,
         0x16db_0350_dcc4_d74d,
-        0xedcb_48a9_0b59_4eee,
+        0x28c7_58f3_c50b_c6da,
     ),
     (
         TreeSpecies::Pine,
         0x78e4_7a5b_5cf9_e80a,
-        0x5afa_07f1_e66f_dc28,
+        0xa140_0a97_4d18_20b9,
         0x0f83_122c_b8de_75f1,
-        0xad28_9ae7_3ecd_3473,
+        0x2c48_036f_4538_35c5,
     ),
 ];
 
@@ -732,44 +741,60 @@ mod tests {
         }
     }
 
-    /// Every impostor pair: two views of a tree — each view rooted at its bottom centre (the
-    /// trunk), covering a real share of its half of the page — in a window that holds the
-    /// WHOLE crown: no opaque texel on the top row or either side column. The first bake
-    /// derived the window's width from its height and clipped every broad crown flat at both
-    /// sides; the owner saw square trees at 300 m (2026-09-03).
+    /// Every impostor view of every variant: a tree rooted at its bottom centre (the trunk),
+    /// covering a real share of its slot — in a window that holds the WHOLE crown: no opaque
+    /// texel on the top row or either side column. The first bake derived the window's width
+    /// from its height and clipped every broad crown flat at both sides; the owner saw square
+    /// trees at 300 m (2026-09-03). And the variants differ: the young tree's window is
+    /// lower than the old one's, so the far sprite is the variant's own tree.
     #[test]
-    fn every_impostor_pair_is_a_tree_in_its_window() {
+    fn every_impostor_view_is_a_tree_in_its_window() {
         for species in authored_species() {
             let pages = impostor_pages(species).expect("authored");
-            let window = impostor_window(species);
-            assert!(window.top_m > 1.0 && window.half_width_m > 0.3, "{species:?}: {window:?}");
-            assert!(
-                window.top_m >= window.half_width_m,
-                "{species:?}: a tree stands at least as tall as its reach: {window:?}"
-            );
-            for which in 0..2u32 {
-                let x0 = which * IMPOSTOR_PAGE_W / 2;
-                let mut covered = 0u32;
-                let mut rooted = false;
-                for y in 0..IMPOSTOR_PAGE_H {
-                    for x in x0..x0 + IMPOSTOR_PAGE_W / 2 {
-                        let alpha = pages.color[((y * pages.width + x) * 4 + 3) as usize];
-                        let on_frame = y == 0 || x == x0 || x == x0 + IMPOSTOR_PAGE_W / 2 - 1;
-                        assert!(
-                            !(on_frame && alpha >= 128),
-                            "{species:?} view {which}: the crown is clipped by the frame at ({x}, {y})"
-                        );
-                        covered += u32::from(alpha >= 128);
-                        if y >= IMPOSTOR_PAGE_H - 24 && (x0 + IMPOSTOR_PAGE_W / 4).abs_diff(x) < 48
-                        {
-                            rooted |= alpha >= 128;
+            let mut tops = Vec::new();
+            for variant in 0..VARIANTS {
+                let window = impostor_window(species, variant);
+                assert!(window.top_m > 1.0 && window.half_width_m > 0.3, "{species:?}: {window:?}");
+                assert!(
+                    window.top_m >= window.half_width_m,
+                    "{species:?}: a tree stands at least as tall as its reach: {window:?}"
+                );
+                tops.push(window.top_m);
+                for which in 0..2u32 {
+                    let x0 = (variant * 2 + which) * IMPOSTOR_VIEW_W;
+                    let mut covered = 0u32;
+                    let mut rooted = false;
+                    for y in 0..IMPOSTOR_VIEW_H {
+                        for x in x0..x0 + IMPOSTOR_VIEW_W {
+                            let alpha = pages.color[((y * pages.width + x) * 4 + 3) as usize];
+                            let on_frame = y == 0 || x == x0 || x == x0 + IMPOSTOR_VIEW_W - 1;
+                            assert!(
+                                !(on_frame && alpha >= 128),
+                                "{species:?} v{variant} view {which}: clipped by the frame at ({x}, {y})"
+                            );
+                            covered += u32::from(alpha >= 128);
+                            if y >= IMPOSTOR_VIEW_H - 12
+                                && (x0 + IMPOSTOR_VIEW_W / 2).abs_diff(x) < 24
+                            {
+                                rooted |= alpha >= 128;
+                            }
                         }
                     }
+                    let share = covered as f32 / (IMPOSTOR_VIEW_W * IMPOSTOR_VIEW_H) as f32;
+                    assert!(
+                        (0.05..=0.9).contains(&share),
+                        "{species:?} v{variant} view {which}: {share:.3}"
+                    );
+                    assert!(
+                        rooted,
+                        "{species:?} v{variant} view {which}: the trunk meets the bottom centre"
+                    );
                 }
-                let share = covered as f32 / (IMPOSTOR_PAGE_W / 2 * IMPOSTOR_PAGE_H) as f32;
-                assert!((0.05..=0.9).contains(&share), "{species:?} view {which}: {share:.3}");
-                assert!(rooted, "{species:?} view {which}: the trunk meets the bottom centre");
             }
+            assert!(
+                tops[0] < tops[2],
+                "{species:?}: the young variant's window is lower than the old one's: {tops:?}"
+            );
         }
     }
 

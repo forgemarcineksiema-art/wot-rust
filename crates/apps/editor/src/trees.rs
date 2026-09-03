@@ -51,8 +51,11 @@ mod tests {
         let mut state = TreeLodState::default();
         let objects =
             planted_tree_objects(&compiled, &born, Vec3::new(130.0, 2.0, 95.0), &mut state);
-        // Each placement is a tree AND its symmetry twin.
-        assert_eq!(objects.len(), planted.len() * 2, "one instance per planted tree");
+        // Each placement is a tree AND its symmetry twin. A tree may be two or three objects
+        // (a cross-fade band, the impostor's two quads) whose windows partition [0, 1): the
+        // one starting at 0 counts the tree.
+        let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
+        assert_eq!(trees, planted.len() * 2, "one tree per planted tree");
         for object in &objects {
             assert!(
                 scene_build::tree_lod::tree_lod_meshes()

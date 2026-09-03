@@ -13,7 +13,9 @@ pub struct SceneInstance {
     pub tint: [f32; 4],
     /// One-based index into the analytical armor-damage header buffer; zero means undamaged.
     pub damage_index: u32,
-    pub _padding: [u32; 3],
+    /// The screen-door window (`RenderObject::dither`), read by every pass that cuts foliage.
+    pub dither: [f32; 2],
+    pub _padding: u32,
 }
 
 impl SceneInstance {
@@ -27,7 +29,8 @@ impl SceneInstance {
             ],
             tint: [1.0, 1.0, 1.0, 1.0],
             damage_index: 0,
-            _padding: [0; 3],
+            dither: [0.0, 1.0],
+            _padding: 0,
         }
     }
 }
@@ -183,9 +186,10 @@ pub fn frame_instances_into(scratch: &mut InstanceScratch, frame: &RenderFrame) 
             object.tank_id.and_then(|tank_id| damage_of.get(&tank_id).copied()).unwrap_or(0);
         instances[*slot as usize] = SceneInstance {
             model: object.transform,
-            tint: [r, g, b, object.dither],
+            tint: [r, g, b, 1.0],
             damage_index,
-            _padding: [0; 3],
+            dither: object.dither,
+            _padding: 0,
         };
         *slot += 1;
     }
@@ -342,7 +346,7 @@ mod tests {
                 [tank_id as f32, 0.0, 0.0, 1.0],
             ],
             tint: [tank_id as f32, 1.0, 1.0],
-            dither: 0.0,
+            dither: [0.0, 1.0],
         }
     }
 }

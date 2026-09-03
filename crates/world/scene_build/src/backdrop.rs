@@ -296,7 +296,11 @@ mod tests {
                     instance.scale
                 );
                 let species = crate::foliage::tree_species(instance.kind).expect("a ring tree");
-                let tip = crate::foliage_atlas_paint::impostor_quad_window(species).top_m;
+                let tip = crate::foliage_atlas_paint::impostor_quad_window(
+                    species,
+                    crate::tree_lod::instance_variant(&instance),
+                )
+                .top_m;
                 let (mut vertices, mut indices) = (Vec::new(), Vec::new());
                 crate::foliage::push_impostor_tree(&mut vertices, &mut indices, &instance);
                 let top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
