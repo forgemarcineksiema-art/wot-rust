@@ -170,11 +170,11 @@ pub struct ImpostorWindow {
 }
 
 /// The rendered impostor pair of a species (colour with cutout alpha, dome normals flat
-/// where cut), decoded once.
-pub fn impostor_pages(species: TreeSpecies) -> &'static ClusterPages {
+/// where cut), decoded once; `None` for the retired willow.
+pub fn impostor_pages(species: TreeSpecies) -> Option<&'static ClusterPages> {
     static PAGES: [OnceLock<ClusterPages>; 6] = [const { OnceLock::new() }; 6];
-    let a = assets(species);
-    PAGES[species_index(species) as usize].get_or_init(|| {
+    let a = assets(species)?;
+    Some(PAGES[species_index(species) as usize].get_or_init(|| {
         let pages = decode_pages_any(a.impostor_color, a.impostor_normal);
         assert_eq!(
             (pages.width, pages.height),
@@ -182,13 +182,17 @@ pub fn impostor_pages(species: TreeSpecies) -> &'static ClusterPages {
             "impostor page"
         );
         pages
-    })
+    }))
 }
 
 /// The impostor window from the species' `impostor.json` (two numbers, read without a JSON
-/// crate: `"half_width_m": <f>` and `"top_m": <f>`).
+/// crate: `"half_width_m": <f>` and `"top_m": <f>`). A retired species gets a nominal window:
+/// nothing ever draws it.
 pub fn impostor_window(species: TreeSpecies) -> ImpostorWindow {
-    let manifest = assets(species).impostor_manifest;
+    let Some(a) = assets(species) else {
+        return ImpostorWindow { half_width_m: 4.0, top_m: 16.0 };
+    };
+    let manifest = a.impostor_manifest;
     let number = |key: &str| -> f32 {
         let start =
             manifest.find(key).unwrap_or_else(|| panic!("impostor.json: {key}")) + key.len();
@@ -201,26 +205,36 @@ pub fn impostor_window(species: TreeSpecies) -> ImpostorWindow {
     ImpostorWindow { half_width_m: number("\"half_width_m\""), top_m: number("\"top_m\"") }
 }
 
-/// FNV over a species' impostor pair.
+/// FNV over a species' impostor pair (0 for a retired species).
 pub fn impostor_hash(species: TreeSpecies) -> u64 {
-    impostor_pages(species).deterministic_hash()
+    impostor_pages(species).map_or(0, ClusterPages::deterministic_hash)
 }
 
 static OAK: SpeciesAssets = flora!("oak", "jolcham_oak_bark_01");
 static POPLAR: SpeciesAssets = flora!("poplar", "bark_brown_02");
-static WILLOW: SpeciesAssets = flora!("willow", "bark_willow_02");
 static FRUIT: SpeciesAssets = flora!("fruit", "sakura_bark");
 static BUSH: SpeciesAssets = flora!("bush", "tree_bark_03");
 static PINE: SpeciesAssets = flora!("pine", "pine_bark");
 
-fn assets(species: TreeSpecies) -> &'static SpeciesAssets {
+/// The willow is RETIRED (2026-09-03, the owner: "I don't want a willow at all"): no assets,
+/// never planted, never drawn; the variant stays as wire identity.
+pub fn is_retired(species: TreeSpecies) -> bool {
+    species == TreeSpecies::Willow
+}
+
+/// Every species with authored assets, in `TreeSpecies::ALL` order.
+pub fn authored_species() -> impl Iterator<Item = TreeSpecies> {
+    TreeSpecies::ALL.into_iter().filter(|&species| !is_retired(species))
+}
+
+fn assets(species: TreeSpecies) -> Option<&'static SpeciesAssets> {
     match species {
-        TreeSpecies::Oak => &OAK,
-        TreeSpecies::Poplar => &POPLAR,
-        TreeSpecies::Willow => &WILLOW,
-        TreeSpecies::FruitTree => &FRUIT,
-        TreeSpecies::Bush => &BUSH,
-        TreeSpecies::Pine => &PINE,
+        TreeSpecies::Oak => Some(&OAK),
+        TreeSpecies::Poplar => Some(&POPLAR),
+        TreeSpecies::Willow => None,
+        TreeSpecies::FruitTree => Some(&FRUIT),
+        TreeSpecies::Bush => Some(&BUSH),
+        TreeSpecies::Pine => Some(&PINE),
     }
 }
 
@@ -230,15 +244,14 @@ pub fn species_index(species: TreeSpecies) -> u32 {
 }
 
 /// The asset directory names (species, bark), for reports and tests.
-pub fn asset_dirs(species: TreeSpecies) -> (&'static str, &'static str) {
-    let a = assets(species);
-    (a.dir, a.bark_dir)
+pub fn asset_dirs(species: TreeSpecies) -> Option<(&'static str, &'static str)> {
+    assets(species).map(|a| (a.dir, a.bark_dir))
 }
 
 /// The golden hashes per species: (clusters, the eight tree files, the bark pair, the
 /// impostor pair). A re-bake changes the picture: bless deliberately and say what changed
 /// about the LEAVES, the SHAPE, the BARK or the FAR RUNG.
-pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 6] = [
+pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
     (
         TreeSpecies::Oak,
         0x9589_9f13_6788_6aa6,
@@ -252,13 +265,6 @@ pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 6] = [
         0xa815_cd10_0a66_0103,
         0x9114_1fd6_45f4_f3b1,
         0x28c9_6e92_f747_3594,
-    ),
-    (
-        TreeSpecies::Willow,
-        0x4644_570f_6bab_70ab,
-        0xa778_9f76_b86f_c186,
-        0x69d3_ab60_3d49_f2a1,
-        0xfbaf_fc6a_7f55_79d1,
     ),
     (
         TreeSpecies::FruitTree,
@@ -289,10 +295,13 @@ fn fnv_bytes(hash: &mut u64, bytes: &[u8]) {
     }
 }
 
-/// FNV over a species' eight tree files.
+/// FNV over a species' eight tree files (0 for a retired species).
 pub fn trees_hash(species: TreeSpecies) -> u64 {
+    let Some(a) = assets(species) else {
+        return 0;
+    };
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for rungs in &assets(species).trees {
+    for rungs in &a.trees {
         for bytes in rungs {
             fnv_bytes(&mut hash, bytes);
         }
@@ -309,21 +318,24 @@ pub fn bark_hash(species: TreeSpecies) -> u64 {
     hash
 }
 
-/// The authored cluster pages of a species (every species has them). Decoded once per
-/// process.
+/// The authored cluster pages of a species (`None` for the retired willow). Decoded once
+/// per process.
 pub fn clusters(species: TreeSpecies) -> Option<&'static ClusterPages> {
     static PAGES: [OnceLock<ClusterPages>; 6] = [const { OnceLock::new() }; 6];
-    let a = assets(species);
+    let a = assets(species)?;
     Some(
         PAGES[species_index(species) as usize]
             .get_or_init(|| decode_cluster_pages(a.cluster_color, a.cluster_normal)),
     )
 }
 
-/// The bark pair (albedo, normals) of a species, `BARK_W` × `BARK_H`, decoded once.
+/// The bark pair (albedo, normals) of a species, `BARK_W` × `BARK_H`, decoded once. A retired
+/// species' array layer is the oak's, so the layer count stays `TreeSpecies::ALL.len()`.
 pub fn bark_pages(species: TreeSpecies) -> &'static (BarkPage, BarkPage) {
     static PAGES: [OnceLock<(BarkPage, BarkPage)>; 6] = [const { OnceLock::new() }; 6];
-    let a = assets(species);
+    let Some(a) = assets(species) else {
+        return bark_pages(TreeSpecies::Oak);
+    };
     PAGES[species_index(species) as usize]
         .get_or_init(|| (decode_bark(a.bark_albedo), decode_bark(a.bark_normal)))
 }
@@ -415,8 +427,10 @@ pub fn seed_for(variant: u32, mirrored: bool) -> u64 {
         .expect("every (variant, mirror) has a seed under 4096")
 }
 
-/// The authored tree of a species at a rung: the variant and mirror the seed names.
+/// The authored tree of a species at a rung: the variant and mirror the seed names; `None`
+/// for the retired willow (the procedural bake still answers, and nothing plants it).
 pub fn tree(species: TreeSpecies, seed: u64, lod: TreeLod) -> Option<BakedTree> {
+    assets(species)?;
     let (variant, mirrored) = variant_of_seed(seed);
     let mut tree = tree_variant(species, variant, lod);
     if mirrored {
@@ -431,7 +445,8 @@ pub fn tree_variant(species: TreeSpecies, variant: u32, lod: TreeLod) -> BakedTr
         TreeLod::Close => 0,
         TreeLod::Mid => 1,
     };
-    parse_tree(species, assets(species).trees[(variant % VARIANTS) as usize][rung])
+    let a = assets(species).expect("an authored species");
+    parse_tree(species, a.trees[(variant % VARIANTS) as usize][rung])
 }
 
 fn mirror_authored_tree_across_x(tree: &mut BakedTree) {
@@ -578,7 +593,7 @@ mod tests {
     /// centre (the card's stem), the normal page flat outside the leaves and bent inside.
     #[test]
     fn every_species_cluster_block_is_well_formed() {
-        for species in TreeSpecies::ALL {
+        for species in authored_species() {
             let pages = clusters(species).expect("clusters");
             assert_eq!((pages.width, pages.height), (CLUSTER_PAGE_W, CLUSTER_PAGE_H));
             for sprite in 0..CLUSTER_SPRITES {
@@ -618,7 +633,7 @@ mod tests {
     /// really differ in size (young under mature under old) and the mirror keeps its winding.
     #[test]
     fn every_variant_of_every_species_is_a_valid_tree() {
-        for species in TreeSpecies::ALL {
+        for species in authored_species() {
             let mut tips = Vec::new();
             for variant in 0..VARIANTS {
                 let near = tree_variant(species, variant, TreeLod::Close);
@@ -704,8 +719,8 @@ mod tests {
     /// tree at least as tall as it is wide.
     #[test]
     fn every_impostor_pair_is_a_tree_in_its_window() {
-        for species in TreeSpecies::ALL {
-            let pages = impostor_pages(species);
+        for species in authored_species() {
+            let pages = impostor_pages(species).expect("authored");
             let window = impostor_window(species);
             assert!(window.top_m > 1.0 && window.half_width_m > 0.3, "{species:?}: {window:?}");
             assert!(
@@ -736,7 +751,7 @@ mod tests {
     /// Every bark layer: a 1 × 2 tile, the normal page a real normal map, the albedo a bark.
     #[test]
     fn every_bark_layer_is_a_bark() {
-        for species in TreeSpecies::ALL {
+        for species in authored_species() {
             let (albedo, normal) = bark_pages(species);
             assert_eq!((albedo.width, albedo.height), (BARK_W, BARK_H));
             assert_eq!((normal.width, normal.height), (BARK_W, BARK_H));

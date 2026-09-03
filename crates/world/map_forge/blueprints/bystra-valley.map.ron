@@ -36,7 +36,7 @@ MapBlueprint(
         closure_span_m: 280.0,
         river_gap_half_m: 34.0,
         river_gap_falloff_m: 40.0,
-        flora: [(Oak, 0.40), (Willow, 0.30), (Poplar, 0.20), (FruitTree, 0.10)],
+        flora: [(Oak, 0.40), (Poplar, 0.45), (FruitTree, 0.15)],
     )),
     terrain: TerrainProgram(
         base: SlopeEases(
@@ -518,7 +518,7 @@ MapBlueprint(
         // its screen.
         Scatter(
             seed: 3044695280,
-            kind: Willow,
+            kind: Poplar,
             pairs: 9,
             region: ScatterRect(
                 x: (440.0, 720.0),

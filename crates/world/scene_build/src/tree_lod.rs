@@ -44,10 +44,11 @@ const _: () = assert!(
 /// The species that ride the instanced ladder, in handle order — append-only, because a handle
 /// is a species × variant × rung slot. Every planted species is here: the trees since Inny
 /// Poziom F7, the bush since route 2 gave it an authored shrub of its own.
-pub const LADDER_SPECIES: [TreeSpecies; 6] = [
+/// The willow is RETIRED (2026-09-03, the owner: "I don't want a willow at all"): its slot
+/// stays in `ladder_mesh` (handles are identity) but nothing registers or draws it.
+pub const LADDER_SPECIES: [TreeSpecies; 5] = [
     TreeSpecies::Oak,
     TreeSpecies::Poplar,
-    TreeSpecies::Willow,
     TreeSpecies::FruitTree,
     TreeSpecies::Pine,
     TreeSpecies::Bush,
@@ -95,11 +96,12 @@ pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
     match kind {
         SceneryKind::Oak => Some(TreeSpecies::Oak),
         SceneryKind::Poplar => Some(TreeSpecies::Poplar),
-        SceneryKind::Willow => Some(TreeSpecies::Willow),
         SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
         SceneryKind::Pine => Some(TreeSpecies::Pine),
         SceneryKind::Bush => Some(TreeSpecies::Bush),
-        SceneryKind::Rock
+        // Retired: the willow draws nothing anywhere (the owner, 2026-09-03).
+        SceneryKind::Willow
+        | SceneryKind::Rock
         | SceneryKind::Lamppost
         | SceneryKind::DebrisHeap
         | SceneryKind::FloraTree
@@ -565,7 +567,6 @@ mod tests {
             let expected = match kind {
                 SceneryKind::Oak => Some(TreeSpecies::Oak),
                 SceneryKind::Poplar => Some(TreeSpecies::Poplar),
-                SceneryKind::Willow => Some(TreeSpecies::Willow),
                 SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
                 SceneryKind::Pine => Some(TreeSpecies::Pine),
                 SceneryKind::Bush => Some(TreeSpecies::Bush),
@@ -576,7 +577,9 @@ mod tests {
         for (index, species) in LADDER_SPECIES.iter().enumerate() {
             assert!(!LADDER_SPECIES[..index].contains(species), "{species:?} listed twice");
         }
-        assert_eq!(LADDER_SPECIES.len(), TreeSpecies::ALL.len());
+        // Every species but the retired willow.
+        assert_eq!(LADDER_SPECIES.len(), TreeSpecies::ALL.len() - 1);
+        assert!(!LADDER_SPECIES.contains(&TreeSpecies::Willow));
     }
 
     /// LOD must not shrink the tree (Świat 2.0 PR1): Near and Mid stand the same height, so a
@@ -635,7 +638,7 @@ mod tests {
                 scale: 1.0,
             },
             SceneryInstance {
-                kind: SceneryKind::Willow,
+                kind: SceneryKind::Poplar,
                 position: [104.0, 5.0, 100.0],
                 yaw_rad: 0.0,
                 scale: 1.1,
@@ -658,8 +661,8 @@ mod tests {
         );
         assert_eq!(
             objects[1].mesh,
-            ladder_mesh(TreeSpecies::Willow, instance_variant(&scenery[2]), TreeLod::Near),
-            "the willow draws the willow's near rung"
+            ladder_mesh(TreeSpecies::Poplar, instance_variant(&scenery[2]), TreeLod::Near),
+            "the poplar draws the poplar's near rung"
         );
         assert_eq!(
             objects[2].mesh,
@@ -720,9 +723,7 @@ mod tests {
                 .iter()
                 .fold(0.0_f32, |acc, v| acc.max(v.sway))
         };
-        // (The authored willow's curtains hang LOW, and the cantilever law scales sway by
-        // height — so its factor of 1.4 buys motion per card, not a taller peak than the oak.)
-        assert!(peak(TreeSpecies::Willow) > 0.0);
+        assert!(peak(TreeSpecies::Poplar) > 0.0);
         assert!(peak(TreeSpecies::Pine) < peak(TreeSpecies::Oak));
     }
 

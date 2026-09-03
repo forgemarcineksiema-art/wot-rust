@@ -35,6 +35,33 @@ fn every_shipped_map_compiles_clean_deterministic_and_on_its_golden() {
     }
 }
 
+/// No shipped map plants a retired kind: the imported flora of Świat 2.0, and the WILLOW
+/// since 2026-09-03 (the owner: "I don't want a willow at all") — a blueprint that named one
+/// would draw nothing where the sim believes a tree stands.
+#[test]
+fn no_shipped_map_plants_a_retired_kind() {
+    for id in MapId::SHIPPED {
+        let map = battlefield(*id);
+        for instance in &map.scenery {
+            assert!(
+                !map_forge::RETIRED_KINDS.contains(&instance.kind),
+                "{}: plants the retired {:?} at {:?}",
+                map.id,
+                instance.kind,
+                instance.position
+            );
+        }
+        for (kind, _) in map_forge::cached_blueprint(*id)
+            .horizon
+            .as_ref()
+            .map(|horizon| horizon.flora.clone())
+            .unwrap_or_default()
+        {
+            assert!(!map_forge::RETIRED_KINDS.contains(&kind), "{}: horizon {kind:?}", map.id);
+        }
+    }
+}
+
 /// Inny Poziom F2: the species gate (`report::check_species_mix`) only bites on a DRESSED map
 /// — `DRESSED_MAP_TREES` or more — so a contract fixture with three oaks is not called a
 /// monoculture. That leaves one way to dodge it: ship a map with eleven trees. This closes

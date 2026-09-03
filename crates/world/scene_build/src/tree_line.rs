@@ -143,7 +143,7 @@ impl CrownHull {
 
 /// What a hedgerow or windbreak is planted with. Orchard trees and shrubs are not.
 pub fn plants_in_a_line(kind: SceneryKind) -> bool {
-    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar | SceneryKind::Willow | SceneryKind::Pine)
+    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar | SceneryKind::Pine)
 }
 
 /// The species a map's lines are planted from: its horizon mix (`HorizonSpec::flora`, the

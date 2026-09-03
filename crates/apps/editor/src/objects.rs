@@ -539,7 +539,7 @@ mod tests {
     fn fixed_scenery_deletes_through_either_twin_and_covers_rotate() {
         let mut document = scratch();
         document.apply_edit(|blueprint| {
-            place_entry(blueprint, PaletteEntry::Willow, [120.0, 110.0]);
+            place_entry(blueprint, PaletteEntry::Poplar, [120.0, 110.0]);
             place_entry(blueprint, PaletteEntry::Barn, [200.0, 150.0]);
         });
         let compiled = document.recompile();
@@ -548,7 +548,7 @@ mod tests {
             document.blueprint(),
             &compiled.battlefield,
             [120.0, 5.0, 190.0],
-            SceneryKind::Willow,
+            SceneryKind::Poplar,
         );
         assert!(matches!(selection, Selection::FixedScenery { .. }));
         document.apply_edit(|blueprint| {

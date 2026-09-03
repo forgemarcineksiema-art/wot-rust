@@ -97,7 +97,7 @@ pub const SLOT_WHITE: u8 = 0;
 /// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
 /// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
 /// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0xb212_2272_4d48_a8bf;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0xa97a_75ed_631c_2681;
 
 /// The first cluster slot of a species' block.
 pub fn cluster_slot_base(species: TreeSpecies) -> u8 {
@@ -227,7 +227,9 @@ fn paste_authored_clusters(rgba: &mut [u8], normal: &mut [u8]) {
 /// 1024×1024 page (two 512×1024 views side by side) into `impostor_origin(species, which)`.
 fn paste_authored_impostors(rgba: &mut [u8], normal: &mut [u8]) {
     for species in TreeSpecies::ALL {
-        let pages = super::authored::impostor_pages(species);
+        let Some(pages) = super::authored::impostor_pages(species) else {
+            continue;
+        };
         for which in 0..2u32 {
             let (x0, y0) = impostor_origin(species, which);
             for y in 0..IMPOSTOR_SPRITE_H {
@@ -680,7 +682,7 @@ mod tests {
         let sprites = super::super::authored::CLUSTER_SPRITES as u8;
         let mut seen = std::collections::BTreeSet::new();
         let image = bake_leaf_atlas();
-        for species in TreeSpecies::ALL {
+        for species in super::super::authored::authored_species() {
             let slots = card_slots(species);
             assert_eq!(slots.len(), sprites as usize, "{species:?}");
             assert_eq!(slots[0], cluster_slot_base(species));
