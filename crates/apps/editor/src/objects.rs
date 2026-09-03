@@ -36,7 +36,6 @@ pub enum PaletteEntry {
     // Render-only flora (a Fixed scenery spot; the vocabulary mirrors it).
     Oak,
     Poplar,
-    Willow,
     FruitTree,
     Rock,
     Bush,
@@ -47,7 +46,7 @@ pub enum PaletteEntry {
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 19] = [
+    pub const CYCLE: [PaletteEntry; 18] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
@@ -60,7 +59,6 @@ impl PaletteEntry {
         PaletteEntry::Wreck,
         PaletteEntry::Oak,
         PaletteEntry::Poplar,
-        PaletteEntry::Willow,
         PaletteEntry::FruitTree,
         PaletteEntry::Rock,
         PaletteEntry::Bush,
@@ -83,7 +81,6 @@ impl PaletteEntry {
             PaletteEntry::Wreck => "wreck",
             PaletteEntry::Oak => "oak",
             PaletteEntry::Poplar => "poplar",
-            PaletteEntry::Willow => "willow",
             PaletteEntry::FruitTree => "fruit tree",
             PaletteEntry::Rock => "rock",
             PaletteEntry::Bush => "bush",
@@ -116,7 +113,6 @@ impl PaletteEntry {
         match self {
             PaletteEntry::Oak => Some(SceneryKind::Oak),
             PaletteEntry::Poplar => Some(SceneryKind::Poplar),
-            PaletteEntry::Willow => Some(SceneryKind::Willow),
             PaletteEntry::FruitTree => Some(SceneryKind::FruitTree),
             PaletteEntry::Rock => Some(SceneryKind::Rock),
             PaletteEntry::Bush => Some(SceneryKind::Bush),
@@ -426,6 +422,20 @@ pub fn adjust_cover(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The owner: "I do not want the willow at all" (2026-09-03). A retired kind never
+    /// reaches the palette — the editor cannot plant what the game will not draw.
+    #[test]
+    fn the_palette_plants_no_retired_kind() {
+        for entry in PaletteEntry::CYCLE {
+            if let Some(kind) = entry.scenery() {
+                assert!(
+                    !map_forge::RETIRED_KINDS.contains(&kind),
+                    "{kind:?} is retired and must not be in the palette"
+                );
+            }
+        }
+    }
 
     fn scratch() -> crate::EditorDocument {
         crate::EditorDocument::new_scratch()

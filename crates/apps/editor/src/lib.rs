@@ -16,6 +16,7 @@ pub mod pick;
 pub mod roads;
 pub mod stamp;
 pub mod stroke;
+pub mod trees;
 pub mod visibility;
 
 use std::path::{Path, PathBuf};
