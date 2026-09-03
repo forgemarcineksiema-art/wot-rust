@@ -55,6 +55,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         ("near_100m", 100.0, 2.2, 8.0),
         ("mid_140m", 140.0, 2.2, 8.0),
         ("mid_280m", 280.0, 2.2, 8.0),
+        // Inside the 300 m cross-fade band: both rungs, screen-door interleaved.
+        ("fade_300m", 300.0, 2.2, 8.0),
         ("impostor_350m", 350.0, 2.2, 8.0),
     ];
     let projection = CameraProjectionPolicy::webgpu_default();

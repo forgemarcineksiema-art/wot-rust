@@ -105,6 +105,7 @@ pub(crate) fn gear_objects_from(
                 material,
                 transform: (hull_transform * placement.transform).to_cols_array_2d(),
                 tint,
+                dither: 0.0,
             }
         })
         .collect()

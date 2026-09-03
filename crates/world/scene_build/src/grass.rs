@@ -706,6 +706,7 @@ pub fn grass_frame_objects(
                         material: MaterialHandle(0),
                         transform: transform.to_cols_array_2d(),
                         tint: species_tinted_albedo(species, albedo),
+                        dither: 0.0,
                     });
                 }
             }

@@ -101,7 +101,7 @@ impl SsaoResources {
                 Some(foliage_bgl),
                 std::mem::size_of::<renderer_api::SceneVertex>() as u64,
                 &super::ssao_pipelines::PREPASS_SCENE_VERTEX_ATTRIBUTES,
-                ("vs_prepass_cutout", "fs_depth_cutout"),
+                ("vs_prepass_cutout", "fs_prepass_cutout"),
                 "ssao_prepass_scene",
             ),
             ssao_pipeline: fullscreen_pipeline(device, &shader, &ssao_layout, "fs_ssao"),

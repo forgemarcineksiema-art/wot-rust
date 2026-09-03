@@ -71,6 +71,7 @@ struct VsInCutout {
     @location(7) model_1: vec4<f32>,
     @location(8) model_2: vec4<f32>,
     @location(9) model_3: vec4<f32>,
+    @location(10) tint: vec4<f32>,
     @location(13) damage_index: u32,
 };
 
@@ -79,14 +80,17 @@ struct VsDepthOutCutout {
     @location(0) world_pos: vec3<f32>,
     @location(1) @interpolate(flat) damage_index: u32,
     @location(2) uv: vec2<f32>,
+    // The LOD cross-fade lane (instance tint.w), see `dither_keeps` in noise_common.
+    @location(3) @interpolate(flat) dither: f32,
 };
 
-fn depth_out_cutout(clip: vec4<f32>, world_pos: vec3<f32>, damage_index: u32, uv: vec2<f32>) -> VsDepthOutCutout {
+fn depth_out_cutout(clip: vec4<f32>, world_pos: vec3<f32>, damage_index: u32, uv: vec2<f32>, dither: f32) -> VsDepthOutCutout {
     var out: VsDepthOutCutout;
     out.clip = clip;
     out.world_pos = world_pos;
     out.damage_index = damage_index;
     out.uv = uv;
+    out.dither = dither;
     return out;
 }
 
@@ -114,19 +118,19 @@ fn cutout_caster_world(input: VsInCutout) -> vec4<f32> {
 @vertex
 fn vs_main_cutout(input: VsInCutout) -> VsDepthOutCutout {
     let world = cutout_caster_world(input);
-    return depth_out_cutout(camera.light_view_proj * world, world.xyz, input.damage_index, input.uv);
+    return depth_out_cutout(camera.light_view_proj * world, world.xyz, input.damage_index, input.uv, input.tint.w);
 }
 
 @vertex
 fn vs_far_cutout(input: VsInCutout) -> VsDepthOutCutout {
     let world = cutout_caster_world(input);
-    return depth_out_cutout(camera.light_view_proj_far * world, world.xyz, input.damage_index, input.uv);
+    return depth_out_cutout(camera.light_view_proj_far * world, world.xyz, input.damage_index, input.uv, input.tint.w);
 }
 
 @vertex
 fn vs_prepass_cutout(input: VsInCutout) -> VsDepthOutCutout {
     let world = cutout_caster_world(input);
-    return depth_out_cutout(camera.view_proj * world, world.xyz, input.damage_index, input.uv);
+    return depth_out_cutout(camera.view_proj * world, world.xyz, input.damage_index, input.uv, input.tint.w);
 }
 
 @fragment
@@ -135,6 +139,29 @@ fn fs_depth_cutout(input: VsDepthOutCutout) {
         discard;
     }
     if (textureSample(foliage_atlas, foliage_sampler, input.uv).a < 0.5) {
+        discard;
+    }
+    // A light-space texel is not a screen pixel: in the swap band the DOMINANT rung casts the
+    // shadow alone (the hand-over at half-fade is invisible at 300 m), the other one none.
+    if (input.dither > 0.0 && input.dither < 0.5) {
+        discard;
+    }
+    if (input.dither < 0.0 && input.dither <= -0.5) {
+        discard;
+    }
+}
+
+// The camera prepass IS screen space: its depth carries the same grain the colour pass draws,
+// so the AO and the depth tests agree with the pixels that are actually there.
+@fragment
+fn fs_prepass_cutout(input: VsDepthOutCutout) {
+    if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
+        discard;
+    }
+    if (textureSample(foliage_atlas, foliage_sampler, input.uv).a < 0.5) {
+        discard;
+    }
+    if (!dither_keeps(input.dither, input.clip.xy)) {
         discard;
     }
 }

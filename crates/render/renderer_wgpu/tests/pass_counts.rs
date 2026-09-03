@@ -56,6 +56,7 @@ fn the_counters_are_exact_for_a_known_scene() {
                     material: MaterialHandle(0),
                     transform: translation(i as f32 * 0.01),
                     tint: [1.0, 1.0, 1.0],
+                    dither: 0.0,
                 })
                 .collect(),
             armor_damage: Vec::new(),

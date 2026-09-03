@@ -183,7 +183,7 @@ pub fn frame_instances_into(scratch: &mut InstanceScratch, frame: &RenderFrame) 
             object.tank_id.and_then(|tank_id| damage_of.get(&tank_id).copied()).unwrap_or(0);
         instances[*slot as usize] = SceneInstance {
             model: object.transform,
-            tint: [r, g, b, 1.0],
+            tint: [r, g, b, object.dither],
             damage_index,
             _padding: [0; 3],
         };
@@ -342,6 +342,7 @@ mod tests {
                 [tank_id as f32, 0.0, 0.0, 1.0],
             ],
             tint: [tank_id as f32, 1.0, 1.0],
+            dither: 0.0,
         }
     }
 }

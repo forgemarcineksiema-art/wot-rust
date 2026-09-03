@@ -201,6 +201,10 @@ pub struct RenderObject {
     pub transform: [[f32; 4]; 4],
     /// Per-instance team/ownership tint, multiplied into tint-weighted vertices by the shader.
     pub tint: [f32; 3],
+    /// Screen-door LOD cross-fade (0 = solid). Positive: keep the pixels whose Bayer
+    /// threshold lies below the value; negative: keep the complementary set — so two rungs of
+    /// one tree in one band are drawn with every pixel covered by exactly one of them.
+    pub dither: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

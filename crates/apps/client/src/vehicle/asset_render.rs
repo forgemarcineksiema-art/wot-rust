@@ -268,6 +268,7 @@ fn vehicle_render_object(
         material,
         transform: transform.to_cols_array_2d(),
         tint,
+        dither: 0.0,
     }
 }
 

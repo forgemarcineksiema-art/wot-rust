@@ -32,6 +32,8 @@ struct VsOut {
     @location(4) surface: f32,
     @location(5) uv: vec2<f32>,
     @location(6) bounce: vec3<f32>,
+    // The LOD cross-fade lane (instance tint.w), see `dither_keeps`.
+    @location(7) @interpolate(flat) dither: f32,
 };
 
 // The foliage atlas (Imported Flora 2.0, FL-2): every scene fragment samples it at the UV
@@ -158,6 +160,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.uv = input.uv;
     // Baked light is light, not paint: the team tint never touches it.
     out.bounce = input.bounce;
+    out.dither = input.tint.w;
     return out;
 }
 
@@ -419,6 +422,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // default one-texel white atlas this is a cached fetch, alpha 1.0, colour 1.0 — no-op.
     let foliage = textureSample(foliage_atlas, foliage_sampler, input.uv);
     if (foliage.a < 0.5) {
+        discard;
+    }
+    // The LOD cross-fade: a rung in its swap band owns only its share of the screen grid.
+    if (!dither_keeps(input.dither, input.clip.xy)) {
         discard;
     }
     let geometric_n = normalize(input.normal);
