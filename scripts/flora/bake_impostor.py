@@ -224,7 +224,11 @@ def normal_material_cards(cluster_path):
     return material
 
 
-def render_view(scene, azimuth, half_width, top, path):
+def render_view(scene, azimuth, width_px, top, path):
+    # Square pixels at render time: the window is `top` tall (vertical sensor fit) and
+    # `top * width_px / VIEW_H` wide; `tile_pair` squashes the view to VIEW_W afterwards.
+    scene.render.resolution_x = width_px
+    scene.render.resolution_y = VIEW_H
     camera_data = bpy.data.cameras.new("impostor_cam")
     camera_data.type = "ORTHO"
     camera_data.sensor_fit = "VERTICAL"
@@ -252,6 +256,10 @@ def tile_pair(paths, out_path):
     pixels = [0.0] * (VIEW_W * 2 * VIEW_H * 4)
     for index, path in enumerate(paths):
         image = bpy.data.images.load(path)
+        # The view was rendered at the crown's own aspect; the atlas slot is 1:2, and the quad
+        # spans the manifest window, so the squash is undone on the GPU.
+        if image.size[0] != VIEW_W or image.size[1] != VIEW_H:
+            image.scale(VIEW_W, VIEW_H)
         src = list(image.pixels)
         for y in range(VIEW_H):
             dst = (y * VIEW_W * 2 + index * VIEW_W) * 4
@@ -279,10 +287,14 @@ def main():
     top = max([p[1] for p in positions] + [c[0][1] + abs(c[1][1]) + abs(c[2][1]) for c in cards])
     reach = max(math.hypot(c[0][0], c[0][2]) + math.hypot(c[1][0], c[1][2]) + math.hypot(c[2][0], c[2][2]) for c in cards)
     reach = max(reach, max(math.hypot(p[0], p[2]) for p in positions))
-    # The window: a 1:2 sprite, the taller of "the tree's height" and "twice its reach".
-    half_width = max(reach, top * 0.25) * 1.02
-    top = max(top * 1.02, half_width * 2.0)
-    half_width = top * 0.25
+    # The window: the WHOLE crown. The first bake derived the width from the height (a 1:2
+    # sprite, `half_width = top / 4`) and clipped every broad crown flat at both sides — the
+    # owner saw square trees at 300 m. The view now renders at the crown's own aspect
+    # (square pixels, `width_px` wide) and is squashed into the 1:2 slot afterwards; the quad
+    # spans `half_width_m` x `top_m`, so the tree keeps its shape and nothing is cut.
+    top = top * 1.02
+    width_px = max(64, int(math.ceil(VIEW_H * 2.0 * reach * 1.04 / top / 2.0)) * 2)
+    half_width = top * width_px / (2.0 * VIEW_H)
     tmp = os.path.join(out, "sprites")
     os.makedirs(tmp, exist_ok=True)
     scene = scene_setup(args.samples)
@@ -291,7 +303,7 @@ def main():
     colors = []
     for azimuth in (0, 1):
         path = os.path.join(tmp, f"impostor_{azimuth}_color.png")
-        render_view(scene, azimuth, half_width, top, path)
+        render_view(scene, azimuth, width_px, top, path)
         colors.append(path)
     # The normal pass.
     wood.data.materials.clear()
@@ -305,7 +317,7 @@ def main():
     normals_out = []
     for azimuth in (0, 1):
         path = os.path.join(tmp, f"impostor_{azimuth}_normal.png")
-        render_view(scene, azimuth, half_width, top, path)
+        render_view(scene, azimuth, width_px, top, path)
         normals_out.append(path)
     tile_pair(colors, os.path.join(out, "impostor_color.png"))
     tile_pair(normals_out, os.path.join(out, "impostor_normal.png"))
