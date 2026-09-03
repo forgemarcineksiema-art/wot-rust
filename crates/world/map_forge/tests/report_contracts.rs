@@ -689,7 +689,7 @@ fn species_mix_refuses_a_monoculture_and_a_horizon_the_map_does_not_plant() {
         let mut blueprint = flat_square();
         blueprint.scenery.push(fixed(SceneryKind::Oak, spots(6, 60.0)));
         blueprint.scenery.push(fixed(SceneryKind::Poplar, spots(5, 120.0)));
-        blueprint.scenery.push(fixed(SceneryKind::Willow, spots(4, 180.0)));
+        blueprint.scenery.push(fixed(SceneryKind::FruitTree, spots(4, 180.0)));
         blueprint
     };
     let (map, report) = compile(&mixed());

@@ -47,7 +47,6 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let species = [
         (SceneryKind::Oak, "oak", 24.0_f32, 8.5_f32),
         (SceneryKind::Poplar, "poplar", 34.0, 12.0),
-        (SceneryKind::Willow, "willow", 22.0, 7.5),
         (SceneryKind::FruitTree, "fruit", 12.0, 3.5),
         (SceneryKind::Pine, "pine", 30.0, 10.0),
         (SceneryKind::Bush, "bush", 7.0, 1.4),

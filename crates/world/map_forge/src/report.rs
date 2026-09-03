@@ -1027,13 +1027,22 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
 }
 
 /// The tree kinds the species gate counts — the map's trees, not its shrubs, stones or
-/// street furniture. Retired imported kinds are never authored and never counted.
-pub const TREE_KINDS: [terrain::SceneryKind; 5] = [
+/// street furniture. Retired kinds are never authored and never counted: the imported
+/// flora of Świat 2.0, and the WILLOW since 2026-09-03 (the owner: "I don't want a willow at
+/// all") — its variant stays in the enum as wire identity and draws nothing anywhere.
+pub const TREE_KINDS: [terrain::SceneryKind; 4] = [
     terrain::SceneryKind::Oak,
     terrain::SceneryKind::Poplar,
-    terrain::SceneryKind::Willow,
     terrain::SceneryKind::FruitTree,
     terrain::SceneryKind::Pine,
+];
+
+/// Kinds no shipped map may plant: retired imports and the willow.
+pub const RETIRED_KINDS: [terrain::SceneryKind; 4] = [
+    terrain::SceneryKind::Willow,
+    terrain::SceneryKind::FloraTree,
+    terrain::SceneryKind::FloraPine,
+    terrain::SceneryKind::FloraBush,
 ];
 /// A dressed map plants at least this many species...
 pub const SPECIES_MIN: usize = 3;

@@ -25,7 +25,7 @@ MapBlueprint(
         closure_span_m: 300.0,
         river_gap_half_m: 0.0,
         river_gap_falloff_m: 1.0,
-        flora: [(Pine, 0.50), (Oak, 0.30), (Willow, 0.20)],
+        flora: [(Pine, 0.50), (Oak, 0.30), (FruitTree, 0.20)],
     )),
     terrain: TerrainProgram(
         // A lakeland plateau: the moraine rolls from authored knolls, never from analytic
@@ -320,7 +320,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 4501012,
-            kind: Willow,
+            kind: FruitTree,
             pairs: 6,
             region: ScatterRect(
                 x: (60.0, 340.0),

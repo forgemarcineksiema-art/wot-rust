@@ -40,7 +40,6 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         // the statics bake's.
         plant(SceneryKind::Poplar, 464.0, 516.0),
         plant(SceneryKind::Pine, 476.0, 516.0),
-        plant(SceneryKind::Willow, 492.0, 516.0),
         plant(SceneryKind::FruitTree, 505.0, 512.0),
         plant(SceneryKind::Bush, 515.0, 510.0),
     ];

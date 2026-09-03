@@ -218,7 +218,7 @@ pub(crate) fn push_impostor_quads(
     place: impl Fn(Vec3) -> Vec3,
     rotate: impl Fn(Vec3) -> Vec3,
 ) {
-    let window = crate::foliage_atlas_paint::impostor_window(species);
+    let window = crate::foliage_atlas_paint::impostor_quad_window(species);
     let (_, gloss) = canopy_color_for_species(species);
     for which in 0..2u32 {
         // Azimuth 0 spans X and faces ±Z; azimuth 1 spans Z and faces ∓X — the two views the

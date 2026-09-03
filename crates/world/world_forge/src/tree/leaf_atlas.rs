@@ -23,22 +23,23 @@ use crate::shape::Rng;
 /// Atlas page width, texels. The leaf-slot grid fills the top-left [`LEAF_GRID_PX`] square;
 /// the impostor sprites fill the rest of the first row and the whole second row — one
 /// binding serves both.
-pub const ATLAS_WIDTH: u32 = 2_048;
+pub const ATLAS_WIDTH: u32 = 4_096;
 /// Atlas page height, texels. The top 1024 rows are the procedural page (leaf grid and the
 /// impostor rows); below them the AUTHORED cluster blocks (route 2, 2026-09-02): one
 /// 2048×512 row of four cluster sprites PER SPECIES, in `TreeSpecies::ALL` order, pasted
 /// from `authored::clusters`.
 pub const ATLAS_HEIGHT: u32 = 4_096;
 /// Where the authored cluster blocks start (rows), and their slot geometry.
-pub const CLUSTER_BLOCK_Y: u32 = 1_024;
+pub const CLUSTER_BLOCK_Y: u32 = 2_048;
 pub const CLUSTER_SLOT_PX: u32 = super::authored::CLUSTER_SPRITE_PX;
 /// The first cluster slot number: slots below it index the procedural leaf grid. A species'
 /// slots are `cluster_slot_base(species) + sprite`.
 pub const CLUSTER_SLOT_BASE: u8 = (ATLAS_GRID * ATLAS_GRID) as u8;
+// Two species' cluster rows share one 4096 px row of the page.
 const _: () = assert!(
-    CLUSTER_BLOCK_Y + TreeSpecies::ALL.len() as u32 * super::authored::CLUSTER_PAGE_H
+    CLUSTER_BLOCK_Y + TreeSpecies::ALL.len().div_ceil(2) as u32 * super::authored::CLUSTER_PAGE_H
         <= ATLAS_HEIGHT
-        && super::authored::CLUSTER_PAGE_W <= ATLAS_WIDTH
+        && super::authored::CLUSTER_PAGE_W * 2 <= ATLAS_WIDTH
 );
 // The cluster block sits under the impostor rows, never inside them.
 const _: () = assert!(IMPOSTOR_SPRITE_H * 2 <= CLUSTER_BLOCK_Y);
@@ -51,9 +52,11 @@ pub const SLOT_SIZE: u32 = LEAF_GRID_PX / ATLAS_GRID;
 /// UV inset from a slot's edge so bilinear + aniso-8 sampling never reads the neighbour.
 const SLOT_MARGIN_PX: f32 = 6.0;
 
-/// One impostor sprite's region, texels: two azimuths per species.
-pub const IMPOSTOR_SPRITE_W: u32 = 256;
-pub const IMPOSTOR_SPRITE_H: u32 = 512;
+/// One impostor sprite's region, texels: two azimuths per species. 512×1024 since the
+/// impostor is RENDERED from the authored tree (2026-09-03, `scripts/flora/bake_impostor.py`)
+/// instead of splatted on the CPU from its deck.
+pub const IMPOSTOR_SPRITE_W: u32 = 512;
+pub const IMPOSTOR_SPRITE_H: u32 = 1_024;
 /// Sprites per row: the first row starts past the leaf grid, the second row is whole.
 const IMPOSTOR_ROW0_SPRITES: u32 = (ATLAS_WIDTH - LEAF_GRID_PX) / IMPOSTOR_SPRITE_W;
 const IMPOSTOR_ROW1_SPRITES: u32 = ATLAS_WIDTH / IMPOSTOR_SPRITE_W;
@@ -94,7 +97,7 @@ pub const SLOT_WHITE: u8 = 0;
 /// same painter, same seeds — only the page around them changed). Re-blessed 2026-09-02
 /// (route 2): the page grew again, 2048×1024 → 2048×2048, and the bottom half carries the
 /// oak's authored cluster block (`authored::OAK_CLUSTERS_GOLDEN` is that block's own lock).
-pub const LEAF_ATLAS_GOLDEN: u64 = 0xb49e_cff6_99a6_aa98;
+pub const LEAF_ATLAS_GOLDEN: u64 = 0xa97a_75ed_631c_2681;
 
 /// The first cluster slot of a species' block.
 pub fn cluster_slot_base(species: TreeSpecies) -> u8 {
@@ -121,7 +124,16 @@ pub fn cluster_slot_origin(slot: u8) -> Option<(u32, u32)> {
         return None;
     }
     let (x, y) = super::authored::sprite_origin(global % super::authored::CLUSTER_SPRITES);
-    Some((x, CLUSTER_BLOCK_Y + species * super::authored::CLUSTER_PAGE_H + y))
+    let (block_x, block_y) = cluster_block_origin(species);
+    Some((block_x + x, block_y + y))
+}
+
+/// Where a species' cluster block starts: two blocks per page row, under the impostor rows.
+pub fn cluster_block_origin(species_index: u32) -> (u32, u32) {
+    (
+        (species_index % 2) * super::authored::CLUSTER_PAGE_W,
+        CLUSTER_BLOCK_Y + (species_index / 2) * super::authored::CLUSTER_PAGE_H,
+    )
 }
 
 /// The two procedural mask variants a species owns (cards mix them per anchor).
@@ -189,6 +201,7 @@ pub fn bake_leaf_atlas() -> LeafAtlasImage {
         }
     }
     paste_authored_clusters(&mut rgba, &mut normal);
+    paste_authored_impostors(&mut rgba, &mut normal);
     LeafAtlasImage { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, rgba, normal }
 }
 
@@ -199,14 +212,33 @@ fn paste_authored_clusters(rgba: &mut [u8], normal: &mut [u8]) {
         let Some(pages) = super::authored::clusters(species) else {
             continue;
         };
-        let block_y = CLUSTER_BLOCK_Y
-            + super::authored::species_index(species) * super::authored::CLUSTER_PAGE_H;
+        let (block_x, block_y) = cluster_block_origin(super::authored::species_index(species));
         for y in 0..pages.height {
             let src = (y * pages.width * 4) as usize;
-            let dst = (((block_y + y) * ATLAS_WIDTH) * 4) as usize;
+            let dst = (((block_y + y) * ATLAS_WIDTH + block_x) * 4) as usize;
             let row = (pages.width * 4) as usize;
             rgba[dst..dst + row].copy_from_slice(&pages.color[src..src + row]);
             normal[dst..dst + row].copy_from_slice(&pages.normal[src..src + row]);
+        }
+    }
+}
+
+/// Paste every species' RENDERED impostor pair (route 2, LOD honesty): view `which` of the
+/// 1024×1024 page (two 512×1024 views side by side) into `impostor_origin(species, which)`.
+fn paste_authored_impostors(rgba: &mut [u8], normal: &mut [u8]) {
+    for species in TreeSpecies::ALL {
+        let Some(pages) = super::authored::impostor_pages(species) else {
+            continue;
+        };
+        for which in 0..2u32 {
+            let (x0, y0) = impostor_origin(species, which);
+            for y in 0..IMPOSTOR_SPRITE_H {
+                let src = ((y * pages.width + which * IMPOSTOR_SPRITE_W) * 4) as usize;
+                let dst = (((y0 + y) * ATLAS_WIDTH + x0) * 4) as usize;
+                let row = (IMPOSTOR_SPRITE_W * 4) as usize;
+                rgba[dst..dst + row].copy_from_slice(&pages.color[src..src + row]);
+                normal[dst..dst + row].copy_from_slice(&pages.normal[src..src + row]);
+            }
         }
     }
 }
@@ -650,7 +682,7 @@ mod tests {
         let sprites = super::super::authored::CLUSTER_SPRITES as u8;
         let mut seen = std::collections::BTreeSet::new();
         let image = bake_leaf_atlas();
-        for species in TreeSpecies::ALL {
+        for species in super::super::authored::authored_species() {
             let slots = card_slots(species);
             assert_eq!(slots.len(), sprites as usize, "{species:?}");
             assert_eq!(slots[0], cluster_slot_base(species));

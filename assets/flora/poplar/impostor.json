@@ -1,0 +1,15 @@
+{
+  "species": "poplar",
+  "variant": 1,
+  "half_width_m": 7.2167,
+  "top_m": 28.8668,
+  "view_px": [
+    512,
+    1024
+  ],
+  "views": [
+    "azimuth 0: plane spans X",
+    "azimuth 1: plane spans Z"
+  ],
+  "convention": "colour = albedo x occlusion under a white world, sRGB; normal = camera-space raw; the window is the quad `push_impostor_quads` spans: half_width_m across, 0..top_m up"
+}

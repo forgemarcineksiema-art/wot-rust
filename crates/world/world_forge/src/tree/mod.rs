@@ -450,7 +450,7 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     (TreeSpecies::Poplar, 0x1f55_74a5_e42c_7d1c),
     // Willow re-blessed 2026-08-22 (Drzewa 3.0 PR8): the sweep showcase — rising limbs arced
     // over by negative tropism, level-2 curtains falling hard, elongated hanging cards.
-    (TreeSpecies::Willow, 0xf3dd_2f44_1eb0_ac4c),
+    (TreeSpecies::Willow, 0xae22_ee7e_22cb_cd4f),
     // FruitTree re-blessed 2026-08-22 (Drzewa 3.0 PR7): skeleton + cards — a short bole
     // opening into a low orchard dome with heavy down-angles.
     (TreeSpecies::FruitTree, 0xa198_90ab_2dcc_7cc8),

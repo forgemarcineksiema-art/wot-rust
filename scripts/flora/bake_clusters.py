@@ -45,9 +45,12 @@ SPECIES = {
     "poplar": dict(window_m=1.3, leaves=(460, 540), leaf_m=(0.09, 0.13), twigs=(15, 18),
                    albedo=(0.15, 0.30, 0.08), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.10),
                    outline="deltoid", hanging=False, needles=False, twig_len=(0.35, 0.6), aspect=1.0),
-    "willow": dict(window_m=1.7, leaves=(420, 520), leaf_m=(0.09, 0.14), twigs=(10, 13),
-                   albedo=(0.17, 0.30, 0.13), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.08),
-                   outline="lanceolate", hanging=True, needles=False, twig_len=(0.6, 1.2), aspect=0.28),
+    # The willow is a CURTAIN: a 2.6 m window of long parallel streamers, leaves close along
+    # them — the card hangs the whole window from its twig (the owner, 2026-09-03: the short
+    # brushes read as "retarded").
+    "willow": dict(window_m=2.6, leaves=(1000, 1200), leaf_m=(0.13, 0.19), twigs=(9, 12),
+                   albedo=(0.19, 0.32, 0.14), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.08),
+                   outline="lanceolate", hanging=True, needles=False, twig_len=(1.6, 2.3), aspect=0.28),
     "fruit": dict(window_m=1.1, leaves=(340, 420), leaf_m=(0.06, 0.09), twigs=(12, 15),
                   albedo=(0.12, 0.28, 0.10), jitter=(0.04, 0.05, 0.03), cup=(0.05, 0.15),
                   outline="oval", hanging=False, needles=False, twig_len=(0.3, 0.5), aspect=1.0),
@@ -268,7 +271,9 @@ def build_cluster(spec, seed, bark, rng):
         yaw = rng.uniform(0.0, 2 * math.pi)
         out = Vector((math.cos(yaw), math.sin(yaw) * 0.35, 0.0)).normalized()
         if spec["hanging"]:
-            direction = (out * 0.3 + Vector((0.0, 0.0, 0.95))).normalized()
+            # Streamers: nearly parallel to the main, fanned a little, the whole window long.
+            # A curtain hangs nearly straight: the streamers barely fan.
+            direction = (out * 0.12 + Vector((0.0, 0.0, 0.99))).normalized()
         else:
             direction = (out * 0.8 + Vector((0.0, 0.0, 0.45)) + tangent * 0.15).normalized()
         length = rng.uniform(*spec["twig_len"]) * window / 1.5
@@ -301,7 +306,8 @@ def build_cluster(spec, seed, bark, rng):
                 spread = Vector((math.cos(around + blade * 1.25), math.sin(around + blade * 1.25), 0.0))
                 forward = (tangent * 0.55 + spread * 0.75 + Vector((0.0, -0.25, 0.1))).normalized()
             elif spec["hanging"]:
-                forward = (tangent * 0.7 + radial * side * 0.35 + Vector((0.0, -0.3, 0.0))).normalized()
+                # Leaves lie ALONG the streamer, alternating sides, hugging it.
+                forward = (tangent * 0.85 + radial * side * 0.25 + Vector((0.0, -0.2, 0.0))).normalized()
             else:
                 forward = (tangent * 0.45 + radial * side * 0.7 + Vector((0.0, -0.35, 0.25))).normalized()
             up_hint = Vector((0.0, -1.0, 0.6)).normalized()

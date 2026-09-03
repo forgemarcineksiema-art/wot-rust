@@ -63,19 +63,19 @@ SPECIES = {
                      leafScale=1.0, leafShape="rect", horzLeaves=False, leafDist="6"),
         card_half_m=0.62, hanging=False, limb_min_radius_m=0.07, twig_min_radius_m=0.035, max_pairs=260,
     ),
-    "willow": dict(  # weeping: rising limbs arcing over, long pendulous twigs
-        sapling=dict(seed=5, levels=3, length=(0.8, 0.65, 0.6, 0.4), lengthV=(0.0, 0.1, 0.15, 0.0),
-                     branches=(0, 18, 16, 0), curveRes=(8, 6, 5, 1), curve=(0.0, 50.0, 90.0, 0.0),
-                     curveV=(20.0, 60.0, 80.0, 0.0), baseSplits=2, segSplits=(0.0, 0.3, 0.0, 0.0),
-                     splitAngle=(0.0, 35.0, 0.0, 0.0), splitAngleV=(0.0, 10.0, 0.0, 0.0), scale=17.5,
-                     scaleV=0.0, attractUp=(0.0, -0.9, -1.6, 0.0), attractOut=(0.0, 0.3, 0.0, 0.0),
-                     shape="2", shapeS="4", branchDist=1.1, baseSize=0.25, baseSize_s=0.2, splitHeight=0.3,
+    "willow": dict(  # weeping: a broad crown of limbs rising then bowing gently, hung with curtains
+        sapling=dict(seed=5, levels=3, length=(0.85, 0.7, 0.45, 0.4), lengthV=(0.0, 0.1, 0.15, 0.0),
+                     branches=(0, 22, 18, 0), curveRes=(8, 6, 4, 1), curve=(0.0, 25.0, 45.0, 0.0),
+                     curveV=(20.0, 50.0, 70.0, 0.0), baseSplits=3, segSplits=(0.0, 0.3, 0.1, 0.0),
+                     splitAngle=(0.0, 35.0, 20.0, 0.0), splitAngleV=(0.0, 10.0, 10.0, 0.0), scale=16.0,
+                     scaleV=0.0, attractUp=(0.0, -0.4, -1.1, 0.0), attractOut=(0.0, 0.5, 0.2, 0.0),
+                     shape="2", shapeS="4", branchDist=1.1, baseSize=0.22, baseSize_s=0.2, splitHeight=0.3,
                      ratio=0.03, minRadius=0.003, rootFlare=1.2, ratioPower=1.2,
-                     downAngle=(90.0, 45.0, 70.0, 60.0), downAngleV=(0.0, -20.0, 15.0, 10.0),
+                     downAngle=(90.0, 50.0, 60.0, 60.0), downAngleV=(0.0, -20.0, 15.0, 10.0),
                      rotate=(137.5, 137.5, 137.5, 137.5), rotateV=(0.0, 20.0, 20.0, 0.0),
-                     leaves=4, leafDownAngle=60.0, leafDownAngleV=15.0, leafRotate=137.5, leafRotateV=20.0,
+                     leaves=5, leafDownAngle=60.0, leafDownAngleV=15.0, leafRotate=137.5, leafRotateV=20.0,
                      leafScale=1.4, leafShape="rect", horzLeaves=False, leafDist="6"),
-        card_half_m=0.85, hanging=True, limb_min_radius_m=0.15, twig_min_radius_m=0.09, max_pairs=300,
+        card_half_m=1.3, hanging=True, limb_min_radius_m=0.15, twig_min_radius_m=0.09, max_pairs=360,
     ),
     "fruit": dict(  # an orchard apple: short bole, low spreading dome
         sapling=dict(seed=3, levels=3, length=(1.0, 0.6, 0.5, 0.4), lengthV=(0.0, 0.1, 0.1, 0.0),
@@ -325,9 +325,15 @@ def card_top(card):
 
 
 def thin_for_mid(cards):
-    """Every second cross pair, scaled by sqrt(2) and fitted under the Near tip — and the
-    topmost pair always kept, so the Mid tip IS the Near tip (a rung swap moves triangles,
-    never metres)."""
+    """The Mid rung draws the SAME deck as Near (the owner's verdict of 2026-09-03: a tree
+    that changes its crown on approach is a different tree; only the wood coarsens). Kept as
+    a function so a future thinning has one place to live — today it is the identity."""
+    return list(cards)
+
+
+def thin_for_mid_halved(cards):
+    """The old halving (every second cross pair, scaled by sqrt(2), fitted under the Near tip,
+    top pair kept) — retired 2026-09-03, kept for the record."""
     tip = max(card_top(card) for card in cards) if cards else 0.0
     top_pair = max(range(len(cards) // 2), key=lambda i: card_top(cards[i * 2])) if cards else -1
     kept = []

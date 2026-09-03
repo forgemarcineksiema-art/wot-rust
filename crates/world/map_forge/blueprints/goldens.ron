@@ -142,7 +142,10 @@
     // `DRESSED_MAP_TREES` keeps fixtures out and the goldens test keeps shipped maps in).
     // Dressing only: cover, terrain, roads and gameplay stand untouched; scatters keep
     // 3 m off cover and roads, spawn circles and crossing lanes as their neighbours do.
-    ("bystra_valley", "f0e6e7f2cdd96a32"),
+    // Re-blessed 2026-09-03 (no willow — the owner: "I don't want a willow at all"): Bystra's
+    // bank willows are poplars, Mazurski's are an orchard, Prokhorovka's balka willows are
+    // poplars; the horizon mixes follow. The Willow variant stays as identity and draws nothing.
+    ("bystra_valley", "fc94f87c7941af1a"),
     ("orliny_pereval", "2e256db696d1b1f1"),
     ("ostrogorsk", "a2c826a699d227bf"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
@@ -154,6 +157,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "971d61da09809506"),
-    ("prokhorovka_hill_252_2", "df2beb7a8fb0f7c7"),
+    ("mazurski_przesmyk", "a3c0d35b170dc8f6"),
+    ("prokhorovka_hill_252_2", "27ecf1d9864d33f7"),
 ]

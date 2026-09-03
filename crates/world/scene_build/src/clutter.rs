@@ -67,14 +67,15 @@ pub fn push_scenery_instance(
         // `the_near_bake_skips_exactly_the_ladder_species`.
         SceneryKind::Oak
         | SceneryKind::Poplar
-        | SceneryKind::Willow
         | SceneryKind::FruitTree
         | SceneryKind::Pine
         | SceneryKind::Bush => {}
-        // Retired imported kinds (procedural-only decision, Świat 2.0) bake to NOTHING: falling
-        // through to the painted far frusta would resurrect the retired silhouette at close
-        // range.
-        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
+        // Retired kinds bake to NOTHING: the imported flora (Świat 2.0) and the willow (the
+        // owner, 2026-09-03: "I don't want a willow at all").
+        SceneryKind::FloraTree
+        | SceneryKind::FloraPine
+        | SceneryKind::FloraBush
+        | SceneryKind::Willow => {}
         SceneryKind::Rock => {
             push_rock(vertices, indices, instance, stone, world_forge::rock::RockForm::Erratic)
         }
@@ -140,14 +141,16 @@ pub fn push_scenery_instance_far(
         // transform. The painted frustum kit that used to answer this arm is deleted.
         SceneryKind::Oak
         | SceneryKind::Poplar
-        | SceneryKind::Willow
         | SceneryKind::FruitTree
         | SceneryKind::Bush
         | SceneryKind::Pine => push_impostor_tree(vertices, indices, instance),
         // Retired imported kinds (procedural-only, Świat 2.0): they draw nothing anywhere — not
         // here, not in the near bake. The variants stay in the enum (append-only wire identity)
         // but are never authored; this arm only exists so the match is total.
-        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => {}
+        SceneryKind::FloraTree
+        | SceneryKind::FloraPine
+        | SceneryKind::FloraBush
+        | SceneryKind::Willow => {}
         SceneryKind::Rock => {
             // The backdrop ring's stone: the pre-forge cuboid, kept deliberately. At the
             // distances this path serves, a hundred triangles of bedding relief and twelve of
