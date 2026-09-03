@@ -484,6 +484,9 @@ pub fn hosted_scale(
 /// tuned at. A narrower lens (the sniper scope, 16×) magnifies a tree exactly as much as it
 /// narrows, so the bands are judged at the APPARENT distance, `distance / magnification`.
 pub const LOD_REFERENCE_FOV_DEGREES: f32 = 48.0;
+/// Half the width, in degrees of view azimuth around the diagonal, of the band in which the
+/// impostor's two quads hand over by screen-door — outside it exactly one quad draws.
+pub const IMPOSTOR_AZIMUTH_BAND_HALF_DEG: f32 = 4.0;
 /// A tree's bounding radius for the view-cone test, metres at instance scale 1 — generous:
 /// the tallest authored crown is 33 m, and a tree clipped by the cone's edge must still draw.
 pub const TREE_CULL_RADIUS_M: f32 = 24.0;
@@ -609,12 +612,17 @@ pub fn tree_frame_objects(
             base - Vec3::Y * TRUNK_SINK_M,
         );
         let variant = instance_variant(instance);
-        // The impostor's two quads share its window by view azimuth in tree space: quad A
-        // (spanning X) takes the share cos², quad B (spanning Z) sin² — one silhouette from
-        // every eye, never two.
+        // The impostor's two quads: ONE of them by view azimuth in tree space — quad A
+        // (spanning X, facing ±Z) while the eye is nearer the Z axis, quad B past the
+        // diagonal — with a dithered hand-over only across a narrow band around the
+        // diagonal. A continuous cos²/sin² share (the first cut) mixed two DIFFERENT views of
+        // the tree at every intermediate angle, and the owner saw that mix as a grid on every
+        // far tree and the whole horizon ring (2026-09-03, in the normal camera).
         let local = Quat::from_rotation_y(-instance.yaw_rad) * (eye.position - base);
-        let (x2, z2) = (local.x * local.x, local.z * local.z);
-        let quad_b = x2 / (x2 + z2).max(1.0e-6);
+        let azimuth = local.x.abs().atan2(local.z.abs()).to_degrees();
+        let quad_b = ((azimuth - (45.0 - IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
+            / (2.0 * IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
+            .clamp(0.0, 1.0);
         let mut push = |mesh: MeshHandle, window: [f32; 2]| {
             if window[0] >= window[1] {
                 return;
@@ -1044,6 +1052,18 @@ mod tests {
         assert_eq!(along_x.len(), 1);
         assert_eq!(along_x[0].mesh, impostor_quad_b_mesh(TreeSpecies::Oak, variant));
         assert_eq!(along_x[0].dither, [0.0, 1.0]);
+        // At 30° off the Z axis: quad A alone, solid — no mix, no grid.
+        let (sx, sz) = (30.0_f32.to_radians().sin(), 30.0_f32.to_radians().cos());
+        let thirty = tree_frame_objects(
+            &scenery,
+            &[],
+            &[],
+            TreeEye::at(Vec3::new(100.0 + far * sx, 3.0, 100.0 + far * sz)),
+            &mut state,
+        );
+        assert_eq!(thirty.len(), 1);
+        assert_eq!(thirty[0].mesh, ladder_mesh(TreeSpecies::Oak, variant, TreeLod::Impostor));
+        assert_eq!(thirty[0].dither, [0.0, 1.0]);
         let d = far / 2.0_f32.sqrt();
         let oblique = tree_frame_objects(
             &scenery,
