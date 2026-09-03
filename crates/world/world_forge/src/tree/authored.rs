@@ -257,35 +257,35 @@ pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
         0x9589_9f13_6788_6aa6,
         0x8163_ecf6_dce9_7b5d,
         0x42fd_61ea_222f_dd31,
-        0x7a44_0755_fb88_3e29,
+        0x525b_e446_cd39_9d52,
     ),
     (
         TreeSpecies::Poplar,
         0xd426_f283_936a_4735,
         0xa815_cd10_0a66_0103,
         0x9114_1fd6_45f4_f3b1,
-        0x28c9_6e92_f747_3594,
+        0xb79c_88ca_675d_94b8,
     ),
     (
         TreeSpecies::FruitTree,
         0xeae0_1018_e1d2_b111,
         0x8208_5969_3676_7c2b,
         0x14d1_95fa_d5c6_ec4d,
-        0x96a6_1305_4c62_c9a6,
+        0x1696_a840_a75a_0eb2,
     ),
     (
         TreeSpecies::Bush,
         0xf651_19f7_6c42_fc81,
         0xd32c_40fe_223b_1e10,
         0x16db_0350_dcc4_d74d,
-        0xfd32_4b58_3319_55ac,
+        0xad89_df42_2096_8a1c,
     ),
     (
         TreeSpecies::Pine,
         0xac91_6545_a0ad_d895,
         0x5afa_07f1_e66f_dc28,
         0x0f83_122c_b8de_75f1,
-        0x7527_45a5_3073_5a91,
+        0xf968_da77_67fc_4ab1,
     ),
 ];
 
@@ -715,8 +715,10 @@ mod tests {
     }
 
     /// Every impostor pair: two views of a tree — each view rooted at its bottom centre (the
-    /// trunk), covering a real share of its half of the page — and a window that stands the
-    /// tree at least as tall as it is wide.
+    /// trunk), covering a real share of its half of the page — in a window that holds the
+    /// WHOLE crown: no opaque texel on the top row or either side column. The first bake
+    /// derived the window's width from its height and clipped every broad crown flat at both
+    /// sides; the owner saw square trees at 300 m (2026-09-03).
     #[test]
     fn every_impostor_pair_is_a_tree_in_its_window() {
         for species in authored_species() {
@@ -724,8 +726,8 @@ mod tests {
             let window = impostor_window(species);
             assert!(window.top_m > 1.0 && window.half_width_m > 0.3, "{species:?}: {window:?}");
             assert!(
-                (window.top_m - window.half_width_m * 4.0).abs() < 0.05,
-                "{species:?}: a 1:2 window: {window:?}"
+                window.top_m >= window.half_width_m,
+                "{species:?}: a tree stands at least as tall as its reach: {window:?}"
             );
             for which in 0..2u32 {
                 let x0 = which * IMPOSTOR_PAGE_W / 2;
@@ -734,6 +736,11 @@ mod tests {
                 for y in 0..IMPOSTOR_PAGE_H {
                     for x in x0..x0 + IMPOSTOR_PAGE_W / 2 {
                         let alpha = pages.color[((y * pages.width + x) * 4 + 3) as usize];
+                        let on_frame = y == 0 || x == x0 || x == x0 + IMPOSTOR_PAGE_W / 2 - 1;
+                        assert!(
+                            !(on_frame && alpha >= 128),
+                            "{species:?} view {which}: the crown is clipped by the frame at ({x}, {y})"
+                        );
                         covered += u32::from(alpha >= 128);
                         if y >= IMPOSTOR_PAGE_H - 24 && (x0 + IMPOSTOR_PAGE_W / 4).abs_diff(x) < 48
                         {
