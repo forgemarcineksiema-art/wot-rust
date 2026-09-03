@@ -157,6 +157,10 @@ struct EditorApp {
     close_armed: bool,
     status: String,
     started: Instant,
+    /// Which ladder rung each planted tree drew last frame (`trees.rs`).
+    tree_lod: scene_build::tree_lod::TreeLodState,
+    /// The born cover phases of the compiled map — the born-ruins preview and the trees share them.
+    born_phases: Vec<u8>,
     last_tick: Instant,
 }
 
@@ -198,6 +202,8 @@ impl EditorApp {
             selected_problem: None,
             show_overview: true,
             close_armed: false,
+            tree_lod: scene_build::tree_lod::TreeLodState::default(),
+            born_phases: Vec::new(),
             status: HELP_LINE.into(),
             started: Instant::now(),
             last_tick: Instant::now(),
@@ -249,6 +255,9 @@ impl EditorApp {
             battlefield,
             &born_phases,
         );
+        // The planted trees re-fit their rungs against the recompiled scenery.
+        self.tree_lod = scene_build::tree_lod::TreeLodState::default();
+        self.born_phases = born_phases;
         let maps = scene_build::terrain_maps::bake_terrain_ground_maps(battlefield);
         let materials = match &blueprint.materials {
             Some(spec) => scene_build::terrain_maps::material_set_from(spec),
@@ -1465,11 +1474,14 @@ impl EditorApp {
         let focus =
             self.probe.unwrap_or(Vec3::from_array(camera.eye) + self.camera.forward() * 45.0);
         renderer.set_shadow_focus(Some(focus.to_array()));
-        renderer.set_render_frame(&RenderFrame {
-            camera,
-            objects: Vec::new(),
-            armor_damage: Vec::new(),
-        });
+        // The planted trees: the same ladder instances the battle draws, from this eye.
+        let objects = crate::trees::planted_tree_objects(
+            &self.compiled,
+            &self.born_phases,
+            Vec3::from_array(camera.eye),
+            &mut self.tree_lod,
+        );
+        renderer.set_render_frame(&RenderFrame { camera, objects, armor_damage: Vec::new() });
         // Annotations: the cached map markers plus the live cursor - a probe disc when
         // navigating, the brush ring when a brush is armed.
         let (mut vertices, mut indices) = (self.map_markers.0.clone(), self.map_markers.1.clone());
@@ -1684,6 +1696,16 @@ impl ApplicationHandler for EditorApp {
             Ok(mut renderer) => {
                 let (width, height, coverage) = ui_kit::font::hud_font_atlas();
                 renderer.set_hud_font_atlas(width, height, coverage);
+                // The tree ladder, its leaf atlas and its bark — the battle's binding, so a
+                // planted tree is drawn, and drawn as the game draws it.
+                for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+                    renderer.register_mesh(handle, &mesh);
+                }
+                let (foliage_color, foliage_normal) =
+                    scene_build::foliage_atlas_paint::foliage_atlas_chains();
+                renderer.set_foliage_atlas(&foliage_color, Some(&foliage_normal));
+                renderer
+                    .set_bark_textures(&scene_build::foliage_atlas_paint::bark_texture_layers());
                 self.renderer = Some(renderer);
             }
             Err(error) => {

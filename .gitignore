@@ -12,3 +12,4 @@
 *.exe
 /output/
 assets/flora/*/sprites/
+__pycache__/
