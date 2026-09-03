@@ -261,11 +261,41 @@ pub fn asset_dirs(species: TreeSpecies) -> Option<(&'static str, &'static str)> 
 /// impostor pair). A re-bake changes the picture: bless deliberately and say what changed
 /// about the LEAVES, the SHAPE, the BARK or the FAR RUNG.
 pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
-    (TreeSpecies::Oak, 0xa717_8958_c78e_edd5, 0x8163_ecf6_dce9_7b5d, 0x42fd_61ea_222f_dd31, 0xff77_aa40_ed3e_0145),
-    (TreeSpecies::Poplar, 0xd134_b90f_9756_9b3b, 0xa815_cd10_0a66_0103, 0x9114_1fd6_45f4_f3b1, 0xfd46_73d8_ff00_d9a1),
-    (TreeSpecies::FruitTree, 0x94c7_e4cc_7846_5a63, 0x8208_5969_3676_7c2b, 0x14d1_95fa_d5c6_ec4d, 0x84e4_7d83_8920_0b28),
-    (TreeSpecies::Bush, 0x57a8_ac57_d85f_75b6, 0xd32c_40fe_223b_1e10, 0x16db_0350_dcc4_d74d, 0x28c7_58f3_c50b_c6da),
-    (TreeSpecies::Pine, 0x78e4_7a5b_5cf9_e80a, 0xa140_0a97_4d18_20b9, 0x0f83_122c_b8de_75f1, 0x2c48_036f_4538_35c5),
+    (
+        TreeSpecies::Oak,
+        0xa717_8958_c78e_edd5,
+        0x8163_ecf6_dce9_7b5d,
+        0x42fd_61ea_222f_dd31,
+        0xff77_aa40_ed3e_0145,
+    ),
+    (
+        TreeSpecies::Poplar,
+        0xd134_b90f_9756_9b3b,
+        0xa815_cd10_0a66_0103,
+        0x9114_1fd6_45f4_f3b1,
+        0xfd46_73d8_ff00_d9a1,
+    ),
+    (
+        TreeSpecies::FruitTree,
+        0x94c7_e4cc_7846_5a63,
+        0x8208_5969_3676_7c2b,
+        0x14d1_95fa_d5c6_ec4d,
+        0x84e4_7d83_8920_0b28,
+    ),
+    (
+        TreeSpecies::Bush,
+        0x57a8_ac57_d85f_75b6,
+        0xd32c_40fe_223b_1e10,
+        0x16db_0350_dcc4_d74d,
+        0x28c7_58f3_c50b_c6da,
+    ),
+    (
+        TreeSpecies::Pine,
+        0x78e4_7a5b_5cf9_e80a,
+        0xa140_0a97_4d18_20b9,
+        0x0f83_122c_b8de_75f1,
+        0x2c48_036f_4538_35c5,
+    ),
 ];
 
 fn fnv_bytes(hash: &mut u64, bytes: &[u8]) {
