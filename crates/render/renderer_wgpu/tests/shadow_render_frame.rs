@@ -85,6 +85,7 @@ fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
             material: MaterialHandle(0),
             transform: identity(),
             tint: [0.6, 0.7, 0.5],
+            dither: 0.0,
         }],
         armor_damage: Vec::new(),
     };
