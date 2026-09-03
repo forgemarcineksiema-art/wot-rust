@@ -163,9 +163,8 @@ pub fn battlefield_dressing_objects(
         materials,
         eye,
     );
-    objects.extend(scene_build::tree_lod::tree_frame_objects(
-        &battlefield.scenery,
-        &battlefield.static_cover,
+    objects.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
+        battlefield,
         cover_states,
         eye,
         tree_lod_state,
@@ -538,7 +537,13 @@ mod tests {
             .filter(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_some())
             .count();
         assert!(trees_planted > 0, "prokhorovka plants battlefield trees");
-        assert_eq!(trees_drawn, trees_planted, "every planted ladder tree draws, intact cover");
+        // Since F11 the horizon ring rides the same ladder: every ring tree draws too.
+        let ring = scene_build::backdrop::backdrop_tree_instances(&battlefield).len();
+        assert_eq!(
+            trees_drawn,
+            trees_planted + ring,
+            "every planted ladder tree and every ring tree draws, intact cover"
+        );
         assert!(dressing.len() > trees_drawn, "the grass ring is still in the frame");
     }
 
@@ -702,5 +707,31 @@ mod tests {
                 "{name} wood vs near = {ratio:.3} ({px} px)"
             );
         }
+
+        // The 120 m band, the same law: the Near rung just before it and the Mid rung just
+        // past it are one tree — colour within 15 %, coverage within 25 % of the 100 m
+        // reading by perspective, wood at both.
+        let n_before =
+            scene_build::tree_lod::NEAR_MAX_M - scene_build::tree_lod::NEAR_FADE_HALF_M - 2.0;
+        let n_after =
+            scene_build::tree_lod::NEAR_MAX_M + scene_build::tree_lod::NEAR_FADE_HALF_M + 2.0;
+        let (a_rgb, a_px, a_wood) =
+            tree_reading(&ctx, &mut renderer, &target, &battlefield, n_before);
+        let (b_rgb, b_px, b_wood) =
+            tree_reading(&ctx, &mut renderer, &target, &battlefield, n_after);
+        eprintln!(
+            "120 m band: near {a_rgb:?} crown {a_px} (={:.0}) wood {a_wood} | mid {b_rgb:?} crown {b_px} (={:.0}) wood {b_wood}",
+            at_100(a_px, n_before),
+            at_100(b_px, n_after)
+        );
+        for c in 0..3 {
+            let ratio = b_rgb[c] / a_rgb[c].max(1.0);
+            assert!((0.85..=1.15).contains(&ratio), "120 m channel {c}: mid/near = {ratio:.3}");
+        }
+        for (name, px, d) in [("near@108", a_px, n_before), ("mid@132", b_px, n_after)] {
+            let ratio = at_100(px, d) / near_px as f32;
+            assert!((0.75..=1.25).contains(&ratio), "{name} crown coverage vs 100 m = {ratio:.3}");
+        }
+        assert!(a_wood > 40 && b_wood > 40, "wood at both sides of 120 m: {a_wood} / {b_wood}");
     }
 }

@@ -78,9 +78,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
     let mut lod_state = scene_build::tree_lod::TreeLodState::default();
     let tree_frame = renderer_api::RenderFrame {
-        objects: scene_build::tree_lod::tree_frame_objects(
-            &battlefield.scenery,
-            &battlefield.static_cover,
+        objects: scene_build::tree_lod::tree_frame_objects_with_backdrop(
+            &battlefield,
             &[],
             glam::Vec3::from_array(eye),
             &mut lod_state,
