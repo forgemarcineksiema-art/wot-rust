@@ -525,7 +525,13 @@ mod tests {
             .into_iter()
             .map(|(handle, _)| handle)
             .collect();
-        let trees_drawn = dressing.iter().filter(|object| ladder.contains(&object.mesh)).count();
+        // A tree in the 300 m cross-fade band is TWO objects (its Mid rung with a negative
+        // lane, its impostor with the positive one); every tree has exactly one object whose
+        // lane is >= 0, so that is the count of trees drawn.
+        let trees_drawn = dressing
+            .iter()
+            .filter(|object| ladder.contains(&object.mesh) && object.dither >= 0.0)
+            .count();
         let trees_planted = battlefield
             .scenery
             .iter()
