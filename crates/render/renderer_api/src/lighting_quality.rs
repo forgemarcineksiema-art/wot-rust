@@ -40,9 +40,10 @@ pub struct LightingQuality {
 pub struct ShaderDetailMask(pub u32);
 
 impl ShaderDetailMask {
-    /// Terrain detail-noise normal bend (grain catches light).
+    /// Terrain detail-tile normal bend (the grain catches light). Was the lattice gradient.
     pub const TERRAIN_NORMAL_BEND: u32 = 1 << 0;
-    /// Terrain third "micro" octave near the eye.
+    /// Terrain detail-tile taps. The name is the retired third micro octave; the bit now
+    /// gates the four-layer array so the min-spec probe can still price the material.
     pub const TERRAIN_MICRO_OCTAVE: u32 = 1 << 1;
     /// Statics' three-sample detail normal.
     pub const SCENE_DETAIL_NORMAL: u32 = 1 << 2;
@@ -89,11 +90,12 @@ impl LightingQuality {
             cloud_shadows: true,
             bloom_mips: 0,
             refraction: false,
-            // Żywy Step P1: the ground's micro-relief is bought back — pure per-pixel ALU
-            // (value noise, no texture taps), measured on the min-spec before shipping. The
-            // remaining bits stay in the buy-back pool. (The furrows once bought back here
-            // were measured by COST alone — ±0.05 ms — and never by a frame; the frame, when
-            // the owner finally looked at one, was zigzag waves on every meadow. T6.)
+            // Teren 2.0: the ground's material is bought back — four-layer tiled array plus
+            // the macro tone (texture taps, mip-filtered). Measured on the min-spec;
+            // anisotropy landed at 2. The remaining bits stay in the buy-back pool. (The
+            // furrows once bought back here were measured by COST alone — ±0.05 ms — and
+            // never by a frame; the frame, when the owner finally looked at one, was zigzag
+            // waves on every meadow. T6.)
             shader_detail: ShaderDetailMask(
                 ShaderDetailMask::TERRAIN_NORMAL_BEND | ShaderDetailMask::TERRAIN_MICRO_OCTAVE,
             ),

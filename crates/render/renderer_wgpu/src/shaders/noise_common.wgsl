@@ -10,7 +10,9 @@
 //   lattice cells to correlated corners — flat hard-edged plates. The lattice hash below is
 //   integer-domain, exactly the fix the sky pass took.
 // - Every octave sampled on the bare world axes shares ONE square lattice; the octave frames
-//   rotate each scale off the axes and off each other.
+//   rotate each scale off the axes and off each other. (The terrain pass no longer evaluates
+//   this grain at all — Teren 2.0 bakes its detail into tiles whose octaves are rotated at
+//   bake time; the scene pass's statics still read it here.)
 // - The light-catch "gradient" was a finite difference stepped at over half a lattice cell,
 //   which facets the field into tiles; `value_noise_grad` returns the ANALYTIC derivative.
 
@@ -61,7 +63,7 @@ fn value_noise_grad(p: vec2<f32>) -> vec3<f32> {
 }
 
 // Octave frames: fixed unit rotations (exact cos/sin pairs) that take each scale off the
-// world axes. Chain-rule partners live in ground_grain/micro_grain — change them TOGETHER.
+// world axes. Chain-rule partners live in ground_grain/interior_grain — change them TOGETHER.
 fn octave_frame_broad(p: vec2<f32>) -> vec2<f32> {
     return vec2<f32>(p.x * 0.96 - p.y * 0.28, p.x * 0.28 + p.y * 0.96);
 }
@@ -97,75 +99,11 @@ fn interior_grain(world_xz: vec2<f32>) -> vec3<f32> {
     return vec3<f32>(fine.x, 0.8 * g.x - 0.6 * g.y, 0.6 * g.x + 0.8 * g.y);
 }
 
-// The near-eye micro octave (~31 cm crumb): x = value, yz = world-space analytic gradient.
-// Shares the broad frame's rotation (different scale — the lattices cannot align anyway).
-fn micro_grain(world_xz: vec2<f32>) -> vec3<f32> {
-    let m = value_noise_grad(octave_frame_broad(world_xz) * 3.2);
-    // R = [[0.96, -0.28], [0.28, 0.96]] -> R^T folds the lattice gradient back to world axes.
-    let g = m.yz * 3.2;
-    return vec3<f32>(m.x, 0.96 * g.x + 0.28 * g.y, -0.28 * g.x + 0.96 * g.y);
-}
-
-// --- Footprint filtering (Inny Poziom T3 / O1) -------------------------------------------------
-//
-// A procedural octave has no mipmaps. A texture seen at a grazing angle is blurred by its mip
-// chain; a lattice evaluated per fragment is sampled at ONE point no matter how many metres
-// of ground the fragment covers. From a tank's eye 3 m up, the depth footprint of a pixel
-// grows with the square of the distance (~0.3 m at 30 m, ~2.5 m at 100 m), so the 0.6 m fine
-// octave and its light-catching gradient beat against the pixel grid from ~30 m out — the
-// concentric "fingerprint" ripples the owner photographed on flat meadow. The fix is the
-// analytic twin of a mip: each octave fades to its mean once its period covers fewer than
-// GRAIN_SHOWN_PX_PER_PERIOD pixels, and is gone at Nyquist (GRAIN_GONE_PX_PER_PERIOD). Fading
-// to the MEAN (0.5) keeps the average albedo, so nothing steps in brightness where an octave
-// leaves. Periods are 1 / the lattice scales in ground_grain / micro_grain; the constants are
-// mirrored in renderer_api (`GRAIN_*`) and locked by wgsl_layout.
-const GRAIN_BROAD_PERIOD_M: f32 = 2.5;
-const GRAIN_FINE_PERIOD_M: f32 = 0.588;
-const GRAIN_MICRO_PERIOD_M: f32 = 0.3125;
-const GRAIN_SHOWN_PX_PER_PERIOD: f32 = 4.0;
-const GRAIN_GONE_PX_PER_PERIOD: f32 = 2.0;
-
-// How much of an octave of `period_m` a fragment covering `footprint_m` metres may show.
-fn octave_reach(period_m: f32, footprint_m: f32) -> f32 {
-    return 1.0 - smoothstep(
-        period_m / GRAIN_SHOWN_PX_PER_PERIOD,
-        period_m / GRAIN_GONE_PX_PER_PERIOD,
-        footprint_m,
-    );
-}
-
-// `ground_grain` filtered by the fragment's footprint: same frames, same scales, same chain
-// rule — each octave scaled toward its mean by its own reach, and NOT evaluated at all once
-// its reach is zero (a far fragment pays for no lattice it cannot show).
-fn ground_grain_filtered(world_xz: vec2<f32>, footprint_m: f32) -> vec3<f32> {
-    let broad_reach = octave_reach(GRAIN_BROAD_PERIOD_M, footprint_m);
-    let fine_reach = octave_reach(GRAIN_FINE_PERIOD_M, footprint_m);
-    var broad = 0.5;
-    if (broad_reach > 0.001) {
-        broad = mix(0.5, value_noise(octave_frame_broad(world_xz) * 0.4), broad_reach);
-    }
-    var fine = vec3<f32>(0.5, 0.0, 0.0);
-    if (fine_reach > 0.001) {
-        let f = value_noise_grad(octave_frame_fine(world_xz) * 1.7);
-        fine = vec3<f32>(mix(0.5, f.x, fine_reach), f.yz * 1.7 * fine_reach);
-    }
-    return vec3<f32>(
-        broad * 0.6 + fine.x * 0.4,
-        0.8 * fine.y - 0.6 * fine.z,
-        0.6 * fine.y + 0.8 * fine.z,
-    );
-}
-
-// `micro_grain` filtered the same way.
-fn micro_grain_filtered(world_xz: vec2<f32>, footprint_m: f32) -> vec3<f32> {
-    let reach = octave_reach(GRAIN_MICRO_PERIOD_M, footprint_m);
-    if (reach <= 0.001) {
-        return vec3<f32>(0.5, 0.0, 0.0);
-    }
-    let m = value_noise_grad(octave_frame_broad(world_xz) * 3.2);
-    let g = m.yz * 3.2 * reach;
-    return vec3<f32>(mix(0.5, m.x, reach), 0.96 * g.x + 0.28 * g.y, -0.28 * g.x + 0.96 * g.y);
-}
+// The near-eye micro octave and the footprint-filtered grain variants that lived here until
+// Teren 2.0 (2026-09-04) are gone with their only consumer: the terrain pass reads its detail
+// from baked, mipmapped tiles now (`renderer_api::ground_detail`), and a texture's mip chain
+// is the filter a lattice never had. `ground_grain` / `interior_grain` stay for the statics'
+// generic ground and the garage.
 
 // Break the square lattice of value_noise before thresholding it into rain pools. Two rotated
 // scales keep the broad patches coherent while the finer scale erodes their grid-aligned edges.

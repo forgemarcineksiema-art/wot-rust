@@ -3,6 +3,7 @@ mod capabilities;
 mod culling;
 mod debug_tools;
 mod feature_plan;
+mod ground_detail;
 mod lighting;
 mod lighting_blend;
 mod lighting_quality;
@@ -38,6 +39,10 @@ pub use debug_tools::{
 };
 pub use feature_plan::{
     FallbackReason, FeatureFallback, RenderFeature, RenderFeaturePlan, select_render_feature_plan,
+};
+pub use ground_detail::{
+    GROUND_DETAIL_LAYERS, GROUND_MACRO_FAR_RATIO, GROUND_MACRO_PERIOD_M, GROUND_MACRO_TILE_SIZE,
+    GROUND_TILE_PERIOD_M, GROUND_TILE_SIZE, GroundDetailTiles, bake_ground_detail_tiles,
 };
 pub use lighting::{
     LocalLight, MAX_LOCAL_LIGHTS, NO_LOCAL_LIGHTS, SceneLighting, fluorescent_flicker,
@@ -178,34 +183,11 @@ pub fn meadow_ground_shade(vegetation: f32, far_stand: f32) -> f32 {
     1.0 - carried * vegetation.clamp(0.0, 1.0)
 }
 
-/// The ground grain's octave periods in metres (1 / the lattice scales in
-/// `noise_common.wgsl`: broad 0.4, fine 1.7, micro 3.2 cycles per metre).
-pub const GRAIN_BROAD_PERIOD_M: f32 = 2.5;
-pub const GRAIN_FINE_PERIOD_M: f32 = 0.588;
-pub const GRAIN_MICRO_PERIOD_M: f32 = 0.3125;
-/// Footprint filtering (Inny Poziom T3 / O1): a procedural octave has no mip chain, so the
-/// terrain pass fades each one by the metres of ground a fragment covers. An octave shows in
-/// full while its period spans at least this many pixels...
-pub const GRAIN_SHOWN_PX_PER_PERIOD: f32 = 4.0;
-/// ...and is gone (folded to its mean) at Nyquist — two pixels per period. Below that a
-/// lattice sampled once per fragment beats against the pixel grid: the concentric ripples
-/// the owner photographed on flat meadow from a tank's eye.
-pub const GRAIN_GONE_PX_PER_PERIOD: f32 = 2.0;
-
-/// How much of an octave of `period_m` a fragment covering `footprint_m` metres of ground
-/// may show, 1 (full) to 0 (gone). The CPU mirror of `octave_reach` in `noise_common.wgsl`.
-pub fn grain_octave_reach(period_m: f32, footprint_m: f32) -> f32 {
-    let shown = period_m / GRAIN_SHOWN_PX_PER_PERIOD;
-    let gone = period_m / GRAIN_GONE_PX_PER_PERIOD;
-    let t = ((footprint_m - shown) / (gone - shown)).clamp(0.0, 1.0);
-    1.0 - t * t * (3.0 - 2.0 * t)
-}
-
 /// The metres of FLAT ground one pixel covers along the depth axis, seen from an eye
 /// `eye_height_m` above it at ground distance `distance_m` through a lens of `fov_y_rad` over
 /// `viewport_h_px` rows. The pixel's angular size times the slant range, divided by the sine
-/// of the grazing angle: `a · r² / h`. The shader reads this off `dpdx`/`dpdy` of the world
-/// position; this is the model the lock reasons with.
+/// of the grazing angle: `a · r² / h`. The model the ground-material lock reasons with when
+/// it asks which mip level a tank's eye reads at a given distance.
 pub fn ground_pixel_footprint_m(
     eye_height_m: f32,
     distance_m: f32,

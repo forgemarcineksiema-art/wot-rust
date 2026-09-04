@@ -56,19 +56,36 @@ pub(crate) struct GroundResources {
     pub pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    /// The detail tiles' sampler: REPEAT (a tile is a period), trilinear, anisotropic — the
+    /// ground is seen at grazing angles almost everywhere, and anisotropy is what keeps the
+    /// 0.3 m grain from smearing into streaks along the depth axis there.
+    detail_sampler: wgpu::Sampler,
+    /// The baked ground material (Teren 2.0), uploaded once per renderer on the first ground
+    /// bind: the four-layer detail array and the macro tone tile. Map-independent.
+    detail_tiles: Option<GroundDetailViews>,
     pub binding: Option<GroundBinding>,
 }
 
-/// The ground bind group's layout AS DATA: which stage may read each of the four bindings. A
+struct GroundDetailViews {
+    layers: wgpu::TextureView,
+    macro_tile: wgpu::TextureView,
+}
+
+/// The ground bind group's layout AS DATA: which stage may read each of the seven bindings. A
 /// binding the shader reads from a stage the layout did not grant is not a compile error and
 /// not a panic — wgpu refuses the whole pipeline at creation, logs one line nobody reads, and
 /// the ground simply stops drawing (Q7's first cold sandwich measured a 0.0 ms battle frame for
 /// exactly that: the field quilt moved into the vertex stage, the materials stayed
 /// fragment-only). `ground_layout_matches_the_shader` pins this table to `terrain.wgsl`.
-pub(crate) fn ground_bind_group_layout_entries() -> [wgpu::BindGroupLayoutEntry; 4] {
+pub(crate) fn ground_bind_group_layout_entries() -> [wgpu::BindGroupLayoutEntry; 7] {
     let texture = wgpu::BindingType::Texture {
         sample_type: wgpu::TextureSampleType::Float { filterable: true },
         view_dimension: wgpu::TextureViewDimension::D2,
+        multisampled: false,
+    };
+    let texture_array = wgpu::BindingType::Texture {
+        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+        view_dimension: wgpu::TextureViewDimension::D2Array,
         multisampled: false,
     };
     [
@@ -102,6 +119,27 @@ pub(crate) fn ground_bind_group_layout_entries() -> [wgpu::BindGroupLayoutEntry;
                 has_dynamic_offset: false,
                 min_binding_size: None,
             },
+            count: None,
+        },
+        // Teren 2.0: the detail material — one array, four layers in splat channel order.
+        wgpu::BindGroupLayoutEntry {
+            binding: 4,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: texture_array,
+            count: None,
+        },
+        // The macro tone tile (T3's macro variation fetch).
+        wgpu::BindGroupLayoutEntry {
+            binding: 5,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: texture,
+            count: None,
+        },
+        // The tiles' repeat/anisotropic sampler (the splat sampler clamps — a different one).
+        wgpu::BindGroupLayoutEntry {
+            binding: 6,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         },
     ]
@@ -185,8 +223,96 @@ impl GroundResources {
             mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
-        Self { pipeline, bind_group_layout, sampler, binding: None }
+        let detail_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("terrain_detail_sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
+            anisotropy_clamp: GROUND_DETAIL_ANISOTROPY,
+            ..Default::default()
+        });
+        Self {
+            pipeline,
+            bind_group_layout,
+            sampler,
+            detail_sampler,
+            detail_tiles: None,
+            binding: None,
+        }
     }
+}
+
+/// The detail tiles' anisotropy: 2, the measured landing (2026-09-04 sandwich on the MX330:
+/// full-scene p50 B8 26.66 / B4 25.42 / B2 24.38 vs A master 25.66 ms). Eight is what the
+/// bark arrays pay, and the ground is more grazing than a trunk — it still cost more than
+/// it bought. Two keeps the 0.3 m grain from smearing into streaks without a fill bill.
+pub(crate) const GROUND_DETAIL_ANISOTROPY: u16 = 2;
+
+/// The baked material, once per process: the bake is ~50 ms of CPU (release) and every
+/// renderer in a test binary would otherwise pay it again.
+fn ground_detail_tiles() -> &'static renderer_api::GroundDetailTiles {
+    static TILES: std::sync::OnceLock<renderer_api::GroundDetailTiles> = std::sync::OnceLock::new();
+    TILES.get_or_init(renderer_api::bake_ground_detail_tiles)
+}
+
+/// Upload the detail array (D2Array, four layers, full box mip chains — the normal lane
+/// averages toward flat and the shade lane toward 0.5 exactly as a filtered surface should)
+/// and the macro tile. Linear formats: normals and shades are data, not colour.
+fn upload_ground_detail(ctx: &GpuContext) -> GroundDetailViews {
+    let tiles = ground_detail_tiles();
+    let chains: Vec<renderer_api::Rgba8MipChain> = tiles
+        .layers
+        .iter()
+        .map(|base| renderer_api::Rgba8MipChain::build(base.clone(), renderer_api::MipMode::Box))
+        .collect();
+    let levels = chains[0].levels().len() as u32;
+    let size = tiles.layers[0].width();
+    let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("terrain_detail_tiles"),
+        size: wgpu::Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: chains.len() as u32,
+        },
+        mip_level_count: levels,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for (layer, chain) in chains.iter().enumerate() {
+        for (level, mip) in chain.levels().iter().enumerate() {
+            ctx.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: level as u32,
+                    origin: wgpu::Origin3d { x: 0, y: 0, z: layer as u32 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                mip.rgba(),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(mip.width() * 4),
+                    rows_per_image: Some(mip.height()),
+                },
+                wgpu::Extent3d {
+                    width: mip.width(),
+                    height: mip.height(),
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+    }
+    let layers = texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    });
+    let macro_tile =
+        upload_rgba8(ctx, "terrain_macro_tile", tiles.macro_tile.width(), tiles.macro_tile.rgba());
+    GroundDetailViews { layers, macro_tile }
 }
 
 /// Upload a square map with its FULL box-filtered mip chain. The splat and macro maps shipped
@@ -264,6 +390,10 @@ impl SceneRenderer {
             contents: bytemuck::cast_slice(&encode_materials(materials, maps.extent_m)),
             usage: wgpu::BufferUsages::UNIFORM,
         });
+        if self.ground.detail_tiles.is_none() {
+            self.ground.detail_tiles = Some(upload_ground_detail(ctx));
+        }
+        let detail = self.ground.detail_tiles.as_ref().expect("uploaded above");
         let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("terrain_ground_bg"),
             layout: &self.ground.bind_group_layout,
@@ -281,6 +411,18 @@ impl SceneRenderer {
                     resource: wgpu::BindingResource::Sampler(&self.ground.sampler),
                 },
                 wgpu::BindGroupEntry { binding: 3, resource: material_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&detail.layers),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&detail.macro_tile),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Sampler(&self.ground.detail_sampler),
+                },
             ],
         });
         self.ground.binding = Some(GroundBinding {
@@ -359,8 +501,16 @@ impl SceneRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::{ground_bind_group_layout_entries, terrain_shader_source};
+    use super::{
+        GROUND_DETAIL_ANISOTROPY, ground_bind_group_layout_entries, terrain_shader_source,
+    };
     use renderer_api::{MipMode, Rgba8MipChain, Rgba8MipLevel};
+
+    /// Anisotropy 2 is the measured landing (T3 sandwich): 8 cost more than it bought.
+    #[test]
+    fn the_detail_sampler_anisotropy_is_the_measured_landing() {
+        assert_eq!(GROUND_DETAIL_ANISOTROPY, 2);
+    }
 
     /// The lock for D3's structural cousin: the ground maps upload a FULL mip chain, so the
     /// far field filters instead of aliasing bright between grass and straw texels. The walk
