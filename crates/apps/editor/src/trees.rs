@@ -33,13 +33,8 @@ mod tests {
     #[test]
     fn every_planted_ladder_tree_draws_in_the_viewport() {
         let mut document = crate::EditorDocument::new_scratch();
-        let planted = [
-            PaletteEntry::Oak,
-            PaletteEntry::Poplar,
-            PaletteEntry::FruitTree,
-            PaletteEntry::Pine,
-            PaletteEntry::Bush,
-        ];
+        let planted =
+            [PaletteEntry::Oak, PaletteEntry::Poplar, PaletteEntry::FruitTree, PaletteEntry::Bush];
         document.apply_edit(|blueprint| {
             for (index, entry) in planted.iter().enumerate() {
                 place_entry(blueprint, *entry, [120.0 + 30.0 * index as f32, 90.0]);
@@ -57,7 +52,7 @@ mod tests {
         // Each placement is a tree AND its symmetry twin. A tree may be two or three objects
         // (a cross-fade band, the impostor's two quads) whose windows partition [0, 1): the
         // one starting at 0 counts the tree.
-        let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
+        let trees = scene_build::tree_lod::ladder_tree_count(&objects);
         assert_eq!(trees, planted.len() * 2, "one tree per planted tree");
         for object in &objects {
             assert!(

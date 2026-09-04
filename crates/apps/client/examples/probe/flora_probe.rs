@@ -1,9 +1,9 @@
 //! THE flora look gate (Świat 2.0 — procedural-only): the procedural species side by side,
 //! one frame, same light — the render the accept/reject verdict is made on. The battlefield
 //! oak (front) draws through the instanced LOD ladder exactly the way the battle frame
-//! submits it; the back row is the statics-bake set (Poplar, Pine, Bush, Willow, FruitTree)
-//! plus the retired imported kinds, which draw nothing on purpose — their emptiness IS the
-//! state of the family. One PNG:
+//! submits it; the back row is every other living species (Poplar, FruitTree, Bush) plus
+//! the retired kinds (the imports, the willow, the pine), which draw nothing on purpose —
+//! their emptiness IS the state of the family. One PNG:
 //! `cargo run -p client --example probe -- flora_probe`
 
 use std::fs::File;
@@ -39,6 +39,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         // tree species draws from the ladder at its rung for THIS eye; the bush alone is
         // the statics bake's.
         plant(SceneryKind::Poplar, 464.0, 516.0),
+        // Retired (2026-09-04): the pine stands here and draws nothing, on purpose.
         plant(SceneryKind::Pine, 476.0, 516.0),
         plant(SceneryKind::FruitTree, 505.0, 512.0),
         plant(SceneryKind::Bush, 515.0, 510.0),

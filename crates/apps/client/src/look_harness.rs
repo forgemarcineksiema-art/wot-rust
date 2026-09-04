@@ -520,29 +520,21 @@ mod tests {
             &mut state,
         );
 
-        let ladder: Vec<renderer_api::MeshHandle> = scene_build::tree_lod::tree_lod_meshes()
-            .into_iter()
-            .map(|(handle, _)| handle)
-            .collect();
-        // A tree may be two or three objects (a cross-fade band, the impostor's two quads);
-        // their windows partition [0, 1), so exactly one per tree starts at 0 — that is the
-        // count of trees drawn.
-        let trees_drawn = dressing
-            .iter()
-            .filter(|object| ladder.contains(&object.mesh) && object.dither[0] == 0.0)
-            .count();
+        let trees_drawn = scene_build::tree_lod::ladder_tree_count(&dressing);
         let trees_planted = battlefield
             .scenery
             .iter()
             .filter(|instance| scene_build::tree_lod::ladder_species(instance.kind).is_some())
             .count();
         assert!(trees_planted > 0, "prokhorovka plants battlefield trees");
-        // Since F11 the horizon ring rides the same ladder: every ring tree draws too.
+        // Since F11 the horizon ring rides the same ladder; since F7b so do the TreeLine
+        // stations. Hulls are extra objects on those stations and do not count as trees.
         let ring = scene_build::backdrop::backdrop_tree_instances(&battlefield).len();
+        let stations = scene_build::tree_line::tree_line_ladder_instances(&battlefield).len();
         assert_eq!(
             trees_drawn,
-            trees_planted + ring,
-            "every planted ladder tree and every ring tree draws, intact cover"
+            trees_planted + ring + stations,
+            "every planted ladder tree, every ring tree, every tree-line station draws, intact cover"
         );
         assert!(dressing.len() > trees_drawn, "the grass ring is still in the frame");
     }

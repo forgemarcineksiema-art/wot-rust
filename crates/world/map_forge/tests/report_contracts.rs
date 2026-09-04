@@ -700,9 +700,11 @@ fn species_mix_refuses_a_monoculture_and_a_horizon_the_map_does_not_plant() {
         species_mix(&report)
     );
 
-    // The horizon grows pines at half weight and the map plants none: the ring past the
+    // The horizon grows poplars at half weight and the map plants none: the ring past the
     // border would invent a country the map does not have.
-    let mut ring = mixed();
+    let mut ring = flat_square();
+    ring.scenery.push(fixed(SceneryKind::Oak, spots(8, 60.0)));
+    ring.scenery.push(fixed(SceneryKind::FruitTree, spots(6, 180.0)));
     ring.horizon = Some(HorizonSpec {
         hills_base_m: 20.0,
         swell: [0.0; 4],
@@ -712,12 +714,12 @@ fn species_mix_refuses_a_monoculture_and_a_horizon_the_map_does_not_plant() {
         closure_span_m: 80.0,
         river_gap_half_m: 0.0,
         river_gap_falloff_m: 1.0,
-        flora: vec![(SceneryKind::Pine, 0.5), (SceneryKind::Oak, 0.5)],
+        flora: vec![(SceneryKind::Poplar, 0.5), (SceneryKind::Oak, 0.5)],
     });
     let (_, report) = compile(&ring);
     let errors = species_mix(&report);
     assert!(
-        errors.iter().any(|message| message.contains("Pine")),
+        errors.iter().any(|message| message.contains("Poplar")),
         "a horizon species the map does not plant is refused: {errors:?}"
     );
 }

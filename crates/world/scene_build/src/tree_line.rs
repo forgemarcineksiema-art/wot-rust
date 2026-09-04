@@ -4,10 +4,13 @@
 //! the shipped maps, and it blocks shells, hulls and eyes exactly as drawn. What DRESSED it
 //! was a slab — two rows of stick boles under a run of crown-coloured boxes ("boxes on
 //! sticks", the F3 register row) — while the map's own species stood fully grown twenty
-//! metres away. The line is planted now: real Mid-rung trees from the map's species mix,
-//! each fitted to the box it stands in, baked through the same statics path a scattered
-//! poplar takes. The box does not move. What blocks the shell still blocks the eye, and
-//! nothing the eye sees reaches past the wall.
+//! metres away. The line is planted now: real trees from the map's species mix, each fitted
+//! to the box it stands in. Since F7b the stations ride the instanced LOD ladder
+//! (`tree_lod::tree_frame_objects_with_backdrop`) at that fitted scale, and the crown hull
+//! that carries the opacity lock is its own instanced mesh — Near and Mid, never the far
+//! impostor, so a windbreak at 400 m is two quads, not a Mid deck in every shadow cascade.
+//! The box does not move. What blocks the shell still blocks the eye, and nothing the eye
+//! sees reaches past the wall.
 //!
 //! Three fits per tree, all against the box (the honesty doctrine in both directions):
 //! - the tip stays under the box top (`HEADROOM`): the wall towers over its trees, so a crew
@@ -40,11 +43,17 @@
 use std::f32::consts::TAU;
 
 use glam::Vec3;
-use renderer_api::SceneVertex;
+use renderer_api::{MeshAsset, SceneVertex};
 use terrain::{BattlefieldMap, SceneryInstance, SceneryKind, StaticCoverKind, StaticCoverObject};
-use world_forge::tree::{BakedTree, TreeLod, bake_tree_lod};
+use world_forge::tree::{BakedTree, TreeLod, TreeSpecies, bake_tree_lod};
 
 use crate::foliage;
+
+/// Hull tessellation: 6 rings × 10 segments × 2 tris. Cheap enough that Near/Mid can carry
+/// one per station, dear enough that the impostor must not.
+pub const HULL_RINGS: u32 = 6;
+pub const HULL_SEGMENTS: u32 = 10;
+pub const HULL_TRIS: usize = (HULL_RINGS * HULL_SEGMENTS * 2) as usize;
 
 /// Metres between planting stations along the run — windbreak density, so the crown hulls of
 /// neighbouring stations overlap into one opaque mass: the narrowest poplar hull (reach 2.2 m
@@ -103,15 +112,31 @@ pub const HULL_EXPONENT: f32 = 3.0;
 const DEFAULT_MIX: [(SceneryKind, f32); 2] =
     [(SceneryKind::Oak, 0.65), (SceneryKind::Poplar, 0.35)];
 
-/// One planted tree of a line: exactly the instance the statics bake draws, with the
-/// dimensions of the tree that bake grows (at scale 1) for the hull and the locks.
+/// One planted tree of a line: the instance the ladder draws, with the dimensions of the
+/// unmirrored fill-variant (at scale 1) for the hull and the locks. A shared mesh cannot
+/// flip per instance, so the mirror the statics bake used to enjoy is gone — the same
+/// luxury the free-standing ladder dropped in F7.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TreeLineStation {
     pub instance: SceneryInstance,
-    /// The bake seed: names the variant that fills this wall (route 2) and the mirror.
+    /// The ladder variant that fills this wall (route 2). Not the position-hash variant:
+    /// a 16 m wall is a windbreak of young poplars, a 22 m one of mature.
+    pub variant: u32,
+    /// `authored::variant_seed(variant)` — the seed the ladder grows that variant from.
     pub seed: u64,
     pub tip_m: f32,
     pub reach_m: f32,
+}
+
+/// A station as the frame builder draws it: fill variant, fitted scale already on the
+/// instance, hull in world metres. `hosted_scale` must not run on these — the three-way
+/// fit (tip, overhang, ends) is tighter than the height-only hosting rule.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TreeLineLadderInstance {
+    pub instance: SceneryInstance,
+    pub species: TreeSpecies,
+    pub variant: u32,
+    pub hull: Option<CrownHull>,
 }
 
 /// The shaded interior of a planted crown: an ellipsoid under the card deck.
@@ -143,7 +168,7 @@ impl CrownHull {
 
 /// What a hedgerow or windbreak is planted with. Orchard trees and shrubs are not.
 pub fn plants_in_a_line(kind: SceneryKind) -> bool {
-    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar | SceneryKind::Pine)
+    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar)
 }
 
 /// The species a map's lines are planted from: its horizon mix (`HorizonSpec::flora`, the
@@ -225,7 +250,7 @@ pub fn station_plan(cover: &StaticCoverObject) -> Vec<[f32; 2]> {
 
 /// The planting stations of a line, fitted tree by tree. Deterministic: species and yaw
 /// come from the cover id and the station index, and the tree measured for the fit is the
-/// one the statics bake draws (`foliage::push_baked_tree` seeds from the position bits).
+/// unmirrored fill-variant the ladder draws (`authored::variant_seed`).
 pub fn tree_line_stations(
     battlefield: &BattlefieldMap,
     cover: &StaticCoverObject,
@@ -277,20 +302,21 @@ pub fn tree_line_stations(
         let position = [x, ground_y, z];
         let candidates = std::iter::once(drawn)
             .chain(by_weight.iter().map(|(kind, _)| *kind).filter(|k| *k != drawn));
-        // (kind, seed, fitted scale, tip, reach, fill) for every species of the mix — at
-        // the VARIANT that fills this wall best (route 2: a 16 m wall is a windbreak of young
-        // poplars, a 22 m one of mature; the mirror follows the position).
-        let mirrored =
-            world_forge::tree::authored::variant_of_seed(foliage::statics_tree_seed(position)).1;
-        let mut fitted: Vec<(SceneryKind, u64, f32, f32, f32, f32)> = Vec::new();
+        // (kind, variant, seed, fitted scale, tip, reach, fill) for every species of the
+        // mix — at the VARIANT that fills this wall best (route 2: a 16 m wall is a
+        // windbreak of young poplars, a 22 m one of mature). Unmirrored: the ladder's
+        // shared mesh cannot flip winding per instance.
+        let mut fitted: Vec<(SceneryKind, u32, u64, f32, f32, f32, f32)> = Vec::new();
         for kind in candidates {
             let Some(species) = foliage::tree_species(kind) else {
                 continue;
             };
-            let mut best: Option<(SceneryKind, u64, f32, f32, f32, f32)> = None;
+            let mut best: Option<(SceneryKind, u32, u64, f32, f32, f32, f32)> = None;
             for variant in 0..world_forge::tree::authored::VARIANTS {
-                let seed = world_forge::tree::authored::seed_for(variant, mirrored);
-                let tree = bake_tree_lod(species, seed, TreeLod::Mid);
+                let seed = world_forge::tree::authored::variant_seed(variant);
+                // Close = the Near rung the eye sees up against the wall; Mid agrees in
+                // height to 5 cm (locked on the ladder).
+                let tree = bake_tree_lod(species, seed, TreeLod::Close);
                 let tip = tree.tip().max(0.01);
                 let reach = crown_reach(&tree).max(0.01);
                 let fit = (box_height * HEADROOM / tip)
@@ -301,8 +327,8 @@ pub fn tree_line_stations(
                     continue;
                 }
                 let fill = tip * fit / box_height;
-                if best.is_none_or(|b| fill > b.5) {
-                    best = Some((kind, seed, fit, tip, reach, fill));
+                if best.is_none_or(|b| fill > b.6) {
+                    best = Some((kind, variant, seed, fit, tip, reach, fill));
                 }
             }
             if let Some(best) = best {
@@ -311,11 +337,12 @@ pub fn tree_line_stations(
         }
         let chosen = fitted
             .first()
-            .filter(|(kind, _, _, _, _, fill)| *kind == drawn && *fill >= FILL_MIN)
-            .or_else(|| fitted.iter().max_by(|a, b| a.5.total_cmp(&b.5)));
-        if let Some((kind, seed, scale, tip_m, reach_m, _)) = chosen.copied() {
+            .filter(|(kind, _, _, _, _, _, fill)| *kind == drawn && *fill >= FILL_MIN)
+            .or_else(|| fitted.iter().max_by(|a, b| a.6.total_cmp(&b.6)));
+        if let Some((kind, variant, seed, scale, tip_m, reach_m, _)) = chosen.copied() {
             stations.push(TreeLineStation {
                 instance: SceneryInstance { kind, position, yaw_rad, scale },
+                variant,
                 seed,
                 tip_m,
                 reach_m,
@@ -355,39 +382,23 @@ pub fn crown_hull(station: &TreeLineStation, cover: &StaticCoverObject) -> Optio
     })
 }
 
-/// The hull as geometry: a low-poly ellipsoid in the species' shaded canopy tone, lit as
-/// foliage like the cards over it.
-fn push_crown_hull(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    hull: &CrownHull,
-    species: world_forge::tree::TreeSpecies,
-) {
-    const RINGS: u32 = 6;
-    const SEGMENTS: u32 = 10;
+/// The hull as a UNIT mesh (radius 1, half-height 1, centred at the origin): a low-poly
+/// superellipsoid in the species' shaded canopy tone. The instance matrix stretches it to
+/// the station's metres. Same tessellation the statics bake used to inline.
+pub fn crown_hull_mesh_asset(species: TreeSpecies) -> MeshAsset {
     let (canopy, gloss) = foliage::canopy_color_for_species(species);
     let tone = [canopy[0] * HULL_SHADE, canopy[1] * HULL_SHADE, canopy[2] * HULL_SHADE];
-    let start = vertices.len() as u32;
-    for ring in 0..=RINGS {
-        let theta = std::f32::consts::PI * ring as f32 / RINGS as f32;
-        for segment in 0..=SEGMENTS {
-            let phi = TAU * segment as f32 / SEGMENTS as f32;
-            // The ring's height fraction and the superellipse radius there; the normal is
-            // the ellipsoid's, close enough for a shaded interior the cards half-cover.
+    let mut vertices: Vec<SceneVertex> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let hull = CrownHull { center: Vec3::ZERO, radius_m: 1.0, half_height_m: 1.0 };
+    for ring in 0..=HULL_RINGS {
+        let theta = std::f32::consts::PI * ring as f32 / HULL_RINGS as f32;
+        for segment in 0..=HULL_SEGMENTS {
+            let phi = TAU * segment as f32 / HULL_SEGMENTS as f32;
             let unit = Vec3::new(theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin());
             let ring_radius = hull.radius_at(unit.y);
-            let position = hull.center
-                + Vec3::new(
-                    phi.cos() * ring_radius,
-                    unit.y * hull.half_height_m,
-                    phi.sin() * ring_radius,
-                );
-            let normal = Vec3::new(
-                unit.x / hull.radius_m,
-                unit.y / hull.half_height_m,
-                unit.z / hull.radius_m,
-            )
-            .normalize_or_zero();
+            let position = Vec3::new(phi.cos() * ring_radius, unit.y, phi.sin() * ring_radius);
+            let normal = Vec3::new(unit.x, unit.y, unit.z).normalize_or_zero();
             let shade = 0.82 + 0.18 * normal.y.max(0.0);
             vertices.push(
                 SceneVertex::surfaced(
@@ -400,33 +411,40 @@ fn push_crown_hull(
             );
         }
     }
-    let stride = SEGMENTS + 1;
-    for ring in 0..RINGS {
-        for segment in 0..SEGMENTS {
-            let a = start + ring * stride + segment;
+    let stride = HULL_SEGMENTS + 1;
+    for ring in 0..HULL_RINGS {
+        for segment in 0..HULL_SEGMENTS {
+            let a = ring * stride + segment;
             let b = a + 1;
             let c = a + stride;
             let d = c + 1;
             indices.extend_from_slice(&[a, b, c, b, d, c]);
         }
     }
+    MeshAsset::new(vertices, indices)
 }
 
-/// Bake the line's trees into the statics mesh — the intact state's crowns and boles.
-pub fn push_tree_line_trees(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    battlefield: &BattlefieldMap,
-    cover: &StaticCoverObject,
-) {
-    for station in tree_line_stations(battlefield, cover) {
-        if let (Some(hull), Some(species)) =
-            (crown_hull(&station, cover), foliage::tree_species(station.instance.kind))
-        {
-            push_crown_hull(vertices, indices, &hull, species);
+/// Every planted station of every TreeLine on the map, in cover order then along-the-run.
+/// One function the frame builder caches per map, the opacity lock's stations, and the
+/// felled-stump path keep sharing.
+pub fn tree_line_ladder_instances(battlefield: &BattlefieldMap) -> Vec<TreeLineLadderInstance> {
+    let mut instances = Vec::new();
+    for cover in
+        battlefield.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
+    {
+        for station in tree_line_stations(battlefield, cover) {
+            let Some(species) = foliage::tree_species(station.instance.kind) else {
+                continue;
+            };
+            instances.push(TreeLineLadderInstance {
+                instance: station.instance,
+                species,
+                variant: station.variant,
+                hull: crown_hull(&station, cover),
+            });
         }
-        foliage::push_baked_tree_seeded(vertices, indices, &station.instance, station.seed);
     }
+    instances
 }
 
 /// FNV-1a over the cover id: the same hash the slab and the wreckage seeded from, so a hedge
@@ -456,6 +474,49 @@ mod tests {
 
     fn lines(map: &BattlefieldMap) -> Vec<&StaticCoverObject> {
         map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine).collect()
+    }
+
+    /// World-space points of the Near rung and the hull as the ladder draws them (sink included).
+    fn station_draw_points(
+        station: &TreeLineStation,
+        cover: &StaticCoverObject,
+        meshes: &mut std::collections::HashMap<(TreeSpecies, u32), renderer_api::MeshAsset>,
+        hull_meshes: &mut std::collections::HashMap<TreeSpecies, renderer_api::MeshAsset>,
+    ) -> Vec<[f32; 3]> {
+        use glam::{Mat4, Quat, Vec3};
+        let species = foliage::tree_species(station.instance.kind).expect("a line plants trees");
+        let mesh = meshes.entry((species, station.variant)).or_insert_with(|| {
+            crate::tree_lod::tree_mesh_asset(
+                species,
+                station.variant,
+                crate::tree_lod::TreeLod::Near,
+            )
+        });
+        let transform = Mat4::from_scale_rotation_translation(
+            Vec3::splat(station.instance.scale),
+            Quat::from_rotation_y(station.instance.yaw_rad),
+            Vec3::from_array(station.instance.position) - Vec3::Y * crate::tree_lod::TRUNK_SINK_M,
+        );
+        let mut points: Vec<[f32; 3]> = mesh
+            .vertices()
+            .iter()
+            .map(|v| transform.transform_point3(Vec3::from_array(v.position)).to_array())
+            .collect();
+        if let Some(hull) = crown_hull(station, cover) {
+            let hull_mesh =
+                hull_meshes.entry(species).or_insert_with(|| crown_hull_mesh_asset(species));
+            let hull_transform = Mat4::from_scale_rotation_translation(
+                Vec3::new(hull.radius_m, hull.half_height_m, hull.radius_m),
+                Quat::IDENTITY,
+                hull.center - Vec3::Y * crate::tree_lod::TRUNK_SINK_M,
+            );
+            points.extend(
+                hull_mesh.vertices().iter().map(|v| {
+                    hull_transform.transform_point3(Vec3::from_array(v.position)).to_array()
+                }),
+            );
+        }
+        points
     }
 
     /// The whole promise of F3, measured on every line of every shipped map: the wall is
@@ -489,13 +550,21 @@ mod tests {
                     stations.len(),
                     hosted.len()
                 );
-                let mut vertices = Vec::new();
-                let mut indices = Vec::new();
-                push_tree_line_trees(&mut vertices, &mut indices, &map, cover);
-                assert!(!vertices.is_empty(), "{id:?} {}: a planted line draws", cover.id);
+                let mut meshes = std::collections::HashMap::new();
+                let mut hull_meshes = std::collections::HashMap::new();
+                let mut points = Vec::new();
+                for station in &stations {
+                    points.extend(station_draw_points(
+                        station,
+                        cover,
+                        &mut meshes,
+                        &mut hull_meshes,
+                    ));
+                }
+                assert!(!points.is_empty(), "{id:?} {}: a planted line draws", cover.id);
                 let box_height = cover.half_extents_m[1] * 2.0;
-                for vertex in &vertices {
-                    let (along, across, height) = box_frame(cover, vertex.position);
+                for point in &points {
+                    let (along, across, height) = box_frame(cover, *point);
                     assert!(
                         height <= box_height + 0.05,
                         "{id:?} {}: a crown at {height:.2} m tops the {box_height:.1} m wall",
@@ -518,9 +587,10 @@ mod tests {
 
     /// The line grows the map's own trees — the species its horizon names — and every station
     /// grows one that FILLS the wall: a 17 m box 6 m thick is a windbreak's shape, and the
-    /// species that fills it (poplar on the steppe and in the valley, pine on the pass and the
-    /// isthmus) is what stands there. An oak that fits such a wall only at half size does not;
-    /// the first fit rule planted it and left half the wall empty.
+    /// species that fills it (poplar on the steppe, in the valley, on the pass and the isthmus)
+    /// is what stands there. Pine filled those last two until 2026-09-04; it is retired.
+    /// An oak that fits such a wall only at half size does not; the first fit rule planted
+    /// it and left half the wall empty.
     #[test]
     fn a_line_is_planted_from_its_maps_own_species_and_every_tree_fills_the_wall() {
         for id in MapId::SHIPPED {
@@ -623,38 +693,57 @@ mod tests {
         }
     }
 
-    /// The planted lines are a statics cost, measured per map and capped with slack. The
-    /// numbers print on every run; raising the cap is a measured decision, never a tuning
-    /// accident. Measured 2026-09-02 (Mid rung + crown hull, ~1 090 tris a tree): at 5.5 m
-    /// stations Bystra 58 trees / 56 k tris over eight lines, Prokhorovka 30 / 30 k over four;
-    /// at windbreak density (3.0 m, shipped, 4.5 m end margins, hulls): Bystra 96 / 102 k,
-    /// Mazurski 58 / 106 k (a pine is ~1.8 k), Ostrogorsk 38 / 41 k, Prokhorovka 37 / 40 k,
-    /// Orliny 22 / 40 k.
+    /// F7b: the decks left statics. What the frame pays for a line at Near/Mid is one hull
+    /// instance per station (120 tris) plus the ladder rung; at Impostor the hull drops and
+    /// the station is two quads. Station counts are the historical F3 numbers (Bystra 96,
+    /// Mazurski 58, Ostrogorsk 38, Prokhorovka 37, Orliny 22 at 3 m spacing) — raising them
+    /// is a measured decision, never a tuning accident.
     #[test]
-    fn the_planted_lines_stay_under_their_triangle_budget() {
-        // Raised 120 k → 260 k with the authored stations (route 2): a Mid-rung authored
-        // tree is 1–2 k of wood plus its deck; Bystra's 96 stations measure ~206 k. The frame
-        // cost of the lines is F7b's measurement (the stations onto the ladder).
-        // Raised again 260 k → 420 k on 2026-09-03: the Mid rung carries the Near deck now.
-        const MAP_LINES_MAX_TRIS: usize = 420_000;
+    fn the_planted_lines_hulls_stay_cheap_and_the_decks_left_statics() {
+        let oak_hull = crown_hull_mesh_asset(TreeSpecies::Oak);
+        let poplar_hull = crown_hull_mesh_asset(TreeSpecies::Poplar);
+        assert_eq!(oak_hull.index_count() / 3, HULL_TRIS, "oak hull tessellation");
+        assert_eq!(poplar_hull.index_count() / 3, HULL_TRIS, "poplar hull tessellation");
+        // Bystra is the dearest map (eight lines). A hull in every cascade used to be the
+        // cheap part of a 2 k-tri Mid deck; 96 × 120 = 11 520 tris is the ceiling F7b keeps
+        // in the Near/Mid view, and zero of those sit in statics.
         for id in MapId::SHIPPED {
             let map = map_forge::battlefield(*id);
-            let mut vertices = Vec::new();
-            let mut indices = Vec::new();
-            let mut stations = 0usize;
-            for cover in lines(&map) {
-                stations += tree_line_stations(&map, cover).len();
-                push_tree_line_trees(&mut vertices, &mut indices, &map, cover);
-            }
-            let tris = indices.len() / 3;
+            let instances = tree_line_ladder_instances(&map);
+            let hulls = instances.iter().filter(|instance| instance.hull.is_some()).count();
             println!(
-                "TREE LINES {id:?}: {stations} trees, {tris} tris, {} vertices",
-                vertices.len()
+                "TREE LINES {id:?}: {} stations, {hulls} hulls, {} tris if every hull draws",
+                instances.len(),
+                hulls * HULL_TRIS
             );
-            assert!(
-                tris <= MAP_LINES_MAX_TRIS,
-                "{id:?}: the planted lines cost {tris} tris (cap {MAP_LINES_MAX_TRIS})"
+            assert_eq!(
+                instances.len(),
+                match *id {
+                    MapId::BystraValley => 96,
+                    MapId::MazurskiPrzesmyk => 58,
+                    MapId::Ostrogorsk => 38,
+                    MapId::ProkhorovkaHill252_2 => 37,
+                    MapId::OrlinyPereval => 22,
+                    MapId::Scratch => unreachable!("SHIPPED excludes Scratch"),
+                },
+                "{id:?}: station count is the F3 planting, not a new density"
             );
+            assert_eq!(hulls, instances.len(), "{id:?}: every station carries a hull");
+            for instance in &instances {
+                assert!(
+                    matches!(instance.species, TreeSpecies::Oak | TreeSpecies::Poplar),
+                    "{id:?}: {:?} is not a line tree",
+                    instance.species
+                );
+                assert_eq!(
+                    instance.variant,
+                    world_forge::tree::authored::variant_of_seed(
+                        world_forge::tree::authored::variant_seed(instance.variant)
+                    )
+                    .0,
+                    "{id:?}: the stored variant is an unmirrored ladder seed"
+                );
+            }
         }
     }
 
@@ -666,5 +755,6 @@ mod tests {
         for cover in lines(&map) {
             assert_eq!(tree_line_stations(&map, cover), tree_line_stations(&map, cover));
         }
+        assert_eq!(tree_line_ladder_instances(&map), tree_line_ladder_instances(&map));
     }
 }

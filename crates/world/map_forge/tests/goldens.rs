@@ -35,9 +35,10 @@ fn every_shipped_map_compiles_clean_deterministic_and_on_its_golden() {
     }
 }
 
-/// No shipped map plants a retired kind: the imported flora of Świat 2.0, and the WILLOW
-/// since 2026-09-03 (the owner: "I don't want a willow at all") — a blueprint that named one
-/// would draw nothing where the sim believes a tree stands.
+/// No shipped map plants a retired kind: the imported flora of Świat 2.0, the WILLOW since
+/// 2026-09-03 (the owner: "I don't want a willow at all") and the PINE since 2026-09-04 (the
+/// owner: "the pine is out entirely") — a blueprint that named one would draw nothing where
+/// the sim believes a tree stands.
 #[test]
 fn no_shipped_map_plants_a_retired_kind() {
     for id in MapId::SHIPPED {

@@ -8,7 +8,8 @@
 //! Inny Poziom F1: the ring stands on Drzewa 3.0. Every tree is the species' impostor — the
 //! same crossed quads over the same atlas sprite the instanced ladder draws past 150 m — at
 //! a mature individual's size, and the species mix is the map's own (`HorizonSpec::flora`):
-//! pine on the pass, willow along the river valley, poplar around the steppe town. The
+//! oak and poplar on the pass, poplar along the river valley, poplar around the steppe town.
+//! (Pine and willow stay in the mix enum as identity and are never planted.) The
 //! painted-frustum kit that used to stand here (hexagonal cones at 3.4× scale, 25–38 m tall,
 //! 40 m past the red line on every map) is deleted.
 

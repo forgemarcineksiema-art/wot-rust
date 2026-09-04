@@ -242,16 +242,17 @@ not history):
     battlefield tree is the procedural **oak**: it draws through the instanced LOD ladder
     (`scene_build::tree_lod`, true crossed-quad impostor past 150 m) and its trunk is a
     gameplay solid (`TreeTrunk` cover derived in `map_forge`). The retired `FloraTree` /
-    `FloraPine` / `FloraBush` kinds keep their wire identity (append-only enum) but are
-    **never authored** — the `flora_integration` test locks that.
+    `FloraPine` / `FloraBush` kinds, and since the owner's verdicts `Willow` (2026-09-03)
+    and `Pine` (2026-09-04), keep their wire identity (append-only enum) but are
+    **never authored** — `map_forge::RETIRED_KINDS` and `flora_integration` lock that.
 11. **A map grows its own species, and grows several** (Inny Poziom F2, 2026-09-02). The
     compile report refuses a dressed map (12 trees or more) that plants fewer than three
     tree species, lets one species exceed 70 % of its trees, or names a species in its
     horizon mix (`HorizonSpec::flora`, at 0.10 or more) that stands nowhere inside the map —
     the ring past the border continues the map, it does not invent one
     (`report::check_species_mix`; the goldens test keeps every shipped map dressed). A
-    `TreeLine` cover is planted from the same mix (`scene_build::tree_line`, F3): Mid-rung
-    trees fitted inside their box — tip under the top, crown within 2.5 m of the faces,
+    `TreeLine` cover is planted from the same mix (`scene_build::tree_line`, F3 / F7b):
+    ladder trees fitted inside their box — tip under the top, crown within 2.5 m of the faces,
     crown inside the ends — so the LOS wall and the trees the eye reads are one object. The
     box is map data and never moves for its dressing.
 

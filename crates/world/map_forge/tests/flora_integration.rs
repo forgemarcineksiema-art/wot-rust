@@ -1,8 +1,8 @@
 //! Procedural-flora map-integration locks (Świat 2.0, 2026-08-06): imported CC0 flora is
-//! OUT — every battlefield tree is a `world_forge` species. The retired `FloraTree` /
-//! `FloraPine` / `FloraBush` kinds keep their wire identity (append-only enum) but are
-//! never authored again; the oak scatters that replace the hero oak carry the same seeds
-//! and counts, and their trunks are still gameplay solids.
+//! OUT — every battlefield tree is a `world_forge` species. Retired kinds
+//! (`map_forge::RETIRED_KINDS`: the imports, the willow, the pine) keep their wire identity
+//! (append-only enum) but are never authored; the oak scatters that replace the hero oak
+//! carry the same seeds, and their trunks are still gameplay solids.
 
 use map_forge::blueprint::{MapBlueprint, SceneryOp};
 use map_forge::blueprint_for;
@@ -28,17 +28,18 @@ fn scatter_pairs(blueprint: &MapBlueprint, wanted: SceneryKind) -> usize {
 }
 
 #[test]
-fn every_shipped_map_scatters_procedural_oaks_sparsely() {
-    // Same density as the retired hero oak (measured, not taste): sparse deterministic
-    // scatters, and the boulevard avenue stays shallow because its trees stand metres
-    // from the camera. The trees are procedural oaks now — the instanced LOD ladder in
-    // `scene_build::tree_lod` draws them, so a distant tree still costs ~0.03 ms/frame.
+fn every_shipped_map_scatters_procedural_oaks() {
+    // The original hero-oak replacements stay three pairs a scatter. Orliny and Mazurski
+    // carry denser belts that were pine until 2026-09-04 (the owner: "the pine is out
+    // entirely") and are oak now — same seeds and counts, a species swap, not a density
+    // change. The boulevard avenue stays shallow because its trees stand metres from the
+    // camera. The instanced LOD ladder in `scene_build::tree_lod` draws them.
     let expected_pairs = [
         (MapId::ProkhorovkaHill252_2, 9),
         (MapId::BystraValley, 9),
-        (MapId::OrlinyPereval, 6),
+        (MapId::OrlinyPereval, 16),
         (MapId::Ostrogorsk, 9),
-        (MapId::MazurskiPrzesmyk, 6),
+        (MapId::MazurskiPrzesmyk, 14),
     ];
 
     for (map_id, tree_pairs) in expected_pairs {
@@ -52,22 +53,9 @@ fn every_shipped_map_scatters_procedural_oaks_sparsely() {
             tree_pairs > 0,
             "{map_id:?}: every shipped map must exercise the procedural oak + trunk-cover runtime"
         );
-        for op in &blueprint.scenery {
-            if let SceneryOp::Scatter { kind: SceneryKind::Oak, pairs, .. } = op {
-                assert!(
-                    *pairs <= 3,
-                    "{map_id:?}: an oak scatter outgrew its measured cap ({pairs} pairs)"
-                );
-            }
-        }
-        // Retired with the procedural-only decision (Świat 2.0, 2026-08-06): the kinds keep
-        // their wire identity (append-only enum) but name no asset and are never authored.
         assert!(
-            blueprint.scenery.iter().all(|op| !matches!(
-                kind(op),
-                SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush
-            )),
-            "{map_id:?}: retired imported kinds must never be authored"
+            blueprint.scenery.iter().all(|op| !map_forge::RETIRED_KINDS.contains(&kind(op))),
+            "{map_id:?}: retired kinds must never be authored"
         );
     }
 }

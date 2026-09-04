@@ -39,14 +39,13 @@ pub enum PaletteEntry {
     FruitTree,
     Rock,
     Bush,
-    Pine,
     /// Street furniture (urban-map PR-11) — render-only, like all flora.
     Lamppost,
     DebrisHeap,
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 18] = [
+    pub const CYCLE: [PaletteEntry; 17] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
@@ -62,7 +61,6 @@ impl PaletteEntry {
         PaletteEntry::FruitTree,
         PaletteEntry::Rock,
         PaletteEntry::Bush,
-        PaletteEntry::Pine,
         PaletteEntry::Lamppost,
         PaletteEntry::DebrisHeap,
     ];
@@ -84,7 +82,6 @@ impl PaletteEntry {
             PaletteEntry::FruitTree => "fruit tree",
             PaletteEntry::Rock => "rock",
             PaletteEntry::Bush => "bush",
-            PaletteEntry::Pine => "pine",
             PaletteEntry::Lamppost => "lamppost",
             PaletteEntry::DebrisHeap => "debris heap",
         }
@@ -116,7 +113,6 @@ impl PaletteEntry {
             PaletteEntry::FruitTree => Some(SceneryKind::FruitTree),
             PaletteEntry::Rock => Some(SceneryKind::Rock),
             PaletteEntry::Bush => Some(SceneryKind::Bush),
-            PaletteEntry::Pine => Some(SceneryKind::Pine),
             PaletteEntry::Lamppost => Some(SceneryKind::Lamppost),
             PaletteEntry::DebrisHeap => Some(SceneryKind::DebrisHeap),
             _ => None,
@@ -423,8 +419,8 @@ pub fn adjust_cover(
 mod tests {
     use super::*;
 
-    /// The owner: "I do not want the willow at all" (2026-09-03). A retired kind never
-    /// reaches the palette — the editor cannot plant what the game will not draw.
+    /// The owner: "I do not want the willow at all" (2026-09-03), "the pine is out entirely"
+    /// (2026-09-04). A retired kind never reaches the palette — the editor cannot plant what the game will not draw.
     #[test]
     fn the_palette_plants_no_retired_kind() {
         for entry in PaletteEntry::CYCLE {

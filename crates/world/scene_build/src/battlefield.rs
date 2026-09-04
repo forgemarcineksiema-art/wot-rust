@@ -201,16 +201,11 @@ pub fn battlefield_statics_bucket_mesh(
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => {
                 append_cover_box(&mut vertices, &mut indices, cover);
-                // The standing tree line is PLANTED (Inny Poziom F3): real trees from the
-                // map's species mix, fitted to the box, over the undergrowth mass the cover
-                // box bake keeps. The box bake stays battlefield-free for its callers; the
-                // planting needs the map for its mix.
-                crate::tree_line::push_tree_line_trees(
-                    &mut vertices,
-                    &mut indices,
-                    battlefield,
-                    cover,
-                );
+                // The standing tree line is PLANTED (Inny Poziom F3 / F7b): the hedge body
+                // is all this bake draws. The stations ride the instanced LOD ladder
+                // (`tree_lod::tree_frame_objects_with_backdrop`) with the crown hull as its
+                // own mesh — baking them here too would pay a Mid deck in every shadow
+                // cascade, which is the cost F7b exists to end.
                 for scar in cover_scars.iter().filter(|scar| scar.cover as usize == index) {
                     append_cover_scar(&mut vertices, &mut indices, cover, scar);
                 }
@@ -1056,20 +1051,20 @@ fn append_crag(
     }
 }
 
-/// The tree line as a szpaler (Świat 2.0 PR 5) — not a slab. A low undergrowth mass carries
-/// the run's foot, then two STAGGERED rows of boles rise to the crown line; the crowns stay
-/// the instanced oaks of the scenery in-fill. Every element lives INSIDE the collision box,
-/// which now towers to the trees' own height (15–25 m): what blocks the shell is what the
-/// eye sees standing there, and there is no dark slab left wearing the treeline's name.
+/// The tree line's undergrowth mass in the statics bake (Świat 2.0 PR 5 / F7b). The planted
+/// stations ride the instanced LOD ladder; this bake is the shrub layer under them, inset
+/// from the box faces so the silhouette stays leafy. Every vertex lives INSIDE the collision
+/// box: what blocks the shell is what the eye sees standing there.
 fn append_tree_line(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     cover: &StaticCoverObject,
 ) {
-    // The hedge body is all this bake draws (Inny Poziom F3); the trees are PLANTED over it by
-    // `tree_line::push_tree_line_trees` from the map's species mix, each with a crown hull.
-    // The two rows of stick boles under a run of crown-coloured boxes that stood here read as
-    // what they were, while the map's own species stood fully grown twenty metres away.
+    // The hedge body is all this bake draws (Inny Poziom F3 / F7b); the trees ride the
+    // instanced LOD ladder (`tree_lod`) from the map's species mix, each with a crown hull
+    // as its own mesh. The two rows of stick boles under a run of crown-coloured boxes that
+    // stood here read as what they were, while the map's own species stood fully grown
+    // twenty metres away.
     //
     // The body is the dense shrub layer every hedgerow and windbreak has under its trees —
     // a mass to `TREE_LINE_BODY_HEIGHT` of the wall (6.2–8.8 m on the shipped boxes: over
@@ -2307,10 +2302,11 @@ mod tests {
 
     /// Levelling a tree line empties the volume it occupied and leaves wreckage on the ground.
     ///
-    /// The oaks that also dressed it are no longer part of this bake — they draw from the
-    /// instanced LOD path, which drops them on the same rule (`tree_lod::tree_frame_objects`,
-    /// locked by its own test). What this locks is the bake's half: nothing of the standing
-    /// line survives up in its box, and something does survive down on the ground.
+    /// F7b: the decks left statics, so the intact bake's upper half is already empty (the
+    /// hedge body stops at 0.40 of the wall). What this locks is: nothing of the standing
+    /// line survives up in its box in statics, the ladder drops the stations when the box is
+    /// gone (`tree_lod::tree_line_stations_ride_the_ladder_at_their_fill_variant`), and
+    /// something does survive down on the ground.
     #[test]
     fn a_cleared_tree_line_empties_its_volume_and_leaves_wreckage() {
         let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
@@ -2336,9 +2332,10 @@ mod tests {
                 })
                 .count()
         };
-        assert!(
-            inside_above(&intact, 0.5) > 0,
-            "the standing line fills the upper half of its box"
+        assert_eq!(
+            inside_above(&intact, 0.5),
+            0,
+            "the decks left statics — the hedge body never reaches the upper half"
         );
         assert_eq!(
             inside_above(&cleared, 0.5),
@@ -2387,11 +2384,10 @@ mod tests {
         }
     }
 
-    /// Inny Poziom F3: the standing line is trees over the hedge body, not boxes on sticks.
-    /// The cover-box bake draws the body alone (one surfaced box, 24 vertices) — a shrub mass
-    /// over the tallest hull in the fleet and up to the crown hulls' bottom, never the old
-    /// crown slab; every other vertex in the intact line's footprint is a planted tree — bark
-    /// or foliage by surface role — and there are many of them.
+    /// Inny Poziom F3 / F7b: the standing line is trees over the hedge body, not boxes on
+    /// sticks. The cover-box bake draws the body alone (one surfaced box, 24 vertices) — a
+    /// shrub mass over the tallest hull in the fleet and up to the crown hulls' bottom, never
+    /// the old crown slab. The stations themselves ride the ladder (locked in `tree_lod`).
     #[test]
     fn a_standing_tree_line_is_planted_trees_over_the_hedge_body_and_no_slab() {
         let map = map_forge::battlefield(terrain::MapId::BystraValley);
@@ -2415,17 +2411,15 @@ mod tests {
                 cover.id
             );
 
-            let mut planted = Vec::new();
-            let mut planted_indices = Vec::new();
-            crate::tree_line::push_tree_line_trees(&mut planted, &mut planted_indices, &map, cover);
-            assert!(planted.len() > 24 * 8, "{}: the line is planted, not sketched", cover.id);
-            for vertex in &planted {
+            let stations = crate::tree_line::tree_line_stations(&map, cover);
+            assert!(stations.len() > 4, "{}: the line is planted, not sketched", cover.id);
+            for station in &stations {
+                let species = crate::foliage::tree_species(station.instance.kind);
                 assert!(
-                    renderer_api::surface_role::is_bark(vertex.surface)
-                        || vertex.surface == renderer_api::surface_role::FOLIAGE,
-                    "{}: a planted line is bark and foliage — a vertex with role {} is a slab",
+                    species.is_some_and(|s| crate::tree_lod::LADDER_SPECIES.contains(&s)),
+                    "{}: {:?} must ride the ladder",
                     cover.id,
-                    vertex.surface
+                    station.instance.kind
                 );
             }
         }
