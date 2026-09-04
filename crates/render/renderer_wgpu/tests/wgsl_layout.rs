@@ -428,29 +428,46 @@ fn dynamic_weather_uses_one_seeded_phase_and_separate_puddle_fill() {
     assert!(rain.contains("camera.weather_params.w"), "rain needs its seeded time phase");
 }
 
+/// Inny Poziom T6: the meadow is not ploughed. "Teren B1" put a 1.25 m furrow sine on the
+/// terrain's VEGETATION share (grass + straw — every meadow of every map) with a plough
+/// direction hashed per plot at the VERTEX and interpolated across each 5 m triangle. The
+/// owner's screenshots (2026-09-04, Bystra and Prokhorovka) showed the result: horizontal
+/// zigzag waves where a plot ran across the view, long dark converging streaks where it ran
+/// along it, kinks along every triangle edge at a plot border, and all of it strobing the
+/// moment the tank moved. The feature was bought back by cost alone (±0.05 ms) and never
+/// judged on a frame. It is gone, its detail bit is retired, and nothing directional may
+/// ride the per-vertex quilt lane again — a 5 m interpolation can carry a TONE, never an
+/// ANGLE.
 #[test]
-fn terrain_furrows_are_plot_oriented_gated_and_distance_faded() {
+fn the_meadow_is_not_ploughed() {
     let terrain = terrain_shader_source();
-
-    // Teren B1's three promises: the feature hides behind its redemption bit (never in the
-    // shipped mask without a measurement), each plot ploughs by its OWN hash — never a
-    // world axis — and the stripes die by 150 m so the far field cannot shimmer (rule 5).
+    // Code only: the comments are allowed to say why the feature is gone.
+    let code: String = terrain
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_lowercase();
+    for forbidden in
+        ["furrow", "plough", "detail_bit(64u)", "furrow_period_m", "5.0265482", "0.39269908"]
+    {
+        assert!(
+            !code.contains(forbidden),
+            "the furrow sine must not return to the terrain pass (found {forbidden:?})"
+        );
+    }
+    // The quilt lane carries exactly two tones (dry lean, lightness drift) — no direction.
     assert!(
-        terrain.contains("detail_bit(64u)"),
-        "furrows must stay behind the TERRAIN_FURROWS redemption bit"
+        terrain.contains("@location(5) quilt: vec2<f32>,"),
+        "the per-vertex quilt lane is two scalars, nothing an interpolation can kink"
     );
     assert!(
-        terrain.contains("floor(plough_lane * 8.0)"),
-        "the plough direction is quantized from the plot's own hash"
+        !terrain.contains("@location(6) furrow_dir"),
+        "the furrow direction varying is gone with the feature"
     );
-    assert!(
-        terrain.contains("detail_hash(vec2<f32>(cell * 5.7"),
-        "the direction hash reads the quilt's plot identity, not a world axis"
-    );
-    assert!(
-        terrain.contains("smoothstep(60.0, 150.0, eye_dist)) * furrow_mask"),
-        "the stripes must fade out with distance"
-    );
+    // The shipped mask does not carry the retired bit, and FULL does not either.
+    assert!(!renderer_api::LightingQuality::canonical().shader_detail.has(1 << 6));
+    assert!(!renderer_api::ShaderDetailMask::FULL.has(1 << 6));
 }
 
 #[test]
@@ -576,6 +593,37 @@ fn the_metalness_lane_reaches_the_vehicle_shader() {
     );
 }
 
+/// Inny Poziom T6: the SSAO pass judges every tap against the pixel's LOCAL PLANE, not against
+/// the centre depth. The GPU contract (`ssao_coupling::a_flat_field_does_not_occlude_itself`)
+/// proves the result; this lock names the mechanism so a "simplification" cannot put the
+/// centre-depth comparison back and pass the GPU test by luck of a different bias.
+#[test]
+fn ssao_predicts_each_tap_from_the_local_plane() {
+    let ssao = renderer_wgpu::ssao_shader_source();
+    assert!(
+        ssao.contains("var plane = vec2<f32>(dpdx(lin), dpdy(lin));"),
+        "the plane is the linear depth's screen gradient"
+    );
+    assert!(
+        ssao.contains("let expected_lin = lin + dot(plane, vec2<f32>(tap - pix));"),
+        "each tap's expected depth follows the plane to the tap's offset"
+    );
+    assert!(
+        ssao.contains("let closer_by = expected_lin - sample_lin;"),
+        "occlusion is measured against the plane's prediction, never the centre depth"
+    );
+    assert!(
+        !ssao.contains("let closer_by = lin - sample_lin;"),
+        "the centre-depth comparison is the flat-field self-occlusion — it must not return"
+    );
+    // The silhouette guard: a nonsense slope falls back to the flat prediction.
+    assert!(ssao.contains("if (length(plane) > lin * PLANE_EDGE_SHARE)"));
+    // The derivatives sit before the early return — uniform control flow.
+    let plane_at = ssao.find("dpdx(lin)").expect("plane");
+    let early_out = ssao.find("if (strength <= 0.0 || d >= 1.0)").expect("early out");
+    assert!(plane_at < early_out, "derivatives must be taken in uniform control flow");
+}
+
 #[test]
 fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
     use renderer_wgpu::{rain_shader_source, ssao_shader_source, water_shader_source};
@@ -675,12 +723,11 @@ fn the_ground_grain_fades_by_pixel_footprint_not_by_metres() {
         ),
         "the terrain pass measures the metres a fragment covers"
     );
-    // Every procedural octave takes the filter: the two-octave grain, the micro crumb, the
-    // furrow sine. The unfiltered `ground_grain(` / `micro_grain(` calls must not return to
-    // the terrain fragment (they stay for the statics' generic ground in the scene pass).
+    // Every procedural octave takes the filter: the two-octave grain and the micro crumb.
+    // The unfiltered `ground_grain(` / `micro_grain(` calls must not return to the terrain
+    // fragment (they stay for the statics' generic ground in the scene pass).
     assert!(terrain.contains("ground_grain_filtered(input.world_pos.xz, footprint)"));
     assert!(terrain.contains("micro_grain_filtered(input.world_pos.xz, footprint)"));
-    assert!(terrain.contains("* octave_reach(FURROW_PERIOD_M, footprint)"));
     let fragment = terrain.split("fn fs_main").nth(1).expect("terrain fragment");
     assert!(
         !fragment.contains(" ground_grain(") && !fragment.contains(" micro_grain("),

@@ -11,8 +11,8 @@
 // `scene_pass` is three quarters of the frame, so what this pass does per FRAGMENT is the
 // frame. The field quilt is a ~50–100 m plot structure — it is evaluated per VERTEX (5 m grid)
 // and interpolated; the strata noise is paid only on steep fragments, the puddle pool only when
-// the look fills puddles, and every procedural octave (ground grain, micro crumb, furrow
-// wave) is filtered by the fragment's PIXEL FOOTPRINT (T3/O1): an octave leaves once it is
+// the look fills puddles, and every procedural octave (ground grain, micro crumb) is
+// filtered by the fragment's PIXEL FOOTPRINT (T3/O1): an octave leaves once it is
 // under four pixels per period, so a grazing eye never samples a lattice below Nyquist — the
 // moiré ripples on flat meadow were exactly that. Near the eye the picture is the same; the
 // fragment just stops paying for structure it cannot show.
@@ -54,23 +54,23 @@ struct VsOut {
     // How strongly the baked vertex colour overrides the splat albedo (the submerged riverbed).
     @location(4) vertex_dominance: f32,
     // The field quilt, evaluated per vertex (Q7): x = the plot's dry lean (already scaled by
-    // the quilt strength), y = the plot's lightness drift, z = the furrow mask before the
-    // vegetation share, w = unused.
-    @location(5) quilt: vec4<f32>,
-    // The plot's plough direction (unit, hull-independent), interpolated across the plot.
-    @location(6) furrow_dir: vec2<f32>,
+    // the quilt strength), y = the plot's lightness drift. Both are TONES — smooth scalars a
+    // 5 m interpolation cannot kink. Nothing directional rides this lane any more: the
+    // "Teren B1" furrow sine did (a per-vertex plough angle interpolated across each
+    // triangle), and it printed the owner's zigzag waves on every meadow of every map — see
+    // the register's T6. Worked land comes back as a material, not as a sine.
+    @location(5) quilt: vec2<f32>,
 };
 
 // Ziemia 2.0, pasmo makro: worked land is FIELDS, not one lawn. A low-frequency noise pair
 // names a ~50-100 m plot, every plot holds its own tone (lusher, drier, lighter, darker) and
-// the borders blend over a few metres like real headlands. Teren B1: each worked plot ploughs
-// in its own direction, quantized to 8 lanes over a half-turn. Structure, not an octave — and
+// the borders blend over a few metres like real headlands. Structure, not an octave — and
 // since Q7 evaluated once per vertex, not once per pixel: the plot is 50 m wide and the grid
 // 5 m, so the interpolation cannot show a seam the octave did not already blur.
-fn field_quilt(world_xz: vec2<f32>) -> vec4<f32> {
+fn field_quilt(world_xz: vec2<f32>) -> vec2<f32> {
     let field_strength = materials.params.w;
     if (field_strength <= 0.001) {
-        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+        return vec2<f32>(0.0, 0.0);
     }
     let cells = value_noise(world_xz / 90.0) * 4.0
         + value_noise(world_xz / 34.0 + vec2<f32>(17.3, 41.7)) * 0.6;
@@ -90,10 +90,7 @@ fn field_quilt(world_xz: vec2<f32>) -> vec4<f32> {
     );
     let lean = (dry - 0.5) * field_strength;
     let light_drift = (light - 0.5) * 0.34 * field_strength;
-    let plough_lane = detail_hash(vec2<f32>(cell * 5.7 + 13.1, cell * 2.3 + 7.9));
-    let plough_angle = floor(plough_lane * 8.0) * 0.39269908;
-    let furrow_mask = field_strength * (1.0 - border);
-    return vec4<f32>(lean, light_drift, furrow_mask, plough_angle);
+    return vec2<f32>(lean, light_drift);
 }
 
 @vertex
@@ -107,9 +104,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.color = input.color;
     out.gloss = input.gloss;
     out.vertex_dominance = input.tint_weight;
-    let quilt = field_quilt(world.xz);
-    out.quilt = vec4<f32>(quilt.x, quilt.y, quilt.z, 0.0);
-    out.furrow_dir = vec2<f32>(cos(quilt.w), sin(quilt.w));
+    out.quilt = field_quilt(world.xz);
     return out;
 }
 
@@ -123,8 +118,6 @@ fn vs_main(input: VsIn) -> VsOut {
 // evaluating a lattice, and fades so the far field never pops.
 const GRAIN_REACH_START_M: f32 = 300.0;
 const GRAIN_REACH_END_M: f32 = 450.0;
-// The furrow wave's period in metres (phase = across * 2π / period).
-const FURROW_PERIOD_M: f32 = 1.25;
 
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
@@ -147,16 +140,6 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let to_grass = max(-lean, 0.0) * 0.9 * w.g;
     w = vec4<f32>(w.r - to_straw + to_grass, w.g + to_straw - to_grass, w.b, w.a);
     let field_light = 1.0 + input.quilt.y * (w.r + w.g);
-    // The furrow lanes: headlands (borders) and unworked ground fade them out.
-    var furrow_mask = 0.0;
-    if (detail_bit(64u)) {
-        furrow_mask = input.quilt.z * (w.r + w.g);
-    }
-    // Two plots ploughing in opposite lanes interpolate through a zero vector at their seam:
-    // the seam takes the world axis, and the mask fades with the vector so no furrow reads there.
-    let furrow_len = length(input.furrow_dir);
-    let furrow_dir = select(vec2<f32>(1.0, 0.0), input.furrow_dir / max(furrow_len, 1.0e-3), furrow_len > 1.0e-3);
-    furrow_mask = furrow_mask * clamp(furrow_len, 0.0, 1.0);
 
     // The baked macro normal (~1 m relief) leaned into by the profile's strength; the detail
     // octaves then bend it further exactly like the scene pass. The lean fades to ZERO at the
@@ -232,26 +215,15 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         micro_shade = 1.0 + (micro.x - 0.5) * 0.11 * near_amp * amp;
         bend += vec3<f32>(-micro.y, 0.0, -micro.z) * 0.05 * near_amp;
     }
-    // Teren B1: the furrow wave — ~1.25 m anisotropic stripes ACROSS the plough direction,
-    // read as both an albedo ripple and a normal corrugation, gone by 150 m so the far
-    // field never shimmers (rule 5's no-noise clause is the gate this feature answered).
-    // A sine is an octave too: it takes the same footprint filter as the grain.
-    var furrow_shade = 1.0;
-    if (furrow_mask > 0.001 && eye_dist < 150.0) {
-        let across = dot(input.world_pos.xz, vec2<f32>(-furrow_dir.y, furrow_dir.x));
-        let phase = across * 5.0265482;
-        let reach = (1.0 - smoothstep(60.0, 150.0, eye_dist)) * furrow_mask
-            * octave_reach(FURROW_PERIOD_M, footprint);
-        furrow_shade = 1.0 + sin(phase) * 0.06 * reach;
-        bend += vec3<f32>(-furrow_dir.y, 0.0, furrow_dir.x) * cos(phase) * 0.10 * reach;
-    }
+    // No furrow sine here any more (T6): a 1.25 m stripe field on the vegetation share was
+    // ploughing every meadow, and its per-vertex direction kinked at every 5 m triangle.
     let n = normalize(base_n + bend);
 
     var albedo = materials.layers[0].rgb * w.r
         + materials.layers[1].rgb * w.g
         + materials.layers[2].rgb * w.b
         + materials.layers[3].rgb * w.a;
-    albedo = albedo * detail_factor * field_light * micro_shade * furrow_shade;
+    albedo = albedo * detail_factor * field_light * micro_shade;
     // Costume C (Jedna Trawa P5): the ground carries the meadow's own darkness — a little
     // where tufts still stand in front of it, all of it where the far costume has folded
     // away. The shared `meadow_far_stand` is the SAME curve the scene pass folds those
