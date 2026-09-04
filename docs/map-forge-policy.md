@@ -251,8 +251,8 @@ not history):
     horizon mix (`HorizonSpec::flora`, at 0.10 or more) that stands nowhere inside the map —
     the ring past the border continues the map, it does not invent one
     (`report::check_species_mix`; the goldens test keeps every shipped map dressed). A
-    `TreeLine` cover is planted from the same mix (`scene_build::tree_line`, F3): Mid-rung
-    trees fitted inside their box — tip under the top, crown within 2.5 m of the faces,
+    `TreeLine` cover is planted from the same mix (`scene_build::tree_line`, F3 / F7b):
+    ladder trees fitted inside their box — tip under the top, crown within 2.5 m of the faces,
     crown inside the ends — so the LOS wall and the trees the eye reads are one object. The
     box is map data and never moves for its dressing.
 

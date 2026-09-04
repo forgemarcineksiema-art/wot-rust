@@ -12,7 +12,9 @@
 //! the same height by construction (one species, one parameter set), so a swap moves texels,
 //! never the tree's size. Every planted tree species rides the ladder — until F7 only the oak
 //! did, and a willow ten metres from the eye was the statics bake's thinned Mid deck with no
-//! wind, paid in every shadow cascade at every distance.
+//! wind, paid in every shadow cascade at every distance. F7b (2026-09-04) put the planted
+//! tree-line stations on the same ladder: per-station instances at the three-way fitted
+//! scale, and the crown hull as its own instanced mesh on Near and Mid.
 
 use glam::{Mat4, Quat, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject};
@@ -29,6 +31,13 @@ const TREE_MESH_BASE: u32 = 0xFEE0_0000;
 const HANDLES_PER_VARIANT: u32 = 4;
 pub const VARIANTS: u32 = world_forge::tree::authored::VARIANTS;
 const HANDLES_PER_SPECIES: u32 = HANDLES_PER_VARIANT * VARIANTS;
+/// Oak, Poplar, Willow, FruitTree, Pine, Bush — retired species keep their slots (handles
+/// are identity). The crown-hull block appends AFTER this, never into a retired hole.
+const SPECIES_SLOTS: u32 = 6;
+/// One unit superellipsoid per species, after the identity ladder block. Hulls MUST sit
+/// below [`renderer_api::SHADOWLESS_DRESSING_MESH_BASE`]: a hedge that skips the shadow
+/// pass is a hedge the sun shines through.
+const CROWN_HULL_MESH_BASE: u32 = TREE_MESH_BASE + SPECIES_SLOTS * HANDLES_PER_SPECIES;
 
 /// The oak's first variant's rungs under the original handles — the names the tests and
 /// probes grew up with.
@@ -36,10 +45,8 @@ pub const TREE_NEAR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod:
 pub const TREE_MID_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod::Mid);
 pub const TREE_IMPOSTOR_MESH: MeshHandle = ladder_mesh(TreeSpecies::Oak, 0, TreeLod::Impostor);
 
-const _: () = assert!(
-    TREE_MESH_BASE + LADDER_SPECIES.len() as u32 * HANDLES_PER_SPECIES
-        < renderer_api::SHADOWLESS_DRESSING_MESH_BASE
-);
+const _: () =
+    assert!(CROWN_HULL_MESH_BASE + SPECIES_SLOTS < renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
 
 /// The species that ride the instanced ladder, in handle order — append-only, because a handle
 /// is a species × variant × rung slot. Every planted species is here: the trees since Inny
@@ -80,10 +87,45 @@ pub const fn impostor_quad_b_mesh(species: TreeSpecies, variant: u32) -> MeshHan
     MeshHandle(ladder_mesh(species, variant, TreeLod::Impostor).0 - TreeLod::Impostor.rung_index())
 }
 
+/// The crown hull of one species: a unit superellipsoid, stretched per station. Append-only
+/// after the six identity species slots — never a reuse of the willow or pine hole.
+pub const fn crown_hull_mesh(species: TreeSpecies) -> MeshHandle {
+    let slot: u32 = match species {
+        TreeSpecies::Oak => 0,
+        TreeSpecies::Poplar => 1,
+        TreeSpecies::Willow => 2,
+        TreeSpecies::FruitTree => 3,
+        TreeSpecies::Pine => 4,
+        TreeSpecies::Bush => 5,
+    };
+    MeshHandle(CROWN_HULL_MESH_BASE + slot)
+}
+
+/// Whether `handle` is a crown-hull mesh (not a ladder rung). Frame-count locks that treat
+/// `dither[0] == 0` as "one tree" must exclude these: a hull is extra mass on the same tree.
+pub const fn is_crown_hull_mesh(handle: MeshHandle) -> bool {
+    handle.0 >= CROWN_HULL_MESH_BASE && handle.0 < CROWN_HULL_MESH_BASE + SPECIES_SLOTS
+}
+
+/// A ladder rung or impostor quad — not a hull. The objects whose dither windows partition
+/// `[0, 1)` for one tree.
+pub const fn is_ladder_rung_mesh(handle: MeshHandle) -> bool {
+    handle.0 >= TREE_MESH_BASE && handle.0 < CROWN_HULL_MESH_BASE
+}
+
+/// How many trees `objects` represents: one per object that starts a dither window at 0 and
+/// is a rung, not a hull. A cross-fade or an impostor split still counts as one tree.
+pub fn ladder_tree_count(objects: &[RenderObject]) -> usize {
+    objects
+        .iter()
+        .filter(|object| is_ladder_rung_mesh(object.mesh) && object.dither[0] == 0.0)
+        .count()
+}
+
 /// The seed an instance grows from — its position bits, the statics bake's own rule
 /// (`foliage::statics_tree_seed`) — which names its variant and mirror on every route.
 pub fn instance_seed(instance: &SceneryInstance) -> u64 {
-    instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32)
+    crate::foliage::statics_tree_seed(instance.position)
 }
 
 /// The variant an instance draws on the ladder (the mirror is a statics-only luxury: a shared
@@ -93,9 +135,9 @@ pub fn instance_variant(instance: &SceneryInstance) -> u32 {
 }
 
 /// Which scenery kinds ride the instanced ladder, and as which species. `None` is a kind the
-/// statics bake still owns (the bush, rocks, street furniture, the retired imports). ONE
-/// answer for the frame builder, the statics bake's skip rule and the instruments that must
-/// draw exactly what the battle draws.
+/// statics bake still owns (rocks, street furniture, the retired imports). ONE answer for
+/// the frame builder, the statics bake's skip rule and the instruments that must draw
+/// exactly what the battle draws.
 pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
     match kind {
         SceneryKind::Oak => Some(TreeSpecies::Oak),
@@ -397,17 +439,25 @@ pub fn tree_lod_meshes() -> Vec<(MeshHandle, MeshAsset)> {
     LADDER_SPECIES
         .into_iter()
         .flat_map(|species| {
-            (0..VARIANTS).flat_map(move |variant| {
-                TreeLod::ALL
-                    .into_iter()
-                    .map(move |lod| {
-                        (ladder_mesh(species, variant, lod), tree_mesh_asset(species, variant, lod))
-                    })
-                    .chain(std::iter::once((
-                        impostor_quad_b_mesh(species, variant),
-                        impostor_quad_asset(species, variant, 1),
-                    )))
-            })
+            (0..VARIANTS)
+                .flat_map(move |variant| {
+                    TreeLod::ALL
+                        .into_iter()
+                        .map(move |lod| {
+                            (
+                                ladder_mesh(species, variant, lod),
+                                tree_mesh_asset(species, variant, lod),
+                            )
+                        })
+                        .chain(std::iter::once((
+                            impostor_quad_b_mesh(species, variant),
+                            impostor_quad_asset(species, variant, 1),
+                        )))
+                })
+                .chain(std::iter::once((
+                    crown_hull_mesh(species),
+                    crate::tree_line::crown_hull_mesh_asset(species),
+                )))
         })
         .collect()
 }
@@ -439,6 +489,10 @@ pub struct TreeLodState {
     /// map for [`tree_frame_objects_with_backdrop`]: the ring is a deterministic function of
     /// the map, and it rides the ladder like every other tree since F11.
     ring: Option<(String, Vec<SceneryInstance>)>,
+    /// The planted TreeLine stations (F7b), built once per map with the ring: fill variant,
+    /// three-way fitted scale, crown hull. Not scenery — stuffing them into `scenery` would
+    /// lie to the compile report and to `hosted_scale`.
+    lines: Option<(String, Vec<crate::tree_line::TreeLineLadderInstance>)>,
 }
 
 impl TreeLodState {
@@ -539,12 +593,13 @@ impl TreeEye {
     }
 }
 
-/// The battle frame's trees AND the horizon ring's (LOD continuity, F11): the ring used to
-/// be baked into the statics as crossed quads with no screen-door window, so from an
-/// oblique eye every ring tree was two overlapping silhouettes; on the ladder it takes the
-/// same azimuth windows, the same rungs and the same fade bands as a playfield tree — a
-/// ring oak forty metres past the red line is a real oak. The ring is built once per map
-/// and cached in `state`.
+/// The battle frame's trees AND the horizon ring's (LOD continuity, F11) AND the planted
+/// tree-line stations (F7b). The ring used to be baked into the statics as crossed quads
+/// with no screen-door window; on the ladder it takes the same azimuth windows, the same
+/// rungs and the same fade bands as a playfield tree. The stations used to bake as Mid
+/// statics with the crown hull — paid in every shadow cascade at every distance; on the
+/// ladder a station at 400 m is an impostor, and the hull draws only with Near and Mid.
+/// Ring and stations are built once per map and cached in `state`.
 pub fn tree_frame_objects_with_backdrop(
     battlefield: &terrain::BattlefieldMap,
     cover_states: &[u8],
@@ -554,12 +609,24 @@ pub fn tree_frame_objects_with_backdrop(
     if state.ring.as_ref().is_none_or(|(id, _)| *id != battlefield.id) {
         state.ring =
             Some((battlefield.id.clone(), crate::backdrop::backdrop_tree_instances(battlefield)));
+        state.lines = Some((
+            battlefield.id.clone(),
+            crate::tree_line::tree_line_ladder_instances(battlefield),
+        ));
     }
     let ring = &state.ring.as_ref().expect("built above").1;
     let mut all: Vec<SceneryInstance> = Vec::with_capacity(battlefield.scenery.len() + ring.len());
     all.extend_from_slice(&battlefield.scenery);
     all.extend_from_slice(ring);
-    tree_frame_objects(&all, &battlefield.static_cover, cover_states, eye, state)
+    let mut objects = tree_frame_objects(&all, &battlefield.static_cover, cover_states, eye, state);
+    push_tree_line_stations(
+        &mut objects,
+        &state.lines.as_ref().expect("built above").1,
+        &battlefield.static_cover,
+        cover_states,
+        eye,
+    );
+    objects
 }
 
 /// The battle frame's tree instances. Distance is measured in the XZ plane — a tank's eye is
@@ -591,69 +658,128 @@ pub fn tree_frame_objects(
     }
     let mut objects = Vec::with_capacity(trees.len());
     for (index, (instance, species)) in trees.iter().enumerate() {
-        let base = Vec3::from_array(instance.position);
-        // Out of the view cone: not submitted (a scope's cone is a few degrees wide).
-        if !eye.sees(base, TREE_CULL_RADIUS_M * state.scales[index].max(1.0)) {
-            continue;
-        }
-        let eye_xz = Vec3::new(eye.position.x, 0.0, eye.position.z);
-        // The APPARENT distance: what the lens makes of it.
-        let distance = (Vec3::new(base.x, 0.0, base.z) - eye_xz).length() / eye.magnification;
-        // Both edges are fade bands (LOD continuity): the finer rung records as the level.
-        let (lod, fading) = rungs_at(distance);
-        state.levels[index] = Some(lod);
-        let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(state.scales[index]),
-            Quat::from_rotation_y(instance.yaw_rad),
-            base - Vec3::Y * TRUNK_SINK_M,
-        );
-        let variant = instance_variant(instance);
-        // The impostor's two quads: ONE of them by view azimuth in tree space — quad A
-        // (spanning X, facing ±Z) while the eye is nearer the Z axis, quad B past the
-        // diagonal — with a dithered hand-over only across a narrow band around the
-        // diagonal. A continuous cos²/sin² share (the first cut) mixed two DIFFERENT views of
-        // the tree at every intermediate angle, and the owner saw that mix as a grid on every
-        // far tree and the whole horizon ring (2026-09-03, in the normal camera).
-        let local = Quat::from_rotation_y(-instance.yaw_rad) * (eye.position - base);
-        let azimuth = local.x.abs().atan2(local.z.abs()).to_degrees();
-        let quad_b = ((azimuth - (45.0 - IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
-            / (2.0 * IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
-            .clamp(0.0, 1.0);
-        let mut push = |mesh: MeshHandle, window: [f32; 2]| {
-            if window[0] >= window[1] {
-                return;
-            }
-            objects.push(RenderObject {
-                tank_id: None,
-                mesh,
-                material: MaterialHandle(0),
-                transform: transform.to_cols_array_2d(),
-                // The canopy's painterly shade is baked into the vertex colours; the
-                // per-instance tint stays neutral (tint-weighted vertices are a vehicle-livery
-                // mechanism).
-                tint: [1.0, 1.0, 1.0],
-                dither: window,
-            });
-        };
-        let mut push_rung = |rung: TreeLod, window: [f32; 2]| {
-            if rung == TreeLod::Impostor {
-                let split = window[0] + (window[1] - window[0]) * (1.0 - quad_b);
-                push(ladder_mesh(*species, variant, TreeLod::Impostor), [window[0], split]);
-                push(impostor_quad_b_mesh(*species, variant), [split, window[1]]);
-            } else {
-                push(ladder_mesh(*species, variant, rung), window);
-            }
-        };
-        match fading {
-            // In a band: the finer rung keeps the top of the interval, the coarser the bottom.
-            Some((coarser, weight)) => {
-                push_rung(lod, [weight, 1.0]);
-                push_rung(coarser, [0.0, weight]);
-            }
-            None => push_rung(lod, [0.0, 1.0]),
+        let scale = state.scales[index];
+        if let Some(lod) = push_ladder_tree(
+            &mut objects,
+            *species,
+            instance_variant(instance),
+            scale,
+            instance.yaw_rad,
+            Vec3::from_array(instance.position),
+            eye,
+        ) {
+            state.levels[index] = Some(lod);
         }
     }
     objects
+}
+
+/// Submit one ladder tree's rung object(s). Returns the finer/solid lod when the tree is in
+/// view, `None` when the cone culls it.
+fn push_ladder_tree(
+    objects: &mut Vec<RenderObject>,
+    species: TreeSpecies,
+    variant: u32,
+    scale: f32,
+    yaw_rad: f32,
+    position: Vec3,
+    eye: TreeEye,
+) -> Option<TreeLod> {
+    let base = position;
+    if !eye.sees(base, TREE_CULL_RADIUS_M * scale.max(1.0)) {
+        return None;
+    }
+    let eye_xz = Vec3::new(eye.position.x, 0.0, eye.position.z);
+    let distance = (Vec3::new(base.x, 0.0, base.z) - eye_xz).length() / eye.magnification;
+    let (lod, fading) = rungs_at(distance);
+    let transform = Mat4::from_scale_rotation_translation(
+        Vec3::splat(scale),
+        Quat::from_rotation_y(yaw_rad),
+        base - Vec3::Y * TRUNK_SINK_M,
+    );
+    let local = Quat::from_rotation_y(-yaw_rad) * (eye.position - base);
+    let azimuth = local.x.abs().atan2(local.z.abs()).to_degrees();
+    let quad_b = ((azimuth - (45.0 - IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
+        / (2.0 * IMPOSTOR_AZIMUTH_BAND_HALF_DEG))
+        .clamp(0.0, 1.0);
+    let mut push = |mesh: MeshHandle, window: [f32; 2]| {
+        if window[0] >= window[1] {
+            return;
+        }
+        objects.push(RenderObject {
+            tank_id: None,
+            mesh,
+            material: MaterialHandle(0),
+            transform: transform.to_cols_array_2d(),
+            tint: [1.0, 1.0, 1.0],
+            dither: window,
+        });
+    };
+    let mut push_rung = |rung: TreeLod, window: [f32; 2]| {
+        if rung == TreeLod::Impostor {
+            let split = window[0] + (window[1] - window[0]) * (1.0 - quad_b);
+            push(ladder_mesh(species, variant, TreeLod::Impostor), [window[0], split]);
+            push(impostor_quad_b_mesh(species, variant), [split, window[1]]);
+        } else {
+            push(ladder_mesh(species, variant, rung), window);
+        }
+    };
+    match fading {
+        Some((coarser, weight)) => {
+            push_rung(lod, [weight, 1.0]);
+            push_rung(coarser, [0.0, weight]);
+        }
+        None => push_rung(lod, [0.0, 1.0]),
+    }
+    Some(lod)
+}
+
+/// F7b: stations at their fill variant and three-way fitted scale — not `instance_variant`
+/// and not `hosted_scale`. The hull draws with Near and Mid (the cards have gaps; the hull
+/// is the mass the opacity lock measures) and drops at a solid Impostor (the sprite is
+/// already a mass; a hull there would be the far-cascade bill F7b exists to end).
+fn push_tree_line_stations(
+    objects: &mut Vec<RenderObject>,
+    stations: &[crate::tree_line::TreeLineLadderInstance],
+    cover: &[terrain::StaticCoverObject],
+    cover_states: &[u8],
+    eye: TreeEye,
+) {
+    for station in stations {
+        if stands_in_cleared_cover(&station.instance, cover, cover_states) {
+            continue;
+        }
+        let Some(lod) = push_ladder_tree(
+            objects,
+            station.species,
+            station.variant,
+            station.instance.scale,
+            station.instance.yaw_rad,
+            Vec3::from_array(station.instance.position),
+            eye,
+        ) else {
+            continue;
+        };
+        if lod == TreeLod::Impostor {
+            continue;
+        }
+        let Some(hull) = station.hull else {
+            continue;
+        };
+        objects.push(RenderObject {
+            tank_id: None,
+            mesh: crown_hull_mesh(station.species),
+            material: MaterialHandle(0),
+            transform: Mat4::from_scale_rotation_translation(
+                Vec3::new(hull.radius_m, hull.half_height_m, hull.radius_m),
+                Quat::IDENTITY,
+                hull.center - Vec3::Y * TRUNK_SINK_M,
+            )
+            .to_cols_array_2d(),
+            tint: [1.0, 1.0, 1.0],
+            dither: [0.0, 1.0],
+        });
+    }
 }
 
 #[cfg(test)]
@@ -694,8 +820,8 @@ mod tests {
         let meshes = tree_lod_meshes();
         assert_eq!(
             meshes.len(),
-            LADDER_SPECIES.len() * VARIANTS as usize * 4,
-            "three rungs and the impostor's second quad per variant per species ship"
+            LADDER_SPECIES.len() * VARIANTS as usize * 4 + LADDER_SPECIES.len(),
+            "three rungs and the impostor's second quad per variant per species, plus one hull per species"
         );
         let tris = |handle: MeshHandle| {
             meshes
@@ -756,7 +882,17 @@ mod tests {
         }
         let shipped: std::collections::BTreeSet<u32> =
             tree_lod_meshes().into_iter().map(|(handle, _)| handle.0).collect();
+        for species in LADDER_SPECIES {
+            let hull = crown_hull_mesh(species);
+            assert!(hull.0 < renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
+            assert!(is_crown_hull_mesh(hull), "{species:?} hull");
+            assert!(!is_ladder_rung_mesh(hull), "{species:?} hull is not a rung");
+            assert!(seen.insert(hull.0), "{species:?} hull reuses");
+        }
         assert_eq!(shipped, seen);
+        assert_eq!(crown_hull_mesh(TreeSpecies::Oak), MeshHandle(0xFEE0_0060));
+        assert!(!is_crown_hull_mesh(TREE_NEAR_MESH));
+        assert!(is_ladder_rung_mesh(TREE_NEAR_MESH));
     }
 
     /// The kind rule (F7, route 2): every planted species rides the ladder — the trees and
@@ -1086,9 +1222,14 @@ mod tests {
         let mut state = TreeLodState::default();
         let eye = Vec3::new(map.size_m[0] * 0.5, 3.0, map.size_m[1] * 0.5);
         let objects = tree_frame_objects_with_backdrop(&map, &[], TreeEye::at(eye), &mut state);
-        let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
+        let trees = ladder_tree_count(&objects);
         let planted = map.scenery.iter().filter(|i| ladder_species(i.kind).is_some()).count();
-        assert_eq!(trees, planted + ring.len(), "every playfield tree and every ring tree");
+        let stations = crate::tree_line::tree_line_ladder_instances(&map).len();
+        assert_eq!(
+            trees,
+            planted + ring.len() + stations,
+            "every playfield tree, every ring tree, every tree-line station"
+        );
         // From the middle of a 1000 m map, the whole ring is past 300 m: impostors only.
         let ring_meshes: std::collections::BTreeSet<u32> = LADDER_SPECIES
             .iter()
@@ -1098,9 +1239,12 @@ mod tests {
                 })
             })
             .collect();
-        let ring_objects = &objects[objects.len()
-            - objects.iter().rev().take_while(|o| ring_meshes.contains(&o.mesh.0)).count()..];
-        assert!(ring_objects.len() >= ring.len(), "the ring's tail is impostor quads");
+        let impostors = objects.iter().filter(|o| ring_meshes.contains(&o.mesh.0)).count();
+        assert!(
+            impostors >= ring.len(),
+            "from the middle the ring is impostors: {impostors} vs {}",
+            ring.len()
+        );
         // Cached: a second frame does not rebuild the ring.
         let again = tree_frame_objects_with_backdrop(&map, &[], TreeEye::at(eye), &mut state);
         assert_eq!(again.len(), objects.len());
@@ -1288,5 +1432,122 @@ mod tests {
             let casters = windows.iter().filter(|w| w[0] <= 0.5 && 0.5 < w[1]).count();
             assert_eq!(casters, 1, "{metre} m: one shadow caster");
         }
+    }
+
+    /// F7b: planted tree-line stations ride the ladder at the fill variant and the
+    /// three-way fitted scale. A close eye sees that variant's Near rung — not the
+    /// position-hash variant `hosted_scale` would pick — and a hull; a far eye sees an
+    /// impostor and no hull; levelling the box drops the station.
+    #[test]
+    fn tree_line_stations_ride_the_ladder_at_their_fill_variant() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let stations = crate::tree_line::tree_line_ladder_instances(&map);
+        assert!(!stations.is_empty(), "Bystra ships planted lines");
+        let station =
+            stations.iter().find(|station| station.hull.is_some()).expect("a station with a hull");
+        let species = station.species;
+        let variant = station.variant;
+        let pos = Vec3::from_array(station.instance.position);
+        let mut state = TreeLodState::default();
+        let close = tree_frame_objects_with_backdrop(
+            &map,
+            &[],
+            TreeEye::at(pos + Vec3::new(0.0, 3.0, 8.0)),
+            &mut state,
+        );
+        let translation_of = |object: &RenderObject| {
+            [object.transform[3][0], object.transform[3][1], object.transform[3][2]]
+        };
+        let sunk = [
+            station.instance.position[0],
+            station.instance.position[1] - TRUNK_SINK_M,
+            station.instance.position[2],
+        ];
+        let near = close
+            .iter()
+            .find(|object| {
+                object.mesh == ladder_mesh(species, variant, TreeLod::Near)
+                    && translation_of(object) == sunk
+            })
+            .expect("the fill variant's Near rung at the station");
+        let scale = {
+            let m = Mat4::from_cols_array_2d(&near.transform);
+            let (s, _, _) = m.to_scale_rotation_translation();
+            s.x
+        };
+        assert!(
+            (scale - station.instance.scale).abs() < 1.0e-4,
+            "fitted scale {}, drew {scale}",
+            station.instance.scale
+        );
+        assert!(
+            close.iter().any(|object| {
+                is_crown_hull_mesh(object.mesh) && {
+                    let t = translation_of(object);
+                    (t[0] - station.hull.unwrap().center.x).abs() < 0.05
+                        && (t[2] - station.hull.unwrap().center.z).abs() < 0.05
+                }
+            }),
+            "Near draws the hull"
+        );
+        let position_variant = instance_variant(&station.instance);
+        if position_variant != variant {
+            assert!(
+                close.iter().all(|object| {
+                    translation_of(object) != sunk
+                        || object.mesh != ladder_mesh(species, position_variant, TreeLod::Near)
+                }),
+                "must not draw the position-hash variant when the fill variant differs"
+            );
+        }
+
+        let far = tree_frame_objects_with_backdrop(
+            &map,
+            &[],
+            TreeEye::at(pos + Vec3::new(0.0, 3.0, 400.0)),
+            &mut TreeLodState::default(),
+        );
+        let far_here: Vec<_> = far
+            .iter()
+            .filter(|object| {
+                let t = translation_of(object);
+                (t[0] - sunk[0]).abs() < 0.05 && (t[2] - sunk[2]).abs() < 0.05
+            })
+            .collect();
+        assert!(
+            far_here.iter().any(|object| {
+                object.mesh == ladder_mesh(species, variant, TreeLod::Impostor)
+                    || object.mesh == impostor_quad_b_mesh(species, variant)
+            }),
+            "400 m is the fill variant's impostor"
+        );
+        assert!(
+            far_here.iter().all(|object| !is_crown_hull_mesh(object.mesh)),
+            "the hull drops at a solid Impostor — that is the cascade win"
+        );
+
+        let cover_index = map
+            .static_cover
+            .iter()
+            .position(|cover| {
+                cover.kind == terrain::StaticCoverKind::TreeLine
+                    && (station.instance.position[0] - cover.center[0]).abs()
+                        <= cover.half_extents_m[0]
+                    && (station.instance.position[2] - cover.center[2]).abs()
+                        <= cover.half_extents_m[2]
+            })
+            .expect("the station sits in a TreeLine");
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[cover_index] = 2;
+        let gone = tree_frame_objects_with_backdrop(
+            &map,
+            &states,
+            TreeEye::at(pos + Vec3::new(0.0, 3.0, 8.0)),
+            &mut TreeLodState::default(),
+        );
+        assert!(
+            gone.iter().all(|object| translation_of(object) != sunk),
+            "a levelled box takes its stations with it"
+        );
     }
 }

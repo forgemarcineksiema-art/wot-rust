@@ -73,7 +73,7 @@ it closes.
 | ~~D2~~ | ~~Review set covers 1 map of 4, contains no vehicle, shoots from 14 m, and has no garage entry~~ — **CLOSED (W0)**: `review_views_for` covers all four `REVIEWED_MAPS`, `hangar_review_views()` adds the garage, the vantage is locked by `no_review_camera_sits_above_the_players_own_eye` and a vehicle-in-frame range assert | `review_views.rs:371,399-403` | W0 |
 | ~~D3~~ | ~~The milky sky is **structural**, not a tuning error… the visible band is the fog colour, which must be pale by construction~~ — **CLOSED (2026-08-21, three PRs)**. The cloud belt had already been reopened to `smoothstep(0.005, 0.16, dir.y)`; what remained was the fog colour and the sky pass, and both fell. (1) The fog colour stopped being pale-by-construction: the sun-haze blend is energy-conserving (`horizon*0.55 + key*0.45`, was `0.4/0.8` = 1.2× energy grading BRIGHTER than the sky), locked by `the_sun_haze_warms_the_air_but_never_outshines_it` via the new CPU mirror `fog_sun_haze_reference()`; the horizons darkened (Bystra `[0.78,0.72,0.62]→[0.64,0.60,0.51]`); the fog reaches the backdrop hills (falloff 0.02→0.007/0.008, locked by `aerial_perspective_reaches_the_hills`). (2) The sky pass stopped adding its own milk: the `*1.06` super-horizon lift is gone (the band is the fog colour, exactly), the disc multiplier fell 6.0→3.0 (the core still tops ACES but the flat-white plateau shrank and the skirt keeps the key's colour — the sun reads golden), and the pow-9 halo that washed ~26° of sky at a fifth of key strength tightened to pow-14 at half that. The pixel-side regression stop is the new `near_white` ceiling: ≤ 1.5% of any outdoor golden at ≥ 0.97 linear luma | `sky.wgsl`, `lighting_common.wgsl`, `look_goldens.rs` | W1 |
 | D4 | No dark mass: the field is uniformly sunlit, and cloud shadows run at 0.25–0.3 strength over a very large scale | `lighting.rs` profiles | W1 |
-| ~~D5~~ | ~~**Every** battle tree is pinned to `TreeLod::Mid`~~ — **CLOSED (Świat 2.0 F0)**: the battlefield oak draws through the instanced LOD ladder (`scene_build::tree_lod`) with Near/Mid/Impostor rungs from `world_forge::tree`; height locks stay in `tree.rs`. Other species still bake Mid into statics — their counts are small enough not to need the ladder | `tree_lod.rs`, `tree.rs` | W2 |
+| ~~D5~~ | ~~**Every** battle tree is pinned to `TreeLod::Mid`~~ — **CLOSED (Świat 2.0 F0, F7, F7b 2026-09-04)**: every planted tree — free-standing species and TreeLine stations — draws through the instanced LOD ladder (`scene_build::tree_lod`) with Near/Mid/Impostor rungs from `world_forge::tree`; height locks stay in `tree.rs`. The stations' crown hull is its own instanced mesh on Near/Mid | `tree_lod.rs`, `tree.rs`, `tree_line.rs` | W2 |
 | ~~D6~~ | ~~Three content kinds still render as a bare cuboid in Cover 2.0 scope: `TreeLine`, `RailCover`, and `SceneryKind::Rock`~~ — **CLOSED (Świat 2.0, 2026-08-07)**: `TreeLine` wears a szpaler and `RailCover` a revetment (PR 5 + 7, `b064287`); `SceneryKind::Rock` is now baked by `world_forge::rock` (PR 8a) — a displaced, cut-and-sunk erratic with its frost spall, wearing the new `surface_role::ROCK_FACE` and **the stone of the map it stands on** instead of one hardcoded grey on all four. `Wreck` stays a footprint box by decision (out of Świat 2.0, 2026-08-07), which is what this row's "three kinds" already excluded | `battlefield.rs`, `rock.rs`, `clutter.rs` | W2 |
 | ~~D7~~ | ~~Grass has no clumping term: 28 candidates per 8 m cell at uniformly random positions~~ — **CLOSED (teren A4)**: both grass systems share one clump rule in `crate::grass` — 2–3 hash centres per 8 m cell pull every candidate by a convex 0.55 lerp (in-cell by construction, so the per-cell determinism/phase contracts hold untouched), and a low-frequency baldness field (sampled at the FOLDED z, so the mirrored card meadow and the true-position near ring agree across the axis) refuses ~10 % of ground outright. Redistribution, not addition: 28 candidates, 4.5 cards and every budget unchanged. Locked in the Clark–Evans direction (mean NN < 0.85 × uniform) in BOTH systems + the self-locating bald-cell lock; the cache-sweep floor renegotiated 3 800 → 3 300 in-diff (visible bald patches are the feature) | `grass.rs::clump_centres`, `grass_cards.rs` | W2 |
 | D8 | Baked contact AO exists for the **T-54 only**; there is **no curvature/edge-wear term anywhere in the repository**; dust is confined to the running gear | `surface_bake.rs`, `vehicle.wgsl:310` | W3 |
@@ -168,23 +168,23 @@ silhouettes at 0.2-0.5%, plus `bystra_town_lane` at 14.1% — the 27 m church no
 lane and adds real shade mass: dark 20.4% -> 25.3%, toward the W1 target, not away). All value
 locks held without relaxation; Prokhorovka and Orliny frames byte-identical.
 
-Re-measured 2026-09-04 (pine retired): 26 battlefield frames re-recorded. The pine is gone from
-Orliny and Mazurski and from the foliage atlas; far mips of the shared page moved every outdoor
-frame a little (Prokhorovka ~0.8 %, Mazurski ~4 %). Value floors held without relaxation. The
-garage half was byte-identical on the same run.
+Re-measured 2026-09-04 (pine retired, then F7b): 26 battlefield frames re-recorded twice
+the same day. First the pine left the atlas; then TreeLine stations left statics and ride
+the ladder (Near up close with a hull, impostor past 300 m). Value floors held without
+relaxation. The garage half was not re-recorded.
 
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `prokhorovka_clear_afternoon` | 2.1% | 61.7% | 36.1% | 0.336 | 0.512 | 0.849 | 0.512 | 0.357 | 0.0086 | +0.255 |
-| `prokhorovka_golden_evening` | 42.2% | 24.3% | 33.5% | 0.116 | 0.357 | 0.701 | 0.586 | 0.369 | 0.0089 | +0.393 |
-| `prokhorovka_overcast` | 1.7% | 49.8% | 48.5% | 0.340 | 0.498 | 0.720 | 0.380 | 0.184 | 0.0067 | +0.283 |
+| `prokhorovka_golden_evening` | 42.3% | 24.2% | 33.5% | 0.115 | 0.357 | 0.701 | 0.587 | 0.369 | 0.0089 | +0.393 |
+| `prokhorovka_overcast` | 1.8% | 49.8% | 48.5% | 0.340 | 0.498 | 0.720 | 0.380 | 0.184 | 0.0067 | +0.283 |
 | `prokhorovka_evening_midfield` | 43.2% | 23.3% | 33.5% | 0.071 | 0.286 | 0.715 | 0.644 | 0.406 | 0.0097 | +0.411 |
-| `prokhorovka_grass_midfield` | 6.3% | 56.3% | 37.3% | 0.091 | 0.518 | 0.835 | 0.744 | 0.372 | 0.0096 | +0.232 |
+| `prokhorovka_grass_midfield` | 6.3% | 56.4% | 37.3% | 0.091 | 0.518 | 0.835 | 0.744 | 0.372 | 0.0096 | +0.232 |
 | `prokhorovka_contact_backlit` | 21.7% | 57.7% | 20.5% | 0.040 | 0.438 | 0.810 | 0.770 | 0.424 | 0.0079 | +0.354 |
 | `prokhorovka_evening_contact` | 49.2% | 26.0% | 24.8% | 0.072 | 0.253 | 0.700 | 0.628 | 0.446 | 0.0098 | +0.394 |
 | `prokhorovka_sniper_contact` | 21.2% | 56.0% | 22.9% | 0.036 | 0.485 | 0.737 | 0.701 | 0.371 | 0.0125 | +0.235 |
 | `bystra_clear_afternoon` | 26.5% | 42.9% | 30.5% | 0.038 | 0.324 | 0.719 | 0.681 | 0.399 | 0.0116 | +0.388 |
-| `bystra_rain` | 11.7% | 53.1% | 35.3% | 0.029 | 0.381 | 0.683 | 0.654 | 0.253 | 0.0084 | +0.326 |
+| `bystra_rain` | 11.6% | 53.1% | 35.3% | 0.029 | 0.381 | 0.683 | 0.654 | 0.253 | 0.0084 | +0.326 |
 | `bystra_dawn_fog` | 35.4% | 28.2% | 36.4% | 0.035 | 0.294 | 0.763 | 0.728 | 0.281 | 0.0107 | +0.439 |
 | `bystra_town_lane` | 29.5% | 49.2% | 21.3% | 0.061 | 0.320 | 0.710 | 0.649 | 0.374 | 0.0110 | +0.298 |
 | `orliny_clear_afternoon` | 14.6% | 53.2% | 32.2% | 0.186 | 0.339 | 0.781 | 0.595 | 0.354 | 0.0106 | +0.454 |
@@ -197,9 +197,9 @@ garage half was byte-identical on the same run.
 | `ostrogorsk_overcast` | 26.8% | 48.4% | 24.8% | 0.011 | 0.401 | 0.713 | 0.702 | 0.267 | 0.0145 | +0.283 |
 | `ostrogorsk_rain` | 26.4% | 49.4% | 24.2% | 0.014 | 0.366 | 0.676 | 0.662 | 0.254 | 0.0135 | +0.285 |
 | `ostrogorsk_canyon` | 7.5% | 69.2% | 23.2% | 0.207 | 0.434 | 0.842 | 0.635 | 0.241 | 0.0085 | +0.254 |
-| `mazurski_clear_afternoon` | 36.2% | 40.2% | 23.6% | 0.001 | 0.358 | 0.712 | 0.711 | 0.405 | 0.0124 | +0.213 |
+| `mazurski_clear_afternoon` | 36.3% | 40.2% | 23.6% | 0.001 | 0.358 | 0.712 | 0.711 | 0.404 | 0.0124 | +0.213 |
 | `mazurski_overcast` | 34.9% | 35.9% | 29.2% | 0.008 | 0.304 | 0.747 | 0.739 | 0.326 | 0.0118 | +0.346 |
-| `mazurski_golden_evening` | 44.1% | 30.2% | 25.7% | 0.001 | 0.276 | 0.718 | 0.717 | 0.432 | 0.0132 | +0.292 |
+| `mazurski_golden_evening` | 44.2% | 30.2% | 25.7% | 0.001 | 0.276 | 0.718 | 0.717 | 0.432 | 0.0132 | +0.292 |
 | `mazurski_causeway` | 21.3% | 42.8% | 35.9% | 0.135 | 0.354 | 0.774 | 0.639 | 0.387 | 0.0108 | +0.430 |
 | `garage_hero` | 72.8% | 23.1% | 4.1% | 0.030 | 0.162 | 0.573 | 0.543 | 0.229 | 0.0076 | −0.134 |
 | `garage_screen` | 75.7% | 20.4% | 3.9% | 0.063 | 0.140 | 0.565 | 0.502 | 0.190 | 0.0105 | −0.089 |

@@ -714,10 +714,10 @@ impl ClientApp {
             self.grass_cache_eye = Some(eye);
             self.grass_cache_crater_fingerprint = crater_fingerprint;
         }
-        // Battlefield oaks ride the same instancing path, but they are rebuilt EVERY frame:
-        // there are ten of them and the rung a tree draws depends on where the camera is right
-        // now. They are appended to the grass allocation and trimmed off again, so the
-        // per-frame scene submission still costs no allocation.
+        // Battlefield trees ride the same instancing path, but they are rebuilt EVERY frame:
+        // the rung a tree draws depends on where the camera is right now. They are appended
+        // to the grass allocation and trimmed off again, so the per-frame scene submission
+        // still costs no allocation.
         let grass_len = self.grass_cache.len();
         self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
             &self.battlefield,

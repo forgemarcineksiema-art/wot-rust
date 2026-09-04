@@ -52,7 +52,7 @@ mod tests {
         // Each placement is a tree AND its symmetry twin. A tree may be two or three objects
         // (a cross-fade band, the impostor's two quads) whose windows partition [0, 1): the
         // one starting at 0 counts the tree.
-        let trees = objects.iter().filter(|o| o.dither[0] == 0.0).count();
+        let trees = scene_build::tree_lod::ladder_tree_count(&objects);
         assert_eq!(trees, planted.len() * 2, "one tree per planted tree");
         for object in &objects {
             assert!(

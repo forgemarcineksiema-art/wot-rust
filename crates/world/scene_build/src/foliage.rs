@@ -34,17 +34,17 @@ pub(crate) fn tree_species(kind: SceneryKind) -> Option<world_forge::tree::TreeS
 }
 
 /// The seed a statics-baked tree grows from: the instance's position bits, so a scatter never
-/// repeats a tree yet every scene bake is identical. One function, because the planted tree
-/// line (`tree_line`) measures a tree for its fit BEFORE the bake draws it, and the two must
-/// grow the same tree.
+/// repeats a tree yet every scene bake is identical. The ladder's `instance_seed` is the same
+/// rule; tree-line stations name a fill variant instead (`authored::variant_seed`).
 pub(crate) fn statics_tree_seed(position: [f32; 3]) -> u64 {
     position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32)
 }
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
 /// from the instance's position bits (`statics_tree_seed`). A non-tree kind draws nothing.
-/// The same bake from a caller-chosen seed — the planted tree line names each station's
-/// variant (the one that fills its wall) instead of taking the position's.
+/// Test helper: tree-line stations no longer call this (F7b); the lock that a baked
+/// individual is real geometry and deterministic per seed still lives here.
+#[cfg(test)]
 pub(crate) fn push_baked_tree_seeded(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -69,7 +69,7 @@ pub(crate) fn push_baked_tree_seeded(
     let scale = instance.scale;
     let canopy_color = canopy_color_for_species(species);
     for (mesh, (color, gloss), lit_by_sky) in
-        [(&tree.trunk, TRUNK, false), (&tree.canopy, canopy_color, true)]
+        [(&tree.trunk, TRUNK_TONE, false), (&tree.canopy, canopy_color, true)]
     {
         let start = vertices.len() as u32;
         for vertex in mesh.vertices() {
@@ -312,7 +312,6 @@ pub(crate) fn push_impostor_tree(
 // Each material is (color, gloss): bark is matte, leaf canopies carry the faint waxy sheen
 // that answers a wet sky without ever reading as plastic.
 pub(crate) const TRUNK_TONE: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
-const TRUNK: ([f32; 3], f32) = TRUNK_TONE;
 const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
 /// Scrub foliage (hawthorn, elder) genuinely runs darker than a broadleaf crown — and the
@@ -369,11 +368,11 @@ mod baked_tree_tests {
 
     use super::*;
 
-    /// B2's on-screen contract for the trees the statics bake still grows — the planted tree
-    /// line's stations (`tree_line`), which call this route directly; every free-standing tree
-    /// species rides the instanced ladder since F7: a baked tree is the BAKED species (real
-    /// geometry, canopy normals bent from the crown centroid), deterministic per position — the
-    /// scene bake is identical every time, yet no two shelterbelt trees repeat.
+    /// B2's on-screen contract for a baked tree (the helper the statics path used to grow
+    /// tree-line stations with, before F7b moved them onto the ladder): a baked tree is the
+    /// BAKED species (real geometry, canopy normals bent from the crown centroid),
+    /// deterministic per position — the scene bake is identical every time, yet no two
+    /// trees at different spots repeat.
     #[test]
     fn battlefield_trees_are_baked_species_deterministic_per_position() {
         let instance = |x: f32| SceneryInstance {
@@ -503,8 +502,8 @@ mod baked_tree_tests {
             assert!(indices.is_empty(), "{retired:?} contributes nothing to the statics bake");
         }
         // Every tree species rides the instanced ladder (F7), so the near bake owes it
-        // NOTHING — a species baked here too would draw twice. The tree line's stations still
-        // bake through `push_baked_tree` directly and keep their own budget in `tree_line`.
+        // NOTHING — a species baked here too would draw twice. Tree-line stations left
+        // statics in F7b and ride the same ladder; this skip is the scenery loop only.
         for kind in SceneryKind::ALL {
             let on_ladder = crate::tree_lod::ladder_species(kind).is_some();
             let mut vertices = Vec::new();
