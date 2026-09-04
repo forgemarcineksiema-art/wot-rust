@@ -33,13 +33,8 @@ mod tests {
     #[test]
     fn every_planted_ladder_tree_draws_in_the_viewport() {
         let mut document = crate::EditorDocument::new_scratch();
-        let planted = [
-            PaletteEntry::Oak,
-            PaletteEntry::Poplar,
-            PaletteEntry::FruitTree,
-            PaletteEntry::Pine,
-            PaletteEntry::Bush,
-        ];
+        let planted =
+            [PaletteEntry::Oak, PaletteEntry::Poplar, PaletteEntry::FruitTree, PaletteEntry::Bush];
         document.apply_edit(|blueprint| {
             for (index, entry) in planted.iter().enumerate() {
                 place_entry(blueprint, *entry, [120.0 + 30.0 * index as f32, 90.0]);

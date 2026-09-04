@@ -223,12 +223,12 @@ static OAK: SpeciesAssets = flora!("oak", "jolcham_oak_bark_01");
 static POPLAR: SpeciesAssets = flora!("poplar", "bark_brown_02");
 static FRUIT: SpeciesAssets = flora!("fruit", "sakura_bark");
 static BUSH: SpeciesAssets = flora!("bush", "tree_bark_03");
-static PINE: SpeciesAssets = flora!("pine", "pine_bark");
 
-/// The willow is RETIRED (2026-09-03, the owner: "I don't want a willow at all"): no assets,
-/// never planted, never drawn; the variant stays as wire identity.
+/// The willow (2026-09-03, the owner: "I don't want a willow at all") and the pine
+/// (2026-09-04, the owner: "the pine is out entirely") are RETIRED: no assets, never
+/// planted, never drawn; the variants stay as wire identity.
 pub fn is_retired(species: TreeSpecies) -> bool {
-    species == TreeSpecies::Willow
+    matches!(species, TreeSpecies::Willow | TreeSpecies::Pine)
 }
 
 /// Every species with authored assets, in `TreeSpecies::ALL` order.
@@ -243,7 +243,7 @@ fn assets(species: TreeSpecies) -> Option<&'static SpeciesAssets> {
         TreeSpecies::Willow => None,
         TreeSpecies::FruitTree => Some(&FRUIT),
         TreeSpecies::Bush => Some(&BUSH),
-        TreeSpecies::Pine => Some(&PINE),
+        TreeSpecies::Pine => None,
     }
 }
 
@@ -260,7 +260,7 @@ pub fn asset_dirs(species: TreeSpecies) -> Option<(&'static str, &'static str)> 
 /// The golden hashes per species: (clusters, the eight tree files, the bark pair, the
 /// impostor pair). A re-bake changes the picture: bless deliberately and say what changed
 /// about the LEAVES, the SHAPE, the BARK or the FAR RUNG.
-pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
+pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 4] = [
     (
         TreeSpecies::Oak,
         0xa717_8958_c78e_edd5,
@@ -288,13 +288,6 @@ pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 5] = [
         0xd32c_40fe_223b_1e10,
         0x16db_0350_dcc4_d74d,
         0x28c7_58f3_c50b_c6da,
-    ),
-    (
-        TreeSpecies::Pine,
-        0x78e4_7a5b_5cf9_e80a,
-        0xa140_0a97_4d18_20b9,
-        0x0f83_122c_b8de_75f1,
-        0x2c48_036f_4538_35c5,
     ),
 ];
 
@@ -327,7 +320,7 @@ pub fn bark_hash(species: TreeSpecies) -> u64 {
     hash
 }
 
-/// The authored cluster pages of a species (`None` for the retired willow). Decoded once
+/// The authored cluster pages of a species (`None` for a retired species). Decoded once
 /// per process.
 pub fn clusters(species: TreeSpecies) -> Option<&'static ClusterPages> {
     static PAGES: [OnceLock<ClusterPages>; 6] = [const { OnceLock::new() }; 6];
@@ -437,7 +430,7 @@ pub fn seed_for(variant: u32, mirrored: bool) -> u64 {
 }
 
 /// The authored tree of a species at a rung: the variant and mirror the seed names; `None`
-/// for the retired willow (the procedural bake still answers, and nothing plants it).
+/// for a retired species (the procedural bake still answers, and nothing plants it).
 pub fn tree(species: TreeSpecies, seed: u64, lod: TreeLod) -> Option<BakedTree> {
     assets(species)?;
     let (variant, mirrored) = variant_of_seed(seed);

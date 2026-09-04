@@ -460,10 +460,10 @@ pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     // scrub shade, and the interior OCCLUSION HULL — a dense shrub shows no daylight through
     // its middle, and the steppe's rule-1 dark plane rides on that.
     (TreeSpecies::Bush, 0x7810_5693_e812_6a1c),
-    // Pine re-blessed 2026-08-22 (Drzewa 3.0 PR9, the LAST migrant): a monopodial pole,
-    // dense near-horizontal branches, the Cone envelope tapering them to the leader, needle
-    // fronds on cards. The lobes died with this bless.
-    (TreeSpecies::Pine, 0xd650_8f9c_f565_b8f6),
+    // Pine re-blessed 2026-09-04 (retired — the owner: "the pine is out entirely"): no
+    // authored assets; the procedural skeleton bake is the identity the variant still
+    // answers with, and nothing plants it.
+    (TreeSpecies::Pine, 0x5bc9_8ae3_7911_cc9f),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —

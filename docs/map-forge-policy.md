@@ -242,8 +242,9 @@ not history):
     battlefield tree is the procedural **oak**: it draws through the instanced LOD ladder
     (`scene_build::tree_lod`, true crossed-quad impostor past 150 m) and its trunk is a
     gameplay solid (`TreeTrunk` cover derived in `map_forge`). The retired `FloraTree` /
-    `FloraPine` / `FloraBush` kinds keep their wire identity (append-only enum) but are
-    **never authored** — the `flora_integration` test locks that.
+    `FloraPine` / `FloraBush` kinds, and since the owner's verdicts `Willow` (2026-09-03)
+    and `Pine` (2026-09-04), keep their wire identity (append-only enum) but are
+    **never authored** — `map_forge::RETIRED_KINDS` and `flora_integration` lock that.
 11. **A map grows its own species, and grows several** (Inny Poziom F2, 2026-09-02). The
     compile report refuses a dressed map (12 trees or more) that plants fewer than three
     tree species, lets one species exceed 70 % of its trees, or names a species in its

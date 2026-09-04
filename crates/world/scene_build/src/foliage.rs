@@ -468,7 +468,6 @@ mod baked_tree_tests {
             vertices.iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
         };
         assert!(tip(SceneryKind::Oak) > 15.0, "far oak: {}", tip(SceneryKind::Oak));
-        assert!(tip(SceneryKind::Pine) > 18.0, "far pine: {}", tip(SceneryKind::Pine));
         assert!(tip(SceneryKind::Poplar) > 19.0, "far poplar: {}", tip(SceneryKind::Poplar));
     }
 
@@ -481,7 +480,13 @@ mod baked_tree_tests {
     /// construction costs, plus a little headroom.
     #[test]
     fn every_kind_stays_inside_its_own_triangle_budget_with_sane_indices() {
-        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush, SceneryKind::FloraTree] {
+        for retired in [
+            SceneryKind::FloraPine,
+            SceneryKind::FloraBush,
+            SceneryKind::FloraTree,
+            SceneryKind::Willow,
+            SceneryKind::Pine,
+        ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             push_scenery_instance(

@@ -51,8 +51,10 @@ decide the mid-game").
   splat's rock break, so the slot reads as the stone gate it plays as), a `FlattenToGauss`
   hamlet bench (target 31 m), `ClampMin`.
 - Backdrop: `HorizonSpec` with `hills_base_m` 60 (vs Bystra's 27) — a true mountain
-  enclosure; no river gap. Its ring is a pine belt at last (`flora`: Pine 0.70, Oak 0.30 —
-  Inny Poziom F1; the `pine_belt` view used to show hexagonal oak cones).
+  enclosure; no river gap. Its ring was a pine belt (`flora`: Pine 0.70, Oak 0.30 — Inny
+  Poziom F1; the `pine_belt` view used to show hexagonal oak cones) until the owner retired
+  the pine (2026-09-04): the ring is Oak 0.55 / Poplar 0.35 / FruitTree 0.10 now; the view
+  keeps its name.
 - Looks: ClearAfternoon (default), GoldenEvening (alpenglow on the rock), Overcast
   (LeadOvercast). DawnFog stays Bystra's signature. Static weather program (no timeline
   branch).
@@ -61,10 +63,12 @@ decide the mid-game").
   worked plots this high).
 - Flora (Świat 2.0): procedural oaks on the Dolina floor and crest-walk shoulders (Fixed
   mirrored pair); procedural bushes remain render-only. Retired imported kinds are never
-  authored. Inny Poziom F2 (2026-09-02): 44 pines on the south face, the east shoulder and
-  the west slope — the pass is pine country inside the map as on its ring — 16 oaks, 6 fruit
-  trees in the hamlet's gardens; the Dolina screens are planted with pines (the species that fills a 17 m wall), fitted
-  inside their boxes over a hedge body (F3).
+  authored. Inny Poziom F2 (2026-09-02) planted 44 pines on the south face, the east
+  shoulder and the west slope; since the pine's retirement (2026-09-04) those scatters are
+  20 oaks on the south face and 24 poplars on the shoulder and the west slope, beside the
+  16 oaks and 6 fruit trees in the hamlet's gardens; the Dolina screens are planted from
+  the oak/poplar mix (the species that fills a 17 m wall), fitted inside their boxes over a
+  hedge body (F3).
 
 ## Gameplay Layer
 

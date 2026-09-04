@@ -145,8 +145,11 @@
     // Re-blessed 2026-09-03 (no willow — the owner: "I don't want a willow at all"): Bystra's
     // bank willows are poplars, Mazurski's are an orchard, Prokhorovka's balka willows are
     // poplars; the horizon mixes follow. The Willow variant stays as identity and draws nothing.
+    // Re-blessed 2026-09-04 (no pine — the owner: "the pine is out entirely"): Orliny's 44
+    // pines are 20 oaks and 24 poplars, Mazurski's 28 are 16 oaks and 12 poplars; the
+    // horizon mixes follow. The Pine variant stays as identity and draws nothing.
     ("bystra_valley", "fc94f87c7941af1a"),
-    ("orliny_pereval", "2e256db696d1b1f1"),
+    ("orliny_pereval", "3b2d10972dcc4f2d"),
     ("ostrogorsk", "a2c826a699d227bf"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
     // firsts at once: the first Rot180 half-turn map (each team sees the SAME battlefield
@@ -157,6 +160,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "a3c0d35b170dc8f6"),
+    ("mazurski_przesmyk", "32b8a3cf05f0936b"),
     ("prokhorovka_hill_252_2", "27ecf1d9864d33f7"),
 ]

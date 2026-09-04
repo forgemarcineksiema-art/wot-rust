@@ -25,7 +25,9 @@ MapBlueprint(
         closure_span_m: 300.0,
         river_gap_half_m: 0.0,
         river_gap_falloff_m: 1.0,
-        flora: [(Pine, 0.50), (Oak, 0.30), (FruitTree, 0.20)],
+        // The pine is RETIRED (2026-09-04, the owner): oak on the eskers, poplar over the
+        // erratic field, the orchard on the shore band.
+        flora: [(Oak, 0.50), (Poplar, 0.25), (FruitTree, 0.25)],
     )),
     terrain: TerrainProgram(
         // A lakeland plateau: the moraine rolls from authored knolls, never from analytic
@@ -289,12 +291,13 @@ MapBlueprint(
         ),
     ],
     scenery: [
-        // Inny Poziom F2 — the isthmus grows what its horizon says (Pine 0.50 / Oak 0.30 /
-        // Willow 0.20; the map planted oaks alone): pines on the eskers and over the erratic
-        // field, willows on the dry shore band above the reeds.
+        // Inny Poziom F2 — the isthmus grows what its horizon says (the map planted oaks
+        // alone): oaks on the eskers, poplars over the erratic field, an orchard on the dry
+        // shore band above the reeds. (Pines until 2026-09-04, willows until 2026-09-03 —
+        // both retired by the owner.)
         Scatter(
             seed: 4501010,
-            kind: Pine,
+            kind: Oak,
             pairs: 8,
             region: ScatterRect(
                 x: (120.0, 360.0),
@@ -307,7 +310,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 4501011,
-            kind: Pine,
+            kind: Poplar,
             pairs: 6,
             region: ScatterRect(
                 x: (420.0, 610.0),

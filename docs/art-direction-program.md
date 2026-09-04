@@ -168,28 +168,39 @@ silhouettes at 0.2-0.5%, plus `bystra_town_lane` at 14.1% — the 27 m church no
 lane and adds real shade mass: dark 20.4% -> 25.3%, toward the W1 target, not away). All value
 locks held without relaxation; Prokhorovka and Orliny frames byte-identical.
 
+Re-measured 2026-09-04 (pine retired): 26 battlefield frames re-recorded. The pine is gone from
+Orliny and Mazurski and from the foliage atlas; far mips of the shared page moved every outdoor
+frame a little (Prokhorovka ~0.8 %, Mazurski ~4 %). Value floors held without relaxation. The
+garage half was byte-identical on the same run.
+
 | frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `prokhorovka_clear_afternoon` | 1.0% | 62.4% | 36.7% | 0.345 | 0.516 | 0.849 | 0.504 | 0.355 | 0.0083 | +0.255 |
-| `prokhorovka_golden_evening` | 40.9% | 25.1% | 34.0% | 0.121 | 0.415 | 0.701 | 0.580 | 0.364 | 0.0087 | +0.393 |
-| `prokhorovka_overcast` | 0.7% | 50.3% | 49.0% | 0.353 | 0.510 | 0.720 | 0.367 | 0.183 | 0.0063 | +0.283 |
-| `prokhorovka_evening_midfield` | 40.1% | 25.0% | 34.9% | 0.093 | 0.313 | 0.715 | 0.621 | 0.387 | 0.0089 | +0.410 |
-| `prokhorovka_grass_midfield` | 2.1% | 56.7% | 41.1% | 0.355 | 0.530 | 0.841 | 0.487 | 0.341 | 0.0077 | +0.231 |
-| `prokhorovka_contact_backlit` | 21.8% | 57.7% | 20.5% | 0.040 | 0.440 | 0.810 | 0.770 | 0.424 | 0.0074 | +0.351 |
-| `prokhorovka_evening_contact` | 48.7% | 26.4% | 24.8% | 0.073 | 0.255 | 0.700 | 0.628 | 0.448 | 0.0090 | +0.393 |
-| `bystra_clear_afternoon` | 17.1% | 49.7% | 33.2% | 0.200 | 0.381 | 0.726 | 0.526 | 0.344 | 0.0102 | +0.386 |
-| `bystra_rain` | 1.4% | 57.2% | 41.3% | 0.292 | 0.420 | 0.689 | 0.397 | 0.198 | 0.0064 | +0.329 |
-| `bystra_dawn_fog` | 27.8% | 29.8% | 42.4% | 0.177 | 0.334 | 0.763 | 0.586 | 0.217 | 0.0093 | +0.451 |
-| `bystra_town_lane` | 25.3% | 49.9% | 24.8% | 0.067 | 0.330 | 0.710 | 0.643 | 0.366 | 0.0084 | +0.326 |
-| `orliny_clear_afternoon` | 13.0% | 54.3% | 32.7% | 0.206 | 0.342 | 0.781 | 0.575 | 0.344 | 0.0104 | +0.453 |
-| `orliny_golden_evening` | 47.8% | 17.2% | 35.0% | 0.123 | 0.259 | 0.806 | 0.683 | 0.329 | 0.0112 | +0.562 |
-| `orliny_overcast` | 1.0% | 55.7% | 43.3% | 0.331 | 0.417 | 0.721 | 0.389 | 0.189 | 0.0063 | +0.314 |
-| `orliny_pine_belt` | 14.1% | 58.8% | 27.1% | 0.205 | 0.384 | 0.718 | 0.513 | 0.342 | 0.0094 | +0.324 |
-| `ostrogorsk_clear_afternoon` | 2.4% | 62.4% | 35.2% | 0.316 | 0.505 | 0.833 | 0.517 | 0.281 | 0.0103 | +0.298 |
-| `ostrogorsk_golden_evening` | 38.8% | 24.7% | 36.5% | 0.113 | 0.297 | 0.799 | 0.686 | 0.325 | 0.0102 | +0.530 |
-| `ostrogorsk_overcast` | 4.7% | 51.9% | 43.4% | 0.271 | 0.444 | 0.721 | 0.450 | 0.129 | 0.0073 | +0.288 |
-| `ostrogorsk_rain` | 4.3% | 52.8% | 43.0% | 0.275 | 0.411 | 0.683 | 0.408 | 0.134 | 0.0065 | +0.294 |
-| `ostrogorsk_canyon` | 7.4% | 69.3% | 23.3% | 0.210 | 0.435 | 0.842 | 0.632 | 0.242 | 0.0081 | +0.255 |
+| `prokhorovka_clear_afternoon` | 2.1% | 61.7% | 36.1% | 0.336 | 0.512 | 0.849 | 0.512 | 0.357 | 0.0086 | +0.255 |
+| `prokhorovka_golden_evening` | 42.2% | 24.3% | 33.5% | 0.116 | 0.357 | 0.701 | 0.586 | 0.369 | 0.0089 | +0.393 |
+| `prokhorovka_overcast` | 1.7% | 49.8% | 48.5% | 0.340 | 0.498 | 0.720 | 0.380 | 0.184 | 0.0067 | +0.283 |
+| `prokhorovka_evening_midfield` | 43.2% | 23.3% | 33.5% | 0.071 | 0.286 | 0.715 | 0.644 | 0.406 | 0.0097 | +0.411 |
+| `prokhorovka_grass_midfield` | 6.3% | 56.3% | 37.3% | 0.091 | 0.518 | 0.835 | 0.744 | 0.372 | 0.0096 | +0.232 |
+| `prokhorovka_contact_backlit` | 21.7% | 57.7% | 20.5% | 0.040 | 0.438 | 0.810 | 0.770 | 0.424 | 0.0079 | +0.354 |
+| `prokhorovka_evening_contact` | 49.2% | 26.0% | 24.8% | 0.072 | 0.253 | 0.700 | 0.628 | 0.446 | 0.0098 | +0.394 |
+| `prokhorovka_sniper_contact` | 21.2% | 56.0% | 22.9% | 0.036 | 0.485 | 0.737 | 0.701 | 0.371 | 0.0125 | +0.235 |
+| `bystra_clear_afternoon` | 26.5% | 42.9% | 30.5% | 0.038 | 0.324 | 0.719 | 0.681 | 0.399 | 0.0116 | +0.388 |
+| `bystra_rain` | 11.7% | 53.1% | 35.3% | 0.029 | 0.381 | 0.683 | 0.654 | 0.253 | 0.0084 | +0.326 |
+| `bystra_dawn_fog` | 35.4% | 28.2% | 36.4% | 0.035 | 0.294 | 0.763 | 0.728 | 0.281 | 0.0107 | +0.439 |
+| `bystra_town_lane` | 29.5% | 49.2% | 21.3% | 0.061 | 0.320 | 0.710 | 0.649 | 0.374 | 0.0110 | +0.298 |
+| `orliny_clear_afternoon` | 14.6% | 53.2% | 32.2% | 0.186 | 0.339 | 0.781 | 0.595 | 0.354 | 0.0106 | +0.454 |
+| `orliny_golden_evening` | 48.9% | 16.6% | 34.5% | 0.110 | 0.255 | 0.806 | 0.696 | 0.338 | 0.0112 | +0.562 |
+| `orliny_overcast` | 2.8% | 54.3% | 42.8% | 0.316 | 0.415 | 0.721 | 0.404 | 0.193 | 0.0069 | +0.314 |
+| `orliny_dawn_fog` | 42.4% | 16.4% | 41.2% | 0.147 | 0.270 | 0.723 | 0.577 | 0.238 | 0.0090 | +0.469 |
+| `orliny_pine_belt` | 25.8% | 49.2% | 25.1% | 0.007 | 0.315 | 0.717 | 0.710 | 0.394 | 0.0114 | +0.311 |
+| `ostrogorsk_clear_afternoon` | 26.3% | 54.2% | 19.5% | 0.009 | 0.442 | 0.818 | 0.809 | 0.416 | 0.0177 | +0.164 |
+| `ostrogorsk_golden_evening` | 58.9% | 21.0% | 20.1% | 0.004 | 0.224 | 0.779 | 0.774 | 0.454 | 0.0161 | +0.405 |
+| `ostrogorsk_overcast` | 26.8% | 48.4% | 24.8% | 0.011 | 0.401 | 0.713 | 0.702 | 0.267 | 0.0145 | +0.283 |
+| `ostrogorsk_rain` | 26.4% | 49.4% | 24.2% | 0.014 | 0.366 | 0.676 | 0.662 | 0.254 | 0.0135 | +0.285 |
+| `ostrogorsk_canyon` | 7.5% | 69.2% | 23.2% | 0.207 | 0.434 | 0.842 | 0.635 | 0.241 | 0.0085 | +0.254 |
+| `mazurski_clear_afternoon` | 36.2% | 40.2% | 23.6% | 0.001 | 0.358 | 0.712 | 0.711 | 0.405 | 0.0124 | +0.213 |
+| `mazurski_overcast` | 34.9% | 35.9% | 29.2% | 0.008 | 0.304 | 0.747 | 0.739 | 0.326 | 0.0118 | +0.346 |
+| `mazurski_golden_evening` | 44.1% | 30.2% | 25.7% | 0.001 | 0.276 | 0.718 | 0.717 | 0.432 | 0.0132 | +0.292 |
+| `mazurski_causeway` | 21.3% | 42.8% | 35.9% | 0.135 | 0.354 | 0.774 | 0.639 | 0.387 | 0.0108 | +0.430 |
 | `garage_hero` | 72.8% | 23.1% | 4.1% | 0.030 | 0.162 | 0.573 | 0.543 | 0.229 | 0.0076 | −0.134 |
 | `garage_screen` | 75.7% | 20.4% | 3.9% | 0.063 | 0.140 | 0.565 | 0.502 | 0.190 | 0.0105 | −0.089 |
 | `garage_tech_tree` | 78.9% | 19.3% | 1.8% | 0.063 | 0.127 | 0.494 | 0.431 | 0.191 | 0.0064 | −0.101 |
@@ -257,21 +268,16 @@ is a frame that clears its FLOOR (so it cannot get worse) but has not reached it
 list is W1's and W4's work order.**
 
 ```
-(refreshed 2026-08-21 after the W1 air + light passes)
-prokhorovka_clear_afternoon: dark plane 0.010, target 0.080 (short by 0.070, W1)
-prokhorovka_overcast:        dark plane 0.007, target 0.080 (short by 0.073, W1)
-prokhorovka_overcast:        spread     0.368, target 0.450 (short by 0.082, W1)
-prokhorovka_grass_midfield:  dark plane 0.021, target 0.080 (short by 0.059, W1)
-bystra_rain:                 dark plane 0.014, target 0.080 (short by 0.066, W1)
-bystra_rain:                 spread     0.397, target 0.450 (short by 0.053, W1)
-orliny_overcast:             dark plane 0.010, target 0.080 (short by 0.070, W1)
-orliny_overcast:             spread     0.389, target 0.450 (short by 0.061, W1)
-ostrogorsk_clear_afternoon:  dark plane 0.024, target 0.080 (short by 0.056, W1)
-ostrogorsk_overcast:         dark plane 0.047, target 0.080 (short by 0.033, W1)
-ostrogorsk_overcast:         spread     0.449, target 0.450 (short by 0.001, W1)
-ostrogorsk_rain:             dark plane 0.042, target 0.080 (short by 0.038, W1)
-ostrogorsk_rain:             spread     0.408, target 0.450 (short by 0.042, W1)
-ostrogorsk_canyon:           dark plane 0.073, target 0.080 (short by 0.007, W1)
+(refreshed 2026-09-04 after the pine's retirement)
+prokhorovka_clear_afternoon: dark plane 0.021, target 0.080 (short by 0.059, W1)
+prokhorovka_overcast:        dark plane 0.017, target 0.080 (short by 0.063, W1)
+prokhorovka_overcast:        spread     0.380, target 0.450 (short by 0.070, W1)
+prokhorovka_grass_midfield:  dark plane 0.063, target 0.080 (short by 0.017, W1)
+prokhorovka_contact_backlit: subject form 0.008, target 0.011 (short by 0.003, W1)
+orliny_overcast:             dark plane 0.028, target 0.080 (short by 0.052, W1)
+orliny_overcast:             spread     0.404, target 0.450 (short by 0.046, W1)
+ostrogorsk_canyon:           dark plane 0.075, target 0.080 (short by 0.005, W1)
+garage_susp_close:           subject form 0.006, target 0.011 (short by 0.005, W1)
 ```
 
 The 2026-08-21 light pass retired four whole frames from this list — `bystra_clear_afternoon`

@@ -27,7 +27,9 @@ MapBlueprint(
         closure_span_m: 260.0,
         river_gap_half_m: 0.0,
         river_gap_falloff_m: 1.0,
-        flora: [(Pine, 0.70), (Oak, 0.30)],
+        // The pine is RETIRED (2026-09-04, the owner): the pass grows oak and poplar, the
+        // hamlet its fruit trees.
+        flora: [(Oak, 0.55), (Poplar, 0.35), (FruitTree, 0.10)],
     )),
     terrain: TerrainProgram(
         base: SlopeEases(
@@ -313,12 +315,12 @@ MapBlueprint(
         ),
     ],
     scenery: [
-        // Inny Poziom F2 — the pass is pine country (horizon: Pine 0.70 / Oak 0.30, and the
-        // "pine belt" had no pine): pines on the south face, the east shoulder and the west
-        // slope, and a few fruit trees in the hamlet's gardens.
+        // Inny Poziom F2 — the pass grows what its horizon says: oaks on the south face,
+        // poplars on the east shoulder and the west slope (the pine belt was pine until the
+        // owner retired the pine, 2026-09-04), and a few fruit trees in the hamlet's gardens.
         Scatter(
             seed: 7811020,
-            kind: Pine,
+            kind: Oak,
             pairs: 10,
             region: ScatterRect(
                 x: (300.0, 700.0),
@@ -332,7 +334,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 7811021,
-            kind: Pine,
+            kind: Poplar,
             pairs: 7,
             region: ScatterRect(
                 x: (700.0, 880.0),
@@ -346,7 +348,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 7811022,
-            kind: Pine,
+            kind: Poplar,
             pairs: 5,
             region: ScatterRect(
                 x: (140.0, 300.0),

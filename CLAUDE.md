@@ -29,7 +29,8 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
   offline in Blender (Sapling), leaf clusters rendered there, CC0 bark tiles with a licence
   file next to them (`assets/flora/`), embedded in the binary and hash-locked; the runtime
   (species ladder, wind, impostors, honesty boxes) is unchanged. No imported tree MODELS.
-  NO WILLOW (2026-09-03, the owner): `Willow` stays in the enums as identity and is never planted.
+  NO WILLOW (2026-09-03) and NO PINE (2026-09-04), the owner: `Willow` and `Pine` stay in the
+  enums as identity and are never planted (`map_forge::RETIRED_KINDS`).
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided

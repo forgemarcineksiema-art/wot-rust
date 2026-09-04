@@ -44,15 +44,11 @@ const _: () = assert!(
 /// The species that ride the instanced ladder, in handle order — append-only, because a handle
 /// is a species × variant × rung slot. Every planted species is here: the trees since Inny
 /// Poziom F7, the bush since route 2 gave it an authored shrub of its own.
-/// The willow is RETIRED (2026-09-03, the owner: "I don't want a willow at all"): its slot
-/// stays in `ladder_mesh` (handles are identity) but nothing registers or draws it.
-pub const LADDER_SPECIES: [TreeSpecies; 5] = [
-    TreeSpecies::Oak,
-    TreeSpecies::Poplar,
-    TreeSpecies::FruitTree,
-    TreeSpecies::Pine,
-    TreeSpecies::Bush,
-];
+/// The willow (2026-09-03, the owner: "I don't want a willow at all") and the pine
+/// (2026-09-04, the owner: "the pine is out entirely") are RETIRED: their slots stay in
+/// `ladder_mesh` (handles are identity) but nothing registers or draws them.
+pub const LADDER_SPECIES: [TreeSpecies; 4] =
+    [TreeSpecies::Oak, TreeSpecies::Poplar, TreeSpecies::FruitTree, TreeSpecies::Bush];
 
 /// The mesh handle of one species' variant's rung: the block base, the species' slot, the
 /// variant's slot, the rung's index. `const` so the oak's named handles above are
@@ -105,10 +101,10 @@ pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
         SceneryKind::Oak => Some(TreeSpecies::Oak),
         SceneryKind::Poplar => Some(TreeSpecies::Poplar),
         SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
-        SceneryKind::Pine => Some(TreeSpecies::Pine),
         SceneryKind::Bush => Some(TreeSpecies::Bush),
-        // Retired: the willow draws nothing anywhere (the owner, 2026-09-03).
+        // Retired: the willow (2026-09-03) and the pine (2026-09-04) draw nothing anywhere.
         SceneryKind::Willow
+        | SceneryKind::Pine
         | SceneryKind::Rock
         | SceneryKind::Lamppost
         | SceneryKind::DebrisHeap
@@ -773,7 +769,6 @@ mod tests {
                 SceneryKind::Oak => Some(TreeSpecies::Oak),
                 SceneryKind::Poplar => Some(TreeSpecies::Poplar),
                 SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
-                SceneryKind::Pine => Some(TreeSpecies::Pine),
                 SceneryKind::Bush => Some(TreeSpecies::Bush),
                 _ => None,
             };
@@ -782,9 +777,10 @@ mod tests {
         for (index, species) in LADDER_SPECIES.iter().enumerate() {
             assert!(!LADDER_SPECIES[..index].contains(species), "{species:?} listed twice");
         }
-        // Every species but the retired willow.
-        assert_eq!(LADDER_SPECIES.len(), TreeSpecies::ALL.len() - 1);
+        // Every species but the retired willow and pine.
+        assert_eq!(LADDER_SPECIES.len(), TreeSpecies::ALL.len() - 2);
         assert!(!LADDER_SPECIES.contains(&TreeSpecies::Willow));
+        assert!(!LADDER_SPECIES.contains(&TreeSpecies::Pine));
     }
 
     /// LOD must not shrink the tree (Świat 2.0 PR1): Near and Mid stand the same height, so a
@@ -926,7 +922,8 @@ mod tests {
                 );
             }
         }
-        // The authored order of the table: the willow's curtain answers most, the pine least.
+        // The authored order of the table: the poplar's tall crown answers, the short stiff
+        // orchard tree least.
         let peak = |species: TreeSpecies| {
             tree_mesh_asset(species, reference, TreeLod::Near)
                 .vertices()
@@ -934,7 +931,7 @@ mod tests {
                 .fold(0.0_f32, |acc, v| acc.max(v.sway))
         };
         assert!(peak(TreeSpecies::Poplar) > 0.0);
-        assert!(peak(TreeSpecies::Pine) < peak(TreeSpecies::Oak));
+        assert!(peak(TreeSpecies::FruitTree) < peak(TreeSpecies::Oak));
     }
 
     /// The fill budget (Drzewa 3.0): card COUNT is the axis that prices the under-crown view

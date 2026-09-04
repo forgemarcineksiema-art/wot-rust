@@ -143,7 +143,7 @@ impl CrownHull {
 
 /// What a hedgerow or windbreak is planted with. Orchard trees and shrubs are not.
 pub fn plants_in_a_line(kind: SceneryKind) -> bool {
-    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar | SceneryKind::Pine)
+    matches!(kind, SceneryKind::Oak | SceneryKind::Poplar)
 }
 
 /// The species a map's lines are planted from: its horizon mix (`HorizonSpec::flora`, the
@@ -518,9 +518,10 @@ mod tests {
 
     /// The line grows the map's own trees — the species its horizon names — and every station
     /// grows one that FILLS the wall: a 17 m box 6 m thick is a windbreak's shape, and the
-    /// species that fills it (poplar on the steppe and in the valley, pine on the pass and the
-    /// isthmus) is what stands there. An oak that fits such a wall only at half size does not;
-    /// the first fit rule planted it and left half the wall empty.
+    /// species that fills it (poplar on the steppe, in the valley, on the pass and the isthmus)
+    /// is what stands there. Pine filled those last two until 2026-09-04; it is retired.
+    /// An oak that fits such a wall only at half size does not; the first fit rule planted
+    /// it and left half the wall empty.
     #[test]
     fn a_line_is_planted_from_its_maps_own_species_and_every_tree_fills_the_wall() {
         for id in MapId::SHIPPED {
