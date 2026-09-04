@@ -32,6 +32,10 @@ const TAPS: i32 = 12;
 const RADIUS_M: f32 = 0.55;
 const BIAS_M: f32 = 0.035;
 const RANGE_M: f32 = 0.9;
+// The plane guard: a per-pixel depth change above this share of the depth is a silhouette,
+// not a surface slope. A flat field from a 2 m eye at the battle lens reaches ~8 % at 200 m
+// (where the range check has long zeroed every tap anyway); a real edge is hundreds of %.
+const PLANE_EDGE_SHARE: f32 = 0.15;
 
 @fragment
 fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
@@ -39,10 +43,28 @@ fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let dims = vec2<i32>(textureDimensions(prepass_depth));
     let pix = vec2<i32>(frag.xy);
     let d = textureLoad(prepass_depth, pix, 0);
+    let lin = linear_depth(d);
+    // The local surface PLANE (Inny Poziom T6, the ground's second artefact): the linear
+    // depth's screen derivatives describe the surface this pixel lies on, and every tap below
+    // is judged against the depth that plane would have at the tap's offset — not against the
+    // centre depth. Without this a flat field seen from a tank's eye occluded ITSELF: three
+    // metres up and ten metres out the depth already falls 4 cm per pixel, past BIAS_M, so
+    // every tap toward the camera counted as a crease and the whole steppe wore a 2-3 %
+    // diagonal weave of the spiral's rotation noise. Against the plane a flat surface reads
+    // exactly zero, and only a sample IN FRONT of the local plane (a real crease, a hull on
+    // the dirt) occludes. Taken before the early-out so the derivatives sit in uniform
+    // control flow.
+    var plane = vec2<f32>(dpdx(lin), dpdy(lin));
+    // A silhouette straddles two surfaces inside the derivative quad and the slope it yields
+    // is nonsense (a hull against the field 40 m behind it is a 400 % step); a change larger
+    // than PLANE_EDGE_SHARE of the depth over one pixel is an edge, not a plane — predict flat
+    // there, which is exactly the pre-T6 behaviour on the one row of pixels it concerns.
+    if (length(plane) > lin * PLANE_EDGE_SHARE) {
+        plane = vec2<f32>(0.0, 0.0);
+    }
     if (strength <= 0.0 || d >= 1.0) {
         return vec4<f32>(1.0);
     }
-    let lin = linear_depth(d);
     // Interiors take a sparser spiral (Hala v4 P3): eight taps instead of twelve, at the
     // UNCHANGED radius — the footprint is the room's ambient shade mass, tuned by eye at the
     // #554 relight, and a first cut that halved it visibly lightened the corners the mood
@@ -67,7 +89,9 @@ fn fs_ssao(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         let offset = vec2<f32>(cos(angle), sin(angle)) * reach;
         let tap = clamp(pix + vec2<i32>(offset), vec2<i32>(0), dims - vec2<i32>(1));
         let sample_lin = linear_depth(textureLoad(prepass_depth, tap, 0));
-        let closer_by = lin - sample_lin;
+        // The depth the local plane predicts at the tap; a sample closer than THAT occludes.
+        let expected_lin = lin + dot(plane, vec2<f32>(tap - pix));
+        let closer_by = expected_lin - sample_lin;
         // A sample occludes when it sits meaningfully in front, fading out past the AO range so
         // distant foreground silhouettes don't halo everything behind them.
         occlusion += clamp((closer_by - BIAS_M) / 0.08, 0.0, 1.0)
