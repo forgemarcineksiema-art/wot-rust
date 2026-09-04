@@ -178,6 +178,45 @@ pub fn meadow_ground_shade(vegetation: f32, far_stand: f32) -> f32 {
     1.0 - carried * vegetation.clamp(0.0, 1.0)
 }
 
+/// The ground grain's octave periods in metres (1 / the lattice scales in
+/// `noise_common.wgsl`: broad 0.4, fine 1.7, micro 3.2 cycles per metre).
+pub const GRAIN_BROAD_PERIOD_M: f32 = 2.5;
+pub const GRAIN_FINE_PERIOD_M: f32 = 0.588;
+pub const GRAIN_MICRO_PERIOD_M: f32 = 0.3125;
+/// Footprint filtering (Inny Poziom T3 / O1): a procedural octave has no mip chain, so the
+/// terrain pass fades each one by the metres of ground a fragment covers. An octave shows in
+/// full while its period spans at least this many pixels...
+pub const GRAIN_SHOWN_PX_PER_PERIOD: f32 = 4.0;
+/// ...and is gone (folded to its mean) at Nyquist — two pixels per period. Below that a
+/// lattice sampled once per fragment beats against the pixel grid: the concentric ripples
+/// the owner photographed on flat meadow from a tank's eye.
+pub const GRAIN_GONE_PX_PER_PERIOD: f32 = 2.0;
+
+/// How much of an octave of `period_m` a fragment covering `footprint_m` metres of ground
+/// may show, 1 (full) to 0 (gone). The CPU mirror of `octave_reach` in `noise_common.wgsl`.
+pub fn grain_octave_reach(period_m: f32, footprint_m: f32) -> f32 {
+    let shown = period_m / GRAIN_SHOWN_PX_PER_PERIOD;
+    let gone = period_m / GRAIN_GONE_PX_PER_PERIOD;
+    let t = ((footprint_m - shown) / (gone - shown)).clamp(0.0, 1.0);
+    1.0 - t * t * (3.0 - 2.0 * t)
+}
+
+/// The metres of FLAT ground one pixel covers along the depth axis, seen from an eye
+/// `eye_height_m` above it at ground distance `distance_m` through a lens of `fov_y_rad` over
+/// `viewport_h_px` rows. The pixel's angular size times the slant range, divided by the sine
+/// of the grazing angle: `a · r² / h`. The shader reads this off `dpdx`/`dpdy` of the world
+/// position; this is the model the lock reasons with.
+pub fn ground_pixel_footprint_m(
+    eye_height_m: f32,
+    distance_m: f32,
+    fov_y_rad: f32,
+    viewport_h_px: f32,
+) -> f32 {
+    let rad_per_px = fov_y_rad / viewport_h_px;
+    let slant_sq = distance_m * distance_m + eye_height_m * eye_height_m;
+    rad_per_px * slant_sq / eye_height_m.max(1.0e-3)
+}
+
 /// How far a frame's grass bands stretch, from the projection alone (Jedna Trawa P4b).
 ///
 /// The scope is a COMBAT view: at 3.4× a card 100 m out covers the screen area it would at

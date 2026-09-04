@@ -11,9 +11,11 @@
 // `scene_pass` is three quarters of the frame, so what this pass does per FRAGMENT is the
 // frame. The field quilt is a ~50–100 m plot structure — it is evaluated per VERTEX (5 m grid)
 // and interpolated; the strata noise is paid only on steep fragments, the puddle pool only when
-// the look fills puddles, and the ground grain fades out with eye distance the way the micro
-// octave already does. Near the eye the picture is the same; the fragment just stops paying
-// for structure it cannot show.
+// the look fills puddles, and every procedural octave (ground grain, micro crumb, furrow
+// wave) is filtered by the fragment's PIXEL FOOTPRINT (T3/O1): an octave leaves once it is
+// under four pixels per period, so a grazing eye never samples a lattice below Nyquist — the
+// moiré ripples on flat meadow were exactly that. Near the eye the picture is the same; the
+// fragment just stops paying for structure it cannot show.
 
 struct TerrainMaterials {
     // rgb = layer albedo, w = detail amplitude; R/G/B/A splat channel order.
@@ -115,16 +117,24 @@ fn vs_main(input: VsIn) -> VsOut {
 // in the shared fragments (noise_common.wgsl, shadow_common.wgsl) — the terrain and the
 // statics standing on it must read ONE implementation or their grains drift apart.
 
-// Past this the ground grain (two lattice octaves with their gradient) is subpixel and pays
-// for nothing; it fades between the two so the far field never pops.
+// The hard ceiling on the ground grain, in metres. The grain's REAL fade is by pixel
+// footprint (`ground_grain_filtered`, T3/O1 — an octave leaves once it is under four pixels
+// per period, whatever the lens); this distance cap only keeps the far apron from ever
+// evaluating a lattice, and fades so the far field never pops.
 const GRAIN_REACH_START_M: f32 = 300.0;
 const GRAIN_REACH_END_M: f32 = 450.0;
+// The furrow wave's period in metres (phase = across * 2π / period).
+const FURROW_PERIOD_M: f32 = 1.25;
 
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let geometric_n = normalize(input.normal);
     let uv = input.world_pos.xz / materials.params.xy;
     let eye_dist = length(camera.camera_pos - input.world_pos);
+    // The metres of ground this fragment covers: the longer of the two screen-axis
+    // derivatives of the world position (the depth axis dominates at a grazing eye). Every
+    // procedural octave below is filtered by it — the analytic twin of a texture's mip chain.
+    let footprint = max(length(dpdx(input.world_pos.xz)), length(dpdy(input.world_pos.xz)));
 
     // Layer weights from the splat map, renormalized against filtering drift.
     var w = textureSample(splat_map, ground_sampler, uv);
@@ -184,7 +194,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let grain_reach = 1.0 - smoothstep(GRAIN_REACH_START_M, GRAIN_REACH_END_M, eye_dist);
     var grain = vec3<f32>(0.5, 0.0, 0.0);
     if (grain_reach > 0.004) {
-        grain = ground_grain(input.world_pos.xz);
+        grain = ground_grain_filtered(input.world_pos.xz, footprint);
     }
     let ground = grain.x;
     let steep = clamp(1.0 - base_n.y, 0.0, 1.0);
@@ -212,21 +222,26 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Ziemia 2.0, pasmo mikro: a third, finer octave (~31 cm crumb — inside the art policy's
     // micro window of 0.3-0.6 m; the first cut ran ~20 cm and violated rule 5) near the
     // eye - the far field pays nothing and the near field stops reading as one woven carpet.
+    // The 20–55 m band is the ceiling; the footprint filter inside `micro_grain_filtered`
+    // ends the 31 cm crumb where it drops under four pixels per period (~20 m from a tank's
+    // eye at the reference lens, farther in the scope).
     var micro_shade = 1.0;
     let near_amp = (1.0 - smoothstep(20.0, 55.0, eye_dist)) * select(0.0, 1.0, detail_bit(2u));
     if (near_amp > 0.004) {
-        let micro = micro_grain(input.world_pos.xz);
+        let micro = micro_grain_filtered(input.world_pos.xz, footprint);
         micro_shade = 1.0 + (micro.x - 0.5) * 0.11 * near_amp * amp;
         bend += vec3<f32>(-micro.y, 0.0, -micro.z) * 0.05 * near_amp;
     }
     // Teren B1: the furrow wave — ~1.25 m anisotropic stripes ACROSS the plough direction,
     // read as both an albedo ripple and a normal corrugation, gone by 150 m so the far
     // field never shimmers (rule 5's no-noise clause is the gate this feature answered).
+    // A sine is an octave too: it takes the same footprint filter as the grain.
     var furrow_shade = 1.0;
     if (furrow_mask > 0.001 && eye_dist < 150.0) {
         let across = dot(input.world_pos.xz, vec2<f32>(-furrow_dir.y, furrow_dir.x));
         let phase = across * 5.0265482;
-        let reach = (1.0 - smoothstep(60.0, 150.0, eye_dist)) * furrow_mask;
+        let reach = (1.0 - smoothstep(60.0, 150.0, eye_dist)) * furrow_mask
+            * octave_reach(FURROW_PERIOD_M, footprint);
         furrow_shade = 1.0 + sin(phase) * 0.06 * reach;
         bend += vec3<f32>(-furrow_dir.y, 0.0, furrow_dir.x) * cos(phase) * 0.10 * reach;
     }
