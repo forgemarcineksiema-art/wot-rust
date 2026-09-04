@@ -705,93 +705,66 @@ fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
     }
 }
 
-/// Inny Poziom T3 / O1: the ground's procedural octaves are filtered by the fragment's PIXEL
-/// FOOTPRINT, not by metres from the eye. A lattice has no mip chain; sampled once per
-/// fragment at a grazing angle it beats against the pixel grid, and the owner photographed
-/// the result — concentric "fingerprint" ripples across flat meadow from a tank's eye. The
-/// terrain pass must read the footprint off the screen-space derivatives and route every
-/// octave through the filter, and the filter's model must end each octave BEFORE the
-/// distance at which a 3 m eye undersamples it.
+/// Teren 2.0 (Inny Poziom T3, O1's ground half): the terrain's detail is a baked, tiling,
+/// MIPMAPPED material, not a lattice evaluated per fragment. The lock names the mechanism the
+/// picture depends on: one tap per PRESENT layer through explicit gradients (the taps sit in
+/// non-uniform control flow), a height blend at splat borders, the macro tone tile at two
+/// scales, and no procedural grain octave left in the fragment — the mip chain is the filter,
+/// and a per-fragment footprint fade must not creep back to "help" it.
 #[test]
-fn the_ground_grain_fades_by_pixel_footprint_not_by_metres() {
+fn the_ground_detail_is_a_mipmapped_material() {
     let terrain = terrain_shader_source();
-
-    // The footprint is the world position's screen derivatives — the depth axis dominates.
-    assert!(
-        terrain.contains(
-            "let footprint = max(length(dpdx(input.world_pos.xz)), length(dpdy(input.world_pos.xz)));"
-        ),
-        "the terrain pass measures the metres a fragment covers"
-    );
-    // Every procedural octave takes the filter: the two-octave grain and the micro crumb.
-    // The unfiltered `ground_grain(` / `micro_grain(` calls must not return to the terrain
-    // fragment (they stay for the statics' generic ground in the scene pass).
-    assert!(terrain.contains("ground_grain_filtered(input.world_pos.xz, footprint)"));
-    assert!(terrain.contains("micro_grain_filtered(input.world_pos.xz, footprint)"));
     let fragment = terrain.split("fn fs_main").nth(1).expect("terrain fragment");
-    assert!(
-        !fragment.contains(" ground_grain(") && !fragment.contains(" micro_grain("),
-        "no unfiltered lattice octave in the terrain fragment"
-    );
-    // Fading to the MEAN keeps the average albedo — no brightness step where an octave leaves.
-    assert!(
-        terrain.contains("mix(0.5, value_noise(octave_frame_broad(world_xz) * 0.4), broad_reach)")
-    );
-    assert!(terrain.contains("mix(0.5, f.x, fine_reach)"));
-    assert!(terrain.contains("mix(0.5, m.x, reach)"));
 
-    // The constants are the CPU's, and the periods are the lattice scales' reciprocals.
-    for (name, cpu) in [
-        ("GRAIN_BROAD_PERIOD_M", renderer_api::GRAIN_BROAD_PERIOD_M),
-        ("GRAIN_FINE_PERIOD_M", renderer_api::GRAIN_FINE_PERIOD_M),
-        ("GRAIN_MICRO_PERIOD_M", renderer_api::GRAIN_MICRO_PERIOD_M),
-        ("GRAIN_SHOWN_PX_PER_PERIOD", renderer_api::GRAIN_SHOWN_PX_PER_PERIOD),
-        ("GRAIN_GONE_PX_PER_PERIOD", renderer_api::GRAIN_GONE_PX_PER_PERIOD),
-    ] {
-        assert_eq!(wgsl_const(&terrain, name), cpu, "{name} mirrors renderer_api");
-    }
-    for (name, lattice_scale) in
-        [("GRAIN_BROAD_PERIOD_M", 0.4), ("GRAIN_FINE_PERIOD_M", 1.7), ("GRAIN_MICRO_PERIOD_M", 3.2)]
-    {
-        assert!(
-            (wgsl_const(&terrain, name) - 1.0 / lattice_scale).abs() < 1.0e-3,
-            "{name} is the reciprocal of its lattice scale {lattice_scale}"
-        );
-    }
+    // The bindings: a four-layer array, the macro tile, and their own repeat sampler.
+    assert!(terrain.contains("@group(1) @binding(4) var detail_tiles: texture_2d_array<f32>;"));
+    assert!(terrain.contains("@group(1) @binding(5) var macro_tile: texture_2d<f32>;"));
+    assert!(terrain.contains("@group(1) @binding(6) var detail_sampler: sampler;"));
+
+    // One tap per present layer, gradients taken once outside the branch.
     assert!(
-        wgsl_const(&terrain, "GRAIN_GONE_PX_PER_PERIOD") >= 2.0,
-        "an octave must be gone by Nyquist, never shown below it"
+        terrain
+            .contains("textureSampleGrad(detail_tiles, detail_sampler, tile_uv, layer, ddx, ddy)")
+    );
+    assert!(fragment.contains("let tile_ddx = dpdx(tile_uv);"));
+    assert!(fragment.contains("if (w[i] > 0.01 && detail_bit(2u))"), "absent layers pay no tap");
+    // The height blend at splat borders.
+    assert!(fragment.contains("pow(tiles[i].a + HEIGHT_BLEND_FLOOR, HEIGHT_BLEND_POWER)"));
+    // The macro tone: two taps, the far one rotated off the near one's frame.
+    assert_eq!(fragment.matches("textureSample(macro_tile, detail_sampler,").count(), 2);
+    assert!(fragment.contains("GROUND_MACRO_PERIOD_M * GROUND_MACRO_FAR_RATIO"));
+
+    // No lattice octave in the fragment any more: the grain, the micro crumb and the footprint
+    // fade are gone; the only value_noise left is the strata on steep ground.
+    for gone in ["ground_grain(", "micro_grain(", "_filtered(", "octave_reach(", "footprint"] {
+        assert!(!fragment.contains(gone), "{gone} must not return to the terrain fragment");
+    }
+    assert_eq!(fragment.matches("value_noise(").count(), 1, "only the strata noise remains");
+
+    // The constants mirror the bake.
+    assert_eq!(wgsl_const(&terrain, "GROUND_TILE_PERIOD_M"), renderer_api::GROUND_TILE_PERIOD_M);
+    assert_eq!(wgsl_const(&terrain, "GROUND_MACRO_PERIOD_M"), renderer_api::GROUND_MACRO_PERIOD_M);
+    assert_eq!(
+        wgsl_const(&terrain, "GROUND_MACRO_FAR_RATIO"),
+        renderer_api::GROUND_MACRO_FAR_RATIO
     );
 
-    // The model, at the battle's own lens (48° over 1080 rows) from a tank's eye 3 m up:
-    // where the old code showed every octave at full amplitude out to 300 m, each one now
-    // ends before the eye undersamples it, and the broad octave is the last to leave.
+    // The mip model at the battle lens (48° over 1080 rows, a 3 m eye): the hardware picks
+    // the level whose texel matches the pixel's ground footprint, and a feature is folded to
+    // its mean once that texel passes half its period (Nyquist). The base level (2 cm texels)
+    // is read inside ~8 m, the 0.3 m grain is folded by 30 m and the 2 m swell by 150 m — the
+    // same fade the footprint filter used to hand-roll, for free — and through a 16x scope
+    // the 0.67 m tussocks come back at 100 m by themselves.
+    let texel_m = renderer_api::GROUND_TILE_PERIOD_M / renderer_api::GROUND_TILE_SIZE as f32;
     let fov = 48.0_f32.to_radians();
-    let footprint = |d: f32| renderer_api::ground_pixel_footprint_m(3.0, d, fov, 1080.0);
-    let reach = renderer_api::grain_octave_reach;
-    let (b, f, m) = (
-        renderer_api::GRAIN_BROAD_PERIOD_M,
-        renderer_api::GRAIN_FINE_PERIOD_M,
-        renderer_api::GRAIN_MICRO_PERIOD_M,
-    );
-    assert_eq!(reach(f, footprint(10.0)), 1.0, "the fine grain is whole at 10 m");
-    assert_eq!(reach(m, footprint(8.0)), 1.0, "the micro crumb is whole at 8 m");
-    assert_eq!(reach(m, footprint(25.0)), 0.0, "the 31 cm crumb is gone by 25 m");
-    assert_eq!(reach(f, footprint(40.0)), 0.0, "the 0.6 m grain is gone by 40 m");
-    assert!(reach(b, footprint(50.0)) > 0.9, "the 2.5 m octave still reads at 50 m");
-    assert_eq!(reach(b, footprint(150.0)), 0.0, "and is gone by 150 m");
-    // Continuous and monotone: a metre-by-metre sweep never brings an octave back and never
-    // steps it — the fade is a band of metres, not an edge.
-    let mut previous = reach(f, footprint(1.0));
-    for metre in 2..300 {
-        let now = reach(f, footprint(metre as f32));
-        assert!(now <= previous + 1.0e-6, "{metre} m: the reach never comes back");
-        assert!(previous - now < 0.2, "{metre} m: no step in the fade");
-        previous = now;
-    }
-    // A scope narrows the footprint and the grain follows it out — no metre cap in the way.
-    let scoped = renderer_api::ground_pixel_footprint_m(3.0, 100.0, fov / 16.0, 1080.0);
-    assert!(reach(f, scoped) > 0.0, "at 16x the fine grain still shows at 100 m");
+    let level = |d: f32, fov: f32| {
+        (renderer_api::ground_pixel_footprint_m(3.0, d, fov, 1080.0) / texel_m).max(1.0).log2()
+    };
+    let folded_at = |period_m: f32| (period_m / 2.0 / texel_m).log2();
+    assert!(level(8.0, fov) < 1.0, "the base level reads near the eye");
+    assert!(level(30.0, fov) > folded_at(0.3), "the 0.3 m grain is folded by 30 m");
+    assert!(level(150.0, fov) > folded_at(2.0), "the 2 m swell is folded by 150 m");
+    assert!(level(100.0, fov / 16.0) < folded_at(0.67), "a 16x scope reads tussocks at 100 m");
 }
 
 #[test]
@@ -819,8 +792,7 @@ fn ground_grain_is_lattice_decorrelated() {
         //    axis-aligned octaves all reinforce ONE square lattice.
         assert!(
             source.contains("octave_frame_broad(world_xz) * 0.4")
-                && source.contains("octave_frame_fine(world_xz) * 1.7")
-                && source.contains("octave_frame_broad(world_xz) * 3.2"),
+                && source.contains("octave_frame_fine(world_xz) * 1.7"),
             "{label}: every ground octave must sample a rotated frame"
         );
         // 3. The light-catching bend must be the ANALYTIC gradient. A finite difference
