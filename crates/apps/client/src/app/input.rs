@@ -1,6 +1,6 @@
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::CursorGrabMode;
+use winit::window::{CursorGrabMode, Fullscreen};
 
 use super::ClientApp;
 use crate::{BattleCameraInput, BattleCameraMode};
@@ -26,10 +26,28 @@ impl ClientApp {
         if repeat {
             return;
         }
+        // F11 is the window's, not the scene's: it works in the garage, in the battle and over
+        // the ESC modal alike, and nothing underneath sees it.
+        if pressed && matches!(key, PhysicalKey::Code(KeyCode::F11)) {
+            self.toggle_fullscreen();
+            return;
+        }
         if pressed && self.garage.is_open() && self.garage_keyboard(key) {
             return;
         }
         self.on_battle_keyboard(key, pressed);
+    }
+
+    /// Borderless fullscreen on the monitor the window is on, or back to the maximized window.
+    /// Borderless, not exclusive: the same picture with no mode switch, no black flash on an
+    /// alt-tab, and the OS compositor's own vsync — which is also why the pacer re-reads the
+    /// display afterwards (the window may have landed on another monitor's refresh rate).
+    pub(in crate::app) fn toggle_fullscreen(&mut self) {
+        self.fullscreen = !self.fullscreen;
+        if let Some(window) = &self.window {
+            window.set_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None)));
+        }
+        self.sync_present_hz();
     }
 
     /// Battle-side key dispatch, taken below the winit boundary so tests can drive it — a winit

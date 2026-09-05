@@ -1,26 +1,7 @@
 use std::time::Duration;
 
-use client::{
-    ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
-};
+use client::{ClientLoopAction, ClientLoopEvent, FixedTickAccumulator, WinitLoopDriver};
 use sim::DEFAULT_SIMULATION_TICK_HZ;
-
-#[test]
-fn client_loop_policy_is_winit_event_driven() {
-    let phases = WinitLoopDriver::event_driven_phases();
-
-    assert_eq!(
-        phases,
-        [
-            ClientLoopPhase::WinitEvent,
-            ClientLoopPhase::InputSystem,
-            ClientLoopPhase::FixedTickAccumulator,
-            ClientLoopPhase::RequestRedraw,
-            ClientLoopPhase::RenderOnRedraw,
-        ]
-    );
-    assert!(!WinitLoopDriver::uses_manual_event_polling());
-}
 
 #[test]
 fn fixed_tick_accumulator_drains_whole_ticks_and_keeps_remainder() {

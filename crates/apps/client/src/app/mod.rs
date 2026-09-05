@@ -443,6 +443,9 @@ impl PauseMenuState {
 
 pub(crate) struct ClientApp {
     window: Option<Arc<Window>>,
+    /// Mirror of the borderless-fullscreen state this app last requested (F11) — the testable
+    /// half of `toggle_fullscreen`, like `cursor_captured` below.
+    fullscreen: bool,
     /// Mirror of the cursor grab this app last requested — the testable half of
     /// `set_cursor_captured` (a headless test has no window to ask about the real grab).
     cursor_captured: bool,
@@ -796,6 +799,7 @@ impl ClientApp {
         Self {
             ground: terrain::GroundClassifier::new(&battlefield),
             window: None,
+            fullscreen: false,
             cursor_captured: false,
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),

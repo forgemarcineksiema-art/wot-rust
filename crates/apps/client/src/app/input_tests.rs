@@ -436,6 +436,37 @@ fn losing_focus_ends_a_sniper_hold_and_every_other_latch() {
     assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
 }
 
+// --- Fullscreen --------------------------------------------------------------------------------
+
+/// F11 belongs to the window: it toggles borderless fullscreen from the garage, from the battle
+/// and over the ESC modal alike, reaches nothing underneath, and is one press (a repeat does
+/// not toggle back).
+#[test]
+fn f11_toggles_fullscreen_from_every_screen_and_reaches_nothing_underneath() {
+    let f11 = PhysicalKey::Code(KeyCode::F11);
+    let mut app = ClientApp::new();
+    assert!(!app.fullscreen && !app.garage.has_started(), "born windowed, in the garage");
+    app.on_key(f11, true, false);
+    assert!(app.fullscreen, "the garage toggles it on");
+    app.on_key(f11, true, true);
+    assert!(app.fullscreen, "a repeat is not a second press");
+    app.on_key(f11, false, false);
+
+    app.confirm_garage_selection();
+    app.run_fixed_ticks(5);
+    let mode = app.camera_controller.mode();
+    app.on_key(f11, true, false);
+    assert!(!app.fullscreen, "the battle toggles it off");
+    assert_eq!(app.camera_controller.mode(), mode, "and the battle saw nothing");
+    assert!(app.pause_menu.is_none());
+    app.on_key(f11, false, false);
+
+    app.open_pause_menu();
+    app.on_key(f11, true, false);
+    assert!(app.fullscreen, "the modal lets it through");
+    assert!(app.pause_menu.is_some(), "and stays up");
+}
+
 // --- OS key auto-repeat --------------------------------------------------------------------
 
 /// A held key is ONE press. Windows re-sends a held key as a press every ~33 ms; every battle
