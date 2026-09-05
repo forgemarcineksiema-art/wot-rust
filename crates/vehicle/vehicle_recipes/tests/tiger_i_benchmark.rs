@@ -68,8 +68,9 @@ fn the_hull_sides_are_vertical_slabs_at_the_full_beam() {
         .collect();
     let lo = wall.iter().copied().fold(f32::INFINITY, f32::min);
     let hi = wall.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    // 0.95 (sponson step) to 1.778 (the sheet's 5 ft 10 in hull side top): 0.83 m of plate.
     assert!(
-        hi - lo > 0.9,
+        hi - lo > 0.8,
         "the side wall must be a tall vertical plate at x = {}, spans {lo}..{hi}",
         bp.hull.half_width
     );
@@ -179,7 +180,8 @@ fn the_drum_cupola_tops_the_three_meter_silhouette_on_the_left() {
         .iter()
         .max_by(|a, b| a.position.y.total_cmp(&b.position.y))
         .expect("turret has vertices");
-    assert!((apex.position.y - 3.01).abs() < 0.05, "cupola top ~3.0 m: {}", apex.position.y);
+    // The STT 1944 side view traces the cupola top at 2.93; the blueprint authors 2.95.
+    assert!((apex.position.y - 2.95).abs() < 0.05, "cupola top ~2.95 m: {}", apex.position.y);
     assert!(apex.position.x > 0.0, "the apex is the left-side (port, +X) cupola");
 }
 
@@ -193,29 +195,36 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((hitbox.half_width_m - 1.87).abs() < 1.0e-6);
     assert!(((hitbox.center_y_m + hitbox.half_height_m) - 3.01).abs() < 1.0e-6, "3 m tall");
     assert!((bp.hull.half_len - 3.16).abs() < 1.0e-6, "the documented 6.32 m hull");
-    assert!((bp.track.outer_x - 1.8525).abs() < 1.0e-6, "3.705 m over the combat tracks");
+    // STT 1944 front view: 6 ft 10.625 in between the tracks + 2 x 2 ft 4.5 in = 3.548 m.
+    assert!((bp.track.outer_x - 1.774).abs() < 1.0e-6, "3.548 m over the combat tracks");
 }
 
-/// The Tiger has TWO documented widths and each is carried by the part that owns it: 3.56 m
-/// over the sponsons, 3.705 m over the combat tracks. Authoring the beam on the hull instead
-/// (the migration's shortcut) satisfies the composed-bounds width gate just as well, while
-/// hiding the belts inside the sponson line — and with them the entire fender line.
+/// The Tiger has THREE documented widths, read off the STT 1944 front view's own dimensions:
+/// 3.548 m over the combat tracks (6 ft 10.625 in between them + 2 x 2 ft 4.5 in), 3.56 m over
+/// the sponson shelf, 3.734 m over the track guards (12 ft 3 in). The belts sit just INSIDE the
+/// shelf; the guards that overhang them are the part library's (K20), not this bake's. The
+/// 3.705/3.72 records the migration put on the tracks were guard widths.
 #[test]
-fn the_tracks_carry_the_width_anchor_and_stand_proud_of_the_sponsons() {
+fn the_tracks_sit_inside_the_sponson_shelf_at_the_sheet_s_widths() {
     let bp = blueprint();
-    assert!((2.0 * bp.hull.half_width - 3.56).abs() < 1.0e-3, "3.56 m over the sponsons");
-    assert!((2.0 * bp.track.outer_x - 3.705).abs() < 1.0e-3, "3.705 m over the tracks");
-    let proud = bp.track.outer_x - bp.hull.half_width;
-    assert!(proud > 0.06, "the belt must stand proud of the hull wall: {proud} m");
+    assert!((2.0 * bp.hull.half_width - 3.56).abs() < 1.0e-3, "3.56 m over the sponson shelf");
+    assert!((2.0 * bp.track.outer_x - 3.548).abs() < 1.0e-3, "3.548 m over the tracks (STT)");
+    let inset = bp.hull.half_width - bp.track.outer_x;
+    assert!(
+        (0.0..0.02).contains(&inset),
+        "the belt's outer face sits at the shelf edge: {inset} m"
+    );
     let band = bp.track.outer_x - bp.track.inner_x;
-    assert!((band - 0.725).abs() < 1.0e-3, "the 725 mm combat track, edge to edge: {band}");
+    assert!((band - 0.724).abs() < 1.0e-3, "the 724 mm combat track, edge to edge: {band}");
+    assert!((2.0 * bp.track.inner_x - 2.100).abs() < 1.0e-3, "6 ft 10.625 in between the belts");
     assert!(bp.track.outer_x <= bp.hull.hitbox_half_width, "the box still holds the widest metal");
 }
 
-/// The exposed run wears its guards: there is hull metal outboard of the sponson wall over the
-/// track, and NOTHING out-reaches the belt's outer face — the width anchor stays the track's.
+/// The belt runs under the sponson shelf: there is hull metal above the belt over its whole
+/// width and length, and nothing the bake draws reaches past the shelf — the 3.734 m guards
+/// that overhang it on the sheet are the part library's (K20).
 #[test]
-fn the_exposed_track_run_wears_its_fender_line() {
+fn the_belt_runs_under_the_sponson_shelf() {
     let bp = blueprint();
     let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
     let hull_mesh = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
@@ -224,38 +233,40 @@ fn the_exposed_track_run_wears_its_fender_line() {
         .iter()
         .map(|vertex| vertex.position)
         .filter(|point| {
-            point.x > bp.hull.half_width + 0.01
+            point.x > bp.track.inner_x + 0.01
+                && point.x <= bp.hull.half_width + 1.0e-3
                 && point.y > bp.track.top_y
                 && point.y < bp.hull.deck_y
         })
         .collect();
-    assert!(over_the_run.len() >= 8, "the exposed belt must be covered: {}", over_the_run.len());
+    assert!(over_the_run.len() >= 8, "the belt must run under metal: {}", over_the_run.len());
     let front = over_the_run.iter().map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
     let rear = over_the_run.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
     assert!(
         front > bp.track.end_z && rear < -bp.track.end_z,
-        "the guard must run the whole belt, wrap to wrap: {rear}..{front}"
+        "the shelf must run the whole belt, wrap to wrap: {rear}..{front}"
     );
     let widest =
         hull_mesh.vertices().iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        widest <= bp.track.outer_x + 1.0e-3,
-        "no fitting may reach past the belt: {widest} vs {}",
-        bp.track.outer_x
+        widest <= bp.hull.half_width + 1.0e-3,
+        "nothing the bake draws may reach past the shelf: {widest} vs {}",
+        bp.hull.half_width
     );
 }
 
-/// The roof and the drum are locked SEPARATELY. The bare turret roof stands at the documented
-/// 2.885 m and the cupola adds only the last 0.115 m. The model used to derive the drum's
-/// height as "whatever fills the gap up to the hitbox apex", so a 16.5 cm roof deficit simply
-/// grew a 2.5x-too-tall drum and the 3.00 m silhouette lock still passed.
+/// The roof and the drum are locked SEPARATELY. The bare turret roof stands at the STT sheet's
+/// ~2.55 m and the cupola adds 0.40 m to the ~2.95 apex (the sheet's 2.93 at the drum cupola).
+/// The model used to derive the drum's height as "whatever fills the gap up to the hitbox
+/// apex", so a roof deficit simply grew a too-tall drum and the silhouette lock still passed —
+/// and until 2026-09-05 the roof itself stood at 2.885, a misread of the records (K19).
 #[test]
 fn the_roof_and_the_cupola_are_locked_independently() {
     let bp = blueprint();
-    assert!((bp.turret.roof_y - 2.885).abs() < 1.0e-6, "the documented bare-roof height");
+    assert!((bp.turret.roof_y - 2.55).abs() < 1.0e-6, "the sheet's bare-roof height");
     assert!(bp.turret.cupola_height.is_some(), "the drum height must be AUTHORED, not derived");
     let proud = bp.turret.cupola_proud_m(&bp.hull);
-    assert!((proud - 0.115).abs() < 1.0e-6, "3.00 m silhouette over a 2.885 m roof: {proud}");
+    assert!((proud - 0.40).abs() < 1.0e-6, "2.95 m silhouette over a 2.55 m roof: {proud}");
 
     let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
     let turret_mesh = &baked.submesh(SubmeshKind::Turret).expect("turret submesh").mesh;
@@ -273,8 +284,8 @@ fn the_roof_and_the_cupola_are_locked_independently() {
     let apex =
         turret_mesh.vertices().iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        apex - bp.turret.roof_y < 0.15,
-        "the drum tops the roof by a hatch, not by a deficit: {}",
+        apex - bp.turret.roof_y < 0.45,
+        "the drum tops the roof by its authored 0.40, not by a deficit: {}",
         apex - bp.turret.roof_y
     );
 }
@@ -319,7 +330,7 @@ fn the_drive_sprocket_sits_at_the_bow() {
 #[test]
 fn the_dossier_clearance_and_fire_line_hold() {
     let bp = blueprint();
-    assert!((bp.hull.belly_y - 0.47).abs() < 1.0e-6, "0.47 m ground clearance (Wikipedia)");
+    assert!((bp.hull.belly_y - 0.432).abs() < 1.0e-6, "1 ft 5 in = 0.432 m clearance (STT 1944)");
     assert!((bp.gun.trunnion_y - 2.17).abs() < 1.0e-6, "fire line 2.17 m (documented 2.195 m)");
     let mounts = game_core::MountFrames::for_vehicle(VehicleKind::TigerI);
     assert!(

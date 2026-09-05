@@ -147,10 +147,16 @@ fn gun_mantlet_clears_glacis_and_sits_at_turret_height() {
     let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
     let turret_bounds = turret.mesh.bounds().expect("turret bounds");
 
+    // The trunnion sits in the turret's FRONT structure: behind the mantlet band (an external
+    // Walzenblende pivots behind the casting it rides on — the STT 1944 sheet puts the Tiger's
+    // band at 1.30..1.60 with the pivot at the front plate) and never ahead of the turret.
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(VehicleKind::TigerI).expect("bp");
     assert!(
-        mounts.gun_trunnion.translation.z >= turret_bounds.max.z - 0.05,
-        "trunnion should sit at turret front (z={:.2}, turret_max_z={:.2})",
+        mounts.gun_trunnion.translation.z >= blueprint.turret.mantlet_back_z - 0.05
+            && mounts.gun_trunnion.translation.z <= turret_bounds.max.z,
+        "trunnion should sit at the turret front structure (z={:.2}, band from {:.2}, turret_max_z={:.2})",
         mounts.gun_trunnion.translation.z,
+        blueprint.turret.mantlet_back_z,
         turret_bounds.max.z
     );
     assert!(

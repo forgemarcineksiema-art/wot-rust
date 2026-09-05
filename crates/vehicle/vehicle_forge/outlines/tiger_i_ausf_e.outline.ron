@@ -15,7 +15,8 @@
             view: Side,
             min_iou: 0.95,
             status: Target,
-            floor_iou: Some(0.83),
+            // Measured 2026-09-05 after the data-first re-sourcing (IoU 0.879, up from 0.831).
+            floor_iou: Some(0.87),
             source: (
                 label: "STT report on PzKw VI Tiger Model E (January 1944, Commons, PD)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
@@ -110,7 +111,8 @@
             view: Front,
             min_iou: 0.95,
             status: Target,
-            floor_iou: Some(0.86),
+            // Measured 2026-09-05 after the data-first re-sourcing (IoU 0.925, up from 0.862).
+            floor_iou: Some(0.92),
             source: (
                 label: "STT report on PzKw VI Tiger Model E (January 1944, Commons, PD)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",

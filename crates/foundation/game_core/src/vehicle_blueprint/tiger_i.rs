@@ -30,17 +30,17 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // beam on the hull instead (the migration's shortcut) buried the fender line and made
             // the belts hide inside the sponson line.
             half_width: 1.78,
-            belly_y: 0.47,
+            belly_y: 0.432,
             // The tall slab: superstructure roof at 1.90, the turret walls carrying the
             // silhouette to the documented 2.885 m and the drum cupola topping out at 3.00 m.
-            deck_y: 1.90,
+            deck_y: 1.778,
             // Nearly vertical: the driver's plate stands at ~9° from vertical. The Tiger's
             // protection is raw thickness, not slope — angling the hull is the crew's job.
             glacis_slope_deg: 9.0,
             pike_sweep_deg: 0.0,
             nose_rise: 0.05,
             rear_slope_deg: 8.0,
-            lower_half_width: 1.12,
+            lower_half_width: 1.05,
             sponson_y: 0.95,
             skirt: None,
             hitbox_half_width: 1.87,
@@ -55,7 +55,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // The 725 mm combat band, exactly: outer face AT the documented 3.705 m beam, inner
             // face at the tub side (1.8525 - 0.725). Eight 800 mm interleaved road wheels per
             // side on the documented 3.6 m contact run; sprocket and idler wrap inside the ends.
-            center_x: 1.49,
+            center_x: 1.412,
             belt_half_thickness: 0.16,
             top_y: 0.86,
             bottom_y: 0.03,
@@ -65,13 +65,13 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             wheel_count: 8,
             wheel_first_z: -1.80,
             wheel_last_z: 1.80,
-            end_radius: 0.30,
+            end_radius: 0.40,
             end_z: 2.60,
             // Wrap top (end_y + end_radius) = 0.86 = the belt's top line: one height, the top
             // run resting on the big interleaved wheels — no return rollers on a Tiger.
-            end_y: 0.56,
-            inner_x: 1.1275,
-            outer_x: 1.8525,
+            end_y: 0.72,
+            inner_x: 1.05,
+            outer_x: 1.774,
             segments: 14,
             wheel_stations: None,
             damper_stations: &[],
@@ -99,14 +99,14 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // The horseshoe: one bent side wall around a flat front plate, all of it VERTICAL —
             // a welded box to the armor model, with the plate prism's flat normals.
             form: TurretForm::WeldedBox,
-            ring_y: 1.90,
-            ring_z: -0.10,
+            ring_y: 1.778,
+            ring_z: -0.12,
             ring_radius: 0.915,
-            base_radius: 1.00,
+            base_radius: 1.17,
             roof_radius: 0.40,
             // The bare roof at the documented 2.885 m; the drum tops the 3.00 m silhouette from
             // there. Authored independently of the cupola so neither can cover for the other.
-            roof_y: 2.885,
+            roof_y: 2.55,
             front_slope_deg: 8.0,
             side_slope_deg: 0.0,
             rear_slope_deg: 0.0,
@@ -117,21 +117,25 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             cupola_z: -0.35,
             cupola_radius: 0.39,
             // 3.00 m to the cupola top over the 2.885 m roof — straight from the dossier.
-            cupola_height: Some(0.115),
-            plan_half_width: 1.00,
+            cupola_height: Some(0.40),
+            plan_half_width: 1.17,
             // Reaches the Rommelkiste stowage bin's back face — the bin IS the rear armor plane.
-            plan_half_length: 1.25,
-            plan_front_pad: 0.0,
+            plan_half_length: 1.42,
+            // The Walzenblende band (1.30 .. 1.60) stands proud of the front plate at 1.30: the
+            // hit volume reaches it (STT 1944 side view).
+            plan_front_pad: 0.30,
             mantlet_radius: 0.34,
-            mantlet_back_z: 0.92,
+            mantlet_back_z: 1.30,
             sector_count: super::DEFAULT_TURRET_SECTORS,
-            mantlet_front_z: 1.22,
+            mantlet_front_z: 1.60,
         },
         gun: GunShape {
+            // The trunnion sits at the front plate (1.30, STT 1944): the Walzenblende pivots just
+            // behind the plate it rides on, not 15 cm inside the turret.
             // Fire line 2.17 (~0.27 above the ring seat); the KwK 36's muzzle reaches z = 5.29
             // (8.45 m overall, gun forward), tipped with its double-baffle brake.
             trunnion_y: 2.17,
-            trunnion_z: 1.15,
+            trunnion_z: 1.28,
             muzzle_z: 5.29,
             barrel_radius: 0.10,
             evacuator: None,

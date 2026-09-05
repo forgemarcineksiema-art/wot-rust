@@ -233,7 +233,11 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
     // Previous: 11_582_503_112_659_279_264 (the model-logic review).
     // Previous: 16_183_656_741_282_067_528 (W4 F5.iii, the authored gun group).
-    (VehicleKind::TigerI, 581_300_994_314_658_394_u64),
+    // Re-recorded 2026-09-05 (Forge 2.0 K3, data first): the Tiger I re-sourced to the STT
+    // January 1944 sheet — roof 2.55, ring/deck 1.778, clearance 0.432, 3.548 over the tracks,
+    // turret 2.34 x 2.84 plan with the Walzenblende band at 1.30..1.60 on a trunnion at the
+    // front plate (1.28), end wheels at 0.72.
+    (VehicleKind::TigerI, 3_966_315_615_990_056_469_u64),
     (VehicleKind::TigerII, 16_874_227_684_286_219_701_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet

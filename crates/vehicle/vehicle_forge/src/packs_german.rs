@@ -90,19 +90,18 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
             "https://tank-afv.com/ww2/germany/Tiger.php",
             "docs/vehicles/panzerkampfwagen-vi-tiger.md",
         ),
-        // Re-tuned to the blueprint-born 1:1 body (6.32 m hull, 3.705 m beam, 3.0 m tall): the
-        // documented Tiger is a genuinely DEEP slab (hull-height/length ~0.33), and its broad
-        // horseshoe turret is a low band on that tall superstructure — the old targets described
-        // the squat legacy stretch.
-        // W1 dossier (2026-07-17): tolerances tightened around the verified body — every
-        // measured ratio sits within 2.3% of target, so these hold LOD headroom (~3x delta)
-        // while actually catching a proportion drifting into the wrong tank.
+        // Re-sourced 2026-09-05 (Forge 2.0 K3, data first) to the School of Tank Technology's
+        // January 1944 sheet of a captured Tiger — dimensioned side / front / plan drawings:
+        // 3.56 m over the sponson shelf (3.548 over the tracks, 3.734 over the guards), the
+        // turret roof at ~2.55 with the cupola apex at ~2.95, the turret 2.34 wide. The hull is
+        // therefore LONGER for its width (6.32 / 3.56 = 1.78) and the turret broader on it
+        // (2.34 / 3.56 = 0.66) than the 3.705-beam targets said.
         {
             let mut ratios = silhouette_ratios(
-                (1.66, 0.08),
+                (1.78, 0.06),
                 (0.33, 0.02),
-                (0.52, 0.05),
-                (0.58, 0.05),
+                (0.66, 0.05),
+                (0.56, 0.05),
                 (0.34, 0.03),
                 [
                     "Hull plan reads as a long heavy, not a medium.",
@@ -114,9 +113,9 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
             );
             ratios.push(RatioTarget::new(
                 RatioKind::TurretLengthToWidth,
-                1.25,
+                1.21,
                 0.08,
-                "Horseshoe plus the Rommelkiste: the turret plan is a long band (2.50 over 2.00).",
+                "Horseshoe plus the bin: the turret plan is a long band (2.84 over 2.34, STT 1944).",
             ));
             ratios.push(RatioTarget::new(
                 RatioKind::RoadWheelDiameterToHullLength,
@@ -141,26 +140,33 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::HullWidth,
-            3.705,
-            0.08,
+            3.56,
+            0.03,
             tiger_i_dossier(
-                "3.705 m over the 725 mm combat tracks (German records; 3.56 m = sponsons; \
-                 Tank Museum's 3.72 recorded as a conflict, inside build tolerance).",
+                "3.56 m over the sponson shelf, the widest metal the bake draws. The STT 1944 \
+                 sheet's own figures: 6 ft 10.625 in + 2 x 2 ft 4.5 in = 3.548 m over the \
+                 combat tracks, 12 ft 3 in = 3.734 m over the track guards (K20: the guards are \
+                 the part library's, not this bake's) — so the 3.705/3.72 records are guard \
+                 widths, and C1 was resolved the wrong way round.",
             ),
         ),
         DimensionTarget::new(
             DimensionKind::HeightToTurretRoof,
-            3.00,
-            0.05,
-            tiger_i_dossier("3.00 m silhouette apex at the drum cupola."),
+            2.95,
+            0.06,
+            tiger_i_dossier(
+                "~2.95 m silhouette apex: the STT 1944 side view traces the cupola top at 2.93 \
+                 (drum cupola of the captured early tank); Wikipedia's 3.00 sits inside the band.",
+            ),
         ),
         DimensionTarget::new(
             DimensionKind::HeightToTurretRoofBare,
-            2.885,
-            0.05,
+            2.55,
+            0.06,
             tiger_i_dossier(
-                "2.885 m to the bare turret roof (German records; tiger1.info's 2625 mm \
-                 'total height' is an unresolved conflict, triangulated against but not closed).",
+                "~2.55 m to the bare turret roof: the STT 1944 side view (the roof lies between \
+                 the 2.50 and 2.60 sections), agreeing with tiger1.info's 2625 mm; the 2.885 the \
+                 model was built to was a misread of the records (K19, C2).",
             ),
         ),
         DimensionTarget::new(
@@ -198,9 +204,12 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::GroundClearance,
-            0.47,
-            0.01,
-            tiger_i_dossier("470 mm documented clearance."),
+            0.432,
+            0.02,
+            tiger_i_dossier(
+                "1 ft 5 in = 432 mm on the STT 1944 front view (measured); Wikipedia's 470 is \
+                 recorded as the conflict.",
+            ),
         ),
         DimensionTarget::new(
             DimensionKind::TrackLinkCountPerSide,
