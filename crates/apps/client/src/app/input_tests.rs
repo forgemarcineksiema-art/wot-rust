@@ -378,6 +378,64 @@ fn in_battle() -> ClientApp {
     app
 }
 
+// --- Focus loss ------------------------------------------------------------------------------
+
+/// Alt+Tab with Alt held: Alt is the free-look key, so the switch away happens mid-glance, and
+/// whether the window ever sees Alt's release is the platform's choice. The app must not care:
+/// losing focus ends the glance the way a release would — camera back on the aim, pitch restored
+/// — instead of leaving the mouse on the camera and off the gun for the rest of the match.
+#[test]
+fn losing_focus_ends_a_free_look_and_returns_the_camera_to_the_aim() {
+    let mut app = in_battle();
+    app.camera_controller.set_orbit_yaw(0.5);
+    app.desired_aim = crate::aim::DesiredAim::new(0.5, 0.0);
+    let pitch_before = app.camera_controller.pitch_rad();
+    app.begin_free_look();
+    app.input.mouse_dx = 200.0;
+    app.input.mouse_dy = 100.0;
+    app.apply_mouse_look();
+    assert!((app.camera_controller.orbit_yaw_rad() - 0.5).abs() > 0.1, "precondition: glancing");
+
+    app.on_focus_change(false);
+
+    assert!(!app.input.free_look, "the glance ends with the focus");
+    assert_eq!(app.camera_controller.orbit_yaw_rad(), 0.5, "the camera is back on the aim");
+    assert_eq!(app.camera_controller.pitch_rad(), pitch_before);
+    // Mouse motion the OS may still deliver around the edge does not become a look delta
+    // either way; and the gun follows the mouse again on return.
+    app.on_focus_change(true);
+    app.input.mouse_dx = 100.0;
+    app.apply_mouse_look();
+    assert!(app.desired_aim.yaw_rad() < 0.5, "back in focus the mouse aims the gun again");
+}
+
+/// The same for a Shift hold: the scope opened by Shift closes with the focus, restoring the
+/// prior mode, and the hold latch is released — a latch left set would swallow the next Shift
+/// press whole (`begin_sniper_hold` refuses while it thinks Shift is down).
+#[test]
+fn losing_focus_ends_a_sniper_hold_and_every_other_latch() {
+    let mut app = in_battle();
+    app.begin_sniper_hold();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+    app.input.set_shift(true);
+    app.input.wheel_pending_lines = 0.6;
+    app.input.forward = true;
+    app.input.fire_pending = true;
+
+    app.on_focus_change(false);
+
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::ThirdPerson, "the hold released");
+    assert!(app.input.sniper_hold_return.is_none(), "the latch is free for the next press");
+    assert!(!app.input.shift);
+    assert_eq!(app.input.wheel_pending_lines, 0.0);
+    assert_eq!(app.input.throttle(), 0.0);
+    assert!(!app.input.fire_pending);
+
+    // And the next Shift press is not swallowed.
+    app.begin_sniper_hold();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+}
+
 // --- OS key auto-repeat --------------------------------------------------------------------
 
 /// A held key is ONE press. Windows re-sends a held key as a press every ~33 ms; every battle

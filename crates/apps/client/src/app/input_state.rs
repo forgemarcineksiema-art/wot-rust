@@ -25,6 +25,20 @@ impl InputState {
         self.fire_pending = false;
     }
 
+    /// Everything the keyboard and wheel can leave latched, dropped at once — the drive keys and
+    /// trigger of [`Self::release_driving`] plus the modifier mirror, the fractional wheel carry
+    /// and the mouse-look delta. For a focus edge: after this the input is exactly what a fresh
+    /// battle starts with, whatever was held when the window went away. The free-look and
+    /// Shift-hold LATCHES are not fields cleared here but modes ended by the app
+    /// (`end_free_look`, `end_sniper_hold`), because ending them moves the camera.
+    pub(super) fn release_all_latches(&mut self) {
+        self.release_driving();
+        self.shift = false;
+        self.wheel_pending_lines = 0.0;
+        self.clear_mouse_look();
+        debug_assert!(!self.free_look && self.sniper_hold_return.is_none(), "app ends the holds");
+    }
+
     pub(super) fn throttle(&self) -> f32 {
         axis(self.forward, self.back)
     }
