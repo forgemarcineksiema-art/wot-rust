@@ -126,14 +126,23 @@ impl ClientApp {
         }
     }
 
-    /// Alt-tab and friends. An unfocused window receives no key or button releases, so anything
-    /// latched at the moment of the switch would stay latched until re-pressed — the hull driving
-    /// itself, a queued shot going off on return, the garage orbit glued to a button nobody
-    /// holds. Drop all of it on either edge; the cursor is recaptured only for the live battle
-    /// view (the garage menu and the ESC modal keep it free).
+    /// Alt-tab and friends. Whether an unfocused window ever sees the releases of the keys held
+    /// at the switch is the platform's business, not ours: winit on Windows synthesizes them on
+    /// `WM_KILLFOCUS`, other backends may not, and a future winit may change either. This app
+    /// does not depend on it. On either focus edge EVERY latch the keyboard holds is dropped —
+    /// the drive keys and the trigger, and the two modal holds that used to be forgotten here:
+    /// a free look left latched keeps the mouse on the camera and off the gun for the rest of
+    /// the match ("my turret stopped following the mouse" after an Alt+Tab, Alt being the
+    /// free-look key), and a Shift hold left open swallows the next Shift press whole. Both are
+    /// ended through their own release paths so the camera returns to the aim and the scope to
+    /// its prior mode, exactly as a real key-up would have done. The cursor is recaptured only
+    /// for the live battle view (the garage menu and the ESC modal keep it free).
     pub(in crate::app) fn on_focus_change(&mut self, focused: bool) {
-        self.input.release_driving();
-        self.input.clear_mouse_look();
+        if self.input.free_look {
+            self.end_free_look();
+        }
+        self.end_sniper_hold();
+        self.input.release_all_latches();
         self.garage.end_drag();
         self.set_cursor_captured(focused && !self.garage.is_open() && self.pause_menu.is_none());
     }

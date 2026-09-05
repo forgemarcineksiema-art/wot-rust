@@ -868,9 +868,10 @@ mod tests {
         assert!(!app.input.fire_pending, "a pending shot does not survive into the menu");
     }
 
-    /// An unfocused window receives no key or button releases, so everything latched at the
-    /// moment of an alt-tab used to stay latched: the orbit drag glued to a button nobody holds,
-    /// the hull driving itself on return. Focus loss drops all of it.
+    /// Whether an unfocused window ever sees the releases of what was held at the alt-tab is the
+    /// platform's business (winit on Windows synthesizes them; others may not); the app drops
+    /// every latch itself: the orbit drag glued to a button nobody holds, the hull driving itself
+    /// on return. The battle-side latches (free look, Shift hold) are locked in `input_tests`.
     #[test]
     fn losing_focus_drops_every_latch_whose_release_will_never_arrive() {
         let mut app = ClientApp::new();
