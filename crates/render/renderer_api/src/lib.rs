@@ -1,14 +1,10 @@
-mod bindings;
 mod capabilities;
 mod culling;
-mod debug_tools;
-mod feature_plan;
 mod ground_detail;
 mod lighting;
 mod lighting_blend;
 mod lighting_quality;
 mod limits;
-mod pipeline;
 mod projection;
 mod resources;
 mod scene;
@@ -25,21 +21,11 @@ pub use game_core::TankId as VehicleId;
 
 pub const DEFAULT_MSAA_SAMPLES: u8 = 4;
 
-pub use bindings::{
-    BindGroupRole, BindGroupSlot, RendererBindingPolicy, TextureBindingStrategy,
-    baseline_bind_group_layout, baseline_binding_policy, binding_policy_for_feature_plan,
-};
 pub use capabilities::{
     GpuBackend, GpuDeviceType, RenderAdapterReport, RenderCapabilityTier, RenderLimitsSummary,
     TextureCompressionSupport,
 };
 pub use culling::{Aabb, Frustum, SceneChunk, chunk_scene_indices, scene_mesh_fingerprint};
-pub use debug_tools::{
-    DebugDrawBatch, DebugDrawCommand, DebugDrawKind, DebugToolKind, DebugToolPlan, RgbaDebugColor,
-};
-pub use feature_plan::{
-    FallbackReason, FeatureFallback, RenderFeature, RenderFeaturePlan, select_render_feature_plan,
-};
 pub use ground_detail::{
     GROUND_DETAIL_LAYERS, GROUND_MACRO_FAR_RATIO, GROUND_MACRO_PERIOD_M, GROUND_MACRO_TILE_SIZE,
     GROUND_TILE_PERIOD_M, GROUND_TILE_SIZE, GroundDetailTiles, bake_ground_detail_tiles,
@@ -49,10 +35,6 @@ pub use lighting::{
 };
 pub use lighting_quality::{LightingQuality, ShaderDetailMask};
 pub use limits::RenderLimitProfile;
-pub use pipeline::{
-    AlphaMode, ColorFormat, DepthFormat, MaterialPipelineFlags, PipelineCacheMode, PipelineKey,
-    PipelineWarmupPlan, ShaderHandle, VertexLayoutKey,
-};
 pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{
@@ -282,12 +264,3 @@ impl std::fmt::Display for RenderError {
 }
 
 impl std::error::Error for RenderError {}
-
-pub trait RenderBackend {
-    fn name(&self) -> &'static str;
-    fn adapter_report(&self) -> Option<&RenderAdapterReport> {
-        None
-    }
-    fn resize(&mut self, width: u32, height: u32);
-    fn render_frame(&mut self, frame: &RenderFrame) -> Result<(), RenderError>;
-}

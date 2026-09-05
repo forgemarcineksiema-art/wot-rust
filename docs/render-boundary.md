@@ -42,9 +42,9 @@ pub struct TankGpuResources {
 
 ## Binding Contract
 
-`renderer_api` owns the backend-neutral binding policy: group 0 is frame/global data, group 1 is camera/view data, group 2 is material data, and group 3 is object/instance data. `renderer_wgpu` may translate that policy into concrete layouts and bind groups, but gameplay crates only see handles and render objects.
+Bind group layouts belong to `renderer_wgpu`: group 0 is the camera uniform plus the armor-damage storage buffers, group 1 is per-pipeline material data (foliage atlas, vehicle material families, ground maps), group 2 is the shared environment (shadow cascades, AO, cloud tile, reflection cube); object transforms ride an instance-step vertex buffer, never a bind group per object. Gameplay crates only see handles and render objects.
 
-The default material path uses a bounded material texture set. Bindless-style resource arrays are optional high-end policy selected through `RenderFeaturePlan`, not an assumption baked into tanks, materials, or asset records.
+The material path uses a bounded material texture set (one array binding per vehicle material family set). There is no bindless path and no feature plan selecting one; `RenderFeaturePlan` was removed on 2026-09-05 because it declared features (occlusion culling, forward+, debug draw) the renderer does not have.
 
 ## WGSL Layout
 
@@ -52,7 +52,7 @@ WGSL buffer layout belongs to `renderer_wgpu`. Gameplay crates do not define GPU
 
 ## Pipeline Ownership
 
-`renderer_api` defines the backend-neutral `PipelineKey`; `renderer_wgpu` translates that key to concrete render pipeline state. Pipelines are prepared through startup prewarm, dev hot reload, or release cache loading. Draw calls may only require an existing key and must not call pipeline creation as a side effect. (Adoption status: the registry exists but the shipping renderer does not yet create its pipelines through it — see `docs/pipeline-policy.md`.)
+Every render pipeline is created in `SceneRenderer::new`, before the first frame; no draw call creates one. There is no pipeline key or registry — see `docs/pipeline-policy.md` for what exists and the one open item (a pipeline cache).
 
 ## Upload Ownership
 

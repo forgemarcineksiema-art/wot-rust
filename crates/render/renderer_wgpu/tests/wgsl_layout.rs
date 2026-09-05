@@ -1,11 +1,8 @@
-use renderer_api::{
-    BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_layout, surface_role,
-};
+use renderer_api::{FxVertex, VehicleVertex, surface_role};
 use renderer_wgpu::{
-    CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
-    build_camera_bind_group_layout, build_shadow_bind_group_layout, build_vehicle_pipeline,
-    encode_camera_uniform, fx_shader_source, scene_shader_source, shadow_shader_source,
-    sky_shader_source, tank_vertex_bytes, terrain_shader_source, validate_wgsl_shader,
+    CameraUniform, GpuContext, build_camera_bind_group_layout, build_shadow_bind_group_layout,
+    build_vehicle_pipeline, encode_camera_uniform, fx_shader_source, scene_shader_source,
+    shadow_shader_source, sky_shader_source, terrain_shader_source, validate_wgsl_shader,
     vehicle_shader_source,
 };
 
@@ -32,15 +29,6 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // 992 + 16 = 1008.
     assert_eq!(bytes.len(), 1008);
     assert_eq!(bytes.len() % 16, 0);
-}
-
-#[test]
-fn basic_tank_shader_is_valid_wgsl() {
-    let report =
-        validate_wgsl_shader("basic_tank", basic_tank_shader_source()).expect("shader validates");
-
-    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
-    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
 }
 
 #[test]
@@ -550,15 +538,6 @@ fn sky_cloud_projections_guard_their_horizon_singularity() {
 }
 
 #[test]
-fn tank_vertex_is_plain_old_data_for_vertex_buffers() {
-    let vertices = [TankVertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0])];
-    let bytes = tank_vertex_bytes(&vertices);
-
-    assert_eq!(core::mem::size_of::<TankVertex>(), 24);
-    assert_eq!(bytes.len(), 24);
-}
-
-#[test]
 fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
     let report = validate_wgsl_shader("vehicle", &vehicle_shader_source())
         .expect("vehicle shader validates");
@@ -838,28 +817,13 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     assert_eq!(core::mem::size_of::<VehicleVertex>(), 64);
 }
 
-#[test]
-fn camera_uniform_uses_camera_view_bind_group_slot() {
-    let camera_group = baseline_bind_group_layout()
-        .iter()
-        .find(|slot| slot.role == BindGroupRole::CameraView)
-        .expect("camera bind group exists")
-        .index;
-
-    let report =
-        validate_wgsl_shader("basic_tank", basic_tank_shader_source()).expect("shader validates");
-
-    assert!(report.has_uniform_binding("camera", camera_group, 0));
-}
-
 /// Every shader the renderer ships parses and validates as WGSL — ALL of them, not the three
 /// the earlier tests happened to name. The vehicle shader had no such test, so a broken edit
 /// (a literal `$1` left by a script) reached the probe as "uncaptured GPU error: parsing error"
 /// and a frame with no vehicles; here it is a failed test (Q7, diet step 2).
 #[test]
 fn every_shipped_shader_validates() {
-    let shaders: [(&str, String); 10] = [
-        ("basic_tank", basic_tank_shader_source().to_string()),
+    let shaders: [(&str, String); 9] = [
         ("fx", renderer_wgpu::fx_shader_source()),
         ("rain", renderer_wgpu::rain_shader_source()),
         ("scene", scene_shader_source()),

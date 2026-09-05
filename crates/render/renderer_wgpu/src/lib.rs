@@ -32,10 +32,7 @@ pub use frame_profiler::{ActiveProfiler, FrameProfiler, FrameTimings};
 pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::{GpuContext, GpuContextOptions};
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
-pub use gpu_layout::{
-    CameraUniform, FramePassParams, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform,
-    tank_vertex_bytes,
-};
+pub use gpu_layout::{CameraUniform, FramePassParams, GpuMat4, GpuVec3, encode_camera_uniform};
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pass_recorder::{FrameCounts, PassCounts, PassOrder};
 pub use rain_pipeline::rain_shader_source;
@@ -51,8 +48,8 @@ pub use scene_renderer::{
 };
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
-    WgslStageBindingUse, WgslUniformBinding, WgslValidationReport, basic_tank_shader_source,
-    validate_wgsl_shader, wgsl_stage_binding_uses,
+    WgslStageBindingUse, WgslUniformBinding, WgslValidationReport, validate_wgsl_shader,
+    wgsl_stage_binding_uses,
 };
 pub use sky_pipeline::sky_shader_source;
 pub use surface_config::select_present_mode;

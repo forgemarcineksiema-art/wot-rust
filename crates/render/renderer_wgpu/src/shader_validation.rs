@@ -23,10 +23,6 @@ impl WgslValidationReport {
     }
 }
 
-pub fn basic_tank_shader_source() -> &'static str {
-    include_str!("shaders/basic_tank.wgsl")
-}
-
 pub fn validate_wgsl_shader(
     label: impl Into<String>,
     source: &str,
