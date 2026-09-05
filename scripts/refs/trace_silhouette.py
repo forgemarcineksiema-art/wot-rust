@@ -40,10 +40,13 @@ def body_mask(gray, region, erase, open_px, close_px, thresh):
         ink = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_px, open_px)))
     if close_px > 1:
         ink = cv2.morphologyEx(ink, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_px, close_px)))
-    h, w = ink.shape
-    flood = np.zeros((h + 2, w + 2), np.uint8)
-    filled = ink.copy()
+    # Fill from EVERY border pixel (a one-pixel white frame), so a dimension line that walls off
+    # a corner of the region cannot turn the space under the vehicle into "body".
+    padded = np.pad(ink, 1)
+    flood = np.zeros((padded.shape[0] + 2, padded.shape[1] + 2), np.uint8)
+    filled = padded.copy()
     cv2.floodFill(filled, flood, (0, 0), 1)
+    filled = filled[1:-1, 1:-1]
     body = ((ink == 1) | (filled == 0)).astype(np.uint8)
     n, labels, stats, _ = cv2.connectedComponentsWithStats(body, 8)
     if n <= 1:

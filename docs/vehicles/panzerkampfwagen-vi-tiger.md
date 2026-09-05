@@ -76,10 +76,14 @@ reached yet and are reported as debt every run until their geometry PR flips the
 
 - **C1 — width over combat tracks: 3.705 m vs 3.72 m.** The Tank Museum's own article and Alan
   Hamby both give 3.72 m; Panzerworld (German records) gives 3.705 m. **Resolved: keep 3.705 m.**
+  **Reopened 2026-09-05 by the STT 1944 front view:** its own dimensions put 12 ft 3 in = 3.734 m
+  over the widest point (the track guards) and 6 ft 10.625 in + 2 x 2 ft 4.5 in = 3.548 m over the
+  tracks - so the 3.705-3.72 figures are the width over the GUARDS, and the blueprint's
+  `track.outer_x 1.8525` puts the belts 8 cm too far out per side (K20).
   It is the more precisely and consistently repeated figure, and tiger1.info explicitly warns
   that measurements of surviving Tigers differ by several millimetres — 15 mm sits inside the
   build tolerance of a hand-assembled vehicle. Recorded, not chased into the model.
-- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". OPEN.** tiger1.info's dedicated
+- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". OPEN - leaning to tiger1.info since 2026-09-05: the STT side view traces the turret roof at ~2.55 and the cupola apex at 2.96 (K19).** tiger1.info's dedicated
   roof-height page quotes a German drawing at 2625 mm (2655 late), which would collide with our
   anchor by ~26 cm — exactly the variant-contamination class that bit the Tiger II (its "3.27 m"
   turned out to be transport tracks). It was NOT passed through silently: an independent
@@ -239,22 +243,43 @@ claiming cut-truth. What the file states:
 The golden bake hash was re-recorded Tiger-I-only (`vehicle_recipes/src/budgets.rs`), which is
 itself the proof that the visual dispatch reads data, not vehicle identity.
 
-## Reference drawing and the K0 outline (2026-09-05)
+## Reference drawings and the K0 outline (2026-09-05)
 
-The School of Tank Technology's *Report on PzKw VI (Tiger) Model E, Part I* (January 1944)
-carries a plan drawing, wide tracks — a real technical drawing, UK Government work, public
-domain ([Commons: File:Tiger_Top_View.png](https://commons.wikimedia.org/wiki/File:Tiger_Top_View.png);
-local copy `output/refs/tiger_i_ausf_e/Tiger_Top_View.png`, git-ignored, see
-`output/refs/SOURCES.md`). Traced with `scripts/refs/trace_silhouette.py` into
-`crates/vehicle/vehicle_forge/outlines/tiger_i_ausf_e.outline.ron`: scale from the 3.705 m over
-the tracks, the implied overall length 8.347 m against the documented 8.45 (1.2 %), the muzzle
-anchored at z 5.29. Against it the sketch's plan reads **IoU 0.922** (drawing covered 99.9 %,
-bake inside 92.3 %) — the bake stands proud at the stern (−3.21 against the drawing's −3.06,
-the exhaust stacks), at the bow corners (the front track guards drawn narrower than the tracks)
-and in 5 cm strips along both sides where the 1944 drawing draws the tracks only at their ends —
-an artefact of the drawing, not a defect; floor 0.92, `Target` until K3 builds the vehicle. Side and
-front views wait for a drawing of the same trust (the Commons side profile is a redrawn
-silhouette of unclear provenance, not used).
+The School of Tank Technology's *Report on PzKw VI (Tiger) Model E, Part I* (January 1944) —
+dimensioned technical drawings of a captured Tiger on wide tracks, UK Government work, public
+domain — is on Commons as [Tiger_Side_View_Left.png](https://commons.wikimedia.org/wiki/File:Tiger_Side_View_Left.png),
+[Tiger_Front_View.png](https://commons.wikimedia.org/wiki/File:Tiger_Front_View.png),
+[Tiger_Top_View.png](https://commons.wikimedia.org/wiki/File:Tiger_Top_View.png),
+[Tiger_Rear_View.png](https://commons.wikimedia.org/wiki/File:Tiger_Rear_View.png) and
+[Tiger_Side_Cut_Right.png](https://commons.wikimedia.org/wiki/File:Tiger_Side_Cut_Right.png)
+(local copies `output/refs/tiger_i_ausf_e/`, git-ignored, licences in `output/refs/SOURCES.md`).
+**This is the highest-trust source this dossier has** — a measured vehicle, drawn to one scale,
+with its own dimensions on the sheet: 27 ft 9 in (8.458 m) overall, 12 ft 3 in (3.734 m) over the
+widest point, 12 ft 8 in (3.861 m) to the aerial, 5 ft 10 in (1.778 m) to the hull side top,
+2 ft 4.5 in (0.724 m) track width, 6 ft 10.625 in (2.100 m) between the tracks, 1 ft 5 in
+(0.432 m) clearance, 11 ft 10.125 in (3.61 m) contact run.
+
+All three views are traced with `scripts/refs/trace_silhouette.py` into
+`crates/vehicle/vehicle_forge/outlines/tiger_i_ausf_e.outline.ron` (side and front calibrated on
+the sheet's own 8.458 / 3.734, the plan on 3.705; the three scales agree within 3 %). Against them
+the sketch reads **side 0.831 / front 0.862 / plan 0.922** (floors 0.83 / 0.86 / 0.92, `Target`
+until K3 builds the vehicle). What the overlay measured, in metres (drawing = grey + blue, bake =
+grey + red on the 1 cm raster):
+
+| Where | STT drawing | Bake | Register |
+| --- | --- | --- | --- |
+| Turret roof (side, the turret top behind the cupola) | ~2.55 | 2.885 (`roof_y`) | K19: the turret is ~30 cm too tall; C2 resolves toward tiger1.info's 2625 mm |
+| Apex (cupola top) | 2.96 | 3.02 | consistent with 3.00 |
+| Turret + bin at y 1.95 (side, z) | -1.55 ... +1.60 | -1.89 ... +1.20 | K19: the bake's turret sits 34 cm too far back and ends 40 cm short at the front |
+| Turret width at y 1.95 / 2.5 (front) | 2.34 / 2.52 | 2.01 / 2.01 | K19: 30-50 cm too narrow |
+| Widest point (front, y 1.2) | 3.63-3.73 (the track guards, 12 ft 3 in) | 3.57 | K20 |
+| Tracks (front, y 0.2-0.9) | 3.56 (= 2.100 + 2 x 0.724) | 3.71 | K20: the blueprint's 3.705 is over the GUARDS, not the tracks |
+| Upper hull above the guards (front, y 1.5-1.8) | 3.17-3.32 | 3.57 | K20: the upper hull box is ~25 cm too wide |
+| Rear deck top (side, z -3.0 ... -2.2) | 1.96 | 2.10 | K20: 14 cm too high (the sheet's 5 ft 10 in = 1.778 hull side top) |
+| Belt at y 0.30 (side, z) | wraps further at both ends | -2.90 ... +2.84 | the end wraps, as on the T-54 (K18) |
+
+The plan's 5 cm strips along both sides are the drawing's convention (tracks drawn only at
+their ends), not a defect.
 
 ## Data Sources And Gameplay Translation
 
