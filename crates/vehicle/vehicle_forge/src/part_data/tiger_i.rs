@@ -25,9 +25,15 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     let drive_z = if t.drive_front { t.end_z } else { -t.end_z };
     let idler_z = -drive_z;
 
-    // The driver's plate stands glacis_slope_deg from vertical, pivoting at the sponson fold —
-    // its run over the plate's height is what the glacis part spans in Z.
-    let glacis_run = (h.deck_y - h.sponson_y).max(0.0) * h.glacis_slope_deg.to_radians().tan();
+    // The driver's plate stands glacis_slope_deg from vertical, pivoting at its fold — the
+    // sponson step on the nose line, or the top edge of an authored bow shelf set back from it
+    // (K3-2d: the near-horizontal glacis under the plate). The part spans the shelf AND the
+    // plate in Z: one bow construction, two planes.
+    let (fold_y, fold_z) = match bp.armor.hull_bow_shelf {
+        Some((top, setback)) => (top, h.half_len - setback),
+        None => (h.sponson_y, h.half_len),
+    };
+    let glacis_run = (h.deck_y - fold_y).max(0.0) * h.glacis_slope_deg.to_radians().tan();
 
     vec![
         part(
@@ -44,11 +50,16 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             ForgePartKind::UpperGlacis,
             PartAnchor::Hull,
             MaterialRole::RolledArmor,
-            Vec3::new(0.0, 0.5 * (h.sponson_y + h.deck_y), h.half_len - 0.5 * glacis_run),
-            Vec3::new(-h.half_width, h.sponson_y, h.half_len - glacis_run),
+            Vec3::new(
+                0.0,
+                0.5 * (h.sponson_y + h.deck_y),
+                0.5 * (fold_z - glacis_run + h.half_len),
+            ),
+            Vec3::new(-h.half_width, h.sponson_y, fold_z - glacis_run),
             Vec3::new(h.half_width, h.deck_y, h.half_len),
-            "The near-vertical 9° driver's plate — the visible face IS the armor glacis plane \
-             (the Tiger's honesty lock pattern).",
+            "The bow above the sponson: the near-horizontal glacis shelf from the nose line and \
+             the near-vertical 9° driver's plate set back behind it — each visible face IS its \
+             armor plane (the Tiger's honesty lock pattern).",
         ),
         part(
             ForgePartKind::LowerPlate,

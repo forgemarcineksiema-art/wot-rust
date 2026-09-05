@@ -154,6 +154,9 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             turret_side_taper: None,
             hull_lower_front: None,
             hull_rear_knuckle: None,
+            // The near-horizontal glacis under the driver's plate: from the nose line back
+            // 0.80 m and up to 1.35 (STT 1944 side view), where the 9° plate begins.
+            hull_bow_shelf: Some((1.35, 0.80)),
             glacis_ports: [
                 Some(super::GlacisPort { x: -0.55, y: 1.62, radius_m: 0.16 }),
                 Some(super::GlacisPort { x: 0.62, y: 1.58, radius_m: 0.13 }),

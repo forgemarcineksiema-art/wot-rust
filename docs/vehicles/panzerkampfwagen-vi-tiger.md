@@ -55,6 +55,7 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Idler | ⌀685.8 mm | Alan Hamby | medium | cage |
 | Return rollers | none | universal, photographically self-evident | high | cage |
 | Upper hull box (the driver's plate, the hull sides above the sponson) | 3.18 m (STT 1944 front view: 885 px at 278 px/m; the Tank Museum's 3547 mm is the belts) | STT sheet | high | `half_width 1.59`; the belts run outside the box under the guards; the 3.734 m guards (12 ft 3 in) are K20's parts half |
+| Glacis shelf and driver's plate setback | the near-horizontal glacis runs from the nose line (y ~1.21) 0.80 m back and up to ~1.35, where the 9° driver's plate begins (STT 1944 side view, 274 px/m) | STT sheet | medium (pixel read, no dimension line) | `armor.hull_bow_shelf Some((1.35, 0.80))`: the shelf is its own armour volume, the plate folds at its top edge, the visor and MG ball ride the set-back plate (K3-2d); the shelf resolves as `UpperGlacis` until it has a zone (K21) |
 | Sponson underside (the bottom of the 80 mm upper side plate) | ~1.22 m (STT 1944 side view: 0.18 m below the guard rail's bolt row at ~1.40, 0.56 m below the 5 ft 10 in hull side top) | STT sheet | medium (pixel read, no dimension line) | `sponson_y 1.22` (was 0.95) |
 | Gun bore length | 4928 mm (56 × 88) | Wikipedia 8.8 cm KwK 36 | high | context (not trunnion-relative) |
 

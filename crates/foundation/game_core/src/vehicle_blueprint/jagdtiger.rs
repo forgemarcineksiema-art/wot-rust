@@ -134,6 +134,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             turret_side_taper: None,
             hull_lower_front: None,
             hull_rear_knuckle: None,
+            hull_bow_shelf: None,
             glacis_ports: [None, None],
         },
         visual_detail: None,

@@ -192,6 +192,7 @@ fn t54() -> VehicleBlueprint {
             turret_side_taper: Some(0.41),
             hull_lower_front: Some((55.0, 1.0)),
             hull_rear_knuckle: Some((1.20, 45.0)),
+            hull_bow_shelf: None,
             glacis_ports: [Some(super::GlacisPort { x: 0.42, y: 1.15, radius_m: 0.11 }), None],
         },
         visual_detail: None,

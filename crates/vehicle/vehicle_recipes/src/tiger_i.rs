@@ -43,9 +43,12 @@ pub(crate) fn tiger_i_pieces(
 ) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
     let hull = vec![
-        ("recipe_hull_slab", shade_hull(tiger_slab_hull(&bp.hull).build())),
+        (
+            "recipe_hull_slab",
+            shade_hull(tiger_slab_hull(&bp.hull, bp.armor.hull_bow_shelf).build()),
+        ),
         ("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))),
-        ("recipe_hull_details", shade_hull(tiger_hull_details(&bp.hull))),
+        ("recipe_hull_details", shade_hull(tiger_hull_details(&bp.hull, bp.armor.hull_bow_shelf))),
     ];
 
     let t = &bp.turret;
@@ -156,8 +159,11 @@ fn horseshoe_turret(t: &TurretShape) -> MeshBuilder {
 /// the belly), every front and rear plate here is authored ON the plane equation the armor
 /// volumes bake — the fold ridge at the sponson step, the driver's plate leaning its 9° above
 /// it, the derived lower nose raking back below it, and the 8° rear pair. What you see leaning
-/// is what the penetration model resolves.
-fn tiger_slab_hull(hull: &HullShape) -> MeshBuilder {
+/// is what the penetration model resolves. An authored bow shelf (`hull_bow_shelf`) sets the
+/// driver's plate back from the nose line behind the near-horizontal glacis: the box behind
+/// the plate and the shelf's wedge ahead of it are two convex extrusions on the volumes'
+/// planes (the bow is concave at the shelf's top edge, and `extrude` sweeps convex sections).
+fn tiger_slab_hull(hull: &HullShape, shelf: Option<(f32, f32)>) -> MeshBuilder {
     let glacis = hull.glacis_slope_deg.to_radians().tan();
     // The lower-plate slope derives from the glacis exactly like the armor model's zone table.
     let lower = (hull.glacis_slope_deg * 0.45).to_radians().tan();
@@ -170,13 +176,26 @@ fn tiger_slab_hull(hull: &HullShape) -> MeshBuilder {
         Vec2::new(hull.half_len, step),
         Vec2::new(-hull.half_len, step),
     ];
+    // Where the driver's plate stands at height `y`: leaning back from its fold — the nose
+    // line, or the shelf's top edge.
+    let plate_z = |y: f32| match shelf {
+        Some((top, setback)) => hull.half_len - setback - (y - top) * glacis,
+        None => hull.half_len - (y - step) * glacis,
+    };
     let upper_section = vec![
         Vec2::new(-hull.half_len, step),
-        Vec2::new(hull.half_len, step),
-        Vec2::new(hull.half_len - (hull.deck_y - step) * glacis, hull.deck_y),
+        Vec2::new(plate_z(step), step),
+        Vec2::new(plate_z(hull.deck_y), hull.deck_y),
         Vec2::new(-hull.half_len + (hull.deck_y - step) * rear, hull.deck_y),
     ];
-    MeshBuilder::new()
+    let upper = |section: Vec<Vec2>| ExtrudeSpec {
+        section,
+        axis: Axis::X,
+        half_depth: hull.half_width,
+        material: MaterialRole::RolledArmor,
+        smoothing: SG_HARD,
+    };
+    let mut builder = MeshBuilder::new()
         .extrude(
             Vec3::ZERO,
             ExtrudeSpec {
@@ -187,28 +206,32 @@ fn tiger_slab_hull(hull: &HullShape) -> MeshBuilder {
                 smoothing: SG_HARD,
             },
         )
-        .extrude(
-            Vec3::ZERO,
-            ExtrudeSpec {
-                section: upper_section,
-                axis: Axis::X,
-                half_depth: hull.half_width,
-                material: MaterialRole::RolledArmor,
-                smoothing: SG_HARD,
-            },
-        )
+        .extrude(Vec3::ZERO, upper(upper_section));
+    if let Some((top, setback)) = shelf {
+        // The shelf's wedge: the nose line, the plate's foot at the sponson, the shelf's top.
+        let wedge = vec![
+            Vec2::new(hull.half_len, step),
+            Vec2::new(plate_z(step), step),
+            Vec2::new(hull.half_len - setback, top),
+        ];
+        builder = builder.extrude(Vec3::ZERO, upper(wedge));
+    }
+    builder
 }
 
 /// Visual-only hull character inside the hitbox: the twin exhaust stacks standing proud on the
 /// rear plate (the Tiger's tail-end signature) and the driver's visor + bow MG ball on the
 /// near-vertical driver's plate.
-fn plate_z_for(hull: &HullShape, y: f32) -> f32 {
-    let run =
-        (y - hull.belly_y - hull.nose_rise).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
-    hull.half_len - run
+fn plate_z_for(hull: &HullShape, shelf: Option<(f32, f32)>, y: f32) -> f32 {
+    let glacis = hull.glacis_slope_deg.to_radians().tan();
+    match shelf {
+        // On the driver's plate above the shelf's top edge: leaning back from the set-back fold.
+        Some((top, setback)) if y >= top => hull.half_len - setback - (y - top) * glacis,
+        _ => hull.half_len - (y - hull.belly_y - hull.nose_rise).max(0.0) * glacis,
+    }
 }
 
-fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
+fn tiger_hull_details(hull: &HullShape, shelf: Option<(f32, f32)>) -> GeometryMesh {
     let mut builder = MeshBuilder::new();
     // Exhaust stacks: vertical cylinders flanking the engine plate.
     for x in [-0.62_f32, 0.62] {
@@ -254,7 +277,7 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
     for i in 0..4 {
         let x = -0.72 + i as f32 * 0.48;
         builder = builder.plate_box(
-            Vec3::new(x, 0.88, plate_z_for(hull, 0.88) - 0.065),
+            Vec3::new(x, 0.88, plate_z_for(hull, shelf, 0.88) - 0.065),
             Vec3::new(0.20, 0.115, 0.045),
             0.04,
             MaterialRole::TrackMetal,
@@ -262,12 +285,9 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
         );
     }
     // Driver's visor (left) and bow MG ball (right) riding the driver's plate. The plate stands
-    // at glacis_slope_deg from vertical, so their seats sit just ahead of it.
-    let plate_z = |y: f32| {
-        let run =
-            (y - hull.belly_y - hull.nose_rise).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
-        hull.half_len - run
-    };
+    // at glacis_slope_deg from vertical, so their seats sit just ahead of it — and where the
+    // plate is set back behind the bow shelf, they go back with it.
+    let plate_z = |y: f32| plate_z_for(hull, shelf, y);
     builder = builder.plate_box(
         Vec3::new(0.55, 1.62, plate_z(1.62) + 0.02),
         Vec3::new(0.20, 0.07, 0.05),

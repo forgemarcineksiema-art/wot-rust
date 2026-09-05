@@ -88,6 +88,9 @@ BlueprintFile(
         turret_side: (0.0, 1.0),
         turret_rear: (0.0, 1.0),
         turret_side_taper: None,
+        // The near-horizontal glacis under the driver's plate: from the nose line back
+        // 0.80 m and up to 1.35 (STT 1944 side view), where the 9° plate begins.
+        hull_bow_shelf: Some((1.35, 0.80)),
         // The driver's visor (left) and the bow MG ball (right), at the seats the recipe
         // draws on the near-vertical driver's plate. The plate is only 9 degrees from
         // vertical, so here the ports' honesty is mostly the CUT itself: a flat 100 mm

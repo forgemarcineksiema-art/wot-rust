@@ -29,11 +29,17 @@ fn engine_bay_front(bp: &VehicleBlueprint) -> f32 {
     (-1.15_f32).min(bp.turret.ring_z - bp.turret.plan_half_length - 0.15)
 }
 
-/// Z of the deck's forward edge (where the glacis plane cuts the roof).
+/// Z of the deck's forward edge (where the glacis plane cuts the roof). The upper front plate
+/// folds at the sponson step on the nose line — or, with an authored bow shelf, at the shelf's
+/// top edge set back from it (K3-2d), and the deck edge goes back with the plate.
 fn deck_front_edge(bp: &VehicleBlueprint) -> f32 {
     let hull = &bp.hull;
-    let run = (hull.deck_y - hull.sponson_y).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
-    hull.half_len - run
+    let (fold_y, fold_z) = match bp.armor.hull_bow_shelf {
+        Some((top, setback)) => (top, hull.half_len - setback),
+        None => (hull.sponson_y, hull.half_len),
+    };
+    let run = (hull.deck_y - fold_y).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
+    fold_z - run
 }
 
 /// Whether a fitting of z-half-extent `half` centred at `z` would intrude on the turret's
