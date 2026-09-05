@@ -213,7 +213,30 @@ pub fn ron_field(name: &str) -> Option<&'static str> {
 /// What the fit scores: the candidate's shipped bake against every traced view, or `None`
 /// when the candidate breaks the lint or a locked anchor (the fences the drawing may not
 /// push through).
-fn score(kind: VehicleKind, pack: &ReferencePack, bp: &VehicleBlueprint) -> Option<Vec<f32>> {
+/// The Target anchors' distances from their documented values at the start: a documented
+/// number the model has not reached yet is debt, and the fit may not deepen it — the second
+/// Tiger run (2026-09-05) lowered the trunnion 4 cm away from the dossier's fire line because
+/// only Locked anchors fenced it.
+fn target_debts(pack: &ReferencePack, bp: &VehicleBlueprint) -> Option<Vec<(usize, f32)>> {
+    let description = vehicle_recipes::describe_with_blueprint(bp)?;
+    let report = pack.measure_dimensions_live(&description.build(), bp)?;
+    Some(
+        report
+            .measurements()
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.target().status() == AnchorStatus::Target)
+            .map(|(i, m)| (i, m.delta_m().abs()))
+            .collect(),
+    )
+}
+
+fn score(
+    kind: VehicleKind,
+    pack: &ReferencePack,
+    bp: &VehicleBlueprint,
+    debts: &[(usize, f32)],
+) -> Option<Vec<f32>> {
     if lint::validate_blueprint(bp).iter().any(|issue| issue.severity == lint::Severity::Error) {
         return None;
     }
@@ -226,6 +249,15 @@ fn score(kind: VehicleKind, pack: &ReferencePack, bp: &VehicleBlueprint) -> Opti
         .any(|m| m.target().status() == AnchorStatus::Locked && !m.passed())
     {
         return None;
+    }
+    // A Target anchor may not drift further from its documented value than it started (a
+    // millimetre of numerical slack).
+    for (index, debt) in debts {
+        if let Some(m) = report.measurements().get(*index)
+            && m.delta_m().abs() > debt + 0.001
+        {
+            return None;
+        }
     }
     let kin = RunningGearKinematics::from_track(&bp.track);
     let tris = composed_triangles(&baked, Some(&kin));
@@ -244,7 +276,8 @@ pub fn fit_blueprint(kind: VehicleKind, rounds: usize) -> Option<FitReport> {
     let fields = default_fields(&start);
     let mut evaluations = 0usize;
     let mut best = start;
-    let before = score(kind, &pack, &best)?;
+    let debts = target_debts(&pack, &start)?;
+    let before = score(kind, &pack, &best, &debts)?;
     evaluations += 1;
     let mut best_mean = mean(before.iter().copied());
     let mut steps: Vec<f32> = fields.iter().map(|f| (f.hi - f.lo) * 0.25).collect();
@@ -260,7 +293,7 @@ pub fn fit_blueprint(kind: VehicleKind, rounds: usize) -> Option<FitReport> {
                 let mut candidate = best;
                 set_field(&mut candidate, field.name, candidate_value);
                 evaluations += 1;
-                let Some(scores) = score(kind, &pack, &candidate) else { continue };
+                let Some(scores) = score(kind, &pack, &candidate, &debts) else { continue };
                 let m = mean(scores.iter().copied());
                 if m > best_mean + 1.0e-4 {
                     best = candidate;
@@ -279,7 +312,7 @@ pub fn fit_blueprint(kind: VehicleKind, rounds: usize) -> Option<FitReport> {
             }
         }
     }
-    let after = score(kind, &pack, &best)?;
+    let after = score(kind, &pack, &best, &debts)?;
     let views = pack
         .outlines()
         .iter()

@@ -217,6 +217,24 @@ pub(crate) fn measure_dimensions(
             DimensionKind::FenderShelfHeight => {
                 (fender_shelf_height(vehicle, blueprint.as_ref()), MeasurementBasis::Mesh)
             }
+            // The deck edge is where the sheets put their "hull height" line; the blueprint's
+            // `deck_y` IS that edge (the fleet gate proves the side wall stands on its plane).
+            DimensionKind::HullSideTopHeight => {
+                (blueprint.as_ref().map(|bp| bp.hull.deck_y), MeasurementBasis::Blueprint)
+            }
+            // The axle span the drawings dimension as ground contact, off the placed gear.
+            DimensionKind::GroundContactLength => (
+                kin.as_ref().and_then(|kin| {
+                    let (lo, hi) = kin
+                        .wheel_zs
+                        .iter()
+                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), z| {
+                            (lo.min(*z), hi.max(*z))
+                        });
+                    (hi > lo).then_some(hi - lo)
+                }),
+                MeasurementBasis::Instances,
+            ),
         };
         measurements.push(
             MeasuredDimension::new(target.clone(), measured_m.unwrap_or(f32::NAN))
