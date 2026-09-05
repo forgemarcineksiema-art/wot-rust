@@ -31,6 +31,17 @@ pub enum LodStrategy {
     WholeMesh,
 }
 
+/// What happens to a submesh after its parts merge and before the surface bake.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PostMerge {
+    /// The parts are final meshes: merge and shade (the part library's way).
+    None,
+    /// Weld coincident vertices and smooth normals across the merged parts — what a recipe's
+    /// `assemble` always did to its concatenated builders, kept so a recipe split into pieces
+    /// bakes byte-exact (Forge 2.0 K3).
+    WeldAndSmooth,
+}
+
 /// A vehicle as a parametric part list plus its mount frames.
 pub struct VehicleDescription {
     pub kind: VehicleKind,
@@ -40,6 +51,7 @@ pub struct VehicleDescription {
     pub surface_bake: SurfaceBake,
     pub fidelity: Fidelity,
     pub lod: LodStrategy,
+    pub post_merge: PostMerge,
 }
 
 /// The description the part library builds for `kind`, if its blueprint carries a complete
@@ -91,9 +103,9 @@ impl VehicleDescription {
     /// drop the detail fittings and track links, leaving the silhouette and the mount-bearing parts.
     /// Triangle decimation within a tier is left to `vehicle_geometry::reduce_vehicle`.
     pub fn build_lod(&self, lod: LodLevel) -> BakedVehicle {
-        let bands = self.surface_bake.bands();
         let mut submeshes = Vec::new();
         for kind in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
+            let bands = self.surface_bake.bands_for(kind);
             let meshes: Vec<_> = self
                 .parts
                 .iter()
@@ -101,8 +113,12 @@ impl VehicleDescription {
                 .map(VehiclePart::mesh)
                 .collect();
             if !meshes.is_empty() {
-                let mesh = revolve::merge(&meshes).with_contact_cavity(&bands);
-                submeshes.push(Submesh { kind, mesh });
+                let merged = revolve::merge(&meshes);
+                let merged = match self.post_merge {
+                    PostMerge::None => merged,
+                    PostMerge::WeldAndSmooth => merged.weld_and_smooth(),
+                };
+                submeshes.push(Submesh { kind, mesh: merged.with_contact_cavity(&bands) });
             }
         }
         BakedVehicle::new(self.kind, submeshes, self.mounts)
@@ -131,9 +147,9 @@ impl VehicleDescription {
             .collect();
         let cell = body_cell(retained.iter().map(|(_, _, m)| m), fraction);
 
-        let bands = self.surface_bake.bands();
         let mut submeshes = Vec::new();
         for kind in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
+            let bands = self.surface_bake.bands_for(kind);
             let reduced: Vec<_> = retained
                 .iter()
                 .filter(|(group, _, _)| *group == kind)

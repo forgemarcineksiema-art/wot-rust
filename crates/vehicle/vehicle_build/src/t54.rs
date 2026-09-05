@@ -10,7 +10,7 @@ use game_core::{VehicleBlueprint, VehicleKind, VehicleModules};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
-use crate::description::{Fidelity, LodStrategy, VehicleDescription};
+use crate::description::{Fidelity, LodStrategy, PostMerge, VehicleDescription};
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
@@ -349,5 +349,6 @@ pub fn t54_from_modules_with_blueprint(
         surface_bake,
         fidelity: Fidelity::Benchmark,
         lod: LodStrategy::PartAware,
+        post_merge: PostMerge::None,
     }
 }

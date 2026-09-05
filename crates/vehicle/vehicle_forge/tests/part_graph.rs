@@ -574,7 +574,7 @@ fn the_manifest_report_names_every_kernel_and_a_sketch_names_its_recipe() {
     );
     // A sketch's manifest is its three wrapped recipe submeshes — honest, and tagged as such.
     let tiger = production_part_manifest(VehicleKind::TigerI).expect("a sketch describes itself");
-    assert_eq!(tiger.len(), 3);
+    assert_eq!(tiger.len(), 5, "the Tiger's recipe is split into its five pieces (K3)");
     assert!(tiger.iter().all(|e| e.generator == GeneratorKind::Recipe));
 }
 

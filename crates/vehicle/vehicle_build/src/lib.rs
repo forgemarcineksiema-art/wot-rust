@@ -32,7 +32,7 @@ mod t54_turret_loft;
 
 pub use attachment::{SurfaceAttachment, t54_attachments};
 pub use description::{
-    Fidelity, LodStrategy, VehicleDescription, description_for, description_for_modules,
+    Fidelity, LodStrategy, PostMerge, VehicleDescription, description_for, description_for_modules,
     description_from_blueprint,
 };
 pub use inventory::{

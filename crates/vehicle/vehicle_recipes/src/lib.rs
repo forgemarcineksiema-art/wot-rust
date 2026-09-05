@@ -22,11 +22,12 @@ use std::cell::Cell;
 use game_core::{HitboxProfile, MountFrames, VehicleBlueprint, VehicleKind};
 
 use vehicle_build::{
-    Fidelity, GeneratorKind, LodStrategy, PartKey, PartLod, PartShape, SurfaceBake,
-    VehicleDescription, VehiclePart,
+    Fidelity, GeneratorKind, LodStrategy, NamedCavity, PartKey, PartLod, PartShape, PostMerge,
+    SurfaceBake, VehicleDescription, VehiclePart,
 };
 use vehicle_geometry::{
-    BakeError, BakedVehicle, GeometryMesh, MaterialRole, SmoothingGroup, Submesh, SubmeshKind,
+    BakeError, BakedVehicle, CavityBand, GeometryMesh, MaterialRole, SmoothingGroup, Submesh,
+    SubmeshKind,
 };
 
 thread_local! {
@@ -113,9 +114,78 @@ pub fn bake_vehicle(kind: VehicleKind) -> Result<BakedVehicle, BakeError> {
 /// submesh, as a `Sketch` description that reduces whole-mesh. Byte-exact against
 /// [`bake_vehicle`] for every sketch (`vehicle_forge/tests/seam_lock.rs`).
 pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
-    match vehicle_build::description_for(kind) {
-        Some(description) => Some(description),
+    if let Some(description) = vehicle_build::description_for(kind) {
+        return Some(description);
+    }
+    let hitbox = HitboxProfile::for_vehicle(kind);
+    let mounts = MountFrames::for_vehicle(kind);
+    match recipe_pieces(kind, &hitbox, &mounts) {
+        Some(pieces) => Some(pieces_description(kind, pieces)),
         None => bake_vehicle(kind).ok().map(recipe_description),
+    }
+}
+
+/// A recipe split into the builders it is made of, each a `Recipe` part with a name — the
+/// shape a sketch takes on its way to the part library (Forge 2.0 K3): the library replaces a
+/// piece at a time, and every piece still standing is the recipe's own geometry. Only the
+/// vehicles whose recipes have been split return `Some`; the rest wrap whole submeshes.
+pub(crate) struct RecipePieces {
+    pub hull: Vec<(&'static str, GeometryMesh)>,
+    pub turret: Vec<(&'static str, GeometryMesh)>,
+    pub gun: Vec<(&'static str, GeometryMesh)>,
+    pub mounts: MountFrames,
+}
+
+fn recipe_pieces(
+    kind: VehicleKind,
+    hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+) -> Option<RecipePieces> {
+    match kind {
+        VehicleKind::TigerI => Some(tiger_i::tiger_i_pieces(hitbox, mounts)),
+        _ => None,
+    }
+}
+
+/// The pieces as a description: the recipe's cavity bands become the surface bake and the
+/// submesh welds after the merge, exactly as [`assemble`] does — `seam_lock` proves the bytes.
+fn pieces_description(kind: VehicleKind, pieces: RecipePieces) -> VehicleDescription {
+    let (hull_bands, turret_bands, gun_bands) = match active_blueprint(kind) {
+        Some(blueprint) => blueprint_cavity::blueprint_cavity_bands(&blueprint),
+        None => (Vec::new(), Vec::new(), Vec::new()),
+    };
+    let piece = |submesh: SubmeshKind, (name, mesh): (&'static str, GeometryMesh)| VehiclePart {
+        key: PartKey::new(name),
+        submesh,
+        material: MaterialRole::RolledArmor,
+        smoothing: SG_HARD,
+        shape: PartShape::Mesh(mesh),
+        lod: PartLod::Silhouette,
+        generator: GeneratorKind::Recipe,
+    };
+    let mut parts = Vec::new();
+    parts.extend(pieces.hull.into_iter().map(|p| piece(SubmeshKind::Hull, p)));
+    parts.extend(pieces.turret.into_iter().map(|p| piece(SubmeshKind::Turret, p)));
+    parts.extend(pieces.gun.into_iter().map(|p| piece(SubmeshKind::Gun, p)));
+    // `assemble` applies the three band sets per submesh; the description keeps them apart by
+    // scoping each band to its submesh (a hull band would otherwise shade turret vertices that
+    // stand in the same recess — 48 hull, 49 turret and 99 gun vertices moved when they were
+    // unioned).
+    let scoped = |signal: &'static str, scope: SubmeshKind, bands: Vec<CavityBand>| {
+        bands.into_iter().map(move |band| NamedCavity { signal, band, scope: Some(scope) })
+    };
+    let cavities = scoped("recipe_hull_band", SubmeshKind::Hull, hull_bands)
+        .chain(scoped("recipe_turret_band", SubmeshKind::Turret, turret_bands))
+        .chain(scoped("recipe_gun_band", SubmeshKind::Gun, gun_bands))
+        .collect();
+    VehicleDescription {
+        kind,
+        parts,
+        mounts: pieces.mounts,
+        surface_bake: SurfaceBake { cavities },
+        fidelity: Fidelity::Sketch,
+        lod: LodStrategy::WholeMesh,
+        post_merge: PostMerge::WeldAndSmooth,
     }
 }
 
@@ -168,6 +238,7 @@ fn recipe_description(baked: BakedVehicle) -> VehicleDescription {
         surface_bake: SurfaceBake::default(),
         fidelity: Fidelity::Sketch,
         lod: LodStrategy::WholeMesh,
+        post_merge: PostMerge::None,
     }
 }
 
