@@ -81,8 +81,8 @@ mod tiger_ii;
 mod turret_fittings;
 
 pub use budgets::{
-    FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GOLDEN_BAKE_HASHES, GearBudgets, VEHICLE_BUDGETS,
-    VehicleBudgets, golden_bake_hash,
+    BakeGolden, FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GearBudgets, VEHICLE_BUDGETS, VehicleBudgets,
+    bake_goldens, golden_bake_hash, shipped_bake_hash,
 };
 
 pub(crate) use armament::{GunPlan, gun_group, gun_group_with_mantlet_scale};

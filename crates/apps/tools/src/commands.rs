@@ -58,6 +58,7 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::GenerateVehicle { output, vehicle } => {
             write_json(output, &vehicle_spec(&vehicle)?)?
         }
+        Command::Bless { vehicle } => bless_command(&vehicle)?,
         Command::ForgeVehicle { vehicle, profile, out } => {
             ForgeArtifact::bake(parse_vehicle_kind(&vehicle)?, profile.parse()?)?
                 .write_to_dir(&out)?
@@ -265,6 +266,69 @@ fn forge_report(vehicle: &str, out: PathBuf) -> anyhow::Result<()> {
         .with_context(|| format!("Forge ReferencePack rejected {vehicle}"))?;
     write_text(out, &report.markdown_summary())
 }
+/// The repository root: three directories above this crate's manifest (`crates/apps/tools`).
+fn repo_root_of_tools() -> PathBuf {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest.ancestors().nth(3).expect("crates/apps/tools sits three levels deep").to_path_buf()
+}
+
+/// Every golden of one vehicle, re-recorded in one run (acceleration step 1): the bake hashes
+/// row, the studio tiles, the asset snapshot; then the K0 outline scores, so the blessing is
+/// looked at. Nothing here decides whether the change was right — the commit does.
+fn bless_command(vehicle: &str) -> anyhow::Result<()> {
+    let kind = parse_vehicle_kind(vehicle)?;
+    let root = repo_root_of_tools();
+
+    // 1. The bake hashes row.
+    let recipe = vehicle_recipes::bake_vehicle(kind)?.deterministic_hash();
+    let shipped = vehicle_forge::authoritative_baked_vehicle(kind)?.deterministic_hash();
+    let goldens = root.join("crates/vehicle/vehicle_recipes/goldens/bake_hashes.txt");
+    let text = std::fs::read_to_string(&goldens)
+        .with_context(|| format!("failed to read {}", goldens.display()))?;
+    let name = format!("{kind:?}");
+    let shipped_column = if shipped == recipe { "-".to_string() } else { shipped.to_string() };
+    let mut replaced = false;
+    let rows: Vec<String> = text
+        .lines()
+        .map(|line| {
+            if line.split_whitespace().next() == Some(name.as_str()) {
+                replaced = true;
+                format!("{name} {recipe} {shipped_column}")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+    anyhow::ensure!(replaced, "{name} has no row in {}", goldens.display());
+    std::fs::write(&goldens, rows.join("\n") + "\n")
+        .with_context(|| format!("failed to write {}", goldens.display()))?;
+    println!("bake_hashes.txt: {name} recipe {recipe} shipped {shipped_column}");
+
+    // 2. The studio tiles.
+    let bundle = vehicle_forge::bake_studio_bundle(kind)?;
+    let tiles = root.join("crates/apps/tools/tests/goldens/studio").join(kind.slug());
+    std::fs::create_dir_all(&tiles)
+        .with_context(|| format!("failed to create {}", tiles.display()))?;
+    for view in bundle.views() {
+        std::fs::write(tiles.join(view.name), &view.png)
+            .with_context(|| format!("failed to write {}", tiles.join(view.name).display()))?;
+    }
+    println!("studio tiles: {} re-recorded in {}", bundle.views().len(), tiles.display());
+
+    // 3. The asset snapshot.
+    let asset = root.join("assets/vehicles").join(format!("{}.vehicle.json", kind.slug()));
+    write_json(asset.clone(), &vehicle_spec(vehicle)?)?;
+    println!("asset: {}", asset.display());
+
+    // 4. The K0 scores, to be looked at (the overlays land in target/forge/outlines).
+    if vehicle_forge::ReferencePack::for_vehicle(kind)
+        .is_some_and(|pack| !pack.outlines().is_empty())
+    {
+        outline_overlay(vehicle, None)?;
+    }
+    Ok(())
+}
+
 fn outline_overlay(vehicle: &str, out: Option<PathBuf>) -> anyhow::Result<()> {
     let kind = parse_vehicle_kind(vehicle)?;
     let pack = ReferencePack::for_vehicle(kind)

@@ -41,6 +41,15 @@ pub enum Command {
         #[arg(long)]
         vehicle: String,
     },
+    /// Re-record EVERY golden of one vehicle in one run — the recipe and shipped bake hashes
+    /// (`vehicle_recipes/goldens/bake_hashes.txt`), the studio tiles (`tools/tests/goldens/studio/
+    /// <slug>/`) and the asset snapshot (`assets/vehicles/<slug>.vehicle.json`) — and print the
+    /// K0 outline scores. A deliberate act after an intentional geometry change; the commit says
+    /// the numbers. (Acceleration step 1, 2026-09-05.)
+    Bless {
+        #[arg(long)]
+        vehicle: String,
+    },
     ForgeVehicle {
         #[arg(long)]
         vehicle: String,

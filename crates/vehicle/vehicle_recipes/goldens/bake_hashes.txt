@@ -1,0 +1,13 @@
+# The bake goldens, one row per vehicle: `<VehicleKind> <recipe LOD0 hash> <shipped LOD0 hash or ->`.
+# recipe = the vehicle's recipe bake (`vehicle_recipes::bake_vehicle`); shipped = the authoritative
+# description's bake when it is NOT the recipe (the benchmark's part library, a mixed sketch), `-`
+# when the two are one bake. Re-record ONE vehicle with `cargo run -p tools -- bless --vehicle <slug>`
+# and say the numbers in the commit; the history of every row is this file's git log.
+T54_1951 2698233402623154907 9296666834409964133
+TigerI 17960913391693182637 9925275331872464137
+TigerII 16874227684286219701 -
+Jagdtiger 10470539102741131951 -
+PantherII 4961078625024602127 -
+IS3 17995367529957441607 -
+Centurion 1660917501456944285 -
+T34_85 5983751080387906242 -
