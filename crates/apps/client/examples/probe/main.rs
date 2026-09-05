@@ -27,6 +27,7 @@ mod fov_probe;
 mod garage_hangar_review;
 mod garage_techview;
 mod grass_costumes;
+mod hud_states;
 mod is3_studio;
 mod jagdtiger_profile_probe;
 mod muzzle_probe;
@@ -87,6 +88,7 @@ const PROBES: &[ProbeEntry] = &[
         Ok(())
     }),
     ("battle_hud", battle_hud::run),
+    ("hud_states", hud_states::run),
     ("border_probe", border_probe::run),
     ("bystra_views", bystra_views::run),
     ("bystra_weather_timeline", bystra_weather_timeline::run),
