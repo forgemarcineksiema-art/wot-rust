@@ -6,6 +6,7 @@ use crate::hud::reticle::ReticleStatus;
 
 pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
+pub(crate) mod damage_panel;
 pub(crate) mod demo;
 pub(crate) mod demo_strip;
 pub(crate) mod elements;
@@ -16,11 +17,9 @@ pub(crate) mod hit_direction;
 pub(crate) use ui_kit::icons;
 pub(crate) mod kill_marker;
 pub(crate) mod minimap;
-pub(crate) mod module_panel;
 pub(crate) mod number;
 pub(crate) mod outcome;
 pub(crate) mod pause_menu;
-pub(crate) mod rack_callout;
 pub use ui_kit::primitives;
 pub(crate) mod readouts;
 pub(crate) mod reticle;
@@ -35,8 +34,7 @@ pub(crate) mod states;
 pub(crate) mod team_list;
 pub(crate) mod top_bar;
 pub use ui_kit::theme;
-pub(crate) mod crew_panel;
-pub(crate) mod track_callout;
+pub(crate) mod track_feedback;
 
 pub(crate) use elements::HudElement;
 pub(crate) use health::health_color;
@@ -73,20 +71,14 @@ pub struct BattleHudModel {
     pub zoom_factor: Option<f32>,
     /// Recent dealt/taken damage rows, newest first (`hud/damage_log.rs`).
     pub damage_log: Vec<damage_log::DamageLogEntry>,
-    /// Track-damage callout + re-seat bars for the player's own hull (`hud/track_callout.rs`).
-    pub track_feedback: track_callout::TrackFeedbackModel,
-    /// Seconds left on the player's OWN lit ammunition rack (`hud/rack_callout.rs`); `None`
-    /// when the rack is quiet. Protocol v43 — the ten seconds the crew can win, made visible.
-    pub rack_fire_remaining_s: Option<f32>,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
-    /// The player's own module-condition row under the health bar (`hud/module_panel.rs`); `None`
-    /// before the first snapshot, then always present so a knocked-out gun is never a mystery.
-    pub modules: Option<module_panel::ModulePanelModel>,
-    /// The crew row under the module panel (`hud/crew_panel.rs`, v46): who is down, the first-aid
-    /// countdown, who came back scarred. `None` before the first snapshot.
-    pub crew: Option<crew_panel::CrewPanelModel>,
+    /// The player's own hull as an instrument (`hud/damage_panel.rs`, H4/H17): the silhouette
+    /// with its modules, the tracks, the hit points, the crew, the fires and every repair clock.
+    /// `None` before the first snapshot, then always present so a knocked-out gun is never a
+    /// mystery.
+    pub damage: Option<damage_panel::DamagePanelModel>,
     pub minimap: Option<minimap::MinimapModel>,
     pub battle_outcome: Option<BattleHudOutcome>,
     /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
@@ -111,8 +103,9 @@ pub struct BattleHudModel {
     pub pause_menu: Option<pause_menu::PauseMenuModel>,
 }
 
-/// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
-/// bar) in clip space. `aspect` keeps the crosshair square on non-square viewports.
+/// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
+/// points live in the damage panel, which needs a snapshot). `aspect` keeps the crosshair
+/// square on non-square viewports.
 pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
     build_battle_hud(
         &BattleHudModel {
@@ -123,12 +116,9 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             speed_kmh: 0.0,
             zoom_factor: None,
             damage_log: Vec::new(),
-            track_feedback: Default::default(),
-            rack_fire_remaining_s: None,
             incoming_hits: Vec::new(),
             ammo: None,
-            modules: None,
-            crew: None,
+            damage: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
@@ -161,12 +151,9 @@ pub(crate) fn test_model(
         speed_kmh,
         zoom_factor,
         damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
         incoming_hits: Vec::new(),
         ammo: None,
-        modules: None,
-        crew: None,
+        damage: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -317,16 +304,6 @@ pub(crate) fn build_battle_hud_list(
     }
     {
         let mut v = Vec::new();
-        track_callout::push_track_callout(&mut v, &model.track_feedback, aspect);
-        legacy(&mut list, &mut order, HudElement::TrackCallout, v);
-    }
-    {
-        let mut v = Vec::new();
-        rack_callout::push_rack_callout(&mut v, model.rack_fire_remaining_s, aspect);
-        legacy(&mut list, &mut order, HudElement::RackCallout, v);
-    }
-    {
-        let mut v = Vec::new();
         hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
         legacy(&mut list, &mut order, HudElement::HitDirection, v);
     }
@@ -335,15 +312,9 @@ pub(crate) fn build_battle_hud_list(
         ammo_panel::push_ammo_panel(&mut v, ammo, aspect);
         legacy(&mut list, &mut order, HudElement::AmmoPanel, v);
     }
-    if let Some(modules) = &model.modules {
-        let mut v = Vec::new();
-        module_panel::push_module_panel(&mut v, modules, aspect);
-        legacy(&mut list, &mut order, HudElement::ModulePanel, v);
-    }
-    if let Some(crew) = &model.crew {
-        let mut v = Vec::new();
-        crew_panel::push_crew_panel(&mut v, crew, aspect);
-        legacy(&mut list, &mut order, HudElement::CrewPanel, v);
+    // H4/H17: the damage panel — the four callout instruments folded into one plate.
+    if let Some(damage) = &model.damage {
+        damage_panel::push_damage_panel(&mut list, ui, &theme, damage, &mut order);
     }
     if let Some(map) = &model.minimap {
         // H0: an enamel plate, the relief baked into the sheet as ONE quad, the vector overlays

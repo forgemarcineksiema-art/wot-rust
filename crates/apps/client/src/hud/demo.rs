@@ -96,15 +96,6 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
                 age_s: 1.5,
             },
         ],
-        rack_fire_remaining_s: None,
-        track_feedback: crate::hud::track_callout::TrackFeedbackModel {
-            callout: Some(crate::hud::track_callout::CalloutView {
-                broke: true,
-                side: game_core::TrackSide::Left,
-                age_s: 0.4,
-            }),
-            reseat: [Some(0.35), None],
-        },
         incoming_hits: vec![IncomingHit {
             bearing_rad: 2.1,
             age_s: 0.3,
@@ -121,24 +112,9 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
             [22, 9, 6],
             0,
         )),
-        // A wounded gun (amber) and a thrown track (red running gear) so the staged frame shows
-        // the module panel doing its job. Order: [Engine, Suspension, Turret, Gun, AmmoRack, Radio].
-        modules: Some(crate::hud::module_panel::ModulePanelModel::new(
-            [400, 300, 300, 60, 225, 60],
-            [400, 300, 300, 150, 225, 60],
-            game_core::ModuleCondition::Destroyed,
-        )),
-        // A downed loader mid-bandage and a scarred driver, so the staged frame shows the crew
-        // row's three states at once.
-        crew: Some(crate::hud::crew_panel::CrewPanelModel::new(
-            game_core::CrewRole::Loader.mask_bit(),
-            game_core::CrewRole::Driver.mask_bit(),
-            {
-                let mut down = [None; game_core::CREW_ROLE_COUNT];
-                down[game_core::CrewRole::Loader.wire_index()] = Some(9.0);
-                down
-            },
-        )),
+        // The staged hull: a wounded gun, a thrown left track mid re-seat, a downed loader
+        // mid-bandage and a scarred driver — the panel's states at once.
+        damage: Some(demo_damage_panel()),
         minimap: Some(demo_minimap()),
         battle_outcome: None,
         battle_clock_remaining_s: Some(474.0),
@@ -217,6 +193,127 @@ pub(crate) fn mixed_team_lists() -> super::team_list::TeamListsModel {
             row(V::T34_85, 'G', false, None, true, false, false),
         ],
     }
+}
+
+/// The staged hull's snapshot, with the drama switched on by the caller.
+fn demo_hull() -> net::TankSnapshot {
+    let vehicle = game_core::VehicleKind::BENCHMARK;
+    let spec = vehicle.spec_ref();
+    net::TankSnapshot {
+        tank_id: game_core::TankId(1),
+        team: game_core::TeamId(1),
+        vehicle,
+        position: [0.0; 3],
+        yaw_rad: 0.0,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: 780,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: spec.gun.dispersion_mrad,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+        track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
+        spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
+        fuel_fire: false,
+        rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
+    }
+}
+
+fn thrown_left() -> game_core::TrackDamageMask {
+    let mut mask = game_core::TrackDamageMask::healthy();
+    mask.damage(game_core::TrackSide::Left);
+    mask
+}
+
+fn left_thrown_callout() -> super::track_feedback::CalloutView {
+    super::track_feedback::CalloutView { broke: true, side: game_core::TrackSide::Left, age_s: 0.4 }
+}
+
+/// The staged damage panel: a wounded gun, a thrown left track mid re-seat, a downed loader
+/// mid-bandage and a scarred driver.
+pub(crate) fn demo_damage_panel() -> super::damage_panel::DamagePanelModel {
+    let mut tank = demo_hull();
+    tank.module_hit_points[game_core::ModuleSlot::Gun.wire_index()] = 60;
+    tank.track_damage_mask = thrown_left().bits();
+    tank.track_hp[0] = 0;
+    tank.crew_unconscious_mask = game_core::CrewRole::Loader.mask_bit();
+    tank.crew_weakened_mask = game_core::CrewRole::Driver.mask_bit();
+    tank.crew_down_remaining_s[game_core::CrewRole::Loader.wire_index()] = Some(9.0);
+    let clocks = net::RepairClocks {
+        tank_id: tank.tank_id,
+        module_s: [0.0; game_core::MODULE_SLOT_COUNT],
+        track_s: [3.5, 0.0],
+    };
+    super::damage_panel::DamagePanelModel::from_snapshot(
+        &tank,
+        game_core::VehicleKind::BENCHMARK.spec_ref(),
+        Some(&clocks),
+        0.0,
+        Some(left_thrown_callout()),
+    )
+}
+
+/// The quiet hull: every module whole, every station up, nothing burning.
+pub(crate) fn quiet_damage_panel() -> super::damage_panel::DamagePanelModel {
+    super::damage_panel::DamagePanelModel::from_snapshot(
+        &demo_hull(),
+        game_core::VehicleKind::BENCHMARK.spec_ref(),
+        None,
+        0.0,
+        None,
+    )
+}
+
+/// The wounded hull (`HudState::ModuleDestroyed`): the engine knocked out three seconds into
+/// its patch, the left track thrown mid re-seat, its callout still pulsing.
+pub(crate) fn wounded_damage_panel() -> super::damage_panel::DamagePanelModel {
+    let mut tank = demo_hull();
+    tank.module_hit_points[game_core::ModuleSlot::Engine.wire_index()] = 0;
+    tank.track_damage_mask = thrown_left().bits();
+    tank.track_hp[0] = 0;
+    let mut clocks = net::RepairClocks {
+        tank_id: tank.tank_id,
+        module_s: [0.0; game_core::MODULE_SLOT_COUNT],
+        track_s: [3.5, 0.0],
+    };
+    clocks.module_s[game_core::ModuleSlot::Engine.wire_index()] = 3.0;
+    super::damage_panel::DamagePanelModel::from_snapshot(
+        &tank,
+        game_core::VehicleKind::BENCHMARK.spec_ref(),
+        Some(&clocks),
+        0.0,
+        Some(left_thrown_callout()),
+    )
+}
+
+/// The burning hull (`HudState::OnFire`): the engine alight, the rack seven seconds from
+/// cooking off, the radio dead.
+pub(crate) fn burning_damage_panel() -> super::damage_panel::DamagePanelModel {
+    let mut tank = demo_hull();
+    tank.engine_fire = true;
+    tank.rack_fire_remaining_s = Some(7.0);
+    tank.module_hit_points[game_core::ModuleSlot::Radio.wire_index()] = 0;
+    super::damage_panel::DamagePanelModel::from_snapshot(
+        &tank,
+        game_core::VehicleKind::BENCHMARK.spec_ref(),
+        None,
+        0.0,
+        None,
+    )
 }
 
 /// A synthetic minimap for the staged frame: a diagonal ridge, one cover block, the player with

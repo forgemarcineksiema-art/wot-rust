@@ -3,8 +3,7 @@
 
 use renderer_api::HudVertex;
 
-use super::primitives::push_bar;
-use super::{BattleHudModel, health_color};
+use super::BattleHudModel;
 
 /// The alert orange of the final-minute readouts (the p95 frame time) — the same as a running reload.
 pub(crate) const CLOCK_CLOSING_COLOR: [f32; 4] = [0.86, 0.55, 0.20, 0.95];
@@ -17,18 +16,8 @@ pub(crate) fn push_battle_readouts(
     model: &BattleHudModel,
     aspect: f32,
 ) {
-    let vitals = model.vitals;
-    let hp_frac = (vitals.hit_points as f32 / vitals.max_hit_points.max(1) as f32).clamp(0.0, 1.0);
-    push_bar(vertices, [-0.95, 0.9], [0.17, 0.018], hp_frac, health_color(hp_frac));
-    crate::hud::number::push_number(
-        vertices,
-        vitals.hit_points.min(9_999),
-        -0.61,
-        0.95,
-        0.055,
-        aspect,
-        crate::hud::number::HP_COLOR,
-    );
+    // The hit points live in the damage panel (H4, `damage_panel.rs`) — the bar and the number
+    // that floated top-left are its first row.
 
     // The reload lives at the reticle alone (arc + seconds): the old bottom-center bar drew a
     // SECOND loading indicator that split the eye between two progress displays for one gun.

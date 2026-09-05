@@ -80,9 +80,8 @@ const EAR_W_U: f32 = 190.0;
 const ROW_H_U: f32 = 28.0;
 const ROW_GAP_U: f32 = 4.0;
 const EAR_INSET_U: f32 = 12.0;
-/// Below the legacy module and crew panels that still sit at the top-left (H4 moves them to
-/// the bottom-left, where the damage panel belongs; the ears then rise to 96 u).
-const EAR_TOP_U: f32 = 232.0;
+/// Below the top bar and the reticle's headroom.
+const EAR_TOP_U: f32 = 96.0;
 const TEXT_U: f32 = 16.0;
 
 pub(crate) fn push_team_lists(

@@ -64,14 +64,6 @@ impl ClientApp {
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         self.track_feedback.ingest(&snapshot.damage_events, self.player_tank);
-        // Drive the re-seat bars off the player's own replicated broken mask.
-        if let Some(player) = &player {
-            let mask = game_core::TrackDamageMask::from_bits(player.track_damage_mask);
-            self.track_feedback.sync_player_broken(
-                mask.is_broken(game_core::TrackSide::Left),
-                mask.is_broken(game_core::TrackSide::Right),
-            );
-        }
         self.incoming_hits.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         // Feel the hit, not just read it: every incoming strike rocks the camera rig, scaled by
         // how much of the health pool it took (a bounce still lands a small clang).

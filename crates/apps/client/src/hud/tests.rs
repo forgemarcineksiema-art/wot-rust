@@ -4,7 +4,7 @@
 use super::HudElement;
 use super::*;
 use super::{HudSizeClass, HudState};
-use crate::hud::number::{FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
+use crate::hud::number::{FPS_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
 use crate::hud::reticle::ReticleStatus;
 
 /// A wire snapshot of one T-54 for the instrument locks: the fields a HUD row reads, nothing
@@ -140,24 +140,35 @@ fn speed_readout_draws_vehicle_speed_in_bottom_left_only_when_moving() {
     );
 }
 
+/// H4: the hit points live in the damage panel, bottom-left — a bar and a number by name —
+/// and nowhere else: the readouts carry no HP quads any more.
 #[test]
-fn hp_bar_draws_current_hit_points_on_top_left_bar() {
-    let hud = build_hud(
-        HudVitals {
-            hit_points: 750,
-            max_hit_points: 1000,
-            reload_remaining_s: 0.0,
-            reload_seconds: 5.0,
-        },
-        16.0 / 9.0,
-    );
-    let hp_vertices: Vec<_> = hud.iter().filter(|vertex| vertex.color == HP_COLOR).collect();
-
-    assert!(!hp_vertices.is_empty(), "current HP should be drawn as digits");
-    assert!(
-        hp_vertices.iter().all(|v| v.position[0] < -0.45 && v.position[1] > 0.78),
-        "HP digits should sit on the top-left HP bar"
-    );
+fn the_hit_points_live_in_the_damage_panel() {
+    use crate::hud::elements::DamagePart;
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let mut model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let tank = tank_snapshot(1, 1, 750);
+    model.damage = Some(super::damage_panel::DamagePanelModel::from_snapshot(
+        &tank,
+        game_core::VehicleKind::T54_1951.spec_ref(),
+        None,
+        0.0,
+        None,
+    ));
+    let list = super::build_battle_hud_list(&model, &ui);
+    match &list.find(HudElement::DamagePanel(DamagePart::HpNumber)).expect("number").payload {
+        ui_kit::draw_list::Payload::Text { text, .. } => assert_eq!(text, "750"),
+        other => panic!("{other:?}"),
+    }
+    let bar = list.find(HudElement::DamagePanel(DamagePart::HpBar)).expect("bar");
+    assert!(bar.rect.x < 400.0 && bar.rect.y > 700.0, "bottom-left: {:?}", bar.rect);
+    let readouts = list.find(HudElement::Readouts).expect("readouts");
+    if let ui_kit::draw_list::Payload::Legacy(v) = &readouts.payload {
+        assert!(
+            !v.iter().any(|vertex| vertex.color == crate::hud::number::HP_COLOR),
+            "no HP digits float top-left"
+        );
+    }
 }
 
 #[test]
@@ -243,12 +254,9 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         speed_kmh: 33.0,
         zoom_factor: Some(4.2),
         damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
         incoming_hits: Vec::new(),
         ammo: None,
-        modules: None,
-        crew: None,
+        damage: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -280,12 +288,9 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         speed_kmh: 0.0,
         zoom_factor: None,
         damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
         incoming_hits: Vec::new(),
         ammo: None,
-        modules: None,
-        crew: None,
+        damage: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -325,12 +330,9 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         speed_kmh: 0.0,
         zoom_factor: None,
         damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
         incoming_hits: Vec::new(),
         ammo: None,
-        modules: None,
-        crew: None,
+        damage: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -403,55 +405,40 @@ fn battle_clock_is_the_top_bars_and_draws_only_when_timed() {
     );
 }
 
-/// The module panel draws only when the model carries one, and a knocked-out module paints its
-/// signal red into the frame — the fix for a silent fire-refusal.
+/// The damage panel draws only when the model carries one, and a knocked-out module paints its
+/// signal red into the frame — the fix for a silent fire-refusal, kept through the redesign.
 #[test]
-fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
-    let base = BattleHudModel {
-        vitals: vitals(),
-        reticle: None,
-        fps: 0.0,
-        frame_p95_ms: 0.0,
-        speed_kmh: 0.0,
-        zoom_factor: None,
-        damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
-        incoming_hits: Vec::new(),
-        ammo: None,
-        modules: None,
-        crew: None,
-        minimap: None,
-        battle_outcome: None,
-        battle_clock_remaining_s: None,
-        top_bar: None,
-        team_lists: None,
-        kill_confirm_age_s: None,
-        reload_ready_age_s: None,
-        fire_denied_age_s: None,
-        scope_fade: 0.0,
-        pause_menu: None,
-    };
-    let red =
-        |hud: &[HudVertex]| hud.iter().any(|v| v.color == super::module_panel::MODULE_DESTROYED);
-
-    assert!(!red(&build_battle_hud(&base, 16.0 / 9.0)), "no module red while the panel is absent");
-
-    let full = [400, 300, 300, 150, 225, 60];
-    let mut live = full;
-    live[game_core::ModuleSlot::Gun.wire_index()] = 0; // gun knocked out
-    let with_dead_gun = BattleHudModel {
-        modules: Some(super::module_panel::ModulePanelModel::new(
-            live,
-            full,
-            game_core::ModuleCondition::Healthy,
-        )),
-        ..base.clone()
-    };
+fn the_damage_panel_draws_only_when_present_and_a_dead_module_reads_red() {
+    use crate::hud::elements::DamagePart;
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let theme = ui_kit::theme::Theme::standard();
+    let base = super::test_model(vitals(), None, 0.0, 0.0, None);
     assert!(
-        red(&build_battle_hud(&with_dead_gun, 16.0 / 9.0)),
-        "a dead gun must read red in the module panel"
+        super::build_battle_hud_list(&base, &ui)
+            .find(HudElement::DamagePanel(DamagePart::Plate))
+            .is_none(),
+        "no panel while the model carries none"
     );
+    let mut tank = tank_snapshot(1, 1, 750);
+    tank.module_hit_points[game_core::ModuleSlot::Gun.wire_index()] = 0;
+    let with_dead_gun = BattleHudModel {
+        damage: Some(super::damage_panel::DamagePanelModel::from_snapshot(
+            &tank,
+            game_core::VehicleKind::T54_1951.spec_ref(),
+            None,
+            0.0,
+            None,
+        )),
+        ..base
+    };
+    let list = super::build_battle_hud_list(&with_dead_gun, &ui);
+    let gun = HudElement::DamagePanel(DamagePart::Module(game_core::ModuleSlot::Gun));
+    match &list.find(gun).expect("gun").payload {
+        ui_kit::draw_list::Payload::Icon { color, .. } => {
+            assert_eq!(*color, theme.semantic.module[2], "a dead gun must read red")
+        }
+        other => panic!("{other:?}"),
+    }
 }
 
 /// F5: the draw list is the old builder, element by element — the one emitter yields the same
