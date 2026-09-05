@@ -38,11 +38,31 @@ impl ClientApp {
         app
     }
 
-    /// Bake render assets for every playable vehicle up front (kinds a preloaded Forge artifact
-    /// already covered are cached no-ops). Left to the lazy path instead, the first SIGHTING of
-    /// an enemy kind mid-battle runs its whole procedural bake inside that render frame — a
-    /// several-hundred-millisecond stall exactly when the shooting starts. Called once from the
-    /// real startup path; tests construct `ClientApp` directly and skip the cost.
+    /// Bake the render assets of ONE not-yet-cached playable vehicle; `false` once every kind is
+    /// in hand. The garage calls this once per frame: the whole roster is baked within a few
+    /// frames of the window opening, each bake costing one garage frame instead of all of them
+    /// costing the window before it opened. A deploy before the ring is done still bakes the
+    /// battle's roster itself (`preload_battle_vehicle_assets`), so no first sighting mid-battle
+    /// ever pays for a bake (F6).
+    pub(crate) fn prebake_next_playable_vehicle(&mut self) -> bool {
+        let Some(kind) = game_core::VehicleKind::PLAYABLE
+            .iter()
+            .copied()
+            .find(|kind| !self.vehicle_asset_catalog.vehicles.contains_key(kind))
+        else {
+            return false;
+        };
+        if self.vehicle_asset_catalog.vehicle_entry(kind).is_none() {
+            warn!(?kind, "failed to prebake vehicle render assets");
+        }
+        true
+    }
+
+    /// Bake render assets for every playable vehicle at once (kinds a preloaded Forge artifact
+    /// already covered are cached no-ops) — the whole ring of
+    /// [`Self::prebake_next_playable_vehicle`] in one call, for tests that need the roster in
+    /// hand. The running client steps instead.
+    #[cfg(test)]
     pub(crate) fn prebake_playable_vehicle_assets(&mut self) {
         for kind in game_core::VehicleKind::PLAYABLE {
             if self.vehicle_asset_catalog.vehicle_entry(kind).is_none() {
@@ -63,6 +83,27 @@ fn default_vehicle_artifact_root() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The garage's per-frame bake: one vehicle per call, never two, until every playable kind
+    /// is cached — then nothing, so a long garage stay costs no repeated work.
+    #[test]
+    fn the_roster_bakes_one_vehicle_per_garage_frame_until_it_is_whole() {
+        let mut app = ClientApp::new_without_vehicle_artifacts();
+        let total = game_core::VehicleKind::PLAYABLE.len();
+        let mut steps = 0;
+        while app.prebake_next_playable_vehicle() {
+            steps += 1;
+            assert_eq!(
+                app.vehicle_asset_catalog.cached_vehicle_count(),
+                steps.min(total),
+                "each step bakes exactly one more vehicle"
+            );
+            assert!(steps <= total, "the ring ends when the roster is whole");
+        }
+        assert_eq!(steps, total);
+        assert_eq!(app.vehicle_asset_catalog.cached_vehicle_count(), total);
+        assert!(!app.prebake_next_playable_vehicle(), "a whole roster has nothing left to bake");
+    }
 
     /// The startup prebake must cover the ENTIRE playable roster: any kind it misses gets baked
     /// lazily on first sighting, stalling a mid-battle frame for the whole procedural bake.

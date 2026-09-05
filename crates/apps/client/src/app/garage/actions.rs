@@ -337,6 +337,11 @@ impl ClientApp {
         self.reload_ready_age_s = None;
         self.prev_reload_remaining_s = 0.0;
         self.accept_and_sync(snapshot);
+        // The very first deploy has no world in hand (the window opened on the garage without
+        // baking one): claim the bake that ran behind the hall, so the first battle frame
+        // uploads instead of baking. No finished bake means that frame bakes in place — the
+        // cost the old startup paid before the window even opened.
+        self.claim_prebaked_world_for_current_map();
         // F6: the fresh battle's roster bakes now, behind the garage curtain — not when the
         // first enemy crests a ridge.
         self.preload_battle_vehicle_assets();
@@ -783,13 +788,40 @@ mod tests {
         assert!(app.map_prebake.is_none(), "no stop crossed at click speed earns a bake");
     }
 
-    /// The world already loaded is never speculated on: `adopt_session_map` does not even run
+    /// At startup nothing is baked — the window opens on the garage first — so AUTO speculates
+    /// on the SESSION's map behind the hall, and the Battle press claims that world instead of
+    /// baking it in the first battle frame.
+    #[test]
+    fn startup_bakes_the_session_map_behind_the_garage_and_the_deploy_claims_it() {
+        let mut app = ClientApp::new();
+        assert!(app.battle_scene_meshes.is_none(), "premise: the window opens unbaked");
+        assert!(app.garage.selected_map().is_none(), "premise: AUTO");
+        let session_map = app.session.map_id();
+        run_garage_frames(&mut app, 12);
+        assert_eq!(
+            app.map_prebake.as_ref().map(|prebake| prebake.map),
+            Some(session_map),
+            "AUTO with no world in hand bakes the session's map"
+        );
+
+        app.confirm_garage_selection();
+        assert!(
+            app.battle_scene_meshes.is_some(),
+            "the press claims the speculative world (waiting for the worker if it must)"
+        );
+        assert!(app.scene_upload_dirty, "and the first battle frame uploads it");
+        assert!(app.map_prebake.is_none(), "the claim consumed the bake");
+    }
+
+    /// The world already in hand is never speculated on: `adopt_session_map` does not even run
     /// for an unchanged map, so a bake for it would be pure waste on the cores the garage is
     /// using to draw.
     #[test]
     fn the_map_already_loaded_is_never_speculatively_baked() {
         let mut app = ClientApp::new();
         let loaded = app.session.map_id();
+        // A real deployment leaves the world baked and cached; only then is there nothing to do.
+        app.ensure_battle_scene_meshes();
         app.open_garage();
         while app.garage.selected_map() != Some(loaded) {
             app.cycle_battle_map(1);

@@ -240,15 +240,23 @@ impl ClientApp {
     /// case one wasted bake and a press that falls back to baking in place, which is exactly the
     /// behaviour this replaces, never worse.
     ///
-    /// Only an EXPLICIT pick is speculated on. AUTO is the map already loaded on the first
-    /// deploy (nothing to bake), and resolving it otherwise means re-reading `WOT_MAP` — a file
-    /// read, on the editor's playtest path — which has no business running every frame.
+    /// AUTO (no pick) speculates on the SESSION's map, but only while that world is still
+    /// unbaked — at startup, where the window now opens on the garage instead of baking the
+    /// battlefield first (`create_renderer` no longer does), so the bake runs behind the hall
+    /// and the first Battle press finds it done. Once the world is in hand AUTO has nothing to
+    /// bake; resolving it further would mean re-reading `WOT_MAP` — a file read, on the
+    /// editor's playtest path — which has no business running every frame.
     pub(in crate::app) fn poll_map_prebake(&mut self) {
-        let Some(target) = self.garage.selected_map() else {
-            self.drop_idle_prebake();
-            return;
+        let world_in_hand = self.battle_scene_meshes.is_some();
+        let target = match self.garage.selected_map() {
+            Some(map) => map,
+            None if world_in_hand => {
+                self.drop_idle_prebake();
+                return;
+            }
+            None => self.session.map_id(),
         };
-        if target == self.session.map_id() {
+        if target == self.session.map_id() && world_in_hand {
             self.drop_idle_prebake();
             return;
         }
@@ -298,6 +306,27 @@ impl ClientApp {
             return None;
         }
         prebake.ready.or_else(|| prebake.rx?.recv().ok())
+    }
+
+    /// The Battle press on a map whose world is not baked yet (the very first deploy: the
+    /// window opened on the garage, `poll_map_prebake` has been baking the session's map behind
+    /// it): claim that bake, waiting for the worker if the press beat it. With no bake to claim
+    /// the first battle frame bakes in place (`ensure_scene`). The battlefield, cover, minimap
+    /// and camera already belong to this map — only the scene meshes were missing.
+    pub(in crate::app) fn claim_prebaked_world_for_current_map(&mut self) {
+        if self.battle_scene_meshes.is_some() {
+            return;
+        }
+        let Some(world) = self.take_prebaked_world(self.session.map_id()) else {
+            return;
+        };
+        // The speculative bake guessed the cover phases (birth rule); if the battle opened on
+        // anything else the ordinary dirty-bucket rebuild repairs the buckets that differ.
+        if world.meshes.statics_baked_phases != self.live_cover.phase_bytes() {
+            self.scene_cover_dirty = true;
+        }
+        self.battle_scene_meshes = Some(world.meshes);
+        self.scene_upload_dirty = true;
     }
 
     /// Adopt the world the session is now playing on. The map the server simulates is the
@@ -863,8 +892,9 @@ impl ClientApp {
             reload_ready_age_s: None,
             reticle_marker_color: crate::hud::reticle_overlay::RETICLE_NEUTRAL,
             fire_denied_age_s: None,
-            // The renderer is created with the battlefield mesh (see `create_renderer`); the first
-            // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
+            // The renderer is born holding the battle slot (empty until a world is baked — see
+            // `create_renderer`); the first garage frame swaps in the hangar. Starting at
+            // `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             scene_upload_dirty: false,
             garage_daylight: scene_build::hangar::HangarLight::Day,
@@ -885,13 +915,15 @@ impl ClientApp {
 pub fn run() -> anyhow::Result<()> {
     let event_loop = EventLoop::new().context("failed to create winit event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    // The garage hall, started on a worker before the battle it is born into has drawn a
-    // frame. Nothing here waits for it: the first garage entry either finds the mesh in hand
-    // or joins a bake that has had the whole battle to run (see `scene_build::hangar::prewarm`).
+    // The garage hall, started on a worker before the window exists: the first garage frame
+    // either finds the mesh in hand or joins a bake that has had the whole startup to run (see
+    // `scene_build::hangar::prewarm`). Nothing else is baked before the first frame. The
+    // battlefield bakes behind the hall (`poll_map_prebake`), and the playable roster bakes one
+    // vehicle per garage frame (`prebake_next_playable_vehicle`) — the window used to sit
+    // frozen for the eight vehicle bakes and the full map bake before it showed anything.
     scene_build::hangar::prewarm();
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
-    app.prebake_playable_vehicle_assets();
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

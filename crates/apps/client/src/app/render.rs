@@ -360,27 +360,28 @@ impl ClientApp {
         width: u32,
         height: u32,
     ) -> Result<(), RenderError> {
-        // Terrain plus static cover: everything the simulation collides must be visible. The
-        // bake lands in the app-lifetime cache, so later garage→battle swaps reuse it instead
-        // of freezing their first battle frame on a rebake.
-        self.ensure_battle_scene_meshes();
-        // F6: the roster's vehicle bakes and GPU registrations happen HERE, at deployment —
-        // never on first sight mid-battle.
-        self.preload_battle_vehicle_assets();
-        let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
-        let mut renderer = WindowRenderer::new(
-            window,
-            width,
-            height,
-            &meshes.statics_vertices,
-            &meshes.statics_indices,
-        )?;
-        renderer.set_battlefield_ground(
-            &meshes.ground_vertices,
-            &meshes.ground_indices,
-            &meshes.ground_maps,
-            &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
-        );
+        // The renderer is born with whatever world is in hand. At startup that is NOTHING: the
+        // app opens on the garage, whose hall `ensure_scene` swaps in on the first frame, so
+        // baking the battlefield here only froze the window before it showed anything. The
+        // battlefield bakes behind the hall (`poll_map_prebake`) and is uploaded by the scene
+        // swap on the Battle press. A renderer REBUILT mid-battle (`render_failure.rs`) has
+        // the world in hand and gets it back at once.
+        let (statics_vertices, statics_indices): (&[renderer_api::SceneVertex], &[u32]) =
+            match self.battle_scene_meshes.as_ref() {
+                Some(meshes) => (&meshes.statics_vertices, &meshes.statics_indices),
+                None => (&[], &[]),
+            };
+        let mut renderer =
+            WindowRenderer::new(window, width, height, statics_vertices, statics_indices)?;
+        match self.battle_scene_meshes.as_ref() {
+            Some(meshes) => renderer.set_battlefield_ground(
+                &meshes.ground_vertices,
+                &meshes.ground_indices,
+                &meshes.ground_maps,
+                &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
+            ),
+            None => renderer.clear_battlefield_ground(),
+        }
         // The near-field grass tuft (Materia Świata 1b): one registered unit mesh the battle
         // frame instances around the eye every frame.
         for (handle, mesh) in scene_build::grass::grass_species_meshes() {
@@ -401,15 +402,27 @@ impl ClientApp {
         renderer.set_bark_textures(&scene_build::foliage_atlas_paint::bark_texture_layers());
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
-        // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
-        renderer.set_water(&meshes.water_vertices, &meshes.water_indices);
-        // And its mid-field card meadow (Żywy Step P2) — the dressing slot. What went up is
-        // recorded, so the first crater rebake can recognise its own output and skip the upload.
-        renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
-        self.dressing_uploaded_fingerprint = renderer_api::scene_mesh_fingerprint(
-            &meshes.dressing_vertices,
-            &meshes.dressing_indices,
-        );
+        // The river and the mid-field card meadow (Żywy Step P2) ride the world: loaded when it
+        // is in hand, empty slots otherwise. What went up is recorded, so the first crater
+        // rebake can recognise its own output and skip the upload.
+        let (water_vertices, water_indices, dressing_vertices, dressing_indices): (
+            &[renderer_api::WaterVertex],
+            &[u32],
+            &[renderer_api::SceneVertex],
+            &[u32],
+        ) = match self.battle_scene_meshes.as_ref() {
+            Some(meshes) => (
+                &meshes.water_vertices,
+                &meshes.water_indices,
+                &meshes.dressing_vertices,
+                &meshes.dressing_indices,
+            ),
+            None => (&[], &[], &[], &[]),
+        };
+        renderer.set_water(water_vertices, water_indices);
+        renderer.set_dressing(dressing_vertices, dressing_indices);
+        self.dressing_uploaded_fingerprint =
+            renderer_api::scene_mesh_fingerprint(dressing_vertices, dressing_indices);
         self.renderer = Some(renderer);
         // The renderer is born holding generic battlefield defaults; the app is born in battle,
         // so dress it in the actual match's weather right away.

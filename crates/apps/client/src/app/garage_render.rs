@@ -41,6 +41,9 @@ impl ClientApp {
         // Keep the speculative map bake tracking the pick while the player is still in here —
         // this frame's spare cores are the ones the Battle press will not have to spend.
         self.poll_map_prebake();
+        // ...and bake one more playable vehicle per frame until the roster is whole, so the
+        // carousel never bakes on a click and the window never froze on all eight at once.
+        self.prebake_next_playable_vehicle();
         // H1: the resolved daylight (override or the player's clock) picks which baked hall
         // the swap uploads; a change marks the upload stale exactly like a map pick does.
         let daylight = self.garage.hangar_light();
