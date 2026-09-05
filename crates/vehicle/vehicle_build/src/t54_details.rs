@@ -98,6 +98,24 @@ pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehicleP
             f.loader_hatch_half_height,
         ),
     ];
+    if let Some(center) = f.second_bow_hatch_center {
+        parts.push(drum_fitting(
+            PartKey::new("radio_hatch"),
+            SubmeshKind::Hull,
+            center,
+            f.driver_hatch_radius,
+            f.driver_hatch_half_height,
+        ));
+        parts.extend(hatch_hardware(
+            "radio_hatch",
+            SubmeshKind::Hull,
+            center,
+            f.driver_hatch_radius,
+            f.driver_hatch_half_height,
+            HandlePlacement::Crown,
+            seats.driver,
+        ));
+    }
     parts.extend(t54_headlight(f));
     // The commander's lid gets a RIM handle rather than a crown one. The cupola is the tallest
     // thing on the tank and its lid already sits at the top of the silhouette; a bar stacked on
@@ -131,6 +149,31 @@ pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehicleP
         seats.loader,
     ));
     parts
+}
+
+/// The fitting parts of ANY vehicle whose visual file authors `fittings` (Forge 2.0 K3): the
+/// hatch seats are read off the blueprint's shapes — the hull roof, the turret roof, the cupola
+/// top — so a partial visual file (the Tiger I's) builds the same lids, hinges, handles and lamp
+/// the benchmark carries, without pretending to a complete visual. `None` when nothing is
+/// authored, and the recipe keeps drawing its own.
+pub fn fitting_parts_for_blueprint(bp: &game_core::VehicleBlueprint) -> Option<Vec<VehiclePart>> {
+    let fittings = bp.visual_detail()?.fittings?;
+    let seats = HatchSeats {
+        cupola: bp.turret.roof_y + bp.turret.cupola_proud_m(&bp.hull),
+        driver: bp.hull.deck_y,
+        loader: bp.turret.roof_y,
+    };
+    let mut parts = t54_fitting_parts(&fittings, &seats);
+    // The bow hooks, the authored one and its mirror — the pair every tank carries.
+    for (i, sign) in [1.0_f32, -1.0].into_iter().enumerate() {
+        let center = Vec3::new(
+            sign * fittings.tow_hook_center.x,
+            fittings.tow_hook_center.y,
+            fittings.tow_hook_center.z,
+        );
+        parts.extend(t54_tow_hook(i as u16, center, fittings.tow_hook_half));
+    }
+    Some(parts)
 }
 
 /// Vision blocks around the commander's cupola — the reason the drum exists at all.

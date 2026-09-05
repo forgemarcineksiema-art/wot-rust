@@ -56,12 +56,28 @@ fn the_benchmark_carries_its_whole_dossier_and_nothing_unnamed() {
 
 #[test]
 fn a_sketch_carries_exactly_the_recipe_class() {
-    let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerI).unwrap());
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerII).unwrap());
     assert!(!report.locked);
     assert!(report.is_sketch());
     assert_eq!(report.carried.len(), 1, "a wrapped recipe is one class: {:?}", report.carried);
     assert_eq!(report.missing, report.expected, "so every listed class is debt");
-    assert!(report.dossier_pending.is_none(), "the Tiger's dossier lists its parts");
+    assert!(report.dossier_pending.is_none(), "the Tiger II's dossier lists its parts");
+}
+
+/// The Tiger I is the first MIXED sketch (K3-2b): its recipe pieces still stand, and the
+/// library's fittings from the STT sheet ride on them — four of its 23 classes carried.
+#[test]
+fn the_tiger_carries_its_library_fittings_over_the_recipe() {
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerI).unwrap());
+    assert!(!report.locked);
+    assert!(report.is_sketch(), "the recipe pieces still stand");
+    for class in [PartClass::Hatches, PartClass::Headlights, PartClass::TowHooks, PartClass::Cupola]
+    {
+        assert!(report.carried.contains(&class), "{class:?} is the library's now");
+        assert!(!report.missing.contains(&class));
+    }
+    assert!(report.missing.contains(&PartClass::TurretShell), "the turret is still the recipe's");
+    println!("{}", report.summary_line());
 }
 
 #[test]

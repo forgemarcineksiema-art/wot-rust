@@ -38,5 +38,35 @@ VisualDetailFile(
             )),
             module_delta_scale: 0.65,
         )),
+        // The fittings, read off the STT 1944 sheet (docs/vehicles/panzerkampfwagen-vi-tiger.md
+        // § Reference drawings; Forge 2.0 K3, the first library parts on this vehicle). The part
+        // library builds them (`vehicle_build::fitting_parts_for_blueprint`) and the recipe's deck
+        // leaves its own hatches, lamp and hooks out. The bake frame: +Y up, +Z bow, +X port.
+        fittings: Some(FittingsVisual(
+            // The commander's lid on the cupola top (roof 2.55 + 0.40 proud), port, rear.
+            cupola_hatch_center: (0.50, 2.97, -0.35),
+            cupola_hatch_radius: 0.30,
+            cupola_hatch_half_height: 0.04,
+            // The two bow hatches on the hull roof (plan: +-0.87 m off the centreline at
+            // z +1.69): the driver's, port, and the radio operator's, starboard.
+            driver_hatch_center: (0.87, 1.808, 1.69),
+            driver_hatch_radius: 0.26,
+            driver_hatch_half_height: 0.05,
+            // The loader's hatch on the turret roof, starboard, forward (plan). Rooted into the
+            // flat roof so the lid stands 3.5 cm proud: the bare-roof anchor (2.55 +-0.06) must
+            // find the roof, not the lid.
+            loader_hatch_center: (-0.96, 2.545, 0.98),
+            loader_hatch_radius: 0.24,
+            loader_hatch_half_height: 0.04,
+            // The single headlight on the driver's plate, starboard (front view: x -0.52, y 1.59,
+            // r 0.17); the plate stands at z ~2.99 there.
+            headlight_center: (-0.52, 1.59, 3.00),
+            headlight_radius: 0.17,
+            headlight_half_height: 0.10,
+            // The bow shackles at the nose corners (front view: x +-0.88, y ~0.90).
+            tow_hook_center: (0.88, 0.90, 3.05),
+            tow_hook_half: (0.10, 0.08, 0.12),
+            second_bow_hatch_center: Some((-0.87, 1.808, 1.69)),
+        )),
     ),
 )

@@ -482,7 +482,24 @@ fn engine_deck_british(builder: MeshBuilder, bp: &VehicleBlueprint) -> GeometryM
 
 /// German bow roof: driver (left) and radio operator (right) hatches side by side, one
 /// central Bosch headlight at the glacis top edge.
-fn german_bow(mut builder: MeshBuilder, bp: &VehicleBlueprint, hatch_r: f32) -> MeshBuilder {
+/// What a recipe deck leaves OUT because the part library now draws it (Forge 2.0 K3): the
+/// library's parts replace the recipe's greeble one class at a time, and a recipe that kept
+/// drawing its own hatch under the library's lid would ship two hatches.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct DeckOmit {
+    /// The bow hatches, the headlight and the tow hooks — `FittingsVisual`'s parts.
+    pub fittings: bool,
+}
+
+fn german_bow(
+    mut builder: MeshBuilder,
+    bp: &VehicleBlueprint,
+    hatch_r: f32,
+    omit: DeckOmit,
+) -> MeshBuilder {
+    if omit.fittings {
+        return builder;
+    }
     let edge = deck_front_edge(bp);
     let hatch_z = edge - 0.42;
     if !turret_covers(bp, hatch_z, hatch_r) {
@@ -498,9 +515,13 @@ fn german_bow(mut builder: MeshBuilder, bp: &VehicleBlueprint, hatch_r: f32) -> 
     headlight(builder, Vec3::new(0.0, bp.hull.deck_y + 0.10, edge - 0.10), 0.085, false)
 }
 
-pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.21);
-    let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
+    let b = german_bow(MeshBuilder::new(), bp, 0.21, omit);
+    let b = if omit.fittings {
+        b
+    } else {
+        tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14])
+    };
     // The Tiger wears its fender line over the full run, closed by hinged flaps at BOTH ends.
     let b = german_track_guards(b, bp);
     let b = german_track_flaps(b, bp, 1.0);
@@ -509,7 +530,7 @@ pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint) -> GeometryMesh {
 }
 
 pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.21);
+    let b = german_bow(MeshBuilder::new(), bp, 0.21, DeckOmit::default());
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
     let b = german_track_flaps(b, bp, 1.0);

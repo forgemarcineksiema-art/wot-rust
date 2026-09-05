@@ -11,8 +11,13 @@ use vehicle_recipes::describe;
 #[test]
 fn the_tiger_describes_as_the_five_pieces_of_its_recipe() {
     let description = describe(VehicleKind::TigerI).expect("describes");
-    let names: Vec<(&str, SubmeshKind)> =
-        description.parts.iter().map(|p| (p.key.name, p.submesh)).collect();
+    // The recipe pieces come first; the library's fittings (K3-2b) follow them.
+    let names: Vec<(&str, SubmeshKind)> = description
+        .parts
+        .iter()
+        .filter(|p| p.generator == GeneratorKind::Recipe)
+        .map(|p| (p.key.name, p.submesh))
+        .collect();
     assert_eq!(
         names,
         vec![
@@ -23,7 +28,10 @@ fn the_tiger_describes_as_the_five_pieces_of_its_recipe() {
             ("recipe_gun", SubmeshKind::Gun),
         ]
     );
-    assert!(description.parts.iter().all(|p| p.generator == GeneratorKind::Recipe));
+    assert!(
+        description.parts.iter().any(|p| p.generator != GeneratorKind::Recipe),
+        "K3-2b: the library rides along"
+    );
     assert_eq!(description.post_merge, PostMerge::WeldAndSmooth, "a recipe welds after the merge");
     assert!(
         description.surface_bake.cavities.iter().all(|c| c.scope.is_some()),

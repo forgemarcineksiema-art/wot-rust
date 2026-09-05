@@ -18,7 +18,7 @@ use vehicle_geometry::{
 };
 
 pub(crate) fn tiger_i(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    let pieces = tiger_i_pieces(hitbox, mounts);
+    let pieces = tiger_i_pieces(hitbox, mounts, super::deck_details::DeckOmit::default());
     let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
         revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
     };
@@ -36,11 +36,15 @@ pub(crate) fn tiger_i(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehi
 /// horseshoe turret with cupola, ring and mantlet socket, and the gun group. `tiger_i` is
 /// these concatenated in this order and welded — `shade_hull` is a per-vertex height shade,
 /// so shading the pieces or their concatenation is the same bake.
-pub(crate) fn tiger_i_pieces(_hitbox: &HitboxProfile, mounts: &MountFrames) -> super::RecipePieces {
+pub(crate) fn tiger_i_pieces(
+    _hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+    omit: super::deck_details::DeckOmit,
+) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
     let hull = vec![
         ("recipe_hull_slab", shade_hull(tiger_slab_hull(&bp.hull).build())),
-        ("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp))),
+        ("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))),
         ("recipe_hull_details", shade_hull(tiger_hull_details(&bp.hull))),
     ];
 

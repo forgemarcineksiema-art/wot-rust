@@ -55,4 +55,5 @@ pub use t54::{
     MEDIUM_LOD0_TRI_BUDGET, MEDIUM_LOD0_VERT_BUDGET, t54_description,
     t54_description_from_blueprint, t54_from_modules, t54_from_modules_with_blueprint,
 };
+pub use t54_details::fitting_parts_for_blueprint;
 pub use t54_turret_loft::t54_turret_loft;

@@ -21,14 +21,27 @@ use vehicle_recipes::{bake_vehicle, golden_bake_hash};
 
 const T54_LOD0_HASH: u64 = 9_296_666_834_409_964_133;
 
+/// A MIXED sketch (Forge 2.0 K3): its recipe pieces still stand and library parts ride on them,
+/// so its bake is neither the recipe golden nor a benchmark build. Pinned here; a construction
+/// PR that changes the mix re-records the row with the number in its message.
+const MIXED_LOD0_HASHES: &[(VehicleKind, u64)] = &[
+    // The Tiger I with the STT-sheet fittings over its five recipe pieces (K3-2b).
+    (VehicleKind::TigerI, 8_465_594_886_759_435_228),
+];
+
+fn mixed_hash(kind: VehicleKind) -> Option<u64> {
+    MIXED_LOD0_HASHES.iter().find(|(k, _)| *k == kind).map(|(_, h)| *h)
+}
+
 #[test]
 fn every_vehicle_bakes_to_the_hash_it_baked_to_before_the_seam_was_one_rule() {
     let mut checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let baked = authoritative_baked_vehicle(kind).expect("bakes");
-        let expected = match shipped_fidelity(kind) {
-            Fidelity::Benchmark => T54_LOD0_HASH,
-            Fidelity::Sketch => golden_bake_hash(kind).expect("a recipe golden"),
+        let expected = match (shipped_fidelity(kind), mixed_hash(kind)) {
+            (Fidelity::Benchmark, _) => T54_LOD0_HASH,
+            (Fidelity::Sketch, Some(mixed)) => mixed,
+            (Fidelity::Sketch, None) => golden_bake_hash(kind).expect("a recipe golden"),
         };
         assert_eq!(
             baked.deterministic_hash(),
@@ -49,9 +62,15 @@ fn the_reduced_tiers_are_the_reductions_each_path_ran_before() {
             [(BakeProfile::Lod1, LodLevel::Lod1), (BakeProfile::Lod2, LodLevel::Lod2)]
         {
             let production = bake_production_vehicle(kind, profile).expect("bakes");
-            let before = match shipped_fidelity(kind) {
-                Fidelity::Benchmark => t54_description().build_reduced_lod(level),
-                Fidelity::Sketch => reduce_vehicle(&bake_vehicle(kind).expect("recipe"), level),
+            let before = match (shipped_fidelity(kind), mixed_hash(kind)) {
+                (Fidelity::Benchmark, _) => t54_description().build_reduced_lod(level),
+                // A mixed sketch reduces its own composed bake whole-mesh, as the recipe did.
+                (Fidelity::Sketch, Some(_)) => {
+                    reduce_vehicle(&authoritative_baked_vehicle(kind).expect("bakes"), level)
+                }
+                (Fidelity::Sketch, None) => {
+                    reduce_vehicle(&bake_vehicle(kind).expect("recipe"), level)
+                }
             };
             assert_eq!(
                 production.deterministic_hash(),

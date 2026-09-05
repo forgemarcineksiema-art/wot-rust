@@ -276,6 +276,8 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // Bow hooks at the lower corners of the narrow nose plate.
             tow_hook_center: Vec3::new(0.80, 0.55, hull.half_len - 0.38),
             tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
+            // One bow hatch: the T-54's driver sits alone at the bow.
+            second_bow_hatch_center: None,
         }),
         // Clean factory-fresh detailing only: a louvered rear-deck grille, a boxed left-fender
         // exhaust cover, two low turret-roof periscopes, fender lips and a restrained glacis weld
