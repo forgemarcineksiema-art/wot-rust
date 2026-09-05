@@ -1,0 +1,205 @@
+ReferencePack(
+    family_slug: "tiger_i",
+    display_name: "Tiger I",
+    vehicles: [
+        TigerI,
+    ],
+    summary: "Armored Vehicle Forge reference for the Tiger I Ausf. E: tall slab-sided heavy hull, interleaved eight-wheel running gear, broad welded box turret, and the long 8.8 cm KwK 36.",
+    road_wheel_count_per_side: 8,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Tiger_I",
+            note: "Photo reference for silhouette, superstructure mass, running gear, and stowage.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/ww2/germany/Tiger.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 1.69,
+            tolerance: 0.06,
+            note: "Hull plan reads as a long heavy, not a medium.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.33,
+            tolerance: 0.02,
+            note: "Tall, slab-sided heavy hull — the deepest body in the German line.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.63,
+            tolerance: 0.05,
+            note: "Horseshoe turret is broad but narrower than the full sponson beam.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.56,
+            tolerance: 0.05,
+            note: "The turret is a low broad band on the tall superstructure, cupola on the left.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.34,
+            tolerance: 0.03,
+            note: "8.8 cm KwK 36 projects well past the flat nose.",
+        ),
+        RatioTarget(
+            kind: TurretLengthToWidth,
+            target: 1.21,
+            tolerance: 0.08,
+            note: "Horseshoe plus the bin: the turret plan is a long band (2.84 over 2.34, STT 1944).",
+        ),
+        RatioTarget(
+            kind: RoadWheelDiameterToHullLength,
+            target: 0.127,
+            tolerance: 0.008,
+            note: "800 mm interleaved wheels on the 6.32 m hull dominate the flank.",
+        ),
+    ],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 6.316,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "6.316 m hull (Wikipedia + Panzerworld agree).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.734,
+            tolerance_m: 0.03,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "12 ft 3 in = 3.734 m over the track guards, the STT 1944 front view\'s own dimension and the widest metal the bake draws (the library\'s guards, K3-2e). Inside them: 6 ft 10.625 in + 2 x 2 ft 4.5 in = 3.548 m over the combat tracks and the 3.18 m upper hull box — so the 3.705/3.72 records are guard widths, and C1 was resolved the wrong way round (K20).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.885,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "2.885 m silhouette apex, the German records\' figure read at the commander\'s lid: the STT 1944 rear view dimensions the drum\'s rim at 9 ft 4.75 in = 2.86 m and the lid stands proud of it (the bake\'s lid tops at 2.92). Wikipedia\'s 3.00 is the rounded figure.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoofBare,
+            target_m: 2.6,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "8 ft 6.5 in = 2.60 m to the turret roof, the STT 1944 rear view\'s own dimension (the side-view trace read 2.55; tiger1.info\'s 2625 mm agrees). The 2.885 the model was built to was an apex figure, never the roof (K19, C2).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 8.45,
+            tolerance_m: 0.1,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "8.450 m gun forward.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.8,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "800 mm road wheels — the Tank Museum records the diameter as UNCHANGED across the rubber-tyred to steel-rimmed swap; only count and material moved.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TurretRingDiameter,
+            target_m: 1.836,
+            tolerance_m: 0.015,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "1836 mm ring in the clear (tiger1.info, factory-drawing derived). NOT the 1500 mm some pages quote — that is Krupp\'s 1937 design spec, not the built tank.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TrackWidth,
+            target_m: 0.725,
+            tolerance_m: 0.005,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "725 mm Kgs 63/725/130 combat track (three sources); the 520 mm Kgs 63/520/130 transport belt is the OTHER configuration and is not what the game models.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: GroundClearance,
+            target_m: 0.432,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "1 ft 5 in = 432 mm on the STT 1944 front view (measured); Wikipedia\'s 470 is recorded as the conflict.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TrackLinkCountPerSide,
+            target_m: 96.0,
+            tolerance_m: 0.5,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "96 links per side at the 130 mm pitch the Kgs 63/725/130 designation itself states (two independent sources agree on the count). Authored in the blueprint — without it the belt falls back to the fleet\'s 0.22 m spacing and draws 41.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: FireLineHeight,
+            target_m: 2.195,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "2195 mm bore/trunnion axis at gun level (Panzerworld AND Alan Hamby — a second independent source, so the model\'s 2.17 is a real 25 mm debt, not a soft number).",
+            ),
+            status: Target,
+        ),
+        DimensionTarget(
+            kind: RoadWheelCount,
+            target_m: 16.0,
+            tolerance_m: 0.4,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference anatomy)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "16 road wheels per side on 8 torsion-bar stations (2 per arm) after the February 1944 steel-rimmed change at Fgst.Nr. 250822 — the early tank carried 24 on 3 rows. The model draws ONE wheel per authored axle, so the fleet\'s signature Schachtellaufwerk runs at half its wheel count.",
+            ),
+            status: Target,
+        ),
+    ],
+    outlines: [],
+)

@@ -1,0 +1,128 @@
+ReferencePack(
+    family_slug: "panther_ii",
+    display_name: "Panther II",
+    vehicles: [
+        PantherII,
+    ],
+    summary: "Armored Vehicle Forge reference for the Panther II as the Fort Benning museum specimen:          the up-armoured Panther II hull on Tiger II-commonality steel wheels, carrying the          Panther Ausf. G turret with the 7.5 cm KwK 42 L/70.",
+    road_wheel_count_per_side: 7,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Category:Panther_II",
+            note: "Photo reference for silhouette, superstructure mass, running gear, and stowage.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/ww2/germany/Panther-II.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 2.02,
+            tolerance: 0.06,
+            note: "Long sloped Panther hull, longest-legged medium of the German line.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.3,
+            tolerance: 0.02,
+            note: "The Panther silhouette is low for its length.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.6,
+            tolerance: 0.05,
+            note: "G turret target: wider rounded plan than the wedge (temp tolerance).",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.58,
+            tolerance: 0.05,
+            note: "G turret carries Panther proportions on the deck.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.29,
+            tolerance: 0.03,
+            note: "KwK 42 L/70 reach at the documented 8.86 m overall (temp tolerance).",
+        ),
+        RatioTarget(
+            kind: TurretLengthToWidth,
+            target: 1.15,
+            tolerance: 0.08,
+            note: "G turret plan: 2.30 over the 2.04 beam, bustle included.",
+        ),
+        RatioTarget(
+            kind: RoadWheelDiameterToHullLength,
+            target: 0.116,
+            tolerance: 0.008,
+            note: "800 mm Tiger II-commonality steel wheels on the 6.87 m hull.",
+        ),
+    ],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 6.87,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Panther II dossier",
+                url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                note: "6.87 m hull (Panther-dimensioned prototype hull, thicker plates).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.42,
+            tolerance_m: 0.1,
+            source: ReferenceSource(
+                label: "Panther II dossier",
+                url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                note: "3.42 m over the 660 mm Tiger II-commonality tracks (Spielberger).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.99,
+            tolerance_m: 0.06,
+            source: ReferenceSource(
+                label: "Panther II dossier",
+                url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                note: "2.99 m to the G-turret cupola on the specimen.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 8.86,
+            tolerance_m: 0.1,
+            source: ReferenceSource(
+                label: "Panther II dossier",
+                url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                note: "8.86 m gun forward (7.5 cm KwK 42 L/70, G-turret specimen).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.8,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Panther II dossier",
+                url: "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                note: "800 mm steel-rimmed wheels (Tiger II commonality programme).",
+            ),
+            status: Locked,
+        ),
+    ],
+    outlines: [],
+)

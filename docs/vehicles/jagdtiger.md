@@ -10,7 +10,7 @@ spec models the 12.8 cm Pak 80 vehicle, not the late planned 8.8 cm Pak 43 subst
 ## Reference anatomy (W1 dossier, PR-JT.1 — 2026-07-18)
 
 Anchor numbers written BEFORE further shape work, per the masterplan protocol. Every row is
-enforced by a `DimensionTarget` or `RatioTarget` in `packs_german.rs::jagdtiger_reference_pack`.
+enforced by a `DimensionTarget` or `RatioTarget` in `vehicle_forge/reference/jagdtiger.reference.ron`.
 
 | Anchor | Value | Source | Confidence | Gate |
 | --- | --- | --- | --- | --- |

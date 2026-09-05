@@ -1,11 +1,25 @@
 use game_core::VehicleKind;
-use vehicle_forge::{
-    BakeProfile, RatioKind, ReferencePack, bake_production_vehicle, t54_reference_pack,
-};
+use vehicle_forge::{BakeProfile, RatioKind, ReferencePack, bake_production_vehicle};
+
+/// Every playable vehicle's pack is DATA (`reference/<slug>.reference.ron`, step 2b): it loads,
+/// names its vehicle, and survives a serialise-parse round trip unchanged — so a data PR that
+/// edits an anchor edits the only copy there is.
+#[test]
+fn every_reference_pack_loads_from_its_ron_and_round_trips() {
+    for kind in VehicleKind::PLAYABLE {
+        let pack = ReferencePack::for_vehicle(kind).expect("every playable vehicle has a pack");
+        assert!(pack.vehicles().contains(&kind), "{kind:?}: the file names its vehicle");
+        assert!(!pack.sources().is_empty(), "{kind:?}: a pack cites its sources");
+        let text =
+            ron::ser::to_string_pretty(&pack, ron::ser::PrettyConfig::new()).expect("serialises");
+        let again: ReferencePack = ron::from_str(&text).expect("parses back");
+        assert_eq!(again, pack, "{kind:?}: the pack round-trips through RON");
+    }
+}
 
 #[test]
 fn t54_reference_pack_locks_the_forge_benchmark_intent() {
-    let pack = t54_reference_pack();
+    let pack = ReferencePack::for_vehicle(VehicleKind::T54_1951).expect("T-54 reference pack");
 
     assert_eq!(pack.family_slug(), "t54");
     assert_eq!(pack.display_name(), "T-54");

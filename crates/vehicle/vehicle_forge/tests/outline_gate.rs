@@ -114,7 +114,7 @@ fn a_bounding_box_outline_scores_well_under_the_bar() {
 
 #[test]
 fn the_outline_file_names_the_vehicle_it_belongs_to() {
-    let set = vehicle_forge::t54_outline_set();
+    let set = vehicle_forge::outline_set(VehicleKind::T54_1951).expect("the T-54 is traced");
     assert_eq!(set.vehicle(), VehicleKind::T54_1951.slug());
     assert_eq!(set.views().len(), 3);
     for spec in set.views() {
@@ -130,7 +130,7 @@ fn the_outline_file_names_the_vehicle_it_belongs_to() {
 
 #[test]
 fn the_tiger_carries_its_three_traced_views_as_targets_with_floors() {
-    let set = vehicle_forge::tiger_i_outline_set();
+    let set = vehicle_forge::outline_set(VehicleKind::TigerI).expect("the Tiger is traced");
     assert_eq!(set.vehicle(), VehicleKind::TigerI.slug());
     let views: Vec<OutlineView> = set.views().iter().map(OutlineSpec::view).collect();
     for view in OutlineView::ALL {

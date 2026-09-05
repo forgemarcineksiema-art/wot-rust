@@ -3,7 +3,44 @@ use serde::{Deserialize, Serialize};
 use vehicle_geometry::BakedVehicle;
 
 use crate::RatioReport;
-use crate::outline::{OutlineMeasurement, OutlineSpec, composed_triangles_for, measure};
+use crate::outline::{
+    OutlineMeasurement, OutlineSet, OutlineSpec, composed_triangles_for, measure,
+};
+
+/// The reference pack of `kind` as AUTHORED: one RON file per vehicle beside the crate
+/// (`reference/<slug>.reference.ron`), embedded with `include_str!`. Since 2026-09-05 (Forge 2.0
+/// acceleration, step 2b) this is the only place a vehicle's anchors, ratios and sources live —
+/// a data PR edits the file and runs the vehicle gate; nothing is restated in Rust.
+fn embedded_reference_ron(kind: VehicleKind) -> Option<&'static str> {
+    Some(match kind {
+        VehicleKind::T54_1951 => include_str!("../reference/t54_1951.reference.ron"),
+        VehicleKind::TigerI => include_str!("../reference/tiger_i_ausf_e.reference.ron"),
+        VehicleKind::TigerII => include_str!("../reference/tiger_ii_ausf_b.reference.ron"),
+        VehicleKind::Jagdtiger => include_str!("../reference/jagdtiger.reference.ron"),
+        VehicleKind::PantherII => include_str!("../reference/panther_ii.reference.ron"),
+        VehicleKind::IS3 => include_str!("../reference/is3.reference.ron"),
+        VehicleKind::Centurion => include_str!("../reference/centurion_mk3.reference.ron"),
+        VehicleKind::T34_85 => include_str!("../reference/t34_85.reference.ron"),
+    })
+}
+
+/// The traced outlines of `kind` (`outlines/<slug>.outline.ron`), for the vehicles whose
+/// drawing has been traced (K0); the others carry no outline gate yet.
+fn embedded_outline_ron(kind: VehicleKind) -> Option<&'static str> {
+    match kind {
+        VehicleKind::T54_1951 => Some(include_str!("../outlines/t54_1951.outline.ron")),
+        VehicleKind::TigerI => Some(include_str!("../outlines/tiger_i_ausf_e.outline.ron")),
+        _ => None,
+    }
+}
+
+/// The authored outline set of `kind`, or `None` when its drawing is not traced yet.
+pub fn outline_set(kind: VehicleKind) -> Option<OutlineSet> {
+    let text = embedded_outline_ron(kind)?;
+    Some(OutlineSet::parse(text).unwrap_or_else(|error| {
+        panic!("outlines/{}.outline.ron does not parse: {error}", kind.slug())
+    }))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RatioKind {
@@ -306,16 +343,43 @@ impl ReferencePack {
         self
     }
 
+    /// The pack without its outlines — what `reference/<slug>.reference.ron` holds; the loops
+    /// stay in `outlines/<slug>.outline.ron` and are attached at load.
+    pub fn without_outlines(mut self) -> Self {
+        self.outlines.clear();
+        self
+    }
+
     /// Attach absolute dimension anchors (the dossier's tape-measure numbers).
     pub fn with_dimensions(mut self, dimensions: Vec<DimensionTarget>) -> Self {
         self.dimensions = dimensions;
         self
     }
 
-    /// The reference pack for `kind`, resolved through the central forge registry so the pack, the
-    /// part-graph strategy, and the review cameras all stay registered in one place.
+    /// The reference pack for `kind`: registered in the central forge registry (with the
+    /// part-graph strategy and the review cameras), authored in `reference/<slug>.reference.ron`,
+    /// with the traced outlines of `outlines/<slug>.outline.ron` attached when the vehicle has
+    /// them.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        Some((crate::registry::forge_spec(kind)?.reference_pack)())
+        crate::registry::forge_spec(kind)?;
+        Self::embedded(kind)
+    }
+
+    /// The pack as authored in its RON file, outlines attached.
+    pub fn embedded(kind: VehicleKind) -> Option<Self> {
+        let text = embedded_reference_ron(kind)?;
+        let pack: Self = ron::from_str(text).unwrap_or_else(|error| {
+            panic!("reference/{}.reference.ron does not parse: {error}", kind.slug())
+        });
+        assert!(
+            pack.vehicles.contains(&kind),
+            "reference/{}.reference.ron does not list {kind:?} among its vehicles",
+            kind.slug()
+        );
+        Some(match outline_set(kind) {
+            Some(set) => pack.with_outlines(set.into_views()),
+            None => pack,
+        })
     }
 
     pub fn family_slug(&self) -> &str {

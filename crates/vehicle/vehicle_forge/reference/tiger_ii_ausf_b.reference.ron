@@ -1,0 +1,128 @@
+ReferencePack(
+    family_slug: "tiger_ii",
+    display_name: "Tiger II",
+    vehicles: [
+        TigerII,
+    ],
+    summary: "Armored Vehicle Forge reference for the Tiger II Ausf. B: long sloped heavy hull, nine-wheel running gear, narrow sloped turret with a rear bustle, and the 8.8 cm KwK 43.",
+    road_wheel_count_per_side: 9,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Tiger_II",
+            note: "Photo reference for silhouette, superstructure mass, running gear, and stowage.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/ww2/germany/Tiger_II.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 1.91,
+            tolerance: 0.06,
+            note: "Very long sloped heavy hull.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.28,
+            tolerance: 0.02,
+            note: "Long sloped hull — flatter than the upright Tiger I.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.51,
+            tolerance: 0.05,
+            note: "Sloped Henschel turret is narrower than the broad hull.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.62,
+            tolerance: 0.05,
+            note: "Low faceted turret with a rear bustle rides the wide deck.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.39,
+            tolerance: 0.03,
+            note: "Long 8.8 cm KwK 43 reaches decisively past the sloped glacis.",
+        ),
+        RatioTarget(
+            kind: TurretLengthToWidth,
+            target: 1.58,
+            tolerance: 0.1,
+            note: "Serienturm is LONG: 3.10 m plan over the 1.96 m beam, bustle included.",
+        ),
+        RatioTarget(
+            kind: RoadWheelDiameterToHullLength,
+            target: 0.108,
+            tolerance: 0.008,
+            note: "800 mm overlapped wheels on the 7.38 m hull.",
+        ),
+    ],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 7.38,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Tiger II dossier",
+                url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                note: "7.38 m hull (Panzerworld/OnWar agree).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.88,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Tiger II dossier",
+                url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                note: "3.88 m over the fitted Schuerzen (3.755 m bare tracks; 3.27 m = transport tracks).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 3.09,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Tiger II dossier",
+                url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                note: "3.09 m silhouette apex at the cupola.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 10.286,
+            tolerance_m: 0.1,
+            source: ReferenceSource(
+                label: "Tiger II dossier",
+                url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                note: "10.286 m gun forward (KwK 43 L/71).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.8,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Tiger II dossier",
+                url: "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                note: "800 mm overlapped (not interleaved) steel-rimmed wheels.",
+            ),
+            status: Locked,
+        ),
+    ],
+    outlines: [],
+)

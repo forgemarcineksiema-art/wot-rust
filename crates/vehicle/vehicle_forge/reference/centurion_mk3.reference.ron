@@ -1,0 +1,60 @@
+ReferencePack(
+    family_slug: "centurion_mk3",
+    display_name: "Centurion Mk 3",
+    vehicles: [
+        Centurion,
+    ],
+    summary: "Armored Vehicle Forge reference for the Centurion Mk 3: full-length skirted hull over Horstmann bogie pairs, the fleet\'s steepest glacis, a cast turret with the rear stowage bin, and the clean unbraked 20-pounder.",
+    road_wheel_count_per_side: 6,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Centurion_tank",
+            note: "Photo reference for the skirt line, bogie pairs, turret casting, and bin.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/coldwar/UK/centurion.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/centurion.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 2.22,
+            tolerance: 0.18,
+            note: "A long hull for a medium — longer in plan than the Soviet park.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.26,
+            tolerance: 0.06,
+            note: "The skirted flank reads as one deep band from fender to wheel line.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.62,
+            tolerance: 0.14,
+            note: "The cast Mk 3 turret is broad on the narrow skirted hull.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.58,
+            tolerance: 0.25,
+            note: "A low dome with the bustle bin, not a German tower.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.29,
+            tolerance: 0.16,
+            note: "The clean 20-pounder reaches modestly past the steep glacis.",
+        ),
+    ],
+    dimensions: [],
+    outlines: [],
+)

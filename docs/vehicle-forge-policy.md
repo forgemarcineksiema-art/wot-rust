@@ -324,7 +324,7 @@ proves it:
 4. **Centurion, IS-3 and T-34-85 have no `DimensionTarget`s**, so their dossier numbers are
    unmeasured: the dimension gate skips packs with no dimensions
    (`vehicle_forge/tests/dimension_gate.rs:20-22`) and the packs carry the unclosed TODOs
-   (`packs_is3.rs:38`, `packs_british.rs:38`, `packs_t34.rs:33`). The cost is already visible:
+   (`reference/is3.reference.ron`, `reference/centurion_mk3.reference.ron`, `reference/t34_85.reference.ron` carry empty `dimensions`). The cost is already visible:
    the IS-3 dossier says 2.44 m to the turret roof while the shipped blueprint bakes
    `roof_y: 2.39` (`game_core/blueprints/is3.blueprint.ron:53`) and no gate can notice. The
    T-34-85 additionally had no dossier at all until the unresearched stub

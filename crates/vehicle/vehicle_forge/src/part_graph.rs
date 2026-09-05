@@ -47,9 +47,10 @@ impl ForgePartGraph {
                     parts: build(&blueprint),
                 })
             }
-            PartStrategy::BakedGeometry => {
-                Self::from_baked_geometry(kind, &(spec.reference_pack)())
-            }
+            PartStrategy::BakedGeometry => Self::from_baked_geometry(
+                kind,
+                &ReferencePack::embedded(kind).expect("a registered vehicle has a reference pack"),
+            ),
         }
     }
 
