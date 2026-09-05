@@ -50,6 +50,21 @@ impl GpuContext {
         options: GpuContextOptions,
     ) -> Result<Self, RenderError> {
         let adapter = request_adapter(&instance, compatible_surface)?;
+        // A surface means a player. The headless probes may fall back to a software rasterizer
+        // (a screenshot on a machine with no GPU is still a screenshot), but a game that silently
+        // runs on WARP at one frame a second is a lie about the machine it is on. Refuse, and
+        // say why; `WOT_ALLOW_CPU_ADAPTER=1` is the dev escape for exactly that screenshot.
+        let info = adapter.get_info();
+        let allow_cpu =
+            std::env::var("WOT_ALLOW_CPU_ADAPTER").is_ok_and(|value| value.trim() == "1");
+        if compatible_surface.is_some() && !windowed_adapter_acceptable(info.device_type, allow_cpu)
+        {
+            return Err(RenderError::new(format!(
+                "no hardware GPU: the only adapter is a software rasterizer ({}) — refusing to run \
+                 the game on it (WOT_ALLOW_CPU_ADAPTER=1 overrides)",
+                info.name
+            )));
+        }
         // Downlevel baseline, with the 2D texture dimension lifted to what the adapter actually
         // offers (capped at 8k): the focused sun shadow map wants 4096 texels for wheel-scale
         // detail, and consumers clamp to `device.limits()` so weaker adapters still work.
@@ -111,4 +126,31 @@ fn request_adapter(
         compatible_surface,
     }))
     .map_err(|error| RenderError::new(format!("no usable GPU adapter: {error}")))
+}
+
+/// Whether a WINDOWED context may run on this adapter: any hardware adapter, and a software
+/// rasterizer only when the dev override says so. Pure, so the rule is tested without a GPU.
+pub(crate) fn windowed_adapter_acceptable(device_type: wgpu::DeviceType, allow_cpu: bool) -> bool {
+    allow_cpu || device_type != wgpu::DeviceType::Cpu
+}
+
+#[cfg(test)]
+mod tests {
+    use super::windowed_adapter_acceptable;
+
+    /// The game never ships on a software rasterizer by accident: a CPU adapter is refused for
+    /// a window unless the dev override is set, and every hardware class is accepted.
+    #[test]
+    fn a_window_refuses_a_software_rasterizer_unless_the_dev_override_says_so() {
+        assert!(!windowed_adapter_acceptable(wgpu::DeviceType::Cpu, false));
+        assert!(windowed_adapter_acceptable(wgpu::DeviceType::Cpu, true), "the dev escape");
+        for hardware in [
+            wgpu::DeviceType::IntegratedGpu,
+            wgpu::DeviceType::DiscreteGpu,
+            wgpu::DeviceType::VirtualGpu,
+            wgpu::DeviceType::Other,
+        ] {
+            assert!(windowed_adapter_acceptable(hardware, false), "{hardware:?} is hardware");
+        }
+    }
 }

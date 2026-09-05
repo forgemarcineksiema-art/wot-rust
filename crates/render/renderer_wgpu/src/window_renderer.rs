@@ -3,7 +3,7 @@ use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettin
 use crate::msaa::{shipped_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
-use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
+use crate::{GpuContext, SceneRenderTarget, SceneRenderer, SurfaceLossPolicy};
 
 mod settings;
 mod vehicle;
@@ -16,6 +16,9 @@ pub struct WindowRenderer {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
     scene: SceneRenderer,
+    /// How many frames in a row the surface came back `Lost` — the line between "reconfigure and
+    /// carry on" and "the device is gone" (see [`SurfaceLossPolicy`]).
+    loss: SurfaceLossPolicy,
 }
 
 impl WindowRenderer {
@@ -79,7 +82,7 @@ impl WindowRenderer {
             terrain_vertices,
             terrain_indices,
         )?;
-        Ok(Self { ctx, surface, config, scene })
+        Ok(Self { ctx, surface, config, scene, loss: SurfaceLossPolicy::new() })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -201,20 +204,30 @@ impl WindowRenderer {
                 return Ok(());
             }
             // The surface (and possibly the device) was lost — a driver reset, a Windows TDR, a GPU
-            // or display change. Reconfiguring is wgpu's documented first response; the WARN is the
-            // whole point of this arm — a lost device used to leave a silent black screen with no
-            // trace at all (the declared `GpuErrorPolicy` promised a handler that did not exist).
+            // or display change. Reconfiguring is wgpu's documented first response and cures a
+            // display change in a frame or two. It cures nothing when the DEVICE is gone: that
+            // used to be a black window reconfiguring forever with a WARN per frame and no way
+            // out. Past the policy's streak the loss is reported as what it is, so the caller can
+            // rebuild the renderer on a fresh device or stop the game — never sit there.
             wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(&self.ctx.device, &self.config);
+                if self.loss.lost() {
+                    return Err(RenderError::device_lost(format!(
+                        "surface lost for {} consecutive frames — the GPU device is presumed \
+                         gone (driver reset / TDR / GPU change)",
+                        self.loss.consecutive_losses()
+                    )));
+                }
                 tracing::warn!(
                     "surface lost — reconfiguring (driver reset / TDR / display change)"
                 );
-                self.surface.configure(&self.ctx.device, &self.config);
                 return Ok(());
             }
             // A validation error, or any status a future wgpu adds: never swallow it into a silent
             // black frame. Surface it so the caller logs it instead of rendering nothing forever.
             status => return Err(RenderError::new(format!("surface unavailable: {status:?}"))),
         };
+        self.loss.presented();
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let target = SceneRenderTarget {
             output_view: &view,

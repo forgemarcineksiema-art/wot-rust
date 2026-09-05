@@ -238,14 +238,40 @@ pub struct RenderFrame {
     pub armor_damage: Vec<ArmorDamageInstance>,
 }
 
+/// Why a render call failed — the one distinction a caller acts on differently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderErrorKind {
+    /// A validation, configuration or resource error: the device is fine, this call was not.
+    Generic,
+    /// The GPU device is gone — a driver reset, a Windows TDR, a GPU change — or its surface is
+    /// lost persistently enough to mean the same thing. Reconfiguring cannot bring it back: the
+    /// renderer has to be rebuilt on a fresh device or the game has to stop, and either way the
+    /// caller must be able to tell this failure from every other.
+    DeviceLost,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderError {
     pub message: String,
+    kind: RenderErrorKind,
 }
 
 impl RenderError {
     pub fn new(message: impl Into<String>) -> Self {
-        Self { message: message.into() }
+        Self { message: message.into(), kind: RenderErrorKind::Generic }
+    }
+
+    /// The device is presumed gone; see [`RenderErrorKind::DeviceLost`].
+    pub fn device_lost(message: impl Into<String>) -> Self {
+        Self { message: message.into(), kind: RenderErrorKind::DeviceLost }
+    }
+
+    pub fn kind(&self) -> RenderErrorKind {
+        self.kind
+    }
+
+    pub fn is_device_lost(&self) -> bool {
+        self.kind == RenderErrorKind::DeviceLost
     }
 }
 
