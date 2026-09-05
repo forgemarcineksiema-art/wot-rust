@@ -231,6 +231,16 @@ pub struct ArmorShape {
     /// resolves against are one pair of numbers.
     #[serde(default)]
     pub hull_rear_knuckle: Option<(f32, f32)>,
+    /// The bow SHELF, `(shelf_top_y, setback_z)`: `None` keeps the fleet's single upper front
+    /// plate folding at the sponson step on the hull's nose line. Authored, the nose line at
+    /// the sponson step is the FRONT EDGE of a near-horizontal glacis shelf that runs back
+    /// `setback_z` and up to `shelf_top_y`, where the upper front plate (`hull_front`'s angle)
+    /// begins — the Tiger I's bow: a 60 mm glacis lying almost flat under the 100 mm driver's
+    /// plate, which the STT 1944 sheet sets 0.80 m back from the nose (Forge 2.0 K3-2d). The
+    /// VISIBLE bow reads this same field, so the two plates a player sees are the two planes
+    /// a shell meets. The shelf resolves as `UpperGlacis` until it has a zone of its own (K21).
+    #[serde(default)]
+    pub hull_bow_shelf: Option<(f32, f32)>,
     /// The PORTS cut through the bow plates — the driver's visor and the hull MG mount — as
     /// aimable armour patches on the glacis. A port's weakness is GEOMETRY, not a scalar: the
     /// ball or visor presents FLAT where the plate around it rakes, so the patch resolves the

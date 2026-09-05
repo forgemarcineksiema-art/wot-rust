@@ -105,6 +105,10 @@ fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
         hull.push(skirt(&blueprint, cy, 1.0));
         hull.push(skirt(&blueprint, cy, -1.0));
     }
+    // Appended LAST: the tests and tools that index `hull[0..=2]` keep their meaning.
+    if let Some(shelf) = bow_shelf(&blueprint, cy) {
+        hull.push(shelf);
+    }
     // The turret volume follows the blueprint's construction: a cast dome sweeps sector planes
     // around the casting; a welded box or fixed casemate is a faceted plate prism.
     let turret = match blueprint.turret.form {
@@ -147,6 +151,37 @@ fn cupola_drum(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     ArmorVolume { planes }
 }
 
+/// The bow shelf (`ArmorShape::hull_bow_shelf`): the wedge of hull between the sponson
+/// underside and the near-horizontal glacis, from the nose line back to the upper front plate.
+/// Its own convex volume — the shelf lies UNDER the plate behind it, which no single convex
+/// prism can hold — closed at the back by the upper plate's own plane continued down to the
+/// sponson, and at the sides by the hull walls. A flat bow only: the shelf is not swept.
+fn bow_shelf(blueprint: &VehicleBlueprint, cy: f32) -> Option<ArmorVolume> {
+    let (shelf_top_y, setback_z) = blueprint.armor.hull_bow_shelf?;
+    let hull = blueprint.hull;
+    let step_y = hull.sponson_y - cy;
+    let nose = Vec3::new(0.0, step_y, hull.half_len);
+    let top = Vec3::new(0.0, shelf_top_y - cy, hull.half_len - setback_z);
+    // The shelf plane through the nose line and the shelf's top edge, facing up and forward.
+    let along = top - nose;
+    let shelf_normal = Vec3::new(0.0, -along.z, along.y);
+    let (glacis_sin, glacis_cos) = blueprint.armor.hull_front.0.to_radians().sin_cos();
+    Some(ArmorVolume {
+        planes: vec![
+            TaggedPlane::new(shelf_normal, nose, ArmorZone::UpperGlacis),
+            TaggedPlane::new(Vec3::new(0.0, -glacis_sin, -glacis_cos), top, ArmorZone::UpperGlacis),
+            // The sponson underside, as on the upper hull.
+            TaggedPlane::new(-Vec3::Y, nose, ArmorZone::HullSide),
+            TaggedPlane::new(Vec3::X, Vec3::new(hull.half_width, step_y, 0.0), ArmorZone::HullSide),
+            TaggedPlane::new(
+                -Vec3::X,
+                Vec3::new(-hull.half_width, step_y, 0.0),
+                ArmorZone::HullSide,
+            ),
+        ],
+    })
+}
+
 /// The upper hull: glacis, deck, upper sides, upper rear — everything above the sponson step.
 fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let hull = blueprint.hull;
@@ -155,8 +190,14 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let (rear_sin, rear_cos) = blueprint.armor.hull_rear.0.to_radians().sin_cos();
     let step_y = hull.sponson_y - cy;
     // The hull's forwardmost point at the sponson step: the fold of the two-plate front (and
-    // the pike's central ridge, when the bow is a pike).
-    let fold = Vec3::new(0.0, step_y, hull.half_len);
+    // the pike's central ridge, when the bow is a pike). An authored bow shelf moves the upper
+    // plate's fold back and up to the shelf's top edge; the shelf itself is its own volume
+    // (`bow_shelf`), because a plate lying under a plate makes the bow concave.
+    let (fold_y, fold_z) = match blueprint.armor.hull_bow_shelf {
+        Some((shelf_top_y, setback_z)) => (shelf_top_y - cy, hull.half_len - setback_z),
+        None => (step_y, hull.half_len),
+    };
+    let fold = Vec3::new(0.0, fold_y, fold_z);
     let mut planes = Vec::with_capacity(8);
     // A pike nose is TWO glacis planes yawed about the central ridge; a flat bow is one.
     // The authored bow ports (driver's visor, hull MG) ride the glacis plane as aimable
@@ -172,10 +213,10 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
             // ON the armour plane itself: the plate runs from the FOLD at the sponson step,
             // so the port's z follows that run — not the kit's belly-anchored approximation,
             // which sat a metre behind the plate and made the patch unreachable.
-            let run = (port.y - hull.sponson_y) * blueprint.armor.hull_front.0.to_radians().tan();
+            let run = (port.y - cy - fold_y) * blueprint.armor.hull_front.0.to_radians().tan();
             ArmorPatch {
                 zone: ArmorZone::GlacisPort,
-                center: Vec3::new(port.x, port.y - cy, hull.half_len - run),
+                center: Vec3::new(port.x, port.y - cy, fold_z - run),
                 radius_m: port.radius_m,
                 // The ball or visor stands FLAT out of the raked plate — straight out the bow.
                 presents_normal: Some(Vec3::Z),
