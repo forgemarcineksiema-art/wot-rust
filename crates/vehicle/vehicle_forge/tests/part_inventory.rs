@@ -65,14 +65,20 @@ fn a_sketch_carries_exactly_the_recipe_class() {
 }
 
 /// The Tiger I is the first MIXED sketch (K3-2b): its recipe pieces still stand, and the
-/// library's fittings from the STT sheet ride on them — four of its 23 classes carried.
+/// library's fittings from the STT sheet ride on them — four of its 23 classes carried, five
+/// with the track guards (K3-2e).
 #[test]
 fn the_tiger_carries_its_library_fittings_over_the_recipe() {
     let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerI).unwrap());
     assert!(!report.locked);
     assert!(report.is_sketch(), "the recipe pieces still stand");
-    for class in [PartClass::Hatches, PartClass::Headlights, PartClass::TowHooks, PartClass::Cupola]
-    {
+    for class in [
+        PartClass::Hatches,
+        PartClass::Headlights,
+        PartClass::TowHooks,
+        PartClass::Cupola,
+        PartClass::Fenders,
+    ] {
         assert!(report.carried.contains(&class), "{class:?} is the library's now");
         assert!(!report.missing.contains(&class));
     }

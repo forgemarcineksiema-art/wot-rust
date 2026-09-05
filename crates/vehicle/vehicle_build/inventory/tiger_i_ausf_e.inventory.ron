@@ -12,7 +12,7 @@
         (class: WeldSeams, source: "The slab, honestly: interlocked welded plates on the armour planes"),
         (class: EngineDeck, source: "Blueprint Migration: engine deck (recipe `tiger_i_deck`)"),
         (class: DeckGrille, source: "Blueprint Migration: deck grilles over the radiators (`tiger_i_deck`)"),
-        (class: Fenders, source: "Blueprint Migration: track guards / fenders (`german_track_guards`, `german_track_flaps`)"),
+        (class: Fenders, source: "Reference drawings: 12 ft 3 in = 3.734 m over the track guards; the library's folded pressings (K3-2e), the recipe's hinged flaps"),
         (class: TurretShell, source: "Recognition features: horseshoe turret — flat front plate, vertical bent side wall, faceted rear"),
         (class: TurretRing, source: "Reference anatomy: turret ring 1836 mm in the clear, bearing OD 2100"),
         (class: TurretStowage, source: "The variant, pinned: simplified open bins on the ring (late), not the bowed Rommelkiste"),
