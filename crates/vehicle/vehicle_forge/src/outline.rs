@@ -77,6 +77,11 @@ pub struct OutlineSpec {
     min_iou: f32,
     #[serde(default)]
     status: AnchorStatus,
+    /// The IoU measured the day the outline was authored — a `Target` view may not fall below
+    /// it. The FLOOR/TARGET mechanism: the bar waits for the traced drawing, the floor holds
+    /// today's silhouette against regression from the first day.
+    #[serde(default)]
+    floor_iou: Option<f32>,
     source: ReferenceSource,
 }
 
@@ -91,7 +96,18 @@ impl OutlineSpec {
         assert!(!loops.is_empty(), "an outline needs at least one loop");
         assert!(loops.iter().all(|l| l.len() >= 3), "a loop needs at least three points");
         assert!((0.0..=1.0).contains(&min_iou), "min_iou is a fraction");
-        Self { view, loops, min_iou, status, source }
+        Self { view, loops, min_iou, status, floor_iou: None, source }
+    }
+
+    /// The same outline with a regression floor (the IoU measured when it was authored).
+    pub fn with_floor(mut self, floor_iou: f32) -> Self {
+        assert!((0.0..=1.0).contains(&floor_iou), "floor_iou is a fraction");
+        self.floor_iou = Some(floor_iou);
+        self
+    }
+
+    pub fn floor_iou(&self) -> Option<f32> {
+        self.floor_iou
     }
 
     pub fn view(&self) -> OutlineView {
@@ -176,6 +192,7 @@ pub struct OutlineMeasurement {
     bake_inside: f32,
     min_iou: f32,
     status: AnchorStatus,
+    floor_iou: Option<f32>,
     cell_m: f32,
 }
 
@@ -208,12 +225,23 @@ impl OutlineMeasurement {
         self.iou.is_finite() && self.iou >= self.min_iou
     }
 
+    pub fn floor_iou(&self) -> Option<f32> {
+        self.floor_iou
+    }
+
+    /// Above the regression floor (or there is none). A `Target` view that fails this has
+    /// moved AWAY from the drawing since the day it was measured — that is a gate, not debt.
+    pub fn holds_floor(&self) -> bool {
+        self.floor_iou.is_none_or(|floor| self.iou.is_finite() && self.iou >= floor)
+    }
+
     pub fn summary_line(&self, vehicle: &str) -> String {
         format!(
-            "{vehicle} {}: IoU {:.3} (bar {:.2}, {:?}) — outline covered {:.1}%, bake inside {:.1}%",
+            "{vehicle} {}: IoU {:.3} (bar {:.2}{}, {:?}) — outline covered {:.1}%, bake inside {:.1}%",
             self.view.label(),
             self.iou,
             self.min_iou,
+            self.floor_iou.map(|f| format!(", floor {f:.2}")).unwrap_or_default(),
             self.status,
             self.outline_covered * 100.0,
             self.bake_inside * 100.0,
@@ -460,6 +488,7 @@ pub fn measure(tris: &[[Vec3; 3]], spec: &OutlineSpec) -> OutlineMeasurement {
         bake_inside: frac(inter, bake_n),
         min_iou: spec.min_iou,
         status: spec.status,
+        floor_iou: spec.floor_iou,
         cell_m: OUTLINE_CELL_M,
     }
 }
