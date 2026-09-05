@@ -8,6 +8,7 @@ mod artifact;
 mod compiler;
 mod cost;
 mod mesh_source;
+mod outline;
 mod packs;
 mod packs_british;
 mod packs_german;
@@ -34,7 +35,12 @@ pub use compiler::{
 };
 pub use cost::{CostEnvelope, ShippedCostCeiling, shipped_cost_ceiling};
 pub use mesh_source::authoritative_baked_vehicle;
-pub use packs::t54_reference_pack;
+pub use outline::{
+    OUTLINE_CELL_M, OutlineMeasurement, OutlineSet, OutlineSpec, OutlineView, SilhouetteGrid,
+    composed_triangles, composed_triangles_for, measure as measure_outline,
+    overlay_png as outline_overlay_png, rasterise as rasterise_outline,
+};
+pub use packs::{t54_outline_set, t54_reference_pack};
 pub use packs_british::centurion_reference_pack;
 pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,

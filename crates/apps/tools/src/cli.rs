@@ -106,6 +106,16 @@ pub enum Command {
         #[arg(long, default_value_t = false)]
         skip_exposure: bool,
     },
+    /// Render the K0 reference-outline overlays: one PNG per view (agreement grey, the bake
+    /// proud of the drawing red, the drawing the bake misses blue) and the IoU per view on
+    /// stdout — what the owner compares with the three-view before an outline locks.
+    OutlineOverlay {
+        #[arg(long)]
+        vehicle: String,
+        /// Output directory; defaults to `target/forge/outlines`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Export a baked vehicle as Wavefront OBJ (+ MTL) for external inspection — the
     /// master-reference loop (orbit, section, measure, overlay on a scale drawing). Geometry
     /// leaves for inspection; only NUMBERS come back into the blueprint.

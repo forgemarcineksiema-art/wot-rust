@@ -10,6 +10,7 @@ game_core.workspace = true
 glam.workspace = true
 meshopt.workspace = true
 png.workspace = true
+ron.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

@@ -63,6 +63,7 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
                 .write_to_dir(&out)?
         }
         Command::ForgeReport { vehicle, out } => forge_report(&vehicle, out)?,
+        Command::OutlineOverlay { vehicle, out } => outline_overlay(&vehicle, out)?,
         Command::ForgeLineup { out } => write_forge_lineup(out)?,
         Command::CompileTank { vehicle, gun, profile, out } => {
             compile_tank_command(&vehicle, gun.as_deref(), profile.parse()?, out)?
@@ -263,6 +264,52 @@ fn forge_report(vehicle: &str, out: PathBuf) -> anyhow::Result<()> {
         .measure_baked_vehicle(&bake_production_vehicle(kind, BakeProfile::Lod0)?)
         .with_context(|| format!("Forge ReferencePack rejected {vehicle}"))?;
     write_text(out, &report.markdown_summary())
+}
+fn outline_overlay(vehicle: &str, out: Option<PathBuf>) -> anyhow::Result<()> {
+    let kind = parse_vehicle_kind(vehicle)?;
+    let pack = ReferencePack::for_vehicle(kind)
+        .with_context(|| format!("no Forge ReferencePack for {vehicle}"))?;
+    anyhow::ensure!(
+        !pack.outlines().is_empty(),
+        "{vehicle} has no reference outlines yet (vehicle_forge/outlines/<slug>.outline.ron)"
+    );
+    let out = out.unwrap_or_else(|| PathBuf::from("target/forge/outlines"));
+    std::fs::create_dir_all(&out)
+        .with_context(|| format!("failed to create output directory {}", out.display()))?;
+    let baked = vehicle_forge::authoritative_baked_vehicle(kind)?;
+    let tris = vehicle_forge::composed_triangles_for(&baked);
+    for spec in pack.outlines() {
+        let measurement = vehicle_forge::measure_outline(&tris, spec);
+        println!("{}", measurement.summary_line(kind.slug()));
+        let (bake_lo, bake_hi) = extents(tris.iter().flatten().map(|p| spec.view().project(*p)));
+        let (line_lo, line_hi) =
+            extents(spec.loops().iter().flatten().map(|p| glam::Vec2::from(*p)));
+        println!(
+            "  extents h: bake [{:.3}, {:.3}] outline [{:.3}, {:.3}]  v: bake [{:.3}, {:.3}] outline [{:.3}, {:.3}]",
+            bake_lo.x, bake_hi.x, line_lo.x, line_hi.x, bake_lo.y, bake_hi.y, line_lo.y, line_hi.y
+        );
+        // Sensitivity: the same outline slid 10 cm each way. A slide that IMPROVES the score
+        // says where the outline (or the bake) sits off its drawing.
+        for (name, delta) in [
+            ("+h", glam::Vec2::new(0.10, 0.0)),
+            ("-h", glam::Vec2::new(-0.10, 0.0)),
+            ("+v", glam::Vec2::new(0.0, 0.10)),
+            ("-v", glam::Vec2::new(0.0, -0.10)),
+        ] {
+            let slid = vehicle_forge::measure_outline(&tris, &spec.translated(delta));
+            println!("  slid {name} 0.10 m: IoU {:.3}", slid.iou());
+        }
+        let path = out.join(format!("{}-{}.png", kind.slug(), spec.view().label()));
+        std::fs::write(&path, vehicle_forge::outline_overlay_png(&tris, spec)?)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        println!("  overlay: {}", path.display());
+    }
+    Ok(())
+}
+fn extents(points: impl Iterator<Item = glam::Vec2>) -> (glam::Vec2, glam::Vec2) {
+    points.fold((glam::Vec2::splat(f32::MAX), glam::Vec2::splat(f32::MIN)), |(lo, hi), p| {
+        (lo.min(p), hi.max(p))
+    })
 }
 fn compile_tank_command(
     vehicle: &str,
