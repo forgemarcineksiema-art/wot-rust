@@ -337,7 +337,10 @@ fn hatch_hardware(
                         center.z + radius * 0.30,
                     ),
                     Vec3::Y,
-                    (half_height * 0.45).min(0.05),
+                    // A hand's clearance, not the lid's thickness: a low-set lid (the Tiger's loader
+                    // hatch, 1.5 cm proud) collapsed the handle's legs to zero-area triangles at
+                    // 0.45 of its half-height.
+                    (half_height * 0.45).clamp(0.02, 0.05),
                 ),
                 // The rim handle rides where the lid shows, not the lid's buried midline: at
                 // `center.y` half of it sat inside the cupola drum.
