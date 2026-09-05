@@ -572,3 +572,37 @@ fn a_radio_dead_player_still_sees_the_hull_in_front_of_their_own_eyes() {
         cut.tanks.iter().map(|t| t.tank_id).collect::<Vec<_>>()
     );
 }
+
+/// v51 (W-1, W-5) on the desktop battle: the local roster names every hull and the player as the
+/// one human; the local crew's words go through the SAME limiter the remote host runs, and the
+/// admitted ones come back on the next tick as relays from the player's own hull.
+#[test]
+fn the_local_roster_names_every_hull_and_the_local_crew_is_limited_like_a_remote_one() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::T54_1951),
+    );
+    let roster = server.roster();
+    assert_eq!(roster.len(), 14);
+    let humans: Vec<_> = roster.iter().filter(|e| e.crew_kind == net::CrewKind::Human).collect();
+    assert_eq!(humans.len(), 1);
+    assert_eq!(humans[0].tank_id, server.player_tank());
+    assert_eq!((humans[0].seat, humans[0].seat_letter()), (0, 'A'), "the player is seat A");
+    assert_eq!(roster.iter().filter(|e| e.team == game_core::TeamId(1)).count(), 7);
+
+    let mut admitted = 0;
+    for _ in 0..8 {
+        if server.send_team_command(net::TeamCommand::Reloading, None, None) {
+            admitted += 1;
+        }
+    }
+    assert_eq!(admitted, net::TEAM_COMMANDS_PER_WINDOW, "five in a minute, the rest refused");
+    let tick = server.tick_with_input(ClientInputCommand {
+        client_tick: 0,
+        tank_id: server.player_tank(),
+        command: TankCommand::idle(),
+    });
+    assert_eq!(tick.team_commands.len(), net::TEAM_COMMANDS_PER_WINDOW);
+    assert!(tick.team_commands.iter().all(|relay| relay.from == server.player_tank()));
+    assert!(tick.kills.is_empty(), "nobody died on the first tick");
+}

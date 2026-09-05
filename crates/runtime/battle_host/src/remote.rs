@@ -33,6 +33,10 @@ const MAX_TRACKED_CLIENTS: usize = 32;
 const BATTLE_ENDED_REPEATS: u32 = 20;
 const RETIRED_SESSION_IDS: usize = 4;
 
+/// Commands a crew may have waiting for one tick. Anything past this is dropped at intake —
+/// the limiter would refuse them anyway, and a queue a client can grow is a queue it can flood.
+const MAX_PENDING_TEAM_COMMANDS: usize = 8;
+
 struct RemoteClient {
     endpoint: Endpoint,
     session_id: u64,
@@ -48,6 +52,12 @@ struct RemoteClient {
     inputs: RemoteInputQueue,
     events: RemoteEventQueue,
     event_overflowed: bool,
+    /// This crew's command allowance (v51, W-5): five per minute, counted here on the server,
+    /// where a modded client cannot reach it.
+    command_limiter: net::TeamCommandLimiter,
+    /// Commands received since the last tick, admitted and relayed in `tick` where the board
+    /// (and so the sender's team) is in reach.
+    pending_team_commands: Vec<(net::TeamCommand, Option<TankId>, Option<[f32; 2]>)>,
     last_heard_ms: u64,
     /// The order this crew finished its FIRST handshake in (N10): seats go out by it, never
     /// by the table's iteration order. 0 = never established.
@@ -63,6 +73,8 @@ impl RemoteClient {
             tank: None,
             requested_vehicle: None,
             acked_start: false,
+            command_limiter: net::TeamCommandLimiter::default(),
+            pending_team_commands: Vec::new(),
             inputs: RemoteInputQueue::default(),
             events: RemoteEventQueue::default(),
             event_overflowed: false,
@@ -250,6 +262,11 @@ impl RemoteBattleServer {
                                 time_limit_tick: core.time_limit_tick(),
                             };
                             let _ = client.endpoint.send(transport, &start);
+                            let roster = ProtocolMessage::BattleRoster {
+                                session_id,
+                                entries: core.roster(),
+                            };
+                            let _ = client.endpoint.send(transport, &roster);
                             // v39: the world's EXISTING perforations, once, before the stream of
                             // additions. `begin_session` resets the lane, so a reconnect is
                             // seeded exactly like a fresh joiner — and without this baseline the
@@ -272,6 +289,16 @@ impl RemoteBattleServer {
                     if client.belongs_to(session_id) =>
                 {
                     client.events.acknowledge(last_received_seq);
+                    client.last_heard_ms = now_ms;
+                }
+                ProtocolMessage::TeamCommand { session_id, command, target, map_position }
+                    if client.belongs_to(session_id) =>
+                {
+                    // Admitted (or refused) in `tick`, where the board is in reach; a flood is
+                    // bounded here so a hostile client cannot grow the queue between ticks.
+                    if client.pending_team_commands.len() < MAX_PENDING_TEAM_COMMANDS {
+                        client.pending_team_commands.push((command, target, map_position));
+                    }
                     client.last_heard_ms = now_ms;
                 }
                 ProtocolMessage::VehicleSelection(selection)
@@ -359,6 +386,44 @@ impl RemoteBattleServer {
                     .collect();
                 let result = core.tick_with_inputs(&inputs);
 
+                // v51 (W-5): the commands received since the last tick, admitted by THIS crew's
+                // limiter and relayed to its team on the reliable lane. The sender hears its
+                // own word back the same way — its HUD echoes the relay, never the wish.
+                let team_of = |tank: TankId| {
+                    core.tanks().iter().find(|state| state.id == tank).map(|state| state.team)
+                };
+                let tick_hz = self.config.server_tick_hz();
+                let mut relays: Vec<(game_core::TeamId, net::TeamCommandRelay)> = Vec::new();
+                for client in self.clients.values_mut() {
+                    let pending = std::mem::take(&mut client.pending_team_commands);
+                    let Some(from) = client.tank else { continue };
+                    let Some(team) = team_of(from) else { continue };
+                    for (command, target, map_position) in pending {
+                        if client.command_limiter.admit(result.server_tick, tick_hz) {
+                            relays.push((
+                                team,
+                                net::TeamCommandRelay {
+                                    from,
+                                    command,
+                                    target,
+                                    map_position,
+                                    server_tick: result.server_tick,
+                                },
+                            ));
+                        }
+                    }
+                }
+                for client in self.clients.values_mut() {
+                    let Some(team) = client.tank.and_then(team_of) else { continue };
+                    for (relay_team, relay) in &relays {
+                        if *relay_team == team
+                            && client.events.enqueue(CombatEvent::TeamCommand(*relay)).is_err()
+                        {
+                            client.event_overflowed = true;
+                        }
+                    }
+                }
+
                 // Personal one-shot feedback leaves the snapshot cadence here. Audience is fixed
                 // at the event's authoritative tick: the shooter and target get damage truth;
                 // only the shooter gets its absorbed-shell terminal. Retransmission never
@@ -373,6 +438,9 @@ impl RemoteBattleServer {
                     // be visible later, and a viewer that missed its perforations could never
                     // dress it correctly again. Everyone gets every breach, once, in order.
                     queue_armor_breaches(client, &result.armor_breaches);
+                    // Neither is a kill (v51): the feed and the top bar count a death between
+                    // two hulls this crew cannot see, and the event locates nobody.
+                    queue_kill_events(client, &result.kills);
                 }
 
                 // A tiny independent ACK keeps input progress moving even when a fragmented
@@ -421,6 +489,7 @@ impl RemoteBattleServer {
                 // crew cannot play without.
                 let acked_tick = core.authoritative_tick();
                 let time_limit_tick = core.time_limit_tick();
+                let roster = core.roster();
                 for client in self.clients.values_mut() {
                     if let Some(tank) = client.tank
                         && !client.acked_start
@@ -432,6 +501,13 @@ impl RemoteBattleServer {
                             time_limit_tick,
                         };
                         let _ = client.endpoint.send(transport, &start);
+                        // v51: the roster rides the seat word's cadence — lossy wire, one
+                        // word that must land, and the team list is blind without it.
+                        let roster = ProtocolMessage::BattleRoster {
+                            session_id: client.session_id,
+                            entries: roster.clone(),
+                        };
+                        let _ = client.endpoint.send(transport, &roster);
                     }
                 }
 
@@ -542,6 +618,7 @@ impl RemoteBattleServer {
             LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, &wishes);
         let server_tick = core.authoritative_tick();
         let time_limit_tick = core.time_limit_tick();
+        let roster = core.roster();
         for ((address, _), tank) in seats.into_iter().zip(human_tanks) {
             let Some(client) = self.clients.get_mut(&address) else { continue };
             client.tank = Some(tank);
@@ -552,6 +629,11 @@ impl RemoteBattleServer {
                 time_limit_tick,
             };
             let _ = client.endpoint.send(transport, &start);
+            let roster = ProtocolMessage::BattleRoster {
+                session_id: client.session_id,
+                entries: roster.clone(),
+            };
+            let _ = client.endpoint.send(transport, &roster);
         }
         self.phase = Phase::Running { core: Box::new(core), ended_repeats: 0 };
     }
@@ -575,6 +657,16 @@ fn queue_armor_breaches(
             }))
             .is_err()
         {
+            client.event_overflowed = true;
+            return;
+        }
+    }
+}
+
+/// Every kill to every crew (v51, W-3): not personal, not positional.
+fn queue_kill_events(client: &mut RemoteClient, kills: &[game_core::KillEvent]) {
+    for kill in kills {
+        if client.events.enqueue(CombatEvent::Kill(*kill)).is_err() {
             client.event_overflowed = true;
             return;
         }

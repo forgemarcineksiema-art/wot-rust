@@ -370,6 +370,9 @@ pub(crate) fn apply_shell_impact(
         round: shell.shell.round,
         shattered: penetration.ricocheted
             && shell.shell.penetrator == game_core::Penetrator::TungstenCore,
+        // v51: the range the shell flew — the path it travelled, which is what a range card
+        // means, not the straight line from wherever the shooter is standing now.
+        distance_m: shell.traveled_m,
     };
     Some((event, exit))
 }

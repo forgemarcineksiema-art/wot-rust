@@ -51,6 +51,42 @@ pub struct CrewRepair {
     ammo_rack_s: f32,
 }
 
+impl CrewRepair {
+    /// The module clocks in `ModuleSlot::ALL` order (protocol v51, interface program W-4):
+    /// seconds a patchable system has been down, zero for a whole one and for the two slots
+    /// the crew never patches (turret ring, radio). The HUD's countdown is
+    /// `MODULE_PATCH_S` minus this.
+    pub fn module_clocks_by_slot(&self) -> [f32; game_core::MODULE_SLOT_COUNT] {
+        let mut clocks = [0.0; game_core::MODULE_SLOT_COUNT];
+        for slot in ModuleSlot::ALL {
+            clocks[slot.wire_index()] = match slot {
+                ModuleSlot::Engine => self.engine_s,
+                ModuleSlot::Suspension => self.suspension_s,
+                ModuleSlot::Gun => self.gun_s,
+                ModuleSlot::AmmoRack => self.ammo_rack_s,
+                ModuleSlot::Turret | ModuleSlot::Radio => 0.0,
+            };
+        }
+        clocks
+    }
+
+    /// The track clocks `[left, right]` (protocol v51): seconds a side has been thrown; the
+    /// re-seat lands at `TRACK_REPAIR_S`.
+    pub fn track_clocks(&self) -> [f32; 2] {
+        [self.left_track_s, self.right_track_s]
+    }
+
+    /// Whether any clock is running — the snapshot carries clocks only for hulls that have one.
+    pub fn any_running(&self) -> bool {
+        self.left_track_s > 0.0
+            || self.right_track_s > 0.0
+            || self.engine_s > 0.0
+            || self.suspension_s > 0.0
+            || self.gun_s > 0.0
+            || self.ammo_rack_s > 0.0
+    }
+}
+
 /// One fixed tick of crew repair for one living hull. Runs in the same per-tank pass as reload
 /// and aim recovery, before movement — deterministic, server-authoritative.
 pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {

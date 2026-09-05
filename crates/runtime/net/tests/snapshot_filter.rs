@@ -23,6 +23,8 @@ fn snapshot_filter_keeps_allies_wrecks_and_spotted_enemies_only() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -59,6 +61,8 @@ fn a_hidden_shooters_shell_replicates_but_carries_no_identity() {
             game_core::ShotFired { shooter: TankId(2), shell_id: game_core::ShellId(2) },
             game_core::ShotFired { shooter: TankId(3), shell_id: game_core::ShellId(3) },
         ],
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -113,6 +117,8 @@ fn snapshot_filter_keeps_visible_and_player_combat_events() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -143,6 +149,8 @@ fn snapshot_filter_keeps_detached_turret_wrecks_the_viewer_can_see() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -177,6 +185,8 @@ fn a_bounce_does_not_tell_the_shooter_whom_it_wounded() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let shooter_view = snapshot.filtered_for_viewer(TankId(1));
@@ -207,6 +217,38 @@ fn a_bounce_does_not_tell_the_shooter_whom_it_wounded() {
 /// Crew wounds are interior state exactly like the rack fuze (v46): the team reads who is down
 /// and the bandage countdown; an enemy sees a whole crew, and a downed RADIO OPERATOR silences
 /// the viewer's own team intel the same way a destroyed radio module does.
+/// v51: the repair clocks are interior state like the crew — the viewer's own team's ride, an
+/// enemy's stay behind the plate — while the team pools are an aggregate of the whole board and
+/// ride untouched (nothing in a sum locates anyone).
+#[test]
+fn repair_clocks_are_team_private_and_team_hit_points_are_not() {
+    let mut snapshot = Snapshot {
+        server_tick: 3,
+        tanks: vec![
+            tank(1, 1, 1_000, TeamId(1).spotting_bit()),
+            tank(2, 1, 900, TeamId(1).spotting_bit()),
+            tank(3, 2, 800, TeamId(1).spotting_bit() | TeamId(2).spotting_bit()),
+        ],
+        ..Snapshot::default()
+    };
+    snapshot.team_hit_points = [1_900, 800];
+    snapshot.repair_clocks = vec![
+        net::RepairClocks {
+            tank_id: TankId(2),
+            module_s: [4.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            track_s: [0.0, 2.5],
+        },
+        net::RepairClocks { tank_id: TankId(3), module_s: [0.0; 6], track_s: [6.0, 0.0] },
+    ];
+
+    let filtered = snapshot.filtered_for_viewer(TankId(1));
+
+    assert_eq!(filtered.team_hit_points, [1_900, 800], "the pools ride as they are");
+    let clocked: Vec<u64> = filtered.repair_clocks.iter().map(|clocks| clocks.tank_id.0).collect();
+    assert_eq!(clocked, vec![2], "the teammate's clocks ride, the enemy's do not");
+    assert_eq!(filtered.repair_clocks[0].track_s, [0.0, 2.5]);
+}
+
 #[test]
 fn crew_state_is_team_private_and_a_downed_operator_silences_the_net() {
     let mut wounded_teammate = tank(2, 1, 900, TeamId(1).spotting_bit());
@@ -228,6 +270,8 @@ fn crew_state_is_team_private_and_a_downed_operator_silences_the_net() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));

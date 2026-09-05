@@ -29,6 +29,7 @@ fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {
     let mut assigned = [None, None];
     let mut input_sequence = [0_u64, 0_u64];
     let mut latest_snapshot: [Option<net::Snapshot>; 2] = [None, None];
+    let mut roster: [Option<Vec<net::RosterEntry>>; 2] = [None, None];
 
     for step in 0..600_u64 {
         let now_ms = step * 16;
@@ -39,6 +40,9 @@ fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {
                 match message {
                     ProtocolMessage::StartBattle { assigned_tank, .. } => {
                         assigned[index] = Some(assigned_tank);
+                    }
+                    ProtocolMessage::BattleRoster { entries, .. } => {
+                        roster[index] = Some(entries);
                     }
                     ProtocolMessage::SnapshotDelivery(delivery) => {
                         latest_snapshot[index] = Some(delivery.snapshot);
@@ -87,6 +91,113 @@ fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {
         "B's snapshot must NOT carry unspotted enemies, got {} tanks",
         snapshot_b.tanks.len()
     );
+
+    // v51 (W-1): the roster names the whole field — fourteen hulls, two of them human, seats
+    // A–G per team — and carries no position, so the team lists can count what the filter
+    // withholds without the filter's honesty going anywhere.
+    let roster_a = roster[0].clone().expect("A receives the roster");
+    let roster_b = roster[1].clone().expect("B receives the roster");
+    assert_eq!(roster_a, roster_b, "one roster, the same for every crew");
+    assert_eq!(roster_a.len(), 14, "every hull is named");
+    let humans: Vec<_> = roster_a
+        .iter()
+        .filter(|e| e.crew_kind == net::CrewKind::Human)
+        .map(|e| e.tank_id)
+        .collect();
+    assert_eq!(humans.len(), 2, "the two crews are the humans");
+    assert!(humans.contains(&tank_a) && humans.contains(&tank_b));
+    for team in [game_core::TeamId(1), game_core::TeamId(2)] {
+        let mut seats: Vec<u8> =
+            roster_a.iter().filter(|e| e.team == team).map(|e| e.seat).collect();
+        seats.sort_unstable();
+        assert_eq!(seats, (0..7).collect::<Vec<u8>>(), "seats A–G on team {}", team.0);
+    }
+    // v51 (W-2): the pools are the whole board's, on a snapshot that names only what is seen.
+    assert!(snapshot_a.team_hit_points.iter().all(|pool| *pool > 0), "both pools are summed");
+    assert!(snapshot_a.tanks.len() < 14 && snapshot_a.team_hit_points[1] > 0);
+}
+
+/// v51 (W-5): the command wheel's word goes to the team — and only as many as the SERVER
+/// admits. A crew that sends eight in a burst hears five relays; the sixth, seventh and eighth
+/// were refused where a modded client cannot reach.
+#[test]
+fn a_sixth_command_in_a_minute_is_refused_by_the_server() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.1.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut port_a = hub.port("10.0.1.2:5000".parse().expect("addr"));
+
+    let battle = RandomBattleConfig {
+        seed: BattleSeed::fixed(21),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 400, 0);
+    let mut client = ClientSession::connect(server_addr, 0);
+    let mut assigned = None;
+    let mut input_sequence = 0_u64;
+    let mut relays: Vec<net::TeamCommandRelay> = Vec::new();
+    let mut sent = false;
+
+    for step in 0..400_u64 {
+        let now_ms = step * 16;
+        for message in client.tick(now_ms, &mut port_a).expect("client tick") {
+            match message {
+                ProtocolMessage::StartBattle { assigned_tank, .. } => {
+                    assigned = Some(assigned_tank)
+                }
+                ProtocolMessage::CombatEventBatch { events, .. } => {
+                    for event in events {
+                        if let net::CombatEvent::TeamCommand(relay) = event.event {
+                            relays.push(relay);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(tank) = assigned {
+            let batch = ProtocolMessage::InputBatch {
+                session_id: client.session_id(),
+                commands: vec![net::ClientInputCommand {
+                    client_tick: input_sequence,
+                    tank_id: tank,
+                    command: sim::TankCommand::idle(),
+                }],
+            };
+            client.endpoint.send(&mut port_a, &batch).expect("input batch");
+            input_sequence += 1;
+            if !sent && step > 100 {
+                sent = true;
+                for i in 0..8_u8 {
+                    let word = ProtocolMessage::TeamCommand {
+                        session_id: client.session_id(),
+                        command: net::TeamCommand::ALL
+                            [usize::from(i) % net::TeamCommand::ALL.len()],
+                        target: None,
+                        map_position: Some([10.0 * f32::from(i), 5.0]),
+                    };
+                    client.endpoint.send(&mut port_a, &word).expect("team command");
+                }
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+
+    let tank = assigned.expect("seated");
+    assert!(sent, "the burst went out");
+    // The relays are de-duplicated by the reliable lane's sequence on the client side; here we
+    // read the raw batches, so count DISTINCT relays (a retransmitted batch repeats them).
+    let mut distinct = relays.clone();
+    distinct.sort_by_key(|relay| (relay.server_tick, relay.map_position.map(|p| p[0] as i32)));
+    distinct.dedup();
+    assert_eq!(
+        distinct.len(),
+        net::TEAM_COMMANDS_PER_WINDOW,
+        "five admitted, the rest refused by the server: {distinct:?}"
+    );
+    assert!(distinct.iter().all(|relay| relay.from == tank), "the relay names the sender");
 }
 
 /// A vanished client ages out of the seat table and the battle keeps running on bots + the

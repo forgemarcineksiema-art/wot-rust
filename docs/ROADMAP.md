@@ -58,7 +58,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   mixed per map by `HorizonSpec::flora`. What the trees still owe — leaves 2.0 and LOD
   continuity — is `inny-poziom-program.md` F10/F11.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (**wire v50** — the sprung hull's attitude velocities v50, breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  snapshots (**wire v51** — the HUD's honest data v51 (the roster without positions, team pools, kills to every crew, team-private repair clocks, the command relay with the server's limit, hit distance), the sprung hull's attitude velocities v50, breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
   who has not spotted the shooter v44, the battle clock on the wire v45, crew battle wounds
   team-private v46, concrete-round identity and the tungsten shatter flag v47, the

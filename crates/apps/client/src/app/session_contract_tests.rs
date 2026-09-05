@@ -226,6 +226,121 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
     );
 }
 
+/// v51: the roster lands with the seat word, and a kill or a teammate's relay leaves the lane
+/// on the tick it arrives — snapshot or no snapshot — so the feed never waits on world state.
+#[test]
+fn the_roster_lands_with_the_seat_and_kills_and_relays_leave_the_lane_without_a_snapshot() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.27.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.27.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let session_id = remote.session.session_id();
+    let map_id = MapId::default();
+
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::ServerHello {
+                session_id,
+                protocol_version: net::PROTOCOL_VERSION,
+                map_id,
+                weather: Default::default(),
+                map_content_hash: map_forge::battlefield_hash(&map_forge::battlefield(map_id)),
+            },
+        )
+        .expect("hello");
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::StartBattle {
+                session_id,
+                assigned_tank: TankId(7),
+                server_tick: 10,
+                time_limit_tick: None,
+            },
+        )
+        .expect("start");
+    let entries = vec![
+        net::RosterEntry {
+            tank_id: TankId(7),
+            team: game_core::TeamId(1),
+            vehicle: game_core::VehicleKind::T54_1951,
+            seat: 0,
+            crew_kind: net::CrewKind::Human,
+        },
+        net::RosterEntry {
+            tank_id: TankId(8),
+            team: game_core::TeamId(2),
+            vehicle: game_core::VehicleKind::TigerII,
+            seat: 0,
+            crew_kind: net::CrewKind::Bot,
+        },
+    ];
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::BattleRoster { session_id, entries: entries.clone() },
+        )
+        .expect("roster");
+    let kill = game_core::KillEvent {
+        victim: TankId(8),
+        killer: Some(TankId(7)),
+        cause: game_core::DamageCause::Shell,
+        occurred_tick: 12,
+    };
+    let relay = net::TeamCommandRelay {
+        from: TankId(7),
+        command: net::TeamCommand::Attack,
+        target: Some(TankId(8)),
+        map_position: None,
+        server_tick: 12,
+    };
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::CombatEventBatch {
+                session_id,
+                events: vec![
+                    net::SequencedCombatEvent {
+                        delivery_seq: 0,
+                        event: net::CombatEvent::Kill(kill),
+                    },
+                    net::SequencedCombatEvent {
+                        delivery_seq: 1,
+                        event: net::CombatEvent::TeamCommand(relay),
+                    },
+                ],
+            },
+        )
+        .expect("batch");
+
+    remote.pump_at(100);
+    assert_eq!(remote.roster, entries, "the roster is the host's, verbatim");
+    let tick = remote.take_pending_tick();
+    assert!(tick.snapshot.is_none(), "no world state was sent");
+    assert_eq!(tick.kills, vec![kill], "the kill left the lane without a snapshot");
+    assert_eq!(tick.team_commands, vec![relay], "so did the relay");
+    assert!(remote.take_pending_tick().kills.is_empty(), "and neither is presented twice");
+
+    // The wheel's word goes out as one tagged datagram the host can admit or refuse.
+    assert!(remote.send_team_command(net::TeamCommand::Help, None, Some([100.0, 200.0])));
+    let mut heard = false;
+    while let Some((_, datagram)) = server_port.recv().expect("server receive") {
+        if let Ok(Some(ProtocolMessage::TeamCommand {
+            command: net::TeamCommand::Help,
+            map_position: Some(_),
+            ..
+        })) = server.accept(&datagram)
+        {
+            heard = true;
+        }
+    }
+    assert!(heard, "the word reached the server as one tagged datagram");
+}
+
 #[test]
 fn repeated_combat_batch_is_acked_repeatedly_but_presented_exactly_once() {
     let hub = MemoryHub::new();

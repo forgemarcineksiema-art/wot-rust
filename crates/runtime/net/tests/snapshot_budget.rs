@@ -143,6 +143,8 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
             .collect(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
     encode_frame(&ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
         session_id: 0xD00D,

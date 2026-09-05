@@ -324,7 +324,13 @@ the save.
 All append-only, `#[serde(default)]` on fields, appended variants on enums; one bump of
 `PROTOCOL_VERSION` carries W-1 to W-6 in the H wave's second PR; W-7 rides the same bump if the P
 wave starts before the next wire PR, else its own. Replay fixtures are re-pinned once per bump.
-**Today's wire: v50** (`crates/runtime/net/src/lib.rs`).
+**Today's wire: v51** (`crates/runtime/net/src/lib.rs`). **W-1 to W-6 landed as v51 on
+2026-09-05** (the H wave's second PR): `BattleRoster` rides the seat word, `Snapshot.team_hit_points`
+and the sparse team-private `Snapshot.repair_clocks`, `CombatEvent::{Kill, TeamCommand}` on the
+reliable lane, `ProtocolMessage::TeamCommand` with `net::TeamCommandLimiter` on the server (five
+per sixty seconds), `DamageEvent.distance_m` as the shell's travelled path; the session hands the
+client `BattleSessionTick::{kills, team_commands}` and `roster()`, kept in `app::battle_intel`
+until H1/H2/H3/H16 draw them. Fixtures re-pinned (`*_v51.hex`). W-7 waits for the P wave.
 
 | # | Change | Wave | Why |
 |---|---|---|---|

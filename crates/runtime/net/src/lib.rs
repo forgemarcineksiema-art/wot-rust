@@ -10,13 +10,20 @@ use thiserror::Error;
 
 mod frame;
 pub mod recording;
+mod roster;
 pub mod session;
 mod snapshot_filter;
 mod snapshot_schedule;
+mod team_command;
 pub mod transport;
 
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
+pub use roster::{CrewKind, RosterEntry, roster_from_tanks};
 pub use snapshot_schedule::SnapshotSchedule;
+pub use team_command::{
+    TEAM_COMMAND_WINDOW_S, TEAM_COMMANDS_PER_WINDOW, TeamCommand, TeamCommandLimiter,
+    TeamCommandRelay,
+};
 
 /// v39: persistent armour perforations leave the world snapshot for the reliable lane.
 ///
@@ -139,7 +146,20 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v48: the test-only `VehicleKind::PrototypeMedium` (wire discriminant 0) is deleted outright,
 /// shifting every remaining vehicle down by one — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones", and ALL must name every variant). Same class as v33.
-pub const PROTOCOL_VERSION: u16 = 50;
+/// v49: the crew's garage pick rides the lobby (`VehicleSelection` carries the session).
+///
+/// v50: the sprung hull's attitude velocities (Inny Poziom G7) on the tank snapshot and the
+/// owner's motion.
+///
+/// v51 (interface program, W-1 to W-6): the HUD's honest data. `BattleRoster` names every hull
+/// in the battle (vehicle, team, seat, crew kind) WITHOUT a position, so the team lists and the
+/// top bar can count what the snapshot filter withholds; `Snapshot.team_hit_points` is the team
+/// pool as an aggregate; `CombatEvent::Kill` reaches every crew (a kill between two unseen
+/// hulls still happened); `Snapshot.repair_clocks` carries the crew's repair clocks for the
+/// viewer's own team; `TeamCommand`/`CombatEvent::TeamCommand` is the command wheel's relay
+/// with the server's rate limit; `DamageEvent.distance_m` is the range of a hit. All appends
+/// with `serde(default)`; the fixtures were re-pinned as v51.
+pub const PROTOCOL_VERSION: u16 = 51;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -412,6 +432,53 @@ pub struct Snapshot {
     /// somebody's reload clock. `serde(default)` keeps pre-v41 fixtures loading silent.
     #[serde(default)]
     pub shots_fired: Vec<game_core::ShotFired>,
+    /// v51 (W-2): the two teams' hit-point pools, `[team one, team two]`, summed over LIVING
+    /// hulls by the server every snapshot. An aggregate cannot be inverted into a position, so it
+    /// rides the filter untouched; the top bar's team bars read it and nothing else.
+    #[serde(default)]
+    pub team_hit_points: [u32; 2],
+    /// v51 (W-4): the crew repair clocks of hulls that have one running — team-private like the
+    /// crew state (the filter keeps the viewer's own team's), sparse so a quiet snapshot pays
+    /// nothing. The damage panel's repair countdowns read these.
+    #[serde(default)]
+    pub repair_clocks: Vec<RepairClocks>,
+}
+
+/// One hull's crew repair clocks (protocol v51, interface program W-4): seconds each patchable
+/// system has been down, in `ModuleSlot::ALL` order, and the two track sides. The countdown the
+/// HUD shows is the repair time (`sim::MODULE_PATCH_S`, `sim::TRACK_REPAIR_S`) minus the clock.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+pub struct RepairClocks {
+    pub tank_id: TankId,
+    pub module_s: [f32; MODULE_SLOT_COUNT],
+    pub track_s: [f32; 2],
+}
+
+/// The team pools from the live tanks: living hulls only, `TeamId(1)` first.
+pub fn team_hit_points(tanks: &[TankState]) -> [u32; 2] {
+    let mut pools = [0_u32; 2];
+    for tank in tanks {
+        let index = match tank.team {
+            TeamId(1) => 0,
+            TeamId(2) => 1,
+            _ => continue,
+        };
+        pools[index] = pools[index].saturating_add(tank.hit_points);
+    }
+    pools
+}
+
+/// The clocks of every hull with a clock running.
+pub fn repair_clocks(tanks: &[TankState]) -> Vec<RepairClocks> {
+    tanks
+        .iter()
+        .filter(|tank| tank.hit_points > 0 && tank.repair.any_running())
+        .map(|tank| RepairClocks {
+            tank_id: tank.id,
+            module_s: tank.repair.module_clocks_by_slot(),
+            track_s: tank.repair.track_clocks(),
+        })
+        .collect()
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -432,6 +499,8 @@ impl From<&SimulationState> for Snapshot {
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
             craters: state.craters().to_vec(),
             cover_scars: state.cover_scars().to_vec(),
+            team_hit_points: team_hit_points(state.tanks()),
+            repair_clocks: repair_clocks(state.tanks()),
         }
     }
 }
@@ -482,6 +551,12 @@ pub enum CombatEvent {
     /// that is invisible now may be visible later and a viewer who missed its perforations could
     /// never dress it correctly again.
     ArmorBreach(ArmorBreachDelta),
+    /// v51 (W-3): a hull's death, to every crew. Not personal and not positional: the feed and
+    /// the top bar count kills the snapshot filter would otherwise hide.
+    Kill(game_core::KillEvent),
+    /// v51 (W-5): a teammate's command or ping, relayed by the server to the sender's team
+    /// (the sender included — its own HUD echoes the relay, never its wish).
+    TeamCommand(TeamCommandRelay),
 }
 
 /// One per-recipient stream item. `delivery_seq` is continuous for this session even though the
@@ -578,6 +653,24 @@ pub enum ProtocolMessage {
         session_id: u64,
         last_received_seq: u64,
     },
+    /// v51 (W-1): the battle's roster — every hull, its team, vehicle, seat and crew kind, and
+    /// NO position. Sent with `StartBattle` (it repeats on the same cadence until the seat is
+    /// acknowledged), so the team lists can name the field the snapshot filter withholds.
+    BattleRoster {
+        session_id: u64,
+        entries: Vec<RosterEntry>,
+    },
+    /// v51 (W-5): the command wheel's word or a map ping, client to server. The server admits
+    /// at most `TEAM_COMMANDS_PER_WINDOW` per `TEAM_COMMAND_WINDOW_S` per crew and relays the
+    /// admitted ones to the team on the reliable lane (`CombatEvent::TeamCommand`).
+    TeamCommand {
+        session_id: u64,
+        command: TeamCommand,
+        /// The hull the word is about (`Attack`, `Help`, `FollowMe`), when there is one.
+        target: Option<TankId>,
+        /// A map ping's position, `[x, z]` in world metres.
+        map_position: Option<[f32; 2]>,
+    },
 }
 
 impl ProtocolMessage {
@@ -596,7 +689,9 @@ impl ProtocolMessage {
             | ProtocolMessage::BattleEnded { session_id, .. }
             | ProtocolMessage::InputAck { session_id, .. }
             | ProtocolMessage::CombatEventBatch { session_id, .. }
-            | ProtocolMessage::CombatEventAck { session_id, .. } => Some(*session_id),
+            | ProtocolMessage::CombatEventAck { session_id, .. }
+            | ProtocolMessage::BattleRoster { session_id, .. }
+            | ProtocolMessage::TeamCommand { session_id, .. } => Some(*session_id),
             ProtocolMessage::SnapshotDelivery(delivery) => Some(delivery.session_id),
             ProtocolMessage::VehicleSelection(selection) => Some(selection.session_id),
             ProtocolMessage::Input(_) | ProtocolMessage::Snapshot(_) => None,

@@ -49,7 +49,9 @@ pub use crew_vitals::{
     CREW_COVERED_EFFECTIVENESS, CREW_FIRST_AID_S, CREW_ROLE_COUNT, CREW_WEAKENED_EFFECTIVENESS,
     CrewMemberState, CrewVitals, crew_effectiveness_from_masks, crew_time_multiplier,
 };
-pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, ShotFired, TrackHit};
+pub use damage::{
+    DamageCause, DamageEvent, ImpactSurface, KillEvent, ShellImpact, ShotFired, TrackHit,
+};
 pub use damage_layout::authoring::HullEnvelope;
 pub use damage_layout::{
     DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,

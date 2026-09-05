@@ -34,6 +34,12 @@ pub(super) struct BattleSessionTick {
     /// arrives as a stream of additions on the reliable lane rather than in every snapshot;
     /// the app folds them into its own ArmorBreachSet per tank.
     pub(super) armor_breaches: Vec<net::ArmorBreachDelta>,
+    /// Hulls that died (protocol v51, W-3) — every kill on the field, for the feed and the top
+    /// bar, positioned nowhere. Rides the reliable lane whether or not a snapshot is due.
+    pub(super) kills: Vec<game_core::KillEvent>,
+    /// Teammates' commands and pings relayed by the server (protocol v51, W-5), the crew's own
+    /// among them.
+    pub(super) team_commands: Vec<net::TeamCommandRelay>,
 }
 
 /// The minimal per-neighbour snapshot the contact predictor reads each tick — see
@@ -126,6 +132,34 @@ impl BattleSessionKind {
         }
     }
 
+    /// The battle's roster (protocol v51, W-1): every hull named, no position. The local host
+    /// builds it from its board; the remote session keeps the one the host sent with the seat
+    /// word (empty until it lands). The team lists (H2) and the top bar (H1) read it.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn roster(&self) -> Vec<net::RosterEntry> {
+        match self {
+            Self::Local(server) => server.roster(),
+            Self::Remote(session) => session.roster.clone(),
+        }
+    }
+
+    /// The command wheel's word or a map ping (protocol v51, W-5). Local play admits it through
+    /// the host's own limiter and returns whether it was admitted; a remote session sends it and
+    /// learns the answer only as the relay's presence or absence (a refused word never echoes).
+    /// The HUD (H16) knocks on `false`.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn send_team_command(
+        &mut self,
+        command: net::TeamCommand,
+        target: Option<TankId>,
+        map_position: Option<[f32; 2]>,
+    ) -> bool {
+        match self {
+            Self::Local(server) => server.send_team_command(command, target, map_position),
+            Self::Remote(session) => session.send_team_command(command, target, map_position),
+        }
+    }
+
     pub(super) fn tick_with_player_input(
         &mut self,
         input: ClientInputCommand,
@@ -154,6 +188,8 @@ impl BattleSessionKind {
                             breach: record.breach,
                         })
                         .collect(),
+                    kills: tick.kills,
+                    team_commands: tick.team_commands,
                 }
             }
             Self::Remote(session) => session.tick_with_player_input(input),
@@ -304,6 +340,8 @@ pub struct RemoteSession {
     inputs: RemoteInputHistory,
     combat_events: RemoteCombatEventInbox,
     pending_combat_events: Vec<net::CombatEvent>,
+    /// The roster the host sent with the seat word (protocol v51, W-1); empty until it lands.
+    pub(super) roster: Vec<net::RosterEntry>,
     pending_reconciliation: Option<RemoteReconciliation>,
     delivery_ready: bool,
     terminal_reason: Option<RemoteTerminalReason>,
@@ -354,6 +392,7 @@ impl RemoteSession {
             inputs: RemoteInputHistory::default(),
             combat_events: RemoteCombatEventInbox::default(),
             pending_combat_events: Vec::new(),
+            roster: Vec::new(),
             pending_reconciliation: None,
             delivery_ready: false,
             terminal_reason: None,
@@ -502,6 +541,10 @@ impl RemoteSession {
                 let _ = recorder.record(&message);
             }
             match message {
+                ProtocolMessage::BattleRoster { entries, .. } => {
+                    // Repeats on the seat word's cadence; the newest copy is the roster.
+                    self.roster = entries;
+                }
                 ProtocolMessage::Pong { client_time_us, .. } => {
                     self.rtt_ms = Some((now_ms.saturating_sub(client_time_us / 1_000)) as u32);
                 }
@@ -692,10 +735,16 @@ impl RemoteSession {
         // only delay the dressing. The personal events keep riding a snapshot, as they always
         // have — the HUD, the damage log and the FX all read them off one.
         let mut armor_breaches = Vec::new();
+        let mut kills = Vec::new();
+        let mut team_commands = Vec::new();
         let mut personal = Vec::new();
         for event in self.pending_combat_events.drain(..) {
             match event {
                 net::CombatEvent::ArmorBreach(delta) => armor_breaches.push(delta),
+                // v51: kills and relays are events in their own right, not snapshot dressing —
+                // they leave the lane on the tick they arrive, like the breaches.
+                net::CombatEvent::Kill(kill) => kills.push(kill),
+                net::CombatEvent::TeamCommand(relay) => team_commands.push(relay),
                 other => personal.push(other),
             }
         }
@@ -705,8 +754,10 @@ impl RemoteSession {
                     match event {
                         net::CombatEvent::Damage(event) => snapshot.damage_events.push(event),
                         net::CombatEvent::ShellImpact(event) => snapshot.shell_impacts.push(event),
-                        net::CombatEvent::ArmorBreach(_) => {
-                            unreachable!("breaches were split out above")
+                        net::CombatEvent::ArmorBreach(_)
+                        | net::CombatEvent::Kill(_)
+                        | net::CombatEvent::TeamCommand(_) => {
+                            unreachable!("breaches, kills and relays were split out above")
                         }
                     }
                 }
@@ -716,7 +767,28 @@ impl RemoteSession {
             None => self.pending_combat_events = personal,
         }
         let reconciliation = snapshot.as_ref().and_then(|_| self.pending_reconciliation.take());
-        BattleSessionTick { snapshot, reconciliation, armor_breaches }
+        BattleSessionTick { snapshot, reconciliation, armor_breaches, kills, team_commands }
+    }
+
+    /// Send the command wheel's word (protocol v51, W-5). One datagram on the lossy lane — a
+    /// lost word is a lost word, like a lost input; the server's relay is what the HUD shows.
+    /// Returns whether the send left the transport.
+    fn send_team_command(
+        &mut self,
+        command: net::TeamCommand,
+        target: Option<TankId>,
+        map_position: Option<[f32; 2]>,
+    ) -> bool {
+        if self.terminal_reason.is_some() {
+            return false;
+        }
+        let word = ProtocolMessage::TeamCommand {
+            session_id: self.session.session_id(),
+            command,
+            target,
+            map_position,
+        };
+        self.session.endpoint.send(self.transport.as_mut(), &word).is_ok()
     }
 }
 
@@ -746,6 +818,31 @@ mod tests {
         command: sim::TankCommand,
     ) -> ClientInputCommand {
         ClientInputCommand { client_tick: tick, tank_id: tank, command }
+    }
+
+    /// v51: the session's two new doors on the desktop battle — the roster is the board's, and
+    /// the crew's words go through the host's limiter and come back as relays on the tick.
+    #[test]
+    fn a_local_session_hands_out_the_roster_and_relays_its_own_admitted_words() {
+        let mut session = BattleSessionKind::Local(Box::new(
+            LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), battle()),
+        ));
+        let roster = session.roster();
+        assert_eq!(roster.len(), 14);
+        let player = session.player_tank();
+        assert!(roster.iter().any(|e| e.tank_id == player && e.crew_kind == net::CrewKind::Human));
+        let admitted = (0..8)
+            .filter(|_| session.send_team_command(net::TeamCommand::Help, Some(player), None))
+            .count();
+        assert_eq!(admitted, net::TEAM_COMMANDS_PER_WINDOW);
+        let tick = session.tick_with_player_input(session_parity_input(
+            0,
+            player,
+            sim::TankCommand::idle(),
+        ));
+        assert_eq!(tick.team_commands.len(), net::TEAM_COMMANDS_PER_WINDOW);
+        assert!(tick.team_commands.iter().all(|relay| relay.from == player));
+        assert!(tick.kills.is_empty());
     }
 
     /// THE parity lock from the network plan: the same seed and non-idle steering, once through

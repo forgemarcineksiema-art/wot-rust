@@ -20,6 +20,13 @@ pub struct AuthoritativeTick {
     /// Perforations carved this tick (protocol v39). Permanent per-hull state, replicated as a
     /// stream of additions on the same reliable lane instead of riding every snapshot.
     pub armor_breaches: Vec<sim::event_stamp::ArmorBreachRecord>,
+    /// Hulls that died this tick (protocol v51, W-3): one kill per `target_destroyed` damage
+    /// event, for EVERY crew — the remote host fans these out on the reliable lane, the local
+    /// session reads them straight off the tick.
+    pub kills: Vec<game_core::KillEvent>,
+    /// Team commands admitted this tick (protocol v51, W-5) — the local host's relay; the
+    /// remote host keeps its own limiter per crew and never reads this.
+    pub team_commands: Vec<net::TeamCommandRelay>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +52,14 @@ pub struct LocalAuthoritativeServer {
     /// on a slower schedule, so a shot on a non-snapshot tick has to WAIT rather than vanish.
     pending_shots_fired: Vec<game_core::ShotFired>,
     pending_shell_impacts: Vec<ShellImpact>,
+    /// The hulls humans drive (v51, W-1): the roster names them `CrewKind::Human`. The desktop
+    /// battle seats one; the dedicated host seats up to seven through
+    /// [`Self::new_random_7v7_for_humans`].
+    human_tanks: Vec<TankId>,
+    /// The one local crew's command allowance (v51, W-5): the same limiter the remote host runs
+    /// per client, so local play cannot say more than a remote crew could.
+    command_limiter: net::TeamCommandLimiter,
+    pending_team_commands: Vec<net::TeamCommandRelay>,
 }
 
 impl LocalAuthoritativeServer {
@@ -69,7 +84,40 @@ impl LocalAuthoritativeServer {
     ) -> (Self, Vec<TankId>) {
         let (setup, human_tanks) =
             crate::setup::random_7v7_setup_for_humans(battle, human_vehicles);
-        (Self::from_setup(config, setup), human_tanks)
+        let mut server = Self::from_setup(config, setup);
+        server.human_tanks = human_tanks.clone();
+        (server, human_tanks)
+    }
+
+    /// The battle's roster (protocol v51, W-1): every hull named — vehicle, team, seat, crew
+    /// kind — and no position. The remote host sends it with the seat word; the local session
+    /// reads it here. Built from the live board, so a vehicle change in the practice garage
+    /// re-seats the new hull under the same rule.
+    pub fn roster(&self) -> Vec<net::RosterEntry> {
+        net::roster_from_tanks(self.sim.tanks(), &self.human_tanks)
+    }
+
+    /// The local crew's word to its team (protocol v51, W-5): admitted by the same limiter the
+    /// remote host runs, relayed on the next tick as `AuthoritativeTick::team_commands`. A
+    /// refused command returns `false` so the client can knock.
+    pub fn send_team_command(
+        &mut self,
+        command: net::TeamCommand,
+        target: Option<TankId>,
+        map_position: Option<[f32; 2]>,
+    ) -> bool {
+        let tick_hz = self.config.server_tick_hz();
+        if !self.command_limiter.admit(self.sim.tick(), tick_hz) {
+            return false;
+        }
+        self.pending_team_commands.push(net::TeamCommandRelay {
+            from: self.player_tank,
+            command,
+            target,
+            map_position,
+            server_tick: self.sim.tick(),
+        });
+        true
     }
 
     /// Every hull's complete perforation set (protocol v39). A crew joining mid-battle gets this
@@ -118,6 +166,9 @@ impl LocalAuthoritativeServer {
             pending_damage_events: Vec::new(),
             pending_shots_fired: Vec::new(),
             pending_shell_impacts: Vec::new(),
+            human_tanks: vec![setup.player_tank],
+            command_limiter: net::TeamCommandLimiter::default(),
+            pending_team_commands: Vec::new(),
         }
     }
 
@@ -130,6 +181,11 @@ impl LocalAuthoritativeServer {
     /// actually drives and fights with its chosen stats.
     pub fn change_player_vehicle_with_spec(&mut self, spec: TankSpec) -> Snapshot {
         if let Some(new_player_tank) = self.sim.replace_tank_with_spec(self.player_tank, spec) {
+            for human in &mut self.human_tanks {
+                if *human == self.player_tank {
+                    *human = new_player_tank;
+                }
+            }
             self.player_tank = new_player_tank;
         }
         self.pending_damage_events.clear();
@@ -323,6 +379,10 @@ impl LocalAuthoritativeServer {
         let damage_events = self.sim.damage_events().to_vec();
         let shell_impacts = self.sim.shell_impacts().to_vec();
         let armor_breaches = self.sim.armor_breach_events().to_vec();
+        // v51: a hull's death is its own event, for everyone — derived from the ONE damage
+        // event that took it from alive to dead, so it is counted exactly once.
+        let kills = damage_events.iter().filter_map(game_core::KillEvent::from_damage).collect();
+        let team_commands = std::mem::take(&mut self.pending_team_commands);
 
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
@@ -341,6 +401,8 @@ impl LocalAuthoritativeServer {
             damage_events,
             shell_impacts,
             armor_breaches,
+            kills,
+            team_commands,
         }
     }
 
@@ -353,6 +415,8 @@ impl LocalAuthoritativeServer {
             damage_events: tick.damage_events,
             shell_impacts: tick.shell_impacts,
             armor_breaches: tick.armor_breaches,
+            kills: tick.kills,
+            team_commands: tick.team_commands,
         }
     }
 }
