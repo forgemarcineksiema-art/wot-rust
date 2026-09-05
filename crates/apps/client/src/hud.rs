@@ -29,6 +29,7 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod review;
 pub(crate) mod scope_overlay;
+pub(crate) mod speed;
 pub(crate) mod spot_bracket;
 pub(crate) mod states;
 pub(crate) mod team_list;
@@ -67,6 +68,8 @@ pub struct BattleHudModel {
     pub frame_p95_ms: f32,
     /// Draws the bottom-left speed readout when at least 0.5 km/h.
     pub speed_kmh: f32,
+    /// The cruise latch (H5), `-2..=3`; the speed instrument lights its notches by it.
+    pub cruise_level: i8,
     /// Sniper magnification; `None` in third person (no readout).
     pub zoom_factor: Option<f32>,
     /// Recent dealt/taken damage rows, newest first (`hud/damage_log.rs`).
@@ -114,6 +117,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             fps: 0.0,
             frame_p95_ms: 0.0,
             speed_kmh: 0.0,
+            cruise_level: 0,
             zoom_factor: None,
             damage_log: Vec::new(),
             incoming_hits: Vec::new(),
@@ -149,6 +153,7 @@ pub(crate) fn test_model(
         fps,
         frame_p95_ms: 0.0,
         speed_kmh,
+        cruise_level: 0,
         zoom_factor,
         damage_log: Vec::new(),
         incoming_hits: Vec::new(),
@@ -307,10 +312,10 @@ pub(crate) fn build_battle_hud_list(
         hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
         legacy(&mut list, &mut order, HudElement::HitDirection, v);
     }
+    // H5/H6: the speed instrument and the ammunition panel, on the new toolkit.
+    speed::push_speed(&mut list, ui, &theme, model.speed_kmh, model.cruise_level, &mut order);
     if let Some(ammo) = &model.ammo {
-        let mut v = Vec::new();
-        ammo_panel::push_ammo_panel(&mut v, ammo, aspect);
-        legacy(&mut list, &mut order, HudElement::AmmoPanel, v);
+        ammo_panel::push_ammo_panel(&mut list, ui, &theme, ammo, &mut order);
     }
     // H4/H17: the damage panel — the four callout instruments folded into one plate.
     if let Some(damage) = &model.damage {

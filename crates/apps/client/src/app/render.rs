@@ -638,6 +638,7 @@ impl ClientApp {
             fps: self.fps_estimate,
             frame_p95_ms,
             speed_kmh: self.player_speed_kmh(),
+            cruise_level: self.input.cruise_level(),
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),

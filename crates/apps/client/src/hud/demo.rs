@@ -64,6 +64,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         fps: 60.0,
         frame_p95_ms: 16.7,
         speed_kmh: 24.0,
+        cruise_level: 2,
         zoom_factor: sniper.then_some(6.9),
         damage_log: vec![
             DamageLogEntry {
@@ -103,15 +104,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
             effective_armor_mm: 0.0,
             shell_penetration_mm: 0.0,
         }],
-        ammo: Some(AmmoHudModel::new(
-            [
-                game_core::ShellType::ArmorPiercing,
-                game_core::ShellType::Apcr,
-                game_core::ShellType::HighExplosive,
-            ],
-            [22, 9, 6],
-            0,
-        )),
+        ammo: Some(demo_ammo(0)),
         // The staged hull: a wounded gun, a thrown left track mid re-seat, a downed loader
         // mid-bandage and a scarred driver — the panel's states at once.
         damage: Some(demo_damage_panel()),
@@ -193,6 +186,17 @@ pub(crate) fn mixed_team_lists() -> super::team_list::TeamListsModel {
             row(V::T34_85, 'G', false, None, true, false, false),
         ],
     }
+}
+
+/// The staged ammunition: the benchmark's three rounds, the server's selection in slot 0 and
+/// the crew's request in `requested` (a switch in flight when it differs).
+pub(crate) fn demo_ammo(requested: u8) -> AmmoHudModel {
+    AmmoHudModel::new(
+        &game_core::VehicleKind::BENCHMARK.spec_ref().gun.ammo_options(),
+        [22, 9, 6],
+        0,
+        requested,
+    )
 }
 
 /// The staged hull's snapshot, with the drama switched on by the caller.

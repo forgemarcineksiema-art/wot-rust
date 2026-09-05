@@ -94,6 +94,10 @@ pub(crate) mod battle {
     pub const RACK_FUZE: &str = "RACK";
     /// The damage panel's word for a dead radio (H4).
     pub const RADIO_OUT: &str = "RADIO OUT";
+    /// The ammunition panel's band while the loader swaps the round (H6).
+    pub const AMMO_SWITCHING: &str = "SWITCHING";
+    /// Millimetres, after a penetration figure (H6).
+    pub const MILLIMETRES: &str = "MM";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -122,6 +126,8 @@ pub(crate) mod battle {
         FIRE_LAMP,
         RACK_FUZE,
         RADIO_OUT,
+        AMMO_SWITCHING,
+        MILLIMETRES,
     ];
 }
 

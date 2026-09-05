@@ -124,17 +124,17 @@ impl ClientApp {
 
     /// The rack panel model: counts from the latest authoritative snapshot, the selected slot
     /// from the predictor (optimistic on a 1/2/3 press).
+    /// The ammunition panel (H6): the gun's rounds with their numbers, the counts off the
+    /// snapshot, the SERVER's selection as the breech's round and the predictor's optimistic one
+    /// as the request — the band shows while they differ.
     pub(super) fn player_ammo_hud(&self) -> crate::hud::ammo_panel::AmmoHudModel {
-        let counts = self
-            .player_snapshot()
-            .map_or(self.predictor.spec().ammo.counts, |tank| tank.ammo_counts);
-        let options = self.predictor.spec().gun.ammo_options();
-        let shell_types = std::array::from_fn(|i| {
-            options.get(i).map_or(game_core::ShellType::ArmorPiercing, |shell| shell.shell_type)
-        });
+        let snapshot = self.player_snapshot();
+        let counts = snapshot.map_or(self.predictor.spec().ammo.counts, |tank| tank.ammo_counts);
+        let selected = snapshot.map_or(self.predictor.selected_ammo(), |tank| tank.selected_ammo);
         crate::hud::ammo_panel::AmmoHudModel::new(
-            shell_types,
+            &self.predictor.spec().gun.ammo_options(),
             counts,
+            selected,
             self.predictor.selected_ammo(),
         )
     }

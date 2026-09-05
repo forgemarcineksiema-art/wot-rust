@@ -23,6 +23,33 @@ impl InputState {
         self.right = false;
         self.brake = false;
         self.fire_pending = false;
+        self.cruise_level = 0;
+    }
+
+    /// The cruise levels a hull can latch: three forward, two in reverse.
+    pub(crate) const CRUISE_MAX_FORWARD: i8 = 3;
+    pub(crate) const CRUISE_MAX_REVERSE: i8 = -2;
+
+    /// R: one step forward on the cruise ladder (H5). From reverse it climbs through zero.
+    pub(super) fn cruise_up(&mut self) {
+        self.cruise_level = (self.cruise_level + 1).min(Self::CRUISE_MAX_FORWARD);
+    }
+
+    /// F: one step back.
+    pub(super) fn cruise_down(&mut self) {
+        self.cruise_level = (self.cruise_level - 1).max(Self::CRUISE_MAX_REVERSE);
+    }
+
+    /// The brake clears the latch — a hull under cruise stops when told to stop.
+    pub(super) fn set_brake(&mut self, pressed: bool) {
+        self.brake = pressed;
+        if pressed {
+            self.cruise_level = 0;
+        }
+    }
+
+    pub(crate) fn cruise_level(&self) -> i8 {
+        self.cruise_level
     }
 
     /// Everything the keyboard and wheel can leave latched, dropped at once — the drive keys and
@@ -39,8 +66,17 @@ impl InputState {
         debug_assert!(!self.free_look && self.sniper_hold_return.is_none(), "app ends the holds");
     }
 
+    /// The throttle axis: a held W/S wins; otherwise the cruise latch drives, as a fraction of
+    /// its ladder (a third per forward step, a half per reverse step).
     pub(super) fn throttle(&self) -> f32 {
-        axis(self.forward, self.back)
+        if self.forward || self.back {
+            return axis(self.forward, self.back);
+        }
+        match self.cruise_level {
+            level if level > 0 => f32::from(level) / f32::from(Self::CRUISE_MAX_FORWARD),
+            level if level < 0 => f32::from(level) / f32::from(-Self::CRUISE_MAX_REVERSE),
+            _ => 0.0,
+        }
     }
 
     pub(super) fn steer(&self) -> f32 {

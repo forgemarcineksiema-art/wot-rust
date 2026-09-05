@@ -4,7 +4,7 @@
 use super::HudElement;
 use super::*;
 use super::{HudSizeClass, HudState};
-use crate::hud::number::{FPS_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
+use crate::hud::number::{FPS_COLOR, RELOAD_TIME_COLOR};
 use crate::hud::reticle::ReticleStatus;
 
 /// A wire snapshot of one T-54 for the instrument locks: the fields a HUD row reads, nothing
@@ -124,24 +124,38 @@ fn fps_readout_draws_digits_in_the_top_right_only_when_positive() {
     );
 }
 
+/// H5: the speed is an instrument beside the damage panel — a plate, the number, the unit and
+/// the cruise notches — and no speed digits float in the readouts any more.
 #[test]
-fn speed_readout_draws_vehicle_speed_in_bottom_left_only_when_moving() {
-    let stopped = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 0.0, None);
-    assert!(!stopped.iter().any(|vertex| vertex.color == SPEED_COLOR), "0 km/h draws nothing");
-
-    let moving = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 42.0, None);
-    let speed_vertices: Vec<_> =
-        moving.iter().filter(|vertex| vertex.color == SPEED_COLOR).collect();
-
-    assert!(!speed_vertices.is_empty(), "moving tank should draw speed digits");
-    assert!(
-        speed_vertices.iter().all(|v| v.position[0] < 0.0 && v.position[1] < 0.0),
-        "speed readout should sit in the bottom-left quadrant"
+fn the_speed_instrument_sits_beside_the_damage_panel_and_reads_the_speed() {
+    use crate::hud::elements::SpeedPart;
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let moving = super::test_model(vitals(), None, 0.0, 42.0, None);
+    let list = super::build_battle_hud_list(&moving, &ui);
+    match &list.find(HudElement::Speed(SpeedPart::Number)).expect("number").payload {
+        ui_kit::draw_list::Payload::Text { text, .. } => assert_eq!(text, "42"),
+        other => panic!("{other:?}"),
+    }
+    let plate = list.find(HudElement::Speed(SpeedPart::Plate)).expect("plate").rect;
+    assert!(plate.x < 960.0 && plate.y > 540.0, "bottom-left: {plate:?}");
+    // The readouts no longer draw the speed: the vertices they emit are the same whether the
+    // hull moves or not.
+    let stopped = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let readouts_of = |model: &BattleHudModel| match &super::build_battle_hud_list(model, &ui)
+        .find(HudElement::Readouts)
+        .expect("readouts")
+        .payload
+    {
+        ui_kit::draw_list::Payload::Legacy(v) => v.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        readouts_of(&moving),
+        readouts_of(&stopped),
+        "no speed digits float in the readouts"
     );
 }
 
-/// H4: the hit points live in the damage panel, bottom-left — a bar and a number by name —
-/// and nowhere else: the readouts carry no HP quads any more.
 #[test]
 fn the_hit_points_live_in_the_damage_panel() {
     use crate::hud::elements::DamagePart;
@@ -252,6 +266,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         // The positional wrapper cannot carry p95 (it predates it): both sides draw none.
         frame_p95_ms: 0.0,
         speed_kmh: 33.0,
+        cruise_level: 0,
         zoom_factor: Some(4.2),
         damage_log: Vec::new(),
         incoming_hits: Vec::new(),
@@ -286,6 +301,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         fps: 0.0,
         frame_p95_ms: 0.0,
         speed_kmh: 0.0,
+        cruise_level: 0,
         zoom_factor: None,
         damage_log: Vec::new(),
         incoming_hits: Vec::new(),
@@ -328,6 +344,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         fps: 0.0,
         frame_p95_ms: 0.0,
         speed_kmh: 0.0,
+        cruise_level: 0,
         zoom_factor: None,
         damage_log: Vec::new(),
         incoming_hits: Vec::new(),
@@ -441,21 +458,29 @@ fn the_damage_panel_draws_only_when_present_and_a_dead_module_reads_red() {
     }
 }
 
-/// F5: the draw list is the old builder, element by element — the one emitter yields the same
-/// bytes the old concatenation did, and every instrument the model asks for has a name.
+/// F5: the legacy instruments ride the draw list element by element — the one emitter yields
+/// their bytes verbatim, in order, and every instrument the model asks for has a name. (Since
+/// H1 the list also carries elements the old builder never drew, so the comparison is over the
+/// legacy elements alone.)
 #[test]
 fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
-    let aspect = 16.0 / 9.0;
+    use ui_kit::draw_list::{DrawList, Element, Payload};
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let theme = ui_kit::theme::Theme::standard();
     let model = super::test_model(vitals(), None, 0.0, 0.0, None);
-    let list = super::build_battle_hud_list(&model, &ui_kit::ui::Ui::for_aspect(aspect));
-    let expected: Vec<HudVertex> = list
-        .iter()
-        .flat_map(|e| match &e.payload {
-            ui_kit::draw_list::Payload::Legacy(v) => v.clone(),
-            _ => Vec::new(),
-        })
-        .collect();
-    assert_eq!(super::build_battle_hud(&model, aspect), expected);
+    let list = super::build_battle_hud_list(&model, &ui);
+    let mut legacy_only = DrawList::new();
+    let mut expected: Vec<HudVertex> = Vec::new();
+    for element in list.iter() {
+        if let Payload::Legacy(v) = &element.payload {
+            expected.extend_from_slice(v);
+            legacy_only.push(
+                Element::new(element.id, element.rect, Payload::Legacy(v.clone())).z(element.z),
+            );
+        }
+    }
+    assert!(!expected.is_empty());
+    assert_eq!(legacy_only.emit(&ui, &theme), expected, "legacy payloads ride verbatim, in order");
     for id in
         [HudElement::Reticle, HudElement::Readouts, HudElement::DamageLog, HudElement::HitDirection]
     {
