@@ -101,7 +101,12 @@ const HUD_PASS_TARGET_MS: f32 = 0.5;
 /// with the room's temperature would be burned down within a week, and a HUD that doubles in
 /// cost still fails it. Raised only on purpose, in the PR that made the HUD costlier, with the
 /// new reading in its message.
-const HUD_PASS_FLOOR_MS: f32 = 0.27;
+///
+/// Second record (2026-09-06, after F3's signed-distance glyphs: the fragment shader fetches the
+/// field and its derivative for every fragment so the derivatives stay in uniform control flow):
+/// p50 0.289 ms, p95 0.318 ms, cold. Floor 0.27 → 0.43 (the reading × 1.5); the TARGET holds.
+/// The per-fragment fetch is H26's first shave.
+const HUD_PASS_FLOOR_MS: f32 = 0.43;
 /// The adapter name of the min spec; the number above is meaningful only there. Every other
 /// machine prints its reading and asserts nothing.
 const MIN_SPEC_ADAPTER: &str = "MX330";
