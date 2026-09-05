@@ -1,5 +1,11 @@
 # Audyt: renderer + okno + wejście (2026-09-05)
 
+> **Stan po realizacji (2026-09-05, ten sam dzień):** kolejka ośmiu PR z końca tego raportu
+> jest zamknięta — #702 (raport), #703 (repeat klawiszy), #705 (zatrzaski fokusu), #707 (utrata
+> urządzenia), #709 (bramka przebiegu wnętrza), #710 (ceremonia pętli + F11 + pacer za
+> monitorem), #711 (start bez bake'ów przed pierwszą klatką), #714 (prawda w `renderer_api`).
+> Reversed-Z (znalezisko 4) **zmierzone i odrzucone** — wynik w sekcji „Pomiar reversed-Z".
+
 Zakres: `crates/render/renderer_api`, `crates/render/renderer_wgpu`, pętla okna i wejście klienta
 (`crates/apps/client/src/{loop_policy.rs, app/lifecycle.rs, app/loop_step.rs, app/input.rs,
 app/input_state.rs, app/render.rs, app/garage_render.rs, app/camera_link.rs, aim.rs, camera/*}`),
@@ -255,6 +261,32 @@ Każdy mały, z testem, w tej kolejności:
 8. **`renderer_api` mówi prawdę**: usunąć `RenderBackend`, `DebugToolPlan`, `PipelineWarmupPlan`,
    poprawić `RenderFeaturePlan::baseline` i `required_startup_labels` do tego, co jest — albo
    zaimplementować. Ratchet powinien porównywać etykiety z faktycznymi `label: Some(...)`.
+
+## Pomiar reversed-Z (2026-09-05, po kolejce)
+
+Hipoteza ze znaleziska 4: kwant głębi ~4 cm na 600 m iskrzy z-fightingiem na okuciach w lunecie
+×20. Zmierzone na tej maszynie sondą A/B jednym binarium: reversed-Z za przełącznikiem
+`WOT_REVERSED_Z=1` (projekcja z zamienionymi płaszczyznami, `Greater`/`GreaterEqual` w dziewięciu
+pipeline'ach kamery, clear 0, niebo na z = 0, linearizacja SSAO z zamienionymi płaszczyznami,
+promień fokusu cieni odwrócony); trzy kadry Prochorowki 960×540: kontakt z chase-kamery
+(kontrola), snajper 300 m / 8° (kadr przeglądowy), snajper 600 m / 3° (najwęższy stopień drabiny).
+
+| Kadr | Piksele różne w kadrze | W polu celu | Delta > 40 w polu celu |
+|---|---|---|---|
+| kontakt 55° | 1,44 % (max 96) | 3,39 % | 6 px |
+| snajper 300 m / 8° | 9,19 % (max 86) | 20,5 % | 0 px |
+| snajper 600 m / 3° | 34,3 % (max 63) | 46,0 % | 1 px |
+
+Histogram delt: 96–99 % wszystkich różnic to < 16/255 — szum próbkowania SSAO i ditheru, który
+zmienia się wraz z każdą zmianą bitów głębi. Wycinki kadru 600 m przed i po są dla oka
+identyczne; wzmocniona mapa różnic pokazuje kilka izolowanych pikseli na okuciach, żadnej
+struktury z-fightingu ani w bazie, ani po zmianie. Kadr statyczny nie widzi migotania w czasie,
+ale błąd kwantyzacji pokazałby się jako piksele „nie tej powierzchni” — jest ich 0–1.
+
+**Werdykt:** brak widocznego zysku; reversed-Z nie ląduje (~40 linii w 14 plikach i odczyt env
+w `renderer_api` za nic). Hipoteza wycofana. Kod eksperymentu (diff + sonda) leży poza repo
+w scratchpadzie sesji; odtworzenie zajmuje godzinę, gdyby kiedyś far plane poszedł dalej niż
+2,6 km albo near poniżej 0,5 m — wtedy arytmetyka znów będzie inna.
 
 ## Czego nie sprawdziłem
 
