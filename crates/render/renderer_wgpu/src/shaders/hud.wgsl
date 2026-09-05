@@ -1,8 +1,9 @@
 // The HUD shader (interface program F2): one pass, one pipeline, five styles.
 //
-// Every vertex carries a style in its last lane. The two legacy styles reproduce the old pixels
-// exactly — SOLID fills at full coverage, GLYPH multiplies by the atlas's coverage — so the look
-// goldens do not move by a byte. The three new styles give the interface its material: PLATE is
+// Every vertex carries a style in its last lane. SOLID fills at full coverage, exactly as it
+// always did. GLYPH thresholds the atlas — a signed distance field since the interface program's
+// F3 — with an anti-aliasing width taken from screen derivatives, so a glyph is one pixel crisp
+// at every size. The three new styles give the interface its material: PLATE is
 // a rounded or chamfered plate evaluated as a signed distance from the vertex's local coordinate,
 // lit on its bevel from the top-left and tiled with the material sheet; SHEET samples the sheet
 // directly (icons, the baked minimap relief); GLASS is a tint with a soft reflection band.
@@ -90,21 +91,26 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let tile = input.style >> STYLE_TILE_SHIFT;
 
     // Derivatives first, before any branch on the (non-uniform) style: a derivative inside
-    // non-uniform control flow is undefined, and the plate's edge width is one.
+    // non-uniform control flow is undefined, and both the plate's edge width and the glyph's
+    // anti-aliasing width are derivatives. The field is fetched for every fragment (a solid
+    // quad's sentinel uv clamps to the atlas corner: one cheap fetch) so its rate is uniform.
     let centred = input.local - input.extent;
     let distance = rounded_box(centred, input.extent, input.params.x);
     let gradient = vec2<f32>(dpdx(distance), dpdy(distance));
     let aa = max(fwidth(distance), 1e-4);
+    let field = textureSampleLevel(atlas_tex, atlas_samp, input.uv, 0.0).r;
+    let field_aa = max(fwidth(field), 1e-4);
 
-    // The legacy path, exactly as it was: a negative uv.x is the solid sentinel and fills at
-    // full coverage whatever the style says; a glyph multiplies by the atlas coverage.
+    // A negative uv.x is the solid sentinel and fills at full coverage whatever the style says.
     // textureSampleLevel keeps every sample in uniform-safe control flow under the branches.
     if (kind == STYLE_SOLID || input.uv.x < 0.0) {
         return vec4<f32>(input.color.rgb, input.color.a);
     }
     if (kind == STYLE_GLYPH) {
-        let coverage = textureSampleLevel(atlas_tex, atlas_samp, input.uv, 0.0).r;
-        return vec4<f32>(input.color.rgb, input.color.a * coverage);
+        // One half of the field is the outline; `params.x` biases the weight (positive: bolder).
+        let edge = 0.5 - input.params.x;
+        let alpha = smoothstep(edge - field_aa, edge + field_aa, field);
+        return vec4<f32>(input.color.rgb, input.color.a * alpha);
     }
     if (kind == STYLE_SHEET) {
         let sample = textureSampleLevel(sheet_tex, sheet_samp, input.uv, 0.0);
