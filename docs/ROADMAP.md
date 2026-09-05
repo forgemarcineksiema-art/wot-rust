@@ -100,7 +100,8 @@ down anywhere — the document that held them was retired):
    game modes beyond the single 7v7 skirmish.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
    only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,
-   trailers/devlogs, NAME of the game.
+   trailers/devlogs, NAME of the game. The interface half of this (settings, keybinds, the
+   results screen, the battle log, Polish glyphs) is lane **P** of `docs/interface-program.md`.
 5. **Audio/presentation polish**: voice-over callouts, music, more FX variety.
 
 ## How work is organized
@@ -116,6 +117,12 @@ the wave plan (W1 Widok → W2 Jazda → W3 Kuźnia 2.0 → W4 Obraz → W5 Mias
 frame lane and the interface lane in parallel). Its decisions include the sprung authoritative
 hull, gravity at 9.81, the rewritten dispersion creed above, instanced grammar-built buildings,
 a scattering-LUT sky and per-vehicle fording depth.
+
+**The interface has its own program since 2026-09-05**: [interface-program.md](interface-program.md)
+— the owner's verdict that the HUD, the garage and the product shell are rebuilt from a design
+("steel, enamel and instrument glass", a World of Tanks layout with our own elements), not
+repaired; it absorbs the second pass's U lane, V3, L1 and L2, in four waves (foundation, battle
+HUD, shell, garage).
 
 **The release ladder approved 2026-08-04** lives in git history
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.

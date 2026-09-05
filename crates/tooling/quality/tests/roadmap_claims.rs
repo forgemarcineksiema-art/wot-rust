@@ -99,6 +99,32 @@ const CLAIMS: &[Claim] = &[
         why: "the casting's share of the budget is a construction decision the dossier explains; \
               a stale share misleads the next turret",
     },
+    // The interface program (2026-09-05) opens with "what the repository ships, measured";
+    // the three numbers below are the ones a reader would quote back, so they are pinned.
+    Claim {
+        doc: "docs/interface-program.md",
+        anchor: "**Today's wire: v",
+        source: "crates/runtime/net/src/lib.rs",
+        owner: Owner::NumberAfter("pub const PROTOCOL_VERSION: u16 = "),
+        why: "the program batches its wire changes on top of the version it names; a stale \
+              one plans a bump against a wire that has already moved",
+    },
+    Claim {
+        doc: "docs/interface-program.md",
+        anchor: "**stat rows today: ",
+        source: "crates/apps/client/src/app/garage/layout.rs",
+        owner: Owner::NumberAfter("pub(super) const STAT_ROWS: usize = "),
+        why: "the garage wave relabels every stat row; the count it starts from must be the \
+              column's own",
+    },
+    Claim {
+        doc: "docs/interface-program.md",
+        anchor: "**icons baked today: ",
+        source: "crates/ui/ui_kit/src/icons.rs",
+        owner: Owner::NumberAfter("pub const ALL: [HudIcon; "),
+        why: "the H wave appends class icons to an identity enum; the program must count from \
+              the atlas that exists",
+    },
 ];
 
 #[test]
