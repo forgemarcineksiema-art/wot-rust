@@ -156,5 +156,7 @@ fn snapshot_with_aim(
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     }
 }

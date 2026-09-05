@@ -191,6 +191,8 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     }
 }
 

@@ -66,6 +66,8 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     };
     let message = ProtocolMessage::Snapshot(snapshot);
 

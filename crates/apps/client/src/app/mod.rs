@@ -1,4 +1,5 @@
 mod audio_link;
+mod battle_intel;
 mod battle_scars;
 mod camera_link;
 #[cfg(test)]
@@ -594,6 +595,8 @@ pub(crate) struct ClientApp {
     /// Every hull's perforations, accumulated from the reliable lane (protocol v39): they no
     /// longer ride the snapshot, so this is the client's own copy of that permanent state.
     armor_breaches: engine::ArmorBreachStore,
+    /// The field's kills and the team's relayed commands (protocol v51), off the reliable lane.
+    intel: battle_intel::BattleIntel,
     frame_dt_history: std::collections::VecDeque<f32>,
     /// Reused scratch for the p95 selection — see `ClientApp::frame_p95_ms`.
     frame_p95_scratch: Vec<f32>,
@@ -884,6 +887,7 @@ impl ClientApp {
             scene_cover_dirty: false,
             fps_estimate: 0.0,
             armor_breaches: engine::ArmorBreachStore::default(),
+            intel: battle_intel::BattleIntel::default(),
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),
             minimap_static,

@@ -62,6 +62,7 @@ impl ClientApp {
                 fire = false;
                 select_ammo = None;
                 let outcome = self.session.take_pending_remote_tick();
+                self.intel.ingest(outcome.kills, outcome.team_commands);
                 self.apply_armor_breach_deltas(outcome.armor_breaches);
                 if let Some(snapshot) = outcome.snapshot {
                     if let Some(reconciliation) = outcome.reconciliation {
@@ -109,6 +110,7 @@ impl ClientApp {
             });
             self.client_tick += 1;
             self.ticks_since_snapshot = self.ticks_since_snapshot.saturating_add(1);
+            self.intel.ingest(outcome.kills, outcome.team_commands);
             self.apply_armor_breach_deltas(outcome.armor_breaches);
             if let Some(snapshot) = outcome.snapshot {
                 if let Some(reconciliation) = outcome.reconciliation {

@@ -31,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 50);
+    assert_eq!(PROTOCOL_VERSION, 51);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -46,7 +46,7 @@ fn vehicle_selection_wire_snapshot_v50_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 50);
+    assert_eq!(PROTOCOL_VERSION, 51);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v50"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -58,8 +58,8 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 50);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v39"));
+    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v51"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -109,8 +109,8 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 50);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v39"));
+    assert_eq!(PROTOCOL_VERSION, 51);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v51"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -128,7 +128,7 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 50);
+    assert_eq!(PROTOCOL_VERSION, 51);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
@@ -177,6 +177,8 @@ pub fn tank_snapshot_message() -> Snapshot {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     }
 }
 
@@ -216,7 +218,7 @@ fn snapshot_delivery_wire_v38_is_stable() {
     };
     let message = ProtocolMessage::SnapshotDelivery(delivery);
     let bytes = net::encode_frame(&message).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v39"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v51"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), message);
 }
 
@@ -236,13 +238,78 @@ fn reliable_combat_event_lane_wire_v38_is_stable() {
         ],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_batch_v39"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_batch_v51"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), batch);
 
     let ack = ProtocolMessage::CombatEventAck { session_id: SESSION_ID, last_received_seq: 13 };
     let bytes = net::encode_frame(&ack).expect("encode");
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_ack_v39"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), ack);
+}
+
+/// v51 (interface program W-1, W-3, W-5): the roster, the kill and the relay on the wire.
+#[test]
+fn the_roster_the_kill_and_the_team_command_wire_v51_are_stable() {
+    let roster = ProtocolMessage::BattleRoster {
+        session_id: SESSION_ID,
+        entries: vec![
+            net::RosterEntry {
+                tank_id: TankId(1),
+                team: TeamId(1),
+                vehicle: VehicleKind::T54_1951,
+                seat: 0,
+                crew_kind: net::CrewKind::Human,
+            },
+            net::RosterEntry {
+                tank_id: TankId(9),
+                team: TeamId(2),
+                vehicle: VehicleKind::TigerII,
+                seat: 3,
+                crew_kind: net::CrewKind::Bot,
+            },
+        ],
+    };
+    let bytes = net::encode_frame(&roster).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "battle_roster_v51"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), roster);
+
+    let word = ProtocolMessage::TeamCommand {
+        session_id: SESSION_ID,
+        command: net::TeamCommand::Ping,
+        target: None,
+        map_position: Some([412.5, -88.25]),
+    };
+    let bytes = net::encode_frame(&word).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "team_command_v51"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), word);
+
+    let batch = ProtocolMessage::CombatEventBatch {
+        session_id: SESSION_ID,
+        events: vec![
+            net::SequencedCombatEvent {
+                delivery_seq: 20,
+                event: net::CombatEvent::Kill(game_core::KillEvent {
+                    victim: TankId(9),
+                    killer: Some(TankId(1)),
+                    cause: game_core::DamageCause::Shell,
+                    occurred_tick: 4_321,
+                }),
+            },
+            net::SequencedCombatEvent {
+                delivery_seq: 21,
+                event: net::CombatEvent::TeamCommand(net::TeamCommandRelay {
+                    from: TankId(1),
+                    command: net::TeamCommand::Attack,
+                    target: Some(TankId(9)),
+                    map_position: None,
+                    server_tick: 4_322,
+                }),
+            },
+        ],
+    };
+    let bytes = net::encode_frame(&batch).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_kill_and_relay_v51"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), batch);
 }
 
 /// The transport ships a snapshot in datagrams; a battle-worn 14-tank snapshot (live breaches on
@@ -402,6 +469,8 @@ pub fn combat_snapshot_message() -> Snapshot {
             shooter: TankId(7),
             shell_id: game_core::ShellId::from_shot(TankId(7), 0),
         }],
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     }
 }
 

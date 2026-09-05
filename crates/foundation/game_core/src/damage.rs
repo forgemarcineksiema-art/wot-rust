@@ -214,4 +214,67 @@ pub struct DamageEvent {
     /// since A4 — the wire finally carries it.
     #[serde(default)]
     pub shattered: bool,
+    /// The range the shell flew to this hit, in metres (protocol v51, interface program W-6):
+    /// the hit log prints „BR-412D · 148 › 162 mm @ 31° · 412 m" and the distance of a hit
+    /// from an UNSEEN attacker is known only to the server. Zero for causes without a shell.
+    #[serde(default)]
+    pub distance_m: f32,
+}
+
+/// A hull's death as its own event (protocol v51, interface program W-3): broadcast to EVERY
+/// crew, because a kill between two hulls a viewer cannot see still happened — the feed and
+/// the top bar count it — and the event carries no position, so it cannot be inverted into
+/// intel. `killer` is `None` when the hull killed itself (a river, a fall, its own fire).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct KillEvent {
+    pub victim: TankId,
+    pub killer: Option<TankId>,
+    pub cause: DamageCause,
+    pub occurred_tick: u64,
+}
+
+impl KillEvent {
+    /// The kill a damage event IS, if it is one: only the event that took the hull from alive
+    /// to dead (`target_destroyed`) makes a kill, so a wreck hit again never dies twice.
+    pub fn from_damage(event: &DamageEvent) -> Option<Self> {
+        event.target_destroyed.then(|| Self {
+            victim: event.target,
+            killer: (event.source != event.target).then_some(event.source),
+            cause: event.cause,
+            occurred_tick: event.occurred_tick,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kill_names_the_killer_unless_the_hull_killed_itself() {
+        let shot = DamageEvent {
+            source: TankId(3),
+            target: TankId(9),
+            target_destroyed: true,
+            occurred_tick: 77,
+            ..Default::default()
+        };
+        assert_eq!(
+            KillEvent::from_damage(&shot),
+            Some(KillEvent {
+                victim: TankId(9),
+                killer: Some(TankId(3)),
+                cause: DamageCause::Shell,
+                occurred_tick: 77
+            })
+        );
+        let drowned = DamageEvent { source: TankId(9), cause: DamageCause::Drowning, ..shot };
+        assert_eq!(
+            KillEvent::from_damage(&drowned).map(|kill| kill.killer),
+            Some(None),
+            "the river is not a combatant"
+        );
+        let again = DamageEvent { target_destroyed: false, ..shot };
+        assert_eq!(KillEvent::from_damage(&again), None, "a wreck hit again never dies twice");
+    }
 }

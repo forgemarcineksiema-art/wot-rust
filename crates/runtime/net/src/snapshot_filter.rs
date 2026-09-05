@@ -125,6 +125,20 @@ impl Snapshot {
             craters: self.craters.clone(),
             // And the wounds on the walls (v32) — world dressing, not intel.
             cover_scars: self.cover_scars.clone(),
+            // v51: an aggregate of the whole board, not a position — the top bar's team pools.
+            team_hit_points: self.team_hit_points,
+            // v51: the repair clocks are interior state like the crew (the viewer's own team
+            // reads them; an enemy's stay behind the plate).
+            repair_clocks: self
+                .repair_clocks
+                .iter()
+                .copied()
+                .filter(|clocks| {
+                    self.tanks
+                        .iter()
+                        .any(|tank| tank.tank_id == clocks.tank_id && tank.team == viewer_team)
+                })
+                .collect(),
         }
     }
 

@@ -87,6 +87,13 @@ fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
             }],
         },
         ProtocolMessage::CombatEventAck { session_id: SESSION_ID, last_received_seq: 0 },
+        ProtocolMessage::BattleRoster { session_id: SESSION_ID, entries: Vec::new() },
+        ProtocolMessage::TeamCommand {
+            session_id: SESSION_ID,
+            command: net::TeamCommand::Affirmative,
+            target: None,
+            map_position: None,
+        },
     ];
     assert!(tagged.iter().all(|message| message.session_id() == Some(SESSION_ID)));
 
@@ -162,6 +169,8 @@ fn snapshot_round_trips_track_damage_mask() {
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
+        team_hit_points: [0; 2],
+        repair_clocks: Vec::new(),
     });
 
     let bytes = encode_message(&message).expect("snapshot should encode");
