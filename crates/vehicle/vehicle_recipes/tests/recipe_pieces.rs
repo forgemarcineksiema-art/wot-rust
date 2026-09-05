@@ -18,9 +18,9 @@ fn the_tiger_describes_as_the_pieces_its_recipe_still_owns() {
         .filter(|p| p.generator == GeneratorKind::Recipe)
         .map(|p| (p.key.name, p.submesh))
         .collect();
-    assert_eq!(
-        names,
-        vec![("recipe_hull_deck", SubmeshKind::Hull), ("recipe_hull_details", SubmeshKind::Hull),]
+    assert!(
+        names.is_empty(),
+        "step 4d: the library owns every part of the shipped Tiger: {names:?}"
     );
     assert!(
         description.parts.iter().any(|p| p.generator != GeneratorKind::Recipe),

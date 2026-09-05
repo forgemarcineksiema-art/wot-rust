@@ -124,12 +124,14 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     let slab = blueprint.as_ref().and_then(vehicle_build::slab_hull_parts_for_blueprint);
     let gun = blueprint.as_ref().and_then(vehicle_build::gun_parts_for_blueprint);
     let turret = blueprint.as_ref().and_then(vehicle_build::welded_turret_parts_for_blueprint);
+    let deck = blueprint.as_ref().and_then(vehicle_build::german_deck_parts_for_blueprint);
     let fittings = blueprint.as_ref().and_then(vehicle_build::fitting_parts_for_blueprint);
     let fenders = blueprint.as_ref().and_then(vehicle_build::fender_parts_for_blueprint);
     let omit = deck_details::DeckOmit {
         slab: slab.is_some(),
         gun: gun.is_some(),
         turret: turret.is_some(),
+        deck: deck.is_some(),
         fittings: fittings.is_some(),
         guards: fenders.is_some(),
         guard_top_y: blueprint
@@ -142,8 +144,16 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
             description.parts.extend(slab.unwrap_or_default());
             description.parts.extend(gun.unwrap_or_default());
             description.parts.extend(turret.unwrap_or_default());
+            description.parts.extend(deck.unwrap_or_default());
             description.parts.extend(fittings.unwrap_or_default());
             description.parts.extend(fenders.unwrap_or_default());
+            // No recipe piece left: the library owns the vehicle, and it ships at the bar
+            // with part-aware LODs (step 4e). The weld after the merge stays — the parts were
+            // authored for it.
+            if description.parts.iter().all(|part| part.generator != GeneratorKind::Recipe) {
+                description.fidelity = Fidelity::Benchmark;
+                description.lod = LodStrategy::PartAware;
+            }
             Some(description)
         }
         None => bake_vehicle(kind).ok().map(recipe_description),
@@ -224,10 +234,14 @@ fn pieces_description(kind: VehicleKind, pieces: RecipePieces) -> VehicleDescrip
     }
 }
 
-/// The fidelity `kind` ships at, without building it.
+/// The fidelity `kind` ships at, without building it: Benchmark when the library builds every
+/// piece (the benchmark's complete tree, or an authored slab hull + welded turret + gun —
+/// step 4e), Sketch while any recipe piece still stands.
 pub fn describe_fidelity(kind: VehicleKind) -> Fidelity {
     match VehicleBlueprint::for_vehicle(kind) {
-        Some(bp) if bp.complete_visual().is_some() => Fidelity::Benchmark,
+        Some(bp) if bp.visual_detail().is_some_and(|visual| visual.is_library_complete()) => {
+            Fidelity::Benchmark
+        }
         _ => Fidelity::Sketch,
     }
 }

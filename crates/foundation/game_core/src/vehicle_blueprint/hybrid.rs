@@ -475,6 +475,15 @@ pub struct CompleteVisual<'a> {
 }
 
 impl VisualDetail {
+    /// Whether the part library can build EVERY piece of this vehicle from its authored parts
+    /// (Forge 2.0 K3, step 4e): the benchmark's complete tree, or a welded slab vehicle whose
+    /// hull construction, welded turret and gun are authored — then no recipe piece stands
+    /// and the vehicle ships at Benchmark fidelity with part-aware LODs.
+    pub fn is_library_complete(&self) -> bool {
+        self.is_complete()
+            || (self.construction.is_some() && self.welded_turret.is_some() && self.gun.is_some())
+    }
+
     /// The FULL truth-aligned view — `Some` only when every part is authored, so the analytic
     /// breach path may really OPEN the vehicle (the client's cut-truth gate reads this, not
     /// mere presence of the slot). A partial block (a gun group alone, F5.iii) improves the
