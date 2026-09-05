@@ -36,7 +36,7 @@ pub use gpu_layout::{CameraUniform, FramePassParams, GpuMat4, GpuVec3, encode_ca
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pass_recorder::{FrameCounts, PassCounts, PassOrder};
 pub use rain_pipeline::rain_shader_source;
-pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
+pub use scene_pipeline::{build_camera_bind_group_layout, hud_shader_source, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
 pub use scene_renderer::env_group::build_shadow_bind_group_layout;
 pub use scene_renderer::ground::terrain_shader_source;

@@ -402,6 +402,10 @@ impl ClientApp {
         renderer.set_bark_textures(&scene_build::foliage_atlas_paint::bark_texture_layers());
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
+        // The material sheet rides beside the atlas (interface program F2): the plates, sheets
+        // and glass of the interface sample it; the legacy quads never do.
+        let (sheet_w, sheet_h, sheet) = crate::hud_material_sheet();
+        renderer.set_hud_material_sheet(sheet_w, sheet_h, sheet);
         // The river and the mid-field card meadow (Żywy Step P2) ride the world: loaded when it
         // is in hand, empty slots otherwise. What went up is recorded, so the first crater
         // rebake can recognise its own output and skip the upload.

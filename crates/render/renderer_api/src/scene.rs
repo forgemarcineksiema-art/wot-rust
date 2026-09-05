@@ -268,18 +268,77 @@ impl FxVertex {
     }
 }
 
+/// The styles a HUD vertex can be drawn in (interface program F2), in the low byte of
+/// [`HudVertex::style`], with the material-sheet tile a plate wears in the byte above it.
+///
+/// A CPU/GPU protocol like `surface_role`: `hud.wgsl` declares the same numbers and
+/// `hud_style_values_are_bound_at_both_ends` holds the two ends together. Append-only — a
+/// renumbering re-keys every plate ever emitted.
+pub mod hud_style {
+    /// Fills at full coverage, ignoring every texture: bars, crosshairs, the legacy quads.
+    pub const SOLID: u32 = 0;
+    /// Multiplies the colour's alpha by the glyph atlas's coverage at `uv`.
+    pub const GLYPH: u32 = 1;
+    /// A rounded or chamfered plate shaped by `local`/`extent`/`params`, lit on its bevel and
+    /// tiled with the sheet tile named in the style's upper byte.
+    pub const PLATE: u32 = 2;
+    /// Samples the material sheet directly at `uv`: icons, the baked minimap relief.
+    pub const SHEET: u32 = 3;
+    /// A tinted pane with a soft reflection band, shaped like a plate.
+    pub const GLASS: u32 = 4;
+    /// The kind lives in the low byte.
+    pub const KIND_MASK: u32 = 0xFF;
+    /// The sheet tile lives above it.
+    pub const TILE_SHIFT: u32 = 8;
+    /// The material sheet is a square grid of this many square tiles a side.
+    pub const SHEET_TILES_PER_SIDE: u32 = 4;
+    /// A plate's tile repeats every this many of its local units.
+    pub const TILE_UNITS: f32 = 128.0;
+
+    /// A style lane carrying `kind` and the sheet `tile` a plate is cut from.
+    pub const fn with_tile(kind: u32, tile: u32) -> u32 {
+        (kind & KIND_MASK) | (tile << TILE_SHIFT)
+    }
+
+    /// The kind in a style lane.
+    pub const fn kind(style: u32) -> u32 {
+        style & KIND_MASK
+    }
+
+    /// The sheet tile in a style lane.
+    pub const fn tile(style: u32) -> u32 {
+        style >> TILE_SHIFT
+    }
+}
+
 /// A 2D overlay vertex in clip space (NDC), with atlas UVs and a straight RGBA color. Used for
-/// the HUD (crosshair, health/reload bars, text) drawn on top of the scene in one pass.
+/// the HUD (crosshair, health/reload bars, text, and since F2 the plates, sheets and glass of
+/// the interface) drawn on top of the scene in one pass.
 ///
 /// `uv` addresses the font/coverage atlas. A negative `uv.x` is a sentinel for "solid": the HUD
 /// shader skips the texture and treats coverage as fully opaque, so bars and crosshairs keep
 /// rendering as flat colored quads while glyph quads sample the atlas — all from one buffer.
+///
+/// The four lanes after `color` were APPENDED by the interface program (F2); the legacy
+/// constructors leave them at zero, so a vertex built the old way draws the old pixel.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct HudVertex {
     pub position: [f32; 2],
     pub uv: [f32; 2],
     pub color: [f32; 4],
+    /// Where this vertex sits inside its element, in the element's own units (the emitter's
+    /// pixels), measured from the element's top-left. Plates and glass shape themselves from it.
+    pub local: [f32; 2],
+    /// The element's half-extents in the same units, constant across the element.
+    pub extent: [f32; 2],
+    /// Style parameters: a plate's `(corner radius, bevel width)` — a negative bevel is an inset
+    /// (pressed) plate; a glass pane's `(corner radius, reflection phase)`.
+    pub params: [f32; 2],
+    /// The [`hud_style`] kind in the low byte, the sheet tile above it.
+    pub style: u32,
+    /// Keeps the stride at sixteen lanes; always zero.
+    pub reserved: u32,
 }
 
 /// `uv` sentinel marking a solid (non-textured) HUD vertex. Any negative `uv.x` qualifies; this is
@@ -289,13 +348,92 @@ pub const HUD_SOLID_UV: [f32; 2] = [-1.0, -1.0];
 impl HudVertex {
     /// A solid colored vertex: the HUD shader fills it at full coverage, ignoring the atlas.
     pub const fn new(position: [f32; 2], color: [f32; 4]) -> Self {
-        Self { position, uv: HUD_SOLID_UV, color }
+        Self {
+            position,
+            uv: HUD_SOLID_UV,
+            color,
+            local: [0.0, 0.0],
+            extent: [0.0, 0.0],
+            params: [0.0, 0.0],
+            style: hud_style::SOLID,
+            reserved: 0,
+        }
     }
 
     /// A textured vertex sampling the font/coverage atlas at `uv`; `color` tints the sampled
     /// coverage (alpha = color.a * coverage).
     pub const fn textured(position: [f32; 2], uv: [f32; 2], color: [f32; 4]) -> Self {
-        Self { position, uv, color }
+        Self {
+            position,
+            uv,
+            color,
+            local: [0.0, 0.0],
+            extent: [0.0, 0.0],
+            params: [0.0, 0.0],
+            style: hud_style::GLYPH,
+            reserved: 0,
+        }
+    }
+
+    /// One corner of a plate (F2): `local` is this corner's place inside the element and
+    /// `extent` the element's half-extents, both in the emitter's units; `radius` rounds the
+    /// corners, `bevel` lights the rim (negative: inset, pressed); `tile` names the sheet tile
+    /// the plate is cut from; `color` is the plate's own colour, which the tile modulates.
+    pub const fn plate(
+        position: [f32; 2],
+        local: [f32; 2],
+        extent: [f32; 2],
+        radius: f32,
+        bevel: f32,
+        tile: u32,
+        color: [f32; 4],
+    ) -> Self {
+        Self {
+            position,
+            uv: [0.0, 0.0],
+            color,
+            local,
+            extent,
+            params: [radius, bevel],
+            style: hud_style::with_tile(hud_style::PLATE, tile),
+            reserved: 0,
+        }
+    }
+
+    /// A vertex sampling the material sheet directly at `uv` (F2): icons, bakes.
+    pub const fn sheet(position: [f32; 2], uv: [f32; 2], color: [f32; 4]) -> Self {
+        Self {
+            position,
+            uv,
+            color,
+            local: [0.0, 0.0],
+            extent: [0.0, 0.0],
+            params: [0.0, 0.0],
+            style: hud_style::SHEET,
+            reserved: 0,
+        }
+    }
+
+    /// One corner of a glass pane (F2): shaped like a plate, tinted by `color`, with a soft
+    /// reflection band whose position along the diagonal is `phase`.
+    pub const fn glass(
+        position: [f32; 2],
+        local: [f32; 2],
+        extent: [f32; 2],
+        radius: f32,
+        phase: f32,
+        color: [f32; 4],
+    ) -> Self {
+        Self {
+            position,
+            uv: [0.0, 0.0],
+            color,
+            local,
+            extent,
+            params: [radius, phase],
+            style: hud_style::GLASS,
+            reserved: 0,
+        }
     }
 }
 

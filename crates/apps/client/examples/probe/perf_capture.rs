@@ -483,6 +483,8 @@ fn frame_time_capture() {
     // measured against a 1x1 placeholder would be a HUD that never fetched a glyph.
     let (atlas_w, atlas_h, atlas) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, atlas_w, atlas_h, atlas);
+    let (sheet_w, sheet_h, sheet) = client::hud_material_sheet();
+    renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
 
     for _ in 0..WARMUP {
         let camera = renderer_api::Camera {

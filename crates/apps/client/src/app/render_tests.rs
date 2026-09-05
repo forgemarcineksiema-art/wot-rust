@@ -348,6 +348,8 @@ fn render_garage_preview_png() {
     renderer.scene_lighting = SceneLighting::garage_studio();
     let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+    let (sheet_w, sheet_h, sheet) = crate::hud_material_sheet();
+    renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

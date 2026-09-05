@@ -405,6 +405,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics.0, &statics.1)?;
         let (font_w, font_h, coverage) = ui_kit::font::hud_font_atlas();
         renderer.set_hud_font_atlas(&ctx, font_w, font_h, coverage);
+        let (sheet_w, sheet_h, sheet) = ui_kit::sheet::hud_material_sheet();
+        renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
         renderer.set_battlefield_ground(&ctx, &ground.0, &ground.1, &maps, &materials);
         let (water_vertices, water_indices) =
             scene_build::water::battlefield_water_mesh(battlefield);

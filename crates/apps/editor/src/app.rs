@@ -1699,6 +1699,8 @@ impl ApplicationHandler for EditorApp {
             Ok(mut renderer) => {
                 let (width, height, coverage) = ui_kit::font::hud_font_atlas();
                 renderer.set_hud_font_atlas(width, height, coverage);
+                let (sheet_w, sheet_h, sheet) = ui_kit::sheet::hud_material_sheet();
+                renderer.set_hud_material_sheet(sheet_w, sheet_h, sheet);
                 // The tree ladder, its leaf atlas and its bark — the battle's binding, so a
                 // planted tree is drawn, and drawn as the game draws it.
                 for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {

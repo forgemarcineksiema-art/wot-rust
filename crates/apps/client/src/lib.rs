@@ -28,6 +28,7 @@ pub use hud::demo_strip::demo_reticle_strip;
 pub use hud::font::hud_font_atlas;
 pub use hud::spot_bracket::spot_bracket_for_hull;
 pub use hud::{HudVitals, build_hud};
+pub use ui_kit::sheet::hud_material_sheet;
 // The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
 // empty, so the ten forwarding names here had no caller left in the workspace.

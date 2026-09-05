@@ -69,6 +69,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+    let (sheet_w, sheet_h, sheet) = client::hud_material_sheet();
+    renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
     renderer.set_dynamic_mesh(&ctx, &vertices, &indices);
     // The in-flight shell draws as an additive tracer streak through the FX pass, exactly like
     // the live client — this exercises the offscreen FX path end to end.
