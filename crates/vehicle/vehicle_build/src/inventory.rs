@@ -132,6 +132,7 @@ impl PartClass {
             _ if name.contains("periscope") => Self::Periscopes,
             _ if starts("sg43_coax") => Self::CoaxMachineGun,
             _ if starts("cupola") => Self::Cupola,
+            _ if starts("turret_bin") || starts("rommelkiste") => Self::TurretStowage,
             _ if starts("mudguard") => Self::Fenders,
             _ if starts("skirt") => Self::Skirts,
             _ if starts("bow_rack")

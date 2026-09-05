@@ -30,7 +30,7 @@ pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
     BoxVisual, CanvasCoverVisual, CompleteVisual, FenderVisual, GunVisual, HullConstruction,
     HullPlatesVisual, HullVisual, LoftStation, MuzzleBrakeVisual, TurretLoftVisual, TurretVisual,
-    VisualDetail,
+    VisualDetail, WeldedTurretVisual,
 };
 pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
 pub use source::{BlueprintFile, VisualDetailFile, parse_blueprint, parse_visual_detail};

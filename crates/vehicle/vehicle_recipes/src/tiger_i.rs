@@ -96,7 +96,8 @@ pub(crate) fn tiger_i_pieces(
 
     super::RecipePieces {
         hull,
-        turret: vec![("recipe_turret", turret)],
+        // The welded turret is the library's when the visual file authors it (step 4b).
+        turret: if omit.turret { Vec::new() } else { vec![("recipe_turret", turret)] },
         // The gun group is the library's when the visual file authors it (step 4c).
         gun: if omit.gun { Vec::new() } else { vec![("recipe_gun", gun)] },
         mounts: *mounts,

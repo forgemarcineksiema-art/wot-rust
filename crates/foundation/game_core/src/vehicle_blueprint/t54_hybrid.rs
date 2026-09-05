@@ -93,6 +93,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
 
     VisualDetail {
         construction: None,
+        welded_turret: None,
         hull: Some(HullVisual {
             // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
             // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the

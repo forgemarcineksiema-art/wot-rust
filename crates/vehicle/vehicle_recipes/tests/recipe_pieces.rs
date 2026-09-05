@@ -20,11 +20,7 @@ fn the_tiger_describes_as_the_pieces_its_recipe_still_owns() {
         .collect();
     assert_eq!(
         names,
-        vec![
-            ("recipe_hull_deck", SubmeshKind::Hull),
-            ("recipe_hull_details", SubmeshKind::Hull),
-            ("recipe_turret", SubmeshKind::Turret),
-        ]
+        vec![("recipe_hull_deck", SubmeshKind::Hull), ("recipe_hull_details", SubmeshKind::Hull),]
     );
     assert!(
         description.parts.iter().any(|p| p.generator != GeneratorKind::Recipe),

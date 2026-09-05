@@ -83,6 +83,9 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
         PartClass::GunBarrel,
         PartClass::Mantlet,
         PartClass::MuzzleFurniture,
+        PartClass::TurretShell,
+        PartClass::TurretRing,
+        PartClass::TurretStowage,
     ] {
         assert!(report.carried.contains(&class), "{class:?} is the library's now");
         assert!(!report.missing.contains(&class));

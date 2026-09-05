@@ -499,6 +499,8 @@ pub(crate) struct DeckOmit {
     pub slab: bool,
     /// The gun group — the library's barrel, mantlet and brake off the authored `GunVisual`.
     pub gun: bool,
+    /// The welded turret — the library's shell, bin, cupola, ring and socket.
+    pub turret: bool,
     /// The bow hatches, the headlight and the tow hooks — `FittingsVisual`'s parts.
     pub fittings: bool,
     /// The full-length track guards — `FenderVisual`'s folded pressings.
