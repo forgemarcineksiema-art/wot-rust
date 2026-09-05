@@ -37,9 +37,7 @@ pub use look_harness::{
     render_hangar_review_views, render_review_views, render_review_views_with_fov,
     welding_glow_vertices,
 };
-pub use loop_policy::{
-    ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
-};
+pub use loop_policy::{ClientLoopAction, ClientLoopEvent, FixedTickAccumulator, WinitLoopDriver};
 pub use pass_stats::{Percentiles, RotationStats};
 pub use render_state::InterpolatedBattleState;
 pub use scene_build::battlefield::{
