@@ -50,7 +50,13 @@ Invoke-Checked "tests (vehicle crates, sim, quality)" { cargo test @testPackages
 Invoke-Checked "studio tiles + asset parity (tools)" {
     cargo test -p tools --test studio_goldens --test vehicle_asset_parity
 }
-Invoke-Checked "K0 outline scores ($Vehicle)" {
-    cargo run -p tools -- outline-overlay --vehicle $Vehicle
+# The K0 scores exist only for a vehicle whose drawing has been traced; the others say so and
+# move on (the dimension anchors already gated above).
+if (Test-Path "crates/vehicle/vehicle_forge/outlines/$Vehicle.outline.ron") {
+    Invoke-Checked "K0 outline scores ($Vehicle)" {
+        cargo run -p tools -- outline-overlay --vehicle $Vehicle
+    }
+} else {
+    Write-Host "==> K0 outline scores ($Vehicle): no traced outlines yet (outlines/$Vehicle.outline.ron), skipped"
 }
 Write-Host "Vehicle gate green for $Vehicle. Rust changes take verify-pr.ps1; the full gate still owes the day its run."
