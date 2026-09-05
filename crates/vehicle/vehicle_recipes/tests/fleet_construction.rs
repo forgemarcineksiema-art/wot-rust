@@ -227,9 +227,11 @@ fn the_gun_reaches_its_muzzle_and_wears_only_the_authored_brake() {
 /// roof left behind), and a hatch a crewman fits through is at least half a metre across.
 #[test]
 fn the_cupola_tops_the_roof_by_its_authored_height() {
+    let mut checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let bp = blueprint(kind);
         let Some(proud) = bp.turret.cupola_height else { continue };
+        checked += 1;
         assert!(bp.turret.cupola_radius >= 0.25, "{kind:?}: a crewman fits through the cupola");
         let vehicle = shipped(kind);
         let turret = submesh(&vehicle, SubmeshKind::Turret);
@@ -251,6 +253,7 @@ fn the_cupola_tops_the_roof_by_its_authored_height() {
             bp.turret.roof_y
         );
     }
+    assert!(checked >= 1, "at least the Tiger I authors its cupola's height: {checked}");
 }
 
 /// Side skirts, where the blueprint authors them, are real plates on the spaced-armour plane
@@ -283,9 +286,11 @@ fn authored_skirts_are_plates_on_the_spaced_armor_plane() {
 /// past the belt's outer face but the guard and its lip.
 #[test]
 fn authored_track_guards_are_the_widest_hull_metal() {
+    let mut checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let bp = blueprint(kind);
         let Some(fender) = bp.visual_detail().and_then(|v| v.fender) else { continue };
+        checked += 1;
         let vehicle = shipped(kind);
         let hull = submesh(&vehicle, SubmeshKind::Hull);
         let widest = hull.vertices().iter().map(|v| v.position.x.abs()).fold(0.0_f32, f32::max);
@@ -295,4 +300,5 @@ fn authored_track_guards_are_the_widest_hull_metal() {
             "{kind:?}: the guards' outer edge is the widest metal: {widest} vs {edge}"
         );
     }
+    assert!(checked >= 1, "at least the Tiger I authors its guards: {checked}");
 }
