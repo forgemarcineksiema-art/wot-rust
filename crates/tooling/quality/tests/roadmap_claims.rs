@@ -82,6 +82,23 @@ const CLAIMS: &[Claim] = &[
         why: "the living-species count follows the owner's retirements (willow, pine) and \
               the ladder is the only place that knows which species are still planted",
     },
+    Claim {
+        // The dossier quoted "capped at 22,000" for a month against 29,000 in `t54.rs` (K7).
+        doc: "docs/vehicles/t-54.md",
+        anchor: "**LOD0 triangle budget: ",
+        source: "crates/vehicle/vehicle_build/src/t54.rs",
+        owner: Owner::NumberAfter("pub const MEDIUM_LOD0_TRI_BUDGET: usize = "),
+        why: "the benchmark's budget is the number every later vehicle is measured against, and \
+              the dossier is where a reader looks it up",
+    },
+    Claim {
+        doc: "docs/vehicles/t-54.md",
+        anchor: "**cast-turret budget: ",
+        source: "crates/foundation/game_core/src/vehicle_blueprint/t54_hybrid.rs",
+        owner: Owner::NumberAfter("budget: "),
+        why: "the casting's share of the budget is a construction decision the dossier explains; \
+              a stale share misleads the next turret",
+    },
 ];
 
 #[test]
@@ -152,11 +169,38 @@ fn every_anchor_appears_once_so_no_second_copy_can_drift() {
     assert!(offenders.is_empty(), "{}", offenders.join("\n  "));
 }
 
-/// The digits immediately following `prefix`, if any.
+/// The digits immediately following `prefix`, if any. A space, `_` or `,` BETWEEN two digits is
+/// a thousands separator (`29 000` in a doc, `29_000` in Rust), so a number may be written the way
+/// its home writes it; the first non-digit that is not such a separator ends the number.
 fn number_after(haystack: &str, prefix: &str) -> Option<usize> {
     let start = haystack.find(prefix)? + prefix.len();
-    let digits: String = haystack[start..].chars().take_while(char::is_ascii_digit).collect();
+    let rest = &haystack.as_bytes()[start..];
+    let mut digits = String::new();
+    let mut i = 0;
+    while i < rest.len() {
+        let c = rest[i];
+        if c.is_ascii_digit() {
+            digits.push(c as char);
+        } else if matches!(c, b' ' | b'_' | b',')
+            && !digits.is_empty()
+            && rest.get(i + 1).is_some_and(u8::is_ascii_digit)
+        {
+            // a separator inside the number
+        } else {
+            break;
+        }
+        i += 1;
+    }
     digits.parse().ok()
+}
+
+#[test]
+fn a_number_is_read_the_way_its_home_writes_it() {
+    assert_eq!(number_after("budget: 29 000 (`x`)", "budget: "), Some(29_000));
+    assert_eq!(number_after("= 29_000;", "= "), Some(29_000));
+    assert_eq!(number_after("v27,565 tris", "v"), Some(27_565));
+    assert_eq!(number_after("**Fleet**: 8 blueprint-born", "**Fleet**: "), Some(8));
+    assert_eq!(number_after("count: none", "count: "), None);
 }
 
 /// How many times `entry` occurs between `open` and the `];` that closes it.

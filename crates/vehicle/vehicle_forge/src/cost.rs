@@ -1,7 +1,7 @@
 //! What the mesh the GAME ships is allowed to cost, keyed by [`VehicleKind`].
 //!
 //! The fleet has two bake paths and therefore two cost envelopes, which is correct — a hybrid
-//! carrying CAD plates and SDF castings has no business being held to the lean procedural recipe's
+//! carrying CAD plates and lofted castings has no business being held to the lean procedural recipe's
 //! numbers. What was missing is a single place that says WHICH envelope applies to a given
 //! vehicle, so the question "what may this tank cost?" has one answer instead of depending on the
 //! reader already knowing which crate bakes it.

@@ -1,11 +1,13 @@
 //! The parametric vehicle-description layer: the spine that ties the hybrid geometry together.
 //!
 //! A vehicle is a list of [`VehiclePart`]s, each routed to the generator its nature wants — flat
-//! armour plates to exact CAD ([`solid`]), cast castings to the SDF ([`sdf_mesh`]) — then merged by
-//! submesh kind into one `BakedVehicle` for the Forge. The same parametric dimensions drive both the
-//! visible geometry and the armour facets, so gameplay stays coherent with what is rendered. See
-//! `[[geometry-foundation-pivot]]` in project notes. Round parts (barrel, road wheels via a Revolve
-//! generator) and the track belt slot in here next.
+//! armour plates to exact CAD ([`solid`]), the cast turret to a station loft ([`cast_loft`]), the
+//! fenders to a folded pressing ([`panel`]), round parts to [`revolve`], covers and kit lines to
+//! [`sweep`] — then merged by submesh kind into one `BakedVehicle` for the Forge. The
+//! [`PartShape::Cast`] arm still meshes through [`sdf_mesh`], but no part uses it (K4 decides
+//! whether it earns a call site or goes). The same parametric dimensions drive both the visible
+//! geometry and the armour facets, so gameplay stays coherent with what is rendered. Only the T-54
+//! is described here today; the other seven vehicles bake through `vehicle_recipes` (K3).
 
 mod attachment;
 mod description;

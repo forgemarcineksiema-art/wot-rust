@@ -2,9 +2,10 @@
 //!
 //! Everything that renders or forges a vehicle — the client's live bake, the client's artifact
 //! validation, and [`crate::ForgeArtifact::bake`] — resolves its geometry here, so the garage, the
-//! battle, and the baked artifact can never describe different tanks. Migrated vehicles return their
-//! denser hybrid mesh (CAD plates + SDF castings + revolved parts, via [`vehicle_build`]); the rest
-//! pass through to the lean procedural recipe ([`vehicle_recipes::bake_vehicle`]).
+//! battle, and the baked artifact can never describe different tanks. The migrated vehicle — the
+//! T-54, still the only one — returns its denser hybrid mesh (CAD plates + lofted castings +
+//! revolved parts, via [`vehicle_build`]); the other seven pass through to the lean procedural
+//! recipe ([`vehicle_recipes::bake_vehicle`]) until Forge 2.0 K3 builds them.
 //!
 //! This is the seam that lets a vehicle move onto the hybrid pipeline without touching the renderer:
 //! the hybrid [`vehicle_build::VehicleDescription::build`] yields the same [`BakedVehicle`] the
