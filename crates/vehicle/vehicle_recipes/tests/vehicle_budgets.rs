@@ -10,7 +10,7 @@ use common::{bake_all, submesh_bounds};
 
 use game_core::{HitboxProfile, VehicleKind};
 use vehicle_geometry::SubmeshKind;
-use vehicle_recipes::{GOLDEN_BAKE_HASHES, VEHICLE_BUDGETS, bake_vehicle};
+use vehicle_recipes::{VEHICLE_BUDGETS, bake_goldens, bake_vehicle};
 
 #[test]
 fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
@@ -39,23 +39,30 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 
 #[test]
 fn every_vehicle_bake_hash_matches_golden_output() {
-    // The golden table lives in `vehicle_recipes::budgets` (src/budgets.rs) so the Forge Studio
-    // report quotes the same source this gate enforces. Re-record THERE on an intentional
-    // geometry change.
-    let expected = GOLDEN_BAKE_HASHES;
+    // The golden table is `vehicle_recipes/goldens/bake_hashes.txt` — the Forge Studio report
+    // quotes the same source this gate enforces. Re-record ONE vehicle on an intentional
+    // geometry change: `cargo run -p tools -- bless --vehicle <slug>`.
+    let expected: Vec<(VehicleKind, u64)> =
+        bake_goldens().iter().map(|row| (row.kind, row.recipe)).collect();
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();
-
-    if actual.as_slice() != expected {
-        let lines: String = actual
-            .iter()
-            .map(|(kind, hash)| format!("        (VehicleKind::{kind:?}, {hash}_u64),\n"))
-            .collect();
-        panic!(
-            "bake hashes changed; if this geometry change is intentional, replace the golden \
-             array with:\n{lines}"
-        );
-    }
+    let drifted: Vec<String> = actual
+        .iter()
+        .filter(|(kind, hash)| expected.iter().any(|(k, h)| k == kind && h != hash))
+        .map(|(kind, hash)| format!("  {kind:?}: fresh {hash}"))
+        .collect();
+    let missing: Vec<String> = actual
+        .iter()
+        .filter(|(kind, _)| !expected.iter().any(|(k, _)| k == kind))
+        .map(|(kind, _)| format!("  {kind:?} has no golden row"))
+        .collect();
+    assert!(
+        drifted.is_empty() && missing.is_empty(),
+        "bake hashes changed; if the geometry change is intentional, re-record each vehicle with \
+         `cargo run -p tools -- bless --vehicle <slug>` and say the number in the commit:\n{}{}",
+        drifted.join("\n"),
+        missing.join("\n")
+    );
 }
 
 #[test]

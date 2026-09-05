@@ -177,84 +177,65 @@ pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
 /// with the sign flip; the since-deleted prototype was byte-identical, which is the check that
 /// the flip went in through the authored data and not through shared construction. Locked from now on by
 /// `game_core/tests/handedness.rs` (blueprint-to-screen chain).
-pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
-    // Re-recorded 2026-08-11 (a lathe corner is a line): profile corners sharper than 40 deg
-    // now carry one vertex row per band, so hard-smoothing lathes keep crisp arrises through
-    // the weld. Six rows move — the vehicles whose recipes turn hard-edged drums and rims; the
-    // IS-3 and Centurion rows (and the since-deleted prototype's) are byte-identical, which is the check that
-    // smooth-group lathes still weld back to the old bake (that survival is a named, separate
-    // decision). The shipped T-54 hybrid builds without the MeshBuilder and its own golden did
-    // not move for this change.
-    // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
-    // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
-    // legacy recipe reads the same `HullShape` the shipping hybrid does, so it moves with it —
-    // again in PR-15 for the 2.40 m turret roof and its 2.363 m plan, and in PR-16 for the
-    // documented ⌀624 cupola, and in PR-17 for the narrow gun aperture that replaces the
-    // external ball mantlet, and in PR-18 for the documented 580 mm belt on the 2.640 m
-    // gauge. T-54 only.
-    // Re-recorded 2026-08-03 (W4 F5.ii, the authored gun group): the recipe's gun submesh
-    // now dispatches on the DATA - a blueprint carrying a GunVisual part bakes the generic
-    // revolved group (bore-honest barrel + mantlet body) instead of the legacy plan, and the
-    // T-54 is the first vehicle whose blueprint carries one. T-54 only: no other vehicle
-    // authors a gun part yet, so no other row moves - which is itself the proof the dispatch
-    // reads data, not identity.
-    // Previous: 10_764_434_940_917_887_702 (PR-18, the 580 mm belt);
-    //           4_449_583_882_369_858_906 (PR-17, the aperture);
-    //           12_248_531_318_198_965_275 (PR-16, the cupola);
-    //           4_620_056_473_903_640_451 (PR-15, the dome);
-    //           1_895_447_275_523_063_518 (PR-14, the hull at 6.235);
-    //           3_638_672_634_192_500_695 (PR-06, one-slope-one-truth).
-    // Re-recorded 2026-08-08 (the material law): the legacy recipe reads the shared Soviet deck,
-    // so its headlight gains the bezel and the Glass lens with the rest of the fleet. The
-    // SHIPPED hybrid is untouched — it builds its own lens in `t54_details.rs` and has done
-    // since the Model Idealny pass, which is why this row moves and the hybrid's own golden in
-    // `vehicle_build/tests/t54_hybrid.rs` does not.
-    // Previous: 7_427_199_630_274_926_331 (W4 F5.ii, the authored gun group).
-    // Previous: 15_649_090_968_640_575_833 (the material law).
-    // Re-recorded 2026-08-12 (the stern is a knuckled pair): the legacy bake's rear plate reads
-    // the corrected 17-degree `rear_slope_deg` where a sourceless 5 had sat since the data.rs
-    // era. The legacy hull keeps its single-plate stern; the knuckle/undercut pair lives on the
-    // shipped hybrid. Only this row and the hybrid's own golden move — the six siblings author
-    // no knuckle and their bakes hold byte-for-byte.
-    // Previous: 3_041_646_403_573_294_078 (the crisp lathe edges).
-    // Re-recorded 2026-08-12 again (the egg is registered): the legacy bake shares the hybrid's
-    // visual-detail inputs, so the re-registered loft/mantlet move this row with the hybrid
-    // golden. Six siblings hold byte-for-byte, as with the stern.
-    // Previous: 12_847_834_877_477_127_274 (the stern is a knuckled pair).
-    (VehicleKind::T54_1951, 2_698_233_402_623_154_907_u64),
-    // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
-    // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
-    // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
-    // 0.78 m, and the exposed run gets its fender line. Tiger I only.
-    // Re-recorded 2026-08-03 (W4 F5.iii): Tiger I is the first vehicle to AUTHOR a visual part
-    // in a file — tiger_i_ausf_e.visual.ron carries its gun group, so the recipe bakes the
-    // generic revolved group: the bore-honest KwK 36 (88 mm hole in the muzzle face), the
-    // double-baffle brake as chambers with a waist, and the Walzenblende body spanning exactly
-    // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
-    // Previous: 11_582_503_112_659_279_264 (the model-logic review).
-    // Previous: 16_183_656_741_282_067_528 (W4 F5.iii, the authored gun group).
-    // Re-recorded 2026-09-05 (Forge 2.0 K3, data first): the Tiger I re-sourced to the STT
-    // January 1944 sheet — roof 2.55, ring/deck 1.778, clearance 0.432, 3.548 over the tracks,
-    // turret 2.34 x 2.84 plan with the Walzenblende band at 1.30..1.60 on a trunnion at the
-    // front plate (1.28), end wheels at 0.72.
-    (VehicleKind::TigerI, 17_960_913_391_693_182_637_u64),
-    (VehicleKind::TigerII, 16_874_227_684_286_219_701_u64),
-    // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
-    // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
-    // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
-    // Previous: 9_354_888_225_361_852_958 (dossier JT.3).
-    (VehicleKind::Jagdtiger, 10_470_539_102_741_131_951_u64),
-    // Re-recorded 2026-07-29 (PR-06): the Panther II turret face and rear carried two angles
-    // each (11 vs 20, 25 vs 20). The dossier states 20 deg for both, three times over, so the
-    // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
-    // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
-    // Previous: 1_355_280_321_240_589_747 (PR-06, one-slope-one-truth).
-    (VehicleKind::PantherII, 4_961_078_625_024_602_127_u64),
-    (VehicleKind::IS3, 17_995_367_529_957_441_607_u64),
-    (VehicleKind::Centurion, 1_660_917_501_456_944_285_u64),
-    (VehicleKind::T34_85, 5_983_751_080_387_906_242_u64),
-];
+/// The bake goldens live in `goldens/bake_hashes.txt` (one row per vehicle: the recipe's LOD0
+/// hash and, when the shipped bake is not the recipe, the shipped LOD0 hash). A data file, so
+/// `cargo run -p tools -- bless --vehicle <slug>` re-records ONE vehicle without touching Rust;
+/// the rows' history is the file's git log (until 2026-09-05 it was this array's comments).
+const BAKE_GOLDENS: &str = include_str!("../goldens/bake_hashes.txt");
 
+/// One parsed row of the goldens file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BakeGolden {
+    pub kind: VehicleKind,
+    /// The recipe bake's LOD0 hash (`bake_vehicle`).
+    pub recipe: u64,
+    /// The authoritative description's LOD0 hash when it is NOT the recipe bake.
+    pub shipped: Option<u64>,
+}
+
+/// Every row of the goldens file, parsed once. A malformed row is a broken instrument and
+/// panics here, where the gate that reads it will name the line.
+pub fn bake_goldens() -> &'static [BakeGolden] {
+    static ROWS: std::sync::OnceLock<Vec<BakeGolden>> = std::sync::OnceLock::new();
+    ROWS.get_or_init(|| {
+        BAKE_GOLDENS
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(|line| {
+                let mut fields = line.split_whitespace();
+                let name = fields.next().expect("a kind");
+                let kind = VehicleKind::PLAYABLE
+                    .iter()
+                    .copied()
+                    .find(|kind| format!("{kind:?}") == name)
+                    .unwrap_or_else(|| panic!("bake_hashes.txt: unknown vehicle `{name}`"));
+                let recipe = fields
+                    .next()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_else(|| panic!("bake_hashes.txt: {name} needs a recipe hash"));
+                let shipped = match fields.next() {
+                    Some("-") | None => None,
+                    Some(s) => Some(s.parse().unwrap_or_else(|_| {
+                        panic!("bake_hashes.txt: {name} has a malformed shipped hash")
+                    })),
+                };
+                BakeGolden { kind, recipe, shipped }
+            })
+            .collect()
+    })
+}
+
+/// The recipe LOD0 golden for `kind`.
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {
-    GOLDEN_BAKE_HASHES.iter().find(|(k, _)| *k == kind).map(|(_, hash)| *hash)
+    bake_goldens().iter().find(|row| row.kind == kind).map(|row| row.recipe)
+}
+
+/// The SHIPPED LOD0 golden for `kind`: the recorded shipped hash when the authoritative bake is
+/// not the recipe, the recipe golden otherwise.
+pub fn shipped_bake_hash(kind: VehicleKind) -> Option<u64> {
+    bake_goldens()
+        .iter()
+        .find(|row| row.kind == kind)
+        .and_then(|row| row.shipped.or(Some(row.recipe)))
 }

@@ -20,6 +20,7 @@ serde_json.workspace = true
 sim.workspace = true
 terrain.workspace = true
 vehicle_forge.workspace = true
+vehicle_recipes.workspace = true
 
 [lints]
 workspace = true
