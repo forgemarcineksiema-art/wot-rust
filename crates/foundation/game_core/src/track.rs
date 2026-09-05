@@ -8,7 +8,7 @@ use crate::ShellType;
 /// broken-mask consumer are derived from `hp == 0`.
 pub const TRACK_HP_MAX: u8 = 100;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TrackSide {
     Left,
     Right,

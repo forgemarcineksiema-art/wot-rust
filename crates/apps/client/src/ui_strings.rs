@@ -88,6 +88,12 @@ pub(crate) mod battle {
     pub const PAUSE_EXIT_TO_GARAGE: &str = "EXIT TO GARAGE";
     /// The ESC modal's dismiss choice; names what happens, not the key that does it.
     pub const PAUSE_STAY: &str = "STAY IN BATTLE";
+    /// The damage panel's fire lamp (H17).
+    pub const FIRE_LAMP: &str = "FIRE";
+    /// The damage panel's ammunition-rack fuze, followed by the seconds (H17).
+    pub const RACK_FUZE: &str = "RACK";
+    /// The damage panel's word for a dead radio (H4).
+    pub const RADIO_OUT: &str = "RADIO OUT";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -113,6 +119,9 @@ pub(crate) mod battle {
         PAUSE_TITLE,
         PAUSE_EXIT_TO_GARAGE,
         PAUSE_STAY,
+        FIRE_LAMP,
+        RACK_FUZE,
+        RADIO_OUT,
     ];
 }
 

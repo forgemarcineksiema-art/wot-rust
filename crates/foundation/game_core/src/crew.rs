@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::TankSpec;
 
 /// The classic five tank crew roles. Presentational roster; every role shares one proficiency.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CrewRole {
     Commander,
     Gunner,

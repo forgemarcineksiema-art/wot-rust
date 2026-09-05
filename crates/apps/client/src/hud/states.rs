@@ -88,8 +88,7 @@ impl HudState {
         model.battle_outcome = None;
         model.pause_menu = None;
         model.incoming_hits.clear();
-        model.rack_fire_remaining_s = None;
-        model.track_feedback = super::track_callout::TrackFeedbackModel::default();
+        model.damage = Some(super::demo::quiet_damage_panel());
         match self {
             HudState::ThirdPersonIdle | HudState::SniperAimingHull => {}
             HudState::Reloading => model.vitals.reload_remaining_s = 3.1,
@@ -103,16 +102,9 @@ impl HudState {
                 });
             }
             HudState::ModuleDestroyed => {
-                model.track_feedback = super::track_callout::TrackFeedbackModel {
-                    callout: Some(super::track_callout::CalloutView {
-                        broke: true,
-                        side: game_core::TrackSide::Left,
-                        age_s: 0.4,
-                    }),
-                    reseat: [Some(0.35), None],
-                };
+                model.damage = Some(super::demo::wounded_damage_panel());
             }
-            HudState::OnFire => model.rack_fire_remaining_s = Some(7.0),
+            HudState::OnFire => model.damage = Some(super::demo::burning_damage_panel()),
             HudState::Spotted => {}
             HudState::KillConfirmed => model.kill_confirm_age_s = Some(0.4),
             HudState::OutcomeBanner => model.battle_outcome = Some(BattleHudOutcome::Victory),

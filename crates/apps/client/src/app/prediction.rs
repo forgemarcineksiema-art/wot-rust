@@ -146,14 +146,18 @@ impl ClientApp {
     /// The module-condition row for the player's own hull: live module HP from the latest snapshot
     /// against the spec's full pool, plus the worst-side track condition. `None` until the first
     /// snapshot lands (nothing to report yet).
-    pub(super) fn player_module_hud(&self) -> Option<crate::hud::module_panel::ModulePanelModel> {
-        let snapshot = self.player_snapshot()?;
-        let full = self.player_spec().module_health.hit_points_by_slot();
-        let track = crate::hud::module_panel::track_condition(snapshot.track_hp);
-        Some(crate::hud::module_panel::ModulePanelModel::new(
-            snapshot.module_hit_points,
-            full,
-            track,
+    /// The damage panel (H4/H17): the player's snapshot, the spec's pools, the crew's repair
+    /// clocks off the same snapshot (W-4) advanced by its age, and the thrown-track beat.
+    pub(super) fn player_damage_panel(&self) -> Option<crate::hud::damage_panel::DamagePanelModel> {
+        let latest = self.render_state.latest_snapshot()?;
+        let tank = latest.tanks.iter().find(|tank| tank.tank_id == self.player_tank)?;
+        let clocks = latest.repair_clocks.iter().find(|clocks| clocks.tank_id == self.player_tank);
+        Some(crate::hud::damage_panel::DamagePanelModel::from_snapshot(
+            tank,
+            self.player_spec(),
+            clocks,
+            self.ticks_since_snapshot as f32 * TICK_DT,
+            self.track_feedback.callout(),
         ))
     }
 

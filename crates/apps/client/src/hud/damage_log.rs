@@ -178,12 +178,12 @@ pub(crate) fn push_damage_log(
             if entry.crew_hits_mask & role.mask_bit() != 0 {
                 crate::hud::font::push_text(
                     vertices,
-                    crate::hud::crew_panel::role_letter(role),
+                    crate::hud::damage_panel::role_letter(role),
                     x,
                     y,
                     LOG_TEXT_SIZE,
                     aspect,
-                    crate::hud::crew_panel::CREW_DOWN,
+                    crate::hud::damage_panel::CREW_DOWN,
                 );
                 x += 0.022;
             }

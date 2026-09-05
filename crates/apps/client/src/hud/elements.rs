@@ -23,15 +23,9 @@ pub enum HudElement {
     Readouts,
     /// The dealt/taken damage log.
     DamageLog,
-    /// The thrown-track callout and re-seat bar.
-    TrackCallout,
-    /// The ammo-rack fuze callout.
-    RackCallout,
     /// Incoming-hit direction arcs.
     HitDirection,
     AmmoPanel,
-    ModulePanel,
-    CrewPanel,
     Minimap,
     /// The battle outcome banner.
     Outcome,
@@ -65,6 +59,31 @@ pub enum HudElement {
         index: u8,
         part: TeamRowPart,
     },
+    /// One part of the damage panel (H4, H17).
+    DamagePanel(DamagePart),
+}
+
+/// The parts of the damage panel, each its own element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DamagePart {
+    Plate,
+    Hull,
+    Turret,
+    Track(game_core::TrackSide),
+    /// The re-seat clock over a thrown track.
+    TrackClock(game_core::TrackSide),
+    Module(game_core::ModuleSlot),
+    /// The field-patch clock under a destroyed module.
+    ModuleClock(game_core::ModuleSlot),
+    HpBar,
+    HpNumber,
+    Crew(game_core::CrewRole),
+    /// The first-aid clock under a downed station.
+    CrewClock(game_core::CrewRole),
+    FireLamp,
+    FireText,
+    RackFuze,
+    RadioOut,
 }
 
 /// The parts of a team-list row, each its own element so the hit test and the census can name it.
@@ -88,7 +107,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 31] = [
+    pub const ALL: [HudElement; 28] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -96,12 +115,8 @@ impl HudElement {
         HudElement::ReloadNumber,
         HudElement::Readouts,
         HudElement::DamageLog,
-        HudElement::TrackCallout,
-        HudElement::RackCallout,
         HudElement::HitDirection,
         HudElement::AmmoPanel,
-        HudElement::ModulePanel,
-        HudElement::CrewPanel,
         HudElement::Minimap,
         HudElement::Outcome,
         HudElement::KillConfirm,
@@ -122,6 +137,7 @@ impl HudElement {
         // The row variant, named once by its first seat: the rows are keyed by seat and part,
         // and the identity rule wants every variant walked at least by name.
         HudElement::TeamRow { enemy: false, index: 0, part: TeamRowPart::Strip },
+        HudElement::DamagePanel(DamagePart::Plate),
     ];
 }
 
