@@ -9,7 +9,6 @@ use glam::Vec3;
 use net::TankSnapshot;
 use renderer_api::{CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
-use tracing::error;
 
 use super::{ClientApp, SceneKind};
 use crate::render_frame_from_objects;
@@ -186,7 +185,7 @@ impl ClientApp {
         renderer
             .set_scene_lighting(scene_build::hangar::hangar_lighting_at(daylight, scene_time_s));
         if let Err(error) = renderer.render(view_proj, camera.eye) {
-            error!(%error, "garage frame render failed");
+            self.on_render_failure(error);
         }
     }
 

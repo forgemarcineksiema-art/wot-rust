@@ -16,6 +16,7 @@ mod shader_library;
 mod shader_validation;
 mod sky_pipeline;
 mod surface_config;
+mod surface_loss;
 mod vehicle_pipeline;
 mod vehicle_resources;
 mod water_pipeline;
@@ -55,6 +56,7 @@ pub use shader_validation::{
 };
 pub use sky_pipeline::sky_shader_source;
 pub use surface_config::select_present_mode;
+pub use surface_loss::SurfaceLossPolicy;
 pub use vehicle_pipeline::{build_vehicle_pipeline, vehicle_shader_source};
 pub use vehicle_resources::{GpuVehicleMesh, VehicleMeshRegistry};
 pub use water_pipeline::water_shader_source;

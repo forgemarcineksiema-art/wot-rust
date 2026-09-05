@@ -30,6 +30,7 @@ mod reconcile;
 mod remote_events;
 mod remote_input;
 mod render;
+mod render_failure;
 #[cfg(test)]
 mod render_tests;
 mod reticle;
@@ -612,6 +613,12 @@ pub(crate) struct ClientApp {
     viewport: (u32, u32),
     /// Camera mode at the previous presented frame; a change clicks the optics cue.
     prev_camera_mode: Option<crate::BattleCameraMode>,
+    /// Whether the renderer has already been rebuilt once after a lost GPU device
+    /// (`render_failure.rs`): one rebuild is a recovery, a second loss is a machine that cannot
+    /// hold a device, and the game stops instead of looping.
+    renderer_rebuilt: bool,
+    /// A failure the loop cannot live past; `about_to_wait` logs it and leaves the event loop.
+    fatal_error: Option<String>,
     /// The platform audio stream; `None` headless or without an output device (silent game).
     audio: Option<crate::audio_out::AudioOutput>,
     /// Sounds produced since the last presented frame, flushed to the device with the frame —
@@ -862,6 +869,8 @@ impl ClientApp {
             battle_scene_meshes: None,
             viewport: (1280, 720),
             prev_camera_mode: None,
+            renderer_rebuilt: false,
+            fatal_error: None,
             audio: None,
             pending_audio: Vec::new(),
         }

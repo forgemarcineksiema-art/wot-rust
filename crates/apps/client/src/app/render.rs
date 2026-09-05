@@ -4,7 +4,6 @@ use std::time::Instant;
 use renderer_api::{CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use sim::{DEFAULT_SERVER_TICK_HZ, DEFAULT_SNAPSHOT_HZ};
-use tracing::error;
 use winit::window::Window;
 
 use super::{ClientApp, SceneKind};
@@ -743,7 +742,7 @@ impl ClientApp {
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
-            error!(%error, "frame render failed");
+            self.on_render_failure(error);
         }
         // Recover the FX scratch buffers (drained/consumed above) so next frame reuses their
         // capacity instead of allocating fresh.

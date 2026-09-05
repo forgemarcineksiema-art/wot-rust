@@ -124,6 +124,14 @@ impl ApplicationHandler for ClientApp {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // A failure the frame could not live past (a GPU device lost twice, a renderer that
+        // could not be rebuilt): say so once, loudly, and leave — never a black window that
+        // keeps pumping.
+        if let Some(reason) = self.fatal_error.take() {
+            error!(%reason, "fatal: leaving the event loop");
+            event_loop.exit();
+            return;
+        }
         let now = Instant::now();
         let elapsed = now.saturating_duration_since(self.last_loop_time);
         self.last_loop_time = now;

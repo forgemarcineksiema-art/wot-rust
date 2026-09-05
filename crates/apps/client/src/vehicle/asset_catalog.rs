@@ -34,6 +34,10 @@ pub struct VehicleAssetCatalog {
     contact_indices: HashMap<VehicleKind, Arc<VehicleContactIndex>>,
     pending_meshes: Vec<(MeshHandle, VehicleMeshAsset)>,
     pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
+    /// Every material family set ever handed to a renderer, by handle. Meshes are retained in
+    /// `meshes` already; this is the material half, kept so a renderer rebuilt on a fresh GPU
+    /// device (`re_pend_all_uploads`) can be given everything it is asked to draw.
+    retained_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
     damage_worker: DamageMeshWorker,
     damage_jobs: HashSet<String>,
     damage_telemetry: DamageMeshTelemetry,
@@ -114,7 +118,29 @@ impl VehicleAssetCatalog {
     pub fn take_pending_vehicle_materials(
         &mut self,
     ) -> Vec<(MaterialHandle, VehicleMaterialFamilies)> {
-        std::mem::take(&mut self.pending_materials)
+        let pending = std::mem::take(&mut self.pending_materials);
+        for (handle, families) in &pending {
+            match self.retained_materials.iter_mut().find(|(kept, _)| kept == handle) {
+                Some(slot) => slot.1 = families.clone(),
+                None => self.retained_materials.push((*handle, families.clone())),
+            }
+        }
+        pending
+    }
+
+    /// Queue EVERY mesh and material this catalog has ever handed to a renderer for upload
+    /// again — for a renderer rebuilt on a fresh GPU device after the old one was lost, which
+    /// holds none of them. Handles are stable (a mesh handle is its index in `meshes`, a
+    /// material handle its index in `materials`), so every frame reference stays valid across
+    /// the rebuild; only the GPU copies are made anew.
+    pub fn re_pend_all_uploads(&mut self) {
+        self.pending_meshes = self
+            .meshes
+            .iter()
+            .enumerate()
+            .map(|(index, (_, asset))| (MeshHandle(index as u32), asset.clone()))
+            .collect();
+        self.pending_materials = self.retained_materials.clone();
     }
 
     pub fn vehicle_material(&self, handle: MaterialHandle) -> Option<&VehicleMaterialDescriptor> {
@@ -412,5 +438,37 @@ fn submesh_label(submesh: SubmeshKind) -> &'static str {
         SubmeshKind::Hull => "hull",
         SubmeshKind::Turret => "turret",
         SubmeshKind::Gun => "gun",
+    }
+}
+
+#[cfg(test)]
+mod rebuild_tests {
+    use super::VehicleAssetCatalog;
+
+    /// A renderer rebuilt on a fresh device holds nothing. The catalog must be able to hand it
+    /// every mesh and material it ever uploaded, under the SAME handles the frames still use —
+    /// including a material whose families left through the ordinary pending queue long ago.
+    #[test]
+    fn re_pending_hands_a_fresh_device_every_mesh_and_material_under_its_old_handle() {
+        let mut catalog = VehicleAssetCatalog::default();
+        catalog.vehicle_entry(game_core::VehicleKind::T54_1951).expect("the T-54 bakes");
+        let first_meshes = catalog.take_pending_vehicle_meshes();
+        let first_materials = catalog.take_pending_vehicle_materials();
+        assert!(!first_meshes.is_empty() && !first_materials.is_empty(), "precondition");
+        assert!(catalog.take_pending_vehicle_meshes().is_empty(), "drained");
+        assert!(catalog.take_pending_vehicle_materials().is_empty(), "drained");
+
+        catalog.re_pend_all_uploads();
+
+        let again_meshes = catalog.take_pending_vehicle_meshes();
+        let again_materials = catalog.take_pending_vehicle_materials();
+        let handles = |v: &[(renderer_api::MeshHandle, renderer_api::VehicleMeshAsset)]| {
+            let mut h: Vec<u32> = v.iter().map(|(handle, _)| handle.0).collect();
+            h.sort_unstable();
+            h
+        };
+        assert_eq!(handles(&again_meshes), handles(&first_meshes), "same mesh handles");
+        assert_eq!(again_meshes.len(), catalog.meshes.len(), "every mesh, not just the T-54's");
+        assert_eq!(again_materials, first_materials, "the same families under the same handle");
     }
 }
