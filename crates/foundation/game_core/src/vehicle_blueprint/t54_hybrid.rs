@@ -92,6 +92,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, glacis_base_z));
 
     VisualDetail {
+        construction: None,
         hull: Some(HullVisual {
             // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
             // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the

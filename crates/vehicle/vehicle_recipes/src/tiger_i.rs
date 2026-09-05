@@ -42,14 +42,19 @@ pub(crate) fn tiger_i_pieces(
     omit: super::deck_details::DeckOmit,
 ) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
-    let hull = vec![
-        (
+    let mut hull = Vec::with_capacity(3);
+    // The slab is the library's when the visual file declares the construction (step 4a).
+    if !omit.slab {
+        hull.push((
             "recipe_hull_slab",
             shade_hull(tiger_slab_hull(&bp.hull, bp.armor.hull_bow_shelf).build()),
-        ),
-        ("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))),
-        ("recipe_hull_details", shade_hull(tiger_hull_details(&bp.hull, bp.armor.hull_bow_shelf))),
-    ];
+        ));
+    }
+    hull.push(("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))));
+    hull.push((
+        "recipe_hull_details",
+        shade_hull(tiger_hull_details(&bp.hull, bp.armor.hull_bow_shelf)),
+    ));
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
