@@ -65,8 +65,8 @@ fn a_sketch_carries_exactly_the_recipe_class() {
 }
 
 /// The Tiger I is the first MIXED sketch (K3-2b): its recipe pieces still stand, and the
-/// library's fittings from the STT sheet ride on them — four of its 23 classes carried, five
-/// with the track guards (K3-2e).
+/// library's parts ride on them — the fittings (K3-2b), the guards (K3-2e), the slab hull (4a),
+/// the gun (4c) and the welded turret (4b): 13 of its 23 classes carried.
 #[test]
 fn the_tiger_carries_its_library_fittings_over_the_recipe() {
     let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerI).unwrap());
@@ -90,7 +90,9 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
         assert!(report.carried.contains(&class), "{class:?} is the library's now");
         assert!(!report.missing.contains(&class));
     }
-    assert!(report.missing.contains(&PartClass::TurretShell), "the turret is still the recipe's");
+    // What the recipe still owns after step 4b: the deck and the hull details (EngineDeck,
+    // DeckGrille, Exhaust, SpareTracks, CourseMg) — step 4d's.
+    assert!(report.missing.contains(&PartClass::EngineDeck), "the deck is still the recipe's");
     println!("{}", report.summary_line());
 }
 
