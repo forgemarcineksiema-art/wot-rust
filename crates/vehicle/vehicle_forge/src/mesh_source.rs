@@ -59,10 +59,12 @@ mod tests {
         assert_eq!(shipped_fidelity(VehicleKind::T54_1951), Fidelity::Benchmark);
     }
 
-    /// Every unmigrated vehicle passes straight through to the procedural mesh, byte for byte.
+    /// Every vehicle with no library part yet passes straight through to the procedural mesh,
+    /// byte for byte. (The Tiger I carries library fittings since K3 and is pinned by its own
+    /// mixed golden in `seam_lock`.)
     #[test]
     fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        for kind in [VehicleKind::T34_85, VehicleKind::TigerI, VehicleKind::PantherII] {
+        for kind in [VehicleKind::T34_85, VehicleKind::TigerII, VehicleKind::PantherII] {
             let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
             let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
             assert_eq!(

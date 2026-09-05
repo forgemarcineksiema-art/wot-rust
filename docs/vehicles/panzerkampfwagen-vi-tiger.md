@@ -228,9 +228,14 @@ visible hull front/rear plates are authored on the same plane equations the volu
 ## Authored visual parts (fleet slot W4 F5, #422)
 
 The Tiger I is the first — and so far only — vehicle in the fleet to author a visual file:
-`game_core/blueprints/tiger_i_ausf_e.visual.ron`. Only the GUN GROUP is authored; every other
-part is `None` and the recipe keeps covering the rest — a partial file improves the look without
-claiming cut-truth. What the file states:
+`game_core/blueprints/tiger_i_ausf_e.visual.ron`. The GUN GROUP (#422) and, since 2026-09-05
+(Forge 2.0 K3-2b), the FITTINGS are authored; every other part is `None` and the recipe keeps
+covering the rest — a partial file improves the look without claiming cut-truth. The fittings
+come off the STT 1944 sheet (§ Reference drawings): two bow hatches on the hull roof at z +1.69,
+x ±0.87, the loader's hatch on the turret roof at x −0.96, z +0.98, the commander's lid on the
+cupola, the single headlight on the driver's plate at x −0.52, y 1.59, the bow shackles at x ±0.88
+— built by the part library (`vehicle_build::fitting_parts_for_blueprint`), the recipe's own
+hatches, lamp and hooks left out. What the gun file states:
 
 - **Bore-honest KwK 36**: bore 88 mm (`bore_radius 0.044`) recessed in the muzzle face, tube
   radius 0.1 — the gameplay gun's, one truth.

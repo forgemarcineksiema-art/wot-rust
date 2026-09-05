@@ -30,6 +30,10 @@ pub struct FittingsVisual {
     /// Front tow hook (right side; mirrored to the left).
     pub tow_hook_center: Vec3,
     pub tow_hook_half: Vec3,
+    /// A second bow hatch on the hull roof (the German line's radio operator beside the driver),
+    /// with the driver's radius and height. `None` on a vehicle with one bow hatch (the T-54).
+    #[serde(default)]
+    pub second_bow_hatch_center: Option<Vec3>,
 }
 
 /// Visual-only factory detailing for the hybrid path. Clean-build intent: a freshly delivered

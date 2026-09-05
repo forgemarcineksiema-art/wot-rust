@@ -574,8 +574,23 @@ fn the_manifest_report_names_every_kernel_and_a_sketch_names_its_recipe() {
     );
     // A sketch's manifest is its three wrapped recipe submeshes — honest, and tagged as such.
     let tiger = production_part_manifest(VehicleKind::TigerI).expect("a sketch describes itself");
-    assert_eq!(tiger.len(), 5, "the Tiger's recipe is split into its five pieces (K3)");
-    assert!(tiger.iter().all(|e| e.generator == GeneratorKind::Recipe));
+    // The five recipe pieces (K3-2a) plus the library's fittings (K3-2b): the manifest names
+    // both halves, each by the generator that built it.
+    let recipe: Vec<&str> =
+        tiger.iter().filter(|e| e.generator == GeneratorKind::Recipe).map(|e| e.key.name).collect();
+    assert_eq!(
+        recipe,
+        vec![
+            "recipe_hull_slab",
+            "recipe_hull_deck",
+            "recipe_hull_details",
+            "recipe_turret",
+            "recipe_gun"
+        ]
+    );
+    assert!(
+        tiger.iter().any(|e| e.key.name == "driver_hatch" && e.generator != GeneratorKind::Recipe)
+    );
 }
 
 #[test]

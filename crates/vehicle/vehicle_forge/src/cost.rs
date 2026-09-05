@@ -49,7 +49,20 @@ pub enum CostEnvelope {
 /// resolves the budget it is judged against. Using one without the other is how a migrated vehicle
 /// silently loses its cost gate.
 pub fn shipped_cost_ceiling(kind: VehicleKind) -> ShippedCostCeiling {
+    // A MIXED sketch — recipe pieces with library parts riding on them (Forge 2.0 K3) — pays
+    // the class budget: the library's parts are benchmark-class geometry (a lid with its hinge,
+    // handle and coaming; a lamp with its lens), and holding them to the lean recipe's 3 950
+    // would forbid the migration the budget exists to price. The recipe's remainder sits far
+    // under the class ceiling, so the ceiling still catches a runaway part.
+    let carries_library_parts = crate::mesh_source::authoritative_description(kind)
+        .map(|d| d.parts.iter().any(|p| p.generator != vehicle_build::GeneratorKind::Recipe))
+        .unwrap_or(false);
     match shipped_fidelity(kind) {
+        Fidelity::Sketch if carries_library_parts => ShippedCostCeiling {
+            tri_max: vehicle_build::MEDIUM_LOD0_TRI_BUDGET,
+            vert_max: vehicle_build::MEDIUM_LOD0_VERT_BUDGET,
+            envelope: CostEnvelope::HybridClass,
+        },
         Fidelity::Benchmark => ShippedCostCeiling {
             tri_max: vehicle_build::MEDIUM_LOD0_TRI_BUDGET,
             vert_max: vehicle_build::MEDIUM_LOD0_VERT_BUDGET,

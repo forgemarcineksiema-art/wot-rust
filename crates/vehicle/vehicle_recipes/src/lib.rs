@@ -119,10 +119,28 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     }
     let hitbox = HitboxProfile::for_vehicle(kind);
     let mounts = MountFrames::for_vehicle(kind);
-    match recipe_pieces(kind, &hitbox, &mounts) {
-        Some(pieces) => Some(pieces_description(kind, pieces)),
+    // The library's parts for what the visual file authors (Forge 2.0 K3, one class at a time);
+    // the recipe's pieces leave those out.
+    let library =
+        active_blueprint(kind).and_then(|bp| vehicle_build::fitting_parts_for_blueprint(&bp));
+    let omit = deck_details::DeckOmit { fittings: library.is_some() };
+    match recipe_pieces(kind, &hitbox, &mounts, omit) {
+        Some(pieces) => {
+            let mut description = pieces_description(kind, pieces);
+            description.parts.extend(library.unwrap_or_default());
+            Some(description)
+        }
         None => bake_vehicle(kind).ok().map(recipe_description),
     }
+}
+
+/// [`describe`] over a LIVE blueprint (the Studio's `--blueprint-file` fast loop): the override
+/// is set for the whole composition, so the pieces AND the library parts read the edited file.
+pub fn describe_with_blueprint(blueprint: &VehicleBlueprint) -> Option<VehicleDescription> {
+    BLUEPRINT_OVERRIDE.set(Some(*blueprint));
+    let description = describe(blueprint.kind);
+    BLUEPRINT_OVERRIDE.set(None);
+    description
 }
 
 /// A recipe split into the builders it is made of, each a `Recipe` part with a name — the
@@ -140,9 +158,10 @@ fn recipe_pieces(
     kind: VehicleKind,
     hitbox: &HitboxProfile,
     mounts: &MountFrames,
+    omit: deck_details::DeckOmit,
 ) -> Option<RecipePieces> {
     match kind {
-        VehicleKind::TigerI => Some(tiger_i::tiger_i_pieces(hitbox, mounts)),
+        VehicleKind::TigerI => Some(tiger_i::tiger_i_pieces(hitbox, mounts, omit)),
         _ => None,
     }
 }
@@ -203,7 +222,7 @@ pub fn describe_from_blueprint(
 ) -> Result<VehicleDescription, BakeError> {
     match vehicle_build::description_from_blueprint(blueprint) {
         Some(description) => Ok(description),
-        None => bake_vehicle_from_blueprint(blueprint).map(recipe_description),
+        None => describe_with_blueprint(blueprint).ok_or(BakeError::MissingRecipe(blueprint.kind)),
     }
 }
 

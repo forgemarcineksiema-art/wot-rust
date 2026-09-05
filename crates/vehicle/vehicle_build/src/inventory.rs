@@ -122,7 +122,7 @@ impl PartClass {
             "turret_rail" => Self::TurretRails,
             "course_mg_port" => Self::CourseMg,
             "gun_barrel" => Self::GunBarrel,
-            "driver_hatch" | "loader_hatch" => Self::Hatches,
+            "driver_hatch" | "loader_hatch" | "radio_hatch" => Self::Hatches,
             "damage_component" | "driver_seat" | "interior_liner" | "turret_inner_skin" => {
                 Self::Interior
             }
