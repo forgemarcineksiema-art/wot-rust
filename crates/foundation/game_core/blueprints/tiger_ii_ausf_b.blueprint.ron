@@ -1,7 +1,8 @@
 BlueprintFile(
     kind: TigerII,
     hull: HullShape(
-        half_len: 3.69,
+        // 7510 mm hull, the Soviet 1944 layout sheet's own line (was 7.38 from the records).
+        half_len: 3.755,
         half_width: 1.85,
         belly_y: 0.5,
         deck_y: 1.86,
@@ -21,7 +22,7 @@ BlueprintFile(
         )),
         hitbox_half_width: 1.95,
         hitbox_half_height: 1.57,
-        hitbox_half_length: 3.74,
+        hitbox_half_length: 3.81,
         hitbox_center_y: 1.52,
         hitbox_turret_min_y: 0.34,
     ),
@@ -76,7 +77,8 @@ BlueprintFile(
     gun: GunShape(
         trunnion_y: 2.21,
         trunnion_z: 1.6,
-        muzzle_z: 6.6,
+        // 10416 mm overall on the same sheet: the muzzle stands 6.661 ahead of the hull centre.
+        muzzle_z: 6.661,
         barrel_radius: 0.105,
         evacuator: None,
         muzzle_brake: Some(0.18),

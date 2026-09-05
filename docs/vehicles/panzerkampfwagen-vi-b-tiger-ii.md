@@ -143,3 +143,18 @@ Regenerate it with:
 ```powershell
 cargo run -p tools -- generate-vehicle --vehicle tiger-ii-ausf-b --output assets/vehicles/tiger_ii_ausf_b.vehicle.json
 ```
+
+## Reference drawings (2026-09-06)
+
+The Soviet 1944 layout sheet (Вестник танковой промышленности No 10, `output/refs/tiger_ii_ausf_b/VTP1944-10_Tiger-B_layout.jpg`, public domain — see `output/refs/SOURCES.md`) dimensions the Tiger B directly; where it draws a line the anchor is tight (the fit's lesson from the Tiger I):
+
+| Line on the sheet | Value | Blueprint / anchor |
+| --- | --- | --- |
+| Overall length, gun forward | 10416 mm | `gun.muzzle_z 6.661`; `OverallLengthWithGun` 10.416 +/-0.04 (Locked) |
+| Hull length | 7510 mm | `hull.half_len 3.755` (was 3.69 — the records' 7.38); `HullLength` 7.51 +/-0.03 (Locked) |
+| Height | 3075 mm | `HeightToTurretRoof` 3.075 +/-0.03 (Locked) |
+| Width over the tracks | 3750 mm | `track.outer_x 1.87` (3.74); `HullWidth` stays 3.88 over the fitted Schuerzen |
+| Ground contact | 4140 mm | `GroundContactLength` 4.14 +/-0.03 (Locked; the axle span 2 x 2.06 = 4.12) |
+| Ground clearance | 505 mm | `hull.belly_y 0.50`; `GroundClearance` 0.505 +/-0.02 (Locked) |
+
+The sheet's 2630 mm on the plan and 980 mm at the turret's rear are not yet read with confidence (the inner hull width between the sponsons, and the turret's height above the deck?) — they wait for the traced outlines (K0) before they become anchors.
