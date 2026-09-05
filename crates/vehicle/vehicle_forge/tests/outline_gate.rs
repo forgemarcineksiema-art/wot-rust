@@ -127,3 +127,24 @@ fn the_outline_file_names_the_vehicle_it_belongs_to() {
         );
     }
 }
+
+#[test]
+fn the_tiger_carries_its_traced_plan_view_as_a_target_with_a_floor() {
+    let set = vehicle_forge::tiger_i_outline_set();
+    assert_eq!(set.vehicle(), VehicleKind::TigerI.slug());
+    let views: Vec<OutlineView> = set.views().iter().map(OutlineSpec::view).collect();
+    assert_eq!(
+        views,
+        vec![OutlineView::Plan],
+        "the 1944 report gives the plan; side and front wait"
+    );
+    let spec = &set.views()[0];
+    assert_eq!(spec.status(), AnchorStatus::Target);
+    assert!(spec.floor_iou().is_some());
+    let baked = authoritative_baked_vehicle(VehicleKind::TigerI).expect("bake");
+    let report =
+        ReferencePack::for_vehicle(VehicleKind::TigerI).expect("pack").measure_outlines(&baked);
+    assert_eq!(report.len(), 1);
+    println!("{}", report[0].summary_line("TigerI"));
+    assert!(report[0].holds_floor(), "{}", report[0].summary_line("TigerI"));
+}

@@ -239,6 +239,23 @@ claiming cut-truth. What the file states:
 The golden bake hash was re-recorded Tiger-I-only (`vehicle_recipes/src/budgets.rs`), which is
 itself the proof that the visual dispatch reads data, not vehicle identity.
 
+## Reference drawing and the K0 outline (2026-09-05)
+
+The School of Tank Technology's *Report on PzKw VI (Tiger) Model E, Part I* (January 1944)
+carries a plan drawing, wide tracks — a real technical drawing, UK Government work, public
+domain ([Commons: File:Tiger_Top_View.png](https://commons.wikimedia.org/wiki/File:Tiger_Top_View.png);
+local copy `output/refs/tiger_i_ausf_e/Tiger_Top_View.png`, git-ignored, see
+`output/refs/SOURCES.md`). Traced with `scripts/refs/trace_silhouette.py` into
+`crates/vehicle/vehicle_forge/outlines/tiger_i_ausf_e.outline.ron`: scale from the 3.705 m over
+the tracks, the implied overall length 8.347 m against the documented 8.45 (1.2 %), the muzzle
+anchored at z 5.29. Against it the sketch's plan reads **IoU 0.922** (drawing covered 99.9 %,
+bake inside 92.3 %) — the bake stands proud at the stern (−3.21 against the drawing's −3.06,
+the exhaust stacks), at the bow corners (the front track guards drawn narrower than the tracks)
+and in 5 cm strips along both sides where the 1944 drawing draws the tracks only at their ends —
+an artefact of the drawing, not a defect; floor 0.92, `Target` until K3 builds the vehicle. Side and
+front views wait for a drawing of the same trust (the Commons side profile is a redrawn
+silhouette of unclear provenance, not used).
+
 ## Data Sources And Gameplay Translation
 
 The implemented values are practical gameplay specs grounded in public historical data.

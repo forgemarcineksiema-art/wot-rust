@@ -43,8 +43,8 @@ pub use outline::{
 pub use packs::{t54_outline_set, t54_reference_pack};
 pub use packs_british::centurion_reference_pack;
 pub use packs_german::{
-    jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
-    tiger_ii_reference_pack,
+    jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_outline_set,
+    tiger_i_reference_pack, tiger_ii_reference_pack,
 };
 pub use packs_is3::is3_reference_pack;
 pub use packs_t34::t34_85_reference_pack;
