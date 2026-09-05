@@ -51,6 +51,9 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 ///
 /// The plate and the backing skin stay, because those are the belt's silhouette and the belt's
 /// silhouette is what you still see at 60 m.
+/// Bars across a Kgs shoe's width: two edge rails and four ribs, five windows between.
+const KGS_BARS: usize = 6;
+
 fn distant_link(kin: &RunningGearKinematics) -> GeometryMesh {
     let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
     MeshBuilder::new()
@@ -146,30 +149,30 @@ fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
     builder.build()
 }
 
-/// German Kgs 63/725 double-pin shoe (Tiger I/II, Jagdtiger, Panther II): a wide plate with
-/// one TALL centre guide horn that rides between the interleaved wheel rows, two transverse
-/// grouser cleats on the ground face, and prominent pin tubes at both joints.
+/// German Kgs 63/725 double-pin shoe (Tiger I/II, Jagdtiger, Panther II), as the STT 1944
+/// sheet draws it: a cast OPEN FRAME — a thin web with `KGS_BARS` longitudinal bars standing
+/// proud of it (two edge rails and the ribs between, five windows across the width), one TALL
+/// centre guide horn on the middle bar that rides between the interleaved wheel rows, and
+/// prominent pin tubes at both joints. Until 2026-09-06 (K22-2) it was a plate with two
+/// transverse cleats that no Kgs shoe ever carried.
 fn kgs_link(kin: &RunningGearKinematics) -> GeometryMesh {
     let half_z = kin.link_half_length();
     let plate_half_x = kin.band_half_width;
     let pin_half_z = (half_z * 0.09).max(0.012);
-    MeshBuilder::new()
-        .append(&box_prism(Vec3::new(0.0, -0.004, 0.0), plate_half_x, 0.026, half_z))
+    let mut builder = MeshBuilder::new()
+        // The web: thin, the frame's floor.
+        .append(&box_prism(Vec3::new(0.0, -0.010, 0.0), plate_half_x, 0.012, half_z))
         // The single tall centre horn — the Schachtellaufwerk's guide between the wheel rows.
-        .append(&box_prism(Vec3::new(0.0, -0.052, 0.0), 0.032, 0.024, half_z * 0.30))
-        // Two transverse grouser cleats gripping the ground.
-        .append(&box_prism(
-            Vec3::new(0.0, 0.022, -half_z * 0.38),
-            plate_half_x * 0.96,
-            0.008,
-            half_z * 0.10,
-        ))
-        .append(&box_prism(
-            Vec3::new(0.0, 0.022, half_z * 0.38),
-            plate_half_x * 0.96,
-            0.008,
-            half_z * 0.10,
-        ))
+        .append(&box_prism(Vec3::new(0.0, -0.052, 0.0), 0.032, 0.024, half_z * 0.30));
+    // The bars: edge rails and the ribs between them, `KGS_BARS - 1` windows across.
+    let bar_half_x = (plate_half_x * 2.0 / (KGS_BARS as f32 * 6.0)).clamp(0.012, 0.022);
+    for i in 0..KGS_BARS {
+        let t = i as f32 / (KGS_BARS - 1) as f32;
+        let x = -plate_half_x + bar_half_x + t * 2.0 * (plate_half_x - bar_half_x);
+        builder =
+            builder.append(&box_prism(Vec3::new(x, 0.012, 0.0), bar_half_x, 0.016, half_z * 0.94));
+    }
+    builder
         // Pin tubes at the joints.
         .append(&box_prism(
             Vec3::new(0.0, 0.014, -half_z * 0.82),

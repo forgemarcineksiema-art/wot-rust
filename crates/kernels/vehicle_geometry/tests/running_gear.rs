@@ -1116,3 +1116,79 @@ fn the_t54_idler_is_its_own_wheel_at_its_own_axle() {
         );
     }
 }
+
+/// K22-2: the Kgs shoe is an open cast frame — bars standing proud of a thin web across the
+/// width (the STT 1944 front view's row of windows), one centre horn, nothing else reaching
+/// down between the wheels.
+#[test]
+fn the_kgs_shoe_is_an_open_frame_under_one_centre_horn() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::TigerI).expect("Tiger gear");
+    let mesh = track_link_unit_mesh(&kin);
+    // The bars' top faces: the highest ground-side band of the shoe (y up is the tread side
+    // here, as in the OMSh lock's convention the horn points to negative y).
+    let top = mesh.vertices().iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
+    let mut bar_xs: Vec<f32> = mesh
+        .vertices()
+        .iter()
+        .filter(|v| (v.position.y - top).abs() < 1.0e-3)
+        .map(|v| v.position.x)
+        .collect();
+    bar_xs.sort_by(f32::total_cmp);
+    bar_xs.dedup_by(|a, b| (*a - *b).abs() < 0.03);
+    assert!(
+        bar_xs.len() >= 10,
+        "six bars, each two edges wide, stand at the tread: {} distinct x edges",
+        bar_xs.len()
+    );
+    let horn_depth = mesh.vertices().iter().map(|v| v.position.y).fold(f32::INFINITY, f32::min);
+    let horn_width = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.y < horn_depth + 0.010)
+        .map(|v| v.position.x.abs())
+        .fold(0.0_f32, f32::max);
+    assert!(horn_width < 0.05, "one narrow centre horn, not a cleat: {horn_width:.3}");
+}
+
+/// K22-2: the German sprocket is spoked at the near tier — daylight between eight spokes from
+/// the hub to the carrier rings — and a disc at the far tier, like the idler. Daylight is
+/// measured as what the wheel's triangles COVER on its plane: a probe ring between the hub and
+/// the carrier rings, sampled around, each sample inside some triangle or in the open.
+#[test]
+fn the_german_sprocket_is_spoked_at_the_near_tier() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::TigerI).expect("Tiger gear");
+    let covered_bins = |mesh: &vehicle_geometry::GeometryMesh, r: f32| {
+        let bins = 64;
+        let verts = mesh.vertices();
+        let idx = mesh.indices();
+        let inside = |p: (f32, f32), a: (f32, f32), b: (f32, f32), c: (f32, f32)| {
+            let sign = |p: (f32, f32), q: (f32, f32), r: (f32, f32)| {
+                (p.0 - r.0) * (q.1 - r.1) - (q.0 - r.0) * (p.1 - r.1)
+            };
+            let (d1, d2, d3) = (sign(p, a, b), sign(p, b, c), sign(p, c, a));
+            !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+        };
+        (0..bins)
+            .filter(|bin| {
+                let angle = std::f32::consts::TAU * (*bin as f32 + 0.5) / bins as f32;
+                let probe = (r * 0.47 * angle.cos(), r * 0.47 * angle.sin());
+                idx.chunks_exact(3).any(|t| {
+                    let v = |i: u32| {
+                        let p = verts[i as usize].position;
+                        (p.y, p.z)
+                    };
+                    inside(probe, v(t[0]), v(t[1]), v(t[2]))
+                })
+            })
+            .count()
+    };
+    let r = kin.sprocket_radius();
+    let near = covered_bins(&sprocket_unit_mesh(&kin), r);
+    let far =
+        covered_bins(&sprocket_unit_mesh(&kin.at_detail(vehicle_geometry::GearDetail::Far)), r);
+    assert!(near <= 40, "eight spokes leave daylight between them: {near} of 64 bins covered");
+    assert_eq!(far, 64, "the far tier keeps its disc: {far} of 64 bins covered");
+    let t54 = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let soviet = covered_bins(&sprocket_unit_mesh(&t54), t54.sprocket_radius());
+    assert_eq!(soviet, 64, "the Soviet sprocket keeps its disc: {soviet} of 64 bins covered");
+}

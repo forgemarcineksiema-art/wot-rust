@@ -211,9 +211,32 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     // Widened to carry them: the rings now land on the disc's rim and the bolts pass through
     // both. Same segment count, so the same triangles — a sprocket is a plate with rings bolted
     // to its edge, and it costs nothing to say so.
-    let mut builder = MeshBuilder::new()
-        .append(&wheel_disc_at(0.0, r * 0.70, ring_x, seg, MaterialRole::TrackMetal))
-        .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal));
+    // The German line's sprocket (the Kgs family) is a SPOKED wheel: eight spokes from a
+    // six-bolt hub to the carrier rings, daylight between them — the STT 1944 side view
+    // (K22-2, 2026-09-06). At the far tier it keeps the disc, like the idler. The Soviet and
+    // British sprockets stay the dished disc their references show.
+    let spoked = kin.shoe == game_core::ShoePattern::Kgs && kin.detail == crate::GearDetail::Near;
+    let mut builder = if spoked {
+        let mut hub = MeshBuilder::new()
+            .append(&wheel_disc_at(0.0, r * 0.26, ring_x, seg, MaterialRole::TrackMetal))
+            .append(&idler_spokes(r * 0.24, r * 0.70, ring_x * 0.92, 8));
+        for i in 0..6 {
+            let angle = (i as f32 / 6.0) * std::f32::consts::TAU;
+            let (sin, cos) = angle.sin_cos();
+            for side in [-1.0_f32, 1.0] {
+                hub = hub.append(&ring_bolt(Vec3::new(
+                    side * ring_x,
+                    sin * r * 0.16,
+                    cos * r * 0.16,
+                )));
+            }
+        }
+        hub
+    } else {
+        MeshBuilder::new()
+            .append(&wheel_disc_at(0.0, r * 0.70, ring_x, seg, MaterialRole::TrackMetal))
+            .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal))
+    };
     for side in [-1.0_f32, 1.0] {
         let center_x = side * ring_x;
         // The carrier ring: an annulus the teeth root into, not a coin.
