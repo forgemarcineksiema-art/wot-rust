@@ -7,7 +7,8 @@
 use game_core::VehicleKind;
 
 use crate::{
-    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+    DimensionKind, DimensionTarget, OutlineSet, RatioKind, RatioTarget, ReferencePack,
+    ReferenceSource,
 };
 
 /// Five-ratio silhouette gate builder: targets AND tolerances are per vehicle, so each pack
@@ -234,6 +235,14 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
             ),
         ),
     ])
+    .with_outlines(tiger_i_outline_set().into_views())
+}
+
+/// The Tiger I's reference outline (K0): the 1944 plan drawing traced into loops, authored beside
+/// the crate as RON. A file that does not parse fails every pack test.
+pub fn tiger_i_outline_set() -> OutlineSet {
+    OutlineSet::parse(include_str!("../outlines/tiger_i_ausf_e.outline.ron"))
+        .unwrap_or_else(|e| panic!("outlines/tiger_i_ausf_e.outline.ron: {e}"))
 }
 
 /// Every Tiger I anchor cites the in-repo dossier, whose Reference anatomy table carries the
