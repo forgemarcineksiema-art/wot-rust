@@ -94,6 +94,16 @@ fn the_counters_are_exact_for_a_known_scene() {
         assert_eq!(pass.instances, 1, "{} is one instance", fullscreen.label());
     }
 
+    // The HUD pass opens on every frame — the pass list a frame reports must not depend on
+    // whether an interface was uploaded — and with nothing uploaded it submits nothing.
+    let hud = counts.pass(PassId::Hud);
+    assert_eq!(hud.draws, 0, "an empty HUD pass draws nothing");
+    assert_eq!(hud.triangles, 0, "an empty HUD pass submits no triangles");
+    assert!(
+        renderer.last_frame_pass_order().iter().any(|(_, id)| id == PassId::Hud),
+        "the HUD pass is encoded even when the HUD is empty"
+    );
+
     // Three objects, one mesh, one material: ONE draw carrying three instances of four triangles.
     // If batching ever regressed to a draw per object this reads 3 draws and the same 12
     // triangles, so the two numbers together say what changed.
