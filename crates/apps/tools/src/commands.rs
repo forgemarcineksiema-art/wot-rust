@@ -59,6 +59,7 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
             write_json(output, &vehicle_spec(&vehicle)?)?
         }
         Command::Bless { vehicle } => bless_command(&vehicle)?,
+        Command::Fit { vehicle, rounds, write } => fit_command(&vehicle, rounds, write)?,
         Command::ForgeVehicle { vehicle, profile, out } => {
             ForgeArtifact::bake(parse_vehicle_kind(&vehicle)?, profile.parse()?)?
                 .write_to_dir(&out)?
@@ -325,6 +326,28 @@ fn bless_command(vehicle: &str) -> anyhow::Result<()> {
         .is_some_and(|pack| !pack.outlines().is_empty())
     {
         outline_overlay(vehicle, None)?;
+    }
+    Ok(())
+}
+
+/// The blueprint fitted to its drawings (acceleration step 3): report, and with `--write` the
+/// numbers into the RON. The next run of `bless` and the vehicle gate judge the result.
+fn fit_command(vehicle: &str, rounds: usize, write: bool) -> anyhow::Result<()> {
+    let kind = parse_vehicle_kind(vehicle)?;
+    let report = vehicle_forge::fit::fit_blueprint(kind, rounds)
+        .with_context(|| format!("{vehicle}: no traced outlines to fit against (K0)"))?;
+    print!("{}", report.summary());
+    if write && !report.changes.is_empty() {
+        let path = repo_root_of_tools()
+            .join("crates/foundation/game_core/blueprints")
+            .join(format!("{}.blueprint.ron", kind.slug()));
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let fitted =
+            vehicle_forge::fit::apply_to_ron(&text, &report).map_err(anyhow::Error::msg)?;
+        std::fs::write(&path, fitted)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        println!("wrote {}", path.display());
     }
     Ok(())
 }
