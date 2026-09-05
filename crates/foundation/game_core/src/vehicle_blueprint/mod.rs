@@ -17,26 +17,14 @@ use crate::{HitboxProfile, MountFrame, MountFrames, VehicleKind};
 
 // The seven per-vehicle Rust constructors are TEST-ONLY golden fixtures now: the runtime
 // source is the RON file per vehicle (see `source.rs` / `data.rs`).
-#[cfg(test)]
-mod centurion;
 mod data;
 mod fittings;
 mod hybrid;
-#[cfg(test)]
-mod is3;
-#[cfg(test)]
-mod jagdtiger;
 pub mod lint;
-#[cfg(test)]
-mod panther_ii;
 mod shape_track;
 mod source;
 mod t54_hybrid;
 mod t54_hybrid_turret;
-#[cfg(test)]
-mod tiger_i;
-#[cfg(test)]
-mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
