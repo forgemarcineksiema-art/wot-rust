@@ -71,6 +71,10 @@ pub enum Payload {
     Bar { frac: f32, fill: [f32; 4], back: [f32; 4] },
     /// A pane of glass over the rectangle: a tint with a reflection band at `phase`.
     Glass { radius_u: f32, phase: f32, color: [f32; 4] },
+    /// The sheet's region `[u0, v0, u1, v1]` stretched over the rectangle, tinted by `color`
+    /// (white leaves the texels as they are): the baked minimap relief (H0), and anything else
+    /// painted into the sheet once rather than drawn as quads every frame.
+    Image { uv: [f32; 4], color: [f32; 4] },
     /// Clip-space vertices appended VERBATIM, never clipped, never restyled: the reticle stack
     /// and every legacy builder during the migration.
     Legacy(Vec<HudVertex>),
@@ -277,6 +281,14 @@ fn emit_element<K: ElementKey>(
             let color = dim(*color);
             for (px, local) in corners {
                 out.push(HudVertex::glass(ui.to_clip(px), local, extent, radius, *phase, color));
+            }
+        }
+        Payload::Image { uv, color } => {
+            let color = dim(*color);
+            for (px, local) in quad_corners(rect) {
+                let u = uv[0] + (uv[2] - uv[0]) * (local[0] / rect.w.max(1e-6));
+                let v = uv[1] + (uv[3] - uv[1]) * (local[1] / rect.h.max(1e-6));
+                out.push(HudVertex::sheet(ui.to_clip(px), [u, v], color));
             }
         }
         Payload::Legacy(vertices) => out.extend_from_slice(vertices),

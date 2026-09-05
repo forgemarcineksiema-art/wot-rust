@@ -33,9 +33,22 @@ pub enum HudIcon {
     StatArmor,
     StatDispersion,
     StatAimTime,
+    /// The vehicle classes (interface program H2): the team lists' first column.
+    ClassMedium,
+    ClassHeavy,
+    ClassTankDestroyer,
 }
 
 impl HudIcon {
+    /// The class glyph of a vehicle (H2): the team lists' first column, the marker's badge.
+    pub fn for_class(class: game_core::VehicleClass) -> HudIcon {
+        match class {
+            game_core::VehicleClass::Medium => HudIcon::ClassMedium,
+            game_core::VehicleClass::Heavy => HudIcon::ClassHeavy,
+            game_core::VehicleClass::TankDestroyer => HudIcon::ClassTankDestroyer,
+        }
+    }
+
     /// The atlas icon standing in for a damaged module in battle feeds. The ammo rack has no
     /// dedicated slot icon; the AP shell silhouette reads as "ammunition" at feed sizes.
     pub fn for_module(module: game_core::ModuleSlot) -> HudIcon {
@@ -60,7 +73,7 @@ impl HudIcon {
         }
     }
 
-    pub const ALL: [HudIcon; 21] = [
+    pub const ALL: [HudIcon; 24] = [
         HudIcon::Crew,
         HudIcon::AmmoAp,
         HudIcon::AmmoApcr,
@@ -82,6 +95,9 @@ impl HudIcon {
         HudIcon::StatArmor,
         HudIcon::StatDispersion,
         HudIcon::StatAimTime,
+        HudIcon::ClassMedium,
+        HudIcon::ClassHeavy,
+        HudIcon::ClassTankDestroyer,
     ];
 }
 
@@ -202,6 +218,21 @@ pub fn raster(icon: HudIcon) -> Vec<u8> {
             c.rect(0.70, 0.47, 0.88, 0.53);
             c.disc(0.5, 0.5, 0.07);
         }
+        // The class glyphs read at 16 px in a team list: a diamond for the medium, the diamond
+        // on a chassis for the heavy, a wedge pointing down for the tank destroyer — three
+        // silhouettes apart by shape alone, so a colour-blind list still tells them apart.
+        HudIcon::ClassMedium => {
+            c.tri([0.5, 0.12], [0.14, 0.5], [0.86, 0.5]);
+            c.tri([0.14, 0.5], [0.86, 0.5], [0.5, 0.88]);
+        }
+        HudIcon::ClassHeavy => {
+            c.tri([0.5, 0.08], [0.14, 0.44], [0.86, 0.44]);
+            c.tri([0.14, 0.44], [0.86, 0.44], [0.5, 0.66]);
+            c.rect(0.16, 0.72, 0.84, 0.90);
+        }
+        HudIcon::ClassTankDestroyer => {
+            c.tri([0.12, 0.16], [0.88, 0.16], [0.5, 0.88]);
+        }
     }
     c.px
 }
@@ -209,6 +240,22 @@ pub fn raster(icon: HudIcon) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// H2: the three class glyphs differ from each other by shape, not only by tint.
+    #[test]
+    fn every_class_has_a_glyph_that_differs_from_the_others() {
+        let glyphs: Vec<Vec<u8>> = game_core::VehicleClass::ALL
+            .iter()
+            .map(|class| raster(HudIcon::for_class(*class)))
+            .collect();
+        for (i, a) in glyphs.iter().enumerate() {
+            assert!(a.iter().any(|p| *p > 0), "class glyph {i} is empty");
+            for b in glyphs.iter().skip(i + 1) {
+                let differing = a.iter().zip(b).filter(|(x, y)| x != y).count();
+                assert!(differing > a.len() / 10, "two class glyphs are near-identical");
+            }
+        }
+    }
 
     #[test]
     fn every_icon_rasters_to_a_nonempty_mask() {

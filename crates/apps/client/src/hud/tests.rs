@@ -7,6 +7,45 @@ use super::{HudSizeClass, HudState};
 use crate::hud::number::{FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
 use crate::hud::reticle::ReticleStatus;
 
+/// A wire snapshot of one T-54 for the instrument locks: the fields a HUD row reads, nothing
+/// authoritative behind it — the client never owns a sim, not even in a test.
+pub(super) fn tank_snapshot(id: u64, team: u16, hit_points: u32) -> net::TankSnapshot {
+    let vehicle = game_core::VehicleKind::T54_1951;
+    let spec = vehicle.spec_ref();
+    net::TankSnapshot {
+        tank_id: game_core::TankId(id),
+        team: game_core::TeamId(team),
+        vehicle,
+        position: [id as f32, 0.0, 0.0],
+        yaw_rad: 0.0,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: spec.gun.dispersion_mrad,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+        track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
+        spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
+        fuel_fire: false,
+        rack_fire_remaining_s: None,
+        crew_unconscious_mask: 0,
+        crew_weakened_mask: 0,
+        crew_down_remaining_s: Default::default(),
+        hull_pitch_velocity_rad_s: 0.0,
+        hull_roll_velocity_rad_s: 0.0,
+    }
+}
+
 pub(super) fn vitals() -> HudVitals {
     HudVitals {
         hit_points: 1000,
@@ -213,6 +252,8 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
+        top_bar: None,
+        team_lists: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -248,6 +289,8 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
+        top_bar: None,
+        team_lists: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -291,6 +334,8 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
+        top_bar: None,
+        team_lists: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -337,47 +382,25 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
 
 /// The battle clock draws top-center when the server reports a timed battle and disappears for
 /// untimed ones; the last minute switches to the alert color so the squeeze reads at a glance.
+/// The battle clock is the top bar's (H1): timed battles show it, untimed ones do not, and it
+/// is a named element the top bar's own lock reads — nothing floats in the readouts any more.
 #[test]
-fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
-    let untimed = BattleHudModel {
-        vitals: vitals(),
-        reticle: None,
-        fps: 0.0,
-        frame_p95_ms: 0.0,
-        speed_kmh: 0.0,
-        zoom_factor: None,
-        damage_log: Vec::new(),
-        track_feedback: Default::default(),
-        rack_fire_remaining_s: None,
-        incoming_hits: Vec::new(),
-        ammo: None,
-        modules: None,
-        crew: None,
-        minimap: None,
-        battle_outcome: None,
-        battle_clock_remaining_s: None,
-        kill_confirm_age_s: None,
-        reload_ready_age_s: None,
-        fire_denied_age_s: None,
-        scope_fade: 0.0,
-        pause_menu: None,
-    };
+fn battle_clock_is_the_top_bars_and_draws_only_when_timed() {
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let mut untimed = super::test_model(vitals(), None, 0.0, 0.0, None);
+    untimed.top_bar = Some(super::top_bar::TopBarModel {
+        frags: [0, 0],
+        team_hit_points: [7_000, 7_000],
+        team_hit_points_max: [7_000, 7_000],
+    });
     let timed = BattleHudModel { battle_clock_remaining_s: Some(474.0), ..untimed.clone() };
-    let closing = BattleHudModel { battle_clock_remaining_s: Some(42.0), ..untimed.clone() };
-
-    let untimed_hud = build_battle_hud(&untimed, 16.0 / 9.0);
-    let timed_hud = build_battle_hud(&timed, 16.0 / 9.0);
-    let closing_hud = build_battle_hud(&closing, 16.0 / 9.0);
-
+    assert!(super::build_battle_hud_list(&untimed, &ui).find(HudElement::TopBarClock).is_none());
+    assert!(super::build_battle_hud_list(&timed, &ui).find(HudElement::TopBarClock).is_some());
+    let bare = BattleHudModel { top_bar: None, ..timed.clone() };
     assert!(
-        timed_hud.len() > untimed_hud.len(),
-        "a timed battle adds clock glyph quads to the HUD"
+        super::build_battle_hud_list(&bare, &ui).find(HudElement::TopBar).is_none(),
+        "no roster, no bar — and no clock floating on its own"
     );
-    let alert = |hud: &[HudVertex]| {
-        hud.iter().any(|vertex| vertex.color == super::readouts::CLOCK_CLOSING_COLOR)
-    };
-    assert!(!alert(&timed_hud), "mid-battle clock stays in the calm readout color");
-    assert!(alert(&closing_hud), "the last minute warms to the alert color");
 }
 
 /// The module panel draws only when the model carries one, and a knocked-out module paints its
@@ -401,6 +424,8 @@ fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
+        top_bar: None,
+        team_lists: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -435,7 +460,7 @@ fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
 fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
     let aspect = 16.0 / 9.0;
     let model = super::test_model(vitals(), None, 0.0, 0.0, None);
-    let list = super::build_battle_hud_list(&model, aspect);
+    let list = super::build_battle_hud_list(&model, &ui_kit::ui::Ui::for_aspect(aspect));
     let expected: Vec<HudVertex> = list
         .iter()
         .flat_map(|e| match &e.payload {
@@ -457,7 +482,7 @@ fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
 fn the_reticle_stack_is_emitted_verbatim() {
     let aspect = 16.0 / 9.0;
     let model = super::test_model(vitals(), None, 0.0, 0.0, None);
-    let list = super::build_battle_hud_list(&model, aspect);
+    let list = super::build_battle_hud_list(&model, &ui_kit::ui::Ui::for_aspect(aspect));
     let mut expected = Vec::new();
     super::reticle_overlay::push_reticle(&mut expected, &super::default_reticle(), aspect);
     match &list.find(HudElement::Reticle).expect("the reticle element").payload {
@@ -467,8 +492,7 @@ fn the_reticle_stack_is_emitted_verbatim() {
 }
 
 /// F9: the busiest state fits the renderer's 16 384-vertex buffer with headroom. The number
-/// is what `hud_states` prints per element; the minimap's relief is the bulk of it until H0
-/// bakes it into the sheet.
+/// is what `hud_states` prints per element; since H0 baked the relief the bulk is text.
 #[test]
 fn the_full_hud_state_fits_the_buffer_with_headroom() {
     const HEADROOM_CEILING: usize = 14_000;

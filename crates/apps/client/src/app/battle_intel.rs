@@ -38,7 +38,6 @@ impl BattleIntel {
     }
 
     /// The kills seen so far, oldest first.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn kills(&self) -> impl Iterator<Item = &game_core::KillEvent> {
         self.kills.iter()
     }

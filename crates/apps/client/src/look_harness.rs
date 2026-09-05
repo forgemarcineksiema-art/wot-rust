@@ -254,8 +254,16 @@ impl BattlefieldStage {
         // placeholders would lock blank quads and call them text (the D13 lesson, again).
         let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
         renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
-        let (sheet_w, sheet_h, sheet) = crate::hud_material_sheet();
-        renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
+        // The sheet with THIS map's relief baked into its reserved quarter (H0), as the battle
+        // uploads it — so a HUD frame's minimap is the map's, not a placeholder's.
+        let bake = crate::app::minimap_build::bake_minimap_relief(&battlefield);
+        let sheet = ui_kit::sheet::with_minimap_bake(&bake);
+        renderer.set_hud_material_sheet(
+            &ctx,
+            ui_kit::sheet::SHEET_SIZE,
+            ui_kit::sheet::SHEET_SIZE,
+            &sheet,
+        );
 
         let mut catalog = crate::VehicleAssetCatalog::default();
         if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

@@ -1,15 +1,18 @@
 //! Battle minimap: a bottom-right instrument square showing the play area's relief, static cover
 //! footprints, the camera's view wedge, and blips for the player, allies, and spotted enemies.
-//! Terrain relief is a coarse height-shaded quad grid tinted per cell — no atlas texture — so it
-//! stays a handful of primitives and works for any battlefield.
+//! The relief and the water are BAKED into the material sheet once per battlefield (H0,
+//! `app::minimap_build::bake_minimap_relief`) and drawn as one quad by the draw list; this
+//! module draws the vector overlays on top and owns the map's square.
 //!
 //! Honesty: enemy blips are already gated to LOS-spotted enemies by the caller (`render_now` masks
 //! them by the player team's `spotting_bit`), the same bit that gates floating HP bars. See
 //! `docs/spotting-policy.md`.
 
 use renderer_api::HudVertex;
+use ui_kit::rect::Rect;
+use ui_kit::ui::Ui;
 
-use super::primitives::{push_panel, push_quad, push_segment};
+use super::primitives::{push_quad, push_segment};
 use super::theme;
 
 /// Screen anchor (clip space) and half-height of the square. The x half-extent is aspect-corrected
@@ -23,7 +26,7 @@ pub const RELIEF_RES: usize = 36;
 // that ridgelines and lowlands read at a glance instead of dissolving into one gray.
 const RELIEF_LO: [f32; 3] = [0.085, 0.125, 0.075];
 const RELIEF_HI: [f32; 3] = [0.42, 0.44, 0.30];
-const WATER: [f32; 4] = [0.13, 0.22, 0.30, 0.92];
+pub(crate) const WATER: [f32; 4] = [0.13, 0.22, 0.30, 0.92];
 const ROAD: [f32; 4] = [0.45, 0.39, 0.28, 0.85];
 const ROAD_THICKNESS: f32 = 0.0035;
 const COVER: [f32; 4] = [0.24, 0.26, 0.17, 0.85];
@@ -61,8 +64,8 @@ pub struct MinimapModel {
     pub enemies: Vec<[f32; 2]>,
 }
 
-/// Height (0..1) to a relief cell tint on the low->high ramp.
-fn relief_tint(h: f32) -> [f32; 4] {
+/// Height (0..1) to a relief tint on the low->high ramp (the bake paints with it).
+pub(crate) fn relief_tint(h: f32) -> [f32; 4] {
     let (a, b) = (RELIEF_LO, RELIEF_HI);
     [a[0] + (b[0] - a[0]) * h, a[1] + (b[1] - a[1]) * h, a[2] + (b[2] - a[2]) * h, 0.92]
 }
@@ -87,20 +90,19 @@ impl MinimapModel {
     }
 }
 
-/// Append the minimap for `model` to the HUD vertex buffer.
-pub(crate) fn push_minimap(vertices: &mut Vec<HudVertex>, model: &MinimapModel, aspect: f32) {
-    let hx = HALF_H / aspect.max(0.01);
-    // Chamfered instrument panel behind the map, a touch larger than the relief field.
-    push_panel(
-        vertices,
-        CENTER,
-        [hx * 1.05, HALF_H * 1.05],
-        theme::CHAMFER_PANEL,
-        aspect,
-        theme::color::PANEL,
-    );
+/// The map square in physical pixels: where the baked relief is stretched and the plate sits.
+pub(crate) fn map_rect_px(ui: &Ui) -> Rect {
+    let viewport = ui.viewport();
+    let hx = HALF_H / ui.aspect().max(0.01);
+    let left = (CENTER[0] - hx + 1.0) * 0.5 * viewport.w;
+    let top = (1.0 - (CENTER[1] + HALF_H)) * 0.5 * viewport.h;
+    Rect::new(left, top, hx * viewport.w, HALF_H * viewport.h)
+}
 
-    push_relief(vertices, model, aspect);
+/// Append the minimap's vector overlays for `model` to the HUD vertex buffer: roads, cover,
+/// the view wedge, the blips and the player's arrow. The plate under them and the relief
+/// behind them are the draw list's (`MinimapPlate`, `MinimapRelief`).
+pub(crate) fn push_minimap(vertices: &mut Vec<HudVertex>, model: &MinimapModel, aspect: f32) {
     push_roads(vertices, model, aspect);
 
     for cover in &model.cover {
@@ -127,28 +129,6 @@ pub(crate) fn push_minimap(vertices: &mut Vec<HudVertex>, model: &MinimapModel, 
     }
 
     push_player_arrow(vertices, model, aspect);
-}
-
-fn push_relief(vertices: &mut Vec<HudVertex>, model: &MinimapModel, aspect: f32) {
-    if model.relief.len() < RELIEF_RES * RELIEF_RES {
-        return;
-    }
-    let hx = HALF_H / aspect.max(0.01);
-    let cell = [hx / RELIEF_RES as f32, HALF_H / RELIEF_RES as f32];
-    for iz in 0..RELIEF_RES {
-        for ix in 0..RELIEF_RES {
-            let index = iz * RELIEF_RES + ix;
-            let h = model.relief[index].clamp(0.0, 1.0);
-            let u = (ix as f32 + 0.5) / RELIEF_RES as f32;
-            let v = (iz as f32 + 0.5) / RELIEF_RES as f32;
-            let tint = if model.water.get(index).copied().unwrap_or(false) {
-                WATER
-            } else {
-                relief_tint(h)
-            };
-            push_quad(vertices, model.uv_to_clip(u, v, aspect), cell, tint);
-        }
-    }
 }
 
 /// The map's roads as thin worn-earth polylines — the orientation grid a steppe map
@@ -214,27 +194,39 @@ mod tests {
         }
     }
 
+    /// H0: the overlays are a few hundred vertices — the relief that was 7 776 of them is one
+    /// quad in the draw list now.
     #[test]
-    fn a_populated_minimap_draws_and_stays_within_a_small_vertex_budget() {
+    fn the_overlays_carry_no_relief_and_stay_within_a_small_vertex_budget() {
         let mut v = Vec::new();
         push_minimap(&mut v, &model(), 16.0 / 9.0);
         assert!(!v.is_empty());
-        // Relief dominates the count; the whole map must stay well under the HUD buffer so it can
-        // never crowd out the rest of the frame.
-        let relief_verts = RELIEF_RES * RELIEF_RES * 6;
-        assert!(v.len() < relief_verts + 400, "minimap vertex count regressed: {}", v.len());
+        assert!(v.len() < 400, "minimap overlay vertex count regressed: {}", v.len());
+        assert!(!v.iter().any(|vert| vert.color == WATER), "water is the bake's, not a quad");
     }
 
-    /// The static layers actually read: a water cell abandons the relief ramp for the river
-    /// blue, and a road polyline draws as worn-earth segments.
+    /// The vector layer still reads: a road polyline draws as worn-earth segments.
     #[test]
-    fn water_cells_and_roads_read_on_the_map() {
-        let mut m = model();
-        m.water[RELIEF_RES + 3] = true;
+    fn roads_read_on_the_map() {
         let mut v = Vec::new();
-        push_minimap(&mut v, &m, 16.0 / 9.0);
-        assert!(v.iter().any(|vert| vert.color == WATER), "a water cell tints river-blue");
+        push_minimap(&mut v, &model(), 16.0 / 9.0);
         assert!(v.iter().any(|vert| vert.color == ROAD), "roads draw as worn-earth lines");
+    }
+
+    /// The pixel square and the clip square are the same square, so the baked relief lands
+    /// exactly under the overlays.
+    #[test]
+    fn the_map_rect_matches_the_clip_square() {
+        let ui = Ui::new(1920, 1080, 1.0);
+        let rect = map_rect_px(&ui);
+        let [left, top] = ui.to_clip([rect.x, rect.y]);
+        let [right, bottom] = ui.to_clip([rect.right(), rect.bottom()]);
+        let hx = HALF_H / (1920.0 / 1080.0);
+        assert!((left - (CENTER[0] - hx)).abs() < 1e-4 && (right - (CENTER[0] + hx)).abs() < 1e-4);
+        assert!(
+            (top - (CENTER[1] + HALF_H)).abs() < 1e-4
+                && (bottom - (CENTER[1] - HALF_H)).abs() < 1e-4
+        );
     }
 
     #[test]
