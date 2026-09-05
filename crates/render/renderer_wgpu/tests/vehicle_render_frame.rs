@@ -660,3 +660,73 @@ fn vehicle_box() -> VehicleMeshAsset {
     }
     VehicleMeshAsset::new(vertices, indices)
 }
+
+/// The interior shell (Z6) is a second pass over the fleet that only breached hulls can show.
+/// A frame with no armor damage — most of a match — must not pay for it: the scene pass then
+/// submits the skin and the sky and nothing else, and the shell's draw appears the moment a
+/// breach does. (The image half — that the shell draws the far wall through a breach — is
+/// `a_breach_reveals_the_dark_inside_of_the_far_wall_not_the_background` above.)
+#[test]
+fn an_undamaged_fleet_does_not_pay_for_the_interior_shell() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let scene_draws = |mesh: MeshHandle, armor_damage| {
+        let target = OffscreenTarget::new(&ctx, 32, 32).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_box());
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                    dither: [0.0, 1.0],
+                }],
+                armor_damage,
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        renderer.last_frame_counts().pass(renderer_wgpu::PassId::Scene).draws
+    };
+    let breach_on_the_front = vec![ArmorDamageInstance {
+        tank_id: TankId(1),
+        apertures: vec![ArmorApertureRender {
+            center: [0.0, 0.0, 0.5],
+            normal: [0.0, 0.0, 1.0],
+            tangent: [1.0, 0.0, 0.0],
+            major_radius_m: 0.16,
+            minor_radius_m: 0.14,
+            rotation_rad: 0.0,
+            irregularity: 0.1,
+            phase_a: 0.7,
+            phase_b: 2.1,
+            half_depth_m: 0.15,
+            glow: 0.0,
+            glow_tightness: 1.0,
+            cut: true,
+            kind: ArmorMarkKind::Breach,
+        }],
+    }];
+
+    let intact = scene_draws(MeshHandle(101), Vec::new());
+    let damaged = scene_draws(MeshHandle(102), breach_on_the_front);
+    assert_eq!(intact, 2, "the skin and the sky: no interior shell for an undamaged fleet");
+    assert_eq!(damaged, intact + 1, "a damaged frame submits the shell once more");
+}

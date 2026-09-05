@@ -101,6 +101,12 @@ pub struct SceneRenderer {
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
     vehicle_draws: Vec<SceneObjectDraw>,
+    /// Whether this frame's vehicle frame carries ANY armor damage. The interior shell (Z6)
+    /// exists only for breached hulls — `vs_interior` collapses every instance whose
+    /// `damage_index` is zero — and every instance is zero exactly when `armor_damage` is
+    /// empty, which is most of a match. Drawing the shell then ran the whole fleet's vertex
+    /// work a second time to produce nothing; the frame skips it (`draw_vehicles`).
+    vehicle_frame_has_damage: bool,
     /// Where each tank stands this frame (Jedna Trawa P9), read off the vehicle frame — the
     /// meadow is pressed down by the nearest of these.
     grass_crushers: Vec<(renderer_api::VehicleId, [f32; 3])>,
@@ -570,6 +576,7 @@ impl SceneRenderer {
             vehicle_instances: buffers.vehicle_instances,
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),
+            vehicle_frame_has_damage: false,
             grass_crushers: Vec::new(),
             hero_probe: [[0.0; 4]; 6],
             interior_detail_normal: false,
