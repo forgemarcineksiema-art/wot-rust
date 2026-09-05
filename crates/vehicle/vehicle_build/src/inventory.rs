@@ -127,6 +127,8 @@ impl PartClass {
                 Self::Interior
             }
             _ if starts("recipe_") => Self::RecipeSketch,
+            _ if starts("slab_tub") => Self::HullTub,
+            _ if starts("slab_upper") || starts("slab_bow") => Self::UpperHull,
             _ if name.contains("periscope") => Self::Periscopes,
             _ if starts("sg43_coax") => Self::CoaxMachineGun,
             _ if starts("cupola") => Self::Cupola,

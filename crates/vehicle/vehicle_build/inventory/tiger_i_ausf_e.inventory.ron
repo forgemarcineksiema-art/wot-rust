@@ -7,7 +7,7 @@
     locked: false,
     expected: [
         (class: HullTub, source: "Armour: hull side lower 60 mm behind the tracks; Blueprint Migration: `lower_half_width 1.12`"),
-        (class: UpperHull, source: "The slab, honestly: driver's plate 9°, sides vertical, rear 8°; Armour table"),
+        (class: UpperHull, source: "The slab, honestly: driver's plate 9°, sides vertical, rear 8°; the library's plate solids off the blueprint (`slab_hull_parts`, step 4a)"),
         (class: SternPlate, source: "Recognition features: twin exhaust stacks standing proud on the rear plate"),
         (class: WeldSeams, source: "The slab, honestly: interlocked welded plates on the armour planes"),
         (class: EngineDeck, source: "Blueprint Migration: engine deck (recipe `tiger_i_deck`)"),

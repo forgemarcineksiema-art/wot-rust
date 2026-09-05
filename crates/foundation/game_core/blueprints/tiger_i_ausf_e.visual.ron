@@ -48,6 +48,10 @@ VisualDetailFile(
         // and the belt's outer face, so the shelf spans x 1.59..1.867 per side and runs to the
         // end wheels' centres; the recipe's hinged flaps hang from it beyond. The library folds
         // them as pressings (`vehicle_build::fender_parts_for_blueprint`, Forge 2.0 K3-2e).
+        // The hull is a welded slab: the library builds its plates straight off the blueprint
+        // (the tub, the upper box, the bow shelf's wedge), each face on its armour plane
+        // (Forge 2.0 K3, step 4a); the recipe's own slab stays out.
+        construction: Some(WeldedSlab),
         fender: Some(FenderVisual(
             side_x: 1.7285,
             center_y: 1.39,

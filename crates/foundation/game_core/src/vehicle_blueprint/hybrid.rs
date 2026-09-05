@@ -417,6 +417,19 @@ pub struct VisualDetail {
     pub fittings: Option<FittingsVisual>,
     #[serde(default)]
     pub detail: Option<DetailVisual>,
+    /// How the hull is BUILT, when the visual file says: a welded slab hull takes its plates
+    /// from the library straight off the blueprint (Forge 2.0 K3, step 4a) instead of the
+    /// recipe's extrusions. `None` keeps whatever the vehicle's path draws. Appended 2026-09-05.
+    #[serde(default)]
+    pub construction: Option<HullConstruction>,
+}
+
+/// Hull constructions the part library builds from a blueprint alone. Append-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum HullConstruction {
+    /// Welded rolled plates: a tub between the belts, an upper box on the sponson, and the
+    /// bow shelf's wedge when `ArmorShape::hull_bow_shelf` is authored — the German line.
+    WeldedSlab,
 }
 
 /// Every part of a [`VisualDetail`], unwrapped — the view a FULLY-authored consumer stack

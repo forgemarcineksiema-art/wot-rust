@@ -9,7 +9,7 @@ use vehicle_geometry::SubmeshKind;
 use vehicle_recipes::describe;
 
 #[test]
-fn the_tiger_describes_as_the_five_pieces_of_its_recipe() {
+fn the_tiger_describes_as_the_pieces_its_recipe_still_owns() {
     let description = describe(VehicleKind::TigerI).expect("describes");
     // The recipe pieces come first; the library's fittings (K3-2b) follow them.
     let names: Vec<(&str, SubmeshKind)> = description
@@ -21,7 +21,6 @@ fn the_tiger_describes_as_the_five_pieces_of_its_recipe() {
     assert_eq!(
         names,
         vec![
-            ("recipe_hull_slab", SubmeshKind::Hull),
             ("recipe_hull_deck", SubmeshKind::Hull),
             ("recipe_hull_details", SubmeshKind::Hull),
             ("recipe_turret", SubmeshKind::Turret),

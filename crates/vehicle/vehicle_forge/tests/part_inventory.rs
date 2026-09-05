@@ -78,6 +78,8 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
         PartClass::TowHooks,
         PartClass::Cupola,
         PartClass::Fenders,
+        PartClass::HullTub,
+        PartClass::UpperHull,
     ] {
         assert!(report.carried.contains(&class), "{class:?} is the library's now");
         assert!(!report.missing.contains(&class));

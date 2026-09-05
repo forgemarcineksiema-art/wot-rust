@@ -122,9 +122,11 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     // The library's parts for what the visual file authors (Forge 2.0 K3, one class at a time);
     // the recipe's pieces leave those out.
     let blueprint = active_blueprint(kind);
+    let slab = blueprint.as_ref().and_then(vehicle_build::slab_hull_parts_for_blueprint);
     let fittings = blueprint.as_ref().and_then(vehicle_build::fitting_parts_for_blueprint);
     let fenders = blueprint.as_ref().and_then(vehicle_build::fender_parts_for_blueprint);
     let omit = deck_details::DeckOmit {
+        slab: slab.is_some(),
         fittings: fittings.is_some(),
         guards: fenders.is_some(),
         guard_top_y: blueprint
@@ -134,6 +136,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     match recipe_pieces(kind, &hitbox, &mounts, omit) {
         Some(pieces) => {
             let mut description = pieces_description(kind, pieces);
+            description.parts.extend(slab.unwrap_or_default());
             description.parts.extend(fittings.unwrap_or_default());
             description.parts.extend(fenders.unwrap_or_default());
             Some(description)

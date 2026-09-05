@@ -495,6 +495,8 @@ fn engine_deck_british(builder: MeshBuilder, bp: &VehicleBlueprint) -> GeometryM
 /// drawing its own hatch under the library's lid would ship two hatches.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct DeckOmit {
+    /// The slab hull itself — the library's plate solids (`HullConstruction::WeldedSlab`).
+    pub slab: bool,
     /// The bow hatches, the headlight and the tow hooks — `FittingsVisual`'s parts.
     pub fittings: bool,
     /// The full-length track guards — `FenderVisual`'s folded pressings.

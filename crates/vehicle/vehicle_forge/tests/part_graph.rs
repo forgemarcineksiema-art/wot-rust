@@ -580,13 +580,7 @@ fn the_manifest_report_names_every_kernel_and_a_sketch_names_its_recipe() {
         tiger.iter().filter(|e| e.generator == GeneratorKind::Recipe).map(|e| e.key.name).collect();
     assert_eq!(
         recipe,
-        vec![
-            "recipe_hull_slab",
-            "recipe_hull_deck",
-            "recipe_hull_details",
-            "recipe_turret",
-            "recipe_gun"
-        ]
+        vec!["recipe_hull_deck", "recipe_hull_details", "recipe_turret", "recipe_gun"]
     );
     assert!(
         tiger.iter().any(|e| e.key.name == "driver_hatch" && e.generator != GeneratorKind::Recipe)
