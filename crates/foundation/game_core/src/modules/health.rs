@@ -138,6 +138,22 @@ const GUN_RELOAD_CEILING: f32 = 1.6;
 /// [`GUN_RELOAD_CEILING`] as the pool drains toward 1 HP — the mirror of the engine/suspension
 /// power floors (a damaged breech loads slower, it does not stop). A destroyed gun (0 HP) does
 /// not fire at all, so the value there is moot. Shared by the server and the client predictor.
+/// The reload the loader actually starts on the next shot: the gun's stock reload stretched by
+/// its wound and by the loader's hands (interface program H7). ONE function for both sides —
+/// the server reloads by it (`sim::TankState::full_reload_seconds`) and the client draws the
+/// reload arc over it from the snapshot's own lanes — so the arc can never divide by a stock
+/// time the breech stopped keeping.
+pub fn full_reload_seconds(
+    stock_reload_s: f32,
+    gun_live_hp: u32,
+    gun_full_hp: u32,
+    loader_effectiveness: f32,
+) -> f32 {
+    stock_reload_s
+        * gun_reload_multiplier(gun_live_hp, gun_full_hp)
+        * crate::crew_time_multiplier(loader_effectiveness)
+}
+
 pub fn gun_reload_multiplier(live_hp: u32, full_hp: u32) -> f32 {
     let fraction = (live_hp as f32 / full_hp.max(1) as f32).clamp(0.0, 1.0);
     1.0 + (GUN_RELOAD_CEILING - 1.0) * (1.0 - fraction)
@@ -167,6 +183,29 @@ fn damaged_fraction(live_hp: u32, full_hp: u32, floor: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_full_reload_stretches_by_the_wound_and_by_the_loader() {
+        use super::full_reload_seconds;
+        let stock = 8.0;
+        assert_eq!(
+            full_reload_seconds(stock, 150, 150, 1.0),
+            stock,
+            "a whole gun and a whole loader: stock"
+        );
+        let wounded = full_reload_seconds(stock, 0, 150, 1.0);
+        assert!(
+            (wounded - stock * super::GUN_RELOAD_CEILING).abs() < 1e-6,
+            "a dead breech: the ceiling"
+        );
+        let covered = full_reload_seconds(stock, 150, 150, crate::CREW_COVERED_EFFECTIVENESS);
+        assert!((covered - stock * 2.0).abs() < 1e-5, "a covered loader: half pace");
+        let both = full_reload_seconds(stock, 75, 150, crate::CREW_WEAKENED_EFFECTIVENESS);
+        let expected = stock
+            * super::gun_reload_multiplier(75, 150)
+            * crate::crew_time_multiplier(crate::CREW_WEAKENED_EFFECTIVENESS);
+        assert!((both - expected).abs() < 1e-6, "the two multiply, neither replaces the other");
+    }
+
     use super::*;
 
     #[test]
