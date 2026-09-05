@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use vehicle_geometry::BakedVehicle;
 
 use crate::RatioReport;
+use crate::outline::{OutlineMeasurement, OutlineSpec, composed_triangles_for, measure};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RatioKind {
@@ -268,6 +269,10 @@ pub struct ReferencePack {
     /// dossier has been converted into targets, so the bar rises vehicle by vehicle.
     #[serde(default)]
     dimensions: Vec<DimensionTarget>,
+    /// Reference outlines per view (the K0 overlay gate). Optional per pack, like the anchors:
+    /// the gate only fires for vehicles whose drawing has been traced into loops.
+    #[serde(default)]
+    outlines: Vec<OutlineSpec>,
 }
 
 impl ReferencePack {
@@ -291,7 +296,14 @@ impl ReferencePack {
             sources,
             ratios,
             dimensions: Vec::new(),
+            outlines: Vec::new(),
         }
+    }
+
+    /// Attach the reference outlines (closed loops per view, from the dossier's drawing).
+    pub fn with_outlines(mut self, outlines: Vec<OutlineSpec>) -> Self {
+        self.outlines = outlines;
+        self
     }
 
     /// Attach absolute dimension anchors (the dossier's tape-measure numbers).
@@ -340,6 +352,20 @@ impl ReferencePack {
 
     pub fn dimensions(&self) -> &[DimensionTarget] {
         &self.dimensions
+    }
+
+    pub fn outlines(&self) -> &[OutlineSpec] {
+        &self.outlines
+    }
+
+    /// Every outline of this pack against the composed silhouette of `vehicle` (the bake plus
+    /// its rest-pose running gear). Empty when the pack has no outlines yet.
+    pub fn measure_outlines(&self, vehicle: &BakedVehicle) -> Vec<OutlineMeasurement> {
+        if self.outlines.is_empty() {
+            return Vec::new();
+        }
+        let tris = composed_triangles_for(vehicle);
+        self.outlines.iter().map(|spec| measure(&tris, spec)).collect()
     }
 
     pub fn measure_baked_vehicle(&self, vehicle: &BakedVehicle) -> Option<RatioReport> {

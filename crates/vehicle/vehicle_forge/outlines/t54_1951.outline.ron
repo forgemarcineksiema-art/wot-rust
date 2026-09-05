@@ -1,0 +1,122 @@
+// T-54-3 obr. 1951 — reference outlines for the K0 overlay gate.
+//
+// Closed loops in metres in the vehicle frame (+Y up, +Z bow, +X port), one set per view; the
+// bake's silhouette is compared with their union by intersection-over-union. Every number below
+// is traced to `docs/vehicles/t-54.md` (Reference anatomy) except where a comment says
+// BLUEPRINT: those extents (the turret's plan and dome, the sprocket and idler centres) have no
+// documented value yet and are copied from the model's own blueprint, which is why every view
+// is `Target` — the outline is not the drawing until the owner traces R1
+// (`docs/vehicles/refs/t-54.md`) over the overlay PNG (`cargo run -p tools -- outline-overlay`).
+// Flip a view to `Locked` in the PR that does that, never before.
+(
+    vehicle: "t54_1951",
+    views: [
+        (
+            view: Side,
+            min_iou: 0.95,
+            status: Target,
+            source: (
+                label: "T-54 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-54.md",
+                note: "Hull 6.235 over tracks (knuckle at 1.20, rear plate 17°, deck 1.58, glacis 60°, lower plate 55°, belly 0.425); fender sheet 1.32-1.37; contact base 3.84 on ø0.81 wheels; roof 2.40, cupola ø0.624 exposed 0.131; fire line 1.79, muzzle 9.00 from the stern, tube ~0.125 at the muzzle. BLUEPRINT: turret dome stations, track envelope ends, the drums' and the DShK's placement.",
+            ),
+            loops: [
+                // The hull: stern knuckle → upper rear plate → deck → glacis → lower nose → belly.
+                [
+                    (-3.1175, 1.20), (-3.00, 1.58), (2.11, 1.58), (3.1175, 1.00),
+                    (2.30, 0.425), (-2.3425, 0.425),
+                ],
+                // The fender shelf, bow to stern.
+                [(-3.1175, 1.30), (3.1175, 1.30), (3.1175, 1.37), (-3.1175, 1.37)],
+                // The track envelope: sprocket at the stern, idler at the bow, the top run on the
+                // wheels (BLUEPRINT for the two end arcs).
+                [
+                    (-3.10, 0.50), (-3.02, 0.30), (-2.85, 0.15), (-2.60, 0.05), (-2.35, 0.0),
+                    (2.35, 0.0), (2.65, 0.03), (2.90, 0.12), (3.06, 0.30), (3.10, 0.48),
+                    (3.02, 0.68), (2.85, 0.82), (2.60, 0.90), (2.30, 0.92), (-2.30, 0.92),
+                    (-2.60, 0.90), (-2.85, 0.82), (-3.02, 0.68),
+                ],
+                // The dome (BLUEPRINT stations: base radius 1.12 at the ring, roof 2.40).
+                [
+                    (-1.12, 1.60), (-1.05, 1.92), (-0.80, 2.22), (-0.40, 2.40), (0.55, 2.40),
+                    (0.95, 2.15), (1.12, 1.85), (1.12, 1.60),
+                ],
+                // The commander's cupola, exposed 0.131 above the roof (dossier), at z -0.1.
+                [(-0.41, 2.40), (0.21, 2.40), (0.21, 2.53), (-0.41, 2.53)],
+                // The D-10T: fire line 1.79, muzzle at 5.8475, tube tapering to ~0.125.
+                [(1.30, 1.90), (5.8475, 1.8525), (5.8475, 1.7275), (1.30, 1.68)],
+                // The BDSh-5 pair on the rear plate: ø0.45 drums (dossier), standing off the
+                // stern (BLUEPRINT placement).
+                [(-3.5675, 1.15), (-3.1175, 1.15), (-3.1175, 1.60), (-3.5675, 1.60)],
+                // The DShK-M on the loader's hatch: 1625 mm overall (dossier), its ring mount
+                // and cradle above the roof (BLUEPRINT `dshk_mount_center` (-0.48, roof-0.07, -0.18), barrel 1.07).
+                [(-0.43, 2.40), (0.07, 2.40), (0.07, 2.68), (-0.43, 2.68)],
+                [(-0.05, 2.70), (1.27, 2.70), (1.27, 2.80), (-0.05, 2.80)],
+            ],
+        ),
+        (
+            view: Front,
+            min_iou: 0.95,
+            status: Target,
+            source: (
+                label: "T-54 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-54.md",
+                note: "Width 3.27 over the fenders; gauge 2.64 + belt 0.58 → belts at ±[1.03, 1.61]; tub ±1.03 from the 0.425 belly; deck 1.58; roof 2.40; cupola ø0.624 left; gun on the 1.79 fire line. BLUEPRINT: the dome's front stations.",
+            ),
+            loops: [
+                // The hull: tub between the belts, widening over them to the fender width.
+                [
+                    (-1.03, 0.425), (1.03, 0.425), (1.03, 1.00), (1.635, 1.32), (1.635, 1.58),
+                    (-1.635, 1.58), (-1.635, 1.32), (-1.03, 1.00),
+                ],
+                // The two belts (their tops over the wheels).
+                [(1.03, 0.0), (1.61, 0.0), (1.61, 0.95), (1.03, 0.95)],
+                [(-1.61, 0.0), (-1.03, 0.0), (-1.03, 0.95), (-1.61, 0.95)],
+                // The dome from the front (BLUEPRINT: plan half-width 1.125).
+                [
+                    (-1.125, 1.60), (-1.05, 1.95), (-0.75, 2.25), (-0.35, 2.40), (0.35, 2.40),
+                    (0.75, 2.25), (1.05, 1.95), (1.125, 1.60),
+                ],
+                // The cupola, port side (+X), ø0.624 at x 0.34.
+                [(0.028, 2.40), (0.652, 2.40), (0.652, 2.53), (0.028, 2.53)],
+                // The DShK-M ring mount on the loader's hatch (starboard, BLUEPRINT placement).
+                [(-0.73, 2.40), (-0.23, 2.40), (-0.23, 2.68), (-0.73, 2.68)],
+                [(-0.53, 2.70), (-0.43, 2.70), (-0.43, 2.80), (-0.53, 2.80)],
+                // The tube with its canvas sleeve, ø~0.22 on the fire line.
+                [
+                    (0.11, 1.79), (0.095, 1.845), (0.055, 1.885), (0.0, 1.90), (-0.055, 1.885),
+                    (-0.095, 1.845), (-0.11, 1.79), (-0.095, 1.735), (-0.055, 1.695), (0.0, 1.68),
+                    (0.055, 1.695), (0.095, 1.735),
+                ],
+            ],
+        ),
+        (
+            view: Plan,
+            min_iou: 0.95,
+            status: Target,
+            source: (
+                label: "T-54 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-54.md",
+                note: "3.27 × 6.235 over fenders and tracks; muzzle 9.00 from the stern. BLUEPRINT: the turret's plan (1.125 × 1.30 half-extents at ring z 0).",
+            ),
+            loops: [
+                [(-1.635, -3.1175), (1.635, -3.1175), (1.635, 3.1175), (-1.635, 3.1175)],
+                // The turret plan (BLUEPRINT), a 16-gon on 1.125 × 1.30.
+                [
+                    (1.125, 0.0), (1.039, 0.497), (0.795, 0.919), (0.430, 1.201), (0.0, 1.30),
+                    (-0.430, 1.201), (-0.795, 0.919), (-1.039, 0.497), (-1.125, 0.0),
+                    (-1.039, -0.497), (-0.795, -0.919), (-0.430, -1.201), (0.0, -1.30),
+                    (0.430, -1.201), (0.795, -0.919), (1.039, -0.497),
+                ],
+                // The tube from the turret front to the muzzle.
+                [(-0.11, 1.30), (0.11, 1.30), (0.0625, 5.8475), (-0.0625, 5.8475)],
+                // The BDSh-5 pair off the stern (0.65 long each, dossier; BLUEPRINT placement).
+                [(-1.00, -3.5675), (-0.35, -3.5675), (-0.35, -3.1175), (-1.00, -3.1175)],
+                [(0.35, -3.5675), (1.00, -3.5675), (1.00, -3.1175), (0.35, -3.1175)],
+                // The DShK-M (1625 mm, dossier) over the loader's hatch (BLUEPRINT placement).
+                [(-0.73, -0.43), (-0.23, -0.43), (-0.23, 0.07), (-0.73, 0.07)],
+                [(-0.53, -0.05), (-0.43, -0.05), (-0.43, 1.27), (-0.53, 1.27)],
+            ],
+        ),
+    ],
+)

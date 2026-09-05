@@ -392,7 +392,7 @@ fn exterior_bounds(mesh: &GeometryMesh) -> Option<MeshBounds> {
     bounds
 }
 
-fn is_exterior(material: MaterialRole) -> bool {
+pub(crate) fn is_exterior(material: MaterialRole) -> bool {
     !matches!(
         material,
         MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition

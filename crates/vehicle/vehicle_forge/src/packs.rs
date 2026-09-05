@@ -7,7 +7,8 @@
 use game_core::VehicleKind;
 
 use crate::{
-    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+    DimensionKind, DimensionTarget, OutlineSet, RatioKind, RatioTarget, ReferencePack,
+    ReferenceSource,
 };
 
 pub fn t54_reference_pack() -> ReferencePack {
@@ -211,6 +212,14 @@ pub fn t54_reference_pack() -> ReferencePack {
             t54_dossier("1.35 m fender sheet top; two-projection sheet scan (2026-08-12)."),
         ),
     ])
+    .with_outlines(t54_outline_set().into_views())
+}
+
+/// The T-54's reference outlines (K0), authored beside the crate as RON so a view can be traced
+/// and re-traced without a Rust edit. A file that does not parse fails every pack test.
+pub fn t54_outline_set() -> OutlineSet {
+    OutlineSet::parse(include_str!("../outlines/t54_1951.outline.ron"))
+        .unwrap_or_else(|e| panic!("outlines/t54_1951.outline.ron: {e}"))
 }
 
 /// Every T-54 anchor cites the in-repo dossier — whose Reference anatomy table carries the
