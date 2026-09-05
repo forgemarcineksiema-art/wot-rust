@@ -378,6 +378,62 @@ fn in_battle() -> ClientApp {
     app
 }
 
+// --- OS key auto-repeat --------------------------------------------------------------------
+
+/// A held key is ONE press. Windows re-sends a held key as a press every ~33 ms; every battle
+/// binding is an edge, so each repeat used to be a second press the player never made: V
+/// flickered the view between scope and third person thirty times a second, a held ESC opened
+/// and dismissed the modal in a blur, and a held Space during a reload knocked the refusal
+/// sound at the repeat rate. Repeats must reach no binding at all.
+#[test]
+fn os_key_repeat_is_not_a_second_press() {
+    let key = |code| PhysicalKey::Code(code);
+    let mut app = in_battle();
+
+    // V: the press toggles once, the repeats leave the scope exactly where the press put it.
+    app.on_key(key(KeyCode::KeyV), true, false);
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+    for _ in 0..7 {
+        app.on_key(key(KeyCode::KeyV), true, true);
+    }
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper, "a held V must not flicker");
+    app.on_key(key(KeyCode::KeyV), false, false);
+
+    // ESC: the modal opens on the press and stays open through the repeats.
+    app.on_key(key(KeyCode::Escape), true, false);
+    assert!(app.pause_menu.is_some());
+    for _ in 0..7 {
+        app.on_key(key(KeyCode::Escape), true, true);
+    }
+    assert!(app.pause_menu.is_some(), "a held ESC must not answer its own question");
+    app.on_key(key(KeyCode::Escape), false, false);
+    app.on_key(key(KeyCode::Escape), true, false);
+    assert!(app.pause_menu.is_none(), "the second real press dismisses it");
+
+    // Space: the trigger latches on the press; a repeat arriving after the batch consumed it
+    // must not latch again (that repeat was the refusal knock every 33 ms of a reload).
+    app.on_key(key(KeyCode::Space), true, false);
+    assert!(app.input.fire_pending);
+    app.input.fire_pending = false; // the fixed-tick batch consumed the edge
+    app.on_key(key(KeyCode::Space), true, true);
+    assert!(!app.input.fire_pending, "a repeat is not a trigger pull");
+
+    // 1/2/3: the switch rides one command; a repeat must not queue it again.
+    app.on_key(key(KeyCode::Digit2), true, false);
+    assert_eq!(app.input.pending_ammo_select, Some(1));
+    app.input.pending_ammo_select = None;
+    app.on_key(key(KeyCode::Digit2), true, true);
+    assert_eq!(app.input.pending_ammo_select, None);
+
+    // A held drive key loses nothing: its first press latched it, repeats change nothing, the
+    // release still lands.
+    app.on_key(key(KeyCode::KeyW), true, false);
+    app.on_key(key(KeyCode::KeyW), true, true);
+    assert_eq!(app.input.throttle(), 1.0);
+    app.on_key(key(KeyCode::KeyW), false, false);
+    assert_eq!(app.input.throttle(), 0.0);
+}
+
 /// ESC in a live battle asks the question instead of silently dropping the cursor, and ESC again
 /// answers "stay" — the modal must never be a one-way door the player has to click out of.
 #[test]
