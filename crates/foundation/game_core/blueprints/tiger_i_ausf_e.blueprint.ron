@@ -2,7 +2,7 @@ BlueprintFile(
     kind: TigerI,
     hull: HullShape(
         half_len: 3.16,
-        half_width: 1.78,
+        half_width: 1.59,
         belly_y: 0.432,
         deck_y: 1.778,
         glacis_slope_deg: 9.0,
@@ -10,7 +10,7 @@ BlueprintFile(
         nose_rise: 0.05,
         rear_slope_deg: 8.0,
         lower_half_width: 1.05,
-        sponson_y: 0.95,
+        sponson_y: 1.22,
         skirt: None,
         hitbox_half_width: 1.87,
         hitbox_half_height: 1.53,

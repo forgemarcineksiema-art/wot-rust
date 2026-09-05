@@ -68,9 +68,10 @@ fn the_hull_sides_are_vertical_slabs_at_the_full_beam() {
         .collect();
     let lo = wall.iter().copied().fold(f32::INFINITY, f32::min);
     let hi = wall.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    // 0.95 (sponson step) to 1.778 (the sheet's 5 ft 10 in hull side top): 0.83 m of plate.
+    // 1.22 (the sponson underside, STT side view) to 1.778 (the sheet's 5 ft 10 in hull side
+    // top): 0.56 m of plate.
     assert!(
-        hi - lo > 0.8,
+        hi - lo > 0.5,
         "the side wall must be a tall vertical plate at x = {}, spans {lo}..{hi}",
         bp.hull.half_width
     );
@@ -200,20 +201,21 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((bp.track.outer_x - 1.774).abs() < 1.0e-6, "3.548 m over the combat tracks");
 }
 
-/// The Tiger has THREE documented widths, read off the STT 1944 front view's own dimensions:
-/// 3.548 m over the combat tracks (6 ft 10.625 in between them + 2 x 2 ft 4.5 in), 3.56 m over
-/// the sponson shelf, 3.734 m over the track guards (12 ft 3 in). The belts sit just INSIDE the
-/// shelf; the guards that overhang them are the part library's (K20), not this bake's. The
-/// 3.705/3.72 records the migration put on the tracks were guard widths.
+/// The Tiger has THREE documented widths, read off the STT 1944 front view: 3.18 m for the
+/// upper hull box (the driver's plate, 885 px at 278 px/m), 3.548 m over the combat tracks
+/// (6 ft 10.625 in between them + 2 x 2 ft 4.5 in) and 3.734 m over the track guards (12 ft
+/// 3 in). The belts run OUTSIDE the box under the guards; the 3.705/3.72 records the migration
+/// put on the tracks were guard widths, and until 2026-09-05 the box itself stood at the
+/// belts' 3.56 (K20).
 #[test]
-fn the_tracks_sit_inside_the_sponson_shelf_at_the_sheet_s_widths() {
+fn the_tracks_run_outside_the_upper_hull_box_at_the_sheet_s_widths() {
     let bp = blueprint();
-    assert!((2.0 * bp.hull.half_width - 3.56).abs() < 1.0e-3, "3.56 m over the sponson shelf");
+    assert!((2.0 * bp.hull.half_width - 3.18).abs() < 1.0e-3, "3.18 m upper hull box (STT)");
     assert!((2.0 * bp.track.outer_x - 3.548).abs() < 1.0e-3, "3.548 m over the tracks (STT)");
-    let inset = bp.hull.half_width - bp.track.outer_x;
+    let overhang = bp.track.outer_x - bp.hull.half_width;
     assert!(
-        (0.0..0.02).contains(&inset),
-        "the belt's outer face sits at the shelf edge: {inset} m"
+        (0.15..0.22).contains(&overhang),
+        "the belt stands proud of the box by its outer ~18 cm, under the guard: {overhang} m"
     );
     let band = bp.track.outer_x - bp.track.inner_x;
     assert!((band - 0.724).abs() < 1.0e-3, "the 724 mm combat track, edge to edge: {band}");
@@ -221,9 +223,10 @@ fn the_tracks_sit_inside_the_sponson_shelf_at_the_sheet_s_widths() {
     assert!(bp.track.outer_x <= bp.hull.hitbox_half_width, "the box still holds the widest metal");
 }
 
-/// The belt runs under the sponson shelf: there is hull metal above the belt over its whole
-/// width and length, and nothing the bake draws reaches past the shelf — the 3.734 m guards
-/// that overhang it on the sheet are the part library's (K20).
+/// The belt runs under the sponson: there is hull metal above the belt over its whole width
+/// and length (the box's underside inboard, the guard outboard), and nothing the bake draws
+/// reaches past the belt's outer face — the 3.734 m guards that overhang it on the sheet are the
+/// part library's (K20, K3-2e).
 #[test]
 fn the_belt_runs_under_the_sponson_shelf() {
     let bp = blueprint();
@@ -250,10 +253,45 @@ fn the_belt_runs_under_the_sponson_shelf() {
     let widest =
         hull_mesh.vertices().iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        widest <= bp.hull.half_width + 1.0e-3,
-        "nothing the bake draws may reach past the shelf: {widest} vs {}",
-        bp.hull.half_width
+        widest <= bp.track.outer_x + 1.0e-3,
+        "nothing the bake draws may reach past the belt's outer face: {widest} vs {}",
+        bp.track.outer_x
     );
+}
+
+/// The hull's three tiers, from the STT 1944 sheet (K20, the second data pass): the tub between
+/// the belts (2.10 m), the sponson underside at ~1.22 m (the side view: 0.18 m below the guard
+/// rail's bolt row, 0.56 m below the 5 ft 10 in hull side top), the 3.18 m upper box on it, and
+/// the belts running outside the box under the guards. Above the guard band nothing is wider
+/// than the box; the only hull metal outside the box is the guard over the belt, and it sits
+/// between the sponson underside and the hull side top.
+#[test]
+fn the_upper_hull_box_stands_on_a_sponson_underside_over_the_belts() {
+    let bp = blueprint();
+    assert!((bp.hull.sponson_y - 1.22).abs() < 1.0e-6, "the sponson underside at 1.22 (STT)");
+    assert!((bp.hull.half_width - 1.59).abs() < 1.0e-6, "the 3.18 m upper hull box (STT)");
+    assert!((2.0 * bp.hull.lower_half_width - 2.10).abs() < 1.0e-3, "the tub between the belts");
+    assert!(
+        bp.hull.sponson_y > bp.track.top_y + bp.track.belt_half_thickness,
+        "the belt's top run clears the sponson underside"
+    );
+    let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
+    let hull_mesh = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+    let outside_the_box: Vec<Vec3> = hull_mesh
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position)
+        .filter(|point| point.x.abs() > bp.hull.half_width + 1.0e-3)
+        .collect();
+    assert!(!outside_the_box.is_empty(), "the guard over the belt is hull metal");
+    // The guard shelf sits on the sponson underside and its hinged flaps droop over the wraps;
+    // nothing outside the box climbs above the shelf, nothing hangs below the belt's top run.
+    for point in &outside_the_box {
+        assert!(
+            point.y >= bp.track.top_y && point.y <= bp.hull.sponson_y + 0.10,
+            "outside the box only the guard and its flaps over the belt: {point:?}"
+        );
+    }
 }
 
 /// The roof and the drum are locked SEPARATELY. The bare turret roof stands at the STT sheet's

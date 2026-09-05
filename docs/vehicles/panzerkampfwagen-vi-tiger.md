@@ -37,7 +37,7 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Dimension | Value | Source | Confidence | Encoded as |
 | --- | ---: | --- | --- | --- |
 | Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `HullLength` (Locked) |
-| Width over the combat tracks | 3.548 m (STT 1944: 6 ft 10.625 in between the belts + 2 x 2 ft 4.5 in) | STT sheet; see conflict C1 (the 3.705/3.72 records are guard widths) | high | `track.outer_x 1.774`; `HullWidth` anchors the 3.56 sponson shelf (Locked) |
+| Width over the combat tracks | 3.548 m (STT 1944: 6 ft 10.625 in between the belts + 2 x 2 ft 4.5 in) | STT sheet; see conflict C1 (the 3.705/3.72 records are guard widths) | high | `track.outer_x 1.774`; `HullWidth` 3.548 +/-0.03 (Locked) — the recipe's guards reach exactly the belt face |
 | Height (cupola apex) | 2.885 m at the commander's lid (German records); the STT 1944 rear view dimensions the drum's rim at 9 ft 4.75 in = 2.86 and the lid stands proud of it; Wikipedia's 3.00 is rounded | STT sheet, German records | high | `HeightToTurretRoof` 2.885 +/-0.05 (Locked), measured at the lid (2.92) |
 | Height (bare turret roof) | 2.60 m (STT 1944 rear view: 8 ft 6.5 in, the sheet's own dimension; tiger1.info 2625 mm) | STT sheet; conflict C2 resolved 2026-09-05 — the 2.885 was an apex figure | high | `HeightToTurretRoofBare` 2.60 +/-0.05 (Locked) |
 | Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `OverallLengthWithGun` (Locked) |
@@ -54,7 +54,8 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Drive sprocket | ⌀914.4 mm, 20 teeth, front | Alan Hamby | medium | cage |
 | Idler | ⌀685.8 mm | Alan Hamby | medium | cage |
 | Return rollers | none | universal, photographically self-evident | high | cage |
-| Hull width over the sponson shelf | 3.56 m (Tank Museum: 3547 mm; STT front view ~3.58) | Wikipedia, Tank Museum, STT sheet | high | `half_width 1.78` — the widest metal the bake draws; the 3.734 m guards (12 ft 3 in) are K20's, the upper hull box above the shelf is ~3.2 (K20) |
+| Upper hull box (the driver's plate, the hull sides above the sponson) | 3.18 m (STT 1944 front view: 885 px at 278 px/m; the Tank Museum's 3547 mm is the belts) | STT sheet | high | `half_width 1.59`; the belts run outside the box under the guards; the 3.734 m guards (12 ft 3 in) are K20's parts half |
+| Sponson underside (the bottom of the 80 mm upper side plate) | ~1.22 m (STT 1944 side view: 0.18 m below the guard rail's bolt row at ~1.40, 0.56 m below the 5 ft 10 in hull side top) | STT sheet | medium (pixel read, no dimension line) | `sponson_y 1.22` (was 0.95) |
 | Gun bore length | 4928 mm (56 × 88) | Wikipedia 8.8 cm KwK 36 | high | context (not trunnion-relative) |
 
 ### Armour (late Ausf. E)
@@ -169,8 +170,9 @@ correction documented here and locked by `tiger_i_benchmark.rs`.
 | Anchor | Value | In the blueprint |
 | --- | --- | --- |
 | Hull length | 6.316 m | `half_len 3.16` |
-| Width over combat tracks | 3.548 m (STT) | `track.outer_x 1.774` |
-| Width over the sponson shelf | 3.56 m | `half_width 1.78` (the belts sit just inside it; the guards overhang it — K20) |
+| Width over combat tracks | 3.548 m (STT) | `track.outer_x 1.774` (the recipe's guards reach the belt face) |
+| Upper hull box | 3.18 m (STT front view) | `half_width 1.59` (the belts run outside it under the guards; the 3.734 m guards are K20's parts half) |
+| Sponson underside | ~1.22 m (STT side view) | `sponson_y 1.22` |
 | Height to turret roof | 2.60 m (STT rear view, 8 ft 6.5 in) | `roof_y 2.60` |
 | Height to cupola top | 2.86 m to the drum's rim (STT rear view, 9 ft 4.75 in); 2.885 at the lid (records) | `roof_y 2.60` + `cupola_height 0.26`; the lid part tops at 2.92 |
 | Ground clearance | 0.432 m (STT) | `belly_y 0.432` |
