@@ -2,12 +2,34 @@
 //! bakes into one `BakedVehicle` for the Forge. This is the single place that knows a vehicle is a
 //! *set of parts*, each routed to the right generator and grouped into hull / turret / gun submeshes.
 
-use game_core::{MountFrames, VehicleKind};
+use game_core::{MountFrames, VehicleBlueprint, VehicleKind, VehicleModules};
 use glam::Vec3;
-use vehicle_geometry::{BakedVehicle, LodLevel, Submesh, SubmeshKind, reduce_mesh};
+use vehicle_geometry::{BakedVehicle, LodLevel, Submesh, SubmeshKind, reduce_mesh, reduce_vehicle};
 
 use crate::part::VehiclePart;
 use crate::surface_bake::SurfaceBake;
+
+/// How far a description has been built, and therefore which cost envelope and golden regime it
+/// answers to. A property of the DESCRIPTION, read by the forge — never a match on the vehicle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Fidelity {
+    /// Built from the fleet part library with a complete blueprint visual: the hybrid-class
+    /// budgets (`MEDIUM_LOD0_TRI_BUDGET`), no recipe golden.
+    Benchmark,
+    /// A lean recipe wrapped as a description: the procedural fleet's budgets and goldens
+    /// (`vehicle_recipes::VEHICLE_BUDGETS`, `GOLDEN_BAKE_HASHES`).
+    Sketch,
+}
+
+/// How a description reduces to LOD1/LOD2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LodStrategy {
+    /// Each retained part clustered by its own importance BEFORE the merge (`build_reduced_lod`).
+    PartAware,
+    /// The full bake flattened, then clustered per submesh (`vehicle_geometry::reduce_vehicle`) —
+    /// what the recipes always did; kept byte-exact for the sketches.
+    WholeMesh,
+}
 
 /// A vehicle as a parametric part list plus its mount frames.
 pub struct VehicleDescription {
@@ -16,9 +38,49 @@ pub struct VehicleDescription {
     pub mounts: MountFrames,
     /// Semantic contact cavities baked into `surface_shade` after merge (empty = flat shade).
     pub surface_bake: SurfaceBake,
+    pub fidelity: Fidelity,
+    pub lod: LodStrategy,
+}
+
+/// The description the part library builds for `kind`, if its blueprint carries a complete
+/// visual. This is the fleet's migration rule (Forge 2.0 K1): a vehicle joins the hybrid path by
+/// DATA — its blueprint gains the visual tree — and nothing in the forge names it.
+pub fn description_for(kind: VehicleKind) -> Option<VehicleDescription> {
+    let bp = VehicleBlueprint::for_vehicle(kind)?;
+    description_from_blueprint(&bp)
+}
+
+/// The same rule over an explicit (possibly live) blueprint at the stock loadout.
+pub fn description_from_blueprint(bp: &VehicleBlueprint) -> Option<VehicleDescription> {
+    description_for_modules_with_blueprint(&bp.kind.default_loadout(), bp)
+}
+
+/// The same rule at an explicit module loadout (the tank compiler's path).
+pub fn description_for_modules(
+    kind: VehicleKind,
+    modules: &VehicleModules,
+) -> Option<VehicleDescription> {
+    let bp = VehicleBlueprint::for_vehicle(kind)?;
+    description_for_modules_with_blueprint(modules, &bp)
+}
+
+fn description_for_modules_with_blueprint(
+    modules: &VehicleModules,
+    bp: &VehicleBlueprint,
+) -> Option<VehicleDescription> {
+    bp.complete_visual()?;
+    Some(crate::t54_from_modules_with_blueprint(modules, bp))
 }
 
 impl VehicleDescription {
+    /// The production bake at `lod`, reduced the way this description declares.
+    pub fn production_bake(&self, lod: LodLevel) -> BakedVehicle {
+        match self.lod {
+            LodStrategy::PartAware => self.build_reduced_lod(lod),
+            LodStrategy::WholeMesh => reduce_vehicle(&self.build(), lod),
+        }
+    }
+
     /// Mesh every part, merge by submesh kind, and assemble the `BakedVehicle` the Forge consumes.
     /// This is the full-detail LOD0 bake.
     pub fn build(&self) -> BakedVehicle {

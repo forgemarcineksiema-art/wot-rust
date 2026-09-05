@@ -18,7 +18,9 @@
 use game_core::VehicleKind;
 use vehicle_recipes::VEHICLE_BUDGETS;
 
-use crate::mesh_source::{MeshSourceKind, mesh_source_kind};
+use vehicle_build::Fidelity;
+
+use crate::mesh_source::shipped_fidelity;
 
 /// The ceiling a shipped LOD0 mesh must stay under, and which envelope it came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,13 +49,13 @@ pub enum CostEnvelope {
 /// resolves the budget it is judged against. Using one without the other is how a migrated vehicle
 /// silently loses its cost gate.
 pub fn shipped_cost_ceiling(kind: VehicleKind) -> ShippedCostCeiling {
-    match mesh_source_kind(kind) {
-        MeshSourceKind::Hybrid => ShippedCostCeiling {
+    match shipped_fidelity(kind) {
+        Fidelity::Benchmark => ShippedCostCeiling {
             tri_max: vehicle_build::MEDIUM_LOD0_TRI_BUDGET,
             vert_max: vehicle_build::MEDIUM_LOD0_VERT_BUDGET,
             envelope: CostEnvelope::HybridClass,
         },
-        MeshSourceKind::Procedural => ShippedCostCeiling {
+        Fidelity::Sketch => ShippedCostCeiling {
             tri_max: VEHICLE_BUDGETS.vehicle_tri.1,
             vert_max: VEHICLE_BUDGETS.vehicle_vert_max,
             envelope: CostEnvelope::ProceduralFleet,

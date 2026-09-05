@@ -10,7 +10,7 @@ use game_core::{VehicleBlueprint, VehicleKind, VehicleModules};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
-use crate::description::VehicleDescription;
+use crate::description::{Fidelity, LodStrategy, VehicleDescription};
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
@@ -109,8 +109,8 @@ pub fn t54_from_modules_with_blueprint(
     modules: &VehicleModules,
     bp: &VehicleBlueprint,
 ) -> VehicleDescription {
-    let kind = VehicleKind::T54_1951;
-    let v = bp.complete_visual().expect("T-54 carries hybrid visual data");
+    let kind = bp.kind;
+    let v = bp.complete_visual().expect("the blueprint carries a complete visual");
 
     // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
     // that overhangs it as the sponson. The two-plate front (upper glacis over the tucked nose) and
@@ -342,5 +342,12 @@ pub fn t54_from_modules_with_blueprint(
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read
     // flat). Derived from the same blueprint `v` that drives the geometry.
     let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track, muzzle);
-    VehicleDescription { kind, parts, mounts, surface_bake }
+    VehicleDescription {
+        kind,
+        parts,
+        mounts,
+        surface_bake,
+        fidelity: Fidelity::Benchmark,
+        lod: LodStrategy::PartAware,
+    }
 }

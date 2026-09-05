@@ -3640,6 +3640,7 @@ dependencies = [
  "game_core",
  "glam",
  "revolve",
+ "vehicle_build",
  "vehicle_geometry",
 ]
 

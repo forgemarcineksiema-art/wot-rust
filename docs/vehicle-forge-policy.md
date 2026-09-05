@@ -223,10 +223,12 @@ and its machine-checked targets land *before* the PR that edits the blueprint RO
 
 Status 2026-09-05 (Forge 2.0, K7): milestones 0–2, 5 and 6 are **done**; 3 and 4 are **done
 for the geometry, open for UVs and bakes** (K6); 7 is **partial**; 8 has **not started as a
-migration** — no vehicle beyond the T-54 routes through `vehicle_build` (`mesh_source.rs`
-hard-codes one hybrid kind), and the line below read "in progress" from 2026-08-03 with zero
-migrated. What the fleet has is the blueprint cage and the W4 fleet slot (below). The migration
-is Forge 2.0: `inny-poziom-program.md` K1 → K2 → K3.
+migration** — no vehicle beyond the T-54 routes through the part library, and the line below
+read "in progress" from 2026-08-03 with zero migrated. Since K1 (2026-09-05) the seam is one
+rule: a blueprint with a complete visual builds through `vehicle_build`, everything else is its
+recipe wrapped as a `Sketch` description — a vehicle migrates by DATA, never by a new match arm.
+What the fleet has is the blueprint cage and the W4 fleet slot (below). The migration is Forge
+2.0 K3.
 
 0. **Lock the philosophy** — this document; benchmark and baseline chosen. *(done)*
 1. **Reference pack and ratio tests** — `ReferencePack` for T-54, photo-derived ratio tests.

@@ -104,6 +104,9 @@ pub enum GeneratorKind {
     Sweep,
     /// A thin fabricated pressing with a folded edge (`panel`) — the fender sections.
     Panel,
+    /// A whole submesh pre-baked by a lean procedural recipe (`vehicle_recipes`), wrapped as one
+    /// part so a sketch vehicle is a description too (Forge 2.0 K1).
+    Recipe,
 }
 
 impl GeneratorKind {
@@ -116,6 +119,7 @@ impl GeneratorKind {
             Self::Revolve => "revolve",
             Self::Sweep => "sweep",
             Self::Panel => "panel",
+            Self::Recipe => "vehicle_recipes",
         }
     }
 }

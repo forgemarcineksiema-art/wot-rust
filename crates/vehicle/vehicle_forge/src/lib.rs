@@ -34,7 +34,7 @@ pub use compiler::{
     CompiledTank, TankCompileError, TankCompileRequest, TankValidationError, compile_tank,
 };
 pub use cost::{CostEnvelope, ShippedCostCeiling, shipped_cost_ceiling};
-pub use mesh_source::authoritative_baked_vehicle;
+pub use mesh_source::{authoritative_baked_vehicle, authoritative_description, shipped_fidelity};
 pub use outline::{
     OUTLINE_CELL_M, OutlineMeasurement, OutlineSet, OutlineSpec, OutlineView, SilhouetteGrid,
     composed_triangles, composed_triangles_for, measure as measure_outline,
