@@ -121,8 +121,16 @@ pub struct GearBudgets {
 /// passes that is 15 us for the one or two vehicles ever close enough to draw NEAR gear, against
 /// the 1.46 ms of documented p95 headroom. Far tier keeps its pin-less damper and stays at
 /// 15,968 (60% saved, floor 40%). Per-item raise for a named part — not fleet headroom.
+///
+/// RAISED 40_500 -> 52_500 (2026-09-06, K22-2, measured): the Kgs 63/725 shoe as the STT sheet's
+/// open cast frame (six bars on a thin web, five windows, +48 triangles a link x 192 links) and
+/// the German sprocket as an eight-spoke, six-bolt wheel land the Tiger I at 52,336 near
+/// triangles. Priced at the same 9.76 ns/triangle x3 passes, the +11,836 is 0.35 ms for the one
+/// or two vehicles ever close enough to draw NEAR gear, against the 1.46 ms of documented p95
+/// headroom; the far tier keeps `distant_link` and the disc, so the fleet-wide cost is unchanged.
+/// The owner's directive (2026-09-05): every vehicle's tracks at the top bar.
 pub const GEAR_BUDGETS: GearBudgets =
-    GearBudgets { near_tri_max: 40_500, far_tri_max: 18_500, instances_max: 260 };
+    GearBudgets { near_tri_max: 52_500, far_tri_max: 18_500, instances_max: 260 };
 
 /// The distance tier must remove at least this share of the gear's triangles, or it is not
 /// earning the second mesh set it costs to keep.
