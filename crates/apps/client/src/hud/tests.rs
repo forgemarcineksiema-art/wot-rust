@@ -1,6 +1,7 @@
 //! Locks the frame-level HUD: bars, readouts, panels and the `BattleHudModel` contract. The
 //! reticle overlay's own locks live in `hud/reticle_overlay_tests.rs` (shared helpers are here).
 
+use super::HudElement;
 use super::*;
 use crate::hud::number::{FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
 use crate::hud::reticle::ReticleStatus;
@@ -425,4 +426,41 @@ fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
         red(&build_battle_hud(&with_dead_gun, 16.0 / 9.0)),
         "a dead gun must read red in the module panel"
     );
+}
+
+/// F5: the draw list is the old builder, element by element — the one emitter yields the same
+/// bytes the old concatenation did, and every instrument the model asks for has a name.
+#[test]
+fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
+    let aspect = 16.0 / 9.0;
+    let model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let list = super::build_battle_hud_list(&model, aspect);
+    let expected: Vec<HudVertex> = list
+        .iter()
+        .flat_map(|e| match &e.payload {
+            ui_kit::draw_list::Payload::Legacy(v) => v.clone(),
+            _ => Vec::new(),
+        })
+        .collect();
+    assert_eq!(super::build_battle_hud(&model, aspect), expected);
+    for id in
+        [HudElement::Reticle, HudElement::Readouts, HudElement::DamageLog, HudElement::HitDirection]
+    {
+        assert!(list.find(id).is_some(), "{id:?} is a named element");
+    }
+    assert!(list.find(HudElement::PauseMenu).is_none(), "no menu, no element");
+}
+
+/// H25: the reticle stack is carried verbatim — the element's payload IS `push_reticle`'s output.
+#[test]
+fn the_reticle_stack_is_emitted_verbatim() {
+    let aspect = 16.0 / 9.0;
+    let model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let list = super::build_battle_hud_list(&model, aspect);
+    let mut expected = Vec::new();
+    super::reticle_overlay::push_reticle(&mut expected, &super::default_reticle(), aspect);
+    match &list.find(HudElement::Reticle).expect("the reticle element").payload {
+        ui_kit::draw_list::Payload::Legacy(v) => assert_eq!(v, &expected),
+        other => panic!("the reticle must stay a legacy payload, found {other:?}"),
+    }
 }

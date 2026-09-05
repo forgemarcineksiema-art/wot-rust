@@ -21,8 +21,9 @@ pub mod layout;
 pub mod manifest;
 
 pub use layout::{
-    push_icon, push_text, push_text_right, push_text_right_styled, push_text_styled, text_width,
-    text_width_styled,
+    digit_cell_width, ellipsize, push_icon, push_text, push_text_right, push_text_right_styled,
+    push_text_styled, push_text_tabular, text_width, text_width_styled, text_width_tabular,
+    wrap_text,
 };
 pub use manifest::{FONT_FILES, Face, FontFile, POLISH_LETTERS, Style, Weight};
 

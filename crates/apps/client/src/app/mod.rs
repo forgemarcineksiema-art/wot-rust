@@ -643,6 +643,8 @@ pub(crate) struct ClientApp {
     battle_scene_meshes: Option<BattleSceneMeshes>,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
     viewport: (u32, u32),
+    /// The cursor's last position in physical pixels, in every mode (interface program F5).
+    cursor_px: [f32; 2],
     /// Camera mode at the previous presented frame; a change clicks the optics cue.
     prev_camera_mode: Option<crate::BattleCameraMode>,
     /// Whether the renderer has already been rebuilt once after a lost GPU device
@@ -902,6 +904,7 @@ impl ClientApp {
             map_pick_settling: None,
             battle_scene_meshes: None,
             viewport: (1280, 720),
+            cursor_px: [-1.0, -1.0],
             prev_camera_mode: None,
             renderer_rebuilt: false,
             fatal_error: None,

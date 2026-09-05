@@ -195,6 +195,215 @@ fn push_glyph_quad(
     }
 }
 
+/// The width of the cell every digit occupies when text is set tabular: the widest digit's
+/// advance, in clip units at em-height `height`. `ab_glyph` shapes nothing, so tabular figures
+/// are a rule of the layout engine, not a feature of the font.
+pub fn digit_cell_width(style: Style, height: f32, aspect: f32) -> f32 {
+    let font = atlas();
+    let face = font.face(style);
+    let clip_per_px = height / font.raster_px;
+    ('0'..='9').map(|d| face.glyphs.get(&d).unwrap_or(&face.tofu).advance_px).fold(0.0f32, f32::max)
+        * clip_per_px
+        / aspect.max(0.01)
+}
+
+/// Advance width of `text` with every digit in the fixed cell.
+pub fn text_width_tabular(style: Style, text: &str, height: f32, aspect: f32) -> f32 {
+    let cell = digit_cell_width(style, height, aspect);
+    let font = atlas();
+    let face = font.face(style);
+    let clip_per_px = height / font.raster_px / aspect.max(0.01);
+    text.chars()
+        .map(|ch| {
+            if ch.is_ascii_digit() {
+                cell
+            } else {
+                face.glyphs.get(&ch).unwrap_or(&face.tofu).advance_px * clip_per_px
+            }
+        })
+        .sum()
+}
+
+/// Draw `text` set in `style` with tabular digits: every digit centred in one fixed cell, so
+/// a counter's columns stand still while its value runs.
+#[expect(clippy::too_many_arguments)]
+pub fn push_text_tabular(
+    vertices: &mut Vec<HudVertex>,
+    style: Style,
+    text: &str,
+    left_x: f32,
+    top_y: f32,
+    height: f32,
+    aspect: f32,
+    color: [f32; 4],
+) {
+    let shadow = crate::theme::color::TEXT_SHADOW;
+    let offset = height * 0.09;
+    let shadow_color = [shadow[0], shadow[1], shadow[2], shadow[3] * color[3]];
+    for (dx, dy, tint) in [(offset / aspect.max(0.01), -offset, shadow_color), (0.0, 0.0, color)] {
+        let cell = digit_cell_width(style, height, aspect);
+        let font = atlas();
+        let face = font.face(style);
+        let clip_per_px = height / font.raster_px;
+        let x_scale = clip_per_px / aspect.max(0.01);
+        let mut pen_x = left_x + dx;
+        for ch in text.chars() {
+            let glyph = face.glyphs.get(&ch).unwrap_or(&face.tofu);
+            if ch.is_ascii_digit() {
+                let advance = glyph.advance_px * x_scale;
+                let centred = pen_x + (cell - advance) * 0.5;
+                push_text_pass(
+                    vertices,
+                    style,
+                    &ch.to_string(),
+                    centred,
+                    top_y + dy,
+                    height,
+                    aspect,
+                    tint,
+                );
+                pen_x += cell;
+            } else {
+                push_text_pass(
+                    vertices,
+                    style,
+                    &ch.to_string(),
+                    pen_x,
+                    top_y + dy,
+                    height,
+                    aspect,
+                    tint,
+                );
+                pen_x += glyph.advance_px * x_scale;
+            }
+        }
+    }
+}
+
+/// Word-wrap `text` to lines no wider than `max_width` (clip units) at em-height `height`. A
+/// single word wider than the line is broken by character; lines never come back empty.
+pub fn wrap_text(
+    style: Style,
+    text: &str,
+    height: f32,
+    aspect: f32,
+    max_width: f32,
+) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for paragraph in text.split('\n') {
+        let mut line = String::new();
+        for word in paragraph.split_whitespace() {
+            let candidate =
+                if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+            if text_width_styled(style, &candidate, height, aspect) <= max_width
+                || line.is_empty() && word.chars().count() == 1
+            {
+                line = candidate;
+                continue;
+            }
+            if !line.is_empty() {
+                lines.push(std::mem::take(&mut line));
+            }
+            // The word alone: fits, or is broken by character.
+            if text_width_styled(style, word, height, aspect) <= max_width {
+                line = word.to_string();
+            } else {
+                let mut piece = String::new();
+                for ch in word.chars() {
+                    let next = format!("{piece}{ch}");
+                    if !piece.is_empty()
+                        && text_width_styled(style, &next, height, aspect) > max_width
+                    {
+                        lines.push(std::mem::take(&mut piece));
+                    }
+                    piece.push(ch);
+                }
+                line = piece;
+            }
+        }
+        lines.push(line);
+    }
+    lines
+}
+
+/// `text` cut to `max_width` with a trailing `...` when it does not fit: the tail goes, the
+/// head stays — a truncated name is still recognisable by its start.
+pub fn ellipsize(style: Style, text: &str, height: f32, aspect: f32, max_width: f32) -> String {
+    if text_width_styled(style, text, height, aspect) <= max_width {
+        return text.to_string();
+    }
+    const ELLIPSIS: &str = "...";
+    let mut kept = String::new();
+    for ch in text.chars() {
+        let next = format!("{kept}{ch}{ELLIPSIS}");
+        if text_width_styled(style, &next, height, aspect) > max_width {
+            break;
+        }
+        kept.push(ch);
+    }
+    format!("{kept}{ELLIPSIS}")
+}
+
+#[cfg(test)]
+mod measure_tests {
+    use super::*;
+
+    #[test]
+    fn tabular_digits_share_one_cell() {
+        let aspect = 16.0 / 9.0;
+        for style in Style::ALL {
+            let ones = text_width_tabular(style, "111", 0.05, aspect);
+            let eights = text_width_tabular(style, "888", 0.05, aspect);
+            assert!((ones - eights).abs() < 1e-6, "{style:?}: 111 and 888 differ in width");
+            assert!(ones >= text_width_styled(style, "111", 0.05, aspect) - 1e-6);
+        }
+        let mut verts = Vec::new();
+        push_text_tabular(&mut verts, Style::VALUE, "1:8", -0.5, 0.5, 0.05, aspect, [1.0; 4]);
+        assert_eq!(verts.len(), 3 * 12, "shadow and glyph per character");
+    }
+
+    #[test]
+    fn wrapped_text_never_exceeds_its_width() {
+        let aspect = 16.0 / 9.0;
+        let max = 0.30;
+        let lines = wrap_text(
+            Style::VALUE,
+            "the quick brown fox jumps over the lazy dog",
+            0.05,
+            aspect,
+            max,
+        );
+        assert!(lines.len() > 1, "a long sentence wraps");
+        for line in &lines {
+            assert!(!line.is_empty());
+            assert!(
+                text_width_styled(Style::VALUE, line, 0.05, aspect) <= max + 1e-6,
+                "{line:?} overflows"
+            );
+        }
+        let joined = lines.join(" ");
+        assert_eq!(joined, "the quick brown fox jumps over the lazy dog", "no word lost");
+        let broken = wrap_text(Style::VALUE, "supercalifragilistic", 0.05, aspect, 0.10);
+        assert!(broken.len() > 1, "an unbreakable word breaks by character");
+    }
+
+    #[test]
+    fn ellipsis_replaces_the_tail_not_the_head() {
+        let aspect = 16.0 / 9.0;
+        let full = text_width_styled(Style::VALUE, "Panzerkampfwagen VI Tiger", 0.05, aspect);
+        let max = full * 0.5;
+        let cut = ellipsize(Style::VALUE, "Panzerkampfwagen VI Tiger", 0.05, aspect, max);
+        assert!(cut.starts_with("Panzer"), "the head stays: {cut}");
+        assert!(cut.ends_with("..."), "the tail is the ellipsis: {cut}");
+        assert!(text_width_styled(Style::VALUE, &cut, 0.05, aspect) <= max + 1e-6);
+        assert_eq!(
+            ellipsize(Style::VALUE, "T-54", 0.05, aspect, 1.0),
+            "T-54",
+            "what fits is untouched"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
