@@ -1,0 +1,19 @@
+// IS-3 — the part classes the dossier lists (docs/vehicles/is-3.md), one row per class with the
+// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
+// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+(
+    vehicle: "is3",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "Shape locks: `is3_hull.rs` — the pike step line runs through the tub corner; tub sides behind the tracks 90 mm"),
+        (class: UpperHull, source: "Reference anatomy: the pike nose — two 110 mm upper bow plates at 56°, swept ±38° in plan, meeting at a ridge"),
+        (class: TurretShell, source: "Reference anatomy: the flattened cast dome, 250 mm at the face with 55° of continuous curvature, overhanging its ring"),
+        (class: TurretRing, source: "Reference anatomy: the 1.8 m ring the dome overhangs"),
+        (class: GunBarrel, source: "Reference anatomy: 9.85 m overall with the D-25T forward (muzzle at z = 6.46)"),
+        (class: MuzzleFurniture, source: "Shape locks: the D-25T wears its brake and no evacuator"),
+        (class: EngineDeck, source: "Reference anatomy: the stepped-down engine deck behind the 1.62 m hull roof"),
+        (class: Fenders, source: "Reference anatomy: the rear fender shelves"),
+        (class: FenderStowage, source: "Reference anatomy: two external cylindrical fuel drums lying along the rear fender shelves (visual stowage)"),
+    ],
+)

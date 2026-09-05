@@ -11,6 +11,7 @@
 
 mod attachment;
 mod description;
+mod inventory;
 mod manifest;
 mod part;
 mod parts_fittings;
@@ -33,6 +34,10 @@ pub use attachment::{SurfaceAttachment, t54_attachments};
 pub use description::{
     Fidelity, LodStrategy, VehicleDescription, description_for, description_for_modules,
     description_from_blueprint,
+};
+pub use inventory::{
+    CarriedInventory, DossierPartList, ExpectedPart, InventoryReport, InventorySpec, PartClass,
+    inventory_for,
 };
 pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,

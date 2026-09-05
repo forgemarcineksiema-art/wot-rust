@@ -1,0 +1,10 @@
+// t34_85 — no part list yet: docs/vehicles/t-34-85.md has the form-rules section reads `Needs dossier`.
+// The inventory gate reports this as the vehicle's first debt (Forge 2.0 K3). A research
+// pass (the dossier template's Form rules + Part construction tables) fills `expected`;
+// nothing is invented here in its place.
+(
+    vehicle: "t34_85",
+    dossier: Pending("docs/vehicles/t-34-85.md: the form-rules section reads `Needs dossier`"),
+    locked: false,
+    expected: [],
+)

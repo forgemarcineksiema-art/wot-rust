@@ -1,0 +1,33 @@
+// Tiger I Ausf. E (late, post-February 1944) — the part classes the dossier lists
+// (docs/vehicles/panzerkampfwagen-vi-tiger.md). TARGET: the vehicle is a recipe sketch today;
+// every row is debt until the part library builds it (Forge 2.0 K3).
+(
+    vehicle: "tiger_i_ausf_e",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "Armour: hull side lower 60 mm behind the tracks; Blueprint Migration: `lower_half_width 1.12`"),
+        (class: UpperHull, source: "The slab, honestly: driver's plate 9°, sides vertical, rear 8°; Armour table"),
+        (class: SternPlate, source: "Recognition features: twin exhaust stacks standing proud on the rear plate"),
+        (class: WeldSeams, source: "The slab, honestly: interlocked welded plates on the armour planes"),
+        (class: EngineDeck, source: "Blueprint Migration: engine deck (recipe `tiger_i_deck`)"),
+        (class: DeckGrille, source: "Blueprint Migration: deck grilles over the radiators (`tiger_i_deck`)"),
+        (class: Fenders, source: "Blueprint Migration: track guards / fenders (`german_track_guards`, `german_track_flaps`)"),
+        (class: TurretShell, source: "Recognition features: horseshoe turret — flat front plate, vertical bent side wall, faceted rear"),
+        (class: TurretRing, source: "Reference anatomy: turret ring 1836 mm in the clear, bearing OD 2100"),
+        (class: TurretStowage, source: "The variant, pinned: simplified open bins on the ring (late), not the bowed Rommelkiste"),
+        (class: Cupola, source: "The variant, pinned: cast periscope drum cupola (from July 1943), left rear roof"),
+        (class: Hatches, source: "Recognition features: loader's hatch; driver's and radio operator's roof hatches"),
+        (class: Mantlet, source: "Authored visual parts: the Walzenblende spanning the armour's mantlet patch band"),
+        (class: GunBarrel, source: "Authored visual parts: bore-honest KwK 36, tube radius 0.1"),
+        (class: MuzzleFurniture, source: "Authored visual parts: double-baffle muzzle brake, no evacuator"),
+        (class: CourseMg, source: "Recognition features: bow-MG ball on the near-vertical front; `glacis_ports`"),
+        (class: Exhaust, source: "Recognition features: twin exhaust stacks on the rear plate with armoured covers"),
+        (class: Headlights, source: "The variant, pinned: single headlight (late)"),
+        (class: TowHooks, source: "Blueprint Migration: tow hooks (`tow_hooks` stations)"),
+        (class: TowCable, source: "Reference photographs (Tank Museum, R2-class): tow cables along the hull sides"),
+        (class: SpareTracks, source: "The variant, pinned: late-production turret-side track hangers"),
+        (class: Aerial, source: "Recognition features: aerial on the hull rear right"),
+        (class: SuspensionHardware, source: "Recognition features: interleaved Schachtellaufwerk on swing arms, no return rollers"),
+    ],
+)

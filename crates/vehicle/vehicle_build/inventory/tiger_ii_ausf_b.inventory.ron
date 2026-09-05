@@ -1,0 +1,25 @@
+// Tiger II Ausf. B (Henschel Serienturm) — the part classes the dossier lists (docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md), one row per class with the
+// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
+// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+(
+    vehicle: "tiger_ii_ausf_b",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "The slope, honestly: the visible hull lofted from the armour volumes' planes (`blueprint_prism_hull`)"),
+        (class: UpperHull, source: "The slope, honestly: 150 mm glacis at 50° in one plate, upper sides leaned 25°"),
+        (class: SternPlate, source: "The slope, honestly: rear at 30°; twin exhausts hugging the rear plate"),
+        (class: Skirts, source: "Reference anatomy: upper-run Schürzen, honest both ways (spaced HEAT screen at 0.06 m), width 3.88 m over fitted skirts"),
+        (class: Fenders, source: "Reference anatomy: F3 hinged bow fender flaps (PR-T2.2)"),
+        (class: TurretShell, source: "Recognition features: Henschel Serienturm — flat 180 mm front at ~10°, long 21° converging walls, bustle rear at 20°"),
+        (class: TurretRing, source: "Recognition features: the bustle's rear wall closes the rear armour plane at the ring seat"),
+        (class: Mantlet, source: "Reference anatomy: the Turmblende — a wide oval band (~1.4 m) on the front plate riding with the gun"),
+        (class: Cupola, source: "Recognition features: low commander's cupola on the left rear roof; cast cupola ⌀0.78 (#236)"),
+        (class: Hatches, source: "Reference anatomy: two bow roof hatches (#235)"),
+        (class: Headlights, source: "Reference anatomy: central Bosch light (#235)"),
+        (class: GunBarrel, source: "Recognition features: five metres of KwK 43 barrel past the trunnion; 10.286 m overall"),
+        (class: MuzzleFurniture, source: "Recognition features: double-baffle brake; open double-baffle brake (#234)"),
+        (class: Exhaust, source: "Recognition features: twin exhausts hugging the 30° rear plate; twin open stacks (#238)"),
+        (class: Periscopes, source: "Recognition features: driver's periscope housing on the glacis"),
+    ],
+)

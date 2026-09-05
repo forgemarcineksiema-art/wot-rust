@@ -1,0 +1,21 @@
+// Panther II (Fort Benning specimen, Ausf. G turret) — the part classes the dossier lists (docs/vehicles/panzerkampfwagen-v-panther-ii.md), one row per class with the
+// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
+// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+(
+    vehicle: "panther_ii",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "The wedge, honestly: the hull standing on the armour volume planes (`blueprint_prism_hull`)"),
+        (class: UpperHull, source: "The wedge, honestly: 100 mm glacis at 55° in one ramp, upper sides 29°"),
+        (class: SternPlate, source: "The wedge, honestly: rear at 30°"),
+        (class: TurretShell, source: "Reference anatomy: the Panther Ausf. G turret — wider rounded plan with the rear bustle (the PII.2 goal on record)"),
+        (class: Mantlet, source: "Reference anatomy: the curved cast G-Blende mantlet band across the front"),
+        (class: Cupola, source: "Reference anatomy: the cupola staying left"),
+        (class: GunBarrel, source: "Reference anatomy: 7.5 cm KwK 42 L/70 on the G turret, muzzle to 8.86 m"),
+        (class: CourseMg, source: "Reference anatomy: Kugelblende in the glacis right"),
+        (class: Periscopes, source: "Reference anatomy: driver periscopes on the glacis top"),
+        (class: Fenders, source: "Reference anatomy: curved fender sweeps (F3)"),
+        (class: Headlights, source: "Reference anatomy: the ONE glacis headlight (F4)"),
+    ],
+)

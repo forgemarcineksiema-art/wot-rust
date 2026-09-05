@@ -1,0 +1,20 @@
+// Jagdtiger (production Henschel running gear) — the part classes the dossier lists (docs/vehicles/jagdtiger.md), one row per class with the
+// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
+// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+(
+    vehicle: "jagdtiger",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "The welded-in casemate, honestly: hull and casemate lofted from the same plane equations"),
+        (class: UpperHull, source: "The welded-in casemate, honestly: glacis 150 mm at 50°, leaned sides 25° running unbroken into the casemate"),
+        (class: SternPlate, source: "The welded-in casemate, honestly: rear at 30°"),
+        (class: TurretShell, source: "The welded-in casemate, honestly: 250 mm face at 15°, the flank the hull side plane continued (a casemate never traverses)"),
+        (class: Mantlet, source: "Reference anatomy, PR-JT.2 shape list: the massive cast collar of the 12.8 cm at the casemate face"),
+        (class: GunBarrel, source: "Reference anatomy: 12.8 cm PaK 44 L/55, 10.654 m overall, PLAIN muzzle by the dossier's decision"),
+        (class: Periscopes, source: "The welded-in casemate, honestly: no cupola — the roof carries only the commander's low periscope housing"),
+        (class: SpareTracks, source: "Reference anatomy, PR-JT.2 shape list: spare-track hangers with shoe rows on the casemate sides"),
+        (class: Fenders, source: "Reference anatomy, PR-JT.2 shape list: large flat bow guards (F3)"),
+        (class: CourseMg, source: "Reference anatomy, PR-JT.2 shape list: the bow MG Kugelblende in the glacis right"),
+    ],
+)

@@ -1,0 +1,19 @@
+// Centurion Mk 3 — the part classes the dossier lists (docs/vehicles/centurion.md), one row per class with the
+// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
+// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+(
+    vehicle: "centurion_mk3",
+    dossier: Complete,
+    locked: false,
+    expected: [
+        (class: HullTub, source: "The skirt and the bogie, honestly: the hull on its armour planes via `blueprint_prism_hull`"),
+        (class: UpperHull, source: "The skirt and the bogie, honestly: the 76 mm glacis leans 57°"),
+        (class: Skirts, source: "The skirt and the bogie, honestly: full-length bazooka plates from the fender line over the wheel tops, one 8 cm standoff outside the track"),
+        (class: TurretShell, source: "The skirt and the bogie, honestly: the cast Mk 3 dome overhangs its 74-inch race"),
+        (class: TurretRing, source: "The skirt and the bogie, honestly: the 74-inch race"),
+        (class: TurretStowage, source: "The skirt and the bogie, honestly: the signature bustle stowage bin closing the rear of the turret plan"),
+        (class: GunBarrel, source: "The skirt and the bogie, honestly: the 20-pounder Type A is a CLEAN tube — no brake, no fume extractor"),
+        (class: Cupola, source: "Anchor dimensions: cupola to 2.99 m over the 2.78 roof"),
+        (class: SuspensionHardware, source: "The skirt and the bogie, honestly: Horstmann bogies — six wheels in three pairs, three return rollers"),
+    ],
+)

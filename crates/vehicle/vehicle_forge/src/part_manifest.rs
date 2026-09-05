@@ -7,19 +7,19 @@
 //! blueprint-derived semantic graph.
 
 use game_core::VehicleKind;
-use vehicle_build::{PartManifestEntry, PartManifestError, t54_description, validate_manifest};
+use vehicle_build::{PartManifestEntry, PartManifestError, validate_manifest};
 
-/// The executable part manifest for a production-migrated vehicle, or `None` for vehicles still on
-/// the legacy recipe path (only the T-54 benchmark is migrated today).
+use crate::mesh_source::authoritative_description;
+
+/// The executable part manifest for any vehicle the seam describes (Forge 2.0 K1): the
+/// benchmark's seventy-odd library parts, or a sketch's three `Recipe` parts — which is the
+/// honest manifest of a vehicle nobody has built yet. `None` only if nothing describes it.
 pub fn production_part_manifest(kind: VehicleKind) -> Option<Vec<PartManifestEntry>> {
-    match kind {
-        VehicleKind::T54_1951 => Some(t54_description().part_manifest()),
-        _ => None,
-    }
+    Some(authoritative_description(kind).ok()?.part_manifest())
 }
 
-/// Validate a migrated vehicle's manifest against the production part requirements. `None` if the
-/// vehicle is not yet migrated.
+/// Validate a vehicle's manifest against the production part requirements. `None` if nothing
+/// describes the vehicle.
 pub fn validate_production_manifest(kind: VehicleKind) -> Option<Result<(), PartManifestError>> {
     production_part_manifest(kind).map(|m| validate_manifest(&m))
 }
