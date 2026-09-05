@@ -305,7 +305,6 @@ pub(crate) const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 pub(crate) const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 pub(crate) const SG_BARREL: SmoothingGroup = SmoothingGroup(4);
 pub(crate) const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
-pub(crate) const SG_RING: SmoothingGroup = SmoothingGroup(7);
 
 /// Assemble the three submeshes and mount frames into a baked vehicle. `turret_ring` doubles as
 /// the casemate frame for fixed-superstructure tank destroyers (their `turret` submesh simply
