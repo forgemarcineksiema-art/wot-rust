@@ -6,8 +6,10 @@
 //   bore 88 mm -> bore_radius 0.044; tube radius 0.1 = the gameplay gun's, one truth;
 //   double-baffle muzzle brake, NO bore evacuator, NO canvas (external mantlet - no window).
 // The Walzenblende: a wide rolled casting spanning exactly the armour's mantlet patch band
-// (mantlet_back_z 0.92 .. front_z 1.22, trunnion_z 1.15 -> trunnion-relative -0.23 .. +0.07;
-// widest 0.34 = the gameplay mantlet_radius) - the visible body IS the volume the armour quotes.
+// (mantlet_back_z 1.30 .. front_z 1.60 since the STT 1944 sheet re-sourced the turret — the
+// front plate stands at ring_z + plan_half_length = 1.30; trunnion_z 1.28 -> trunnion-relative
+// +0.02 .. +0.32; widest 0.34 = the gameplay mantlet_radius) - the visible body IS the volume
+// the armour quotes.
 VisualDetailFile(
     kind: TigerI,
     detail: VisualDetail(
@@ -18,14 +20,14 @@ VisualDetailFile(
             muzzle_taper: 0.2,
             barrel_segments: 12,
             mantlet_profile: (
-                (-0.23, 0.0),
-                (-0.21, 0.28),
-                (-0.15, 0.33),
-                (-0.08, 0.34),
-                (0.0, 0.335),
-                (0.05, 0.3),
-                (0.068, 0.18),
-                (0.07, 0.0),
+                (0.02, 0.0),
+                (0.04, 0.28),
+                (0.10, 0.33),
+                (0.17, 0.34),
+                (0.25, 0.335),
+                (0.30, 0.3),
+                (0.318, 0.18),
+                (0.32, 0.0),
             ),
             mantlet_segments: 12,
             mantlet_scale: (1.35, 0.85, 1.0),

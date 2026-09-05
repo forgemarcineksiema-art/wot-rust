@@ -37,9 +37,9 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Dimension | Value | Source | Confidence | Encoded as |
 | --- | ---: | --- | --- | --- |
 | Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `HullLength` (Locked) |
-| Width (combat tracks) | 3.705 m | Panzerworld (German records); see conflict C1 | high | `HullWidth` (Locked) |
-| Height (cupola apex) | 3.00 m | Wikipedia | high | `HeightToTurretRoof` (Locked) |
-| Height (bare turret roof) | 2.885 m | German records; see conflict C2 | high | `HeightToTurretRoofBare` (Locked) |
+| Width over the combat tracks | 3.548 m (STT 1944: 6 ft 10.625 in between the belts + 2 x 2 ft 4.5 in) | STT sheet; see conflict C1 (the 3.705/3.72 records are guard widths) | high | `track.outer_x 1.774`; `HullWidth` anchors the 3.56 sponson shelf (Locked) |
+| Height (cupola apex) | ~2.95 m (STT 1944 side view traces 2.93 at the drum cupola; Wikipedia 3.00) | STT sheet, Wikipedia | high | `HeightToTurretRoof` 2.95 +/-0.06 (Locked) |
+| Height (bare turret roof) | ~2.55 m (STT 1944 side view; tiger1.info 2625 mm) | STT sheet; conflict C2 resolved 2026-09-05 — the 2.885 was a misread | high | `HeightToTurretRoofBare` 2.55 +/-0.06 (Locked) |
 | Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `OverallLengthWithGun` (Locked) |
 | Road wheel | ⌀0.800 m | Tank Museum — **unchanged** across the steel-rim swap | high | `RoadWheelDiameter` (Locked) |
 | Turret ring (in the clear) | 1836 mm | tiger1.info, factory-drawing derived | medium | `TurretRingDiameter` (Locked) |
@@ -48,13 +48,13 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Transport track width | 520 mm | same three | high | not modelled (other config) |
 | Track pitch | 130 mm | panzerbasics, Alan Hamby; matches the Kgs 63/725/**130** name | high | implied by link count |
 | Links per side | 96 | panzerbasics + Alan Hamby (independent) | high | `TrackLinkCountPerSide` (**Target**) |
-| Ground clearance | 0.47 m | Wikipedia | high | `GroundClearance` (Locked) |
+| Ground clearance | 0.432 m (STT 1944: 1 ft 5 in, measured) | STT sheet; Wikipedia's 0.47 recorded as the conflict | high | `GroundClearance` 0.432 +/-0.02 (Locked) |
 | Fire line (bore axis, gun level) | 2.195 m | Panzerworld **and** Alan Hamby | high | `FireLineHeight` (**Target**) |
 | Road wheels per side | 16 | Tank Museum (with Fgst.Nr.), Alan Hamby ×2 | high | `RoadWheelCount` (**Target**) |
 | Drive sprocket | ⌀914.4 mm, 20 teeth, front | Alan Hamby | medium | cage |
 | Idler | ⌀685.8 mm | Alan Hamby | medium | cage |
 | Return rollers | none | universal, photographically self-evident | high | cage |
-| Hull width over sponsons | 3.56 m (Tank Museum: 3547 mm) | Wikipedia, Tank Museum | high | `half_width 1.78` |
+| Hull width over the sponson shelf | 3.56 m (Tank Museum: 3547 mm; STT front view ~3.58) | Wikipedia, Tank Museum, STT sheet | high | `half_width 1.78` — the widest metal the bake draws; the 3.734 m guards (12 ft 3 in) are K20's, the upper hull box above the shelf is ~3.2 (K20) |
 | Gun bore length | 4928 mm (56 × 88) | Wikipedia 8.8 cm KwK 36 | high | context (not trunnion-relative) |
 
 ### Armour (late Ausf. E)
@@ -83,7 +83,7 @@ reached yet and are reported as debt every run until their geometry PR flips the
   It is the more precisely and consistently repeated figure, and tiger1.info explicitly warns
   that measurements of surviving Tigers differ by several millimetres — 15 mm sits inside the
   build tolerance of a hand-assembled vehicle. Recorded, not chased into the model.
-- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". OPEN - leaning to tiger1.info since 2026-09-05: the STT side view traces the turret roof at ~2.55 and the cupola apex at 2.96 (K19).** tiger1.info's dedicated
+- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". RESOLVED 2026-09-05 for tiger1.info: the STT side view traces the turret roof at ~2.55 and the cupola apex at 2.93; the blueprint moved to 2.55 / 2.95 (K19, data first).** tiger1.info's dedicated
   roof-height page quotes a German drawing at 2625 mm (2655 late), which would collide with our
   anchor by ~26 cm — exactly the variant-contamination class that bit the Tiger II (its "3.27 m"
   turned out to be transport tracks). It was NOT passed through silently: an independent
@@ -169,13 +169,13 @@ correction documented here and locked by `tiger_i_benchmark.rs`.
 | Anchor | Value | In the blueprint |
 | --- | --- | --- |
 | Hull length | 6.316 m | `half_len 3.16` |
-| Width over combat tracks | 3.705 m | `track.outer_x 1.8525` |
-| Width over sponsons | 3.56 m | `half_width 1.78` (the belts stand 7.25 cm proud per side) |
-| Height to turret roof | 2.885 m | `roof_y 2.885` |
-| Height to cupola top | 3.00 m | `roof_y 2.885` + `cupola_height 0.115` |
-| Ground clearance | 0.47 m | `belly_y 0.47` |
+| Width over combat tracks | 3.548 m (STT) | `track.outer_x 1.774` |
+| Width over the sponson shelf | 3.56 m | `half_width 1.78` (the belts sit just inside it; the guards overhang it — K20) |
+| Height to turret roof | ~2.55 m (STT) | `roof_y 2.55` |
+| Height to cupola top | ~2.95 m (STT 2.93) | `roof_y 2.55` + `cupola_height 0.40` |
+| Ground clearance | 0.432 m (STT) | `belly_y 0.432` |
 | Road wheels | 8 × ⌀0.80 m interleaved | `wheel_count 8`, `overlap_inner_dx 0.22` |
-| Track width | 725 mm | `inner_x 1.1275 .. outer_x 1.8525` |
+| Track width | 724 mm | `inner_x 1.05 .. outer_x 1.774` |
 | Contact run | ~3.6 m | `wheel_first_z/last_z ±1.80` |
 | Overall with gun | 8.45 m | `muzzle_z 5.29` |
 | Fire line | ~2.17 m | `trunnion_y 2.17` |
