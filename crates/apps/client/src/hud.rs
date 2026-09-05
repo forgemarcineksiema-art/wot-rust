@@ -32,6 +32,8 @@ pub(crate) mod review;
 pub(crate) mod scope_overlay;
 pub(crate) mod spot_bracket;
 pub(crate) mod states;
+pub(crate) mod team_list;
+pub(crate) mod top_bar;
 pub use ui_kit::theme;
 pub(crate) mod crew_panel;
 pub(crate) mod track_callout;
@@ -89,6 +91,10 @@ pub struct BattleHudModel {
     pub battle_outcome: Option<BattleHudOutcome>,
     /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
     pub battle_clock_remaining_s: Option<f32>,
+    /// The top bar (H1): frags and pools; `None` before the roster lands.
+    pub top_bar: Option<top_bar::TopBarModel>,
+    /// The team lists (H2); `None` before the roster lands.
+    pub team_lists: Option<team_list::TeamListsModel>,
     /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
@@ -126,6 +132,8 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
+            top_bar: None,
+            team_lists: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
             fire_denied_age_s: None,
@@ -162,6 +170,8 @@ pub(crate) fn test_model(
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
+        top_bar: None,
+        team_lists: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -211,13 +221,23 @@ pub(crate) fn default_reticle() -> HudReticle {
 /// The battle HUD as a draw list (interface program F5): one element per instrument, in the
 /// order the old builder painted them, each carrying its legacy vertices verbatim. The H wave
 /// replaces payloads element by element; the reticle stack stays legacy (H25).
-pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> DrawList<HudElement> {
+pub(crate) fn build_battle_hud_list(
+    model: &BattleHudModel,
+    ui: &ui_kit::ui::Ui,
+) -> DrawList<HudElement> {
+    let aspect = ui.aspect();
+    let theme = ui_kit::theme::Theme::standard();
     let mut list = DrawList::new();
     let mut order: i16 = 0;
-    let mut legacy = |list: &mut DrawList<HudElement>, id: HudElement, vertices: Vec<HudVertex>| {
-        list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(order));
-        order += 1;
-    };
+    fn legacy(
+        list: &mut DrawList<HudElement>,
+        order: &mut i16,
+        id: HudElement,
+        vertices: Vec<HudVertex>,
+    ) {
+        list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(*order));
+        *order += 1;
+    }
     let reticle = model.reticle.unwrap_or_else(default_reticle);
 
     // The scope surround paints first so every live marker (reticle, readouts) stays on top.
@@ -226,12 +246,12 @@ pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> Draw
     if model.scope_fade > 0.001 {
         let mut v = Vec::new();
         scope_overlay::push_scope_overlay(&mut v, aspect, model.scope_fade);
-        legacy(&mut list, HudElement::ScopeSurround, v);
+        legacy(&mut list, &mut order, HudElement::ScopeSurround, v);
     }
     {
         let mut v = Vec::new();
         reticle_overlay::push_reticle(&mut v, &reticle, aspect);
-        legacy(&mut list, HudElement::Reticle, v);
+        legacy(&mut list, &mut order, HudElement::Reticle, v);
     }
     if let Some(age_s) = model.reload_ready_age_s {
         let mut v = Vec::new();
@@ -242,7 +262,7 @@ pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> Draw
             reticle.aim_radius_clip,
             aspect,
         );
-        legacy(&mut list, HudElement::ReadyRing, v);
+        legacy(&mut list, &mut order, HudElement::ReadyRing, v);
     }
     if let Some(age_s) = model.fire_denied_age_s {
         let mut v = Vec::new();
@@ -253,7 +273,7 @@ pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> Draw
             age_s,
             aspect,
         );
-        legacy(&mut list, HudElement::DeniedFlash, v);
+        legacy(&mut list, &mut order, HudElement::DeniedFlash, v);
     }
     // The reload countdown lives AT the reticle with its arc — one loading display, where the
     // eye already is (the old bottom-center bar was a second, competing one).
@@ -268,69 +288,120 @@ pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> Draw
             aspect,
             crate::hud::number::RELOAD_TIME_COLOR,
         );
-        legacy(&mut list, HudElement::ReloadNumber, v);
+        legacy(&mut list, &mut order, HudElement::ReloadNumber, v);
     }
     {
         let mut v = Vec::new();
         readouts::push_battle_readouts(&mut v, model, aspect);
-        legacy(&mut list, HudElement::Readouts, v);
+        legacy(&mut list, &mut order, HudElement::Readouts, v);
+    }
+    // H1, H2: the first instruments of the new toolkit — plates, text, bars and glass by name,
+    // in the unit `u`, so they scale with the size class where the legacy quads cannot.
+    if let Some(bar) = &model.top_bar {
+        top_bar::push_top_bar(
+            &mut list,
+            ui,
+            &theme,
+            bar,
+            model.battle_clock_remaining_s,
+            &mut order,
+        );
+    }
+    if let Some(lists) = &model.team_lists {
+        team_list::push_team_lists(&mut list, ui, &theme, lists, &mut order);
     }
     {
         let mut v = Vec::new();
         damage_log::push_damage_log(&mut v, &model.damage_log, aspect);
-        legacy(&mut list, HudElement::DamageLog, v);
+        legacy(&mut list, &mut order, HudElement::DamageLog, v);
     }
     {
         let mut v = Vec::new();
         track_callout::push_track_callout(&mut v, &model.track_feedback, aspect);
-        legacy(&mut list, HudElement::TrackCallout, v);
+        legacy(&mut list, &mut order, HudElement::TrackCallout, v);
     }
     {
         let mut v = Vec::new();
         rack_callout::push_rack_callout(&mut v, model.rack_fire_remaining_s, aspect);
-        legacy(&mut list, HudElement::RackCallout, v);
+        legacy(&mut list, &mut order, HudElement::RackCallout, v);
     }
     {
         let mut v = Vec::new();
         hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
-        legacy(&mut list, HudElement::HitDirection, v);
+        legacy(&mut list, &mut order, HudElement::HitDirection, v);
     }
     if let Some(ammo) = &model.ammo {
         let mut v = Vec::new();
         ammo_panel::push_ammo_panel(&mut v, ammo, aspect);
-        legacy(&mut list, HudElement::AmmoPanel, v);
+        legacy(&mut list, &mut order, HudElement::AmmoPanel, v);
     }
     if let Some(modules) = &model.modules {
         let mut v = Vec::new();
         module_panel::push_module_panel(&mut v, modules, aspect);
-        legacy(&mut list, HudElement::ModulePanel, v);
+        legacy(&mut list, &mut order, HudElement::ModulePanel, v);
     }
     if let Some(crew) = &model.crew {
         let mut v = Vec::new();
         crew_panel::push_crew_panel(&mut v, crew, aspect);
-        legacy(&mut list, HudElement::CrewPanel, v);
+        legacy(&mut list, &mut order, HudElement::CrewPanel, v);
     }
     if let Some(map) = &model.minimap {
+        // H0: an enamel plate, the relief baked into the sheet as ONE quad, the vector overlays
+        // on top, and a pane of glass over the lot.
+        let map_rect = minimap::map_rect_px(ui);
+        let enamel = theme.plates.enamel_black;
+        list.push(
+            Element::new(
+                HudElement::MinimapPlate,
+                map_rect.inset(-ui.px(6.0)),
+                Payload::Plate {
+                    tile: enamel.tile,
+                    radius_u: 3.0,
+                    bevel_u: theme.bevel_u,
+                    color: enamel.color,
+                },
+            )
+            .z(order),
+        );
+        order += 1;
+        list.push(
+            Element::new(
+                HudElement::MinimapRelief,
+                map_rect,
+                Payload::Image { uv: ui_kit::sheet::minimap_region_uv(), color: [1.0; 4] },
+            )
+            .z(order),
+        );
+        order += 1;
         let mut v = Vec::new();
         minimap::push_minimap(&mut v, map, aspect);
-        legacy(&mut list, HudElement::Minimap, v);
+        legacy(&mut list, &mut order, HudElement::Minimap, v);
+        list.push(
+            Element::new(
+                HudElement::MinimapGlass,
+                map_rect,
+                Payload::Glass { radius_u: 1.0, phase: 0.2, color: theme.plates.glass.color },
+            )
+            .z(order),
+        );
+        order += 1;
     }
     if let Some(outcome) = model.battle_outcome {
         let mut v = Vec::new();
         outcome::push_battle_outcome(&mut v, outcome, aspect);
-        legacy(&mut list, HudElement::Outcome, v);
+        legacy(&mut list, &mut order, HudElement::Outcome, v);
     }
     if let Some(age_s) = model.kill_confirm_age_s {
         let mut v = Vec::new();
         kill_marker::push_kill_confirm(&mut v, age_s, aspect);
-        legacy(&mut list, HudElement::KillConfirm, v);
+        legacy(&mut list, &mut order, HudElement::KillConfirm, v);
     }
     // Last, so the modal sits over every battle marker — including the outcome banner, which a
     // player can be reading when they reach for ESC.
     if let Some(menu) = &model.pause_menu {
         let mut v = Vec::new();
         pause_menu::push_pause_menu(&mut v, menu, aspect);
-        legacy(&mut list, HudElement::PauseMenu, v);
+        legacy(&mut list, &mut order, HudElement::PauseMenu, v);
     }
     list
 }
@@ -338,8 +409,8 @@ pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> Draw
 /// The battle HUD as vertices: the draw list through the one emitter. Byte-identical to the
 /// old builder (`the_draw_list_emits_the_legacy_hud_byte_for_byte`).
 pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
-    build_battle_hud_list(model, aspect)
-        .emit(&ui_kit::ui::Ui::for_aspect(aspect), &ui_kit::theme::Theme::standard())
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    build_battle_hud_list(model, &ui).emit(&ui, &ui_kit::theme::Theme::standard())
 }
 
 #[cfg(test)]
@@ -356,18 +427,19 @@ pub fn hud_state_vertices(
     width: u32,
     height: u32,
 ) -> Vec<HudVertex> {
-    let aspect = width as f32 / height.max(1) as f32;
     let ui = ui_kit::ui::Ui::new(width, height, size.user_scale());
-    build_battle_hud_list(&state.model(), aspect).emit(&ui, &ui_kit::theme::Theme::standard())
+    build_battle_hud_list(&state.model(), &ui).emit(&ui, &ui_kit::theme::Theme::standard())
 }
 
 /// The census of one state: vertices per element, in paint order.
 pub fn hud_state_census(state: HudState, aspect: f32) -> Vec<(HudElement, usize)> {
-    build_battle_hud_list(&state.model(), aspect)
+    build_battle_hud_list(&state.model(), &ui_kit::ui::Ui::for_aspect(aspect))
         .iter()
         .map(|e| {
             let n = match &e.payload {
                 Payload::Legacy(v) => v.len(),
+                Payload::Text { text, .. } => text.chars().count() * 12,
+                Payload::Bar { .. } => 12,
                 _ => 6,
             };
             (e.id, n)

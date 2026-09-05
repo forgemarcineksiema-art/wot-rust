@@ -142,11 +142,80 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         minimap: Some(demo_minimap()),
         battle_outcome: None,
         battle_clock_remaining_s: Some(474.0),
+        top_bar: Some(super::top_bar::TopBarModel {
+            frags: [2, 1],
+            team_hit_points: [5_120, 4_380],
+            team_hit_points_max: [7_450, 7_210],
+        }),
+        team_lists: Some(demo_team_lists()),
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: if sniper { 1.0 } else { 0.0 },
         pause_menu: None,
+    }
+}
+
+fn row(
+    vehicle: game_core::VehicleKind,
+    seat: char,
+    human: bool,
+    hp: Option<(u32, u32)>,
+    alive: bool,
+    is_player: bool,
+    spotted: bool,
+) -> super::team_list::TeamRow {
+    super::team_list::TeamRow { vehicle, seat, human, hp, alive, is_player, spotted }
+}
+
+/// The staged ears: a full 7v7 a few minutes in — one ally down, two enemies down, the rest
+/// of the enemy unseen but two, the player in seat A.
+pub(crate) fn demo_team_lists() -> super::team_list::TeamListsModel {
+    use game_core::VehicleKind as V;
+    super::team_list::TeamListsModel {
+        allies: vec![
+            row(V::T54_1951, 'A', true, Some((780, 1_000)), true, true, true),
+            row(V::IS3, 'B', false, Some((1_320, 1_500)), true, false, true),
+            row(V::Centurion, 'C', false, Some((410, 1_100)), true, false, true),
+            row(V::T34_85, 'D', false, Some((0, 700)), false, false, true),
+            row(V::TigerI, 'E', false, Some((900, 1_200)), true, false, true),
+            row(V::PantherII, 'F', false, Some((1_090, 1_200)), true, false, true),
+            row(V::Jagdtiger, 'G', false, Some((1_620, 1_800)), true, false, true),
+        ],
+        enemies: vec![
+            row(V::TigerII, 'A', false, Some((1_000, 1_500)), true, false, true),
+            row(V::T54_1951, 'B', false, None, true, false, false),
+            row(V::IS3, 'C', false, None, false, false, false),
+            row(V::PantherII, 'D', false, Some((600, 1_200)), true, false, true),
+            row(V::Jagdtiger, 'E', false, None, true, false, false),
+            row(V::Centurion, 'F', false, None, false, false, false),
+            row(V::T34_85, 'G', false, None, true, false, false),
+        ],
+    }
+}
+
+/// The busiest ears (`HudState::TeamListsMixed`): more dead, more withheld, one enemy wreck seen.
+pub(crate) fn mixed_team_lists() -> super::team_list::TeamListsModel {
+    use game_core::VehicleKind as V;
+    super::team_list::TeamListsModel {
+        allies: vec![
+            row(V::T54_1951, 'A', true, Some((210, 1_000)), true, true, true),
+            row(V::IS3, 'B', true, Some((0, 1_500)), false, false, true),
+            row(V::Centurion, 'C', false, Some((1_100, 1_100)), true, false, true),
+            row(V::T34_85, 'D', false, Some((0, 700)), false, false, true),
+            row(V::TigerI, 'E', false, Some((0, 1_200)), false, false, true),
+            row(V::PantherII, 'F', false, Some((830, 1_200)), true, false, true),
+            row(V::Jagdtiger, 'G', false, Some((0, 1_800)), false, false, true),
+        ],
+        enemies: vec![
+            row(V::TigerII, 'A', true, Some((0, 1_500)), false, false, true),
+            row(V::T54_1951, 'B', false, None, true, false, false),
+            row(V::IS3, 'C', false, None, false, false, false),
+            row(V::PantherII, 'D', false, Some((1_200, 1_200)), true, false, true),
+            row(V::Jagdtiger, 'E', false, None, false, false, false),
+            row(V::Centurion, 'F', false, None, true, false, false),
+            row(V::T34_85, 'G', false, None, true, false, false),
+        ],
     }
 }
 

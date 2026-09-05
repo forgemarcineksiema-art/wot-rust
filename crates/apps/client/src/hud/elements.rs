@@ -45,12 +45,50 @@ pub enum HudElement {
     SpotBrackets,
     /// Floating damage numbers and outcome words at the hit point.
     HitIndicator,
+    /// The top bar's plate (H1), and its parts: the clock under glass, the two frag counters
+    /// and the two team pools.
+    TopBar,
+    TopBarClock,
+    TopBarClockGlass,
+    TopBarAllyFrags,
+    TopBarEnemyFrags,
+    TopBarAllyPool,
+    TopBarEnemyPool,
+    /// The minimap's plate, its baked relief and the glass over it (H0); `Minimap` is the
+    /// vector overlay between them.
+    MinimapPlate,
+    MinimapRelief,
+    MinimapGlass,
+    /// One part of one team-list row (H2): `enemy` picks the ear, `index` the seat.
+    TeamRow {
+        enemy: bool,
+        index: u8,
+        part: TeamRowPart,
+    },
+}
+
+/// The parts of a team-list row, each its own element so the hit test and the census can name it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TeamRowPart {
+    /// The enamel strip the row sits on.
+    Strip,
+    /// The lamp hairline marking the player's own row.
+    Lamp,
+    /// The class glyph.
+    Class,
+    /// The vehicle's short name.
+    Name,
+    /// The seat letter.
+    Seat,
+    /// The hit-point bar.
+    Health,
 }
 
 impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
+    /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 20] = [
+    pub const ALL: [HudElement; 31] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -71,6 +109,19 @@ impl HudElement {
         HudElement::EnemyBars,
         HudElement::SpotBrackets,
         HudElement::HitIndicator,
+        HudElement::TopBar,
+        HudElement::TopBarClock,
+        HudElement::TopBarClockGlass,
+        HudElement::TopBarAllyFrags,
+        HudElement::TopBarEnemyFrags,
+        HudElement::TopBarAllyPool,
+        HudElement::TopBarEnemyPool,
+        HudElement::MinimapPlate,
+        HudElement::MinimapRelief,
+        HudElement::MinimapGlass,
+        // The row variant, named once by its first seat: the rows are keyed by seat and part,
+        // and the identity rule wants every variant walked at least by name.
+        HudElement::TeamRow { enemy: false, index: 0, part: TeamRowPart::Strip },
     ];
 }
 

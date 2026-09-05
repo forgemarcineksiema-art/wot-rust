@@ -629,6 +629,9 @@ impl ClientApp {
             );
             reticle.marker_color = self.reticle_marker_color;
         }
+        // H1/H2: the top bar and the team lists from the roster (W-1), the pools (W-2), the
+        // kills told (W-3) and the wrecks the snapshot shows — never from a guess.
+        let (top_bar, team_lists) = self.battle_intel_models();
         let hud_model = crate::hud::BattleHudModel {
             vitals,
             reticle,
@@ -654,6 +657,8 @@ impl ClientApp {
             minimap,
             battle_outcome: self.battle_outcome,
             battle_clock_remaining_s: self.session.battle_time_remaining_s(),
+            top_bar,
+            team_lists,
             kill_confirm_age_s: self.kill_confirm_age_s,
             reload_ready_age_s: self.reload_ready_age_s,
             fire_denied_age_s: self.fire_denied_age_s,
@@ -675,7 +680,7 @@ impl ClientApp {
             use ui_kit::draw_list::{Element, Payload};
             let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
             let theme = ui_kit::theme::Theme::standard();
-            let mut list = crate::hud::build_battle_hud_list(&hud_model, aspect);
+            let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
             let after = list.len() as i16;
             let world = ui_kit::rect::Rect::default();
             list.push(
@@ -715,6 +720,16 @@ impl ClientApp {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
+        // H0: the map's relief lives in the material sheet's reserved quarter — composed and
+        // uploaded once per battlefield, drawn as one quad every frame.
+        if std::mem::take(&mut self.hud_sheet_dirty) {
+            let sheet = ui_kit::sheet::with_minimap_bake(&self.minimap_static.relief_bake);
+            renderer.set_hud_material_sheet(
+                ui_kit::sheet::SHEET_SIZE,
+                ui_kit::sheet::SHEET_SIZE,
+                &sheet,
+            );
+        }
         renderer.set_outdoor_sky(weather.sky.0, weather.sky.1, weather.sky.2);
         renderer.set_scene_lighting(lighting);
         renderer.set_rain_intensity(weather.rain_intensity);

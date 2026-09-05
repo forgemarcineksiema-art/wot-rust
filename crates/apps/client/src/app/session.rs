@@ -135,7 +135,6 @@ impl BattleSessionKind {
     /// The battle's roster (protocol v51, W-1): every hull named, no position. The local host
     /// builds it from its board; the remote session keeps the one the host sent with the seat
     /// word (empty until it lands). The team lists (H2) and the top bar (H1) read it.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn roster(&self) -> Vec<net::RosterEntry> {
         match self {
             Self::Local(server) => server.roster(),

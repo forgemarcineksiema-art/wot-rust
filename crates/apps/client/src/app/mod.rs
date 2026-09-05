@@ -1,5 +1,6 @@
 mod audio_link;
 mod battle_intel;
+mod battle_lists;
 mod battle_scars;
 mod camera_link;
 #[cfg(test)]
@@ -21,7 +22,7 @@ mod live_cover;
 #[cfg(test)]
 mod live_cover_tests;
 mod loop_step;
-mod minimap_build;
+pub(crate) mod minimap_build;
 pub(crate) mod motion_fx;
 mod own_shot;
 #[cfg(test)]
@@ -365,6 +366,7 @@ impl ClientApp {
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         self.minimap_static = minimap;
+        self.hud_sheet_dirty = true;
         self.predictor.set_water(battlefield.water_field());
         self.camera_controller = BattleCameraController::new(Self::map_camera_settings(map));
         // The ground rule is per-map (roads, water, height stats, drainage). Before this
@@ -597,6 +599,9 @@ pub(crate) struct ClientApp {
     armor_breaches: engine::ArmorBreachStore,
     /// The field's kills and the team's relayed commands (protocol v51), off the reliable lane.
     intel: battle_intel::BattleIntel,
+    /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
+    /// with the map's relief bake and uploads it once.
+    hud_sheet_dirty: bool,
     frame_dt_history: std::collections::VecDeque<f32>,
     /// Reused scratch for the p95 selection — see `ClientApp::frame_p95_ms`.
     frame_p95_scratch: Vec<f32>,
@@ -888,6 +893,7 @@ impl ClientApp {
             fps_estimate: 0.0,
             armor_breaches: engine::ArmorBreachStore::default(),
             intel: battle_intel::BattleIntel::default(),
+            hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),
             minimap_static,

@@ -45,14 +45,17 @@ fn sample_relief(
 /// ONCE per battlefield. None of them change during a match; resampling and renormalising
 /// every rendered frame was pure waste (the audit's cheapest isolated win).
 #[derive(Debug, Clone, Default)]
-pub(super) struct MinimapStaticLayers {
+pub(crate) struct MinimapStaticLayers {
     pub relief: Vec<f32>,
     pub water: Vec<bool>,
     pub roads: Vec<Vec<[f32; 2]>>,
     pub cover: Vec<MinimapBox>,
+    /// The relief and the water painted once at `MINIMAP_BAKE_PX` square (H0): uploaded into
+    /// the material sheet's reserved quarter and drawn as ONE quad instead of 1 296.
+    pub relief_bake: Vec<u8>,
 }
 
-pub(super) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> MinimapStaticLayers {
+pub(crate) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> MinimapStaticLayers {
     let extent = battlefield.heightmap.extent_m();
     let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
     let (relief, water) = sample_relief(&battlefield.heightmap, extent_m, battlefield.water_view());
@@ -65,7 +68,64 @@ pub(super) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> Mi
             half_xz: [c.half_extents_m[0], c.half_extents_m[2]],
         })
         .collect();
-    MinimapStaticLayers { relief, water, roads, cover }
+    let relief_bake = bake_minimap_relief(battlefield);
+    MinimapStaticLayers { relief, water, roads, cover, relief_bake }
+}
+
+/// How strongly a slope facing the map's top-left lightens and the opposite darkens: a hint of
+/// hillshade so ridgelines read as ridges, kept gentle so the ramp still says height.
+const BAKE_SHADE_GAIN: f32 = 5.0;
+
+/// The minimap's relief and water as texels (H0): the heightmap sampled at the bake's own
+/// resolution — far finer than the 36-cell quad grid it replaces — normalised to the map's
+/// own range, on the same ramp the cells wore, water in the river blue, with a touch of
+/// hillshade. Row 0 is the map's far edge (+z), so the texture's v runs down the map as the
+/// quad's does. Opaque throughout: the map square is the plate's window.
+pub(crate) fn bake_minimap_relief(battlefield: &terrain::BattlefieldMap) -> Vec<u8> {
+    let n = ui_kit::sheet::MINIMAP_BAKE_PX as usize;
+    let extent = battlefield.heightmap.extent_m();
+    let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
+    let water = battlefield.water_view();
+    let mut heights = vec![0.0f32; n * n];
+    let mut wet = vec![false; n * n];
+    let (mut lo, mut hi) = (f32::MAX, f32::MIN);
+    for row in 0..n {
+        for col in 0..n {
+            let x = (col as f32 + 0.5) / n as f32 * extent_m[0];
+            let z = (1.0 - (row as f32 + 0.5) / n as f32) * extent_m[1];
+            let y = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+            heights[row * n + col] = y;
+            wet[row * n + col] = water.depth_at(y, x, z) > 0.05;
+            lo = lo.min(y);
+            hi = hi.max(y);
+        }
+    }
+    let range = (hi - lo).max(0.001);
+    let mut rgba = vec![0u8; n * n * 4];
+    for row in 0..n {
+        for col in 0..n {
+            let at = row * n + col;
+            let tint = if wet[at] {
+                // The river blue, opaque: the square is the plate's window, nothing shows through.
+                let water = crate::hud::minimap::WATER;
+                [water[0], water[1], water[2], 1.0]
+            } else {
+                let h = (heights[at] - lo) / range;
+                let left = heights[row * n + col.saturating_sub(1)];
+                let right = heights[row * n + (col + 1).min(n - 1)];
+                let up = heights[row.saturating_sub(1) * n + col];
+                let down = heights[(row + 1).min(n - 1) * n + col];
+                let slope = ((left - right) + (up - down)) / range;
+                let shade = (1.0 + BAKE_SHADE_GAIN * slope).clamp(0.72, 1.28);
+                let base = crate::hud::minimap::relief_tint(h);
+                [base[0] * shade, base[1] * shade, base[2] * shade, 1.0]
+            };
+            for (channel, value) in tint.iter().enumerate() {
+                rgba[at * 4 + channel] = (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+            }
+        }
+    }
+    rgba
 }
 
 impl ClientApp {
@@ -114,5 +174,24 @@ impl ClientApp {
             allies,
             enemies,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// H0: the bake is the reserved quarter's size, opaque, and not flat — the map's own relief
+    /// is in it. Baked from the shipped default map, the same document the goldens stage.
+    #[test]
+    fn the_relief_bake_fills_its_square_and_is_not_flat() {
+        let battlefield = map_forge::battlefield(terrain::MapId::default());
+        let bake = bake_minimap_relief(&battlefield);
+        let n = ui_kit::sheet::MINIMAP_BAKE_PX as usize;
+        assert_eq!(bake.len(), n * n * 4);
+        assert!(bake.chunks(4).all(|texel| texel[3] == 255), "opaque throughout");
+        let greens: Vec<u8> = bake.chunks(4).map(|texel| texel[1]).collect();
+        let (lo, hi) = greens.iter().fold((255u8, 0u8), |(lo, hi), g| (lo.min(*g), hi.max(*g)));
+        assert!(hi - lo > 40, "the relief reads: green spans {lo}..{hi}");
     }
 }

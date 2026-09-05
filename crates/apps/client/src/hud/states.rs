@@ -32,10 +32,13 @@ pub enum HudState {
     PauseMenu,
     /// The HUD editor open (H21) once it exists; today the frame where it would be.
     HudEditorOpen,
+    /// The ears at their busiest (H2): dead rows, withheld enemies, a spotted one, bots and
+    /// humans — and the clock in its last minute.
+    TeamListsMixed,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 11] = [
+    pub const ALL: [HudState; 12] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -47,6 +50,7 @@ impl HudState {
         HudState::OutcomeBanner,
         HudState::PauseMenu,
         HudState::HudEditorOpen,
+        HudState::TeamListsMixed,
     ];
 
     /// The golden's name stem.
@@ -63,6 +67,7 @@ impl HudState {
             HudState::OutcomeBanner => "outcome_banner",
             HudState::PauseMenu => "pause_menu",
             HudState::HudEditorOpen => "hud_editor_open",
+            HudState::TeamListsMixed => "team_lists_mixed",
         }
     }
 
@@ -115,6 +120,15 @@ impl HudState {
                 model.pause_menu = Some(super::pause_menu::PauseMenuModel { hovered: None });
             }
             HudState::HudEditorOpen => {}
+            HudState::TeamListsMixed => {
+                model.team_lists = Some(super::demo::mixed_team_lists());
+                model.top_bar = Some(super::top_bar::TopBarModel {
+                    frags: [4, 3],
+                    team_hit_points: [2_140, 3_050],
+                    team_hit_points_max: [7_450, 7_210],
+                });
+                model.battle_clock_remaining_s = Some(42.0);
+            }
         }
         model
     }
@@ -156,7 +170,10 @@ mod tests {
         let mut names = std::collections::HashSet::new();
         for state in HudState::ALL {
             assert!(names.insert(state.name()), "{state:?} shares a name");
-            let list = super::super::build_battle_hud_list(&state.model(), 16.0 / 9.0);
+            let list = super::super::build_battle_hud_list(
+                &state.model(),
+                &ui_kit::ui::Ui::for_aspect(16.0 / 9.0),
+            );
             assert!(!list.is_empty(), "{state:?} draws nothing");
         }
         assert!(HudState::Reloading.model().vitals.reload_remaining_s > 0.0);

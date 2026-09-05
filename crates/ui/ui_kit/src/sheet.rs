@@ -113,6 +113,33 @@ pub fn hud_material_sheet() -> (u32, u32, &'static [u8]) {
     (sheet.width(), sheet.height(), sheet.rgba())
 }
 
+/// The bake's side in texels: the reserved quarter is `MINIMAP_BAKE_PX` square.
+pub const MINIMAP_BAKE_PX: u32 = MINIMAP_REGION.2;
+
+/// The reserved quarter as sheet coordinates `[u0, v0, u1, v1]` — what `Payload::Image` draws.
+pub fn minimap_region_uv() -> [f32; 4] {
+    let (x, y, w, h) = MINIMAP_REGION;
+    let s = SHEET_SIZE as f32;
+    [x as f32 / s, y as f32 / s, (x + w) as f32 / s, (y + h) as f32 / s]
+}
+
+/// The sheet with a minimap bake (RGBA8, `MINIMAP_BAKE_PX` square, row-major) written into the
+/// reserved quarter and nothing else touched (H0). A bake of the wrong size leaves the quarter
+/// empty rather than tearing the sheet — the map then draws blank, which a golden catches.
+pub fn with_minimap_bake(bake_rgba: &[u8]) -> Vec<u8> {
+    let mut rgba = sheet().rgba().to_vec();
+    let (x0, y0, w, h) = MINIMAP_REGION;
+    if bake_rgba.len() != (w * h * 4) as usize {
+        return rgba;
+    }
+    for row in 0..h {
+        let src = (row * w * 4) as usize;
+        let dst = (((y0 + row) * SHEET_SIZE + x0) * 4) as usize;
+        rgba[dst..dst + (w * 4) as usize].copy_from_slice(&bake_rgba[src..src + (w * 4) as usize]);
+    }
+    rgba
+}
+
 fn generate() -> MaterialSheet {
     let size = SHEET_SIZE as usize;
     let mut rgba = vec![0u8; size * size * 4];
@@ -259,6 +286,30 @@ mod tests {
             "the sheet changed — its hash is {:#018x}; bless it deliberately",
             a.hash()
         );
+    }
+
+    /// H0: the bake lands in the reserved quarter and nowhere else; the wrong size is refused.
+    #[test]
+    fn the_bake_lands_in_the_reserved_quarter_and_nowhere_else() {
+        let bake = vec![0xAB_u8; (MINIMAP_BAKE_PX * MINIMAP_BAKE_PX * 4) as usize];
+        let composed = with_minimap_bake(&bake);
+        let plain = sheet();
+        let (x0, y0, w, h) = MINIMAP_REGION;
+        for y in 0..SHEET_SIZE {
+            for x in 0..SHEET_SIZE {
+                let at = ((y * SHEET_SIZE + x) * 4) as usize;
+                let inside = x >= x0 && x < x0 + w && y >= y0 && y < y0 + h;
+                let texel = [composed[at], composed[at + 1], composed[at + 2], composed[at + 3]];
+                if inside {
+                    assert_eq!(texel, [0xAB; 4], "the bake at ({x}, {y})");
+                } else {
+                    assert_eq!(texel, plain.texel(x, y), "an authored texel moved at ({x}, {y})");
+                }
+            }
+        }
+        assert_eq!(with_minimap_bake(&[1, 2, 3]), plain.rgba(), "a wrong-sized bake is refused");
+        let uv = minimap_region_uv();
+        assert!(uv[0] == 0.5 && uv[1] == 0.5 && uv[2] == 1.0 && uv[3] == 1.0);
     }
 
     #[test]
