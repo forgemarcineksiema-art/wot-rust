@@ -48,11 +48,11 @@ pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTo
 pub use parts_fittings::{
     exhaust_housing, fender_brackets, flap_ribs, periscope, periscope_guards, periscope_prism,
 };
+pub use parts_gun::gun_parts_for_blueprint;
 pub use parts_hull::{
     deck_grille, engine_deck_panels, hull_solid, lower_tub_solid, upper_hull_solid,
 };
 pub use parts_plates::{hull_plate_seams, transmission_covers};
-pub use parts_gun::gun_parts_for_blueprint;
 pub use parts_slab_hull::{slab_hull_parts, slab_hull_parts_for_blueprint};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{
