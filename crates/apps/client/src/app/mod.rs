@@ -434,6 +434,10 @@ pub(crate) struct InputState {
     left: bool,
     right: bool,
     brake: bool,
+    /// Cruise control (interface program H5, World of Tanks' R/F): a latched throttle level,
+    /// `-2..=3` — three forward steps, two in reverse, zero off. A held W/S overrides it for
+    /// the hold; the brake clears it.
+    cruise_level: i8,
     mouse_dx: f32,
     mouse_dy: f32,
     fire_pending: bool,

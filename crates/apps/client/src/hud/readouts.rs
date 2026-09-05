@@ -83,25 +83,6 @@ pub(crate) fn push_battle_readouts(
         );
     }
 
-    if model.speed_kmh >= 0.5 {
-        crate::hud::number::push_number(
-            vertices,
-            model.speed_kmh.round().clamp(0.0, 999.0) as u32,
-            -0.78,
-            -0.76,
-            0.065,
-            aspect,
-            crate::hud::number::SPEED_COLOR,
-        );
-        // Unit sits just right of the value's anchor, dimmer and a touch smaller for hierarchy.
-        crate::hud::font::push_text(
-            vertices,
-            crate::ui_strings::battle::SPEED_UNIT,
-            -0.765,
-            -0.764,
-            0.045,
-            aspect,
-            crate::hud::number::UNIT_COLOR,
-        );
-    }
+    // The speed lives in its own instrument (H5, `speed.rs`), beside the damage panel, with the
+    // cruise notches under it.
 }

@@ -190,8 +190,7 @@ pub(crate) fn role_letter(role: CrewRole) -> &'static str {
 }
 
 const PANEL_SIZE_U: [f32; 2] = [340.0, 132.0];
-/// Above the legacy speed readout, which H5 folds into its own instrument.
-const PANEL_OFFSET_U: [f32; 2] = [12.0, 100.0];
+const PANEL_OFFSET_U: [f32; 2] = [12.0, 12.0];
 const SILHOUETTE_W_U: f32 = 124.0;
 const HULL_H_U: f32 = 30.0;
 const TURRET_H_U: f32 = 24.0;

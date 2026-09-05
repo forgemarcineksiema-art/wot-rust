@@ -653,3 +653,45 @@ fn the_cursor_is_tracked_in_battle() {
     app.on_cursor_moved(320.0, 200.0);
     assert_eq!(app.cursor_px(), [320.0, 200.0]);
 }
+
+/// H5: cruise control latches the throttle — R climbs the ladder, a held W overrides it for the
+/// hold and hands it back, F steps down through zero into reverse, and the brake clears it.
+#[test]
+fn cruise_control_latches_the_throttle_until_the_brake() {
+    let mut app = in_battle();
+    assert_eq!(app.input.throttle(), 0.0);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    assert!((app.input.throttle() - 1.0 / 3.0).abs() < 1e-6, "one step forward");
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, true);
+    assert!((app.input.throttle() - 1.0 / 3.0).abs() < 1e-6, "a key repeat does not climb");
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    assert_eq!(app.input.throttle(), 1.0, "three steps is full throttle, and it stops there");
+    assert_eq!(app.input.cruise_level(), 3);
+    // A held S overrides the latch for the hold and hands it back on release.
+    app.on_key(PhysicalKey::Code(KeyCode::KeyS), true, false);
+    assert_eq!(app.input.throttle(), -1.0);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyS), false, false);
+    assert_eq!(app.input.throttle(), 1.0, "the latch survives a held override");
+    // F steps down through zero into reverse; the reverse ladder has two steps.
+    for _ in 0..4 {
+        app.on_key(PhysicalKey::Code(KeyCode::KeyF), true, false);
+        app.on_key(PhysicalKey::Code(KeyCode::KeyF), false, false);
+    }
+    assert_eq!(app.input.cruise_level(), -1);
+    assert!((app.input.throttle() + 0.5).abs() < 1e-6);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyF), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyF), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyF), true, false);
+    assert_eq!(app.input.cruise_level(), -2, "and stops there");
+    // The brake clears it.
+    app.on_key(PhysicalKey::Code(KeyCode::ControlLeft), true, false);
+    assert_eq!(app.input.throttle(), 0.0);
+    assert_eq!(app.input.cruise_level(), 0);
+    app.on_key(PhysicalKey::Code(KeyCode::ControlLeft), false, false);
+    assert_eq!(app.input.throttle(), 0.0, "and it stays clear after the brake lifts");
+}

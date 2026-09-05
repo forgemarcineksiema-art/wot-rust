@@ -94,8 +94,12 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyA | KeyCode::ArrowLeft) => self.input.left = pressed,
             PhysicalKey::Code(KeyCode::KeyD | KeyCode::ArrowRight) => self.input.right = pressed,
             PhysicalKey::Code(KeyCode::ControlLeft | KeyCode::ControlRight) => {
-                self.input.brake = pressed
+                self.input.set_brake(pressed)
             }
+            // H5, World of Tanks' cruise control: R steps the latched throttle up, F down; a
+            // key repeat must not climb the ladder on its own, so the edge alone counts.
+            PhysicalKey::Code(KeyCode::KeyR) if pressed => self.input.cruise_up(),
+            PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
             PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
                 if pressed {
                     self.begin_sniper_hold();

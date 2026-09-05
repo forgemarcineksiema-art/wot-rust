@@ -28,7 +28,6 @@ enum Hold {
 /// 2026-09-05 from the tree.
 const VERTEX_EQUALITY_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/app/garage/panels/stats.rs", 1, Hold::Burn),
-    ("crates/apps/client/src/hud/ammo_panel.rs", 4, Hold::Burn),
     ("crates/apps/client/src/hud/damage_log.rs", 2, Hold::Burn),
     ("crates/apps/client/src/hud/demo_strip.rs", 1, Hold::Held),
     ("crates/apps/client/src/hud/hit_direction.rs", 4, Hold::Burn),
@@ -54,7 +53,6 @@ const LEGACY_CALL_SITE_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/app/garage/panels/topbar.rs", 7, Hold::Burn),
     ("crates/apps/client/src/hit_indicator.rs", 1, Hold::Burn),
     ("crates/apps/client/src/hit_indicator/draw.rs", 20, Hold::Burn),
-    ("crates/apps/client/src/hud/ammo_panel.rs", 3, Hold::Burn),
     ("crates/apps/client/src/hud/damage_log.rs", 6, Hold::Burn),
     ("crates/apps/client/src/hud/demo_strip.rs", 2, Hold::Held),
     ("crates/apps/client/src/hud/health_bar.rs", 2, Hold::Burn),

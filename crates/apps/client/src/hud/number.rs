@@ -10,7 +10,6 @@ use crate::hud::theme::{color as theme, tagged};
 // readout carries a unique alpha tag (`theme::tagged`) because the HUD tests identify features
 // by exact vertex-color equality — shared RGB, distinct bytes.
 pub(crate) const FPS_COLOR: [f32; 4] = tagged(theme::READOUT_SOFT, 0.75);
-pub(crate) const SPEED_COLOR: [f32; 4] = tagged(theme::READOUT, 0.94);
 pub(crate) const HP_COLOR: [f32; 4] = tagged(theme::READOUT, 0.95);
 pub(crate) const RELOAD_TIME_COLOR: [f32; 4] = tagged(theme::ACCENT, 0.94);
 pub(crate) const TARGET_DISTANCE_COLOR: [f32; 4] = tagged(theme::READOUT, 0.93);

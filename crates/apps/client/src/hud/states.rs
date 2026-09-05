@@ -35,10 +35,12 @@ pub enum HudState {
     /// The ears at their busiest (H2): dead rows, withheld enemies, a spotted one, bots and
     /// humans — and the clock in its last minute.
     TeamListsMixed,
+    /// A round switch in flight (H6): the band over the panel, the reload restarted.
+    AmmoSwitching,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 12] = [
+    pub const ALL: [HudState; 13] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -51,6 +53,7 @@ impl HudState {
         HudState::PauseMenu,
         HudState::HudEditorOpen,
         HudState::TeamListsMixed,
+        HudState::AmmoSwitching,
     ];
 
     /// The golden's name stem.
@@ -68,6 +71,7 @@ impl HudState {
             HudState::PauseMenu => "pause_menu",
             HudState::HudEditorOpen => "hud_editor_open",
             HudState::TeamListsMixed => "team_lists_mixed",
+            HudState::AmmoSwitching => "ammo_switching",
         }
     }
 
@@ -120,6 +124,10 @@ impl HudState {
                     team_hit_points_max: [7_450, 7_210],
                 });
                 model.battle_clock_remaining_s = Some(42.0);
+            }
+            HudState::AmmoSwitching => {
+                model.ammo = Some(super::demo::demo_ammo(1));
+                model.vitals.reload_remaining_s = 5.1;
             }
         }
         model
