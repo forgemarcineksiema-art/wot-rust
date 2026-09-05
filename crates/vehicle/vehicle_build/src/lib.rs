@@ -30,7 +30,10 @@ mod t54_kit_lines;
 mod t54_turret_loft;
 
 pub use attachment::{SurfaceAttachment, t54_attachments};
-pub use description::VehicleDescription;
+pub use description::{
+    Fidelity, LodStrategy, VehicleDescription, description_for, description_for_modules,
+    description_from_blueprint,
+};
 pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,
 };

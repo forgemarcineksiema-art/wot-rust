@@ -67,12 +67,13 @@ pub fn compile_tank(request: TankCompileRequest) -> Result<CompiledTank, TankCom
         return Err(TankCompileError::DamageLayoutOutsideHitbox);
     }
 
-    // Modules -> geometry, for the whole fleet (Program C: un-T-54'd). The hybrid benchmark
-    // keeps its bespoke part-description path; every other vehicle bakes its recipe from a
-    // blueprint whose GUN is rescaled to the installed module, so a longer barrel is a longer
-    // silhouette everywhere, not just on the T-54.
-    let (mounts, baked_vehicle) = if request.vehicle == VehicleKind::T54_1951 {
-        let description = vehicle_build::t54_from_modules(&request.modules);
+    // Modules -> geometry, for the whole fleet (Program C: un-T-54'd; one rule since Forge 2.0
+    // K1). A vehicle the part library builds takes the loadout into its description; every
+    // other vehicle bakes its recipe from a blueprint whose GUN is rescaled to the installed
+    // module, so a longer barrel is a longer silhouette everywhere.
+    let (mounts, baked_vehicle) = if let Some(description) =
+        vehicle_build::description_for_modules(request.vehicle, &request.modules)
+    {
         (description.mounts, description.build_lod(request.profile.lod_level()))
     } else {
         let blueprint = game_core::VehicleBlueprint::for_vehicle(request.vehicle)

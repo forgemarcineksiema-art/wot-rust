@@ -21,8 +21,12 @@ use std::cell::Cell;
 
 use game_core::{HitboxProfile, MountFrames, VehicleBlueprint, VehicleKind};
 
+use vehicle_build::{
+    Fidelity, GeneratorKind, LodStrategy, PartKey, PartLod, PartShape, SurfaceBake,
+    VehicleDescription, VehiclePart,
+};
 use vehicle_geometry::{
-    BakeError, BakedVehicle, GeometryMesh, SmoothingGroup, Submesh, SubmeshKind,
+    BakeError, BakedVehicle, GeometryMesh, MaterialRole, SmoothingGroup, Submesh, SubmeshKind,
 };
 
 thread_local! {
@@ -101,6 +105,70 @@ pub fn bake_vehicle(kind: VehicleKind) -> Result<BakedVehicle, BakeError> {
     let hitbox = HitboxProfile::for_vehicle(kind);
     let mounts = MountFrames::for_vehicle(kind);
     recipe(kind, &hitbox, &mounts).ok_or(BakeError::MissingRecipe(kind))
+}
+
+/// The description the game ships for `kind` — ONE rule for the fleet (Forge 2.0 K1): the part
+/// library builds it when the blueprint carries a complete visual
+/// ([`vehicle_build::description_for`]); otherwise this crate's recipe is wrapped, submesh by
+/// submesh, as a `Sketch` description that reduces whole-mesh. Byte-exact against
+/// [`bake_vehicle`] for every sketch (`vehicle_forge/tests/seam_lock.rs`).
+pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
+    match vehicle_build::description_for(kind) {
+        Some(description) => Some(description),
+        None => bake_vehicle(kind).ok().map(recipe_description),
+    }
+}
+
+/// The fidelity `kind` ships at, without building it.
+pub fn describe_fidelity(kind: VehicleKind) -> Fidelity {
+    match VehicleBlueprint::for_vehicle(kind) {
+        Some(bp) if bp.complete_visual().is_some() => Fidelity::Benchmark,
+        _ => Fidelity::Sketch,
+    }
+}
+
+/// [`describe`] over a LIVE blueprint (the Studio's `--blueprint-file` fast loop).
+pub fn describe_from_blueprint(
+    blueprint: &VehicleBlueprint,
+) -> Result<VehicleDescription, BakeError> {
+    match vehicle_build::description_from_blueprint(blueprint) {
+        Some(description) => Ok(description),
+        None => bake_vehicle_from_blueprint(blueprint).map(recipe_description),
+    }
+}
+
+/// A recipe's three submeshes as three parts: what a description looks like before a vehicle
+/// has been built from the part library. The mesh is carried as-is (`PartShape::Mesh`), the
+/// surface bake is empty (the recipe already baked its contact cavities in `assemble`), and the
+/// LOD strategy is whole-mesh — the reduction the recipes always ran.
+fn recipe_description(baked: BakedVehicle) -> VehicleDescription {
+    let kind = baked.kind();
+    let mounts = *baked.mounts();
+    let parts = baked
+        .submeshes()
+        .iter()
+        .map(|submesh| VehiclePart {
+            key: PartKey::new(match submesh.kind {
+                SubmeshKind::Hull => "recipe_hull",
+                SubmeshKind::Turret => "recipe_turret",
+                SubmeshKind::Gun => "recipe_gun",
+            }),
+            submesh: submesh.kind,
+            material: MaterialRole::RolledArmor,
+            smoothing: SG_HARD,
+            shape: PartShape::Mesh(submesh.mesh.clone()),
+            lod: PartLod::Silhouette,
+            generator: GeneratorKind::Recipe,
+        })
+        .collect();
+    VehicleDescription {
+        kind,
+        parts,
+        mounts,
+        surface_bake: SurfaceBake::default(),
+        fidelity: Fidelity::Sketch,
+        lod: LodStrategy::WholeMesh,
+    }
 }
 
 /// Bake `kind` and reduce it to the requested LOD in one call.

@@ -15,7 +15,8 @@ use vehicle_geometry::{BakedVehicle, OPEN_OR_CLOSED_MESH, SubmeshKind};
 use vehicle_recipes::{VEHICLE_BUDGETS, golden_bake_hash};
 
 use crate::authoritative_baked_vehicle;
-use crate::mesh_source::{MeshSourceKind, mesh_source_kind};
+use crate::mesh_source::shipped_fidelity;
+use vehicle_build::Fidelity;
 
 use super::{ArtifactError, review_images, review_text};
 
@@ -76,7 +77,7 @@ impl StudioBundle {
 /// Bake `kind` through its authoritative mesh path and assemble the review bundle.
 pub fn bake_studio_bundle(kind: VehicleKind) -> Result<StudioBundle, ArtifactError> {
     let baked = authoritative_baked_vehicle(kind)?;
-    bundle_from_baked(kind, baked, mesh_source_kind(kind), None)
+    bundle_from_baked(kind, baked, shipped_fidelity(kind), None)
 }
 
 /// The fast loop: assemble the bundle from a LIVE blueprint (an edited RON parsed from disk,
@@ -87,18 +88,15 @@ pub fn bake_studio_bundle_from_blueprint(
     blueprint: &game_core::VehicleBlueprint,
 ) -> Result<StudioBundle, ArtifactError> {
     let kind = blueprint.kind;
-    let source = mesh_source_kind(kind);
-    let baked = match source {
-        MeshSourceKind::Hybrid => vehicle_build::t54_description_from_blueprint(blueprint).build(),
-        MeshSourceKind::Procedural => vehicle_recipes::bake_vehicle_from_blueprint(blueprint)?,
-    };
-    bundle_from_baked(kind, baked, source, Some(blueprint))
+    let description = vehicle_recipes::describe_from_blueprint(blueprint)?;
+    let source = description.fidelity;
+    bundle_from_baked(kind, description.build(), source, Some(blueprint))
 }
 
 fn bundle_from_baked(
     kind: VehicleKind,
     baked: BakedVehicle,
-    source: MeshSourceKind,
+    source: Fidelity,
     live: Option<&game_core::VehicleBlueprint>,
 ) -> Result<StudioBundle, ArtifactError> {
     let spec =
@@ -208,7 +206,7 @@ fn bake_contact_sheet(
 /// sources the gates read.
 fn build_report(
     kind: VehicleKind,
-    source: MeshSourceKind,
+    source: Fidelity,
     baked: &BakedVehicle,
     ratio_report: &crate::RatioReport,
     dimension_report: Option<&crate::DimensionReport>,
@@ -269,7 +267,7 @@ fn build_report(
     let total_verts =
         verts(SubmeshKind::Hull) + verts(SubmeshKind::Turret) + verts(SubmeshKind::Gun);
     let _ = writeln!(md, "## Budgets\n");
-    if source == MeshSourceKind::Hybrid {
+    if source == Fidelity::Benchmark {
         // Both axes, from the one place that answers which envelope governs this vehicle. The
         // report used to print triangles alone, which is exactly where the hybrid's uncapped
         // vertex count stayed invisible.
@@ -341,23 +339,23 @@ fn build_report(
     let hash = baked.deterministic_hash();
     let _ = writeln!(md, "\n## Determinism\n");
     match (source, golden_bake_hash(kind)) {
-        (MeshSourceKind::Hybrid, _) => {
+        (Fidelity::Benchmark, _) => {
             let _ = writeln!(
                 md,
                 "- production bake hash `{hash}` (hybrid source; procedural fleet golden does not apply)."
             );
         }
-        (MeshSourceKind::Procedural, Some(golden)) if golden == hash => {
+        (Fidelity::Sketch, Some(golden)) if golden == hash => {
             let _ = writeln!(md, "- bake hash `{hash}` MATCHES the recorded golden.");
         }
-        (MeshSourceKind::Procedural, Some(golden)) => {
+        (Fidelity::Sketch, Some(golden)) => {
             let _ = writeln!(
                 md,
                 "- bake hash `{hash}` DIFFERS from golden `{golden}` — the geometry changed. \
                  If intentional, re-record in `vehicle_recipes/src/budgets.rs`."
             );
         }
-        (MeshSourceKind::Procedural, None) => {
+        (Fidelity::Sketch, None) => {
             let _ = writeln!(md, "- bake hash `{hash}` (no golden recorded for this kind).");
         }
     }
@@ -392,7 +390,7 @@ fn build_report(
          re-bake from the embedded blueprint and confirm the two agree.",
         slug = kind.slug(),
     );
-    if source == MeshSourceKind::Hybrid {
+    if source == Fidelity::Benchmark {
         let _ = writeln!(
             md,
             "\nFast-loop caveat (hybrid source): RON edits to hull/turret/gun/track/armor \

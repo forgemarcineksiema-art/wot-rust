@@ -1,48 +1,42 @@
-//! The single authoritative mesh source, keyed by [`VehicleKind`].
+//! The single authoritative mesh source, keyed by [`VehicleKind`] — through ONE rule.
 //!
 //! Everything that renders or forges a vehicle — the client's live bake, the client's artifact
 //! validation, and [`crate::ForgeArtifact::bake`] — resolves its geometry here, so the garage, the
-//! battle, and the baked artifact can never describe different tanks. The migrated vehicle — the
-//! T-54, still the only one — returns its denser hybrid mesh (CAD plates + lofted castings +
-//! revolved parts, via [`vehicle_build`]); the other seven pass through to the lean procedural
-//! recipe ([`vehicle_recipes::bake_vehicle`]) until Forge 2.0 K3 builds them.
+//! battle, and the baked artifact can never describe different tanks.
 //!
-//! This is the seam that lets a vehicle move onto the hybrid pipeline without touching the renderer:
-//! the hybrid [`vehicle_build::VehicleDescription::build`] yields the same [`BakedVehicle`] the
-//! procedural path does, so the consumers do not know which source produced it.
+//! Until Forge 2.0 K1 this file was a `match` with one arm: `T54_1951 => Hybrid, _ =>
+//! Procedural`, and three other files (`cost.rs`, `production_bake.rs`, the studio) repeated the
+//! same fork. Now every vehicle is a [`vehicle_build::VehicleDescription`]: the part library
+//! builds the vehicles whose blueprint carries a complete visual, and the lean recipes are wrapped
+//! as descriptions for the rest ([`vehicle_recipes::describe`]). What a vehicle may cost and how
+//! it reduces are properties the DESCRIPTION declares (`fidelity`, `lod`), so nothing in this crate
+//! needs to know which vehicle it is holding. A vehicle migrates by gaining a complete visual in
+//! its blueprint — data — not by a new arm here.
 
 use game_core::VehicleKind;
+use vehicle_build::{Fidelity, VehicleDescription};
 use vehicle_geometry::{BakeError, BakedVehicle};
-use vehicle_recipes::bake_vehicle;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MeshSourceKind {
-    Procedural,
-    Hybrid,
+/// The description the game ships for `kind`.
+pub fn authoritative_description(kind: VehicleKind) -> Result<VehicleDescription, BakeError> {
+    vehicle_recipes::describe(kind).ok_or(BakeError::MissingRecipe(kind))
 }
 
-pub(crate) fn mesh_source_kind(kind: VehicleKind) -> MeshSourceKind {
-    match kind {
-        VehicleKind::T54_1951 => MeshSourceKind::Hybrid,
-        _ => MeshSourceKind::Procedural,
-    }
+/// Which cost envelope and golden regime `kind` lives under — read from its description, not
+/// from its name.
+pub fn shipped_fidelity(kind: VehicleKind) -> Fidelity {
+    vehicle_recipes::describe_fidelity(kind)
 }
 
 /// The full-detail (LOD0) baked geometry for `kind`, from whichever source owns that vehicle.
-///
-/// The T-54 is the hybrid benchmark and bakes through [`vehicle_build`] at its default loadout
-/// (matching the loadout-independent procedural path); every other vehicle bakes through the
-/// procedural recipe unchanged.
 pub fn authoritative_baked_vehicle(kind: VehicleKind) -> Result<BakedVehicle, BakeError> {
-    match mesh_source_kind(kind) {
-        MeshSourceKind::Hybrid => Ok(vehicle_build::t54_description().build()),
-        MeshSourceKind::Procedural => bake_vehicle(kind),
-    }
+    Ok(authoritative_description(kind)?.build())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vehicle_recipes::bake_vehicle;
 
     fn triangles(vehicle: &BakedVehicle) -> usize {
         vehicle.submeshes().iter().map(|submesh| submesh.mesh.triangle_count()).sum()
@@ -62,6 +56,7 @@ mod tests {
             triangles(&seam),
             triangles(&procedural)
         );
+        assert_eq!(shipped_fidelity(VehicleKind::T54_1951), Fidelity::Benchmark);
     }
 
     /// Every unmigrated vehicle passes straight through to the procedural mesh, byte for byte.
@@ -75,6 +70,7 @@ mod tests {
                 procedural.deterministic_hash(),
                 "{kind:?} must pass through the seam unchanged"
             );
+            assert_eq!(shipped_fidelity(kind), Fidelity::Sketch);
         }
     }
 }
