@@ -42,19 +42,21 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   hitbox/armor/visuals; a review workshop with measurable gates (Studio, dossiers, ratios);
   no clones. Finish is UNEVEN — the T-54 is the benchmark, others trail it.
 - **Presentation**: wgpu renderer (cascaded shadows, SSAO, HDR+bloom, weather + timeline,
-  water, grass, battle FX, fully procedural buildings/trees — no imported flora),
+  water, grass, battle FX, procedural buildings, trees as data — no imported tree models),
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD,
   frame-time p50/p95/p99 measurement backing the one-look budget.
-  **Drzewa 3.0 (2026-08-22, #620–#631): the homegrown SpeedTree** — every species grows a
-  Weber–Penn-style skeleton (pure data, LOD rungs filter one growth), bark swept under the
-  roundness law, cluster-card canopies cutting a wholly procedural SDF leaf atlas
-  (coverage-preserving mips), a true crossed-quad impostor splatted from the same bake, and
-  a three-level wind hierarchy (trunk cantilever / baked branch jitter / uv-gated leaf
-  flutter) whose shadow moves with it. Measured on the MX330 @ shipped 1×: worst probe view
-  11.2 ms of the 16.667 budget, two gated views (lineup + under-crown fill). Grown, not yet
-  rolled out: two of six species are placed inside the maps (`inny-poziom-program.md` F2);
-  the map-border backdrop ring stands on every species' impostor since F1 (2026-09-01),
-  mixed per map by `HorizonSpec::flora`.
+  **Trees (route 2, the owner's verdict 2026-09-02; `docs/map-forge-policy.md` rule 10):** a
+  species is DATA — a Sapling skeleton grown offline in Blender per LOD rung, leaf clusters
+  rendered there by Cycles, a CC0 bark tile with its licence beside it (`assets/flora/`),
+  everything embedded in the binary and hash-locked. **Living species: 4** (oak, poplar,
+  fruit tree, bush — `scene_build::LADDER_SPECIES`, pinned by the `quality` gate);
+  `Willow` (2026-09-03) and `Pine` (2026-09-04) keep their enum identity and are
+  never planted (`map_forge::RETIRED_KINDS`). The runtime is the Drzewa 3.0 one (2026-08-22,
+  #620–#631): the instanced LOD ladder with a true impostor, the three-level wind hierarchy
+  whose shadow moves with it, the honesty boxes. Since F7b (2026-09-04) every station rides
+  the ladder; the map-border backdrop ring stands on every species' impostor (F1, 2026-09-01),
+  mixed per map by `HorizonSpec::flora`. What the trees still owe — leaves 2.0 and LOD
+  continuity — is `inny-poziom-program.md` F10/F11.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
   snapshots (**wire v50** — the sprung hull's attitude velocities v50, breaches v39, `ShotFired` as a replicated fact v41, cook-off
   staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
@@ -71,7 +73,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 
 **PARTIAL** (works, known debt):
 - World close-range quality and authoring power: Cover 2.0, District/Scatter 2.0 — flora is
-  already procedural-only (F0 landed). Immersja (14 PRs, closed 2026-08-22: opening-scale
+  authored data on a procedural runtime (route 2). Immersja (14 PRs, closed 2026-08-22: opening-scale
   absolutes, town de-clone, horizon/backdrop rise, the camera riding the hull with recoil and
   tremor, engine-strain audio, the landmark rise #596) left only its optional tail (C3, A4.2).
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and

@@ -223,9 +223,9 @@ not history):
    description (one look: a dropped frame is a game bug, not a player problem).
 10. **Flora is procedural-only — AMENDED 2026-09-02 (route 2, the owner's call after the
     F7 frames: "the trees look tragic, nowhere near real models"): a tree may be DATA.**
-    The oak is: a Sapling Tree Gen skeleton grown in Blender 5.2 (`scripts/flora/bake_oak_tree.py`,
+    The oak is: a Sapling Tree Gen skeleton grown in Blender 5.2 (`scripts/flora/bake_tree.py`,
     exported per rung to `assets/flora/oak/tree_{near,mid}.bin`), eight leaf-cluster sprites
-    rendered by Cycles from in-house leaf geometry (`bake_oak_clusters.py` → the bottom half of
+    rendered by Cycles from in-house leaf geometry (`bake_clusters.py` → the bottom half of
     the foliage atlas), and a CC0 bark tile from Poly Haven (`assets/flora/bark/…/LICENSE.md`)
     projected triplanar onto every bark fragment. Everything embeds in the binary
     (`world_forge::tree::authored`) and every file is hash-locked; the runtime keeps the
