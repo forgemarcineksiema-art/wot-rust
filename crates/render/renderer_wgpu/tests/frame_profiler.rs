@@ -29,6 +29,7 @@ const EXPECTED: &[(&str, &str)] = &[
     ("Bloom", "bloom_pass"),
     ("Post", "post_pass"),
     ("Fxaa", "fxaa_pass"),
+    ("Hud", "hud_pass"),
 ];
 
 #[test]
@@ -157,7 +158,7 @@ fn the_profiler_reports_what_this_device_can_actually_do() {
                 "{}: timestamps without a tick period are unreadable",
                 info.name
             );
-            let (begin, end) = active.slots(PassId::Fxaa);
+            let (begin, end) = active.slots(PassId::Hud);
             assert_eq!(end, begin + 1, "each pass owns a begin/end pair");
             assert!(end < PassId::COUNT as u32 * 2, "the last pass must fit inside the query set");
         }

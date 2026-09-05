@@ -47,28 +47,52 @@ fn every_resource_a_pass_reads_is_written_earlier() {
     }
 }
 
-/// A frame produces exactly one picture, and it is the last thing it does. If two passes wrote the
-/// output, the one that ran second would be the frame and the other would be wasted work nobody
-/// could see.
+/// A frame produces exactly one picture. Its AUTHOR is the one pass that writes the output
+/// without reading it; anything after it that touches the output must read it first — a
+/// composite over the picture (the HUD), never a second picture thrown away. And the last pass
+/// encoded writes the output, so nothing the player sees is followed by work nobody could see.
 #[test]
-fn the_output_is_written_once_and_last() {
+fn the_output_has_one_author_and_only_composites_after_it() {
     for (ssao, bloom, refraction) in combinations() {
         let passes = enabled(ssao, bloom, refraction);
-        let writers: Vec<PassId> = passes
+        let touches = |node: &PassNode| {
+            node.writes.contains(&FrameResource::Output)
+                || node.reads.contains(&FrameResource::Output)
+        };
+        let authors: Vec<PassId> = passes
             .iter()
-            .filter(|node| node.writes.contains(&FrameResource::Output))
+            .filter(|node| {
+                node.writes.contains(&FrameResource::Output)
+                    && !node.reads.contains(&FrameResource::Output)
+            })
             .map(|node| node.id)
             .collect();
         assert_eq!(
-            writers.len(),
+            authors.len(),
             1,
-            "the output must have exactly one author (ssao={ssao}, bloom={bloom}, \
-             refraction={refraction}), found {writers:?}"
+            "the output must have exactly one author (ssao={ssao}, bloom={bloom},              refraction={refraction}), found {authors:?}"
         );
-        assert_eq!(
-            passes.last().expect("a frame encodes something").id,
-            writers[0],
-            "the pass that writes the output must be the last one encoded"
+        let author_at =
+            passes.iter().position(|node| node.id == authors[0]).expect("the author is a pass");
+        for node in &passes[..author_at] {
+            assert!(!touches(node), "{:?} touches the output before its author wrote it", node.id);
+        }
+        for node in &passes[author_at + 1..] {
+            if node.writes.contains(&FrameResource::Output) {
+                assert!(
+                    node.reads.contains(&FrameResource::Output),
+                    "{:?} overwrites the picture instead of compositing onto it",
+                    node.id
+                );
+            }
+        }
+        assert!(
+            passes
+                .last()
+                .expect("a frame encodes something")
+                .writes
+                .contains(&FrameResource::Output),
+            "the last pass encoded must write the output (ssao={ssao}, bloom={bloom},              refraction={refraction})"
         );
     }
 }
@@ -121,10 +145,11 @@ fn every_pass_touches_at_least_one_resource() {
 
 /// The shipped frame, spelled out. Canonical runs SSAO on, bloom off (the tier sets `bloom_mips`
 /// to zero) and refraction off (it needs multisampling, and the shipped count is 1x). This pins
-/// which eight passes a player's frame is actually made of — a fact that has, until now, only
-/// been discoverable by reading `render` top to bottom.
+/// which nine passes a player's frame is actually made of — a fact that has, until now, only
+/// been discoverable by reading `render` top to bottom. The ninth is the HUD's own pass
+/// (interface program F1).
 #[test]
-fn the_shipped_frame_is_these_eight_passes() {
+fn the_shipped_frame_is_these_nine_passes() {
     let shipped: Vec<PassId> = enabled(true, false, false).iter().map(|node| node.id).collect();
     assert_eq!(
         shipped,
@@ -137,6 +162,7 @@ fn the_shipped_frame_is_these_eight_passes() {
             PassId::Scene,
             PassId::Post,
             PassId::Fxaa,
+            PassId::Hud,
         ],
         "the shipped frame changed shape"
     );

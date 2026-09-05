@@ -219,6 +219,11 @@ struct Config {
     /// case, since every lit pass pays the per-fragment pool loop for a live slot whether or
     /// not the pool reaches the pixel.
     shot_lights: bool,
+    /// Interface program F1: the full battle HUD as `demo_battle_hud` stages it (sniper mode,
+    /// every panel), uploaded outside the timed frames. This row's delta against "full + 7v7"
+    /// is what the interface costs the frame, and `hud_pass` in the per-pass table is that cost
+    /// with a name — until this row existed no frame the probe timed had a HUD in it.
+    hud: bool,
 }
 
 impl Config {
@@ -234,6 +239,7 @@ impl Config {
             shadows: true,
             ssao: true,
             shot_lights: false,
+            hud: false,
         }
     }
 }
@@ -436,6 +442,7 @@ fn frame_time_capture() {
         Config { grass: false, ..Config::named("no near ring") },
         Config { fov: 18.0, ..Config::named("scope 18deg") },
         Config { fleet: Some(FleetGear::FromEye), ..Config::named("full + 7v7") },
+        Config { fleet: Some(FleetGear::FromEye), hud: true, ..Config::named("full + 7v7 + HUD") },
         Config {
             fleet: Some(FleetGear::FromEye),
             shot_lights: true,
@@ -448,7 +455,7 @@ fn frame_time_capture() {
     ];
     // The per-config arrays below are fixed-size, so a row added to the table without this
     // number moving would silently drop off the end of the report.
-    const CONFIGS: usize = 10;
+    const CONFIGS: usize = 11;
     assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
@@ -472,6 +479,10 @@ fn frame_time_capture() {
     // The ladder's per-tree rung memory, carried across the eye path like the battle carries
     // it: the hysteresis only exists between consecutive frames.
     let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
+    // The glyph atlas, bound once: the HUD row draws text and icons through it, and a HUD
+    // measured against a 1x1 placeholder would be a HUD that never fetched a glyph.
+    let (atlas_w, atlas_h, atlas) = client::hud_font_atlas();
+    renderer.set_hud_font_atlas(&ctx, atlas_w, atlas_h, atlas);
 
     for _ in 0..WARMUP {
         let camera = renderer_api::Camera {
@@ -520,6 +531,14 @@ fn frame_time_capture() {
                 }
             }
             renderer.scene_lighting = lighting;
+            // The interface (F1): the staged full battle HUD, or nothing. Set outside the timed
+            // frames like every other toggle; an empty upload clears the previous row's HUD.
+            let hud = if cfg.hud {
+                client::demo_battle_hud(true, width as f32 / height as f32)
+            } else {
+                Vec::new()
+            };
+            renderer.set_hud(&ctx, &hud);
             for block_frame in 0..(BLOCK_WARMUP + block_frames) {
                 // Every block walks the SAME eye path: configs are compared on identical
                 // content, and nothing that caches per-position flatters a moving camera.

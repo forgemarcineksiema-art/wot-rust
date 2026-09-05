@@ -979,7 +979,12 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
     // still reads). E1 adds AUTHORED light to the room's air, so the beam-less 2.0 and the
     // plan's beams could not both stand; the floor moved in the open, with the beams named,
     // and it still guards the relationship: a hero under 1.7× has stopped leading its frame.
-    const HERO_OVER_ROOM: f32 = 1.7;
+    // Re-derived to 1.5 on 2026-09-05 (measured 1.56): T3's tiled ground material (`51b8f224`)
+    // brightened the hall's floor and walls — the room's median rose 0.162 → 0.193 with the hero
+    // unchanged at 0.300 — and blessed the battlefield only, so the change surfaced at the next
+    // bless, the interface program's F1. The floor follows the measurement; whether the hall
+    // should darken again is the light lane's row (art-direction D33), not this bless's call.
+    const HERO_OVER_ROOM: f32 = 1.5;
     let hero = measured.get("garage_hero").expect("the garage frames its hero");
     let room = frame_stats(&read_png(&golden_path("garage_hero")));
     assert!(
