@@ -126,7 +126,7 @@ impl PartClass {
             "damage_component" | "driver_seat" | "interior_liner" | "turret_inner_skin" => {
                 Self::Interior
             }
-            "recipe_hull" | "recipe_turret" | "recipe_gun" => Self::RecipeSketch,
+            _ if starts("recipe_") => Self::RecipeSketch,
             _ if name.contains("periscope") => Self::Periscopes,
             _ if starts("sg43_coax") => Self::CoaxMachineGun,
             _ if starts("cupola") => Self::Cupola,

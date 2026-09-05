@@ -17,14 +17,32 @@ use vehicle_geometry::{
     MeshBuilder, ProfilePoint, RevolveSpec,
 };
 
-pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn tiger_i(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    let pieces = tiger_i_pieces(hitbox, mounts);
+    let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
+        revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
+    };
+    assemble(
+        VehicleKind::TigerI,
+        concat(pieces.hull),
+        concat(pieces.turret),
+        concat(pieces.gun),
+        pieces.mounts,
+    )
+}
+
+/// The Tiger I as the pieces its recipe is made of (Forge 2.0 K3): the slab hull, the deck
+/// with its guards and flaps, the hull details (stacks, spare links, visor, bow ball), the
+/// horseshoe turret with cupola, ring and mantlet socket, and the gun group. `tiger_i` is
+/// these concatenated in this order and welded — `shade_hull` is a per-vertex height shade,
+/// so shading the pieces or their concatenation is the same bake.
+pub(crate) fn tiger_i_pieces(_hitbox: &HitboxProfile, mounts: &MountFrames) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
-    let hull = shade_hull(
-        tiger_slab_hull(&bp.hull)
-            .append(&super::deck_details::tiger_i_deck(&bp))
-            .append(&tiger_hull_details(&bp.hull))
-            .build(),
-    );
+    let hull = vec![
+        ("recipe_hull_slab", shade_hull(tiger_slab_hull(&bp.hull).build())),
+        ("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp))),
+        ("recipe_hull_details", shade_hull(tiger_hull_details(&bp.hull))),
+    ];
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
@@ -64,7 +82,12 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
         },
     );
 
-    assemble(VehicleKind::TigerI, hull, turret, gun, *mounts)
+    super::RecipePieces {
+        hull,
+        turret: vec![("recipe_turret", turret)],
+        gun: vec![("recipe_gun", gun)],
+        mounts: *mounts,
+    }
 }
 
 /// The horseshoe: a vertical prism lofted from the turret's plan — a flat front plate (leaned

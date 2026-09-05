@@ -10,13 +10,18 @@
 
 use game_core::{CompleteVisual, TrackShape};
 use glam::Vec3;
-use vehicle_geometry::CavityBand;
+use vehicle_geometry::{CavityBand, SubmeshKind};
 
 /// A contact cavity tagged with the semantic signal it represents (for the Forge manifest summary).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NamedCavity {
     pub signal: &'static str,
     pub band: CavityBand,
+    /// The submesh this band shades, or every submesh when `None` (the part library's bands are
+    /// positional and reach whatever metal sits in the recess). A recipe's bands are authored per
+    /// submesh (`assemble` applies three sets), so a recipe split into pieces scopes each set —
+    /// otherwise a hull band would shade turret vertices standing in the same place (K3).
+    pub scope: Option<SubmeshKind>,
 }
 
 /// The set of contact cavities a vehicle bakes into its `surface_shade`.
@@ -29,6 +34,15 @@ impl SurfaceBake {
     /// The raw bands the geometry pass applies, in author order.
     pub fn bands(&self) -> Vec<CavityBand> {
         self.cavities.iter().map(|c| c.band).collect()
+    }
+
+    /// The bands that shade `submesh`: the unscoped ones and those scoped to it.
+    pub fn bands_for(&self, submesh: SubmeshKind) -> Vec<CavityBand> {
+        self.cavities
+            .iter()
+            .filter(|c| c.scope.is_none_or(|scope| scope == submesh))
+            .map(|c| c.band)
+            .collect()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -73,6 +87,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // a deep ambient shadow around the bottom of the casting and the roof under its skirt.
         NamedCavity {
             signal: "turret_ring_seam",
+            scope: None,
             band: CavityBand {
                 center: Vec3::new(0.0, v.turret.ring_plane_y, 0.0),
                 half_extents: Vec3::new(1.15, 0.06, 1.25),
@@ -86,6 +101,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // turret face on either side of an aperture less than half that wide.
         NamedCavity {
             signal: "mantlet_seat",
+            scope: None,
             band: CavityBand {
                 center: v.turret.socket_center,
                 half_extents: Vec3::new(0.23, 0.21, 0.14),
@@ -97,6 +113,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // on the whole hull in ambient light.
         NamedCavity {
             signal: "running_gear_recess",
+            scope: None,
             band: CavityBand {
                 center: Vec3::new(0.0, (track.top_y + track.bottom_y) * 0.5, 0.0),
                 half_extents: Vec3::new(track.outer_x + 0.10, 0.50, track.end_z + 0.35),
@@ -108,6 +125,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // the slats sits in deep shadow so the louver gaps read as a dark interior, not bright deck.
         NamedCavity {
             signal: "engine_grille",
+            scope: None,
             band: CavityBand {
                 center: Vec3::new(
                     v.detail.grille_center.x,
@@ -127,6 +145,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // not.
         NamedCavity {
             signal: "gun_bore",
+            scope: None,
             band: CavityBand {
                 center: muzzle - Vec3::Z * (v.gun.bore_radius * 1.6),
                 half_extents: Vec3::new(
@@ -141,6 +160,7 @@ pub fn t54_surface_bake(v: CompleteVisual<'_>, track: &TrackShape, muzzle: Vec3)
         // The glacis-to-roof weld line catches a thin contact shadow across the hull front.
         NamedCavity {
             signal: "glacis_weld",
+            scope: None,
             band: CavityBand {
                 // On the glacis/roof weld, which moves with the bow.
                 center: Vec3::new(0.0, v.hull.roof_y, v.hull.half_len - 1.05),
