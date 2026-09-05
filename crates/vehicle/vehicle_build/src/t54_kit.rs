@@ -104,7 +104,7 @@ fn mudguard_arches(fender: &FenderVisual, track: &TrackShape) -> Vec<VehiclePart
             // guard is smooth.
             if ribbed {
                 let (top, bottom) = (profile[5], profile[6]);
-                for (r, rib) in solid::t54_flap_ribs(
+                for (r, rib) in crate::flap_ribs(
                     side,
                     Vec2::new(sign * top.0, top.1),
                     Vec2::new(sign * bottom.0, bottom.1),

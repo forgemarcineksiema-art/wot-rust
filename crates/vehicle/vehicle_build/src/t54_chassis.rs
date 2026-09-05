@@ -20,7 +20,7 @@ use crate::t54_details::detail_plate;
 /// seam on the real plate join.
 pub fn t54_hull_plate_parts(v: CompleteVisual<'_>, front_deg: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
-    for (i, seam) in solid::t54_hull_plate_seams(v.hull, front_deg).into_iter().enumerate() {
+    for (i, seam) in crate::hull_plate_seams(v.hull, front_deg).into_iter().enumerate() {
         parts.push(detail_plate(
             PartKey::indexed("hull_plate_seam", i as u16),
             SubmeshKind::Hull,
@@ -28,7 +28,7 @@ pub fn t54_hull_plate_parts(v: CompleteVisual<'_>, front_deg: f32) -> Vec<Vehicl
             seam,
         ));
     }
-    for (i, cover) in solid::t54_transmission_covers(v.deck).into_iter().enumerate() {
+    for (i, cover) in crate::transmission_covers(v.deck).into_iter().enumerate() {
         parts.push(detail_plate(
             PartKey::indexed("transmission_cover", i as u16),
             SubmeshKind::Hull,

@@ -3186,7 +3186,6 @@ dependencies = [
 name = "solid"
 version = "0.1.0"
 dependencies = [
- "game_core",
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",

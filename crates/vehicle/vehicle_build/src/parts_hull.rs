@@ -1,16 +1,16 @@
-//! The T-54 hull and its appendage plates as convex solids — the CAD/B-rep arm of the hybrid kernel.
-//!
-//! Every dimension is read from the vehicle blueprint's [`HullVisual`] / [`BoxVisual`] /
-//! [`FenderVisual`]; the plate *slopes* are passed in from the blueprint's armour facets, so the
-//! visible rake of each facet is the same angle the penetration model uses — what you see is what
-//! you shoot.
+//! The fleet part library, hull: tub, upper hull, engine-deck panels and the louvred grille as
+//! convex solids. Moved out of the `solid` KERNEL (Forge 2.0 K2): a kernel knows planes, a part
+//! library knows what a hull is. Every dimension is read from the blueprint's [`HullVisual`] /
+//! [`BoxVisual`] / [`DetailVisual`]; the plate *slopes* are passed in from the blueprint's armour
+//! facets, so the visible rake of each facet is the same angle the penetration model uses — what
+//! you see is what you shoot. Grown on the T-54; any vehicle carrying these visuals builds here.
 
-use crate::chamfer;
-use crate::t54_fittings::chamfered_box;
 use game_core::{BoxVisual, DetailVisual, HullPlatesVisual, HullShape, HullVisual};
 use glam::Vec3;
+use solid::chamfer;
+use solid::chamfered_box;
 
-use crate::{ConvexSolid, Plane};
+use solid::{ConvexSolid, Plane};
 
 /// The stern's plane pair. With no knuckle the rear is the fleet's single plate: the upper-plate
 /// plane anchored so the hull's rearmost point sits at `anchor_y` (the caller's bottom edge), and
@@ -48,7 +48,7 @@ fn stern_planes(
 /// front is the steep upper glacis, sides rake inward, and rear rakes up — each at its blueprint
 /// armour angle. It overhangs the narrower lower tub, forming the sponson step over the tracks.
 /// An authored stern knuckle folds the rear into its upper-plate/undercut pair.
-pub fn t54_upper_hull(
+pub fn upper_hull_solid(
     h: &HullShape,
     p: &HullPlatesVisual,
     front_deg: f32,
@@ -77,7 +77,7 @@ pub fn t54_upper_hull(
 /// The narrow lower tub between the tracks: a convex solid from the belly to the sponson step, with
 /// vertical sides at the tub half-width, a raked rear (the stern undercut, where authored), and a
 /// lower nose plate that folds under the upper glacis at the blueprint fold line.
-pub fn t54_lower_tub(
+pub fn lower_tub_solid(
     h: &HullShape,
     p: &HullPlatesVisual,
     rear_deg: f32,
@@ -106,7 +106,7 @@ pub fn t54_lower_tub(
 /// The full hull as a convex solid: a block whose glacis, sloped sides and sloped rear carry the
 /// blueprint armour angles (degrees of the plate normal above horizontal), plus a lower nose bevel
 /// and — where authored — the stern's knuckle/undercut pair.
-pub fn t54_hull_solid(
+pub fn hull_solid(
     hull: &HullVisual,
     front_deg: f32,
     side_deg: f32,
@@ -134,7 +134,7 @@ pub fn t54_hull_solid(
 /// gaps, so the rear deck reads as bolted plates rather than one slab. Flat tops, hard edges — the
 /// CAD generator keeps the plate normals crisp. The split is visual only; the deck footprint is
 /// unchanged. Clean factory build: panel seams, not weld scars or weathering.
-pub fn t54_engine_deck_panels(deck: &BoxVisual) -> Vec<ConvexSolid> {
+pub fn engine_deck_panels(deck: &BoxVisual) -> Vec<ConvexSolid> {
     let panel_half_z = deck.half.z / 3.0 - 0.02;
     let half = Vec3::new(deck.half.x - 0.02, deck.half.y, panel_half_z);
     (-1..=1)
@@ -152,7 +152,7 @@ pub fn t54_engine_deck_panels(deck: &BoxVisual) -> Vec<ConvexSolid> {
 /// The louvered engine-deck grille: a raised frame around evenly spaced slats, over a shallow well
 /// (top a hair proud of `deck_top`) that the "engine_grille" surface bake drops into shadow — so the
 /// slat gaps read as a dark cooling intake, not the bright deck plate. All boxes, all hard-edged.
-pub fn t54_deck_grille(d: &DetailVisual, deck_top: f32) -> Vec<ConvexSolid> {
+pub fn deck_grille(d: &DetailVisual, deck_top: f32) -> Vec<ConvexSolid> {
     let (c, h) = (d.grille_center, d.grille_half);
     let rail = 0.04_f32;
     let depth = 0.12_f32;
@@ -241,7 +241,7 @@ mod tests {
     fn the_hull_solid_carries_the_armour_glacis_angle() {
         let bp =
             game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
-        let mesh = t54_hull_solid(
+        let mesh = hull_solid(
             &hull(),
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,

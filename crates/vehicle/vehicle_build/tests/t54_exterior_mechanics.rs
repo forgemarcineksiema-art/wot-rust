@@ -92,7 +92,7 @@ fn the_deck_grille_carries_raked_louvres() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
     let v = bp.complete_visual().expect("hybrid");
     let deck_top = v.deck.center.y + v.deck.half.y;
-    let solids = solid::t54_deck_grille(v.detail, deck_top);
+    let solids = vehicle_build::deck_grille(v.detail, deck_top);
 
     // Every slat plate must present a face whose normal has BOTH a vertical and a fore-aft
     // component — that is what a rake is, and an axis-aligned box has neither pair.

@@ -5,10 +5,8 @@
 //! boundary — perfect flat plates and exact armour angles, at a handful of triangles. The spike
 //! compares the two on the glacis. See `[[geometry-foundation-pivot]]` in project notes.
 
+mod chamfer_box;
 mod convex;
-mod t54;
-mod t54_fittings;
-mod t54_plates;
 mod validate;
 
 /// THE BEVEL LAW: chamfer widths by how the edge was made.
@@ -32,12 +30,5 @@ pub mod chamfer {
     pub const CAST: f32 = 0.020;
 }
 
+pub use chamfer_box::chamfered_box;
 pub use convex::{ConvexSolid, ConvexSolidError, Plane};
-pub use t54::{
-    t54_deck_grille, t54_engine_deck_panels, t54_hull_solid, t54_lower_tub, t54_upper_hull,
-};
-pub use t54_fittings::{
-    chamfered_box, t54_exhaust_housing, t54_fender_brackets, t54_flap_ribs, t54_periscope,
-    t54_periscope_guards, t54_periscope_prism,
-};
-pub use t54_plates::{t54_hull_plate_seams, t54_transmission_covers};

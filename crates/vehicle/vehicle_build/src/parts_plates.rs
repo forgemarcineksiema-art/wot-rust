@@ -5,13 +5,13 @@
 use game_core::{BoxVisual, HullVisual};
 use glam::Vec3;
 
-use crate::ConvexSolid;
+use solid::ConvexSolid;
 
 /// Weld seams articulating the main hull plates: a transverse bead where the upper glacis meets the
 /// roof. The join is recovered from the hull dimensions and the glacis slope (the single armour
 /// source) — the glacis plane `sin*y + cos*z = glacis_offset` intersected with the roof `y = roof_y`
 /// — so the bead sits exactly on the real plate join, not a guessed line.
-pub fn t54_hull_plate_seams(hull: &HullVisual, front_deg: f32) -> Vec<ConvexSolid> {
+pub fn hull_plate_seams(hull: &HullVisual, front_deg: f32) -> Vec<ConvexSolid> {
     let front = front_deg.to_radians();
     let z = (hull.glacis_offset - front.sin() * hull.roof_y) / front.cos();
     let bead = 0.02_f32;
@@ -24,7 +24,7 @@ pub fn t54_hull_plate_seams(hull: &HullVisual, front_deg: f32) -> Vec<ConvexSoli
 /// The bolt-on rear transmission access covers: two raised plates flanking the central engine-deck
 /// grille — the deck's transmission/engine access hatches. Derived from the deck box, raised proud of
 /// its top and kept clear of the grille so they read as separate covers.
-pub fn t54_transmission_covers(deck: &BoxVisual) -> Vec<ConvexSolid> {
+pub fn transmission_covers(deck: &BoxVisual) -> Vec<ConvexSolid> {
     let top = deck.center.y + deck.half.y;
     let half = Vec3::new(0.16, 0.03, deck.half.z * 0.72);
     [1.0_f32, -1.0]
@@ -53,7 +53,7 @@ mod tests {
             game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
         let v = visual();
         let hull = v.hull.expect("benchmark hull part");
-        let seams = t54_hull_plate_seams(&hull, bp.armor.hull_front.0);
+        let seams = hull_plate_seams(&hull, bp.armor.hull_front.0);
         assert!(!seams.is_empty(), "the hull carries a glacis-to-roof weld seam");
         let b = seams[0]
             .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
@@ -70,7 +70,7 @@ mod tests {
     fn the_transmission_covers_are_raised_plates_flanking_the_deck() {
         let v = visual();
         let deck = v.deck.expect("benchmark deck part");
-        let covers = t54_transmission_covers(&deck);
+        let covers = transmission_covers(&deck);
         assert_eq!(covers.len(), 2, "two flanking transmission covers");
         let deck_top = deck.center.y + deck.half.y;
         let mut sides = (false, false);

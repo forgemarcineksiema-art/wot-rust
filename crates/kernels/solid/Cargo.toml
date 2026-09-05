@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core.workspace = true
 glam.workspace = true
 thiserror.workspace = true
 vehicle_geometry.workspace = true

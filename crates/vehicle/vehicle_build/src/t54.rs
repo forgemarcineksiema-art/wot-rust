@@ -120,7 +120,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_lower_tub(
+        shape: PartShape::Plates(crate::lower_tub_solid(
             &bp.hull,
             v.hull_plates,
             bp.armor.hull_rear.0,
@@ -134,7 +134,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_upper_hull(
+        shape: PartShape::Plates(crate::upper_hull_solid(
             &bp.hull,
             v.hull_plates,
             bp.armor.hull_front.0,
@@ -262,7 +262,7 @@ pub fn t54_from_modules_with_blueprint(
     ));
     // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
     let deck_top = v.deck.center.y + v.deck.half.y;
-    for (i, panel) in solid::t54_engine_deck_panels(v.deck).into_iter().enumerate() {
+    for (i, panel) in crate::engine_deck_panels(v.deck).into_iter().enumerate() {
         parts.push(VehiclePart {
             key: PartKey::indexed("engine_deck_panel", i as u16),
             submesh: SubmeshKind::Hull,
