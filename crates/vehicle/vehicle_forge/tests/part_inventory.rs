@@ -71,7 +71,7 @@ fn a_sketch_carries_exactly_the_recipe_class() {
 fn the_tiger_carries_its_library_fittings_over_the_recipe() {
     let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerI).unwrap());
     assert!(!report.locked);
-    assert!(report.is_sketch(), "the recipe pieces still stand");
+    assert!(!report.is_sketch(), "step 4d: no recipe piece stands on the shipped Tiger");
     for class in [
         PartClass::Hatches,
         PartClass::Headlights,
@@ -86,13 +86,19 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
         PartClass::TurretShell,
         PartClass::TurretRing,
         PartClass::TurretStowage,
+        PartClass::EngineDeck,
+        PartClass::DeckGrille,
+        PartClass::Exhaust,
+        PartClass::SpareTracks,
+        PartClass::CourseMg,
+        PartClass::Periscopes,
     ] {
         assert!(report.carried.contains(&class), "{class:?} is the library's now");
         assert!(!report.missing.contains(&class));
     }
-    // What the recipe still owns after step 4b: the deck and the hull details (EngineDeck,
-    // DeckGrille, Exhaust, SpareTracks, CourseMg) — step 4d's.
-    assert!(report.missing.contains(&PartClass::EngineDeck), "the deck is still the recipe's");
+    // Still missing after step 4d: the classes no part authors yet — the stern plate's own
+    // furniture, weld seams, tow cables, the aerial, the suspension hardware.
+    assert!(report.missing.contains(&PartClass::TowCable), "the tow cables are still debt");
     println!("{}", report.summary_line());
 }
 

@@ -12,9 +12,10 @@ use std::fs;
 use std::path::Path;
 
 use game_core::VehicleKind;
-use vehicle_build::{Fidelity, t54_description};
+use vehicle_build::{Fidelity, VehicleDescription};
 use vehicle_forge::{
-    BakeProfile, authoritative_baked_vehicle, bake_production_vehicle, shipped_fidelity,
+    BakeProfile, authoritative_baked_vehicle, authoritative_description, bake_production_vehicle,
+    shipped_fidelity,
 };
 use vehicle_geometry::{LodLevel, reduce_vehicle};
 use vehicle_recipes::{bake_vehicle, golden_bake_hash, shipped_bake_hash};
@@ -23,6 +24,11 @@ use vehicle_recipes::{bake_vehicle, golden_bake_hash, shipped_bake_hash};
 /// the recipe golden for a pure sketch, its own row for the benchmark's library build and for a
 /// MIXED sketch (Forge 2.0 K3: recipe pieces with library parts riding on them). A construction
 /// PR re-records ONE vehicle with `cargo run -p tools -- bless --vehicle <slug>`.
+/// A benchmark's description — the part-aware LODs are its own.
+fn crate_description(kind: VehicleKind) -> VehicleDescription {
+    authoritative_description(kind).expect("a benchmark describes itself")
+}
+
 fn shipped_golden(kind: VehicleKind) -> u64 {
     shipped_bake_hash(kind).expect("every playable vehicle has a golden row")
 }
@@ -61,7 +67,7 @@ fn the_reduced_tiers_are_the_reductions_each_path_ran_before() {
             // a MIXED sketch's composed bake reduced whole-mesh (as the recipe did), a pure
             // sketch's recipe bake reduced whole-mesh.
             let before = match (shipped_fidelity(kind), is_mixed(kind)) {
-                (Fidelity::Benchmark, _) => t54_description().build_reduced_lod(level),
+                (Fidelity::Benchmark, _) => crate_description(kind).build_reduced_lod(level),
                 (Fidelity::Sketch, true) => {
                     reduce_vehicle(&authoritative_baked_vehicle(kind).expect("bakes"), level)
                 }
@@ -81,15 +87,15 @@ fn the_reduced_tiers_are_the_reductions_each_path_ran_before() {
 }
 
 #[test]
-fn exactly_one_vehicle_is_at_the_benchmark_fidelity_today() {
+fn exactly_two_vehicles_are_at_the_benchmark_fidelity_today() {
     let benchmarks: Vec<VehicleKind> = VehicleKind::PLAYABLE
         .into_iter()
         .filter(|kind| shipped_fidelity(*kind) == Fidelity::Benchmark)
         .collect();
     assert_eq!(
         benchmarks,
-        vec![VehicleKind::T54_1951],
-        "K3 moves this list, one vehicle at a time"
+        vec![VehicleKind::T54_1951, VehicleKind::TigerI],
+        "K3 moves this list, one vehicle at a time (the Tiger I joined 2026-09-06, step 4e)"
     );
 }
 

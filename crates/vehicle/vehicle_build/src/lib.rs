@@ -15,6 +15,7 @@ mod inventory;
 mod manifest;
 mod part;
 mod parts_fittings;
+mod parts_german_deck;
 mod parts_gun;
 mod parts_hull;
 mod parts_plates;
@@ -51,6 +52,7 @@ pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTo
 pub use parts_fittings::{
     exhaust_housing, fender_brackets, flap_ribs, periscope, periscope_guards, periscope_prism,
 };
+pub use parts_german_deck::{german_deck_parts, german_deck_parts_for_blueprint};
 pub use parts_gun::gun_parts_for_blueprint;
 pub use parts_hull::{
     deck_grille, engine_deck_panels, hull_solid, lower_tub_solid, upper_hull_solid,

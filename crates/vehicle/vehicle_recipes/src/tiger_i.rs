@@ -50,11 +50,15 @@ pub(crate) fn tiger_i_pieces(
             shade_hull(tiger_slab_hull(&bp.hull, bp.armor.hull_bow_shelf).build()),
         ));
     }
-    hull.push(("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))));
-    hull.push((
-        "recipe_hull_details",
-        shade_hull(tiger_hull_details(&bp.hull, bp.armor.hull_bow_shelf)),
-    ));
+    // The deck and the details are the library's when the visual file declares the slab
+    // construction (step 4d); the recipe keeps them for its own bake.
+    if !omit.deck {
+        hull.push(("recipe_hull_deck", shade_hull(super::deck_details::tiger_i_deck(&bp, omit))));
+        hull.push((
+            "recipe_hull_details",
+            shade_hull(tiger_hull_details(&bp.hull, bp.armor.hull_bow_shelf)),
+        ));
+    }
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
