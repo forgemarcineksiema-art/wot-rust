@@ -5,6 +5,10 @@
 
 use game_core::VehicleKind;
 use renderer_api::HudVertex;
+use ui_kit::draw_list::{DrawList, Element, Payload};
+use ui_kit::rect::Rect;
+
+use super::elements::GarageElement;
 
 use super::draft::FitSlot;
 use super::layout::*;
@@ -24,8 +28,15 @@ impl GarageState {
 }
 
 pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
+    build_list(state, aspect)
+        .emit(&ui_kit::ui::Ui::for_aspect(aspect), &ui_kit::theme::Theme::standard())
+}
+
+/// The overlay as a draw list (interface program F5): one element per panel in paint order,
+/// each carrying its legacy vertices verbatim; the G wave restyles them one by one.
+pub(super) fn build_list(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
     if !state.is_open() {
-        return Vec::new();
+        return DrawList::new();
     }
     match state.view() {
         GarageView::Hangar => build_hangar(state, aspect),
@@ -33,44 +44,71 @@ pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     }
 }
 
-fn build_hangar(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
-    let mut v = Vec::new();
+fn legacy(list: &mut DrawList<GarageElement>, id: GarageElement, vertices: Vec<HudVertex>) {
+    let z = list.len() as i16;
+    list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(z));
+}
+
+fn build_hangar(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
+    let mut list = DrawList::new();
     let spec = state.draft().assembled_spec();
+    let mut v = Vec::new();
     panels::topbar::draw(&mut v, state, aspect);
+    legacy(&mut list, GarageElement::TopBar, v);
+    let mut v = Vec::new();
     panels::nameplate::draw(&mut v, state, aspect);
+    legacy(&mut list, GarageElement::Nameplate, v);
+    let mut v = Vec::new();
     panels::crew::draw(&mut v, state, aspect);
+    legacy(&mut list, GarageElement::Crew, v);
+    let mut v = Vec::new();
     panels::stats::draw(&mut v, &spec, aspect);
+    legacy(&mut list, GarageElement::Stats, v);
+    let mut v = Vec::new();
     panels::loadout::draw(&mut v, state, aspect);
+    legacy(&mut list, GarageElement::Loadout, v);
+    let mut v = Vec::new();
     panels::carousel::draw(&mut v, state, aspect);
+    legacy(&mut list, GarageElement::Carousel, v);
 
     // The armor inspector's mm legend (R1): on screen exactly while the overlay it explains
     // is — a color ramp without its unit was a guess, not an instrument.
     if state.inspector_on() {
+        let mut v = Vec::new();
         panels::inspector_legend::draw(&mut v, aspect);
+        legacy(&mut list, GarageElement::InspectorLegend, v);
     }
 
     // The option list, if open, floats above the loadout strip on top of everything else.
     if let Some(slot) = state.option_list() {
+        let mut v = Vec::new();
         panels::options::draw(&mut v, state, slot, aspect);
+        legacy(&mut list, GarageElement::Options, v);
     }
 
     if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
+        let mut v = Vec::new();
         push_quad(&mut v, center, half, HOVER);
+        legacy(&mut list, GarageElement::Hover, v);
     }
 
-    v
+    list
 }
 
-fn build_tech_tree(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
+fn build_tech_tree(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
+    let mut list = DrawList::new();
     let mut v = Vec::new();
     panels::topbar::draw(&mut v, state, aspect);
-    panels::techtree::draw(state, aspect).into_iter().for_each(|vertex| v.push(vertex));
+    legacy(&mut list, GarageElement::TopBar, v);
+    legacy(&mut list, GarageElement::TechTree, panels::techtree::draw(state, aspect));
 
     if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
+        let mut v = Vec::new();
         push_quad(&mut v, center, half, HOVER);
+        legacy(&mut list, GarageElement::Hover, v);
     }
 
-    v
+    list
 }
 
 /// Map the element under the cursor to its rect so a hover highlight can be drawn.
@@ -433,5 +471,30 @@ mod tests {
         g.open_tech_tree();
         g.set_cursor(TECH_TREE_TAB_CENTER);
         assert_eq!(g.hit_test(false), GarageHit::CloseTechTree);
+    }
+}
+
+#[cfg(test)]
+mod list_tests {
+    use super::*;
+
+    #[test]
+    fn the_garage_list_emits_the_legacy_overlay_byte_for_byte_and_names_its_panels() {
+        let mut state = GarageState::default();
+        state.open();
+        let aspect = 16.0 / 9.0;
+        let list = build_list(&state, aspect);
+        let expected: Vec<HudVertex> = list
+            .iter()
+            .flat_map(|e| match &e.payload {
+                Payload::Legacy(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        assert_eq!(build(&state, aspect), expected);
+        for id in [GarageElement::TopBar, GarageElement::Stats, GarageElement::Carousel] {
+            assert!(list.find(id).is_some(), "{id:?} is a named element");
+        }
+        assert!(list.find(GarageElement::TechTree).is_none(), "the hangar shows no tree");
     }
 }

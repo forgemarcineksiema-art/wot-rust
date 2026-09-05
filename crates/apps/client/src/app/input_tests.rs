@@ -642,3 +642,14 @@ fn escape_before_the_first_battle_raises_no_modal() {
 
     assert!(app.pause_menu.is_none());
 }
+
+/// F5/F7: the cursor is tracked in battle too — the HUD editor and the command wheel read it —
+/// capture decides whether it is SEEN, never whether it is known.
+#[test]
+fn the_cursor_is_tracked_in_battle() {
+    let mut app = ClientApp::new();
+    app.garage.close_for_test();
+    assert!(app.pause_menu.is_none());
+    app.on_cursor_moved(320.0, 200.0);
+    assert_eq!(app.cursor_px(), [320.0, 200.0]);
+}

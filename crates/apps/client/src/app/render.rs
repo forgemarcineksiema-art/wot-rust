@@ -666,13 +666,40 @@ impl ClientApp {
         // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
         // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.
         let spectating = player_dead && self.battle_outcome.is_none();
-        let mut hud =
-            if spectating { Vec::new() } else { crate::hud::build_battle_hud(&hud_model, aspect) };
-        if !spectating {
-            hud.extend(enemy_bars);
-            hud.extend(spot_brackets);
-            hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
-        }
+        let hud = if spectating {
+            Vec::new()
+        } else {
+            // The draw list (interface program F5): every instrument by name, the world-anchored
+            // markers as the last three elements, one emitter. The context is the window's
+            // physical viewport at the user's scale (1.0 until settings land, P6).
+            use ui_kit::draw_list::{Element, Payload};
+            let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
+            let theme = ui_kit::theme::Theme::standard();
+            let mut list = crate::hud::build_battle_hud_list(&hud_model, aspect);
+            let after = list.len() as i16;
+            let world = ui_kit::rect::Rect::default();
+            list.push(
+                Element::new(crate::hud::HudElement::EnemyBars, world, Payload::Legacy(enemy_bars))
+                    .z(after),
+            );
+            list.push(
+                Element::new(
+                    crate::hud::HudElement::SpotBrackets,
+                    world,
+                    Payload::Legacy(spot_brackets),
+                )
+                .z(after + 1),
+            );
+            list.push(
+                Element::new(
+                    crate::hud::HudElement::HitIndicator,
+                    world,
+                    Payload::Legacy(self.hit_indicator.render_vertices(view_proj, aspect)),
+                )
+                .z(after + 2),
+            );
+            list.emit(&ui, &theme)
+        };
         // Reused scratch (recovered after `set_fx` below), so the ~1 MiB FX batch is not
         // reallocated every presented frame — the same pattern as the grass frame.
         let mut fx_live = std::mem::take(&mut self.fx_live_scratch);

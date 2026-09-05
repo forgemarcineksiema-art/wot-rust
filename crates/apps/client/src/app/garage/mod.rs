@@ -2,6 +2,7 @@ mod actions;
 mod camera;
 mod draft;
 mod drive_in;
+mod elements;
 mod layout;
 mod overlay;
 mod panels;
@@ -239,6 +240,12 @@ pub fn garage_overlay_option_list(
 }
 
 impl GarageState {
+    /// Closes the garage regardless of `started`: the battle-mode tests need the battle.
+    #[cfg(test)]
+    pub(super) fn close_for_test(&mut self) {
+        self.open = false;
+    }
+
     pub(super) fn is_open(&self) -> bool {
         self.open
     }
@@ -417,7 +424,6 @@ impl GarageState {
         }
         overlay::build(self, aspect)
     }
-
     pub(super) fn hit_test(&self, shift: bool) -> GarageHit {
         overlay::hit_test(self, shift)
     }

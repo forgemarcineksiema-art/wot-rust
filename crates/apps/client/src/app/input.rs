@@ -341,6 +341,9 @@ impl ClientApp {
 
     /// Map a window-pixel cursor position into clip space for the garage UI and the ESC modal.
     pub(super) fn on_cursor_moved(&mut self, x: f32, y: f32) {
+        // Tracked in every mode (interface program F5/F7): the HUD editor and the command
+        // wheel read the cursor in battle; capture decides visibility, not tracking.
+        self.cursor_px = [x, y];
         if !self.garage.is_open() && self.pause_menu.is_none() {
             return;
         }
@@ -352,6 +355,13 @@ impl ClientApp {
             return;
         }
         self.garage.set_cursor([clip_x, clip_y]);
+    }
+
+    /// The cursor's last position in physical pixels, in every mode. Read by the HUD editor
+    /// and the command wheel when they land (H21, H16); the lock reads it today.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn cursor_px(&self) -> [f32; 2] {
+        self.cursor_px
     }
 
     /// A left click while the ESC modal is up. Off both buttons it does nothing: a modal that

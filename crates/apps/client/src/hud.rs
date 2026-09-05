@@ -1,4 +1,6 @@
 use renderer_api::HudVertex;
+use ui_kit::draw_list::{DrawList, Element, Payload};
+use ui_kit::rect::Rect;
 
 use crate::hud::reticle::ReticleStatus;
 
@@ -6,6 +8,7 @@ pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod demo;
 pub(crate) mod demo_strip;
+pub(crate) mod elements;
 pub use ui_kit::font;
 pub(crate) mod health;
 pub(crate) mod health_bar;
@@ -31,6 +34,7 @@ pub use ui_kit::theme;
 pub(crate) mod crew_panel;
 pub(crate) mod track_callout;
 
+pub(crate) use elements::HudElement;
 pub(crate) use health::health_color;
 pub(crate) use outcome::BattleHudOutcome;
 #[cfg(test)]
@@ -128,8 +132,45 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
     )
 }
 
-/// Compatibility wrapper over `build_battle_hud` for the HUD test suite's positional call sites;
-/// production code passes a `BattleHudModel`.
+/// The model the HUD unit tests draw: everything off but the vitals and the reticle handed in.
+#[cfg(test)]
+pub(crate) fn test_model(
+    vitals: HudVitals,
+    reticle: Option<HudReticle>,
+    fps: f32,
+    speed_kmh: f32,
+    zoom_factor: Option<f32>,
+) -> BattleHudModel {
+    BattleHudModel {
+        vitals,
+        reticle,
+        fps,
+        frame_p95_ms: 0.0,
+        speed_kmh,
+        zoom_factor,
+        damage_log: Vec::new(),
+        track_feedback: Default::default(),
+        rack_fire_remaining_s: None,
+        incoming_hits: Vec::new(),
+        ammo: None,
+        modules: None,
+        crew: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        fire_denied_age_s: None,
+        // The positional test path has no camera; sniper mode implies a settled scope.
+        scope_fade: if reticle.is_some_and(|r| r.mode == reticle::ReticleMode::Sniper) {
+            1.0
+        } else {
+            0.0
+        },
+        pause_menu: None,
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn build_hud_with_reticle(
     vitals: HudVitals,
@@ -139,43 +180,13 @@ pub(crate) fn build_hud_with_reticle(
     speed_kmh: f32,
     zoom_factor: Option<f32>,
 ) -> Vec<HudVertex> {
-    build_battle_hud(
-        &BattleHudModel {
-            vitals,
-            reticle,
-            fps,
-            frame_p95_ms: 0.0,
-            speed_kmh,
-            zoom_factor,
-            damage_log: Vec::new(),
-            track_feedback: Default::default(),
-            rack_fire_remaining_s: None,
-            incoming_hits: Vec::new(),
-            ammo: None,
-            modules: None,
-            crew: None,
-            minimap: None,
-            battle_outcome: None,
-            battle_clock_remaining_s: None,
-            kill_confirm_age_s: None,
-            reload_ready_age_s: None,
-            fire_denied_age_s: None,
-            // The positional test path has no camera; sniper mode implies a settled scope.
-            scope_fade: if reticle.is_some_and(|r| r.mode == reticle::ReticleMode::Sniper) {
-                1.0
-            } else {
-                0.0
-            },
-            pause_menu: None,
-        },
-        aspect,
-    )
+    build_battle_hud(&test_model(vitals, reticle, fps, speed_kmh, zoom_factor), aspect)
 }
 
-pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
-    let mut vertices = Vec::new();
-
-    let reticle = model.reticle.unwrap_or(HudReticle {
+/// The reticle a frame draws when the model carries none: a neutral third-person marker at
+/// the centre, no verdict, no target — what the old builder hard-coded inline.
+pub(crate) fn default_reticle() -> HudReticle {
+    HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: None,
         gun_clip: None,
@@ -190,37 +201,62 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         converged: false,
         mode: crate::hud::reticle::ReticleMode::ThirdPerson,
         marker_color: reticle_overlay::RETICLE_NEUTRAL,
-    });
+    }
+}
+
+/// The battle HUD as a draw list (interface program F5): one element per instrument, in the
+/// order the old builder painted them, each carrying its legacy vertices verbatim. The H wave
+/// replaces payloads element by element; the reticle stack stays legacy (H25).
+pub(crate) fn build_battle_hud_list(model: &BattleHudModel, aspect: f32) -> DrawList<HudElement> {
+    let mut list = DrawList::new();
+    let mut order: i16 = 0;
+    let mut legacy = |list: &mut DrawList<HudElement>, id: HudElement, vertices: Vec<HudVertex>| {
+        list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(order));
+        order += 1;
+    };
+    let reticle = model.reticle.unwrap_or_else(default_reticle);
+
     // The scope surround paints first so every live marker (reticle, readouts) stays on top.
     // Fade-driven, not mode-driven: during the TPP <-> sniper camera blend the housing is
     // already irising in (or lifting away) while the logical mode has long since flipped.
     if model.scope_fade > 0.001 {
-        scope_overlay::push_scope_overlay(&mut vertices, aspect, model.scope_fade);
+        let mut v = Vec::new();
+        scope_overlay::push_scope_overlay(&mut v, aspect, model.scope_fade);
+        legacy(&mut list, HudElement::ScopeSurround, v);
     }
-    reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
+    {
+        let mut v = Vec::new();
+        reticle_overlay::push_reticle(&mut v, &reticle, aspect);
+        legacy(&mut list, HudElement::Reticle, v);
+    }
     if let Some(age_s) = model.reload_ready_age_s {
+        let mut v = Vec::new();
         reticle_marks::push_ready_ring(
-            &mut vertices,
+            &mut v,
             reticle.aim_clip,
             age_s,
             reticle.aim_radius_clip,
             aspect,
         );
+        legacy(&mut list, HudElement::ReadyRing, v);
     }
     if let Some(age_s) = model.fire_denied_age_s {
+        let mut v = Vec::new();
         reticle_marks::push_denied_flash(
-            &mut vertices,
+            &mut v,
             reticle.aim_clip,
             reticle.aim_radius_clip,
             age_s,
             aspect,
         );
+        legacy(&mut list, HudElement::DeniedFlash, v);
     }
     // The reload countdown lives AT the reticle with its arc — one loading display, where the
     // eye already is (the old bottom-center bar was a second, competing one).
     if model.vitals.reload_remaining_s > 0.05 {
+        let mut v = Vec::new();
         crate::hud::number::push_number(
-            &mut vertices,
+            &mut v,
             model.vitals.reload_remaining_s.ceil().clamp(0.0, 99.0) as u32,
             reticle.aim_clip[0] + 0.075,
             reticle.aim_clip[1] - 0.115,
@@ -228,39 +264,78 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
             aspect,
             crate::hud::number::RELOAD_TIME_COLOR,
         );
+        legacy(&mut list, HudElement::ReloadNumber, v);
     }
-
-    readouts::push_battle_readouts(&mut vertices, model, aspect);
-
-    damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
-    track_callout::push_track_callout(&mut vertices, &model.track_feedback, aspect);
-    rack_callout::push_rack_callout(&mut vertices, model.rack_fire_remaining_s, aspect);
-    hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
+    {
+        let mut v = Vec::new();
+        readouts::push_battle_readouts(&mut v, model, aspect);
+        legacy(&mut list, HudElement::Readouts, v);
+    }
+    {
+        let mut v = Vec::new();
+        damage_log::push_damage_log(&mut v, &model.damage_log, aspect);
+        legacy(&mut list, HudElement::DamageLog, v);
+    }
+    {
+        let mut v = Vec::new();
+        track_callout::push_track_callout(&mut v, &model.track_feedback, aspect);
+        legacy(&mut list, HudElement::TrackCallout, v);
+    }
+    {
+        let mut v = Vec::new();
+        rack_callout::push_rack_callout(&mut v, model.rack_fire_remaining_s, aspect);
+        legacy(&mut list, HudElement::RackCallout, v);
+    }
+    {
+        let mut v = Vec::new();
+        hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
+        legacy(&mut list, HudElement::HitDirection, v);
+    }
     if let Some(ammo) = &model.ammo {
-        ammo_panel::push_ammo_panel(&mut vertices, ammo, aspect);
+        let mut v = Vec::new();
+        ammo_panel::push_ammo_panel(&mut v, ammo, aspect);
+        legacy(&mut list, HudElement::AmmoPanel, v);
     }
     if let Some(modules) = &model.modules {
-        module_panel::push_module_panel(&mut vertices, modules, aspect);
+        let mut v = Vec::new();
+        module_panel::push_module_panel(&mut v, modules, aspect);
+        legacy(&mut list, HudElement::ModulePanel, v);
     }
     if let Some(crew) = &model.crew {
-        crew_panel::push_crew_panel(&mut vertices, crew, aspect);
+        let mut v = Vec::new();
+        crew_panel::push_crew_panel(&mut v, crew, aspect);
+        legacy(&mut list, HudElement::CrewPanel, v);
     }
     if let Some(map) = &model.minimap {
-        minimap::push_minimap(&mut vertices, map, aspect);
+        let mut v = Vec::new();
+        minimap::push_minimap(&mut v, map, aspect);
+        legacy(&mut list, HudElement::Minimap, v);
     }
     if let Some(outcome) = model.battle_outcome {
-        outcome::push_battle_outcome(&mut vertices, outcome, aspect);
+        let mut v = Vec::new();
+        outcome::push_battle_outcome(&mut v, outcome, aspect);
+        legacy(&mut list, HudElement::Outcome, v);
     }
     if let Some(age_s) = model.kill_confirm_age_s {
-        kill_marker::push_kill_confirm(&mut vertices, age_s, aspect);
+        let mut v = Vec::new();
+        kill_marker::push_kill_confirm(&mut v, age_s, aspect);
+        legacy(&mut list, HudElement::KillConfirm, v);
     }
     // Last, so the modal sits over every battle marker — including the outcome banner, which a
     // player can be reading when they reach for ESC.
     if let Some(menu) = &model.pause_menu {
-        pause_menu::push_pause_menu(&mut vertices, menu, aspect);
+        let mut v = Vec::new();
+        pause_menu::push_pause_menu(&mut v, menu, aspect);
+        legacy(&mut list, HudElement::PauseMenu, v);
     }
+    list
+}
 
-    vertices
+/// The battle HUD as vertices: the draw list through the one emitter. Byte-identical to the
+/// old builder (`the_draw_list_emits_the_legacy_hud_byte_for_byte`).
+pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
+    build_battle_hud_list(model, aspect)
+        .emit(&ui_kit::ui::Ui::for_aspect(aspect), &ui_kit::theme::Theme::standard())
 }
 
 #[cfg(test)]
