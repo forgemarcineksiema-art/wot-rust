@@ -78,6 +78,7 @@ impl super::SceneRenderer {
     /// is exactly the failure that froze every tank on screen once a 7v7 exceeded the old budget.
     pub fn set_vehicle_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
         self.armor_damage.upload(ctx, &frame.armor_damage);
+        self.vehicle_frame_has_damage = !frame.armor_damage.is_empty();
         self.collect_grass_crushers(frame);
         let capacity = buffer_instance_capacity(&self.vehicle_instances);
         frame_instances_into(&mut self.instance_scratch, frame);

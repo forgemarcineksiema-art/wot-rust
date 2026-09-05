@@ -479,7 +479,14 @@ impl super::SceneRenderer {
         }
         // The interior shell (Z6): the same draws once more with front faces culled, so a
         // breach shows the inside of the far wall instead of the running gear and the ground
-        // beyond it. Intact hulls collapse in `vs_interior` and cost no fragment.
+        // beyond it. Intact hulls collapse in `vs_interior` and cost no fragment — but they
+        // still cost every vertex, and a frame with NO damage at all (most of a match) was
+        // paying the whole fleet's vertex work a second time for an empty result. Every
+        // instance collapses exactly when the frame carries no armor damage, so that frame
+        // skips the shell outright; the image is byte-identical (nothing would have drawn).
+        if !self.vehicle_frame_has_damage {
+            return;
+        }
         pass.set_pipeline(&self.vehicle_interior_pipeline);
         for draw in &self.vehicle_draws {
             pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
