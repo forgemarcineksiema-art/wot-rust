@@ -19,6 +19,8 @@ mod parts_gun;
 mod parts_hull;
 mod parts_plates;
 mod parts_slab_hull;
+mod parts_welded_turret;
+pub mod smoothing;
 mod surface_bake;
 mod t54;
 mod t54_chassis;
@@ -31,6 +33,7 @@ mod t54_interior_detail;
 mod t54_kit;
 mod t54_kit_lines;
 mod t54_turret_loft;
+pub mod turret_fittings;
 
 pub use attachment::{SurfaceAttachment, t54_attachments};
 pub use description::{
@@ -54,6 +57,7 @@ pub use parts_hull::{
 };
 pub use parts_plates::{hull_plate_seams, transmission_covers};
 pub use parts_slab_hull::{slab_hull_parts, slab_hull_parts_for_blueprint};
+pub use parts_welded_turret::{welded_turret_parts, welded_turret_parts_for_blueprint};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{
     MEDIUM_LOD0_TRI_BUDGET, MEDIUM_LOD0_VERT_BUDGET, t54_description,

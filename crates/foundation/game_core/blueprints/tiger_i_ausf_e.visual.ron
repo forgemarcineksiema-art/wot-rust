@@ -52,6 +52,23 @@ VisualDetailFile(
         // (the tub, the upper box, the bow shelf's wedge), each face on its armour plane
         // (Forge 2.0 K3, step 4a); the recipe's own slab stays out.
         construction: Some(WeldedSlab),
+        // The horseshoe's proportions (the recipe's, lifted into data, step 4b): a 1.56 m flat
+        // front plate, cheeks opening to the full beam over 0.60 m, side walls to 0.30 m behind
+        // the ring, a two-facet bustle, and the Rommelkiste claiming the prism's last 0.21 m
+        // with its back face on the rear armour plane. The armour numbers stay in the blueprint.
+        welded_turret: Some(WeldedTurretVisual(
+            cheek_x: 0.78,
+            cheek_setback: 0.60,
+            wall_end_behind_ring: 0.30,
+            bustle: ((0.86, 0.32), (0.48, 0.08)),
+            bin_depth: 0.21,
+            bin_half_width: 0.80,
+            bin_half_height: 0.25,
+            bin_rise: 0.45,
+            ring_height: 0.13,
+            ring_segments: 14,
+            socket_segments: 12,
+        )),
         fender: Some(FenderVisual(
             side_x: 1.7285,
             center_y: 1.39,

@@ -7,7 +7,7 @@
 //! keeps the mount maths trivial and the fit tests honest.
 //!
 //! Shared shapes live in [`chassis`] (hulls, tracks, wheels), [`armament`] (guns), and
-//! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the [`soviet`] family module
+//! `vehicle_build::turret_fittings` (cupolas, mantlet sockets, cast domes — below the seam since step 4b); the [`soviet`] family module
 //! tunes those into the remaining legacy vehicles, while blueprint-born vehicles carry their
 //! own modules ([`tiger_i`], [`tiger_ii`], [`jagdtiger`], [`panther_ii`], [`is3`]).
 //!
@@ -78,7 +78,6 @@ mod t34_85;
 mod t54;
 mod tiger_i;
 mod tiger_ii;
-mod turret_fittings;
 
 pub use budgets::{
     BakeGolden, FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GearBudgets, VEHICLE_BUDGETS, VehicleBudgets,
@@ -90,7 +89,7 @@ pub(crate) use chassis::shade_hull;
 pub(crate) use chassis_blueprint::{blueprint_prism_hull, blueprint_skirts};
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
-pub(crate) use turret_fittings::{
+pub(crate) use vehicle_build::turret_fittings::{
     add_british_cupola, add_broad_mantlet_socket, add_commander_periscope, add_cupola,
     add_flush_ring_hatch, add_german_cast_cupola, add_mantlet_socket, add_oval_mantlet_socket,
     add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, cast_turret_shell,
@@ -124,11 +123,13 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     let blueprint = active_blueprint(kind);
     let slab = blueprint.as_ref().and_then(vehicle_build::slab_hull_parts_for_blueprint);
     let gun = blueprint.as_ref().and_then(vehicle_build::gun_parts_for_blueprint);
+    let turret = blueprint.as_ref().and_then(vehicle_build::welded_turret_parts_for_blueprint);
     let fittings = blueprint.as_ref().and_then(vehicle_build::fitting_parts_for_blueprint);
     let fenders = blueprint.as_ref().and_then(vehicle_build::fender_parts_for_blueprint);
     let omit = deck_details::DeckOmit {
         slab: slab.is_some(),
         gun: gun.is_some(),
+        turret: turret.is_some(),
         fittings: fittings.is_some(),
         guards: fenders.is_some(),
         guard_top_y: blueprint
@@ -140,6 +141,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
             let mut description = pieces_description(kind, pieces);
             description.parts.extend(slab.unwrap_or_default());
             description.parts.extend(gun.unwrap_or_default());
+            description.parts.extend(turret.unwrap_or_default());
             description.parts.extend(fittings.unwrap_or_default());
             description.parts.extend(fenders.unwrap_or_default());
             Some(description)
@@ -303,7 +305,6 @@ pub(crate) const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 pub(crate) const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 pub(crate) const SG_BARREL: SmoothingGroup = SmoothingGroup(4);
 pub(crate) const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
-pub(crate) const SG_RING: SmoothingGroup = SmoothingGroup(7);
 
 /// Assemble the three submeshes and mount frames into a baked vehicle. `turret_ring` doubles as
 /// the casemate frame for fixed-superstructure tank destroyers (their `turret` submesh simply

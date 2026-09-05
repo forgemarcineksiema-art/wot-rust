@@ -1,4 +1,6 @@
 //! Shared turret fittings: cupolas, turret rings, mantlet sockets, and the cast turret shell.
+//! Below the seam since 2026-09-05 (Forge 2.0 K3, step 4b): the part library's welded turret
+//! and the recipe fleet build the same fittings from one file.
 
 mod socket;
 
@@ -6,14 +8,14 @@ use glam::{Vec2, Vec3};
 
 use game_core::roundness::round_segments;
 
-use super::{SG_CAST, SG_CUPOLA, SG_HARD, SG_MANTLET, SG_RING};
+use crate::smoothing::{SG_CAST, SG_CUPOLA, SG_HARD, SG_MANTLET, SG_RING};
 use socket::oval_socket_mesh;
 use vehicle_geometry::{
     Axis, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
 };
 
 /// Append a small cupola (drum or domed) onto a turret roof.
-pub(crate) fn add_cupola(
+pub fn add_cupola(
     builder: MeshBuilder,
     x: f32,
     z: f32,
@@ -48,7 +50,7 @@ pub(crate) fn add_cupola(
 /// actually fits through (real outer ⌀ ~0.78 m), SEVEN periscope hoods around the crown, and a
 /// swing-aside lid with hinge lug and grab handle — replaces the cloned bare drum that was far
 /// too small for a human (model-logic audit #3/#12).
-pub(crate) fn add_german_cast_cupola(
+pub fn add_german_cast_cupola(
     builder: MeshBuilder,
     x: f32,
     z: f32,
@@ -120,7 +122,7 @@ pub(crate) fn add_german_cast_cupola(
 /// The T-34-85 commander's cupola: a ⌀0.6 m drum with a ring of VISION SLITS around the upper
 /// band and a SPLIT two-piece lid (centre seam, hinges both sides) — the MK-4-era Soviet read,
 /// distinct from the German periscope crown.
-pub(crate) fn add_soviet_slit_cupola(
+pub fn add_soviet_slit_cupola(
     builder: MeshBuilder,
     x: f32,
     z: f32,
@@ -184,7 +186,7 @@ pub(crate) fn add_soviet_slit_cupola(
 /// A flush round roof hatch: a low seating ring with a slightly domed lid, hinge lug, and grab
 /// handle. The IS-3's dome roof carries TWO of these instead of a raised cupola (the real IS-3
 /// has none) — also the family loader's hatch.
-pub(crate) fn add_flush_ring_hatch(
+pub fn add_flush_ring_hatch(
     builder: MeshBuilder,
     x: f32,
     z: f32,
@@ -239,7 +241,7 @@ pub(crate) fn add_flush_ring_hatch(
 /// cast cupola's crown of seven (`add_german_cast_cupola`) is the fleet's only such set. A
 /// radial face needs a rotated plate, which `plate_box` cannot express; that wants a kernel
 /// primitive, and it comes with the part that needs it rather than ahead of it.
-pub(crate) fn vision_prism(
+pub fn vision_prism(
     builder: MeshBuilder,
     hood_center: Vec3,
     hood_half: Vec3,
@@ -255,7 +257,7 @@ pub(crate) fn vision_prism(
     )
 }
 
-pub(crate) fn add_commander_periscope(builder: MeshBuilder, x: f32, z: f32, y: f32) -> MeshBuilder {
+pub fn add_commander_periscope(builder: MeshBuilder, x: f32, z: f32, y: f32) -> MeshBuilder {
     let hood_center = Vec3::new(x, y + 0.045, z);
     let hood_half = Vec3::new(0.055, 0.045, 0.055);
     let b = builder
@@ -272,7 +274,7 @@ pub(crate) fn add_commander_periscope(builder: MeshBuilder, x: f32, z: f32, y: f
 
 /// The British commander's cupola (Centurion Mk 3): a wide drum (real outer ⌀ ~0.75 m) with a
 /// pair of forward sight hoods and a TWO-PIECE lid split fore/aft — its own nation's read.
-pub(crate) fn add_british_cupola(
+pub fn add_british_cupola(
     builder: MeshBuilder,
     x: f32,
     z: f32,
@@ -342,7 +344,7 @@ pub(crate) fn add_british_cupola(
 
 /// Append a low visible collar around the turret ring so the rotating submesh reads as seated in
 /// the hull deck rather than merely touching it at a mathematical plane.
-pub(crate) fn add_turret_ring(
+pub fn add_turret_ring(
     builder: MeshBuilder,
     center_z: f32,
     base_y: f32,
@@ -367,7 +369,7 @@ pub(crate) fn add_turret_ring(
 
 /// Append a fixed socket on the turret/casemate face behind the elevating mantlet. The moving
 /// mantlet still lives in the gun submesh, but this collar keeps the joint visually anchored.
-pub(crate) fn add_mantlet_socket(
+pub fn add_mantlet_socket(
     builder: MeshBuilder,
     axis_y: f32,
     mantlet: Option<(f32, f32, f32)>,
@@ -378,7 +380,7 @@ pub(crate) fn add_mantlet_socket(
 
 /// Append a wider fixed socket for broad cast Soviet turret fronts where a small collar reads like
 /// a detached ball rather than an integrated mantlet seat.
-pub(crate) fn add_broad_mantlet_socket(
+pub fn add_broad_mantlet_socket(
     builder: MeshBuilder,
     axis_y: f32,
     mantlet: Option<(f32, f32, f32)>,
@@ -387,7 +389,7 @@ pub(crate) fn add_broad_mantlet_socket(
     add_mantlet_socket_with_profile(builder, axis_y, mantlet, segments, 1.40, 1.18)
 }
 
-pub(crate) fn add_t54_mantlet_socket(
+pub fn add_t54_mantlet_socket(
     builder: MeshBuilder,
     axis_y: f32,
     mantlet: Option<(f32, f32, f32)>,
@@ -399,7 +401,7 @@ pub(crate) fn add_t54_mantlet_socket(
 /// A broad OVAL socket band on the turret face — shared construction for the wide mantlet
 /// masks (the T-54's cast mask, the Tiger II's Turmblende band); each vehicle passes its own
 /// width/height scales, so the family rhymes in build but not in shape (audit #6).
-pub(crate) fn add_oval_mantlet_socket(
+pub fn add_oval_mantlet_socket(
     builder: MeshBuilder,
     axis_y: f32,
     mantlet: Option<(f32, f32, f32)>,
@@ -461,7 +463,7 @@ fn add_mantlet_socket_with_profile(
 /// `half_length` sets the fore/aft reach (the front overhang is a touch longer than the rear
 /// bustle); `half_width` the beam at the shoulder; `roof_radius` the small roof ring the cupola and
 /// hatches sit on.
-pub(crate) fn cast_turret_shell(
+pub fn cast_turret_shell(
     center_z: f32,
     half_width: f32,
     half_length: f32,

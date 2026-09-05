@@ -422,6 +422,31 @@ pub struct VisualDetail {
     /// recipe's extrusions. `None` keeps whatever the vehicle's path draws. Appended 2026-09-05.
     #[serde(default)]
     pub construction: Option<HullConstruction>,
+    /// The welded box turret's proportions, when the library builds it (Forge 2.0 K3, step 4b):
+    /// the armour numbers (`TurretShape`: plan half-width/length, ring, roof, slopes, cupola)
+    /// stay in the blueprint; this is only where the horseshoe bends. Appended 2026-09-05.
+    #[serde(default)]
+    pub welded_turret: Option<WeldedTurretVisual>,
+}
+
+/// The horseshoe's plan, relative to the blueprint's turret: the flat front plate spans
+/// `±cheek_x`, the cheeks open to `plan_half_width` over `cheek_setback`, the side walls run to
+/// `wall_end_behind_ring` behind the ring centre, the bustle bends through two facets (x, z above
+/// the bin's front face) to the centreline, and the stowage bin claims the last `bin_depth` of
+/// the armour prism, its back face ON the rear armour plane.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WeldedTurretVisual {
+    pub cheek_x: f32,
+    pub cheek_setback: f32,
+    pub wall_end_behind_ring: f32,
+    pub bustle: [(f32, f32); 2],
+    pub bin_depth: f32,
+    pub bin_half_width: f32,
+    pub bin_half_height: f32,
+    pub bin_rise: f32,
+    pub ring_height: f32,
+    pub ring_segments: u8,
+    pub socket_segments: u8,
 }
 
 /// Hull constructions the part library builds from a blueprint alone. Append-only.

@@ -80,8 +80,8 @@ pub use vehicle_blueprint::{
     FenderVisual, FittingsVisual, GlacisPort, GunShape, GunVisual, HullConstruction,
     HullPlatesVisual, HullShape, HullVisual, LoftStation, MuzzleBrakeVisual, ShoePattern,
     SkirtShape, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
-    TurretVisual, VehicleBlueprint, VisualDetail, VisualDetailFile, WheelFace, lint,
-    parse_blueprint, parse_visual_detail,
+    TurretVisual, VehicleBlueprint, VisualDetail, VisualDetailFile, WeldedTurretVisual, WheelFace,
+    lint, parse_blueprint, parse_visual_detail,
 };
 pub use vehicle_kind::{Nation, VehicleClass, VehicleKind, tier_roman};
 pub use vehicles::known_tank_specs;
