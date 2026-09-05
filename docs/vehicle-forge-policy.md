@@ -221,17 +221,25 @@ and its machine-checked targets land *before* the PR that edits the blueprint RO
 
 ## Milestones
 
-Status 2026-08-03: milestones 0–6 are **done**, 7 is **partial**, 8 is **in progress** through
-the W4 fleet slot (below).
+Status 2026-09-05 (Forge 2.0, K7): milestones 0–2, 5 and 6 are **done**; 3 and 4 are **done
+for the geometry, open for UVs and bakes** (K6); 7 is **partial**; 8 has **not started as a
+migration** — no vehicle beyond the T-54 routes through `vehicle_build` (`mesh_source.rs`
+hard-codes one hybrid kind), and the line below read "in progress" from 2026-08-03 with zero
+migrated. What the fleet has is the blueprint cage and the W4 fleet slot (below). The migration
+is Forge 2.0: `inny-poziom-program.md` K1 → K2 → K3.
 
 0. **Lock the philosophy** — this document; benchmark and baseline chosen. *(done)*
 1. **Reference pack and ratio tests** — `ReferencePack` for T-54, photo-derived ratio tests.
    *(done)*
 2. **Semantic part graph** — move T-54 from flat constants to a `ForgePartGraph`. *(done)*
 3. **Geometry operators for real tank forms** — plate/loft/cast-shell/track-belt/wheel-train, UVs,
-   tangents. *(done)*
+   tangents. *(operators done; UVs are authored by ONE kernel — `solid`'s convex block,
+   `solid/convex.rs` — and every other kernel output is triplanar with no chart; tangents follow
+   the same split. K6)*
 4. **PBR-lite vehicle pipeline** — `VehicleVertex`, material textures, normal/AO maps, shader path,
-   screenshot regression. *(done)*
+   screenshot regression. *(pipeline done; the normal/AO "maps" are per-role synthesised noise —
+   `vehicle_forge/src/artifact/material_synthesis.rs`, tuned to invisibility — and the only baked
+   AO is the T-54's contact pass; there is no per-part normal/AO bake. K6)*
 5. **Bake artifact and toolchain** — Forge CLI writes artifact folders; client loads baked assets.
    *(done)*
 6. **First production benchmark** — T-54 with LOD0/1/2, full screenshot set, passing ratio/
@@ -239,8 +247,9 @@ the W4 fleet slot (below).
    dimensional deviations; see the lessons below)*
 7. **Runtime variation** — decals, dirt/camo, equipment, damage and track state. *(partial)*
 8. **Migrate other vehicles** — Jagdtiger, Tiger I, Tiger II, then Panther II after an explicit
-   interpretation decision. *(in progress — the whole fleet is blueprint-born and caged; per-vehicle
-   visual authoring runs through the fleet slot)*
+   interpretation decision. *(NOT started — no vehicle has migrated since 2026-08-03; the whole
+   fleet is blueprint-born and caged on the procedural recipe, and per-vehicle visual authoring
+   runs through the fleet slot. Forge 2.0 K3, after K1/K2 open the seam)*
 
 Each migrated vehicle must arrive with a `ReferencePack`, part graph, ratio tests, LODs, screenshot
 review, and a baked material set.

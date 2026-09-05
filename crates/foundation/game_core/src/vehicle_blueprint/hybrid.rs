@@ -2,8 +2,10 @@
 //!
 //! The flat [`VehicleBlueprint`](super::VehicleBlueprint) fields carry the gameplay shape (hitbox,
 //! mounts, armour slopes). [`VisualDetail`] carries everything the hybrid mesh generators
-//! (`solid`, `sdf_mesh`, `revolve`) need on top of that — the convex hull block, the cast-turret SDF
-//! composition, the barrel and mantlet profiles, the engine deck, the fenders, and the running gear.
+//! (`solid`, `cast_loft`, `panel`, `revolve`, `sweep`) need on top of that — the convex hull block,
+//! the cast-turret loft stations and the machined seat they sit on, the barrel and mantlet profiles,
+//! the engine deck, the fenders, and the running gear. (The metaball `sdf_mesh` composition was
+//! deleted 2026-08-02; `TurretVisual` keeps the four numbers that survived it.)
 //!
 //! These types live here, in the lowest crate, so the generators read one source of truth rather
 //! than each holding its own copy of a dimension. A generator takes the relevant sub-struct by
