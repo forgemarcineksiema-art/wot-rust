@@ -237,7 +237,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 8] = [
     // January 1944 sheet — roof 2.55, ring/deck 1.778, clearance 0.432, 3.548 over the tracks,
     // turret 2.34 x 2.84 plan with the Walzenblende band at 1.30..1.60 on a trunnion at the
     // front plate (1.28), end wheels at 0.72.
-    (VehicleKind::TigerI, 3_966_315_615_990_056_469_u64),
+    (VehicleKind::TigerI, 12_158_035_921_633_421_098_u64),
     (VehicleKind::TigerII, 16_874_227_684_286_219_701_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet

@@ -43,8 +43,9 @@ VisualDetailFile(
         // library builds them (`vehicle_build::fitting_parts_for_blueprint`) and the recipe's deck
         // leaves its own hatches, lamp and hooks out. The bake frame: +Y up, +Z bow, +X port.
         fittings: Some(FittingsVisual(
-            // The commander's lid on the cupola top (roof 2.55 + 0.40 proud), port, rear.
-            cupola_hatch_center: (0.50, 2.97, -0.35),
+            // The commander's lid on the cupola top (roof 2.60 + 0.26 proud = the sheet's
+            // 9 ft 4.75 in = 2.86 apex), port, rear.
+            cupola_hatch_center: (0.50, 2.88, -0.35),
             cupola_hatch_radius: 0.30,
             cupola_hatch_half_height: 0.04,
             // The two bow hatches on the hull roof (plan: +-0.87 m off the centreline at
@@ -53,9 +54,9 @@ VisualDetailFile(
             driver_hatch_radius: 0.26,
             driver_hatch_half_height: 0.05,
             // The loader's hatch on the turret roof, starboard, forward (plan). Rooted into the
-            // flat roof so the lid stands 3.5 cm proud: the bare-roof anchor (2.55 +-0.06) must
+            // flat roof so the lid stands 3.5 cm proud: the bare-roof anchor (2.60 +-0.05) must
             // find the roof, not the lid.
-            loader_hatch_center: (-0.96, 2.545, 0.98),
+            loader_hatch_center: (-0.96, 2.595, 0.98),
             loader_hatch_radius: 0.24,
             loader_hatch_half_height: 0.04,
             // The single headlight on the driver's plate, starboard (front view: x -0.52, y 1.59,
