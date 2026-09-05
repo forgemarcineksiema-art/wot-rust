@@ -2,7 +2,8 @@
 //! place and future localization is a table swap instead of a literal hunt. UI copy only: entity
 //! identity stays data-side (vehicle short names in `game_core::VehicleKind::short_name`, nation labels in
 //! `game_core::Nation::label`, crew role labels in `game_core::CrewRole::label`) — those name
-//! things, they don't phrase them. The font atlas bakes ASCII, so every string here must be ASCII.
+//! things, they don't phrase them. Every string is checked against the baked faces (Latin
+//! Extended-A since the interface program's F3), so a Polish word is a word and not a row of tofu.
 
 /// Garage screen copy.
 pub(crate) mod garage {
@@ -28,6 +29,23 @@ pub(crate) mod garage {
     /// Milliradians — the unit the whole aiming promise is written in (no +-25% roll, a gun that
     /// groups where it is pointed). It belongs on the screen where the gun is chosen.
     pub const UNIT_MRAD: &str = "mrad";
+
+    /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
+    #[cfg(test)]
+    pub const ALL: &[&str] = &[
+        BATTLE,
+        TAB_GARAGE,
+        TAB_TECH_TREE,
+        CREW,
+        VEHICLE,
+        BACK,
+        UNIT_KILOWATTS,
+        UNIT_KMH,
+        UNIT_DEGREES_PER_S,
+        UNIT_MILLIMETERS,
+        UNIT_SECONDS,
+        UNIT_MRAD,
+    ];
 }
 
 /// Battle HUD copy.
@@ -70,6 +88,32 @@ pub(crate) mod battle {
     pub const PAUSE_EXIT_TO_GARAGE: &str = "EXIT TO GARAGE";
     /// The ESC modal's dismiss choice; names what happens, not the key that does it.
     pub const PAUSE_STAY: &str = "STAY IN BATTLE";
+
+    /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
+    #[cfg(test)]
+    pub const ALL: &[&str] = &[
+        SPEED_UNIT,
+        DISTANCE_UNIT,
+        ARC_LIMIT_DEPRESSION,
+        ARC_LIMIT_ELEVATION,
+        ARC_LIMIT_TRAVERSE,
+        HIT_RICOCHET,
+        HIT_SHATTER,
+        HIT_TRACKED,
+        HIT_NO_PEN,
+        HIT_PEN,
+        ZOOM_PREFIX,
+        VICTORY,
+        DEFEAT,
+        DRAW,
+        CONNECTION_LOST,
+        BATTLE_OVER,
+        TARGET_DESTROYED,
+        RETURN_TO_GARAGE_HINT,
+        PAUSE_TITLE,
+        PAUSE_EXIT_TO_GARAGE,
+        PAUSE_STAY,
+    ];
 }
 
 /// OS window title; the selected vehicle's display name is appended after a dash.
@@ -77,40 +121,34 @@ pub(crate) const WINDOW_TITLE: &str = "WOT Rust Prototype";
 
 #[cfg(test)]
 mod tests {
-    /// The glyph atlas bakes printable ASCII only — a non-ASCII string would render as gaps.
+    use super::{battle, garage};
+    use crate::hud::font::{POLISH_LETTERS, Style, atlas};
+
+    /// Every string the client can print bakes in the label face, the value face and the
+    /// banner face — a glyph the atlas lacks renders as a tofu box, and a box in a banner is a
+    /// bug the eye finds first. The Polish alphabet rides along: the first localisation this
+    /// atlas owes.
     #[test]
-    fn no_string_is_empty_and_all_are_ascii() {
-        let all = [
-            super::garage::BATTLE,
-            super::garage::TAB_GARAGE,
-            super::garage::TAB_TECH_TREE,
-            super::garage::CREW,
-            super::garage::VEHICLE,
-            super::garage::BACK,
-            super::garage::UNIT_KILOWATTS,
-            super::garage::UNIT_KMH,
-            super::garage::UNIT_DEGREES_PER_S,
-            super::garage::UNIT_MILLIMETERS,
-            super::garage::UNIT_SECONDS,
-            super::garage::UNIT_MRAD,
-            super::battle::SPEED_UNIT,
-            super::battle::DISTANCE_UNIT,
-            super::battle::ZOOM_PREFIX,
-            super::battle::VICTORY,
-            super::battle::DEFEAT,
-            super::battle::DRAW,
-            super::battle::CONNECTION_LOST,
-            super::battle::BATTLE_OVER,
-            super::battle::TARGET_DESTROYED,
-            super::battle::RETURN_TO_GARAGE_HINT,
-            super::battle::PAUSE_TITLE,
-            super::battle::PAUSE_EXIT_TO_GARAGE,
-            super::battle::PAUSE_STAY,
-            super::WINDOW_TITLE,
-        ];
-        for s in all {
+    fn every_ui_string_is_covered_by_both_faces() {
+        let font = atlas();
+        let faces = [Style::LABEL, Style::VALUE, Style::BANNER];
+        let mut examined = 0usize;
+        for s in garage::ALL.iter().chain(battle::ALL.iter()) {
             assert!(!s.is_empty(), "UI strings must not be empty");
-            assert!(s.is_ascii(), "the font atlas covers ASCII only: {s:?}");
+            for ch in s.chars() {
+                for style in faces {
+                    assert!(font.covers(style, ch), "{style:?} cannot set {ch:?} of {s:?}");
+                }
+                examined += 1;
+            }
         }
+        for ch in POLISH_LETTERS.chars() {
+            for style in faces {
+                assert!(font.covers(style, ch), "{style:?} cannot set the Polish letter {ch:?}");
+            }
+            examined += 1;
+        }
+        assert!(examined > 200, "the lock examined {examined} characters — too few");
+        assert!(garage::ALL.len() >= 12 && battle::ALL.len() >= 20, "the ALL lists shrank");
     }
 }
