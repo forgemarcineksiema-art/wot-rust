@@ -10,11 +10,26 @@ const MOUSE_PITCH_SENSITIVITY: f32 = 0.0030;
 
 impl ClientApp {
     pub(super) fn on_keyboard(&mut self, event: &KeyEvent) {
-        let pressed = event.state == ElementState::Pressed;
-        if pressed && self.garage.is_open() && self.garage_keyboard(event.physical_key) {
+        self.on_key(event.physical_key, event.state == ElementState::Pressed, event.repeat);
+    }
+
+    /// One key event below the winit boundary (a `KeyEvent` cannot be constructed outside winit,
+    /// so the tests drive this). `repeat` is the OS auto-repeat: Windows re-sends a held key as
+    /// a PRESS every ~33 ms after half a second. Every binding here is an EDGE — V toggles the
+    /// scope, ESC raises or dismisses the modal, Space latches the trigger, 1/2/3 queue a switch,
+    /// G opens the garage — so a repeat is not "still pressed", it is a second press the player
+    /// never made: a held V flickered the view thirty times a second, a held Space knocked the
+    /// refusal sound for the whole reload. Shift and Alt guarded themselves; the rest did not.
+    /// Repeats are dropped here, once, for every key. Nothing needs them: a held drive key is
+    /// already latched by its first press, and the garage roster is cycled per press.
+    pub(in crate::app) fn on_key(&mut self, key: PhysicalKey, pressed: bool, repeat: bool) {
+        if repeat {
             return;
         }
-        self.on_battle_keyboard(event.physical_key, pressed);
+        if pressed && self.garage.is_open() && self.garage_keyboard(key) {
+            return;
+        }
+        self.on_battle_keyboard(key, pressed);
     }
 
     /// Battle-side key dispatch, taken below the winit boundary so tests can drive it — a winit
