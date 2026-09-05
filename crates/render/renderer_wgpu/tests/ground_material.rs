@@ -68,7 +68,8 @@ fn render_field(ctx: &GpuContext, detail_tiles: bool) -> Vec<u8> {
         .expect("renderer");
     // No field quilt: the plots are a separate (vertex-stage) structure this test does not
     // measure — the frame's variation must come from the material and the macro tile alone.
-    let materials = TerrainMaterialSet { field_patch_strength: 0.0, ..TerrainMaterialSet::default() };
+    let materials =
+        TerrainMaterialSet { field_patch_strength: 0.0, ..TerrainMaterialSet::default() };
     renderer.set_battlefield_ground(ctx, &vertices, &indices, &uniform_grass_maps(), &materials);
     let mut lighting = SceneLighting::battlefield_default();
     // No cloud shade: its own macro pattern would be counted as the ground's.

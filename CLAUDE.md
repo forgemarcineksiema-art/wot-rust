@@ -41,10 +41,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
   the target look, its 7 rules and their locks.
 - `docs/vehicles/t-54.md` — the benchmark vehicle dossier (the fleet's bar; siblings alongside).
-- `docs/map-forge-policy.md` — map + flora doctrine (procedural-only); `docs/maps/*.md` —
+- `docs/map-forge-policy.md` — map + flora doctrine (trees as data, route 2); `docs/maps/*.md` —
   per-map dossiers. editor: `cargo run -p editor`.
 - `docs/shadow-policy.md`, `docs/engineering-rules.md`.
-- `crates/tooling/quality` — **the ratchet**: 21 gate tests enforce the layer DAG, append-only
+- `crates/tooling/quality` — **the ratchet**: its gate tests enforce the layer DAG, append-only
   identity enums and the W0 rules. Burn allowlist entries down; never widen one to get green.
 - Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.
 - Perf: `cargo run -p client --release --example probe -- perf_capture`; sim bench `combat_hot_path`.

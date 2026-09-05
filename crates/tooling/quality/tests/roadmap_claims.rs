@@ -72,6 +72,16 @@ const CLAIMS: &[Claim] = &[
         why: "the shipped-map count is the other store-page number, and `SHIPPED` is already \
               the catalog rotation, goldens and baked assets follow",
     },
+    Claim {
+        // "Two of six species are placed" outlived two retirements and route 2 by three
+        // days (2026-09-05): the species roster is the one flora number a reader repeats.
+        doc: "docs/ROADMAP.md",
+        anchor: "**Living species: ",
+        source: "crates/world/scene_build/src/tree_lod.rs",
+        owner: Owner::NumberAfter("pub const LADDER_SPECIES: [TreeSpecies; "),
+        why: "the living-species count follows the owner's retirements (willow, pine) and \
+              the ladder is the only place that knows which species are still planted",
+    },
 ];
 
 #[test]
