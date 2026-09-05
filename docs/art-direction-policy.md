@@ -171,9 +171,11 @@ is the opposite of the battlefield's: the field hides a tank, the hangar sells o
 - **The framing is part of the look.** A hero framing that points at the emptiest wall makes
   a furnished workshop read as a grey box. The camera is authored with the same care as the
   palette.
-- **The UI is instrument, not decoration.** `hud/theme.rs` — flat graphite, chamfered
-  corners, hairline rules, one amber signal accent, no gradients or glow. It grades through
-  nothing: HUD is drawn after the display transform and answers to the theme locks alone.
+- **The UI has its own look and its own program.** The flat graphite plate with one amber
+  accent was revoked by the owner on 2026-09-05; the target — steel, enamel and instrument glass,
+  with depth, material and a full semantic palette — and its locks live in
+  `docs/interface-program.md` (Part I). What stays true here: the HUD grades through nothing.
+  It is drawn after the display transform and answers to its own locks alone.
 
 Garage profiles obey the same envelope ceilings as the outdoor looks (rule 6), and the
 hangar view belongs in the canonical review set above.
