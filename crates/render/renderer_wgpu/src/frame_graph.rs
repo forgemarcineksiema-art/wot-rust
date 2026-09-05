@@ -40,8 +40,12 @@ pub enum PassId {
     Bloom,
     /// The display transform: exposure, ACES, grade, dither.
     Post,
-    /// The shipped game's only anti-aliasing. The HUD currently draws inside it.
+    /// The shipped game's only anti-aliasing; the pass that authors the caller's target.
     Fxaa,
+    /// The interface over the finished picture: one draw call, un-graded, never softened. Its
+    /// own pass so its cost has a name and a budget (interface program F1), and opened on every
+    /// frame — empty or not — so the list of passes a frame reports never depends on the HUD.
+    Hud,
 }
 
 impl PassId {
@@ -58,6 +62,7 @@ impl PassId {
         PassId::Bloom,
         PassId::Post,
         PassId::Fxaa,
+        PassId::Hud,
     ];
 
     /// How many passes exist, which is how many timestamp PAIRS a frame can produce.
@@ -79,6 +84,7 @@ impl PassId {
             PassId::Bloom => "bloom_pass",
             PassId::Post => "post_pass",
             PassId::Fxaa => "fxaa_pass",
+            PassId::Hud => "hud_pass",
         }
     }
 
@@ -117,7 +123,9 @@ pub enum FrameResource {
     BloomChain,
     /// The display-transformed picture, encoded, before anti-aliasing.
     LdrFormed,
-    /// The caller's target — the picture that leaves this renderer.
+    /// The caller's target — the picture that leaves this renderer. Authored by the FXAA pass;
+    /// the HUD pass composites onto it afterwards, which the graph states as a pass that both
+    /// reads and writes it.
     Output,
 }
 
@@ -250,6 +258,16 @@ pub const FRAME_GRAPH: &[PassNode] = &[
         id: PassId::Fxaa,
         condition: PassCondition::Always,
         reads: &[FrameResource::LdrFormed],
+        optional_reads: &[],
+        writes: &[FrameResource::Output],
+    },
+    PassNode {
+        id: PassId::Hud,
+        condition: PassCondition::Always,
+        // A composite: the pass LOADS the anti-aliased picture and draws the interface over it.
+        // Reading what it writes is the honest shape of a read-modify-write, and the output lock
+        // knows the difference between the picture's author and a pass that composites onto it.
+        reads: &[FrameResource::Output],
         optional_reads: &[],
         writes: &[FrameResource::Output],
     },

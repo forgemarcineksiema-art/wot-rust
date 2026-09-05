@@ -316,10 +316,9 @@ impl super::SceneRenderer {
         }
         // The FXAA pass reads that formed picture and writes the caller's target — the one
         // anti-aliasing every player gets (canonical ships 1x MSAA, so this is the shipped
-        // game's only AA). The HUD draws after it, un-graded and never softened: the UI reads
-        // the battle, it is not part of the painting.
+        // game's only AA).
+        let output_view = target.output_view;
         {
-            let output_view = target.output_view;
             let mut pass = recorder.begin(
                 &mut encoder,
                 crate::frame_graph::PassId::Fxaa,
@@ -342,6 +341,24 @@ impl super::SceneRenderer {
                 &[],
             );
             pass.draw(0..3, 0..1);
+        }
+        // The HUD pass: the interface over the finished picture, LOADED rather than cleared —
+        // un-graded and never softened, because the UI reads the battle and is not part of the
+        // painting. Its own pass (interface program F1), opened on every frame even when nothing
+        // was uploaded, so the list of passes a frame reports never depends on the HUD and the
+        // HUD's cost has a name in the per-pass table.
+        {
+            let mut pass = recorder.begin(
+                &mut encoder,
+                crate::frame_graph::PassId::Hud,
+                &[Some(wgpu::RenderPassColorAttachment {
+                    view: output_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                None,
+            );
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);
                 pass.set_bind_group(0, &self.hud_font_bind_group, &[]);
