@@ -1,0 +1,60 @@
+ReferencePack(
+    family_slug: "is3",
+    display_name: "IS-3",
+    vehicles: [
+        IS3,
+    ],
+    summary: "Armored Vehicle Forge reference for the IS-3: the pike-nose heavy — two swept bow plates meeting at a central ridge, a wide flattened cast dome overhanging its ring, six small road wheels per side, and the braked 122 mm D-25T.",
+    road_wheel_count_per_side: 6,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Category:IS-3",
+            note: "Photo reference for the pike bow, the flattened dome, and the running gear.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/coldwar/USSR/IS-3M.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/is-3.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 2.15,
+            tolerance: 0.03,
+            note: "Hull plan reads long and wide — a heavy, but lower-slung than the Germans.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.239,
+            tolerance: 0.02,
+            note: "The LOW heavy: hull roof at 1.62 m on a 6.77 m hull.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.73,
+            tolerance: 0.03,
+            note: "The wide dome overhangs its ring, most of the hull\'s width.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.48,
+            tolerance: 0.2,
+            note: "A flattened frying-pan dome, not a tall casting.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.45,
+            tolerance: 0.03,
+            note: "The 122 mm D-25T overhangs almost half the hull again.",
+        ),
+    ],
+    dimensions: [],
+    outlines: [],
+)

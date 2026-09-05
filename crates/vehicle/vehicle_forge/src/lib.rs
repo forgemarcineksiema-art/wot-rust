@@ -9,11 +9,6 @@ mod compiler;
 mod cost;
 mod mesh_source;
 mod outline;
-mod packs;
-mod packs_british;
-mod packs_german;
-mod packs_is3;
-mod packs_t34;
 mod part_data;
 mod part_graph;
 mod part_manifest;
@@ -40,14 +35,6 @@ pub use outline::{
     composed_triangles, composed_triangles_for, measure as measure_outline,
     overlay_png as outline_overlay_png, rasterise as rasterise_outline,
 };
-pub use packs::{t54_outline_set, t54_reference_pack};
-pub use packs_british::centurion_reference_pack;
-pub use packs_german::{
-    jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_outline_set,
-    tiger_i_reference_pack, tiger_ii_reference_pack,
-};
-pub use packs_is3::is3_reference_pack;
-pub use packs_t34::t34_85_reference_pack;
 pub use part_graph::{
     ForgePart, ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup,
 };
@@ -57,7 +44,7 @@ pub use part_manifest::{
 pub use production_bake::bake_production_vehicle;
 pub use reference::{
     AnchorStatus, DimensionKind, DimensionTarget, MeasurementBasis, RatioKind, RatioTarget,
-    ReferencePack, ReferenceSource,
+    ReferencePack, ReferenceSource, outline_set,
 };
 pub use reference_measure::composed_visual_bounds;
 pub use report::{DimensionReport, MeasuredDimension, MeasuredRatio, RatioReport};

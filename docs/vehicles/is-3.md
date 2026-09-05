@@ -71,7 +71,7 @@ cage the German fleet carries:
 - **Roof height 2.44 vs 2.39 — 50 mm apart, and no gate can notice.** This dossier states 2.44 m
   to the turret roof (twice, above), but the shipped blueprint bakes `roof_y: 2.39`
   (`game_core/blueprints/is3.blueprint.ron:53`). Nothing measures the discrepancy: the IS-3 pack
-  has ZERO `DimensionTarget`s (`vehicle_forge/src/packs_is3.rs:38` carries the unclosed W2 TODO)
+  has ZERO `DimensionTarget`s (`vehicle_forge/reference/is3.reference.ron` carries an empty `dimensions` list — the unclosed W2 TODO)
   and the dimension gate skips packs with no dimensions. The benchmark cage measures the 2.49 m
   hitbox apex and the height gap to the German heavies, not the roof plane — its assert message
   even says "2.44 m tank in a 2.49 m box" (`vehicle_recipes/tests/is3_benchmark.rs:143`) while

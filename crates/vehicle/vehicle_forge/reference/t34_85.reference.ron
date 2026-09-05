@@ -1,0 +1,55 @@
+ReferencePack(
+    family_slug: "t34_85",
+    display_name: "T-34-85",
+    vehicles: [
+        T34_85,
+    ],
+    summary: "Armored Vehicle Forge reference for the T-34-85: slope as armour — a 60-degree glacis and raked sides overhanging the tracks, five large bare Christie wheels with an open gap behind the first station and no return rollers, and the wide low three-man cast dome of the 85 refit seated forward.",
+    road_wheel_count_per_side: 5,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Category:T-34-85",
+            note: "Photo reference for the sloped hull, the Christie gear gap, and the cast dome.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/ww2/soviet/soviet_T34-85.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 2.05,
+            tolerance: 0.03,
+            note: "A medium\'s plan: 6.10 m hull over a full 3.00 m beam.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.27,
+            tolerance: 0.05,
+            note: "Low hull for its length — the 1.56 m roof under the tall dome.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.74,
+            tolerance: 0.09,
+            note: "The widened 85 turret spans most of the beam.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.55,
+            tolerance: 0.08,
+            note: "The dome carries a third of the silhouette above the low hull.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.33,
+            tolerance: 0.03,
+            note: "The 85 overhangs a modest 2 m — a medium\'s gun, not a heavy\'s.",
+        ),
+    ],
+    dimensions: [],
+    outlines: [],
+)

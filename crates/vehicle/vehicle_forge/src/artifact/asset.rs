@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use game_core::VehicleKind;
 use vehicle_geometry::{BakedVehicle, reduce_vehicle};
 
-use crate::{RatioReport, authoritative_baked_vehicle};
+use crate::{RatioReport, ReferencePack, authoritative_baked_vehicle};
 
 use super::{
     ArtifactError, BakeProfile, ForgeArtifactManifest, ForgeSubmeshManifest, forge_vehicle_slug,
@@ -32,7 +32,8 @@ impl ForgeArtifact {
         let spec = crate::registry::forge_spec(vehicle)
             .ok_or(ArtifactError::MissingReferencePack(vehicle))?;
         let baked = reduce_vehicle(&baked, profile.lod_level());
-        let reference = (spec.reference_pack)();
+        let reference =
+            ReferencePack::embedded(vehicle).ok_or(ArtifactError::MissingReferencePack(vehicle))?;
         let report = reference
             .measure_baked_vehicle(&baked)
             .ok_or(ArtifactError::RatioReportRejected(vehicle))?;

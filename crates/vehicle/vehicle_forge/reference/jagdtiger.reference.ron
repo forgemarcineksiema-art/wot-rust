@@ -1,0 +1,128 @@
+ReferencePack(
+    family_slug: "jagdtiger",
+    display_name: "Jagdtiger",
+    vehicles: [
+        Jagdtiger,
+    ],
+    summary: "Armored Vehicle Forge reference for the Jagdtiger: Tiger II chassis carrying a tall fixed casemate superstructure and the 12.8 cm Pak — a non-traversing tank destroyer.",
+    road_wheel_count_per_side: 9,
+    sources: [
+        ReferenceSource(
+            label: "Wikimedia Commons gallery",
+            url: "https://commons.wikimedia.org/wiki/Jagdtiger",
+            note: "Photo reference for silhouette, superstructure mass, running gear, and stowage.",
+        ),
+        ReferenceSource(
+            label: "Tank AFV reference article",
+            url: "https://tank-afv.com/ww2/germany/Jagdtiger.php",
+            note: "Technical and visual reference for dimensions, armament, and family cues.",
+        ),
+        ReferenceSource(
+            label: "In-repo vehicle notes",
+            url: "docs/vehicles/jagdtiger.md",
+            note: "Gameplay translation and source summary.",
+        ),
+    ],
+    ratios: [
+        RatioTarget(
+            kind: HullLengthToWidth,
+            target: 2.17,
+            tolerance: 0.06,
+            note: "The longest hull in the German line, stretched from the Tiger II.",
+        ),
+        RatioTarget(
+            kind: HullHeightToLength,
+            target: 0.26,
+            tolerance: 0.02,
+            note: "The unbroken flank makes the hull band deep; the casemate is welded INTO it.",
+        ),
+        RatioTarget(
+            kind: TurretWidthToHullWidth,
+            target: 0.75,
+            tolerance: 0.05,
+            note: "Wide fixed casemate fills most of the hull width.",
+        ),
+        RatioTarget(
+            kind: TurretHeightToHullHeight,
+            target: 0.53,
+            tolerance: 0.04,
+            note: "A low wide fighting compartment crowns the deep hull, no cupola.",
+        ),
+        RatioTarget(
+            kind: GunProtrusionToHullLength,
+            target: 0.365,
+            tolerance: 0.03,
+            note: "12.8 cm Pak reaches far past the nose.",
+        ),
+        RatioTarget(
+            kind: TurretLengthToWidth,
+            target: 1.18,
+            tolerance: 0.08,
+            note: "The casemate plan is longer than wide (3.20 over 2.71, rear overhang included).",
+        ),
+        RatioTarget(
+            kind: RoadWheelDiameterToHullLength,
+            target: 0.103,
+            tolerance: 0.008,
+            note: "800 mm overlapped wheels on the German line\'s longest 7.80 m hull.",
+        ),
+    ],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 7.8,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Jagdtiger dossier",
+                url: "docs/vehicles/jagdtiger.md",
+                note: "7.80 m hull — the Tiger II chassis lengthened for the casemate.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.625,
+            tolerance_m: 0.08,
+            source: ReferenceSource(
+                label: "Jagdtiger dossier",
+                url: "docs/vehicles/jagdtiger.md",
+                note: "3.625 m over the 800 mm combat tracks.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.945,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Jagdtiger dossier",
+                url: "docs/vehicles/jagdtiger.md",
+                note: "2.945 m to the casemate roof.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 10.654,
+            tolerance_m: 0.1,
+            source: ReferenceSource(
+                label: "Jagdtiger dossier",
+                url: "docs/vehicles/jagdtiger.md",
+                note: "10.654 m gun forward (12.8 cm PaK 44 L/55).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.8,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Jagdtiger dossier",
+                url: "docs/vehicles/jagdtiger.md",
+                note: "800 mm overlapped steel-rimmed wheels (production Henschel suspension).",
+            ),
+            status: Locked,
+        ),
+    ],
+    outlines: [],
+)

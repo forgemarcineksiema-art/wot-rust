@@ -14,8 +14,8 @@ use game_core::{VehicleBlueprint, VehicleKind, lint};
 use vehicle_geometry::{BakedVehicle, OPEN_OR_CLOSED_MESH, SubmeshKind};
 use vehicle_recipes::{VEHICLE_BUDGETS, golden_bake_hash};
 
-use crate::authoritative_baked_vehicle;
 use crate::mesh_source::shipped_fidelity;
+use crate::{ReferencePack, authoritative_baked_vehicle};
 use vehicle_build::Fidelity;
 
 use super::{ArtifactError, review_images, review_text};
@@ -102,7 +102,8 @@ fn bundle_from_baked(
     let spec =
         crate::registry::forge_spec(kind).ok_or(ArtifactError::MissingReferencePack(kind))?;
     let cameras = (spec.review_cameras)();
-    let reference = (spec.reference_pack)();
+    let reference =
+        ReferencePack::embedded(kind).expect("a registered vehicle has a reference pack");
     // Tiles and measurements share ONE kinematics: whatever the author is editing.
     let gear = match live {
         Some(blueprint) => {

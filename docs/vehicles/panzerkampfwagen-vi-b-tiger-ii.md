@@ -10,7 +10,7 @@ represents the production (Henschel) turret vehicle with the 8.8 cm KwK 43 L/71 
 ## Reference anatomy (W1 dossier, PR-T2.1 — 2026-07-17)
 
 Anchor numbers written BEFORE any further shape work, per the masterplan protocol. Every row
-is enforced by a `DimensionTarget` or `RatioTarget` in `packs_german.rs::tiger_ii_reference_pack`.
+is enforced by a `DimensionTarget` or `RatioTarget` in `vehicle_forge/reference/tiger_ii_ausf_b.reference.ron`.
 
 | Anchor | Value | Source | Confidence | Gate |
 | --- | --- | --- | --- | --- |
