@@ -3,6 +3,7 @@
 
 use super::HudElement;
 use super::*;
+use super::{HudSizeClass, HudState};
 use crate::hud::number::{FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR};
 use crate::hud::reticle::ReticleStatus;
 
@@ -463,4 +464,28 @@ fn the_reticle_stack_is_emitted_verbatim() {
         ui_kit::draw_list::Payload::Legacy(v) => assert_eq!(v, &expected),
         other => panic!("the reticle must stay a legacy payload, found {other:?}"),
     }
+}
+
+/// F9: the busiest state fits the renderer's 16 384-vertex buffer with headroom. The number
+/// is what `hud_states` prints per element; the minimap's relief is the bulk of it until H0
+/// bakes it into the sheet.
+#[test]
+fn the_full_hud_state_fits_the_buffer_with_headroom() {
+    const HEADROOM_CEILING: usize = 14_000;
+    let mut busiest = (HudState::ThirdPersonIdle, 0usize);
+    for state in HudState::ALL {
+        for size in HudSizeClass::ALL {
+            let n = super::hud_state_vertices(state, size, 1920, 1080).len();
+            if n > busiest.1 {
+                busiest = (state, n);
+            }
+        }
+    }
+    println!("HUD CENSUS: busiest state {:?} at {} vertices", busiest.0, busiest.1);
+    assert!(
+        busiest.1 <= HEADROOM_CEILING,
+        "{:?} emits {} vertices — over the {HEADROOM_CEILING} headroom ceiling of the 16 384 buffer",
+        busiest.0,
+        busiest.1
+    );
 }

@@ -32,11 +32,15 @@ pub use ui_kit::sheet::hud_material_sheet;
 // The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
 // empty, so the ten forwarding names here had no caller left in the workspace.
+pub use hud::{
+    HudReviewView, HudSizeClass, HudState, hud_review_views, hud_state_census, hud_state_vertices,
+};
 pub use look_harness::{
+    BattlefieldStage, HUD_REVIEW_MAP, HUD_REVIEW_SNIPER_VIEW, HUD_REVIEW_THIRD_PERSON_VIEW,
     apply_shipped_garage_scene, battlefield_dressing_objects, hangar_dynamic_mesh_at,
     hangar_shaft_fx_vertices, hangar_shaft_fx_vertices_for, register_battlefield_dressing_meshes,
-    render_hangar_review_views, render_review_views, render_review_views_with_fov,
-    welding_glow_vertices,
+    render_hangar_review_views, render_hud_review_views, render_review_views,
+    render_review_views_with_fov, welding_glow_vertices,
 };
 pub use loop_policy::{ClientLoopAction, ClientLoopEvent, FixedTickAccumulator, WinitLoopDriver};
 pub use pass_stats::{Percentiles, RotationStats};

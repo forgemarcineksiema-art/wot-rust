@@ -18,6 +18,12 @@ use super::{BattleHudModel, HudVitals, build_battle_hud};
 /// Build a fully-populated battle HUD in third-person or sniper mode. Used by the offscreen
 /// example to show both reticle regimes and every readout in one frame.
 pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
+    build_battle_hud(&demo_model(sniper), aspect)
+}
+
+/// The staged model itself: every element populated, in either reticle mode. The HUD golden
+/// instrument's states (F8) start from this and switch things on and off.
+pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
     let mode = if sniper { ReticleMode::Sniper } else { ReticleMode::ThirdPerson };
     let mut reticle = HudReticle {
         aim_clip: [0.0, 0.0],
@@ -47,7 +53,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         reticle.penetration_hint,
         if sniper { 1.0 } else { 0.0 },
     );
-    let model = BattleHudModel {
+    BattleHudModel {
         vitals: HudVitals {
             hit_points: 780,
             max_hit_points: 1000,
@@ -141,8 +147,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         fire_denied_age_s: None,
         scope_fade: if sniper { 1.0 } else { 0.0 },
         pause_menu: None,
-    };
-    build_battle_hud(&model, aspect)
+    }
 }
 
 /// A synthetic minimap for the staged frame: a diagonal ridge, one cover block, the player with

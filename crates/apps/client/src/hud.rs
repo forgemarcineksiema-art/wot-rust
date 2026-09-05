@@ -28,8 +28,10 @@ pub(crate) mod reticle_marks;
 pub(crate) mod reticle_overlay;
 pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
+pub(crate) mod review;
 pub(crate) mod scope_overlay;
 pub(crate) mod spot_bracket;
+pub(crate) mod states;
 pub use ui_kit::theme;
 pub(crate) mod crew_panel;
 pub(crate) mod track_callout;
@@ -41,6 +43,8 @@ pub(crate) use outcome::BattleHudOutcome;
 pub(crate) use outcome::OUTCOME_VICTORY_COLOR;
 pub(crate) use primitives::{push_hairline, push_panel, push_quad};
 pub(crate) use reticle_overlay::HudReticle;
+pub use review::{HudReviewView, hud_review_views};
+pub use states::{HudSizeClass, HudState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HudVitals {
@@ -342,3 +346,31 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
 mod reticle_overlay_tests;
 #[cfg(test)]
 mod tests;
+
+/// The vertices one HUD state draws at one size class on a `width` x `height` viewport: the
+/// state's model through the draw list and the one emitter — what the golden instrument
+/// uploads, what the probe writes, what the census counts (F8, F9).
+pub fn hud_state_vertices(
+    state: HudState,
+    size: HudSizeClass,
+    width: u32,
+    height: u32,
+) -> Vec<HudVertex> {
+    let aspect = width as f32 / height.max(1) as f32;
+    let ui = ui_kit::ui::Ui::new(width, height, size.user_scale());
+    build_battle_hud_list(&state.model(), aspect).emit(&ui, &ui_kit::theme::Theme::standard())
+}
+
+/// The census of one state: vertices per element, in paint order.
+pub fn hud_state_census(state: HudState, aspect: f32) -> Vec<(HudElement, usize)> {
+    build_battle_hud_list(&state.model(), aspect)
+        .iter()
+        .map(|e| {
+            let n = match &e.payload {
+                Payload::Legacy(v) => v.len(),
+                _ => 6,
+            };
+            (e.id, n)
+        })
+        .collect()
+}

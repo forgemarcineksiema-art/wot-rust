@@ -19,7 +19,7 @@
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use client::{REVIEWED_MAPS, ReviewView, review_views_for};
 use game_core::math::srgb_to_linear;
@@ -33,8 +33,19 @@ fn goldens_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("goldens").join("look")
 }
 
+/// The HUD goldens live beside the look goldens, in their own directory, so the look set's
+/// counting locks (`the_measured_baseline_of_every_recorded_frame`) and the garage's screen
+/// lock never see them (interface program F8).
+fn hud_goldens_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("goldens").join("hud")
+}
+
 fn golden_path(name: &str) -> PathBuf {
     goldens_dir().join(format!("{name}.png"))
+}
+
+fn hud_golden_path(name: &str) -> PathBuf {
+    hud_goldens_dir().join(format!("{name}.png"))
 }
 
 /// The harness renders through `client::render_review_views` — the SAME entry the `*_views`
@@ -87,6 +98,8 @@ enum UpdateScope {
     None,
     Battlefield,
     Garage,
+    /// The HUD golden instrument's frames (interface program F8).
+    Hud,
     All,
 }
 
@@ -96,8 +109,13 @@ impl UpdateScope {
             Ok("1" | "all") => Self::All,
             Ok("battlefield") => Self::Battlefield,
             Ok("garage") => Self::Garage,
+            Ok("hud") => Self::Hud,
             _ => Self::None,
         }
+    }
+
+    fn records_hud(self) -> bool {
+        matches!(self, Self::All | Self::Hud)
     }
 
     fn records_battlefield(self) -> bool {
@@ -119,7 +137,17 @@ impl UpdateScope {
 /// the garage's byte lock never executed at all. Every view is checked; the whole list is
 /// reported once.
 fn check_or_record(name: &str, pixels: &[u8], record: bool, drift: &mut Vec<String>) {
-    let path = golden_path(name);
+    check_or_record_at(&golden_path(name), name, pixels, record, drift);
+}
+
+fn check_or_record_at(
+    path: &Path,
+    name: &str,
+    pixels: &[u8],
+    record: bool,
+    drift: &mut Vec<String>,
+) {
+    let path = path.to_path_buf();
     if record {
         write_png(&path, pixels);
         eprintln!("recorded {}", path.display());
@@ -174,10 +202,27 @@ fn look_goldens_match_their_recordings() {
         }
     }
 
+    // The HUD (interface program F8): every state in every size class over its frozen frame,
+    // byte-exact, in its own directory and its own re-record scope.
+    if !scope.is_recording() || scope.records_hud() {
+        let hud_views = client::hud_review_views();
+        let hud_frames =
+            client::render_hud_review_views(&hud_views, WIDTH, HEIGHT).expect("hud review render");
+        for (view, pixels) in hud_views.iter().zip(&hud_frames) {
+            check_or_record_at(
+                &hud_golden_path(&view.name),
+                &view.name,
+                pixels,
+                scope.records_hud(),
+                &mut drift,
+            );
+        }
+    }
+
     assert!(
         drift.is_empty(),
         "{} locked frame(s) drifted from their goldens — if the look change is deliberate, \
-         re-record with WOT_UPDATE_GOLDENS=1 (or =garage / =battlefield for one half) and say \
+         re-record with WOT_UPDATE_GOLDENS=1 (or =garage / =battlefield / =hud for one part) and say \
          what changed about the PICTURE in the PR:\n  {}",
         drift.len(),
         drift.join("\n  ")
@@ -1001,4 +1046,47 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
         room.p50,
         hero.p50 / room.p50.max(1.0e-6)
     );
+}
+
+/// The HUD frames carry the interface (interface program F8): each one differs from the look
+/// golden of the frame it sits on by at least the footprint floor — the one measurement that
+/// catches a HUD which failed to build, upload, or bind its atlas — and none of them blows out
+/// to white, which is what a lamp glow gone wrong would do. Always-on, over the committed PNGs.
+#[test]
+fn every_hud_frame_carries_the_interface_and_none_blows_out() {
+    const HUD_UI_FOOTPRINT_FLOOR: f32 = 0.02;
+    const HUD_NEAR_WHITE_CEILING: f32 = 0.03;
+    for view in client::hud_review_views() {
+        let base_name = if view.state.sniper() {
+            client::HUD_REVIEW_SNIPER_VIEW
+        } else {
+            client::HUD_REVIEW_THIRD_PERSON_VIEW
+        };
+        let base = read_png(&golden_path(base_name));
+        let pixels = read_png(&hud_golden_path(&view.name));
+        let differing =
+            base.chunks_exact(4).zip(pixels.chunks_exact(4)).filter(|(a, b)| a != b).count() as f32
+                / (WIDTH * HEIGHT) as f32;
+        let stats = frame_stats(&pixels);
+        println!(
+            "HUD FRAME {}: interface covers {:.2}% of the frame, near white {:.4}, local contrast {:.4}",
+            view.name,
+            differing * 100.0,
+            stats.near_white,
+            stats.local_contrast
+        );
+        assert!(
+            differing >= HUD_UI_FOOTPRINT_FLOOR,
+            "{}: the interface covers {:.2}% of the frame (floor {:.1}%) — the HUD did not reach the picture",
+            view.name,
+            differing * 100.0,
+            HUD_UI_FOOTPRINT_FLOOR * 100.0
+        );
+        assert!(
+            stats.near_white <= HUD_NEAR_WHITE_CEILING,
+            "{}: {:.3} of the frame is near white — a glow or a plate blew out",
+            view.name,
+            stats.near_white
+        );
+    }
 }

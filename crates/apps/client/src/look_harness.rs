@@ -192,63 +192,118 @@ pub fn render_review_views_with_fov(
     height: u32,
     vertical_fov_degrees: f32,
 ) -> Result<Vec<Vec<u8>>, LookHarnessError> {
-    let battlefield = map_forge::battlefield(map);
-    let materials = crate::terrain_material_set_for(map);
-    let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
-        crate::battlefield_ground_and_statics_meshes(&battlefield, &[]);
-    let ground_maps = crate::bake_terrain_ground_maps(&battlefield);
-    let (water_vertices, water_indices) = crate::battlefield_water_mesh(&battlefield);
-    let (dressing_vertices, dressing_indices) =
-        crate::grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
-
-    let ctx = GpuContext::headless()?;
-    let target = OffscreenTarget::new(&ctx, width, height)?;
-    let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_vertices, &statics_indices)?;
-    renderer.set_battlefield_ground(
-        &ctx,
-        &ground_vertices,
-        &ground_indices,
-        &ground_maps,
-        &materials,
-    );
-    renderer.set_water(&ctx, &water_vertices, &water_indices);
-    renderer.set_dressing(&ctx, &dressing_vertices, &dressing_indices);
-    renderer.scene_time_s = REVIEW_SCENE_TIME_S;
-    register_battlefield_dressing_meshes(&ctx, &mut renderer);
-    // The procedural leaf atlas rides the SAME entry the battle uses (Drzewa 3.0 PR5) — the
-    // harness header documents how the review path once lost the atlas bind and locked white
-    // trees; wiring it here keeps the goldens honest about what the player sees.
-    let (foliage_color, foliage_normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
-    renderer.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
-    renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
-
-    let mut catalog = crate::VehicleAssetCatalog::default();
-    if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
-        eprintln!(
-            "note: no Forge artifacts loaded ({error}); review vehicles use the neutral material"
-        );
-    }
-
-    let projection = CameraProjectionPolicy::webgpu_default();
+    let mut stage = BattlefieldStage::new(map, width, height)?;
     let mut frames = Vec::with_capacity(views.len());
     for view in views {
+        frames.push(stage.render_view(view, vertical_fov_degrees, &[])?);
+    }
+    Ok(frames)
+}
+
+/// A battlefield staged once for any number of review frames: the world, the dressing, the
+/// atlases and the vehicle catalog bound the way the battle binds them. `render_review_views`
+/// and the HUD golden instrument (`render_hud_review_views`) both render through THIS, so a
+/// HUD frame sits on exactly the picture the look goldens lock — a parallel setup block is how
+/// the review path once lost the foliage atlas and locked white trees.
+pub struct BattlefieldStage {
+    ctx: GpuContext,
+    target: OffscreenTarget,
+    renderer: SceneRenderer,
+    catalog: crate::VehicleAssetCatalog,
+    battlefield: terrain::BattlefieldMap,
+    ground_maps: renderer_api::TerrainGroundMaps,
+    materials: renderer_api::TerrainMaterialSet,
+    projection: CameraProjectionPolicy,
+    width: u32,
+    height: u32,
+}
+
+impl BattlefieldStage {
+    pub fn new(map: MapId, width: u32, height: u32) -> Result<Self, LookHarnessError> {
+        let battlefield = map_forge::battlefield(map);
+        let materials = crate::terrain_material_set_for(map);
+        let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
+            crate::battlefield_ground_and_statics_meshes(&battlefield, &[]);
+        let ground_maps = crate::bake_terrain_ground_maps(&battlefield);
+        let (water_vertices, water_indices) = crate::battlefield_water_mesh(&battlefield);
+        let (dressing_vertices, dressing_indices) =
+            crate::grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
+
+        let ctx = GpuContext::headless()?;
+        let target = OffscreenTarget::new(&ctx, width, height)?;
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_vertices, &statics_indices)?;
+        renderer.set_battlefield_ground(
+            &ctx,
+            &ground_vertices,
+            &ground_indices,
+            &ground_maps,
+            &materials,
+        );
+        renderer.set_water(&ctx, &water_vertices, &water_indices);
+        renderer.set_dressing(&ctx, &dressing_vertices, &dressing_indices);
+        renderer.scene_time_s = REVIEW_SCENE_TIME_S;
+        register_battlefield_dressing_meshes(&ctx, &mut renderer);
+        // The procedural leaf atlas rides the SAME entry the battle uses (Drzewa 3.0 PR5) — the
+        // harness header documents how the review path once lost the atlas bind and locked white
+        // trees; wiring it here keeps the goldens honest about what the player sees.
+        let (foliage_color, foliage_normal) =
+            scene_build::foliage_atlas_paint::foliage_atlas_chains();
+        renderer.set_foliage_atlas(&ctx, &foliage_color, Some(&foliage_normal));
+        renderer.set_bark_textures(&ctx, &scene_build::foliage_atlas_paint::bark_texture_layers());
+        // The HUD's atlas and sheet, bound once: a HUD frame that rendered with the 1x1
+        // placeholders would lock blank quads and call them text (the D13 lesson, again).
+        let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
+        renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+        let (sheet_w, sheet_h, sheet) = crate::hud_material_sheet();
+        renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
+
+        let mut catalog = crate::VehicleAssetCatalog::default();
+        if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
+            eprintln!(
+                "note: no Forge artifacts loaded ({error}); review vehicles use the neutral material"
+            );
+        }
+
+        Ok(Self {
+            ctx,
+            target,
+            renderer,
+            catalog,
+            battlefield,
+            ground_maps,
+            materials,
+            projection: CameraProjectionPolicy::webgpu_default(),
+            width,
+            height,
+        })
+    }
+
+    /// One frame of `view` through `vertical_fov_degrees` (unless the view brings its own
+    /// lens), with `hud` uploaded over it — an empty slice for the look goldens.
+    pub fn render_view(
+        &mut self,
+        view: &ReviewView,
+        vertical_fov_degrees: f32,
+        hud: &[renderer_api::HudVertex],
+    ) -> Result<Vec<u8>, LookHarnessError> {
+        let ctx = &self.ctx;
         // The vehicle goes through the SAME entry battle and the garage use, so a review frame
         // cannot flatter the hero with a path the game does not ship.
         let vehicle_objects = view.vehicle.map(|vehicle| {
             crate::tank_vehicle_render_objects(
-                &mut catalog,
+                &mut self.catalog,
                 &review_snapshot(&vehicle),
                 vehicle.hull_color,
             )
         });
-        for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
-            renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+        for (handle, mesh) in self.catalog.take_pending_vehicle_meshes() {
+            self.renderer.register_vehicle_mesh(ctx, handle, &mesh);
         }
-        for (handle, maps) in catalog.take_pending_vehicle_materials() {
-            renderer.register_vehicle_material(&ctx, handle, &maps);
+        for (handle, maps) in self.catalog.take_pending_vehicle_materials() {
+            self.renderer.register_vehicle_material(ctx, handle, &maps);
         }
-        renderer.set_vehicle_render_frame(
-            &ctx,
+        self.renderer.set_vehicle_render_frame(
+            ctx,
             &crate::render_frame_from_objects(vehicle_objects.unwrap_or_default()),
         );
 
@@ -257,21 +312,22 @@ pub fn render_review_views_with_fov(
         // for its distance — deterministic, which is what the goldens need.
         let mut tree_lod_state = scene_build::tree_lod::TreeLodState::default();
         let dressing = battlefield_dressing_objects(
-            &battlefield,
-            &ground_maps,
-            &materials,
+            &self.battlefield,
+            &self.ground_maps,
+            &self.materials,
             &[],
             scene_build::tree_lod::TreeEye::at(glam::Vec3::from_array(view.eye)),
             &mut tree_lod_state,
         );
-        renderer
-            .set_render_frame(&ctx, &RenderFrame { objects: dressing, ..RenderFrame::default() });
-        renderer.scene_lighting = view.lighting;
-        renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
+        self.renderer
+            .set_render_frame(ctx, &RenderFrame { objects: dressing, ..RenderFrame::default() });
+        self.renderer.scene_lighting = view.lighting;
+        self.renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
         // A view with a subject focuses the near shadow cascade on the SUBJECT, not on the
         // camera's aim point: the contact shadow under the hull is the whole reason the frame
         // exists, and off-centre it falls outside the crisp box.
-        renderer.shadow_focus = Some(view.vehicle.map_or(view.target, |v| v.position));
+        self.renderer.shadow_focus = Some(view.vehicle.map_or(view.target, |v| v.position));
+        self.renderer.set_hud(ctx, hud);
 
         let camera = Camera {
             eye: view.eye,
@@ -281,12 +337,45 @@ pub fn render_review_views_with_fov(
         };
         let view_proj = view_projection_matrix(
             &camera,
-            width as f32 / height as f32,
-            projection.near_plane_m(),
-            projection.far_plane_m(),
+            self.width as f32 / self.height as f32,
+            self.projection.near_plane_m(),
+            self.projection.far_plane_m(),
         );
-        renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
-        frames.push(target.read_rgba8(&ctx)?);
+        self.renderer.render(ctx, self.target.render_target(), view_proj, camera.eye)?;
+        Ok(self.target.read_rgba8(ctx)?)
+    }
+}
+
+/// The two frozen frames the HUD goldens sit on: a third-person contact and the scope's own
+/// frame, both from the look goldens' own review set, so a HUD frame minus its HUD IS a look
+/// golden — which is how the footprint lock measures the interface.
+pub const HUD_REVIEW_MAP: MapId = MapId::ProkhorovkaHill252_2;
+pub const HUD_REVIEW_THIRD_PERSON_VIEW: &str = "prokhorovka_contact_backlit";
+pub const HUD_REVIEW_SNIPER_VIEW: &str = "prokhorovka_sniper_contact";
+
+/// The HUD golden instrument (interface program F8): every `HudReviewView` rendered over its
+/// frozen battlefield frame, through the same stage the look goldens use.
+pub fn render_hud_review_views(
+    views: &[crate::hud::HudReviewView],
+    width: u32,
+    height: u32,
+) -> Result<Vec<Vec<u8>>, LookHarnessError> {
+    let battlefield = map_forge::battlefield(HUD_REVIEW_MAP);
+    let review = scene_build::review_views::review_views_for(HUD_REVIEW_MAP, &battlefield);
+    let base = |name: &str| {
+        review
+            .iter()
+            .find(|v| v.name == name)
+            .unwrap_or_else(|| panic!("the review set carries {name}"))
+    };
+    let third_person = base(HUD_REVIEW_THIRD_PERSON_VIEW);
+    let sniper = base(HUD_REVIEW_SNIPER_VIEW);
+    let mut stage = BattlefieldStage::new(HUD_REVIEW_MAP, width, height)?;
+    let mut frames = Vec::with_capacity(views.len());
+    for view in views {
+        let hud = crate::hud::hud_state_vertices(view.state, view.size, width, height);
+        let scene = if view.state.sniper() { sniper } else { third_person };
+        frames.push(stage.render_view(scene, REVIEW_FOV_DEGREES, &hud)?);
     }
     Ok(frames)
 }
