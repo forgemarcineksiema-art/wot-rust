@@ -27,13 +27,38 @@ const SECTIONS: usize = 4;
 /// The gap between two bolted sections.
 const SEAM_M: f32 = 0.03;
 
-/// Both fenders, as folded pressings.
+/// Both fenders, as folded pressings, with the benchmark's authored lip.
 pub(crate) fn t54_fender_parts(fender: &FenderVisual, detail: &DetailVisual) -> Vec<VehiclePart> {
+    fender_parts(fender, detail.fender_lip_thickness, detail.fender_lip_drop)
+}
+
+/// The lip a guard folds when its vehicle authors no `DetailVisual`: a 5 mm pressing turned
+/// down 50 mm — the fleet's recipe guards drew the same drop.
+const DEFAULT_LIP: (f32, f32) = (0.005, 0.05);
+
+/// The fender shelves of any vehicle whose visual file authors a `FenderVisual` (Forge 2.0
+/// K3-2e, the Tiger I's Kettenabdeckung first): the same folded pressings as the benchmark's,
+/// the lip from the vehicle's `DetailVisual` when it has one, the fleet default otherwise.
+pub fn fender_parts_for_blueprint(bp: &game_core::VehicleBlueprint) -> Option<Vec<VehiclePart>> {
+    let visual = bp.visual_detail()?;
+    let fender = visual.fender?;
+    let (thickness, drop) = visual
+        .detail
+        .map(|detail| (detail.fender_lip_thickness, detail.fender_lip_drop))
+        .unwrap_or(DEFAULT_LIP);
+    Some(fender_parts(&fender, thickness, drop))
+}
+
+/// Both fenders, as folded pressings: `SECTIONS` bolted sections a side, each plate, chamfer
+/// and return lip one panel.
+fn fender_parts(fender: &FenderVisual, lip_thickness: f32, lip_drop: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::with_capacity(SECTIONS * 2);
     let mut index = 0u16;
     for side_x in [fender.side_x, -fender.side_x] {
         for section in 0..SECTIONS {
-            let Some(mesh) = section_panel(side_x, section, fender, detail) else { continue };
+            let Some(mesh) = section_panel(side_x, section, fender, lip_thickness, lip_drop) else {
+                continue;
+            };
             parts.push(VehiclePart {
                 key: PartKey::indexed("fender_segment", index),
                 submesh: SubmeshKind::Hull,
@@ -62,7 +87,8 @@ fn section_panel(
     side_x: f32,
     section: usize,
     fender: &FenderVisual,
-    detail: &DetailVisual,
+    lip_thickness: f32,
+    lip_drop: f32,
 ) -> Option<GeometryMesh> {
     let half_z = fender.half.z / SECTIONS as f32 - SEAM_M;
     if half_z <= 0.0 {
@@ -81,10 +107,7 @@ fn section_panel(
         origin: Vec3::new(side_x, fender.center_y + fender.half.y, center_z),
         normal: Vec3::Y,
         thickness: fender.half.y * 2.0,
-        edge: PanelEdge::Hem {
-            width: detail.fender_lip_thickness,
-            return_depth: detail.fender_lip_drop,
-        },
+        edge: PanelEdge::Hem { width: lip_thickness, return_depth: lip_drop },
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
     })

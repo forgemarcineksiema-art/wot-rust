@@ -112,7 +112,7 @@
             min_iou: 0.95,
             status: Target,
             // Measured 2026-09-05 after the data-first re-sourcing (IoU 0.925, up from 0.862).
-            floor_iou: Some(0.93),
+            floor_iou: Some(0.94),
             source: (
                 label: "STT report on PzKw VI Tiger Model E (January 1944, Commons, PD)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",

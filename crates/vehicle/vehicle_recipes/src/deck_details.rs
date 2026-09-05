@@ -194,6 +194,7 @@ fn german_track_flaps(
     mut builder: MeshBuilder,
     bp: &VehicleBlueprint,
     end_sign: f32,
+    hinge_at: Option<f32>,
 ) -> MeshBuilder {
     let track = &bp.track;
     let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
@@ -202,7 +203,8 @@ fn german_track_flaps(
     // and droops AHEAD of its front edge — the first version hinged at end_z - 0.10 and cut
     // straight through the climbing shoes.
     let wrap_outer = track.end_radius + 0.02 + 0.055;
-    let hinge_y = (track.end_y + wrap_outer + 0.03).max(bp.hull.sponson_y + 0.02);
+    let hinge_y =
+        hinge_at.unwrap_or_else(|| (track.end_y + wrap_outer + 0.03).max(bp.hull.sponson_y + 0.02));
     let hinge_z = end_sign * (track.end_z + 0.12);
     let droop_dz = 0.45;
     let droop_dy = 0.22;
@@ -491,10 +493,15 @@ fn engine_deck_british(builder: MeshBuilder, bp: &VehicleBlueprint) -> GeometryM
 /// What a recipe deck leaves OUT because the part library now draws it (Forge 2.0 K3): the
 /// library's parts replace the recipe's greeble one class at a time, and a recipe that kept
 /// drawing its own hatch under the library's lid would ship two hatches.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct DeckOmit {
     /// The bow hatches, the headlight and the tow hooks — `FittingsVisual`'s parts.
     pub fittings: bool,
+    /// The full-length track guards — `FenderVisual`'s folded pressings.
+    pub guards: bool,
+    /// Where the library's guard shelf tops out, so the recipe's hinged flaps hang from it
+    /// rather than from the sponson underside.
+    pub guard_top_y: Option<f32>,
 }
 
 fn german_bow(
@@ -528,10 +535,11 @@ pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMes
     } else {
         tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14])
     };
-    // The Tiger wears its fender line over the full run, closed by hinged flaps at BOTH ends.
-    let b = german_track_guards(b, bp);
-    let b = german_track_flaps(b, bp, 1.0);
-    let b = german_track_flaps(b, bp, -1.0);
+    // The Tiger wears its fender line over the full run, closed by hinged flaps at BOTH ends;
+    // when the library folds the guards (K3-2e) the flaps hang from ITS shelf.
+    let b = if omit.guards { b } else { german_track_guards(b, bp) };
+    let b = german_track_flaps(b, bp, 1.0, omit.guard_top_y);
+    let b = german_track_flaps(b, bp, -1.0, omit.guard_top_y);
     engine_deck_german(b, bp)
 }
 
@@ -539,7 +547,7 @@ pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.21, DeckOmit::default());
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
-    let b = german_track_flaps(b, bp, 1.0);
+    let b = german_track_flaps(b, bp, 1.0, None);
     engine_deck_german(b, bp)
 }
 

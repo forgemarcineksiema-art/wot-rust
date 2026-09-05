@@ -115,10 +115,58 @@ fn the_bow_shelf_sets_the_drivers_plate_back_from_the_nose() {
         .iter()
         .map(|vertex| vertex.position)
         .filter(|point| point.y > top + 0.01 && point.y <= bp.hull.deck_y + 0.01)
-        .filter(|point| point.x.abs() <= bp.hull.half_width)
+        // The central body only: over the belts the guards' hinged flaps hang ahead of the
+        // sprocket wraps, and they are the fender line's, not the box's.
+        .filter(|point| point.x.abs() <= bp.hull.lower_half_width)
         .filter(|point| point.z > bp.hull.half_len - setback + 0.25)
         .count();
     assert_eq!(proud, 0, "above the shelf the bow is the set-back driver's plate: {proud}");
+}
+
+/// The track guards (K3-2e): the STT 1944 front view's 12 ft 3 in = 3.734 m is over the guards'
+/// outer edges, and the side view bolts their rail ~1.40 m up the hull side. The shipped
+/// composition folds them from the library at exactly those numbers, bridging the 3.18 m box
+/// and the belt's outer face; the recipe's own guards stay out, so nothing ships twice.
+#[test]
+fn the_track_guards_stand_at_the_sheet_s_12_ft_3_in() {
+    let bp = blueprint();
+    let fender = bp.visual_detail().and_then(|v| v.fender).expect("the Tiger authors its guards");
+    assert!((2.0 * (fender.side_x + fender.half.x) - 3.734).abs() < 1.0e-3, "12 ft 3 in");
+    assert!(
+        (fender.side_x - fender.half.x - bp.hull.half_width).abs() < 1.0e-3,
+        "the guard starts at the upper hull box's side"
+    );
+    assert!((fender.center_y + fender.half.y - 1.398).abs() < 1.0e-3, "the rail at ~1.40");
+    assert!(fender.center_y - fender.half.y > bp.hull.sponson_y, "over the sponson underside");
+    let shipped = vehicle_recipes::describe(VehicleKind::TigerI).expect("Tiger describes").build();
+    let hull_mesh = &shipped.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+    let widest = hull_mesh
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position.x.abs())
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!((widest - 1.867).abs() < 0.005, "the guards are the widest metal: {widest}");
+    // Everything wider than the belt is the guard shelf and its lip, at the rail's height.
+    for vertex in hull_mesh.vertices() {
+        if vertex.position.x.abs() > bp.track.outer_x + 1.0e-3 {
+            let y = vertex.position.y;
+            assert!(
+                y > fender.center_y - fender.half.y - 0.06 && y < fender.center_y + 0.02,
+                "past the belt only the guard and its lip: {:?}",
+                vertex.position
+            );
+        }
+    }
+    // The recipe's own guards are out: below the library's shelf, nothing spans the belt.
+    let recipe_shelf = hull_mesh
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.position.x.abs() > bp.hull.half_width + 0.02)
+        .filter(|vertex| vertex.position.x.abs() < bp.track.outer_x - 0.02)
+        .filter(|vertex| vertex.position.y < fender.center_y - fender.half.y - 0.06)
+        .filter(|vertex| vertex.position.z.abs() < bp.track.end_z - 0.20)
+        .count();
+    assert_eq!(recipe_shelf, 0, "the recipe's guard shelf stays out: {recipe_shelf}");
 }
 
 /// The hull sides are genuinely vertical walls at the full sponson beam — the armor facet says

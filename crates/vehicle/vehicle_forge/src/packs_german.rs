@@ -92,15 +92,15 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         // Re-sourced 2026-09-05 (Forge 2.0 K3, data first) to the School of Tank Technology's
         // January 1944 sheet of a captured Tiger — dimensioned side / front / plan drawings:
-        // 3.56 m over the sponson shelf (3.548 over the tracks, 3.734 over the guards), the
-        // turret roof at 2.60 with the cupola apex at 2.86, the turret 2.34 wide. The hull is
-        // therefore LONGER for its width (6.32 / 3.56 = 1.78) and the turret broader on it
-        // (2.34 / 3.56 = 0.66) than the 3.705-beam targets said.
+        // 3.734 m over the track guards (3.548 over the tracks, the 3.18 m upper hull box
+        // inside them), the turret roof at 2.60 with the cupola apex at 2.86, the turret 2.34
+        // wide. The width the bake draws is the guards' (the library's, K3-2e), so the hull is
+        // 6.32 / 3.734 = 1.69 long for its width and the turret 2.34 / 3.734 = 0.63 of it.
         {
             let mut ratios = silhouette_ratios(
-                (1.78, 0.06),
+                (1.69, 0.06),
                 (0.33, 0.02),
-                (0.66, 0.05),
+                (0.63, 0.05),
                 (0.56, 0.05),
                 (0.34, 0.03),
                 [
@@ -140,14 +140,14 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::HullWidth,
-            3.548,
+            3.734,
             0.03,
             tiger_i_dossier(
-                "3.548 m over the combat tracks (STT 1944: 6 ft 10.625 in + 2 x 2 ft 4.5 in), \
-                 the widest metal the bake draws — the recipe's track guards reach exactly the \
-                 belts' outer face. The upper hull box above them is 3.18 m; 12 ft 3 in = 3.734 m \
-                 is over the sheet's guards, which are the part library's (K20, K3-2e) — so the \
-                 3.705/3.72 records are guard widths, and C1 was resolved the wrong way round.",
+                "12 ft 3 in = 3.734 m over the track guards, the STT 1944 front view's own \
+                 dimension and the widest metal the bake draws (the library's guards, K3-2e). \
+                 Inside them: 6 ft 10.625 in + 2 x 2 ft 4.5 in = 3.548 m over the combat tracks \
+                 and the 3.18 m upper hull box — so the 3.705/3.72 records are guard widths, \
+                 and C1 was resolved the wrong way round (K20).",
             ),
         ),
         DimensionTarget::new(

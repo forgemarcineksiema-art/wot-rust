@@ -56,4 +56,5 @@ pub use t54::{
     t54_description_from_blueprint, t54_from_modules, t54_from_modules_with_blueprint,
 };
 pub use t54_details::fitting_parts_for_blueprint;
+pub use t54_fender::fender_parts_for_blueprint;
 pub use t54_turret_loft::t54_turret_loft;
