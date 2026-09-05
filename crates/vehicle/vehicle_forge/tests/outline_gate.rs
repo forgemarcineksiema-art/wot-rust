@@ -36,6 +36,11 @@ fn every_locked_outline_holds_on_the_authoritative_bake() {
                     m.summary_line(&format!("{kind:?}"))
                 ),
                 AnchorStatus::Target => {
+                    assert!(
+                        m.holds_floor(),
+                        "{kind:?}: {} — the bake moved AWAY from the drawing since the floor                          was measured; a construction PR that changes the silhouette re-measures                          the floor in `outlines/<slug>.outline.ron` with the number in its message",
+                        m.summary_line(&format!("{kind:?}"))
+                    );
                     if !m.passed() {
                         debts.push(m.summary_line(&format!("{kind:?}")));
                     }
@@ -115,5 +120,10 @@ fn the_outline_file_names_the_vehicle_it_belongs_to() {
     for spec in set.views() {
         assert_eq!(spec.status(), AnchorStatus::Target, "traced against R1 before it locks");
         assert_eq!(spec.source().url(), "docs/vehicles/t-54.md");
+        assert!(
+            spec.floor_iou().is_some(),
+            "{}: a Target view carries its floor",
+            spec.view().label()
+        );
     }
 }
