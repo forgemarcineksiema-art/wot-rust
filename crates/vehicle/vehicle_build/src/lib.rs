@@ -15,6 +15,7 @@ mod inventory;
 mod manifest;
 mod part;
 mod parts_fittings;
+mod parts_gun;
 mod parts_hull;
 mod parts_plates;
 mod parts_slab_hull;
@@ -51,6 +52,7 @@ pub use parts_hull::{
     deck_grille, engine_deck_panels, hull_solid, lower_tub_solid, upper_hull_solid,
 };
 pub use parts_plates::{hull_plate_seams, transmission_covers};
+pub use parts_gun::gun_parts_for_blueprint;
 pub use parts_slab_hull::{slab_hull_parts, slab_hull_parts_for_blueprint};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{

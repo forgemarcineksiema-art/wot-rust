@@ -24,7 +24,6 @@ fn the_tiger_describes_as_the_pieces_its_recipe_still_owns() {
             ("recipe_hull_deck", SubmeshKind::Hull),
             ("recipe_hull_details", SubmeshKind::Hull),
             ("recipe_turret", SubmeshKind::Turret),
-            ("recipe_gun", SubmeshKind::Gun),
         ]
     );
     assert!(

@@ -497,6 +497,8 @@ fn engine_deck_british(builder: MeshBuilder, bp: &VehicleBlueprint) -> GeometryM
 pub(crate) struct DeckOmit {
     /// The slab hull itself — the library's plate solids (`HullConstruction::WeldedSlab`).
     pub slab: bool,
+    /// The gun group — the library's barrel, mantlet and brake off the authored `GunVisual`.
+    pub gun: bool,
     /// The bow hatches, the headlight and the tow hooks — `FittingsVisual`'s parts.
     pub fittings: bool,
     /// The full-length track guards — `FenderVisual`'s folded pressings.
