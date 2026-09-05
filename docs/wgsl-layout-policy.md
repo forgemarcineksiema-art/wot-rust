@@ -9,11 +9,15 @@ WGSL data layout is a renderer backend contract, not a visual detail. Rust struc
 - Use `naga` to parse and validate WGSL shaders in automated tests.
 - Do not rely on `#[repr(C)]` alone for uniform or storage buffer compatibility.
 - Do not hand-pack larger uniform/storage structs with ad hoc byte offsets.
-- Keep shader binding groups aligned with `renderer_api::baseline_bind_group_layout()`.
+- Keep shader binding groups aligned with the layouts the pipelines are built from: group 0 is
+  the camera uniform plus the armor-damage storage buffers (`build_camera_bind_group_layout`),
+  group 1 is per-pipeline material data (the foliage atlas for the scene pipeline, the vehicle
+  material families for the vehicle pipeline, the ground maps for the terrain pipeline), group 2
+  is the shared environment (`build_shadow_bind_group_layout`: both shadow cascades, the AO
+  target, the cloud tile, the reflection cube).
 
 ## Current Baseline
 
-- `TankVertex` is POD and can be copied to vertex buffers through `bytemuck`.
 - `SceneVertex` is POD (`bytemuck`): eight fields, 15 floats, 60 bytes — `position`, `normal`,
   `color`, `tint_weight`, `gloss` (materials v2), `surface` (surface-role lane), `sway` (wind
   lane), `uv` (foliage-atlas lane); `renderer_api/src/scene.rs:41-70` locks the size. Grown ONLY
@@ -24,11 +28,10 @@ WGSL data layout is a renderer backend contract, not a visual detail. Rust struc
 - `SceneInstance` is POD (`bytemuck`): the per-object `model` matrix plus a `tint` color, bound as a
   second instance-step vertex buffer at locations `4..=8`.
 - `CameraUniform` is serialized through `encase::UniformBuffer`.
-- `basic_tank.wgsl` and `scene.wgsl` are validated by `naga` in `renderer_wgpu` tests. Note that
-  `basic_tank.wgsl` is a dead-path shader: only the unused `RenderBackend` (`renderer.rs`) and the
-  validation tests reference it — the shipping picture is drawn by the scene/vehicle/sky/water/FX
-  pipelines.
-- The camera uniform lives in group 1, binding 0, matching the camera/view slot.
+- Every shipped shader is validated by `naga` in `renderer_wgpu/tests/wgsl_layout.rs`
+  (`every_shipped_shader_validates`). The dead-path `basic_tank.wgsl` and its `TankVertex` were
+  removed on 2026-09-05; nothing drew with them.
+- The camera uniform lives in group 0, binding 0 (`camera_common.wgsl`), in every pass.
 - `CameraUniform.time_params.x` is the presentation clock every shader animation reads
   (water ripple, foliage sway, weather). It is **tick-domain by doctrine**: fed from the fixed
   simulation tick plus the sub-tick render phase, never integrated from render-frame deltas — a

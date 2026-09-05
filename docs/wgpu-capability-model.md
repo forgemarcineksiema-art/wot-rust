@@ -54,31 +54,26 @@ The baseline render plan is intentionally boring and cross-platform:
 - UI;
 - debug draw.
 
-High-end features are optional requests, not foundations:
-
-- ray tracing or ray queries fall back to shadow maps;
-- mesh shaders fall back to instancing;
-- bindless-style resource arrays fall back to the normal forward+ material path;
-- GPU-driven rendering falls back to CPU-side frustum culling and instancing.
-
-`renderer_api::select_render_feature_plan()` owns this policy. `renderer_wgpu` maps native `wgpu` feature flags into backend-neutral feature names, including `experimental:ray-query` and `experimental:mesh-shader`, then stores the selected `RenderFeaturePlan`. Experimental paths only activate from explicit experimental feature names; otherwise they are recorded as fallbacks.
+High-end features are not on the table: there is no ray tracing, mesh shading, bindless or
+GPU-driven path, and — since 2026-09-05 — no `RenderFeaturePlan` claiming to negotiate them.
+The renderer is a forward renderer with cascaded shadow maps, half-resolution SSAO, an HDR
+chain with bloom and FXAA, CPU frustum culling by terrain chunk and instancing by (mesh,
+material). The adapter is classified into `RenderCapabilityTier` for the startup log and the
+`quality` tier table (`LightingQuality`); nothing else keys on it.
 
 ## Bind Group Policy
 
-The baseline renderer uses four stable bind group slots:
-
-- group 0: frame/global data;
-- group 1: camera/view data;
-- group 2: material data;
-- group 3: object/instance data.
-
-This is the default `renderer_api::baseline_bind_group_layout()`. The renderer must not create a separate bind group for every small mesh part, tank, bolt, or texture. Materials should batch through the material slot and object transforms should flow through object/instance data.
-
-The baseline texture strategy is `BoundedMaterialSet`, not full bindless. Bindless-style arrays and large texture arrays require `RenderFeature::BindlessResources` in the selected feature plan. That feature only enables when the backend reports the required texture/storage binding array support and `partially-bound-binding-array` on an experimental tier; otherwise the plan records a fallback to the normal forward+ material path.
+The pipelines share three groups: group 0 is the camera uniform plus the armor-damage storage
+buffers (`build_camera_bind_group_layout`), group 1 is per-pipeline material data (the foliage
+atlas, the vehicle material families, the ground maps), group 2 is the shared environment
+(`build_shadow_bind_group_layout`). The renderer does not create a bind group per mesh part,
+tank or bolt: materials batch through group 1 and object transforms flow through the
+instance-step vertex buffer (`SceneInstance`).
 
 ## Pipeline Preparation
 
-Pipeline creation is not part of gameplay rendering. The renderer prepares predictable `PipelineKey` variants before draw calls, including shader, vertex layout, material flags, color/depth formats, MSAA, skinning, and alpha mode. Dev builds may hot reload these variants outside the draw loop. Release builds use explicit prewarm and can later persist a `wgpu::PipelineCache` for the same or similar device.
+Every pipeline is created in `SceneRenderer::new`, before the first frame, and never during
+one. There is no `wgpu::PipelineCache` yet — see `docs/pipeline-policy.md`.
 
 ## Upload Strategy
 

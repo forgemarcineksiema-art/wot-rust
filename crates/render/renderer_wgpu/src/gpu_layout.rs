@@ -1,23 +1,6 @@
 use encase::{ShaderSize, ShaderType, UniformBuffer};
 use renderer_api::{RenderError, SceneLighting};
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct TankVertex {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-}
-
-impl TankVertex {
-    pub const fn new(position: [f32; 3], normal: [f32; 3]) -> Self {
-        Self { position, normal }
-    }
-}
-
-pub fn tank_vertex_bytes(vertices: &[TankVertex]) -> &[u8] {
-    bytemuck::cast_slice(vertices)
-}
-
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GpuMat4(pub [[f32; 4]; 4]);
