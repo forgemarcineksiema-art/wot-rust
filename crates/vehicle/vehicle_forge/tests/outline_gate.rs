@@ -129,22 +129,31 @@ fn the_outline_file_names_the_vehicle_it_belongs_to() {
 }
 
 #[test]
-fn the_tiger_carries_its_traced_plan_view_as_a_target_with_a_floor() {
+fn the_tiger_carries_its_three_traced_views_as_targets_with_floors() {
     let set = vehicle_forge::tiger_i_outline_set();
     assert_eq!(set.vehicle(), VehicleKind::TigerI.slug());
     let views: Vec<OutlineView> = set.views().iter().map(OutlineSpec::view).collect();
-    assert_eq!(
-        views,
-        vec![OutlineView::Plan],
-        "the 1944 report gives the plan; side and front wait"
-    );
-    let spec = &set.views()[0];
-    assert_eq!(spec.status(), AnchorStatus::Target);
-    assert!(spec.floor_iou().is_some());
+    for view in OutlineView::ALL {
+        assert!(
+            views.contains(&view),
+            "the 1944 STT report gives all three views: {}",
+            view.label()
+        );
+    }
+    for spec in set.views() {
+        assert_eq!(spec.status(), AnchorStatus::Target);
+        assert!(
+            spec.floor_iou().is_some(),
+            "{}: a Target view carries its floor",
+            spec.view().label()
+        );
+    }
     let baked = authoritative_baked_vehicle(VehicleKind::TigerI).expect("bake");
     let report =
         ReferencePack::for_vehicle(VehicleKind::TigerI).expect("pack").measure_outlines(&baked);
-    assert_eq!(report.len(), 1);
-    println!("{}", report[0].summary_line("TigerI"));
-    assert!(report[0].holds_floor(), "{}", report[0].summary_line("TigerI"));
+    assert_eq!(report.len(), 3);
+    for m in &report {
+        println!("{}", m.summary_line("TigerI"));
+        assert!(m.holds_floor(), "{}", m.summary_line("TigerI"));
+    }
 }
