@@ -312,6 +312,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+    let (sheet_w, sheet_h, sheet) = client::hud_material_sheet();
+    renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
     let hud = if show_list {
         garage_overlay_option_list(vehicle_index, slot_index, aspect)
     } else {

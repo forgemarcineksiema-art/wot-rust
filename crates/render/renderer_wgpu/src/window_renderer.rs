@@ -180,6 +180,12 @@ impl WindowRenderer {
         self.scene.set_hud_font_atlas(&self.ctx, width, height, coverage);
     }
 
+    /// Upload the HUD material sheet (RGBA8, `width`*`height`*4 bytes): the tiles the plates of
+    /// the interface are cut from (interface program F2).
+    pub fn set_hud_material_sheet(&mut self, width: u32, height: u32, rgba: &[u8]) {
+        self.scene.set_hud_material_sheet(&self.ctx, width, height, rgba);
+    }
+
     pub fn render(
         &mut self,
         view_proj: [[f32; 4]; 4],

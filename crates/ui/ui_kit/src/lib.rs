@@ -11,4 +11,5 @@
 pub mod font;
 pub mod icons;
 pub mod primitives;
+pub mod sheet;
 pub mod theme;

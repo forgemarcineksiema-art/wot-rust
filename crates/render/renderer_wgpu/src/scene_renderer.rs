@@ -35,11 +35,13 @@ use crate::{CameraUniform, GpuContext, VehicleMeshRegistry, build_vehicle_pipeli
 /// any frame holding more than a third of one tank, rendering an empty meadow.
 const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 23;
 const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 23;
-/// HUD overlay budget: 16384 vertices (32 B each). Sized for the full battle HUD — reticle,
-/// bars, readouts (each glyph now carries a drop-shadow quad), damage log, ammo panel and the
-/// 36x36-cell minimap — with headroom; `set_hud` truncates (with a warning) instead of
-/// blanking the frame if a regression ever exceeds it.
-const HUD_VERTEX_CAPACITY: u64 = 1 << 19;
+/// HUD overlay budget: 16384 vertices (64 B each since the interface program's F2 appended the
+/// plate lanes — the byte size doubled so the COUNT did not move). Sized for the full battle
+/// HUD — reticle, bars, readouts (each glyph now carries a drop-shadow quad), damage log, ammo
+/// panel and the 36x36-cell minimap — with headroom; `set_hud` truncates (with a warning)
+/// instead of blanking the frame if a regression ever exceeds it. The minimap relief's bake
+/// into the material sheet (H0) is what keeps the count sufficient (F9).
+const HUD_VERTEX_CAPACITY: u64 = 1 << 20;
 /// Battle-FX vertex budget. Everything the FX pass draws shares it: rolling ruts, the scorch
 /// marks shells leave in the ground, particles, tracers and the holes punched in hulls.
 ///
@@ -171,9 +173,7 @@ pub struct SceneRenderer {
     hud_pipeline: wgpu::RenderPipeline,
     hud_vertices: wgpu::Buffer,
     hud_vertex_count: u32,
-    hud_font_bgl: wgpu::BindGroupLayout,
-    hud_font_sampler: wgpu::Sampler,
-    hud_font_bind_group: wgpu::BindGroup,
+    hud_textures: hud_atlas::HudTextures,
     sample_count: u32,
     pub sky: wgpu::Color,
     /// Draw the gradient-sky background pass (the outdoor battle look). Interior scenes (the garage
@@ -530,14 +530,13 @@ impl SceneRenderer {
         let (chunked_indices, terrain_chunks) =
             terrain::chunk_initial_terrain(terrain_vertices, terrain_indices);
         let buffers = buffers::GeometryBuffers::new(device, terrain_vertices, &chunked_indices);
-        let (hud_font_bgl, hud_font_sampler, hud_font_bind_group) =
-            hud_atlas::create_hud_font_resources(device, &ctx.queue);
+        let hud_textures = hud_atlas::HudTextures::new(device, &ctx.queue);
         let vehicle_materials = vehicle_materials::VehicleMaterialRegistry::new(
             device,
             &ctx.queue,
             vehicle_material_bgl,
         );
-        let hud_pipeline = build_hud_pipeline(device, color_format, &hud_font_bgl);
+        let hud_pipeline = build_hud_pipeline(device, color_format, &hud_textures.layout);
         let post = post::PostResources::new(device, &camera_bgl);
         let fxaa = post::FxaaResources::new(device, color_format, &camera_bgl);
         let bloom = bloom::BloomResources::new(device, lighting_quality.bloom_mips);
@@ -604,9 +603,7 @@ impl SceneRenderer {
             hud_pipeline,
             hud_vertices: buffers.hud_vertices,
             hud_vertex_count: 0,
-            hud_font_bgl,
-            hud_font_sampler,
-            hud_font_bind_group,
+            hud_textures,
             sample_count,
             sky: wgpu::Color { r: 0.55, g: 0.69, b: 0.87, a: 1.0 },
             // Outdoor by default: the gradient-sky pass paints the background. Interior scenes turn

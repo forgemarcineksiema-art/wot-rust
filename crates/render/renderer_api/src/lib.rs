@@ -38,7 +38,7 @@ pub use limits::RenderLimitProfile;
 pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{
-    FxVertex, HUD_SOLID_UV, HudVertex, SceneVertex, WaterVertex, surface_role,
+    FxVertex, HUD_SOLID_UV, HudVertex, SceneVertex, WaterVertex, hud_style, surface_role,
     view_projection_inverse, view_projection_matrix,
 };
 pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_projection};

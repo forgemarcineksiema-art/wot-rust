@@ -361,7 +361,7 @@ impl super::SceneRenderer {
             );
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);
-                pass.set_bind_group(0, &self.hud_font_bind_group, &[]);
+                pass.set_bind_group(0, &self.hud_textures.bind_group, &[]);
                 pass.set_vertex_buffer(0, self.hud_vertices.slice(..));
                 pass.draw(0..self.hud_vertex_count, 0..1);
             }

@@ -823,8 +823,9 @@ fn vehicle_pipeline_builds_on_a_real_device() {
 /// and a frame with no vehicles; here it is a failed test (Q7, diet step 2).
 #[test]
 fn every_shipped_shader_validates() {
-    let shaders: [(&str, String); 9] = [
+    let shaders: [(&str, String); 10] = [
         ("fx", renderer_wgpu::fx_shader_source()),
+        ("hud", renderer_wgpu::hud_shader_source().to_string()),
         ("rain", renderer_wgpu::rain_shader_source()),
         ("scene", scene_shader_source()),
         ("shadow", renderer_wgpu::shadow_shader_source()),
@@ -839,4 +840,41 @@ fn every_shipped_shader_validates() {
             .unwrap_or_else(|error| panic!("{label} shader must validate: {error}"));
         assert!(!report.entry_points.is_empty(), "{label} shader exposes an entry point");
     }
+}
+
+/// Read a `const <name>: u32 = <value>u;` straight out of a shader, like `wgsl_const` does for
+/// floats: the lock fails when the shader moves, which is the point of a CPU/GPU contract test.
+fn wgsl_u32_const(source: &str, name: &str) -> u32 {
+    let needle = format!("const {name}: u32 = ");
+    let start = source.find(&needle).unwrap_or_else(|| panic!("{name} is missing from the shader"))
+        + needle.len();
+    let rest = &source[start..];
+    let end = rest.find(';').expect("a terminated const");
+    rest[..end].trim().trim_end_matches('u').parse().expect("a u32 const")
+}
+
+/// The HUD style lane is a CPU/GPU protocol (interface program F2): every kind, the mask and
+/// the shift, the tile grid and the tile period are declared on both sides, and this is where
+/// the two declarations are held together. Append-only on both ends.
+#[test]
+fn hud_style_values_are_bound_at_both_ends() {
+    use renderer_api::hud_style;
+    let source = renderer_wgpu::hud_shader_source();
+    assert_eq!(wgsl_u32_const(source, "STYLE_SOLID"), hud_style::SOLID);
+    assert_eq!(wgsl_u32_const(source, "STYLE_GLYPH"), hud_style::GLYPH);
+    assert_eq!(wgsl_u32_const(source, "STYLE_PLATE"), hud_style::PLATE);
+    assert_eq!(wgsl_u32_const(source, "STYLE_SHEET"), hud_style::SHEET);
+    assert_eq!(wgsl_u32_const(source, "STYLE_GLASS"), hud_style::GLASS);
+    assert_eq!(wgsl_u32_const(source, "STYLE_KIND_MASK"), hud_style::KIND_MASK);
+    assert_eq!(wgsl_u32_const(source, "STYLE_TILE_SHIFT"), hud_style::TILE_SHIFT);
+    assert_eq!(wgsl_const(source, "SHEET_TILES_PER_SIDE"), hud_style::SHEET_TILES_PER_SIDE as f32);
+    assert_eq!(wgsl_const(source, "TILE_UNITS"), hud_style::TILE_UNITS);
+    // The shader's seven vertex inputs are the vertex's seven attributes, in lane order.
+    for location in 0..7 {
+        assert!(
+            source.contains(&format!("@location({location})")),
+            "vertex input {location} is missing"
+        );
+    }
+    assert!(source.contains("@interpolate(flat) style: u32"), "an integer lane interpolates flat");
 }

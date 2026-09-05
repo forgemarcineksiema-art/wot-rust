@@ -20,32 +20,36 @@ pub fn hud_shader_source() -> &'static str {
     include_str!("shaders/hud.wgsl")
 }
 
-const HUD_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-    wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4];
+/// The HUD vertex's seven attributes, in lane order: the three legacy lanes, then the four the
+/// interface program appended (F2) — `local`, `extent`, `params`, and the `style` word.
+const HUD_ATTRIBUTES: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
+    0 => Float32x2, 1 => Float32x2, 2 => Float32x4,
+    3 => Float32x2, 4 => Float32x2, 5 => Float32x2, 6 => Uint32
+];
 
-/// Bind-group layout for the HUD font/coverage atlas: a filterable single-channel texture plus
-/// a linear sampler, shared by every HUD draw (the solid sentinel verts ignore it).
+/// Bind-group layout for the HUD's two textures: the font/coverage atlas (a filterable
+/// single-channel texture with a clamped sampler) and the material sheet (RGBA with a repeating
+/// sampler), shared by every HUD draw — the solid sentinel verts ignore both.
 pub(crate) fn build_hud_font_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    let texture = |binding: u32| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    };
+    let sampler = |binding: u32| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+        count: None,
+    };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("hud_font_bgl"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
+        entries: &[texture(0), sampler(1), texture(2), sampler(3)],
     })
 }
 

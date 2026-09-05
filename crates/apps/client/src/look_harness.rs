@@ -378,6 +378,8 @@ pub fn render_hangar_review_views(
     // with no font bound would lock a screen full of blank quads and call it a review.
     let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+    let (sheet_w, sheet_h, sheet) = crate::hud_material_sheet();
+    renderer.set_hud_material_sheet(&ctx, sheet_w, sheet_h, sheet);
 
     let projection = CameraProjectionPolicy::webgpu_default();
     let mut frames = Vec::with_capacity(views.len());
