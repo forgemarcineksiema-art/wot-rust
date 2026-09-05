@@ -765,7 +765,10 @@ fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
             .fold(0.0_f32, f32::max);
 
         // Where the belt runs on the wrap, and where the eye barrel sits under it.
-        let belt_r = kin.end_radius + 0.02;
+        // The belt around the SPROCKET's own wheel — not `end_radius`, which is the stern's:
+        // a front-drive vehicle with its own bow radius (the Tiger I, K22-1) measured its teeth
+        // against the idler's wrap here and failed for being right.
+        let belt_r = kin.sprocket_radius() + 0.02;
         let eye_r = belt_r - kin.hinge_eye_offset();
 
         assert!(
