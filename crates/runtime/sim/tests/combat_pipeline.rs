@@ -271,7 +271,11 @@ fn long_range_hit_uses_penetration_falloff() {
         state.spawn_tank(TeamId(2), TankSpec::tiger_i_ausf_e(), Vec3::new(0.0, 0.0, 900.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
-        shooter.gun_pitch_rad = 0.007;
+        // Lands on the driver's plate (~1.45 m up, between the sponson underside and the hull
+        // side top). The old 0.007 arrived at ~2.8 m: it hit the turret front only while the
+        // turret roof stood at a misread 2.885, and sailed over the tank once the roof came
+        // down to the sheet's 2.60 (Forge 2.0 K3).
+        shooter.gun_pitch_rad = 0.0055;
         shooter.aim_dispersion_mrad = 0.0;
         shooter.spec.gun.dispersion_mrad = 0.0;
         // Marginal at the muzzle: comfortably beats the plate at 100 m, dies to the velocity
@@ -292,6 +296,7 @@ fn long_range_hit_uses_penetration_falloff() {
 
     let event = state.damage_events().last().expect("long-range hit should resolve");
     assert_eq!(event.target, target);
+    assert_eq!(event.armor_zone, ArmorZone::UpperGlacis, "the shot is the hull front's to take");
     assert!(!event.penetrated, "100 mm at 100 m should fall below Tiger I front at 900 m");
     assert_eq!(state.tank(target).expect("target").hit_points, target_hp);
 }

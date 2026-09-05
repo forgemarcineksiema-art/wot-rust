@@ -29,7 +29,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // is what the guards cover and what spaced-armour hits resolve against. Authoring the
             // beam on the hull instead (the migration's shortcut) buried the fender line and made
             // the belts hide inside the sponson line.
-            half_width: 1.78,
+            half_width: 1.59,
             belly_y: 0.432,
             // The tall slab: superstructure roof at 1.90, the turret walls carrying the
             // silhouette to the documented 2.885 m and the drum cupola topping out at 3.00 m.
@@ -41,7 +41,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             nose_rise: 0.05,
             rear_slope_deg: 8.0,
             lower_half_width: 1.05,
-            sponson_y: 0.95,
+            sponson_y: 1.22,
             skirt: None,
             hitbox_half_width: 1.87,
             // Realistic full height: top = center_y + half_height = 3.01 bounds the 3.00 m tank.

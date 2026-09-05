@@ -140,14 +140,14 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::HullWidth,
-            3.56,
+            3.548,
             0.03,
             tiger_i_dossier(
-                "3.56 m over the sponson shelf, the widest metal the bake draws. The STT 1944 \
-                 sheet's own figures: 6 ft 10.625 in + 2 x 2 ft 4.5 in = 3.548 m over the \
-                 combat tracks, 12 ft 3 in = 3.734 m over the track guards (K20: the guards are \
-                 the part library's, not this bake's) — so the 3.705/3.72 records are guard \
-                 widths, and C1 was resolved the wrong way round.",
+                "3.548 m over the combat tracks (STT 1944: 6 ft 10.625 in + 2 x 2 ft 4.5 in), \
+                 the widest metal the bake draws — the recipe's track guards reach exactly the \
+                 belts' outer face. The upper hull box above them is 3.18 m; 12 ft 3 in = 3.734 m \
+                 is over the sheet's guards, which are the part library's (K20, K3-2e) — so the \
+                 3.705/3.72 records are guard widths, and C1 was resolved the wrong way round.",
             ),
         ),
         DimensionTarget::new(
