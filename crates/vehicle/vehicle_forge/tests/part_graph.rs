@@ -563,7 +563,7 @@ fn the_manifest_reports_the_generator_that_built_each_part() {
 }
 
 #[test]
-fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles() {
+fn the_manifest_report_names_every_kernel_and_a_sketch_names_its_recipe() {
     let report = part_manifest_report(VehicleKind::T54_1951).expect("T-54 report");
     assert!(report.contains("turret_shell") && report.contains("cast_loft"));
     assert!(report.contains("gun_barrel") && report.contains("revolve"));
@@ -572,8 +572,10 @@ fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles(
         !report.contains("tracks"),
         "static production manifest should leave full track belts to runtime running gear"
     );
-    // Geometry-derived German graphs have no executable (kernel-tagged) manifest yet.
-    assert!(production_part_manifest(VehicleKind::TigerI).is_none());
+    // A sketch's manifest is its three wrapped recipe submeshes — honest, and tagged as such.
+    let tiger = production_part_manifest(VehicleKind::TigerI).expect("a sketch describes itself");
+    assert_eq!(tiger.len(), 3);
+    assert!(tiger.iter().all(|e| e.generator == GeneratorKind::Recipe));
 }
 
 #[test]
