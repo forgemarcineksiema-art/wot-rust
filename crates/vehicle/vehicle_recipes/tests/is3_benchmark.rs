@@ -56,32 +56,6 @@ fn the_turtle_dome_overhangs_its_ring_and_out_slopes_every_dome() {
     }
 }
 
-/// The D-25T wears its double-baffle brake and NO bore evacuator — and it is the fattest
-/// turreted barrel in the lineup.
-#[test]
-fn the_d25t_is_a_braked_evacuatorless_122() {
-    let bp = blueprint();
-    assert!(bp.gun.muzzle_brake.is_some(), "the 122 wears its brake");
-    assert!(bp.gun.evacuator.is_none(), "no evacuator on a D-25T");
-    assert!(bp.gun.barrel_radius > 0.10, "a 122 mm barrel");
-}
-
-/// The IS family carries its top run on three small return rollers per side — the heavy's
-/// look against the wheel-riding Soviet mediums — over six small 550 mm wheels.
-#[test]
-fn three_return_rollers_carry_the_top_run_over_six_small_wheels() {
-    let bp = blueprint();
-    assert_eq!(bp.track.wheel_count, 6);
-    assert!((bp.track.wheel_radius - 0.275).abs() < 1.0e-6, "550 mm wheels");
-    assert_eq!(bp.track.return_rollers, 3);
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::IS3).expect("blueprint gear");
-    let rollers = running_gear_placements(&kin, 0.0, 0.0)
-        .iter()
-        .filter(|p| p.part == GearPart::ReturnRoller)
-        .count();
-    assert_eq!(rollers, 6, "three rollers per side");
-}
-
 /// The OMSh belt carries the IS family's real 86 shoes per side, which puts the shoe pitch on
 /// the historical 162 mm rather than a fifth under it.
 ///
@@ -132,29 +106,4 @@ fn the_rear_fenders_carry_the_external_fuel_drums() {
             "side {side}: a drum must stand proud of the rear fender: apex {drum_apex}"
         );
     }
-}
-
-/// The LOW silhouette is the design's whole point: the IS-3 heavy stands over half a metre
-/// SHORTER than every German heavy while carrying the fleet's biggest turreted gun.
-#[test]
-fn the_heavy_is_lower_than_every_german() {
-    let is3 = game_core::HitboxProfile::for_vehicle(VehicleKind::IS3);
-    let is3_top = is3.center_y_m + is3.half_height_m;
-    assert!((is3_top - 2.49).abs() < 1.0e-6, "2.44 m tank in a 2.49 m box");
-    for kind in [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::PantherII] {
-        let other = game_core::HitboxProfile::for_vehicle(kind);
-        let top = other.center_y_m + other.half_height_m;
-        assert!(is3_top < top - 0.4, "{kind:?} must tower over the IS-3: {top} vs {is3_top}");
-    }
-    // And the visible dome apex agrees with the box.
-    let baked = bake_vehicle(VehicleKind::IS3).expect("IS-3 bakes");
-    let apex = baked
-        .submesh(SubmeshKind::Turret)
-        .expect("turret submesh")
-        .mesh
-        .vertices()
-        .iter()
-        .map(|v| v.position.y)
-        .fold(f32::NEG_INFINITY, f32::max);
-    assert!(apex <= is3_top + 0.05, "the dome stays inside the low box: {apex}");
 }

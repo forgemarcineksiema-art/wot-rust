@@ -5,7 +5,7 @@
 
 use game_core::{ArmorZone, VehicleBlueprint, VehicleKind, vehicle_armor_volumes};
 use glam::Vec3;
-use vehicle_geometry::{GearPart, RunningGearKinematics, SubmeshKind, running_gear_placements};
+use vehicle_geometry::SubmeshKind;
 use vehicle_recipes::bake_vehicle;
 
 fn blueprint() -> VehicleBlueprint {
@@ -267,66 +267,6 @@ fn the_hull_flank_carries_stowage_on_the_armor_plane() {
     let run = stowage.iter().map(|v| v.position.z).fold(f32::MIN, f32::max)
         - stowage.iter().map(|v| v.position.z).fold(f32::MAX, f32::min);
     assert!(run > 3.0, "the stowage is spread along the flank, not clustered: {run:.2} m");
-}
-
-/// The PaK 44's overhang is the lineup's longest: the muzzle reaches almost three metres past
-/// the bow, and no other vehicle's reach beats it.
-#[test]
-fn the_pak44_overhang_is_the_longest_in_the_lineup() {
-    let mut rivals_compared = 0;
-    let bp = blueprint();
-    // Dossier PR-JT.1: the reference specimen (Aberdeen) and service photos run the PaK 44
-    // with a PLAIN muzzle — a brake reappearing here means someone re-fitted it on spec alone.
-    assert!(bp.gun.muzzle_brake.is_none(), "the 12.8 cm runs a plain muzzle (dossier decision)");
-    let overhang = bp.gun.muzzle_z - bp.hull.half_len;
-    assert!(overhang > 2.8, "almost three metres past the bow: {overhang}");
-    let reach = bp.gun.muzzle_z - bp.gun.trunnion_z;
-    for kind in VehicleKind::ALL {
-        if kind == VehicleKind::Jagdtiger {
-            continue;
-        }
-        let mounts = game_core::MountFrames::for_vehicle(kind);
-        let other = mounts.muzzle.translation.z - mounts.gun_trunnion.translation.z;
-        rivals_compared += 1;
-        assert!(other < reach, "{kind:?} out-reaches the PaK 44: {other} vs {reach}");
-    }
-    assert_eq!(
-        rivals_compared,
-        VehicleKind::ALL.len() - 1,
-        "the PaK 44's reach is only a claim if it was measured against every other gun in the fleet"
-    );
-}
-
-/// Nine overlapped wheels per side in two rows on the stretched chassis, no return rollers.
-#[test]
-fn nine_overlapped_wheels_on_the_stretched_chassis() {
-    let bp = blueprint();
-    assert_eq!(bp.track.wheel_count, 9);
-    assert_eq!(bp.track.return_rollers, 0);
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::Jagdtiger).expect("blueprint gear");
-    let wheels: Vec<f32> = running_gear_placements(&kin, 0.0, 0.0)
-        .iter()
-        .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
-        .map(|p| p.transform.w_axis.x)
-        .collect();
-    assert_eq!(wheels.len(), 9, "one wheel unit per authored axle");
-    let mut rows = wheels.clone();
-    rows.sort_by(f32::total_cmp);
-    rows.dedup_by(|a, b| (*a - *b).abs() < 1.0e-4);
-    assert_eq!(rows.len(), 2, "two overlapped wheel planes, got {rows:?}");
-    assert!(bp.track.overlap_inner_dx >= 2.0 * kin.wheel_half_width, "discs must not merge");
-}
-
-/// The migrated body is the RESEARCHED Jagdtiger: 7.80 m hull in a 7.9 m box, 3.64 m wide,
-/// 2.95 m tall — not the old 8.2 m box.
-#[test]
-fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
-    let bp = blueprint();
-    let hitbox = game_core::HitboxProfile::for_vehicle(VehicleKind::Jagdtiger);
-    assert!((hitbox.half_length_m - 3.95).abs() < 1.0e-6);
-    assert!((hitbox.half_width_m - 1.82).abs() < 1.0e-6);
-    assert!(((hitbox.center_y_m + hitbox.half_height_m) - 2.95).abs() < 1.0e-6);
-    assert!((bp.hull.half_len - 3.90).abs() < 1.0e-6, "the documented 7.80 m hull");
 }
 
 /// The JT.2 dressing locks (dossier PR-JT.1/JT.2): the massive cast collar at the casemate

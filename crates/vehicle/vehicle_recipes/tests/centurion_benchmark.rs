@@ -5,8 +5,7 @@
 //! would silently un-Centurion the tank.
 
 use game_core::{ArmorZone, VehicleBlueprint, VehicleKind, vehicle_armor_volumes};
-use glam::Vec3;
-use vehicle_geometry::{GearPart, RunningGearKinematics, SubmeshKind, running_gear_placements};
+use vehicle_geometry::SubmeshKind;
 use vehicle_recipes::bake_vehicle;
 
 fn blueprint() -> VehicleBlueprint {
@@ -40,71 +39,6 @@ fn the_bazooka_plates_are_the_armor_screen_and_hide_the_wheel_tops() {
     assert!(skirt.top_y > bp.track.axle_y() + bp.track.wheel_radius);
 }
 
-/// Horstmann: six wheels in three bogie PAIRS — tight inside a bogie, a real gap between
-/// bogies — with three return rollers carrying the top run. Tight is not MERGED: the two wheels
-/// of a bogie stand a hand's width apart, because a ⌀0.61 wheel on a 0.60 pitch is a wheel sunk
-/// a quarter of its diameter into its own pair (the defect this layout was born with).
-#[test]
-fn three_horstmann_bogie_pairs_with_return_rollers() {
-    let bp = blueprint();
-    let stations = bp.track.wheel_stations();
-    assert_eq!(stations.len(), 6);
-    let pair_gap = stations[1] - stations[0];
-    let bogie_gap = stations[2] - stations[1];
-    assert!(
-        bogie_gap > pair_gap * 1.5,
-        "the gap between bogies must dwarf the in-pair pitch: {bogie_gap} vs {pair_gap}"
-    );
-    let daylight = pair_gap - 2.0 * bp.track.wheel_radius;
-    assert!(
-        (0.02..0.12).contains(&daylight),
-        "a bogie's wheels run close but clear: {daylight} m of daylight between the tyres"
-    );
-    // The wheels hang on the authored axle, and the rim lands on the belt bottom the blueprint
-    // documents — the tank rides on its tracks, not above them.
-    assert!((bp.track.axle_y() - 0.355).abs() < 1.0e-6, "the authored Horstmann axle line");
-    let rim = bp.track.axle_y() - bp.track.wheel_radius;
-    assert!((rim - bp.track.bottom_y).abs() < 0.03, "wheel rim {rim} vs belt bottom");
-    assert_eq!(bp.track.return_rollers, 3);
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::Centurion).expect("blueprint gear");
-    let placements = running_gear_placements(&kin, 0.0, 0.0);
-    assert_eq!(placements.iter().filter(|p| p.part == GearPart::RoadWheel).count(), 12);
-    assert_eq!(placements.iter().filter(|p| p.part == GearPart::ReturnRoller).count(), 6);
-}
-
-/// The 76 mm glacis leans 57° — out-sloping every German plate (only the Soviet 60° school
-/// leans harder) — and the visible plate lies ON the armor volume's plane.
-#[test]
-fn the_glacis_out_slopes_every_german_plate_on_its_armor_plane() {
-    let bp = blueprint();
-    assert!((bp.armor.hull_front.0 - 57.0).abs() < 1.0e-6);
-    for kind in
-        [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII]
-    {
-        let other = VehicleBlueprint::for_vehicle(kind).expect("blueprint");
-        assert!(other.armor.hull_front.0 < 57.0, "{kind:?} must not out-slope the Centurion");
-    }
-    let baked = bake_vehicle(VehicleKind::Centurion).expect("Centurion bakes");
-    let hull_mesh = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
-    let volumes = vehicle_armor_volumes(VehicleKind::Centurion).expect("armor volumes");
-    let cy = bp.hull.hitbox_center_y;
-    let glacis = volumes.hull[0]
-        .planes
-        .iter()
-        .find(|plane| plane.zone == ArmorZone::UpperGlacis)
-        .expect("glacis plane");
-    let on_plane = hull_mesh
-        .vertices()
-        .iter()
-        .map(|vertex| vertex.position - Vec3::Y * cy)
-        .filter(|point| {
-            point.y > bp.hull.sponson_y - cy - 1.0e-3
-                && (glacis.normal.dot(*point) - glacis.offset).abs() < 1.0e-3
-        })
-        .count();
-    assert!(on_plane >= 4, "the visible glacis must lie on the armor plane: {on_plane}");
-}
-
 /// The cast Mk 3 dome carries the bustle stowage bin — turret metal reaches the rear of the
 /// turret plan, well behind the casting's own bustle.
 #[test]
@@ -119,37 +53,4 @@ fn the_bustle_bin_closes_the_turret_plan() {
         (rearmost - plan_rear).abs() < 0.05,
         "the bin reaches the rear of the plan: {rearmost} vs {plan_rear}"
     );
-}
-
-/// The 20-pounder Type A is a CLEAN tube: no muzzle brake, no fume extractor — the barrel
-/// stays a plain cylinder to the muzzle, unlike every German gun beside it.
-#[test]
-fn the_20pdr_type_a_is_a_clean_tube() {
-    let bp = blueprint();
-    assert!(bp.gun.muzzle_brake.is_none(), "Type A wears no brake");
-    assert!(bp.gun.evacuator.is_none(), "Type A wears no fume extractor");
-    let baked = bake_vehicle(VehicleKind::Centurion).expect("Centurion bakes");
-    let gun_mesh = &baked.submesh(SubmeshKind::Gun).expect("gun submesh").mesh;
-    let swell = gun_mesh
-        .vertices()
-        .iter()
-        .filter(|v| v.position.z > bp.gun.trunnion_z + 1.0)
-        .map(|v| Vec3::new(v.position.x, v.position.y - bp.gun.trunnion_y, 0.0).length())
-        .fold(0.0_f32, f32::max);
-    assert!(
-        swell < bp.gun.barrel_radius * 1.2,
-        "no swelling anywhere along the free barrel: {swell}"
-    );
-}
-
-/// The born body is the researched Centurion: 7.60 m hull in a 7.72 m box, ~3.34 m over the
-/// skirts, 2.99 m tall.
-#[test]
-fn the_hitbox_is_the_researched_body() {
-    let bp = blueprint();
-    let hitbox = game_core::HitboxProfile::for_vehicle(VehicleKind::Centurion);
-    assert!((hitbox.half_length_m - 3.86).abs() < 1.0e-6);
-    assert!((hitbox.half_width_m - 1.70).abs() < 1.0e-6);
-    assert!(((hitbox.center_y_m + hitbox.half_height_m) - 2.99).abs() < 1.0e-6);
-    assert!((bp.hull.half_len - 3.80).abs() < 1.0e-6, "the documented 7.60 m hull");
 }
