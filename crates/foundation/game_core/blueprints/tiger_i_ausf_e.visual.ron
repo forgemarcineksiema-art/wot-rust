@@ -65,11 +65,12 @@ VisualDetailFile(
             driver_hatch_radius: 0.26,
             driver_hatch_half_height: 0.05,
             // The loader's hatch on the turret roof, starboard, forward (plan). Rooted into the
-            // flat roof so the lid stands 3.5 cm proud: the bare-roof anchor (2.60 +-0.05) must
-            // find the roof, not the lid.
-            loader_hatch_center: (-0.96, 2.595, 0.98),
+            // flat roof; the lid is rooted 4.5 cm into the roof and stands 1.5 cm proud (a thinner
+            // press welds its bands to zero-area triangles), so the bare-roof anchor
+            // (2.60 +-0.02, the sheet's 8 ft 6.5 in) finds the roof, not the lid.
+            loader_hatch_center: (-0.96, 2.585, 0.98),
             loader_hatch_radius: 0.24,
-            loader_hatch_half_height: 0.04,
+            loader_hatch_half_height: 0.03,
             // The single headlight on the driver's plate, starboard (front view: x -0.52, y 1.59,
             // r 0.17). The plate is set 0.80 m back from the nose behind the glacis shelf
             // (`armor.hull_bow_shelf`) and stands at z ~2.32 at that height; the lamp's body

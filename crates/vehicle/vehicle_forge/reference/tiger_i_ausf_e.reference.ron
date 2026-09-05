@@ -82,7 +82,7 @@ ReferencePack(
         DimensionTarget(
             kind: HullWidth,
             target_m: 3.734,
-            tolerance_m: 0.03,
+            tolerance_m: 0.02,
             source: ReferenceSource(
                 label: "Tiger I dossier (Reference anatomy)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
@@ -93,7 +93,7 @@ ReferencePack(
         DimensionTarget(
             kind: HeightToTurretRoof,
             target_m: 2.885,
-            tolerance_m: 0.05,
+            tolerance_m: 0.04,
             source: ReferenceSource(
                 label: "Tiger I dossier (Reference anatomy)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
@@ -104,7 +104,7 @@ ReferencePack(
         DimensionTarget(
             kind: HeightToTurretRoofBare,
             target_m: 2.6,
-            tolerance_m: 0.05,
+            tolerance_m: 0.02,
             source: ReferenceSource(
                 label: "Tiger I dossier (Reference anatomy)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
@@ -114,12 +114,12 @@ ReferencePack(
         ),
         DimensionTarget(
             kind: OverallLengthWithGun,
-            target_m: 8.45,
-            tolerance_m: 0.1,
+            target_m: 8.458,
+            tolerance_m: 0.05,
             source: ReferenceSource(
                 label: "Tiger I dossier (Reference anatomy)",
                 url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-                note: "8.450 m gun forward.",
+                note: "8.450 m gun forward. The STT 1944 side view draws its 27 ft 9 in = 8.458 m to the exhaust box's rear face; the bake measures 8.502 because its exhaust shields stand 5 cm behind the rear plate while the muzzle was set from the records' 8.45 over a bare stern — the 5 cm of stern is the next measurement (scan-line reader), so +/-0.05 until then.",
             ),
             status: Locked,
         ),
@@ -199,6 +199,39 @@ ReferencePack(
                 note: "16 road wheels per side on 8 torsion-bar stations (2 per arm) after the February 1944 steel-rimmed change at Fgst.Nr. 250822 — the early tank carried 24 on 3 rows. The model draws ONE wheel per authored axle, so the fleet\'s signature Schachtellaufwerk runs at half its wheel count.",
             ),
             status: Target,
+        ),
+        DimensionTarget(
+            kind: TrackGauge,
+            target_m: 2.824,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference drawings)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "6 ft 10.625 in = 2.100 m between the belts (STT 1944 front view) + one 725 mm belt = 2.824 m centre to centre.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullSideTopHeight,
+            target_m: 1.778,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference drawings)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "5 ft 10 in = 1.778 m to the hull side's top edge, the STT 1944 front view's own dimension line (the fit of 2026-09-05 wanted 1.825; the sheet wins).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: GroundContactLength,
+            target_m: 3.607,
+            tolerance_m: 0.03,
+            source: ReferenceSource(
+                label: "Tiger I dossier (Reference drawings)",
+                url: "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                note: "11 ft 10.125 in = 3.607 m, the STT 1944 side view's ground-contact line (the road-wheel axle span, first to last).",
+            ),
+            status: Locked,
         ),
     ],
     outlines: [],

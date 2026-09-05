@@ -128,6 +128,13 @@ pub enum DimensionKind {
     /// This is the band the 2026-08-12 review found mis-read: the sheet was authored onto the
     /// track crest because a three-view scan measured the crest line and called it the shelf.
     FenderShelfHeight,
+    /// Height of the hull side's upper edge above the ground (the sponson wall's top, where the
+    /// deck meets the side) — the line drawing sheets dimension as the hull's height (basis:
+    /// Blueprint `deck_y`). Appended 2026-09-05 (the fit's lesson).
+    HullSideTopHeight,
+    /// Ground contact length as the drawings dimension it: the road-wheel axle span, first
+    /// to last (basis: Instances). Appended 2026-09-05.
+    GroundContactLength,
 }
 
 impl DimensionKind {
@@ -148,6 +155,8 @@ impl DimensionKind {
             DimensionKind::RoadWheelCount => "road wheels per side (count)",
             DimensionKind::HeightToTurretRoofBare => "height to turret roof (bare, no cupola)",
             DimensionKind::FenderShelfHeight => "fender shelf height (sheet top)",
+            DimensionKind::HullSideTopHeight => "hull side top height (deck edge)",
+            DimensionKind::GroundContactLength => "ground contact length (road-wheel axle span)",
         }
     }
 
