@@ -69,7 +69,7 @@ const DEBT: &[(&str, &str)] = &[
     //
     // The third, `deck_grille`, was WITHDRAWN — my error, and worth recording because of how it
     // was made. I read it off an island inventory (eleven islands, 12 triangles and 6 planes each)
-    // and called it eleven flat boxes without reading what the islands were. `solid::t54_deck_grille`
+    // and called it eleven flat boxes without reading what the islands were. `vehicle_build::deck_grille`
     // builds a 0.12 m shadowed well, four frame rails and louvres raked 0.62 rad — and carries a
     // comment recording that axis-aligned slats were the OLD defect, already fixed. A rail is a box
     // and that is correct; the assembly is a grille. Measuring a proxy instead of reading the

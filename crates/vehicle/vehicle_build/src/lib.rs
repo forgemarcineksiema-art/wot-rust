@@ -13,6 +13,9 @@ mod attachment;
 mod description;
 mod manifest;
 mod part;
+mod parts_fittings;
+mod parts_hull;
+mod parts_plates;
 mod surface_bake;
 mod t54;
 mod t54_chassis;
@@ -32,6 +35,13 @@ pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,
 };
 pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTolerance};
+pub use parts_fittings::{
+    exhaust_housing, fender_brackets, flap_ribs, periscope, periscope_guards, periscope_prism,
+};
+pub use parts_hull::{
+    deck_grille, engine_deck_panels, hull_solid, lower_tub_solid, upper_hull_solid,
+};
+pub use parts_plates::{hull_plate_seams, transmission_covers};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{
     MEDIUM_LOD0_TRI_BUDGET, MEDIUM_LOD0_VERT_BUDGET, t54_description,

@@ -18,7 +18,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
     let v = bp.complete_visual().unwrap();
     let to_bounds = |hull: &game_core::HullVisual| {
-        solid::t54_hull_solid(
+        vehicle_build::hull_solid(
             hull,
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,

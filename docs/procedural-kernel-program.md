@@ -60,6 +60,18 @@ invocation, on code nobody asked for. Open a trial by adding the `[features]` en
 `optional = true` dependency together; close it by taking both out again, whichever way the trial
 went.
 
+### A kernel never names a vehicle (Forge 2.0 K2, 2026-09-05)
+
+`solid` carried `t54.rs`, `t54_fittings.rs` and `t54_plates.rs` — the T-54's tub, upper hull,
+engine-deck panels, louvred grille, plate seams, transmission covers, fender brackets, flap ribs,
+exhaust housing and periscopes, reading `game_core`'s blueprint visuals from inside a kernel.
+They moved to the fleet part library in `vehicle_build` (`parts_hull.rs`, `parts_plates.rs`,
+`parts_fittings.rs`), lost their `t54_` prefix — they build from `HullVisual` / `BoxVisual` /
+`DetailVisual` / `FenderVisual`, so any vehicle carrying those visuals builds with them — and the
+bake did not move a byte (`vehicle_build/tests/part_library.rs` pins the hash). `solid` keeps the
+bevel law and its operator `chamfered_box`, and no longer depends on `game_core`.
+`quality/tests/kernel_purity.rs` refuses any file under `crates/kernels/` named after a vehicle.
+
 ## Explicit exclusions for normal production work
 
 - No universal "one kernel for every tank part."

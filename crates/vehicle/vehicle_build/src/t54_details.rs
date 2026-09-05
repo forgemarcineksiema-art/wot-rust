@@ -548,16 +548,16 @@ fn periscope_parts(
             PartKey::indexed(name, instance * 4),
             submesh,
             MaterialRole::RolledArmor,
-            solid::t54_periscope(center, half),
+            crate::periscope(center, half),
         ),
         detail_plate(
             PartKey::indexed(name, instance * 4 + 1),
             submesh,
             MaterialRole::Glass,
-            solid::t54_periscope_prism(center, half),
+            crate::periscope_prism(center, half),
         ),
     ];
-    for (k, guard) in solid::t54_periscope_guards(center, half).into_iter().enumerate() {
+    for (k, guard) in crate::periscope_guards(center, half).into_iter().enumerate() {
         parts.push(detail_plate(
             PartKey::indexed(name, instance * 4 + 2 + k as u16),
             submesh,
@@ -587,7 +587,7 @@ fn exhaust_cowl(d: &DetailVisual) -> Vec<VehiclePart> {
         PartKey::new("exhaust_cover"),
         SubmeshKind::Hull,
         MaterialRole::TrackMetal,
-        solid::t54_exhaust_housing(d),
+        crate::exhaust_housing(d),
     )];
 
     // Louvres across the outboard face: hot air leaves through something.
@@ -730,7 +730,7 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>, track: &game_core::TrackShape) ->
     // well under the slats sits in shadow (the "engine_grille" surface bake) so it reads as a dark
     // cooling intake, not slats on the bright deck.
     let deck_top = v.deck.center.y + v.deck.half.y;
-    for (i, solid) in solid::t54_deck_grille(d, deck_top).into_iter().enumerate() {
+    for (i, solid) in crate::deck_grille(d, deck_top).into_iter().enumerate() {
         parts.push(detail_plate(
             PartKey::indexed("deck_grille", i as u16),
             SubmeshKind::Hull,
@@ -744,7 +744,7 @@ pub fn t54_detail_parts(v: CompleteVisual<'_>, track: &game_core::TrackShape) ->
     // the fender pressing itself (`t54_fender`), which is what a lip actually is.
     let mut bracket_n = 0u16;
     for side in [v.fender.side_x, -v.fender.side_x] {
-        for bracket in solid::t54_fender_brackets(side, v.fender) {
+        for bracket in crate::fender_brackets(side, v.fender) {
             parts.push(detail_plate(
                 PartKey::indexed("fender_bracket", bracket_n),
                 SubmeshKind::Hull,
