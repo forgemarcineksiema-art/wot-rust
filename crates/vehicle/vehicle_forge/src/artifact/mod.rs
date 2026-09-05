@@ -23,7 +23,7 @@ pub use default_materials::{
 };
 pub use manifest::{ArtifactError, ForgeArtifactManifest, ForgeSubmeshManifest};
 pub use obj::{ObjExport, export_obj};
-pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
+pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec, ReviewFocus};
 pub use slug::forge_vehicle_slug;
 pub use studio::{StudioBundle, bake_studio_bundle, bake_studio_bundle_from_blueprint};
 pub use surface_bake::SurfaceBakeManifest;

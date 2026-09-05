@@ -99,8 +99,9 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
                 "{kind:?} material set incomplete"
             );
             // Review cameras come from the per-vehicle forge spec: the T-54 benchmark carries the
-            // extra close-ups (11); the geometry-derived line gets the generic six.
-            let expected_cameras = if kind == VehicleKind::T54_1951 { 11 } else { 6 };
+            // extra regression views (11); the rest get the generic six and the two close-ups
+            // every vehicle is judged by (2026-09-05: the belt at its sprocket, the mantlet).
+            let expected_cameras = if kind == VehicleKind::T54_1951 { 11 } else { 8 };
             assert_eq!(
                 manifest.review_cameras().cameras().len(),
                 expected_cameras,
@@ -139,11 +140,13 @@ fn bake_profile_selects_progressively_lighter_geometry() {
 
 #[test]
 fn review_camera_sets_are_generic_with_a_t54_benchmark_extension() {
-    // The standard set is generic: six all-round silhouette views, no vehicle-specific names.
-    let standard: Vec<ReviewCamera> =
-        ReviewCameraSet::standard_vehicle_review().cameras().iter().map(|c| c.kind()).collect();
+    // The standard set is generic: six all-round silhouette views and the two close-ups every
+    // vehicle is judged by (the belt at its sprocket, the gun at its trunnion — 2026-09-05),
+    // no vehicle-specific names.
+    let standard = ReviewCameraSet::standard_vehicle_review();
+    let kinds: Vec<ReviewCamera> = standard.cameras().iter().map(|c| c.kind()).collect();
     assert_eq!(
-        standard,
+        kinds,
         vec![
             ReviewCamera::Front,
             ReviewCamera::Rear,
@@ -151,10 +154,25 @@ fn review_camera_sets_are_generic_with_a_t54_benchmark_extension() {
             ReviewCamera::RightProfile,
             ReviewCamera::Top,
             ReviewCamera::BattleOblique,
+            ReviewCamera::RunningGear,
+            ReviewCamera::TurretMantlet,
         ]
     );
+    for camera in standard.cameras() {
+        let close_up =
+            matches!(camera.kind(), ReviewCamera::RunningGear | ReviewCamera::TurretMantlet);
+        assert_eq!(
+            camera.focus().is_some(),
+            close_up,
+            "{:?}: a close-up is focused",
+            camera.kind()
+        );
+        if close_up {
+            assert!(camera.distance_scale() <= 0.5, "{:?}: a close-up magnifies", camera.kind());
+        }
+    }
 
-    // The T-54 benchmark extends the generic set with five close-up regression views.
+    // The T-54 benchmark extends the generic set with three more regression views.
     let benchmark: Vec<ReviewCamera> =
         ReviewCameraSet::t54_benchmark_review().cameras().iter().map(|c| c.kind()).collect();
     assert_eq!(
@@ -173,6 +191,28 @@ fn review_camera_sets_are_generic_with_a_t54_benchmark_extension() {
             ReviewCamera::BattleClose,
         ]
     );
+}
+
+/// The close-ups are instruments, not larger silhouettes: the running-gear tile centres on the
+/// drive sprocket's axle and the mantlet tile on the trunnion, at three and two times the
+/// silhouette's magnification. Checked through the render path on the Tiger I (drive at the
+/// front) and the T-54 (drive at the rear): the focus lands within a few pixels of the tile's
+/// centre wherever the sprocket is.
+#[test]
+fn the_close_ups_centre_on_the_sprocket_and_the_trunnion() {
+    use vehicle_forge::{ReviewFocus, bake_studio_bundle};
+    for kind in [VehicleKind::TigerI, VehicleKind::T54_1951] {
+        let bundle = bake_studio_bundle(kind).expect("studio bundle");
+        let names: Vec<&str> = bundle.views().iter().map(|view| view.name).collect();
+        assert!(names.contains(&"running_gear.png"), "{kind:?}: {names:?}");
+        assert!(names.contains(&"turret_mantlet.png"), "{kind:?}: {names:?}");
+    }
+    let focused: Vec<ReviewFocus> = ReviewCameraSet::standard_vehicle_review()
+        .cameras()
+        .iter()
+        .filter_map(|camera| camera.focus())
+        .collect();
+    assert_eq!(focused, vec![ReviewFocus::DriveEnd, ReviewFocus::Trunnion]);
 }
 
 #[test]

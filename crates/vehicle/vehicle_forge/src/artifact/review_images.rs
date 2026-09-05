@@ -8,7 +8,7 @@ use vehicle_geometry::{
 };
 
 use super::review_raster::{draw_triangle_edges, fill_triangle};
-use super::{ReviewCameraSet, ReviewCameraSpec};
+use super::{ReviewCameraSet, ReviewCameraSpec, ReviewFocus};
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 160;
@@ -97,7 +97,27 @@ fn render_camera_at(
 ) -> Vec<u8> {
     let basis = camera_basis(camera);
     let tris = projected_tris(vehicle, &basis);
-    rasterize_projected(tris, camera, width, height)
+    let centre = focus_point(camera, vehicle, None).map(|point| project(point, &basis));
+    rasterize_projected(tris, camera, centre, width, height)
+}
+
+/// Where a focused camera looks, in the hull frame: the drive sprocket's axle (from the
+/// kinematics that place the gear, so the tile follows an edited belt) or the gun's trunnion
+/// (from the mounts). A whole-vehicle camera, or a drive-end focus with no gear to place,
+/// frames the projected bounds as before.
+fn focus_point(
+    camera: &ReviewCameraSpec,
+    vehicle: &BakedVehicle,
+    gear: Option<&RunningGearKinematics>,
+) -> Option<Vec3> {
+    match camera.focus()? {
+        ReviewFocus::DriveEnd => {
+            let kin = gear?;
+            let z = if kin.drive_front { kin.end_front_cz } else { -kin.end_cz };
+            Some(Vec3::new(0.0, kin.end_cy, z))
+        }
+        ReviewFocus::Trunnion => Some(vehicle.mounts().gun_trunnion.translation),
+    }
 }
 
 fn render_camera_at_with_gear(
@@ -134,12 +154,14 @@ fn render_camera_at_with_gear(
             tris.extend(projected_mesh_tris(mesh, placement.transform, &basis));
         }
     }
-    rasterize_projected(tris, camera, width, height)
+    let centre = focus_point(camera, vehicle, gear).map(|point| project(point, &basis));
+    rasterize_projected(tris, camera, centre, width, height)
 }
 
 fn rasterize_projected(
     mut tris: Vec<ProjectedTri>,
     camera: &ReviewCameraSpec,
+    focus: Option<Vec2>,
     width: u32,
     height: u32,
 ) -> Vec<u8> {
@@ -147,7 +169,8 @@ fn rasterize_projected(
 
     let (min, max) = projected_bounds(&tris);
     let scale = image_scale(min, max, camera.distance_scale(), width, height);
-    let centre = (min + max) * 0.5;
+    // A focused close-up centres on its point; the rest frame the whole projection.
+    let centre = focus.unwrap_or((min + max) * 0.5);
     let mut pixels = vec![0; (width * height * 4) as usize];
     for pixel in pixels.chunks_exact_mut(4) {
         pixel.copy_from_slice(&BACKGROUND);
