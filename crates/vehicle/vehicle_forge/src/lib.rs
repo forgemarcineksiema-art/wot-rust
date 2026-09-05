@@ -7,6 +7,7 @@
 mod artifact;
 mod compiler;
 mod cost;
+pub mod fit;
 mod mesh_source;
 mod outline;
 mod part_data;

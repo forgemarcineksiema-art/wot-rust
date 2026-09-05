@@ -50,6 +50,20 @@ pub enum Command {
         #[arg(long)]
         vehicle: String,
     },
+    /// Fit one vehicle's blueprint to its traced outlines (K0): coordinate descent over the
+    /// shape fields the drawings decide, every LOCKED anchor and the lint kept, the mean IoU
+    /// of the three views maximised. Prints the report; `--write` puts the moved numbers into
+    /// `game_core/blueprints/<slug>.blueprint.ron` in place. (Acceleration step 3, 2026-09-05.)
+    Fit {
+        #[arg(long)]
+        vehicle: String,
+        /// Coordinate-descent sweeps (each field, each direction, per sweep).
+        #[arg(long, default_value_t = 12)]
+        rounds: usize,
+        /// Rewrite the blueprint RON with the fitted numbers.
+        #[arg(long, default_value_t = false)]
+        write: bool,
+    },
     ForgeVehicle {
         #[arg(long)]
         vehicle: String,

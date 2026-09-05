@@ -12,7 +12,9 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
   `quality` + `tools` + the touched crates' tests). A PR that changes ONE vehicle's DATA and no
   Rust (blueprint/visual/outline RON, inventory row, dossier, goldens) runs
   `scripts/verify-vehicle.ps1 -Vehicle <slug>` instead; its goldens are re-recorded in one run
-  by `cargo run -p tools -- bless --vehicle <slug>`. Full gate = `scripts/verify.ps1` (+ every example/bench/test): once a day
+  by `cargo run -p tools -- bless --vehicle <slug>`; `cargo run --release -p tools -- fit --vehicle <slug>` fits
+  the blueprint to its traced outlines under the locked anchors (read the report against the
+  dossier before `--write`). Full gate = `scripts/verify.ps1` (+ every example/bench/test): once a day
   over what landed, and before any merge touching examples, benches, wire, replays or physics
   numbers; `-Deep` after a killed build. A cold full run exceeds 25 min — run gates detached
   (log to a file, wait for the exit line) and never kill a build mid-flight.
