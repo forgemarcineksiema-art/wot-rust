@@ -60,6 +60,7 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | Hull side top (deck edge) | 1.778 m (STT 1944 front view: 5 ft 10 in) | STT sheet | high | `HullSideTopHeight` 1.778 +/-0.02 (Locked) — a dimension line, so the fit may not move `deck_y` |
 | Ground contact length | 3.607 m (STT 1944 side view: 11 ft 10.125 in; the road-wheel axle span first to last) | STT sheet | high | `GroundContactLength` 3.607 +/-0.03 (Locked) |
 | Track gauge (centre to centre) | 2.824 m (2.100 between the belts + one 725 mm belt) | STT sheet | high | `TrackGauge` 2.824 +/-0.02 (Locked) |
+| Drive sprocket / idler | 0.914 m toothed sprocket at the bow (8 spokes, 6-bolt hub), 0.686 m dished idler at the stern (STT 1944 side view) | STT sheet | medium (pixel read) | `track.end_front Some((2.6, 0.457))`, `end_radius 0.343` (K22-1); the spoked disc and the hub are K22-2's |
 | Sponson underside (the bottom of the 80 mm upper side plate) | ~1.22 m (STT 1944 side view: 0.18 m below the guard rail's bolt row at ~1.40, 0.56 m below the 5 ft 10 in hull side top) | STT sheet | medium (pixel read, no dimension line) | `sponson_y 1.22` (was 0.95) |
 | Gun bore length | 4928 mm (56 × 88) | Wikipedia 8.8 cm KwK 36 | high | context (not trunnion-relative) |
 

@@ -27,9 +27,13 @@ BlueprintFile(
         wheel_count: 8,
         wheel_first_z: -1.8,
         wheel_last_z: 1.8,
-        end_radius: 0.40,
+        // The stern idler alone: a 0.686 m dished wheel (the STT 1944 side view; K22-1). The
+        // bow sprocket has its own size below.
+        end_radius: 0.343,
         end_z: 2.6,
         end_y: 0.72,
+        // The drive sprocket at the bow: a 0.914 m toothed wheel on the same axle line (K22-1).
+        end_front: Some((2.6, 0.457)),
         inner_x: 1.05,
         outer_x: 1.774,
         segments: 14,
