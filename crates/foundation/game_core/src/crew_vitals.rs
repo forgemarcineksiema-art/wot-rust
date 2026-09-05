@@ -34,6 +34,25 @@ pub const CREW_COVERED_EFFECTIVENESS: f32 = 0.5;
 /// The one crew→spec bridge for time-like values (reload, aim settle): a station at 50%
 /// effectiveness takes twice as long, never infinitely long. Shared by the server and the
 /// client predictor so both read the same battle.
+/// A station's effectiveness read off the two replicated masks — what the client knows of the
+/// crew (interface program H7). The same thresholds `CrewVitals::effectiveness` applies on the
+/// server: covered halves the station, a scar takes fifteen percent, and a station in neither
+/// mask is whole.
+pub fn crew_effectiveness_from_masks(
+    role: CrewRole,
+    unconscious_mask: u8,
+    weakened_mask: u8,
+) -> f32 {
+    let bit = role.mask_bit();
+    if unconscious_mask & bit != 0 {
+        CREW_COVERED_EFFECTIVENESS
+    } else if weakened_mask & bit != 0 {
+        CREW_WEAKENED_EFFECTIVENESS
+    } else {
+        1.0
+    }
+}
+
 pub fn crew_time_multiplier(effectiveness: f32) -> f32 {
     1.0 / effectiveness.max(0.05)
 }
@@ -158,6 +177,31 @@ impl CrewVitals {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_masks_read_like_the_vitals() {
+        use super::crew_effectiveness_from_masks;
+        let loader = CrewRole::Loader.mask_bit();
+        let gunner = CrewRole::Gunner.mask_bit();
+        assert_eq!(
+            crew_effectiveness_from_masks(CrewRole::Loader, loader, 0),
+            CREW_COVERED_EFFECTIVENESS
+        );
+        assert_eq!(
+            crew_effectiveness_from_masks(CrewRole::Loader, 0, loader),
+            CREW_WEAKENED_EFFECTIVENESS
+        );
+        assert_eq!(
+            crew_effectiveness_from_masks(CrewRole::Loader, loader, loader),
+            CREW_COVERED_EFFECTIVENESS,
+            "covered outranks scarred"
+        );
+        assert_eq!(
+            crew_effectiveness_from_masks(CrewRole::Loader, gunner, gunner),
+            1.0,
+            "another station's wound is not mine"
+        );
+    }
+
     use super::*;
 
     #[test]

@@ -153,9 +153,13 @@ impl TankState {
         let live = self.modules.hit_points(game_core::ModuleSlot::Gun);
         // The loader's hands are part of the gun: a covered station loads at half pace, a
         // scarred loader at 85% — multiplied with the wounded-breech penalty, not instead of it.
-        let loader =
-            game_core::crew_time_multiplier(self.crew.effectiveness(game_core::CrewRole::Loader));
-        self.spec.gun.reload_seconds * game_core::gun_reload_multiplier(live, full) * loader
+        // One function with the client's reload arc (interface program H7).
+        game_core::full_reload_seconds(
+            self.spec.gun.reload_seconds,
+            live,
+            full,
+            self.crew.effectiveness(game_core::CrewRole::Loader),
+        )
     }
 
     /// Where the next shell leaves the barrel: the mount chain pivoted about trunnion and ring,

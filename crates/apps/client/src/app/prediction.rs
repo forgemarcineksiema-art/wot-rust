@@ -95,9 +95,27 @@ impl ClientApp {
         })
     }
 
+    /// The reload arc's numbers: what is left, over the reload the SERVER is running — the
+    /// stock time stretched by the gun's wound and the loader's hands, read off the snapshot's
+    /// own lanes through the one function the sim reloads by (interface program H7). Before,
+    /// the arc divided by the stock time and lied whenever the breech was hit.
     pub(super) fn player_reload(&self) -> (f32, f32) {
-        let remaining = self.player_snapshot().map_or(0.0, |tank| tank.reload_remaining_s);
-        (remaining, self.player_spec().gun.reload_seconds)
+        let spec = self.player_spec();
+        let Some(tank) = self.player_snapshot() else {
+            return (0.0, spec.gun.reload_seconds);
+        };
+        let gun = game_core::ModuleSlot::Gun;
+        let live = tank.module_hit_points[gun.wire_index()];
+        let full = spec.module_health.hit_points(gun);
+        let loader = game_core::crew_effectiveness_from_masks(
+            game_core::CrewRole::Loader,
+            tank.crew_unconscious_mask,
+            tank.crew_weakened_mask,
+        );
+        (
+            tank.reload_remaining_s,
+            game_core::full_reload_seconds(spec.gun.reload_seconds, live, full, loader),
+        )
     }
 
     pub(super) fn player_hud_hit_points(&self) -> u32 {

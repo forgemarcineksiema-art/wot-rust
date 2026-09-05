@@ -136,3 +136,36 @@ fn a_dead_hull_bandages_nobody() {
         "a wreck's crew does not recover"
     );
 }
+
+/// Interface program H7: the client draws the reload arc over the SAME denominator the server
+/// reloads by — one `game_core` function fed by the snapshot's own lanes (the gun's live hit
+/// points, the crew masks). A wounded breech and a covered loader, the two things that stretch a
+/// reload, and the client's formula equals the server's to a microsecond; the stock time does not.
+#[test]
+fn the_reload_arc_denominator_is_the_servers_reload_not_the_stock_one() {
+    let mut state = SimulationState::new();
+    let tank_id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    {
+        let tank = state.tank_mut(tank_id).expect("tank");
+        tank.crew.knock(CrewRole::Loader);
+        let full = tank.spec.module_health.hit_points(game_core::ModuleSlot::Gun);
+        tank.modules.damage(game_core::ModuleSlot::Gun, full / 2);
+    }
+    let tank = state.tank(tank_id).expect("tank");
+    let server = tank.full_reload_seconds();
+    // What the client has: the snapshot's lanes.
+    let live = tank.modules.hit_points_by_slot()[game_core::ModuleSlot::Gun.wire_index()];
+    let full = tank.spec.module_health.hit_points(game_core::ModuleSlot::Gun);
+    let loader = game_core::crew_effectiveness_from_masks(
+        CrewRole::Loader,
+        tank.crew.unconscious_mask(),
+        tank.crew.weakened_mask(),
+    );
+    let client = game_core::full_reload_seconds(tank.spec.gun.reload_seconds, live, full, loader);
+    assert!((client - server).abs() < 1.0e-6, "client {client} vs server {server}");
+    assert!(
+        (server - tank.spec.gun.reload_seconds).abs() > 1.0,
+        "the stock time is not the reload a wounded gun and a covered loader run: {server} vs {}",
+        tank.spec.gun.reload_seconds
+    );
+}

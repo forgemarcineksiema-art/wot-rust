@@ -47,7 +47,7 @@ pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use crew_vitals::{
     CREW_COVERED_EFFECTIVENESS, CREW_FIRST_AID_S, CREW_ROLE_COUNT, CREW_WEAKENED_EFFECTIVENESS,
-    CrewMemberState, CrewVitals, crew_time_multiplier,
+    CrewMemberState, CrewVitals, crew_effectiveness_from_masks, crew_time_multiplier,
 };
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, ShotFired, TrackHit};
 pub use damage_layout::authoring::HullEnvelope;
@@ -61,8 +61,8 @@ pub use mobility::{MAX_CLIMB_GRADE, ROAD_COMFORT_GRADE};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
     ModuleHealth, ModuleSlot, RadioModule, SuspensionModule, TurretModule, TurretTraverse,
-    VehicleModules, engine_power_fraction, gun_reload_multiplier, module_condition,
-    suspension_agility_fraction,
+    VehicleModules, engine_power_fraction, full_reload_seconds, gun_reload_multiplier,
+    module_condition, suspension_agility_fraction,
 };
 pub use mount::{MountFrame, MountFrames};
 pub use sight::SIGHT_GRAZE_SLACK_M;
