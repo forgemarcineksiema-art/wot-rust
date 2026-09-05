@@ -106,7 +106,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             roof_radius: 0.40,
             // The bare roof at the documented 2.885 m; the drum tops the 3.00 m silhouette from
             // there. Authored independently of the cupola so neither can cover for the other.
-            roof_y: 2.55,
+            roof_y: 2.60,
             front_slope_deg: 8.0,
             side_slope_deg: 0.0,
             rear_slope_deg: 0.0,
@@ -117,7 +117,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             cupola_z: -0.35,
             cupola_radius: 0.39,
             // 3.00 m to the cupola top over the 2.885 m roof — straight from the dossier.
-            cupola_height: Some(0.40),
+            cupola_height: Some(0.26),
             plan_half_width: 1.17,
             // Reaches the Rommelkiste stowage bin's back face — the bin IS the rear armor plane.
             plan_half_length: 1.42,

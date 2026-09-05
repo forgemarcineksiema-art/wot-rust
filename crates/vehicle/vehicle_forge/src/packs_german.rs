@@ -93,7 +93,7 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         // Re-sourced 2026-09-05 (Forge 2.0 K3, data first) to the School of Tank Technology's
         // January 1944 sheet of a captured Tiger — dimensioned side / front / plan drawings:
         // 3.56 m over the sponson shelf (3.548 over the tracks, 3.734 over the guards), the
-        // turret roof at ~2.55 with the cupola apex at ~2.95, the turret 2.34 wide. The hull is
+        // turret roof at 2.60 with the cupola apex at 2.86, the turret 2.34 wide. The hull is
         // therefore LONGER for its width (6.32 / 3.56 = 1.78) and the turret broader on it
         // (2.34 / 3.56 = 0.66) than the 3.705-beam targets said.
         {
@@ -152,21 +152,23 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::HeightToTurretRoof,
-            2.95,
-            0.06,
+            2.885,
+            0.05,
             tiger_i_dossier(
-                "~2.95 m silhouette apex: the STT 1944 side view traces the cupola top at 2.93 \
-                 (drum cupola of the captured early tank); Wikipedia's 3.00 sits inside the band.",
+                "2.885 m silhouette apex, the German records' figure read at the commander's \
+                 lid: the STT 1944 rear view dimensions the drum's rim at 9 ft 4.75 in = 2.86 m \
+                 and the lid stands proud of it (the bake's lid tops at 2.92). Wikipedia's 3.00 \
+                 is the rounded figure.",
             ),
         ),
         DimensionTarget::new(
             DimensionKind::HeightToTurretRoofBare,
-            2.55,
-            0.06,
+            2.60,
+            0.05,
             tiger_i_dossier(
-                "~2.55 m to the bare turret roof: the STT 1944 side view (the roof lies between \
-                 the 2.50 and 2.60 sections), agreeing with tiger1.info's 2625 mm; the 2.885 the \
-                 model was built to was a misread of the records (K19, C2).",
+                "8 ft 6.5 in = 2.60 m to the turret roof, the STT 1944 rear view's own dimension \
+                 (the side-view trace read 2.55; tiger1.info's 2625 mm agrees). The 2.885 the model \
+                 was built to was an apex figure, never the roof (K19, C2).",
             ),
         ),
         DimensionTarget::new(

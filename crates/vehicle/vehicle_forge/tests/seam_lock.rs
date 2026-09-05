@@ -26,7 +26,7 @@ const T54_LOD0_HASH: u64 = 9_296_666_834_409_964_133;
 /// PR that changes the mix re-records the row with the number in its message.
 const MIXED_LOD0_HASHES: &[(VehicleKind, u64)] = &[
     // The Tiger I with the STT-sheet fittings over its five recipe pieces (K3-2b).
-    (VehicleKind::TigerI, 8_465_594_886_759_435_228),
+    (VehicleKind::TigerI, 13_018_870_625_781_703_442),
 ];
 
 fn mixed_hash(kind: VehicleKind) -> Option<u64> {

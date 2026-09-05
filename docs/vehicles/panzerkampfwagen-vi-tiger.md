@@ -38,8 +38,8 @@ reached yet and are reported as debt every run until their geometry PR flips the
 | --- | ---: | --- | --- | --- |
 | Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `HullLength` (Locked) |
 | Width over the combat tracks | 3.548 m (STT 1944: 6 ft 10.625 in between the belts + 2 x 2 ft 4.5 in) | STT sheet; see conflict C1 (the 3.705/3.72 records are guard widths) | high | `track.outer_x 1.774`; `HullWidth` anchors the 3.56 sponson shelf (Locked) |
-| Height (cupola apex) | ~2.95 m (STT 1944 side view traces 2.93 at the drum cupola; Wikipedia 3.00) | STT sheet, Wikipedia | high | `HeightToTurretRoof` 2.95 +/-0.06 (Locked) |
-| Height (bare turret roof) | ~2.55 m (STT 1944 side view; tiger1.info 2625 mm) | STT sheet; conflict C2 resolved 2026-09-05 — the 2.885 was a misread | high | `HeightToTurretRoofBare` 2.55 +/-0.06 (Locked) |
+| Height (cupola apex) | 2.885 m at the commander's lid (German records); the STT 1944 rear view dimensions the drum's rim at 9 ft 4.75 in = 2.86 and the lid stands proud of it; Wikipedia's 3.00 is rounded | STT sheet, German records | high | `HeightToTurretRoof` 2.885 +/-0.05 (Locked), measured at the lid (2.92) |
+| Height (bare turret roof) | 2.60 m (STT 1944 rear view: 8 ft 6.5 in, the sheet's own dimension; tiger1.info 2625 mm) | STT sheet; conflict C2 resolved 2026-09-05 — the 2.885 was an apex figure | high | `HeightToTurretRoofBare` 2.60 +/-0.05 (Locked) |
 | Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `OverallLengthWithGun` (Locked) |
 | Road wheel | ⌀0.800 m | Tank Museum — **unchanged** across the steel-rim swap | high | `RoadWheelDiameter` (Locked) |
 | Turret ring (in the clear) | 1836 mm | tiger1.info, factory-drawing derived | medium | `TurretRingDiameter` (Locked) |
@@ -83,7 +83,7 @@ reached yet and are reported as debt every run until their geometry PR flips the
   It is the more precisely and consistently repeated figure, and tiger1.info explicitly warns
   that measurements of surviving Tigers differ by several millimetres — 15 mm sits inside the
   build tolerance of a hand-assembled vehicle. Recorded, not chased into the model.
-- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". RESOLVED 2026-09-05 for tiger1.info: the STT side view traces the turret roof at ~2.55 and the cupola apex at 2.93; the blueprint moved to 2.55 / 2.95 (K19, data first).** tiger1.info's dedicated
+- **C2 — height: 2.885 m vs tiger1.info's "2625 mm total height". RESOLVED 2026-09-05: the STT rear view dimensions the roof at 8 ft 6.5 in = 2.60 (tiger1.info's 2625 agrees) and the drum cupola's top at 9 ft 4.75 in = 2.86; the records' 2.885 was an apex figure, never the roof. The blueprint moved to 2.60 / 2.86 (K19, data first; a side-view pixel trace had said 2.55 / 2.93).** tiger1.info's dedicated
   roof-height page quotes a German drawing at 2625 mm (2655 late), which would collide with our
   anchor by ~26 cm — exactly the variant-contamination class that bit the Tiger II (its "3.27 m"
   turned out to be transport tracks). It was NOT passed through silently: an independent
@@ -171,8 +171,8 @@ correction documented here and locked by `tiger_i_benchmark.rs`.
 | Hull length | 6.316 m | `half_len 3.16` |
 | Width over combat tracks | 3.548 m (STT) | `track.outer_x 1.774` |
 | Width over the sponson shelf | 3.56 m | `half_width 1.78` (the belts sit just inside it; the guards overhang it — K20) |
-| Height to turret roof | ~2.55 m (STT) | `roof_y 2.55` |
-| Height to cupola top | ~2.95 m (STT 2.93) | `roof_y 2.55` + `cupola_height 0.40` |
+| Height to turret roof | 2.60 m (STT rear view, 8 ft 6.5 in) | `roof_y 2.60` |
+| Height to cupola top | 2.86 m to the drum's rim (STT rear view, 9 ft 4.75 in); 2.885 at the lid (records) | `roof_y 2.60` + `cupola_height 0.26`; the lid part tops at 2.92 |
 | Ground clearance | 0.432 m (STT) | `belly_y 0.432` |
 | Road wheels | 8 × ⌀0.80 m interleaved | `wheel_count 8`, `overlap_inner_dx 0.22` |
 | Track width | 724 mm | `inner_x 1.05 .. outer_x 1.774` |

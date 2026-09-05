@@ -180,8 +180,9 @@ fn the_drum_cupola_tops_the_three_meter_silhouette_on_the_left() {
         .iter()
         .max_by(|a, b| a.position.y.total_cmp(&b.position.y))
         .expect("turret has vertices");
-    // The STT 1944 side view traces the cupola top at 2.93; the blueprint authors 2.95.
-    assert!((apex.position.y - 2.95).abs() < 0.05, "cupola top ~2.95 m: {}", apex.position.y);
+    // The STT 1944 rear view: 9 ft 4.75 in = 2.86 to the drum cupola's top over an
+    // 8 ft 6.5 in = 2.60 roof.
+    assert!((apex.position.y - 2.86).abs() < 0.05, "cupola top ~2.86 m: {}", apex.position.y);
     assert!(apex.position.x > 0.0, "the apex is the left-side (port, +X) cupola");
 }
 
@@ -256,17 +257,17 @@ fn the_belt_runs_under_the_sponson_shelf() {
 }
 
 /// The roof and the drum are locked SEPARATELY. The bare turret roof stands at the STT sheet's
-/// ~2.55 m and the cupola adds 0.40 m to the ~2.95 apex (the sheet's 2.93 at the drum cupola).
+/// own 8 ft 6.5 in = 2.60 m and the drum adds 0.26 m to the sheet's 9 ft 4.75 in = 2.86 apex.
 /// The model used to derive the drum's height as "whatever fills the gap up to the hitbox
 /// apex", so a roof deficit simply grew a too-tall drum and the silhouette lock still passed —
 /// and until 2026-09-05 the roof itself stood at 2.885, a misread of the records (K19).
 #[test]
 fn the_roof_and_the_cupola_are_locked_independently() {
     let bp = blueprint();
-    assert!((bp.turret.roof_y - 2.55).abs() < 1.0e-6, "the sheet's bare-roof height");
+    assert!((bp.turret.roof_y - 2.60).abs() < 1.0e-6, "the sheet's 8 ft 6.5 in bare-roof height");
     assert!(bp.turret.cupola_height.is_some(), "the drum height must be AUTHORED, not derived");
     let proud = bp.turret.cupola_proud_m(&bp.hull);
-    assert!((proud - 0.40).abs() < 1.0e-6, "2.95 m silhouette over a 2.55 m roof: {proud}");
+    assert!((proud - 0.26).abs() < 1.0e-6, "2.86 m silhouette over a 2.60 m roof: {proud}");
 
     let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
     let turret_mesh = &baked.submesh(SubmeshKind::Turret).expect("turret submesh").mesh;
@@ -284,8 +285,8 @@ fn the_roof_and_the_cupola_are_locked_independently() {
     let apex =
         turret_mesh.vertices().iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        apex - bp.turret.roof_y < 0.45,
-        "the drum tops the roof by its authored 0.40, not by a deficit: {}",
+        apex - bp.turret.roof_y < 0.31,
+        "the drum tops the roof by its authored 0.26, not by a deficit: {}",
         apex - bp.turret.roof_y
     );
 }
