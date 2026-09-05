@@ -34,25 +34,25 @@ impl ApplicationHandler for ClientApp {
             event_loop.exit();
             return;
         }
-        // Pace the presentation to the actual display (F1). Fallback: 60 Hz.
-        let refresh_hz = window
-            .current_monitor()
-            .and_then(|monitor| monitor.refresh_rate_millihertz())
-            .map_or(60.0, |millihertz| f64::from(millihertz) / 1000.0);
-        self.loop_driver.set_present_hz(refresh_hz);
         // F5: without 1 ms scheduler resolution, Windows quantizes the pacer's WaitUntil to
         // ~15.6 ms ticks — frames land on 16/31/47 ms (60/30/20 FPS), the exact oscillation
         // the pacer exists to remove.
         let millisecond_timer = timer_resolution::request_millisecond_timer();
-        info!(refresh_hz, millisecond_timer, "frame pacing locked to the display");
+        info!(millisecond_timer, "millisecond scheduler timer requested");
+        self.window = Some(window);
+        // Pace the presentation to the actual display (F1) — and keep pacing it: the window
+        // follows the player to whichever monitor they drag it to (see `WindowEvent::Moved`).
+        self.sync_present_hz();
         if cfg!(debug_assertions) {
             tracing::warn!(
                 "DEV BUILD (opt-level 1): performance is NOT representative — use `cargo run --release -p client`"
             );
         }
-        info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
+        info!(
+            "client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc menu, \
+             F11 fullscreen"
+        );
         self.audio = crate::audio_out::AudioOutput::try_new();
-        self.window = Some(window);
         // The garage is a mouse-driven menu: show the cursor there; the battle view captures it.
         self.set_cursor_captured(!self.garage.is_open());
     }
@@ -70,7 +70,15 @@ impl ApplicationHandler for ClientApp {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.on_keyboard(&event);
-                self.loop_driver.handle_event(ClientLoopEvent::Input)
+                Vec::new()
+            }
+            // The window moved — possibly onto another monitor with another refresh rate. The
+            // pacer beats to the display the window is ON, not the one it was born on: paced
+            // at 60 on a 144 Hz panel it shows 60; paced at 144 on a 60 Hz panel it renders
+            // frames Mailbox throws away.
+            WindowEvent::Moved(_) => {
+                self.sync_present_hz();
+                Vec::new()
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 self.on_mouse_wheel(delta);
@@ -142,5 +150,19 @@ impl ApplicationHandler for ClientApp {
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
             Instant::now() + self.loop_driver.suggested_wait(),
         ));
+    }
+}
+
+impl ClientApp {
+    /// Match the frame pacer to the refresh rate of the monitor the window is on right now.
+    /// Called at creation, on every `Moved` and after a fullscreen toggle. Fallback: 60 Hz.
+    pub(super) fn sync_present_hz(&mut self) {
+        let Some(window) = &self.window else { return };
+        let refresh_hz = window
+            .current_monitor()
+            .and_then(|monitor| monitor.refresh_rate_millihertz())
+            .map_or(60.0, |millihertz| f64::from(millihertz) / 1000.0);
+        self.loop_driver.set_present_hz(refresh_hz);
+        tracing::debug!(refresh_hz, "frame pacing locked to the current display");
     }
 }

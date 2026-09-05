@@ -1,17 +1,11 @@
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ClientLoopPhase {
-    WinitEvent,
-    InputSystem,
-    FixedTickAccumulator,
-    RequestRedraw,
-    RenderOnRedraw,
-}
-
+/// What the winit loop tells the driver. Input events are not here on purpose: they are handled
+/// where they arrive (`app::input`) and the driver has nothing to say about them — a
+/// `ClientLoopEvent::Input` used to round-trip through here to a `CaptureInput` action whose
+/// handler was `{}`, ceremony that a ratchet test then locked by its name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientLoopEvent {
-    Input,
     AboutToWait { elapsed: Duration },
     RedrawRequested,
     Resized { width: u32, height: u32 },
@@ -20,7 +14,6 @@ pub enum ClientLoopEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientLoopAction {
-    CaptureInput,
     RunFixedTicks(u32),
     RequestRedraw,
     RenderFrame,
@@ -137,20 +130,6 @@ impl WinitLoopDriver {
         until_tick.min(self.pacer.until_due())
     }
 
-    pub const fn event_driven_phases() -> [ClientLoopPhase; 5] {
-        [
-            ClientLoopPhase::WinitEvent,
-            ClientLoopPhase::InputSystem,
-            ClientLoopPhase::FixedTickAccumulator,
-            ClientLoopPhase::RequestRedraw,
-            ClientLoopPhase::RenderOnRedraw,
-        ]
-    }
-
-    pub const fn uses_manual_event_polling() -> bool {
-        false
-    }
-
     /// Sub-tick interpolation factor in `[0, 1]`: how far the leftover accumulator has
     /// advanced into the next fixed tick. Rendering blends the previous tick's pose toward
     /// the current one by this fraction so a 60 Hz sim presents smoothly under vsync.
@@ -164,7 +143,6 @@ impl WinitLoopDriver {
 
     pub fn handle_event(&mut self, event: ClientLoopEvent) -> Vec<ClientLoopAction> {
         match event {
-            ClientLoopEvent::Input => vec![ClientLoopAction::CaptureInput],
             ClientLoopEvent::AboutToWait { elapsed } => {
                 let ticks = self.accumulator.accumulate(elapsed);
                 let mut actions = Vec::new();

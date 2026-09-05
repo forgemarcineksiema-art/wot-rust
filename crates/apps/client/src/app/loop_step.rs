@@ -17,7 +17,6 @@ impl ClientApp {
     ) {
         for action in actions {
             match action {
-                ClientLoopAction::CaptureInput => {}
                 ClientLoopAction::RunFixedTicks(count) => self.run_fixed_ticks(count),
                 ClientLoopAction::RequestRedraw => {
                     if let Some(window) = &self.window {
