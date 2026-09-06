@@ -373,7 +373,7 @@ pub fn sprocket_tooth_phase(kin: &RunningGearKinematics) -> f32 {
     let (length, count) = (path.length(), kin.link_count().max(1));
     let wrap_r = crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
     let pitch = (kin.belt_length() / count as f32).max(0.05);
-    let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0) as f32;
+    let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0);
     let tooth_pitch = std::f32::consts::TAU / teeth;
     let (cz, cy) = (if kin.drive_front { kin.end_front_cz } else { -kin.end_cz }, kin.end_cy);
     // The wrap's outermost point: astern of a rear sprocket, ahead of a front one.
