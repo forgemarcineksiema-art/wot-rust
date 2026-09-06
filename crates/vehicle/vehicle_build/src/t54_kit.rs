@@ -174,6 +174,99 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
             parts.push(tank_lid_ribs(i as u16, center, half));
         }
         parts.push(lid_furniture(key, i as u16, side, center, half));
+        // The flat fuel tanks are STRAPPED down; a stowage bin is bolted through its flanges
+        // and shows only its brackets.
+        if key == "fuel_tank" {
+            parts.extend(stowage_straps(key, i as u16, side, center, half, base));
+        }
+        parts.extend(stowage_brackets(key, i as u16, side, center, half, base));
+    }
+    parts
+}
+
+/// What holds a flat fuel tank ON a fender: two steel straps over the top, buckled on the
+/// outboard face, running shelf to shelf (the bins are bolted through their flanges and wear
+/// only the brackets below). Until K14 (2026-09-06) every tank and bin sat on the shelf by
+/// declaration — a box on a moving tank with nothing holding it is a box on a shelf in a shop.
+/// Cost is why the bins go without: 96 plain boxes of hardware were 2 304 vertices, over the
+/// class's 20 000 ceiling; 48 are 1 152.
+///
+/// Key instances 128.. (straps) and 192.. (brackets), in steps of 8 over the box's own
+/// instance: the boxes are 0..8, their lid furniture 64.. (the class reads
+/// a key's parts as their union, so the straps keep the bin's name).
+fn stowage_straps(
+    key: &'static str,
+    instance: u16,
+    side: f32,
+    center: Vec3,
+    half: Vec3,
+    shelf_y: f32,
+) -> Vec<VehiclePart> {
+    let (strap_half_t, strap_half_w) = (0.003, 0.015);
+    let mid_y = (shelf_y + center.y + half.y) * 0.5;
+    let leg_half_y = (center.y + half.y - shelf_y) * 0.5;
+    let mut parts = Vec::new();
+    for (j, along) in [-0.45_f32, 0.45].into_iter().enumerate() {
+        let z = center.z + along * half.z;
+        let inboard_x = center.x - side * (half.x + strap_half_t);
+        let outboard_x = center.x + side * (half.x + strap_half_t);
+        let pieces = [
+            // The inboard leg, the top run, the outboard leg — one strap in three plates.
+            (Vec3::new(inboard_x, mid_y, z), Vec3::new(strap_half_t, leg_half_y, strap_half_w)),
+            (
+                Vec3::new(center.x, center.y + half.y + strap_half_t, z),
+                Vec3::new(half.x + 2.0 * strap_half_t, strap_half_t, strap_half_w),
+            ),
+            (Vec3::new(outboard_x, mid_y, z), Vec3::new(strap_half_t, leg_half_y, strap_half_w)),
+            // The buckle on the outboard leg, where a hand reaches it from the ground.
+            (
+                Vec3::new(center.x + side * (half.x + 0.010), shelf_y + leg_half_y * 1.2, z),
+                Vec3::new(0.010, 0.020, strap_half_w + 0.004),
+            ),
+        ];
+        for (k, (c, h)) in pieces.into_iter().enumerate() {
+            parts.push(detail_plate(
+                PartKey::indexed(key, instance + 128 + (j * 4 + k) as u16 * 8),
+                SubmeshKind::Hull,
+                MaterialRole::BarrelSteel,
+                solid::ConvexSolid::box_at(c, h),
+            ));
+        }
+    }
+    parts
+}
+
+/// Two angle brackets under the box's outboard bottom edge: a vertical leg on the box's face
+/// and a horizontal leg on the shelf, at the straps' stations.
+fn stowage_brackets(
+    key: &'static str,
+    instance: u16,
+    side: f32,
+    center: Vec3,
+    half: Vec3,
+    shelf_y: f32,
+) -> Vec<VehiclePart> {
+    let mut parts = Vec::new();
+    for (j, along) in [-0.45_f32, 0.45].into_iter().enumerate() {
+        let z = center.z + along * half.z;
+        let legs = [
+            (
+                Vec3::new(center.x + side * (half.x + 0.004), shelf_y + 0.025, z),
+                Vec3::new(0.004, 0.025, 0.022),
+            ),
+            (
+                Vec3::new(center.x + side * (half.x + 0.022), shelf_y + 0.004, z),
+                Vec3::new(0.022, 0.004, 0.022),
+            ),
+        ];
+        for (k, (c, h)) in legs.into_iter().enumerate() {
+            parts.push(detail_plate(
+                PartKey::indexed(key, instance + 192 + (j * 2 + k) as u16 * 8),
+                SubmeshKind::Hull,
+                MaterialRole::BarrelSteel,
+                solid::ConvexSolid::box_at(c, h),
+            ));
+        }
     }
     parts
 }

@@ -425,7 +425,9 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // Previous: 0x8104_653a_e429_4265.
     // K13 (2026-09-06): the coaxial SGMT moved to the loader's side (x −0.22), the fleet
     // handedness walk's first catch. Previous: 0x4129_801d_bb44_d744.
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x4e44_4494_8962_8640;
+    // K14 (2026-09-06): the fender stowage strapped and bracketed to the shelf.
+    // Previous: 0x4e44_4494_8962_8640.
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x294a_f7d2_8af7_1a5c;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

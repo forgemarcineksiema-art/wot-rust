@@ -3,7 +3,7 @@
 # description's bake when it is NOT the recipe (the benchmark's part library, a mixed sketch), `-`
 # when the two are one bake. Re-record ONE vehicle with `cargo run -p tools -- bless --vehicle <slug>`
 # and say the numbers in the commit; the history of every row is this file's git log.
-T54_1951 2698233402623154907 5639708038125487680
+T54_1951 2698233402623154907 2975462987478276700
 TigerI 17960913391693182637 7985054551635113952
 TigerII 10203363477507128834 13414695330884347763
 Jagdtiger 1634350050546303345 6519644806369025560
