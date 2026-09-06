@@ -257,7 +257,7 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
     // The last sketch on the roster; the list shrank one vehicle at a time through K3.
-    let (kind, at_least) = (VehicleKind::Centurion, 9);
+    let (kind, at_least) = (VehicleKind::Centurion, 22);
     let report = InventoryReport::new(&authoritative_description(kind).unwrap());
     assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
     assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());

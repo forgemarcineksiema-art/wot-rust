@@ -55,6 +55,84 @@ ReferencePack(
             note: "The clean 20-pounder reaches modestly past the steep glacis.",
         ),
     ],
-    dimensions: [],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 7.557,
+            tolerance_m: 0.04,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "24 ft 9.5 in (the 1965 User Handbook via en.wikipedia; Discovery UK 7.55).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 9.83,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "32 ft 3 in (the Handbook); a museum placard reads 32 ft 4 in.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.38,
+            tolerance_m: 0.04,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "11 ft 1 in over the side plates (the Handbook; the placard) — the skirt convention, as the Tiger II's.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.94,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "9 ft 7.75 in to the cupola top (the Handbook; de.wikipedia's 3.01 is uncited).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: GroundClearance,
+            target_m: 0.51,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "1 ft 8 in (the Handbook).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TrackWidth,
+            target_m: 0.61,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "24 in (the Handbook; Bovington specimens via Missing-Lynx; 'The Centurion Tank').",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TurretRingDiameter,
+            target_m: 1.88,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "Centurion Mk 3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/centurion.md",
+                note: "The 74 in flame-hardened race (en.wikipedia; 'The Centurion Tank', independent).",
+            ),
+            status: Locked,
+        ),
+    ],
     outlines: [],
 )

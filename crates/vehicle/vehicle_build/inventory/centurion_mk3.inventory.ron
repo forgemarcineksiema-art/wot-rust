@@ -1,19 +1,33 @@
-// Centurion Mk 3 — the part classes the dossier lists (docs/vehicles/centurion.md), one row per class with the
-// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
-// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+// Centurion Mk 3 — the part classes the dossier lists (docs/vehicles/centurion.md, § Part list,
+// researched 2026-09-06), one row per class with the fact that names it. TARGET: the vehicle is
+// a recipe sketch today; every row is debt until the part library builds it (Forge 2.0 K3).
+// Nothing the dossier does not name is listed.
 (
     vehicle: "centurion_mk3",
     dossier: Complete,
     locked: false,
     expected: [
-        (class: HullTub, source: "The skirt and the bogie, honestly: the hull on its armour planes via `blueprint_prism_hull`"),
-        (class: UpperHull, source: "The skirt and the bogie, honestly: the 76 mm glacis leans 57°"),
-        (class: Skirts, source: "The skirt and the bogie, honestly: full-length bazooka plates from the fender line over the wheel tops, one 8 cm standoff outside the track"),
-        (class: TurretShell, source: "The skirt and the bogie, honestly: the cast Mk 3 dome overhangs its 74-inch race"),
-        (class: TurretRing, source: "The skirt and the bogie, honestly: the 74-inch race"),
-        (class: TurretStowage, source: "The skirt and the bogie, honestly: the signature bustle stowage bin closing the rear of the turret plan"),
-        (class: GunBarrel, source: "The skirt and the bogie, honestly: the 20-pounder Type A is a CLEAN tube — no brake, no fume extractor"),
-        (class: Cupola, source: "Anchor dimensions: cupola to 2.99 m over the 2.78 roof"),
-        (class: SuspensionHardware, source: "The skirt and the bogie, honestly: Horstmann bogies — six wheels in three pairs, three return rollers"),
+        (class: HullTub, source: "Part list: the lower tub, floor 17 mm throughout production"),
+        (class: UpperHull, source: "Part list: one 76 mm wedge glacis inset between the tracks, straight top and bottom edges"),
+        (class: SternPlate, source: "Part list: the rear plate with the twin mufflers' outlets"),
+        (class: TurretShell, source: "Part list: the cast body with the roof welded in"),
+        (class: TurretRing, source: "Part list: the 74 in race, electric traverse"),
+        (class: TurretStowage, source: "Part list: the bustle stowage bin"),
+        (class: Cupola, source: "Part list: the commander's cupola, manual 360 deg, split hatches, a periscopic sight and seven periscopes"),
+        (class: Hatches, source: "Part list: the loader's twin covers with a periscope; the driver's split hatch front-right"),
+        (class: Mantlet, source: "Part list: the cast external mantlet, 152 mm at its thickest"),
+        (class: GunBarrel, source: "Part list: the 20-pdr Type A, L/66.7, a 5.75 m clean tube - no brake, no fume extractor"),
+        (class: CoaxMachineGun, source: "Part list: the 7.92 mm Besa"),
+        (class: Periscopes, source: "Part list: the gunner's periscopic sight; the driver's and loader's periscopes"),
+        (class: EngineDeck, source: "Part list: the Meteor's deck, rear"),
+        (class: DeckGrille, source: "Part list: the louvred intake and outlet grilles on the deck"),
+        (class: Exhaust, source: "Part list: twin mufflers, one each side of the rear deck"),
+        (class: Fenders, source: "Part list: the long fenders running the hull's length"),
+        (class: FenderStowage, source: "Part list: the fender boxes, side-loading from late 1950"),
+        (class: Headlights, source: "Part list: the headlights on the fender line"),
+        (class: Skirts, source: "Part list: full-length side plates hinged for track access, the tops covered by the removable HEAT skirts"),
+        (class: TowHooks, source: "Part list: tow hooks at the edge of the glacis"),
+        (class: SuspensionHardware, source: "Part list: three Horstmann bogies a side, nested coil springs; the return rollers"),
+        (class: SpareTracks, source: "Part list: manganese-steel links carried as spares"),
     ],
 )
