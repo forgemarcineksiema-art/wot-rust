@@ -312,3 +312,33 @@ fn every_playable_vehicle_s_dossier_lists_its_parts() {
     let report = InventoryReport::new(&authoritative_description(VehicleKind::T34_85).unwrap());
     assert!(report.expected.len() >= 22, "the T-34-85's 22 rows: {}", report.expected.len());
 }
+
+/// K13: EVERY ASYMMETRIC CLASS STATES ITS SIDE, AND IS BUILT ON IT. The world-space lock the
+/// 2026-08-09 mirror audit found missing, as a fleet walk from data: each inventory row may author
+/// `side` (port = +x); a class built more than 150 mm off the centreline must author one, and
+/// every authored side must match the sign of the class's built centroid. Five named tests said
+/// this for five T-54 fittings; this says it for every class on every vehicle.
+#[test]
+fn every_asymmetric_class_states_its_side_and_is_built_on_it() {
+    let mut walked = 0;
+    let mut faults = Vec::new();
+    for kind in VehicleKind::PLAYABLE {
+        let report = InventoryReport::new(&authoritative_description(kind).unwrap());
+        for row in &report.handedness {
+            println!(
+                "HANDEDNESS {kind:?} {:?}: x {:+.3} port share {:.2} built {:?} authored {:?}",
+                row.class,
+                row.centroid_x,
+                row.port_share,
+                row.one_sided(),
+                row.authored
+            );
+        }
+        for fault in report.handedness_faults() {
+            faults.push(format!("{kind:?}: {fault}"));
+        }
+        walked += report.handedness.len();
+    }
+    assert!(walked >= 8 * 9, "every vehicle's classes were walked: {walked}");
+    assert!(faults.is_empty(), "handedness faults:\n{}", faults.join("\n"));
+}

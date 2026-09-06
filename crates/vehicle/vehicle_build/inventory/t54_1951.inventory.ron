@@ -20,23 +20,23 @@
         (class: TurretShell, source: "Form rules 1: full hemispherical cast dome, no undercut, no bustle"),
         (class: TurretRing, source: "Reference anatomy: turret ring 1.825 m in the clear"),
         (class: TurretRails, source: "Assets: grab rails on the turret (Known deviations: rails present)"),
-        (class: Cupola, source: "Form rules 5: commander cupola LEFT; Reference anatomy: ⌀0.624, exposed 0.131"),
+        (class: Cupola, source: "Form rules 5: commander cupola LEFT; Reference anatomy: ⌀0.624, exposed 0.131", side: Some(Port)), // Form rules 5: commander cupola LEFT
         (class: Hatches, source: "Form rules 5: loader hatch RIGHT with the DShK ring; driver's hatch"),
         (class: Mantlet, source: "Form rules 4: narrow embrasure, mantlet inside, canvas cover outside"),
         (class: GunBarrel, source: "Form rules 3: plain tapering D-10T barrel"),
-        (class: CourseMg, source: "Form rules 7: fixed SG-43 course-MG port in the glacis"),
-        (class: AaMachineGun, source: "Form rules 5: DShK-M ring mount on the loader's hatch; Part construction: 1625 mm"),
-        (class: Aerial, source: "refs: radio aerial — long thin whip at the turret rear"),
+        (class: CourseMg, source: "Form rules 7: fixed SG-43 course-MG port in the glacis", side: Some(Starboard)), // Form rules 7: the course-MG port right of centre
+        (class: AaMachineGun, source: "Form rules 5: DShK-M ring mount on the loader's hatch; Part construction: 1625 mm", side: Some(Starboard)), // Form rules 5: the DShK ring on the loader's hatch RIGHT
+        (class: Aerial, source: "refs: radio aerial — long thin whip at the turret rear", side: Some(Starboard)), // photos: the base right of the loader's hatch — side unverified in the dossier (K13 debt)
         (class: Ventilator, source: "Reference anatomy: turret ventilator dome"),
-        (class: Exhaust, source: "Form rules 6: exhaust rear-left"),
-        (class: Headlights, source: "Form rules 7: single white headlamp on the glacis, left"),
+        (class: Exhaust, source: "Form rules 6: exhaust rear-left", side: Some(Port)), // Form rules 6: exhaust rear-left
+        (class: Headlights, source: "Form rules 7: single white headlamp on the glacis, left", side: Some(Port)), // Form rules 7: the single headlamp left
         (class: TowHooks, source: "Reference anatomy: tow hooks with catches on the glacis"),
         (class: TowCable, source: "Assets: tow cable along the hull side"),
         (class: SmokeCanisters, source: "Form rules 7: 2× BDSh-5 on the rear plate; Part construction: ⌀450 × 650"),
         (class: UnditchingBeam, source: "Form rules 7: unditching log"),
         (class: SuspensionHardware, source: "Part construction: torsion bars, bump stops, pivot bosses on the tub"),
         (class: Interior, source: "Damage-ready benchmark: interior primer skin, turret basket, seats, breech, V-54, radio, TSh-2"),
-        (class: CoaxMachineGun, source: "Reference anatomy: coax MG line 1.440 m (SG-43)"),
+        (class: CoaxMachineGun, source: "Reference anatomy: coax MG line 1.440 m (SG-43)", side: Some(Starboard)), // the SGMT right of the gun, the loader's side (as the T-34-85's DT) — built PORT until K13, 2026-09-06
         (class: Periscopes, source: "refs: turret crown carries nothing but two periscopes; driver's periscopes on the glacis roof"),
     ],
 )

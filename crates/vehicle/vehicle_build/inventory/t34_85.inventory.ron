@@ -17,17 +17,17 @@
         (class: TurretShell, source: "Part construction: the Factory-183 flattened single casting, no cheek bulges"),
         (class: TurretRing, source: "Part construction: 1.600 m outer race"),
         (class: TurretRails, source: "Part construction: infantry handrails on the turret walls"),
-        (class: Cupola, source: "Part construction: commander's cupola aft, five triplex slits, two-leaf folding hatch"),
+        (class: Cupola, source: "Part construction: commander's cupola aft, five triplex slits, two-leaf folding hatch", side: Some(Port)), // Part construction: the loader's hatch on the roof right, the cupola left
         (class: Hatches, source: "Part construction: loader's rectangular roof hatch, right; the driver's glacis hatch"),
         (class: Mantlet, source: "Part construction: the ZiS-S-53's rounded external cast mantlet, 40 mm"),
         (class: GunBarrel, source: "Part construction: ZiS-S-53, L/54.6, 4.645 m tube"),
-        (class: CourseMg, source: "Part construction: bow DT in a ball mount right of the driver"),
+        (class: CourseMg, source: "Part construction: bow DT in a ball mount right of the driver", side: Some(Starboard)), // Part construction: the DT ball right of the driver
         (class: CoaxMachineGun, source: "Part construction: coaxial DT right of the gun"),
         (class: Ventilator, source: "Part construction: two bulbous ventilator domes at the roof's rear"),
         (class: Exhaust, source: "Part construction: twin round outlets low on the rear plate"),
-        (class: Headlights, source: "Part construction: single headlight on the glacis, left"),
+        (class: Headlights, source: "Part construction: single headlight on the glacis, left", side: Some(Port)), // Part construction: the single headlight on the glacis left
         (class: TowHooks, source: "Part construction: cast hooks with spring catches at the glacis and stern corners"),
-        (class: Periscopes, source: "Part construction: the driver's MK-4 hood(s) on the glacis hatch; roof periscopes"),
+        (class: Periscopes, source: "Part construction: the driver's MK-4 hood(s) on the glacis hatch; roof periscopes", side: Some(Port)), // as built — the commander's periscopes on the cupola side (K13: unverified count/side)
         (class: SuspensionHardware, source: "Part construction: Christie coil springs, the wheel-1/2 gap"),
     ],
 )

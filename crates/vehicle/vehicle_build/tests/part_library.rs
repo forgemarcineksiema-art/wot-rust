@@ -11,8 +11,9 @@ use vehicle_build::t54_description;
 use vehicle_geometry::{MaterialRole, SmoothingGroup};
 
 // K15 + K11 (2026-09-06): the dome at the dossier's 2.363 m and the 423 mm road wheels moved
-// the bake from 9_296_666_834_409_964_133; the tri count did not move.
-const T54_LOD0_HASH_BEFORE_THE_MOVE: u64 = 4_695_424_951_694_710_596;
+// the bake from 9_296_666_834_409_964_133 to 4_695_424_951_694_710_596; K13 (the same day)
+// moved the coaxial SGMT to the loader's side; the tri count did not move.
+const T54_LOD0_HASH_BEFORE_THE_MOVE: u64 = 5_639_708_038_125_487_680;
 const T54_LOD0_TRIS_BEFORE_THE_MOVE: usize = 27_565;
 
 #[test]

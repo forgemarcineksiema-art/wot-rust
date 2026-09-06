@@ -64,13 +64,13 @@ VisualDetailFile(
         fittings: Some(FittingsVisual(
             // The cupola's lid and the loader's hatch are the dome's own; the driver's hatch is
             // the deck's rectangular one: none of the three round lids below is built.
-            cupola_hatch_center: (0.40, 2.97, -0.55),
+            cupola_hatch_center: (-0.40, 2.97, -0.55),
             cupola_hatch_radius: 0.30,
             cupola_hatch_half_height: 0.03,
             driver_hatch_center: (-0.4275, 1.88, 2.06),
             driver_hatch_radius: 0.27,
             driver_hatch_half_height: 0.03,
-            loader_hatch_center: (-0.34, 2.74, -0.25),
+            loader_hatch_center: (0.34, 2.74, -0.25),
             loader_hatch_radius: 0.20,
             loader_hatch_half_height: 0.03,
             no_cupola_hatch: true,
