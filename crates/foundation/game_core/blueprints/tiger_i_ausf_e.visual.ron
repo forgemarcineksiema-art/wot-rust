@@ -52,6 +52,16 @@ VisualDetailFile(
         // (the tub, the upper box, the bow shelf's wedge), each face on its armour plane
         // (Forge 2.0 K3, step 4a); the recipe's own slab stays out.
         construction: Some(WeldedSlab),
+        // The late Tiger I's deck furniture, stated (the family's first library deck: shielded
+        // stacks on the near-vertical stern, four spare links across the lower bow, the slot
+        // visor, flaps over both wraps); a file that authors no `german_deck` wears none.
+        german_deck: Some(GermanDeckVisual(
+            exhaust_shields: true,
+            spare_links: 4,
+            driver_visor: true,
+            periscope_hood: false,
+            rear_flaps: true,
+        )),
         // The horseshoe's proportions (the recipe's, lifted into data, step 4b): a 1.56 m flat
         // front plate, cheeks opening to the full beam over 0.60 m, side walls to 0.30 m behind
         // the ring, a two-facet bustle, and the Rommelkiste claiming the prism's last 0.21 m

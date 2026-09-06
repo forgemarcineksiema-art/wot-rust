@@ -109,9 +109,8 @@ impl PartClass {
             "lower_tub" => Self::HullTub,
             "upper_hull" => Self::UpperHull,
             "hull_plate_seam" | "deck_weld_bead" => Self::WeldSeams,
-            "engine_deck_panel" | "engine_deck_bolts" | "radiator_core" | "radiator_fin" => {
-                Self::EngineDeck
-            }
+            "engine_deck_panel" | "engine_deck_bolts" | "engine_deck_louvre" | "radiator_core"
+            | "radiator_fin" => Self::EngineDeck,
             "deck_grille" => Self::DeckGrille,
             "transmission_cover" | "transmission_drum" => Self::TransmissionCovers,
             "final_drive_housing" => Self::FinalDrives,
@@ -122,7 +121,8 @@ impl PartClass {
             "turret_rail" => Self::TurretRails,
             "course_mg_port" => Self::CourseMg,
             "gun_barrel" => Self::GunBarrel,
-            "driver_hatch" | "loader_hatch" | "radio_hatch" | "casemate_hatch" => Self::Hatches,
+            "driver_hatch" | "loader_hatch" | "radio_hatch" | "casemate_hatch" | "glacis_hatch"
+            | "roof_hatch" => Self::Hatches,
             "damage_component" | "driver_seat" | "interior_liner" | "turret_inner_skin" => {
                 Self::Interior
             }

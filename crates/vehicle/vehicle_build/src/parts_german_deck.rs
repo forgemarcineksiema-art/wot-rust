@@ -23,8 +23,11 @@ use crate::smoothing::SG_HARD;
 pub fn german_deck_parts_for_blueprint(bp: &VehicleBlueprint) -> Option<Vec<VehiclePart>> {
     let visual = bp.visual_detail()?;
     visual.construction?;
+    // A vehicle that authors no `german_deck` wears no German deck — the T-34-85's slab hull
+    // wore the Tiger's stacks, shields and flaps for one bake before this line existed.
+    let deck = visual.german_deck?;
     let guard_top_y = visual.fender.map(|f| f.center_y + f.half.y);
-    Some(german_deck_parts(bp, guard_top_y, &visual.german_deck.unwrap_or_default()))
+    Some(german_deck_parts(bp, guard_top_y, &deck))
 }
 
 /// Deck plate, grilles, stacks (shielded or open), spare links, visor or periscope hood, MG

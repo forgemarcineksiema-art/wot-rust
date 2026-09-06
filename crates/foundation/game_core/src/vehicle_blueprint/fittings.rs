@@ -42,6 +42,10 @@ pub struct FittingsVisual {
     /// not built. Appended 2026-09-06.
     #[serde(default)]
     pub no_loader_hatch: bool,
+    /// The driver's hatch is cut into the glacis (the T-34's, a deck part): the roof lid is not
+    /// built. Appended 2026-09-06.
+    #[serde(default)]
+    pub no_driver_hatch: bool,
 }
 
 /// Visual-only factory detailing for the hybrid path. Clean-build intent: a freshly delivered

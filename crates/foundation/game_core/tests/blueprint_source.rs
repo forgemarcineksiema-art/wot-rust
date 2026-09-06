@@ -187,6 +187,17 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
                 "no cupola, no loader lid"
             );
             assert!(detail.gun.map(|g| g.muzzle_brake.is_none()).unwrap_or(false), "plain muzzle");
+        } else if kind == VehicleKind::T34_85 {
+            let detail = blueprint.visual_detail().expect("the T-34-85 authors visual parts");
+            assert!(detail.is_library_complete(), "construction + cast dome + gun");
+            let dome = detail.cast_dome.expect("the flattened casting");
+            assert_eq!(dome.roof, game_core::CastRoofKind::T3485);
+            let deck = detail.soviet_deck.expect("the Soviet deck");
+            assert!(deck.glacis_hatch.is_some(), "the driver's hatch is in the glacis");
+            let fittings = detail.fittings.expect("the bow fittings");
+            assert!(
+                fittings.no_driver_hatch && fittings.no_cupola_hatch && fittings.no_loader_hatch
+            );
             assert!(
                 blueprint.complete_visual().is_none(),
                 "the library-complete set is not the benchmark's full tree"

@@ -91,9 +91,9 @@ ReferencePack(
             source: ReferenceSource(
                 label: "T-34-85 dossier (Reference anatomy)",
                 url: "docs/vehicles/t-34-85.md",
-                note: "2700 (ru.wikipedia; historyofwar) / 2720 (Zaloga) to the cupola apex; roof-vs-cupola convention unstated — Target until the library builds the cupola to the authored height.",
+                note: "2700 (ru.wikipedia; historyofwar) / 2720 (Zaloga) to the cupola apex — the library builds the slit cupola's crown to the authored 0.30 over the 2.42 roof.",
             ),
-            status: Target,
+            status: Locked,
         ),
         DimensionTarget(
             kind: GroundClearance,

@@ -91,6 +91,39 @@ fn the_jagdtiger_carries_its_dossier_but_the_stern_plate() {
     println!("{}", report.summary_line());
 }
 
+/// The T-34-85 is the fifth (K3, 2026-09-06) and the first Soviet vehicle after the benchmark:
+/// 14 of its 22 classes — the slab hull, the flattened dome with its slit cupola and loader's
+/// hatch, the ZiS-S-53 and its mantlet, the DT ball and the driver's hatch in the glacis, the
+/// louvres, the exhaust ports, the lamp, the hooks, the periscope hoods. Owed: the stern plate's
+/// furniture, the deck grilles, the fenders and their stowage, the handrails, the coax, the
+/// ventilator domes, the suspension hardware.
+#[test]
+fn the_t34_85_carries_fourteen_of_its_twenty_two() {
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::T34_85).unwrap());
+    assert!(!report.locked);
+    assert!(!report.is_sketch(), "no recipe piece stands on the shipped T-34-85");
+    for class in [
+        PartClass::HullTub,
+        PartClass::UpperHull,
+        PartClass::EngineDeck,
+        PartClass::TurretShell,
+        PartClass::TurretRing,
+        PartClass::Cupola,
+        PartClass::Hatches,
+        PartClass::Mantlet,
+        PartClass::GunBarrel,
+        PartClass::CourseMg,
+        PartClass::Exhaust,
+        PartClass::Headlights,
+        PartClass::TowHooks,
+        PartClass::Periscopes,
+    ] {
+        assert!(report.carried.contains(&class), "{class:?} is the library's");
+    }
+    assert_eq!(report.missing.len(), 8, "eight classes owed: {:?}", report.missing);
+    println!("{}", report.summary_line());
+}
+
 /// The Tiger II is the second vehicle the library builds whole (K3, 2026-09-06): 14 of its 15
 /// classes carried — the leaned prism hull, the Schürzen, the bow flaps, the Henschel turret,
 /// the Turmblende, the KwK 43, the fittings, the open stacks, the periscope hood. The stern
@@ -190,9 +223,7 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    for (kind, at_least) in
-        [(VehicleKind::T34_85, 22), (VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)]
-    {
+    for (kind, at_least) in [(VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)] {
         let report = InventoryReport::new(&authoritative_description(kind).unwrap());
         assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
         assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());

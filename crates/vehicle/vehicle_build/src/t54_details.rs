@@ -75,13 +75,17 @@ pub struct HatchSeats {
 /// (so they traverse); the driver's hatch and the glacis headlight ride the hull. Each is its own
 /// part, not anonymous greeble.
 pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehiclePart> {
-    let mut parts = vec![drum_fitting(
-        PartKey::new("driver_hatch"),
-        SubmeshKind::Hull,
-        f.driver_hatch_center,
-        f.driver_hatch_radius,
-        f.driver_hatch_half_height,
-    )];
+    let mut parts = Vec::new();
+    // The T-34's driver's hatch is cut into the glacis (a deck part): no roof lid.
+    if !f.no_driver_hatch {
+        parts.push(drum_fitting(
+            PartKey::new("driver_hatch"),
+            SubmeshKind::Hull,
+            f.driver_hatch_center,
+            f.driver_hatch_radius,
+            f.driver_hatch_half_height,
+        ));
+    }
     // A casemate carries no cupola and no loader's lid (its roof hatches are its own parts).
     if !f.no_cupola_hatch {
         parts.push(drum_fitting(
@@ -135,15 +139,17 @@ pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehicleP
             seats.cupola,
         ));
     }
-    parts.extend(hatch_hardware(
-        "driver_hatch",
-        SubmeshKind::Hull,
-        f.driver_hatch_center,
-        f.driver_hatch_radius,
-        f.driver_hatch_half_height,
-        HandlePlacement::Crown,
-        seats.driver,
-    ));
+    if !f.no_driver_hatch {
+        parts.extend(hatch_hardware(
+            "driver_hatch",
+            SubmeshKind::Hull,
+            f.driver_hatch_center,
+            f.driver_hatch_radius,
+            f.driver_hatch_half_height,
+            HandlePlacement::Crown,
+            seats.driver,
+        ));
+    }
     if !f.no_loader_hatch {
         parts.extend(hatch_hardware(
             "loader_hatch",

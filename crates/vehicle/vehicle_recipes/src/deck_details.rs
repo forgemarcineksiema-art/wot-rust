@@ -742,7 +742,7 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryM
 /// T-34-85: the driver's hatch is IN THE GLACIS FACE (big plate with twin periscope hoods),
 /// the hull MG ball sits right of it — the bow's identity (photo). Roof carries no driver
 /// hatch at all.
-pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+pub(crate) fn t34_85_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
     let hull = &bp.hull;
     let glacis = hull.glacis_slope_deg.to_radians();
     // A point on the glacis plane at height `y`, pushed `standoff` along the plate normal.
@@ -777,8 +777,11 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
             smoothing: SG_HARD,
         },
     );
-    b = headlight(b, on_glacis(0.75, hull.deck_y - 0.10, 0.10), 0.075, false);
-    b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    // The lamp and the hooks are the library's when the fittings are authored.
+    if !omit.fittings {
+        b = headlight(b, on_glacis(0.75, hull.deck_y - 0.10, 0.10), 0.075, false);
+        b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    }
     b = soviet_exhaust_ports(b, bp, hull.sponson_y + 0.42);
     engine_deck_soviet(b, bp)
 }

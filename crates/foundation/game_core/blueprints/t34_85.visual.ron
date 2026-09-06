@@ -1,0 +1,90 @@
+// T-34-85 (1944, ZiS-S-53, Factory 183 flattened turret) — authored visual parts (Forge 2.0 K3,
+// 2026-09-06, the first Soviet vehicle after the benchmark to leave its recipe). The part library
+// builds every class from this file and the blueprint: the welded slab hull on the armour planes
+// (the 60° glacis, the 40° raked upper sides), the flattened cast dome with the slit cupola built
+// to the authored height, the ZiS-S-53, the Soviet deck — the louvres, the V-2's exhaust ports,
+// the driver's hatch and periscope hoods IN the glacis, the DT ball — and the fittings. The bake
+// frame: +Y up, +Z bow, +X port. Dossier: docs/vehicles/t-34-85.md.
+VisualDetailFile(
+    kind: T34_85,
+    detail: VisualDetail(
+        // The 85 mm ZiS-S-53 L/54.6: bore 85 mm -> bore_radius 0.0425; tube radius 0.072 = the
+        // gameplay gun's; NO brake, NO evacuator (every source). The rounded cast mantlet spans the
+        // armour's patch band 1.06 .. 1.32 (trunnion_z 1.25 -> trunnion-relative -0.19 .. +0.07),
+        // widest 0.28 = the gameplay mantlet_radius, round.
+        gun: Some(GunVisual(
+            barrel_radius: 0.072,
+            muzzle_radius: 0.055,
+            bore_radius: 0.0425,
+            muzzle_taper: 0.15,
+            barrel_segments: 12,
+            mantlet_profile: (
+                (-0.19, 0.0),
+                (-0.17, 0.20),
+                (-0.12, 0.26),
+                (-0.05, 0.28),
+                (0.02, 0.27),
+                (0.05, 0.22),
+                (0.065, 0.12),
+                (0.07, 0.0),
+            ),
+            mantlet_segments: 12,
+            mantlet_scale: (1.0, 1.0, 1.0),
+            muzzle_brake: None,
+            module_delta_scale: 0.65,
+        )),
+        // Welded 45 mm plate on the armour planes: the tub, the upper box whose sides lean the
+        // armour table's 40° from the sponson fold.
+        construction: Some(WeldedSlab),
+        // The Factory-183 flattened casting: the family's cast dome loft over the blueprint's
+        // ring and roof, the slit cupola built up to the authored `cupola_height` (0.30 -> the
+        // 2.72 m apex), the loader's flush hatch beside it, the broad mantlet socket; no bin.
+        cast_dome: Some(CastDomeVisual(
+            segments: 20,
+            roof: T3485,
+            ring_height: 0.12,
+            ring_segments: 16,
+            socket_segments: 12,
+            bustle_bin: None,
+        )),
+        // The Soviet deck: four transverse louvres over the bay, the V-2's twin exhaust ports
+        // 0.42 above the sponson on the 47° stern, the driver's hatch with its twin periscope
+        // hoods IN the 60° glacis (the T-34 carries no roof hatch), the DT ball right of it; no
+        // IS fenders, no drums authored yet.
+        soviet_deck: Some(SovietDeckVisual(
+            louvres: 4,
+            exhaust_port_y: 1.37,
+            glacis_hatch: Some((0.45, 1.50)),
+            glacis_mg_ball: Some((-0.55, 1.45)),
+            is_fenders: false,
+            fuel_drums: false,
+        )),
+        fittings: Some(FittingsVisual(
+            // The cupola's lid is the slit cupola's own (the cast dome builds it), the loader's
+            // hatch is the dome's flush ring hatch, and the driver's hatch is IN the glacis (the
+            // deck's): none of the three lids below is built — their stations stay as
+            // documentation.
+            cupola_hatch_center: (0.32, 2.72, -0.05),
+            cupola_hatch_radius: 0.28,
+            cupola_hatch_half_height: 0.03,
+            driver_hatch_center: (0.45, 1.50, 2.15),
+            driver_hatch_radius: 0.28,
+            driver_hatch_half_height: 0.03,
+            loader_hatch_center: (-0.27, 2.38, 0.37),
+            loader_hatch_radius: 0.20,
+            loader_hatch_half_height: 0.03,
+            no_cupola_hatch: true,
+            no_loader_hatch: true,
+            no_driver_hatch: true,
+            // The single headlight on the glacis LEFT: the glacis point (0.75, 1.46) pushed 0.10
+            // along the plate's normal (0, sin 60, cos 60).
+            headlight_center: (0.75, 1.547, 2.217),
+            headlight_radius: 0.075,
+            headlight_half_height: 0.10,
+            // The cast tow hooks at the glacis corners.
+            tow_hook_center: (0.62, 1.05, 2.91),
+            tow_hook_half: (0.10, 0.08, 0.12),
+            second_bow_hatch_center: None,
+        )),
+    ),
+)

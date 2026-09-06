@@ -87,7 +87,7 @@ fn the_reduced_tiers_are_the_reductions_each_path_ran_before() {
 }
 
 #[test]
-fn exactly_five_vehicles_are_at_the_benchmark_fidelity_today() {
+fn exactly_six_vehicles_are_at_the_benchmark_fidelity_today() {
     let benchmarks: Vec<VehicleKind> = VehicleKind::PLAYABLE
         .into_iter()
         .filter(|kind| shipped_fidelity(*kind) == Fidelity::Benchmark)
@@ -99,10 +99,11 @@ fn exactly_five_vehicles_are_at_the_benchmark_fidelity_today() {
             VehicleKind::TigerI,
             VehicleKind::TigerII,
             VehicleKind::Jagdtiger,
-            VehicleKind::PantherII
+            VehicleKind::PantherII,
+            VehicleKind::T34_85
         ],
         "K3 moves this list, one vehicle at a time (the Tiger I joined 2026-09-06, step 4e; the \
-         Tiger II, the Panther II and the Jagdtiger the same day)"
+         Tiger II, the Panther II, the Jagdtiger and the T-34-85 the same day)"
     );
 }
 

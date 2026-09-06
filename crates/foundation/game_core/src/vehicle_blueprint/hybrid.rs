@@ -428,8 +428,8 @@ pub struct VisualDetail {
     #[serde(default)]
     pub welded_turret: Option<WeldedTurretVisual>,
     /// Which of the German family's deck furniture this vehicle wears when the library builds
-    /// its deck (Forge 2.0 K3, the Tiger II): `None` builds the family's first layout, the
-    /// Tiger I's. Appended 2026-09-06.
+    /// its deck (Forge 2.0 K3, the Tiger II); `None` builds no German deck (a Soviet hull wears
+    /// `soviet_deck`). Appended 2026-09-06.
     #[serde(default)]
     pub german_deck: Option<GermanDeckVisual>,
     /// The welded-in casemate's furniture, when the library builds a casemate vehicle (Forge
@@ -438,6 +438,69 @@ pub struct VisualDetail {
     /// 2026-09-06.
     #[serde(default)]
     pub casemate: Option<CasemateVisual>,
+    /// The cast dome turret's roof and furniture, when the library builds a cast-dome vehicle
+    /// outside the benchmark (Forge 2.0 K3, the Soviet family and the Centurion): the dome
+    /// itself is the blueprint's ring/roof loft; this is what stands on it. Appended 2026-09-06.
+    #[serde(default)]
+    pub cast_dome: Option<CastDomeVisual>,
+    /// The Soviet deck's furniture — louvres, the V-2's exhaust ports, the glacis furniture, the
+    /// IS fender line and drums — when the library builds it. Appended 2026-09-06.
+    #[serde(default)]
+    pub soviet_deck: Option<SovietDeckVisual>,
+}
+
+/// What stands on a cast dome (`vehicle_build::cast_dome_parts`): the dome is the blueprint's
+/// (`TurretShape` ring, base radius, plan length, roof); the roof furniture is per vehicle.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CastDomeVisual {
+    /// Azimuth samples of the dome loft.
+    pub segments: u8,
+    /// Which roof furniture the dome wears.
+    pub roof: CastRoofKind,
+    pub ring_height: f32,
+    pub ring_segments: u8,
+    pub socket_segments: u8,
+    /// A stowage bin closing the rear of the turret plan (the Centurion's bustle bin), or none.
+    pub bustle_bin: Option<BustleBinVisual>,
+}
+
+/// The roof furniture a cast dome wears — per vehicle, from the photos (one cloned cupola drum
+/// used to top every cast turret across three nations). Append-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum CastRoofKind {
+    /// No cupola: two flush hatches and the commander's periscope (the IS-3).
+    Is3,
+    /// The slit-ring cupola with a split lid, built to the authored `cupola_height`, and the
+    /// loader's flush hatch (the T-34-85).
+    T3485,
+    /// The wide British cupola with sight hoods and the loader's flush hatch (the Centurion).
+    Centurion,
+}
+
+/// A stowage bin closing the rear of a turret plan: standing `rise` over the ring seat, its
+/// centre `back_inset` ahead of the plan's rear, with the given half-extents.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BustleBinVisual {
+    pub rise: f32,
+    pub back_inset: f32,
+    pub half: (f32, f32, f32),
+}
+
+/// Which of the Soviet family's deck furniture a vehicle wears (`vehicle_build::soviet_deck_parts`).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SovietDeckVisual {
+    /// Transverse louvre strips over the engine bay.
+    pub louvres: u8,
+    /// The height of the twin round exhaust ports on the sloped stern.
+    pub exhaust_port_y: f32,
+    /// The driver's hatch IN the glacis with its twin periscope hoods: `(x, y)` on the plate.
+    pub glacis_hatch: Option<(f32, f32)>,
+    /// The hull MG ball in the glacis: `(x, y)` on the plate.
+    pub glacis_mg_ball: Option<(f32, f32)>,
+    /// The IS family's fender line: shelf, front mudguard, rear flap.
+    pub is_fenders: bool,
+    /// External cylindrical fuel drums along the rear fender shelves.
+    pub fuel_drums: bool,
 }
 
 /// The horseshoe's plan, relative to the blueprint's turret: the flat front plate spans
@@ -486,7 +549,7 @@ pub enum HullConstruction {
 
 /// Which of the German family's deck furniture a welded slab vehicle wears
 /// (`vehicle_build::german_deck_parts`). The defaults are the late Tiger I's layout — the
-/// family's first library deck — so a visual file that authors none keeps the bake it had.
+/// family's first library deck — for the fields a file leaves out.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GermanDeckVisual {
     /// Three-sided armoured shields round the exhaust stacks on a near-vertical stern (the late
@@ -601,7 +664,9 @@ impl VisualDetail {
     pub fn is_library_complete(&self) -> bool {
         self.is_complete()
             || (self.construction.is_some()
-                && (self.welded_turret.is_some() || self.casemate.is_some())
+                && (self.welded_turret.is_some()
+                    || self.casemate.is_some()
+                    || self.cast_dome.is_some())
                 && self.gun.is_some())
     }
 
