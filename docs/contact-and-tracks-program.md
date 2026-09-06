@@ -1,5 +1,7 @@
 # Contact and Tracks Program
 
+> **2026-09-07: the open items of this program (H2, per-belt ground, P2.2) are rows X8, G5 and X4 of `docs/program.md`; P4.7 was rejected by the owner the same day.** This file keeps the measurements and the rollover arithmetic.
+
 Approved 2026-08-06. The ground layer — what a hull touches, and what pushes it — rebuilt around
 one solver and two tracks. This document is the plan; `docs/vehicle-movement-policy.md` and
 `docs/physics-policy.md` are what it edits when each wave lands.

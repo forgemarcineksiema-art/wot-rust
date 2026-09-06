@@ -15,7 +15,7 @@ The honest tank: **no ±25% damage RNG**, an aiming envelope that is a hard maxi
 tiers and lines like World of Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is
 test-locked, not marketing.
 
-**The queue and the engine's fundamental problem (2026-09-02): `docs/inny-poziom-program.md`, section "The queue and the fundamentals" — everything still to do, in order, and the three one-sentence remedies.**
+**The one queue (2026-09-07): `docs/program.md` — the second pass's registers and the audits of 2026-09-06/07 (collision 2.5D, driving, the running gear, destruction as classes, ballistics, terrain, the graphics review VR-01…09) merged into one register and one queue, with the owner's decisions dated in `docs/game-design.md` rows 25–35. `docs/inny-poziom-program.md` keeps the diagnosis and the closed rows.**
 
 ## Systems inventory
 
