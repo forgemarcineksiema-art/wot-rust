@@ -140,11 +140,95 @@ pub(crate) fn random_battle_setup_for_humans(
     )
 }
 
-/// The team (0 or 1) crew `crew` sits on: a snake, 1-2-2-1 — crews 0 and 3 on team one, 1 and 2
-/// on team two, then again — so any count of humans splits with at most one more on a side.
-/// M8 sorts the crews by rating before this deal; until then the order is the hello order.
+/// M7 (`docs/game-modes.md`): seat a battle the matchmaker dealt — every crew on the side and in
+/// the seat the plan names, in its garage pick (`wishes`; `None` = the benchmark), every bot at
+/// the plan's tier (the roster's own seeded draw within that tier; a tier the park cannot
+/// field falls back to the anchor's bracket). The plan's format wins over the config's. Crews
+/// come back as (crew, tank) in the plan's order.
+pub(crate) fn planned_battle_setup(
+    config: RandomBattleConfig,
+    plan: &matchmaker::BattlePlan,
+    wishes: &[(matchmaker::CrewId, Option<game_core::VehicleKind>)],
+) -> (BattleSetup, Vec<(matchmaker::CrewId, TankId)>) {
+    let config = config.with_format(plan.format);
+    let battlefield = map_forge::battlefield(config.map);
+    let mut sim = SimulationState::new();
+    sim.set_water(battlefield.water_field());
+    sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
+    let zones =
+        [random_battle_spawn_zone(&battlefield, 1), random_battle_spawn_zone(&battlefield, 2)];
+    let anchor_vehicle = wishes.iter().find_map(|(_, wish)| *wish).unwrap_or(config.player_vehicle);
+    let mut bot_ids = Vec::new();
+    let mut crews = Vec::new();
+    let mut target_tank = TankId(0);
+    for (team, zone) in zones.into_iter().enumerate() {
+        let salt = if team == 0 { 10 } else { 30 };
+        for (seat, planned) in plan.teams[team].iter().enumerate() {
+            let vehicle = match planned {
+                matchmaker::Seat::Crew(crew) => wishes
+                    .iter()
+                    .find(|(id, _)| id == crew)
+                    .and_then(|(_, wish)| *wish)
+                    .unwrap_or(game_core::VehicleKind::BENCHMARK),
+                matchmaker::Seat::Bot { tier } => random_battle_bot_vehicle_of_tier(
+                    config.seed,
+                    salt + seat as u64,
+                    *tier,
+                    anchor_vehicle,
+                ),
+            };
+            let id = random_battle_spawn(&mut sim, &battlefield, zone, seat, vehicle, config);
+            match planned {
+                matchmaker::Seat::Crew(crew) => crews.push((*crew, id)),
+                matchmaker::Seat::Bot { .. } => bot_ids.push(id),
+            }
+            if team == 1 && seat == 0 {
+                target_tank = id;
+            }
+        }
+    }
+    let player_tank = crews.first().map_or(target_tank, |(_, tank)| *tank);
+    sim.refresh_spotting(Some(&battlefield.heightmap), &battlefield.static_cover);
+    (
+        BattleSetup {
+            mode: match plan.format {
+                BattleFormat::SevenVsSeven => BattleMode::Random7v7,
+                BattleFormat::FifteenVsFifteen => BattleMode::Random15v15,
+            },
+            format: Some(plan.format),
+            sim,
+            map_id: config.map,
+            battlefield,
+            weather: pick_weather(config.map, config.seed),
+            player_tank,
+            target_tank,
+            bots: BotRoster::new(bot_ids, config.seed),
+        },
+        crews,
+    )
+}
+
+/// A bot of exactly this tier, drawn by the seed from the park; a tier the park cannot field
+/// falls back to the anchor's bracket draw.
+fn random_battle_bot_vehicle_of_tier(
+    seed: BattleSeed,
+    salt: u64,
+    tier: u8,
+    anchor: VehicleKind,
+) -> VehicleKind {
+    let of_tier: Vec<VehicleKind> =
+        VehicleKind::PLAYABLE.into_iter().filter(|kind| kind.tier() == tier).collect();
+    if of_tier.is_empty() {
+        return random_battle_bot_vehicle(seed, salt, anchor);
+    }
+    of_tier[seed.random_battle_index(salt, of_tier.len())]
+}
+
+/// The team (0 or 1) crew `crew` sits on — `BattleFormat::snake_side`, the one rule the host
+/// and the matchmaker share. M8 sorts the crews by rating before this deal; until then the
+/// order is the hello order.
 pub fn human_team(crew: usize) -> usize {
-    usize::from(matches!(crew % 4, 1 | 2))
+    BattleFormat::snake_side(crew)
 }
 
 fn random_battle_spawn_zone(map: &BattlefieldMap, team: u16) -> &SpawnZone {

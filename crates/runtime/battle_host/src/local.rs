@@ -105,7 +105,21 @@ impl LocalAuthoritativeServer {
         )
     }
 
-    /// Format-aware dedicated setup. M6 will distribute human seats across both teams.
+    /// M7: the battle the matchmaker dealt, seated as dealt — the coordinator's constructor.
+    /// Returns every crew's tank in the plan's order.
+    pub fn new_from_plan(
+        config: ServerTickConfig,
+        battle: RandomBattleConfig,
+        plan: &matchmaker::BattlePlan,
+        wishes: &[(matchmaker::CrewId, Option<game_core::VehicleKind>)],
+    ) -> (Self, Vec<(matchmaker::CrewId, TankId)>) {
+        let (setup, crews) = crate::setup::planned_battle_setup(battle, plan, wishes);
+        let mut server = Self::from_setup(config, setup);
+        server.human_tanks = crews.iter().map(|(_, tank)| *tank).collect();
+        (server, crews)
+    }
+
+    /// Format-aware dedicated setup (M6 deals the crews across both teams).
     pub fn new_random_for_humans(
         config: ServerTickConfig,
         battle: RandomBattleConfig,

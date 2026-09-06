@@ -126,6 +126,73 @@ fn humans_are_dealt_across_both_teams_in_a_snake() {
     assert_eq!((seat.team, seat.seat, seat.vehicle), (TeamId(1), 0, VehicleKind::TigerII));
 }
 
+/// M7: a plan the matchmaker dealt is seated exactly as dealt — every crew on the plan's side in
+/// the plan's seat with its pick, every bot at the plan's tier, the roster the plan's size.
+#[test]
+fn a_plan_dealt_by_the_matchmaker_is_seated_as_dealt() {
+    use game_core::VehicleKind;
+    use matchmaker::{CrewId, Seat, Ticket};
+    let picks = [
+        (CrewId(1), VehicleKind::IS3),
+        (CrewId(2), VehicleKind::TigerI),
+        (CrewId(3), VehicleKind::Centurion),
+        // All within one band of the anchor (tier 8): a tier-6 crew would anchor a battle of
+        // its own, which is the matchmaker's rule, not this lock's subject.
+        (CrewId(4), VehicleKind::Jagdtiger),
+        (CrewId(5), VehicleKind::PantherII),
+    ];
+    for format in BattleFormat::ALL {
+        let tickets: Vec<Ticket> = picks
+            .iter()
+            .enumerate()
+            .map(|(i, (crew, vehicle))| Ticket {
+                crew: *crew,
+                vehicle: *vehicle,
+                format,
+                rating: None,
+                entered_at_ms: i as u64,
+            })
+            .collect();
+        let dealt = matchmaker::deal(&tickets, 120_000);
+        let plan = &dealt.battles[0];
+        let wishes: Vec<_> = picks.iter().map(|(crew, vehicle)| (*crew, Some(*vehicle))).collect();
+        let (server, crews) = LocalAuthoritativeServer::new_from_plan(
+            ServerTickConfig::default(),
+            RandomBattleConfig::new(BattleSeed::fixed(42), VehicleKind::TigerII),
+            plan,
+            &wishes,
+        );
+        assert_eq!(server.battle_format(), Some(format));
+        let roster = server.roster();
+        assert_eq!(roster.len(), format.total_seats());
+        assert_eq!(crews.len(), picks.len());
+        for team in 0..2 {
+            let side: Vec<_> =
+                roster.iter().filter(|e| e.team == game_core::TeamId(team as u16 + 1)).collect();
+            assert_eq!(side.len(), plan.teams[team].len());
+            for (seat, planned) in plan.teams[team].iter().enumerate() {
+                let entry = side.iter().find(|e| usize::from(e.seat) == seat).expect("seat");
+                match planned {
+                    Seat::Crew(crew) => {
+                        assert_eq!(entry.crew_kind, net::CrewKind::Human);
+                        let pick = picks.iter().find(|(id, _)| id == crew).expect("pick").1;
+                        assert_eq!(entry.vehicle, pick, "{format:?} crew {crew:?} in its pick");
+                        assert!(crews.contains(&(*crew, entry.tank_id)));
+                    }
+                    Seat::Bot { tier } => {
+                        assert_eq!(entry.crew_kind, net::CrewKind::Bot);
+                        assert_eq!(
+                            entry.vehicle.tier(),
+                            *tier,
+                            "{format:?}: a bot at the plan's tier"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn every_seat_of_every_format_lands_inside_its_zone() {
     for &map_id in terrain::MapId::SHIPPED {

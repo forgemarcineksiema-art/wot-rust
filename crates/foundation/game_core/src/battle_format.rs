@@ -36,6 +36,24 @@ impl BattleFormat {
         }
     }
 
+    /// How long the queue waits for crews before the bots fill the rest (`docs/game-modes.md`
+    /// R3: the band never widens, the wait never grows — a battle is botter, never later).
+    /// First values; a playtest moves them by a dated row.
+    pub const fn fill_deadline_s(self) -> u32 {
+        match self {
+            Self::SevenVsSeven => 30,
+            Self::FifteenVsFifteen => 60,
+        }
+    }
+
+    /// The side (0 or 1) the crew of rank `rank` sits on: a snake, 1-2-2-1 — ranks 0 and 3 on
+    /// side one, 1 and 2 on side two, then again — so any count of crews splits with at most
+    /// one more on a side (R4). The rank is by rating when one exists, by arrival otherwise;
+    /// the host and the matchmaker deal through this one rule.
+    pub const fn snake_side(rank: usize) -> usize {
+        matches!(rank % 4, 1 | 2) as usize
+    }
+
     /// Formation in metres (right, forward), before the seed's ±1.5 m jitter.
     /// The seven-seat deployment is preserved exactly; fifteen gets five columns.
     /// An invalid seat has no position and must never wrap onto an occupied one.
