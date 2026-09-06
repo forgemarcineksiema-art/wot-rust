@@ -92,8 +92,8 @@ down anywhere — the document that held them was retired):
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture
    and dedicated-server operations — the register and wave plan are in
    `docs/multiplayer-production-program.md`. Found 2026-09-06: the dedicated host seats humans
-   on team one only (co-op against bots, never humans against humans) — `docs/game-modes.md`
-   M6, register row 15.
+   on team one only (co-op against bots, never humans against humans) — the owner: humans on
+   both teams is the mode's definition — `docs/game-modes.md` M6, register row 15.
 2. **Meta & matchmaking**: OpenSkill-based MM, sessions/lobbies, player identity, and a
    record that a battle happened at all (today the game keeps none). The queue is DESIGNED
    in `docs/game-modes.md` (Part III: one queue per format and band, the band never widens,
