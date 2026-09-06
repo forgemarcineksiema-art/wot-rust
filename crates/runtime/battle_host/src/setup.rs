@@ -3,7 +3,7 @@ use glam::Vec3;
 use sim::SimulationState;
 use terrain::{BattlefieldMap, MapId, SpawnZone};
 
-use crate::battle::{BattleMode, BattleSeed, RandomBattleConfig};
+use crate::battle::{BattleMode, BattleSeed, RandomBattleConfig, SEATS_PER_TEAM};
 use crate::bots::BotRoster;
 use crate::match_info::pick_weather;
 
@@ -76,9 +76,9 @@ pub(crate) fn random_7v7_setup_for_humans(
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);
 
-    let humans = human_vehicles.len().clamp(1, 7);
+    let humans = human_vehicles.len().clamp(1, SEATS_PER_TEAM);
     let mut human_tanks = Vec::with_capacity(humans);
-    for slot in 0..7 {
+    for slot in 0..SEATS_PER_TEAM {
         let vehicle = if slot < humans {
             match human_vehicles.get(slot).copied().flatten() {
                 Some(pick) => pick,
@@ -123,7 +123,7 @@ fn random_battle_spawn_enemy_team(
     bot_ids: &mut Vec<TankId>,
 ) -> TankId {
     let mut target_tank = TankId(0);
-    for slot in 0..7 {
+    for slot in 0..SEATS_PER_TEAM {
         let vehicle =
             random_battle_bot_vehicle(config.seed, 30 + slot as u64, config.player_vehicle);
         let id = random_battle_spawn(sim, map, zone, slot, vehicle, config.seed);

@@ -125,6 +125,37 @@ const CLAIMS: &[Claim] = &[
         why: "the H wave appends class icons to an identity enum; the program must count from \
               the atlas that exists",
     },
+    // The game-modes document (2026-09-06) opens with "what the repository has today, measured":
+    // the four numbers below are the ones its plan is built on — the seat count that becomes
+    // data, the lobby's table cap that 30 crews will press against, the clock, the band.
+    Claim {
+        doc: "docs/game-modes.md",
+        anchor: "**seats per team today: ",
+        source: "crates/runtime/battle_host/src/battle.rs",
+        owner: Owner::NumberAfter("pub const SEATS_PER_TEAM: usize = "),
+        why: "the seat count is the number the two formats are measured against; the day it               becomes per-format data the document must say so",
+    },
+    Claim {
+        doc: "docs/game-modes.md",
+        anchor: "**lobby table cap today: ",
+        source: "crates/runtime/battle_host/src/remote.rs",
+        owner: Owner::NumberAfter("const MAX_TRACKED_CLIENTS: usize = "),
+        why: "a 15v15 lobby seats thirty crews plus reconnect churn against this cap; the plan               that raises it must start from the cap that exists",
+    },
+    Claim {
+        doc: "docs/game-modes.md",
+        anchor: "**battle time limit today: ",
+        source: "crates/runtime/battle_host/src/battle.rs",
+        owner: Owner::NumberAfter("pub const RANDOM_BATTLE_TIME_LIMIT_S: u32 = "),
+        why: "the per-format timers are proposed against today's one limit; a moved limit               silently re-bases the proposal",
+    },
+    Claim {
+        doc: "docs/game-modes.md",
+        anchor: "**matchmaking spread today: ±",
+        source: "crates/foundation/game_core/src/vehicle_kind.rs",
+        owner: Owner::NumberAfter("pub const MATCHMAKING_SPREAD: u8 = "),
+        why: "the band is the queue's key and the honesty promise (no ±2 battles); the document               must quote the spread the roster actually uses",
+    },
 ];
 
 #[test]

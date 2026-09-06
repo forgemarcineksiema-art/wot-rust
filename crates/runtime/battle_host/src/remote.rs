@@ -15,10 +15,11 @@ use net::{CombatEvent, DisconnectReason, ProtocolMessage, SnapshotDelivery};
 use crate::battle::BattleOutcome;
 use crate::remote_events::{RemoteEventQueue, RemoteEventQueueError};
 use crate::remote_input::RemoteInputQueue;
-use crate::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
+use crate::{LocalAuthoritativeServer, RandomBattleConfig, SEATS_PER_TEAM, ServerTickConfig};
 
-/// How many humans the lobby wants before starting early.
-pub const LOBBY_FULL_PLAYERS: usize = 7;
+/// How many humans the lobby wants before starting early: one team's seats (humans sit on
+/// team one until M6 of `docs/game-modes.md` seats them on both sides).
+pub const LOBBY_FULL_PLAYERS: usize = SEATS_PER_TEAM;
 /// A joined client that stays silent this long (ms) is dropped.
 const CLIENT_TIMEOUT_MS: u64 = 10_000;
 /// An address that has sent traffic but never completed a hello (`session_id` still 0) is a
