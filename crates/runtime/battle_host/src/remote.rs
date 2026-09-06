@@ -562,9 +562,14 @@ impl RemoteBattleServer {
                     // variant cannot arrive here meaning one thing and be reported as another.
                     let winner = outcome.winning_team().map(|team| team.0);
                     for client in self.clients.values_mut() {
+                        // v52 (W-7): this crew's own spotting log — its hull's observers,
+                        // nobody else's — rides the end word.
+                        let spotting_log =
+                            client.tank.map_or_else(Vec::new, |tank| core.spotting_log_for(tank));
                         let word = ProtocolMessage::BattleEnded {
                             session_id: client.session_id,
                             winning_team: winner,
+                            spotting_log,
                         };
                         let _ = client.endpoint.send(transport, &word);
                         if *ended_repeats == BATTLE_ENDED_REPEATS {

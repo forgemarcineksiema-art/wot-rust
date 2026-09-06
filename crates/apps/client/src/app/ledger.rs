@@ -54,6 +54,8 @@ pub(crate) struct BattleLedger {
     /// The own shots, in the order the snapshots named them.
     shots: Vec<ShotFired>,
     spotted: Vec<SpottedSpan>,
+    /// The enemies that saw the crew (v52, W-7): named by the end word, never before it.
+    observers: Vec<net::SpottingRecord>,
     ended: Option<BattleEnd>,
 }
 
@@ -120,6 +122,18 @@ impl BattleLedger {
         self.ended
     }
 
+    /// The observers, once the battle has ended; a log offered before the end is refused —
+    /// a live ledger never holds an observer's name (W-7).
+    pub(crate) fn name_observers(&mut self, log: Vec<net::SpottingRecord>) {
+        if self.ended.is_some() && self.observers.is_empty() {
+            self.observers = log;
+        }
+    }
+
+    pub(crate) fn observers(&self) -> &[net::SpottingRecord] {
+        &self.observers
+    }
+
     /// Every damage record, in event-id order.
     pub(crate) fn damage(&self) -> impl Iterator<Item = &DamageEvent> {
         self.damage.values()
@@ -160,6 +174,26 @@ impl BattleLedger {
 
 #[cfg(test)]
 mod tests {
+    /// W-7: an observer is named only after the battle — a log offered while the ledger still
+    /// runs is refused, the end word's log stands, and a second one does not overwrite it.
+    #[test]
+    fn an_observer_is_named_only_after_the_battle() {
+        let mut ledger = BattleLedger::new(TankId(1));
+        let record = net::SpottingRecord {
+            observer: TankId(9),
+            distance_m: 308.5,
+            from_tick: 40,
+            to_tick: 96,
+        };
+        ledger.name_observers(vec![record]);
+        assert!(ledger.observers().is_empty(), "a live ledger names nobody");
+        ledger.end(100, BattleHudOutcome::Victory);
+        ledger.name_observers(vec![record]);
+        assert_eq!(ledger.observers(), &[record]);
+        ledger.name_observers(vec![]);
+        assert_eq!(ledger.observers(), &[record], "the first word stands");
+    }
+
     use super::*;
     use game_core::{DamageCause, ShellId};
 

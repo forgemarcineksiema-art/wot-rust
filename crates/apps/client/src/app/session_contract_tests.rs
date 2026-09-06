@@ -217,7 +217,19 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
         )
         .expect("start");
     server
-        .send(&mut server_port, &ProtocolMessage::BattleEnded { session_id, winning_team: Some(1) })
+        .send(
+            &mut server_port,
+            &ProtocolMessage::BattleEnded {
+                session_id,
+                winning_team: Some(1),
+                spotting_log: vec![net::SpottingRecord {
+                    observer: TankId(3),
+                    distance_m: 308.5,
+                    from_tick: 40,
+                    to_tick: 90,
+                }],
+            },
+        )
         .expect("result");
     server
         .send(
@@ -237,6 +249,11 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
         "the battle result outlives the orderly close"
     );
     assert!(remote.outcome.is_some(), "and the outcome itself is retained, not just its winner");
+    assert_eq!(
+        remote.spotting_log.iter().map(|record| record.observer).collect::<Vec<_>>(),
+        vec![TankId(3)],
+        "v52: the crew's spotting log rides the end word"
+    );
     assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::BattleOver));
     assert!(
         !remote.accepts_player_prediction(),

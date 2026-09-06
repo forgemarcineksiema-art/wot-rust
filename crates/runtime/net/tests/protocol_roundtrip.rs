@@ -73,7 +73,16 @@ fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
             server_tick: 0,
             time_limit_tick: Some(36_000),
         },
-        ProtocolMessage::BattleEnded { session_id: SESSION_ID, winning_team: None },
+        ProtocolMessage::BattleEnded {
+            session_id: SESSION_ID,
+            winning_team: None,
+            spotting_log: vec![net::SpottingRecord {
+                observer: TankId(3),
+                distance_m: 308.5,
+                from_tick: 40,
+                to_tick: 90,
+            }],
+        },
         ProtocolMessage::SnapshotDelivery(net::SnapshotDelivery {
             session_id: SESSION_ID,
             ..Default::default()

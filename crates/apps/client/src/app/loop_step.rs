@@ -134,6 +134,9 @@ impl ClientApp {
         {
             let tick = self.server_tick_now();
             self.ledger.end(tick, outcome);
+            // W-7: the observers are named by the end word, never before it.
+            let log = self.session.spotting_log();
+            self.ledger.name_observers(log);
         }
     }
 

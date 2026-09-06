@@ -324,13 +324,17 @@ the save.
 All append-only, `#[serde(default)]` on fields, appended variants on enums; one bump of
 `PROTOCOL_VERSION` carries W-1 to W-6 in the H wave's second PR; W-7 rides the same bump if the P
 wave starts before the next wire PR, else its own. Replay fixtures are re-pinned once per bump.
-**Today's wire: v51** (`crates/runtime/net/src/lib.rs`). **W-1 to W-6 landed as v51 on
+**Today's wire: v52** (`crates/runtime/net/src/lib.rs`). **W-1 to W-6 landed as v51 on
 2026-09-05** (the H wave's second PR): `BattleRoster` rides the seat word, `Snapshot.team_hit_points`
 and the sparse team-private `Snapshot.repair_clocks`, `CombatEvent::{Kill, TeamCommand}` on the
 reliable lane, `ProtocolMessage::TeamCommand` with `net::TeamCommandLimiter` on the server (five
 per sixty seconds), `DamageEvent.distance_m` as the shell's travelled path; the session hands the
 client `BattleSessionTick::{kills, team_commands}` and `roster()`, kept in `app::battle_intel`
-until H1/H2/H3/H16 draw them. Fixtures re-pinned (`*_v51.hex`). W-7 waits for the P wave.
+until H1/H2/H3/H16 draw them. Fixtures re-pinned (`*_v51.hex`). **W-7 landed as v52 on 2026-09-06**:
+`BattleEnded.spotting_log` per recipient, kept by both hosts (`battle_host::SpottingLog`) from the
+observer masks they already compute, closed at the end, empty until then on either host; the ledger
+names the observers once ended (`an_observer_is_named_only_after_the_battle`). Fixture
+`battle_ended_v52.hex`; every fixture re-pinned (the frame carries the version).
 
 | # | Change | Wave | Why |
 |---|---|---|---|
@@ -340,7 +344,7 @@ until H1/H2/H3/H16 draw them. Fixtures re-pinned (`*_v51.hex`). W-7 waits for th
 | W-4 | `TankSnapshot.module_repair_s: [f32; 6]`, `track_repair_s: [f32; 2]`, concealed for enemies | H | `CrewRepair` is server-only; the panel's repair clocks need it |
 | W-5 | `ProtocolMessage::TeamCommand { … }` client → server, `TeamCommandRelay { … }` server → team; `TeamCommand::{Attack, Help, Reloading, Affirmative, Negative, BackToBase, FollowMe, Ping}`; the rate limit of five per sixty seconds enforced on the server | H | the wheel and the pings need a relay, and a limit that a client cannot mod away |
 | W-6 | `DamageEvent.distance_m: f32` | H | the distance of a hit from an unseen attacker is known only to the server |
-| W-7 | `BattleEnded.spotting_log: Vec<SpottingRecord { observer, distance_m, from_tick, to_tick }>` per recipient | P | „kto cię wykrył i kiedy", delivered after the battle so a live client never holds the observer |
+| W-7 | `BattleEnded.spotting_log: Vec<SpottingRecord { observer, distance_m, from_tick, to_tick }>` per recipient — **landed as v52 (2026-09-06)** | P | „kto cię wykrył i kiedy", delivered after the battle so a live client never holds the observer (`the_spotting_log_names_every_enemy_that_saw_the_crew_and_never_an_ally`) |
 
 No wire is needed for: the sixth sense (the own mask), the visibility budget (the roster and the
 sim's own factors), the honest reload (a `game_core` move), cruise control, the target mark, the
