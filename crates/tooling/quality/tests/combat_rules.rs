@@ -43,8 +43,14 @@ fn client_can_send_fire_intent_to_authoritative_server() {
     let dispatch =
         fs::read_to_string(workspace_root().join("crates/apps/client/src/app/loop_step.rs"))
             .expect("client fixed-step dispatch");
+    // The keys are a table (interface program P7): Space is the fire action's default in
+    // `keybinds.rs`, and the battle router latches the trigger on that action.
+    let keybinds =
+        fs::read_to_string(workspace_root().join("crates/apps/client/src/app/keybinds.rs"))
+            .expect("client key table");
 
-    assert!(input.contains("KeyCode::Space"));
+    assert!(keybinds.contains("A::Fire => &[K::Space]"));
+    assert!(input.contains("Action::Fire"));
     assert!(input.contains("fire_pending"));
     assert!(dispatch.contains("tick_with_player_input"));
     assert!(dispatch.contains("fire"));

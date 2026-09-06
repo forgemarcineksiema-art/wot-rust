@@ -168,3 +168,45 @@ fn nothing_modal_appears_in_battle_but_the_escape_menu() {
         offenders.join("\n  ")
     );
 }
+
+/// P7: the hard-coded key match is gone. Every key the app reads is the table's word
+/// (`app/keybinds.rs`); no other file of the app names a `KeyCode` outside its tests.
+#[test]
+fn the_hard_coded_key_match_is_gone() {
+    let root = workspace_root();
+    let app = root.join("crates/apps/client/src/app");
+    let mut files = Vec::new();
+    rust_files_under(&app, &mut files);
+    let mut offenders = Vec::new();
+    for path in files {
+        let rel = path.strip_prefix(&root).unwrap_or(&path).to_string_lossy().replace('\\', "/");
+        if rel.ends_with("/keybinds.rs") || rel.ends_with("tests.rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let code = source.split("#[cfg(test)]").next().unwrap_or("");
+        for (line_number, line) in code.lines().enumerate() {
+            if line.contains("KeyCode::") && !line.trim_start().starts_with("//") {
+                offenders.push(format!("{rel}:{}: {}", line_number + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "the keys are the table's (app/keybinds.rs); a key named elsewhere is a binding the player cannot change:{}  {}",
+        '\n',
+        offenders.join("\n  ")
+    );
+}
+
+fn rust_files_under(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            rust_files_under(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}

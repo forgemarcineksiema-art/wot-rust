@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 use game_core::VehicleKind;
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::PhysicalKey;
 
 use super::{GarageHit, GarageState};
 use crate::app::ClientApp;
@@ -173,15 +173,27 @@ impl ClientApp {
     /// winit `KeyEvent` cannot be constructed outside winit. Always returns `true` while the garage
     /// is open (its only caller), swallowing unbound keys so none leak to driving.
     pub(in crate::app) fn garage_keyboard(&mut self, key: PhysicalKey) -> bool {
-        match key {
+        // The open garage owns the keyboard: a key it does not bind is swallowed, so a
+        // keystroke never leaks through to drive the tank or switch ammo in the battle running
+        // underneath. `on_keyboard` only routes here while the garage is open.
+        if let Some(action) = self.keybinds.action(crate::app::keybinds::Context::Garage, key) {
+            self.garage_action(action);
+        }
+        true
+    }
+
+    /// The garage's actions (P7: the table's word for the key).
+    fn garage_action(&mut self, action: crate::app::keybinds::Action) {
+        use crate::app::keybinds::Action as A;
+        match action {
             // Arrow keys cycle the roster. The old 1-5 vehicle digits are retired: with a scroll
             // window, a window-relative digit selects a different tank than the label implies.
-            PhysicalKey::Code(KeyCode::ArrowLeft) => self.garage.cycle(-1),
-            PhysicalKey::Code(KeyCode::ArrowRight) => self.garage.cycle(1),
-            PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
+            A::GaragePrev => self.garage.cycle(-1),
+            A::GarageNext => self.garage.cycle(1),
+            A::GarageConfirm => self.confirm_garage_selection(),
             // Escape peels back one layer at a time: first an open option list, then a module-focus
             // framing (return to hero), then — camera already at rest — closes the garage.
-            PhysicalKey::Code(KeyCode::Escape) => {
+            A::GarageBack => {
                 if self.garage.option_list().is_some() {
                     self.garage.close_option_list();
                 } else if self.garage.is_camera_off_hero() {
@@ -198,34 +210,34 @@ impl ClientApp {
                 }
             }
             // Keyboard loadout editing: focus + cycle + ammo + crew.
-            PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
-            PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
-            PhysicalKey::Code(KeyCode::KeyQ) => {
+            A::FocusPrev => self.garage.focus_adjacent(-1),
+            A::FocusNext => self.garage.focus_adjacent(1),
+            A::CycleFocusedPrev => {
                 self.garage.cycle_focused(-1);
                 self.garage_reject_feedback();
             }
-            PhysicalKey::Code(KeyCode::KeyE) => {
+            A::CycleFocusedNext => {
                 self.garage.cycle_focused(1);
                 self.garage_reject_feedback();
             }
-            PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
-            PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
-            PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
-            PhysicalKey::Code(KeyCode::KeyM) => self.garage.cycle_map(1),
+            A::GarageAmmo1 => self.garage.set_ammo(0),
+            A::GarageAmmo2 => self.garage.set_ammo(1),
+            A::GarageAmmo3 => self.garage.set_ammo(2),
+            A::GarageMap => self.garage.cycle_map(1),
             // H1: the hall's daylight — Auto (the player's clock) → Morning → Day → Evening.
-            PhysicalKey::Code(KeyCode::KeyL) => {
+            A::Daylight => {
                 self.garage.cycle_daylight();
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
             }
             // I1: the armor inspector — the gameplay armor volumes over the parked hero.
-            PhysicalKey::Code(KeyCode::KeyI) => {
+            A::Inspector => {
                 self.garage.toggle_inspector();
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
             }
             // L2: repair — only a marked hero has anything to fix; the beat opens with the
             // heavier hand on the switch and closes with the shop's finishing clunk (the
             // completion sound queues from `tick_repair` in the render loop).
-            PhysicalKey::Code(KeyCode::KeyR) => {
+            A::Repair => {
                 if self.garage.start_repair() {
                     self.queue_audio(audio::AudioEvent::UiClick { accent: true });
                     // ...and the shop actually WORKS for the beat (R2): the wrench spans the
@@ -235,18 +247,13 @@ impl ClientApp {
                     });
                 }
             }
-            PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
+            A::TechTree => match self.garage.view() {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),
                 super::GarageView::TechTree => self.garage.close_tech_tree(),
             },
-            // The open garage owns the keyboard: swallow every key it does not itself bind, so a
-            // keystroke never leaks through to drive the tank or switch ammo in the battle running
-            // underneath (mid-battle the sim keeps ticking behind the overlay; before, an unbound
-            // key like W or Space fell through to `on_driving_keyboard` once `has_started`).
-            // `on_keyboard` only routes here while the garage is open, so swallowing all is correct.
-            _ => return true,
+            // Another context's word: not this router's.
+            _ => {}
         }
-        true
     }
 
     /// Turn on garage disk persistence (selected vehicle + per-vehicle loadouts survive restarts).
@@ -361,6 +368,7 @@ mod tests {
     use super::super::FitSlot;
     use super::super::layout::{BATTLE_CENTER, ammo_slot_center, module_slot_center};
     use super::*;
+    use winit::keyboard::KeyCode;
 
     #[test]
     fn drag_and_zoom_stay_clamped() {

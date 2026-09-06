@@ -1,5 +1,7 @@
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::PhysicalKey;
+
+use super::keybinds::{Action, Context};
 use winit::window::{CursorGrabMode, Fullscreen};
 
 use super::ClientApp;
@@ -26,17 +28,20 @@ impl ClientApp {
         if repeat {
             return;
         }
-        // F11 is the window's, not the scene's: it works in the garage, in the battle and over
-        // the ESC modal alike, and nothing underneath sees it.
-        if pressed && matches!(key, PhysicalKey::Code(KeyCode::F11)) {
-            self.toggle_fullscreen();
-            return;
-        }
-        // H22: F9 cycles the semantic palette until P6's settings screen lands; the choice
-        // persists, and it is the window's key like F11 — it reaches nothing underneath.
-        if pressed && matches!(key, PhysicalKey::Code(KeyCode::F9)) {
-            self.cycle_palette();
-            return;
+        // The window's keys (P7: `Context::Global`) work in the garage, in the battle and over
+        // the ESC modal alike, and nothing underneath sees them.
+        match self.keybinds.action(Context::Global, key) {
+            Some(Action::ToggleFullscreen) if pressed => {
+                self.toggle_fullscreen();
+                return;
+            }
+            // H22: the palette rings until P6's settings screen lands; the choice persists.
+            Some(Action::CyclePalette) if pressed => {
+                self.cycle_palette();
+                return;
+            }
+            Some(_) => return,
+            None => {}
         }
         if pressed && self.garage.is_open() && self.garage_keyboard(key) {
             return;
@@ -66,20 +71,102 @@ impl ClientApp {
     /// that was already held when the menu opened.
     pub(in crate::app) fn on_battle_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
         // H21: the HUD editor has the keyboard while it is open — every press and release.
-        if self.hud_editor_open() && self.hud_editor_key(key, pressed) {
+        if self.hud_editor_open() {
+            if let Some(action) = self.keybinds.action(Context::HudEditor, key) {
+                self.hud_editor_action(action, pressed);
+            }
             return;
         }
         if pressed && self.pause_menu.is_some() {
-            if matches!(key, PhysicalKey::Code(KeyCode::Escape)) {
+            if self.keybinds.action(Context::Battle, key) == Some(Action::Escape) {
                 self.close_pause_menu();
             }
             return;
         }
-        self.on_driving_keyboard(key, pressed);
+        let Some(action) = self.keybinds.action(Context::Battle, key) else { return };
+        self.on_driving_action(action, pressed);
     }
 
-    /// ESC in a live battle raises the leave-or-stay modal. The cursor is freed so the player can
-    /// answer it, which also preserves what ESC always did here: give the mouse back.
+    /// The battle's actions (P7: the table's word for the key). ESC in a live battle raises
+    /// the leave-or-stay modal; the cursor is freed so the player can answer it, which also
+    /// preserves what ESC always did here: give the mouse back.
+    fn on_driving_action(&mut self, action: Action, pressed: bool) {
+        match action {
+            Action::Forward => self.input.forward = pressed,
+            Action::Back => self.input.back = pressed,
+            // H19: a dead crew rides its allies — the arrows step through the living ones.
+            Action::Left if pressed && self.camera_controller.death_spectate() => {
+                self.spectate_step(-1)
+            }
+            Action::Right if pressed && self.camera_controller.death_spectate() => {
+                self.spectate_step(1)
+            }
+            // H20: Enter takes the banner's hand-off at once.
+            Action::Continue if pressed && self.battle_outcome.is_some() => self.hand_off_outcome(),
+            Action::Continue => {}
+            Action::Left => self.input.left = pressed,
+            Action::Right => self.input.right = pressed,
+            Action::Brake => self.input.set_brake(pressed),
+            // H5, World of Tanks' cruise control: R steps the latched throttle up, F down; a
+            // key repeat must not climb the ladder on its own, so the edge alone counts.
+            Action::CruiseUp if pressed => self.input.cruise_up(),
+            Action::CruiseDown if pressed => self.input.cruise_down(),
+            Action::CruiseUp | Action::CruiseDown => {}
+            // H16: Z holds the command wheel open; its release says the chosen word.
+            Action::CommandWheel => {
+                if pressed {
+                    self.open_command_wheel();
+                } else {
+                    self.release_command_wheel();
+                }
+            }
+            // H15: M cycles the minimap through its three sizes.
+            Action::MinimapSize if pressed => self.input.cycle_minimap(),
+            // H8: N folds the hit log to its newest row and unfolds it again.
+            Action::HitLogFold if pressed => self.input.toggle_hit_log(),
+            // H11: T marks the hull under the reticle as THE target and tells the team. It
+            // never lays the gun (the owner, 2026-09-02: no aim assist of any kind).
+            Action::MarkTarget if pressed => self.mark_target(),
+            Action::MinimapSize | Action::HitLogFold | Action::MarkTarget => {}
+            Action::Sniper => {
+                if pressed {
+                    self.begin_sniper_hold();
+                } else {
+                    self.end_sniper_hold();
+                }
+            }
+            Action::FreeLook => {
+                if pressed && !self.input.free_look {
+                    self.begin_free_look();
+                } else if !pressed && self.input.free_look {
+                    self.end_free_look();
+                }
+            }
+            Action::Fire if pressed => self.input.fire_pending = true,
+            Action::ToGarage if pressed && self.garage.has_started() => self.open_garage(),
+            Action::Fire | Action::ToGarage => {}
+            // 1/2/3 select ammo (genre standard; the vision's ammo-rack slots). The camera
+            // moved to V — the wheel scroll-through stays the primary camera path.
+            Action::Ammo1 if pressed => self.request_ammo_slot(0),
+            Action::Ammo2 if pressed => self.request_ammo_slot(1),
+            Action::Ammo3 if pressed => self.request_ammo_slot(2),
+            Action::CameraToggle if pressed => self.toggle_camera_mode(),
+            Action::Ammo1 | Action::Ammo2 | Action::Ammo3 | Action::CameraToggle => {}
+            // In a live battle ESC asks the question; before one exists (garage never left) it
+            // keeps its plain meaning of handing the cursor back.
+            Action::Escape if pressed => {
+                if self.garage.has_started() && !self.garage.is_open() {
+                    self.open_pause_menu();
+                } else {
+                    self.set_cursor_captured(false);
+                }
+            }
+            Action::Escape => {}
+            // Another context's word: not this router's.
+            _ => {}
+        }
+    }
+
     pub(in crate::app) fn open_pause_menu(&mut self) {
         self.pause_menu = Some(super::PauseMenuState::opened());
         // A wheel open under the menu would say a word on the next Z release: it closes unsaid.
@@ -97,86 +184,6 @@ impl ClientApp {
         // moment it closes, or the turret jumps to wherever the player was pointing at a button.
         self.input.clear_mouse_look();
         self.set_cursor_captured(true);
-    }
-
-    fn on_driving_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
-        match key {
-            PhysicalKey::Code(KeyCode::KeyW | KeyCode::ArrowUp) => self.input.forward = pressed,
-            PhysicalKey::Code(KeyCode::KeyS | KeyCode::ArrowDown) => self.input.back = pressed,
-            // H19: a dead crew rides its allies — the arrows step through the living ones.
-            PhysicalKey::Code(KeyCode::ArrowLeft)
-                if pressed && self.camera_controller.death_spectate() =>
-            {
-                self.spectate_step(-1)
-            }
-            PhysicalKey::Code(KeyCode::ArrowRight)
-                if pressed && self.camera_controller.death_spectate() =>
-            {
-                self.spectate_step(1)
-            }
-            // H20: Enter takes the banner's hand-off at once.
-            PhysicalKey::Code(KeyCode::Enter) if pressed && self.battle_outcome.is_some() => {
-                self.hand_off_outcome()
-            }
-            PhysicalKey::Code(KeyCode::KeyA | KeyCode::ArrowLeft) => self.input.left = pressed,
-            PhysicalKey::Code(KeyCode::KeyD | KeyCode::ArrowRight) => self.input.right = pressed,
-            PhysicalKey::Code(KeyCode::ControlLeft | KeyCode::ControlRight) => {
-                self.input.set_brake(pressed)
-            }
-            // H5, World of Tanks' cruise control: R steps the latched throttle up, F down; a
-            // key repeat must not climb the ladder on its own, so the edge alone counts.
-            PhysicalKey::Code(KeyCode::KeyR) if pressed => self.input.cruise_up(),
-            PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
-            // H16: Z holds the command wheel open; its release says the chosen word.
-            PhysicalKey::Code(KeyCode::KeyZ) => {
-                if pressed {
-                    self.open_command_wheel();
-                } else {
-                    self.release_command_wheel();
-                }
-            }
-            // H15: M cycles the minimap through its three sizes.
-            PhysicalKey::Code(KeyCode::KeyM) if pressed => self.input.cycle_minimap(),
-            // H8: N folds the hit log to its newest row and unfolds it again.
-            PhysicalKey::Code(KeyCode::KeyN) if pressed => self.input.toggle_hit_log(),
-            // H11: T marks the hull under the reticle as THE target and tells the team. It
-            // never lays the gun (the owner, 2026-09-02: no aim assist of any kind).
-            PhysicalKey::Code(KeyCode::KeyT) if pressed => self.mark_target(),
-            PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
-                if pressed {
-                    self.begin_sniper_hold();
-                } else {
-                    self.end_sniper_hold();
-                }
-            }
-            PhysicalKey::Code(KeyCode::AltLeft | KeyCode::AltRight) => {
-                if pressed && !self.input.free_look {
-                    self.begin_free_look();
-                } else if !pressed && self.input.free_look {
-                    self.end_free_look();
-                }
-            }
-            PhysicalKey::Code(KeyCode::Space) if pressed => self.input.fire_pending = true,
-            PhysicalKey::Code(KeyCode::KeyG) if pressed && self.garage.has_started() => {
-                self.open_garage();
-            }
-            // 1/2/3 select ammo (genre standard; the vision's ammo-rack slots). The camera
-            // moved to V — the wheel scroll-through stays the primary camera path.
-            PhysicalKey::Code(KeyCode::Digit1) if pressed => self.request_ammo_slot(0),
-            PhysicalKey::Code(KeyCode::Digit2) if pressed => self.request_ammo_slot(1),
-            PhysicalKey::Code(KeyCode::Digit3) if pressed => self.request_ammo_slot(2),
-            PhysicalKey::Code(KeyCode::KeyV) if pressed => self.toggle_camera_mode(),
-            // In a live battle ESC asks the question; before one exists (garage never left) it
-            // keeps its plain meaning of handing the cursor back.
-            PhysicalKey::Code(KeyCode::Escape) if pressed => {
-                if self.garage.has_started() && !self.garage.is_open() {
-                    self.open_pause_menu();
-                } else {
-                    self.set_cursor_captured(false);
-                }
-            }
-            _ => {}
-        }
     }
 
     /// A mouse press in the live battle view (no garage, no modal): it (re)captures the cursor,
