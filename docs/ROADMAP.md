@@ -65,8 +65,8 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   team-private v46, concrete-round identity and the tungsten shatter flag v47, the
   test-only PrototypeMedium deleted v48), replay
   regression,
-  bots with routes/fire discipline, 7v7
-  mode. Remote input
+  bots with routes/fire discipline, the 7v7
+  format (humans on team one only until `docs/game-modes.md` M6). Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
   gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
   permitting a zombie client. Personal hit, damage, absorbed-impact, and lethal truth has its own
@@ -91,7 +91,9 @@ down anywhere — the document that held them was retired):
    reconnect and client prediction work today. Still missing are public-session
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture
    and dedicated-server operations — the register and wave plan are in
-   `docs/multiplayer-production-program.md`.
+   `docs/multiplayer-production-program.md`. Found 2026-09-06: the dedicated host seats humans
+   on team one only (co-op against bots, never humans against humans) — `docs/game-modes.md`
+   M6, register row 15.
 2. **Meta & matchmaking**: OpenSkill-based MM, sessions/lobbies, player identity, and a
    record that a battle happened at all (today the game keeps none). The queue is DESIGNED
    in `docs/game-modes.md` (Part III: one queue per format and band, the band never widens,
