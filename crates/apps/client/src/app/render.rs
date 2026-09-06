@@ -537,13 +537,6 @@ impl ClientApp {
             projection.far_plane_m(),
         );
         self.tick_motion_fx(&presentation_tanks, frame_dt);
-        let enemy_bars = crate::hud::health_bar::enemy_health_bars(
-            &presentation_tanks,
-            self.player_tank,
-            self.player_team(),
-            view_proj,
-            aspect,
-        );
         // A spotted enemy is marked in the scope (Inny Poziom A9): corner brackets on the
         // projected hitbox, sniper mode only, the same visibility bit as the floating bar.
         let spot_brackets = crate::hud::spot_bracket::spotted_enemy_brackets(
@@ -557,6 +550,19 @@ impl ClientApp {
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
+        // H10/H11: the markers over every spotted hull (the target in full once the reticle
+        // below has said which hull it aims at); a mark whose hull left the snapshot dies here.
+        let roster = self.session.roster();
+        let markers = crate::hud::marker::MarkerModel::from_presentation(
+            &presentation_tanks,
+            self.player_tank,
+            self.player_team(),
+            view_proj,
+            [self.viewport.0 as f32, self.viewport.1 as f32],
+            &roster,
+            self.target_mark,
+        );
+        self.refresh_target_mark(markers.hulls.iter().map(|hull| hull.id));
         // The hanging remnants ride the live poses, so collect them BEFORE the visibility
         // pass consumes the presentation list (a handful of links; culling them is not worth
         // losing the drape on a tank at the screen edge).
@@ -629,6 +635,24 @@ impl ClientApp {
             );
             reticle.marker_color = self.reticle_marker_color;
         }
+        // The hull under the reticle this frame is what T marks; the target wears the full marker.
+        self.hull_under_reticle = reticle.as_ref().and_then(|reticle| {
+            let aim = reticle.aim_clip;
+            markers.hull_under([
+                (aim[0] + 1.0) * 0.5 * self.viewport.0 as f32,
+                (1.0 - aim[1]) * 0.5 * self.viewport.1 as f32,
+            ])
+        });
+        let markers = crate::hud::marker::MarkerModel {
+            hulls: markers
+                .hulls
+                .into_iter()
+                .map(|mut hull| {
+                    hull.is_target = self.target_mark == Some(hull.id);
+                    hull
+                })
+                .collect(),
+        };
         // H1/H2: the top bar and the team lists from the roster (W-1), the pools (W-2), the
         // kills told (W-3) and the wrecks the snapshot shows — never from a guess.
         let (top_bar, team_lists) = self.battle_intel_models();
@@ -650,6 +674,7 @@ impl ClientApp {
             battle_clock_remaining_s: self.session.battle_time_remaining_s(),
             top_bar,
             team_lists,
+            markers: Some(markers),
             kill_confirm_age_s: self.kill_confirm_age_s,
             reload_ready_age_s: self.reload_ready_age_s,
             fire_denied_age_s: self.fire_denied_age_s,
@@ -674,10 +699,6 @@ impl ClientApp {
             let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
             let after = list.len() as i16;
             let world = ui_kit::rect::Rect::default();
-            list.push(
-                Element::new(crate::hud::HudElement::EnemyBars, world, Payload::Legacy(enemy_bars))
-                    .z(after),
-            );
             list.push(
                 Element::new(
                     crate::hud::HudElement::SpotBrackets,

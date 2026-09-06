@@ -102,6 +102,9 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
             // H8: N folds the hit log to its newest row and unfolds it again.
             PhysicalKey::Code(KeyCode::KeyN) if pressed => self.input.toggle_hit_log(),
+            // H11: T marks the hull under the reticle as THE target and tells the team. It
+            // never lays the gun (the owner, 2026-09-02: no aim assist of any kind).
+            PhysicalKey::Code(KeyCode::KeyT) if pressed => self.mark_target(),
             PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
                 if pressed {
                     self.begin_sniper_hold();
@@ -214,6 +217,26 @@ impl ClientApp {
             {
                 self.apply_sniper_seed(seed);
             }
+        }
+    }
+
+    /// T (H11): the hull under the reticle becomes THE target — the full marker's owner — and
+    /// the team hears „attack this" through the server's relay (W-5). With nothing under the
+    /// reticle the mark stays as it was. The gun is not touched: a mark is a word, not a lay.
+    pub(super) fn mark_target(&mut self) {
+        if let Some(hull) = self.hull_under_reticle {
+            self.target_mark = Some(hull);
+            self.session.send_team_command(net::TeamCommand::Attack, Some(hull), None);
+        }
+    }
+
+    /// The mark dies with the hull's visibility: gone from the snapshot — unspotted, or dead —
+    /// gone from the HUD, so the marker can never point at a memory.
+    pub(super) fn refresh_target_mark(&mut self, visible: impl Iterator<Item = game_core::TankId>) {
+        if let Some(target) = self.target_mark
+            && !visible.into_iter().any(|id| id == target)
+        {
+            self.target_mark = None;
         }
     }
 

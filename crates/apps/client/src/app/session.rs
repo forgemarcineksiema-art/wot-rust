@@ -146,7 +146,6 @@ impl BattleSessionKind {
     /// the host's own limiter and returns whether it was admitted; a remote session sends it and
     /// learns the answer only as the relay's presence or absence (a refused word never echoes).
     /// The HUD (H16) knocks on `false`.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn send_team_command(
         &mut self,
         command: net::TeamCommand,

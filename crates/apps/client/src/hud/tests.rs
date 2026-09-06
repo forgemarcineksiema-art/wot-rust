@@ -176,13 +176,19 @@ fn the_hit_points_live_in_the_damage_panel() {
     }
     let bar = list.find(HudElement::DamagePanel(DamagePart::HpBar)).expect("bar");
     assert!(bar.rect.x < 400.0 && bar.rect.y > 700.0, "bottom-left: {:?}", bar.rect);
-    let readouts = list.find(HudElement::Readouts).expect("readouts");
-    if let ui_kit::draw_list::Payload::Legacy(v) = &readouts.payload {
-        assert!(
-            !v.iter().any(|vertex| vertex.color == crate::hud::number::HP_COLOR),
-            "no HP digits float top-left"
-        );
-    }
+    // The readouts no longer draw the hit points: the vertices they emit are the same whether
+    // the hull is whole or nearly dead.
+    let readouts_of = |model: &BattleHudModel| match &super::build_battle_hud_list(model, &ui)
+        .find(HudElement::Readouts)
+        .expect("readouts")
+        .payload
+    {
+        ui_kit::draw_list::Payload::Legacy(v) => v.clone(),
+        other => panic!("{other:?}"),
+    };
+    let mut nearly_dead = model.clone();
+    nearly_dead.vitals.hit_points = 40;
+    assert_eq!(readouts_of(&model), readouts_of(&nearly_dead), "no HP digits float top-left");
 }
 
 #[test]
@@ -278,6 +284,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         battle_clock_remaining_s: None,
         top_bar: None,
         team_lists: None,
+        markers: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -314,6 +321,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         battle_clock_remaining_s: None,
         top_bar: None,
         team_lists: None,
+        markers: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -358,6 +366,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         battle_clock_remaining_s: None,
         top_bar: None,
         team_lists: None,
+        markers: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
