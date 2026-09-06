@@ -13,6 +13,7 @@ use ui_kit::rect::Rect;
 use ui_kit::theme::{Palette, Theme};
 use ui_kit::ui::{Anchor, Ui};
 
+use super::BattleHudOutcome;
 use super::elements::{HudElement, ShellPart};
 use super::layout::Preset;
 use crate::app::keybinds::{Action, Context};
@@ -258,18 +259,21 @@ pub enum MenuItem {
     HudEditor,
     ExitToGarage,
     Quit,
+    /// The battle history (P4).
+    Battles,
 }
 
 impl MenuItem {
     /// Every entry, for the locks: each one sits on some menu.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [MenuItem; 6] = [
+    pub const ALL: [MenuItem; 7] = [
         MenuItem::Stay,
         MenuItem::Settings,
         MenuItem::Keybinds,
         MenuItem::HudEditor,
         MenuItem::ExitToGarage,
         MenuItem::Quit,
+        MenuItem::Battles,
     ];
 
     pub fn word(self) -> &'static str {
@@ -280,6 +284,7 @@ impl MenuItem {
             MenuItem::HudEditor => words::PAUSE_HUD_EDITOR,
             MenuItem::ExitToGarage => words::PAUSE_EXIT_TO_GARAGE,
             MenuItem::Quit => words::MENU_QUIT,
+            MenuItem::Battles => words::MENU_BATTLES,
         }
     }
 
@@ -314,7 +319,9 @@ impl MenuKind {
                 MenuItem::ExitToGarage,
                 MenuItem::Stay,
             ],
-            MenuKind::Garage => &[MenuItem::Settings, MenuItem::Keybinds, MenuItem::Quit],
+            MenuKind::Garage => {
+                &[MenuItem::Settings, MenuItem::Keybinds, MenuItem::Battles, MenuItem::Quit]
+            }
         }
     }
 }
@@ -328,12 +335,140 @@ pub struct MenuScreenModel {
     pub footer: String,
 }
 
+/// The results page's tabs (P1, P2). Append-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ResultsTab {
+    Summary,
+    Timeline,
+    Team,
+}
+
+impl ResultsTab {
+    pub const ALL: [ResultsTab; 3] = [ResultsTab::Summary, ResultsTab::Timeline, ResultsTab::Team];
+
+    pub fn word(self) -> &'static str {
+        match self {
+            ResultsTab::Summary => words::TAB_SUMMARY,
+            ResultsTab::Timeline => words::TAB_TIMELINE,
+            ResultsTab::Team => words::TAB_TEAM,
+        }
+    }
+}
+
+/// One of the crew's own numbers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StatRow {
+    pub label: String,
+    pub value: String,
+}
+
+/// What backs a timeline row on the wire (P2, P3): a stamped damage event, a kill, an own
+/// shot's shell, an own spotted span, an observer's span from the end word — never nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowSource {
+    Damage(game_core::BattleEventId),
+    Kill { victim: game_core::TankId, tick: u64 },
+    Shot(game_core::ShellId),
+    Spotted { from_tick: u64 },
+    Observer { observer: game_core::TankId, from_tick: u64 },
+}
+
+/// One row of the timeline: the clock, the word, the detail, and what backs it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimelineRow {
+    pub tick: u64,
+    pub clock: String,
+    pub word: String,
+    pub detail: String,
+    pub source: RowSource,
+}
+
+/// One hull of the roster on the TEAM tab: its name, its side, its crew, whether it stands.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TeamRow {
+    pub name: String,
+    pub ally: bool,
+    pub human: bool,
+    pub destroyed: bool,
+    pub player: bool,
+}
+
+/// The REPLAY button's honesty (P10): disabled, with the reason, and the recording's path
+/// when the session wrote one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReplayNote {
+    pub reason: String,
+    pub recording: Option<String>,
+}
+
+/// The results page as the HUD draws it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResultsScreenModel {
+    pub outcome: BattleHudOutcome,
+    /// The crew's hull: "T-54 · B".
+    pub hull: String,
+    pub stats: Vec<StatRow>,
+    pub rows: Vec<TimelineRow>,
+    pub team: Vec<TeamRow>,
+    pub replay: ReplayNote,
+    pub tab: ResultsTab,
+    pub first_visible: usize,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
+impl ResultsScreenModel {
+    /// The rows the current tab scrolls through.
+    pub fn scroll_rows(&self) -> usize {
+        match self.tab {
+            ResultsTab::Summary => 0,
+            ResultsTab::Timeline => self.rows.len(),
+            ResultsTab::Team => self.team.len(),
+        }
+    }
+}
+
+/// The outcome's word on the results page.
+pub fn outcome_word(outcome: BattleHudOutcome) -> &'static str {
+    match outcome {
+        BattleHudOutcome::Victory => words::VICTORY,
+        BattleHudOutcome::Defeat => words::DEFEAT,
+        BattleHudOutcome::Draw => words::DRAW,
+        BattleHudOutcome::ConnectionLost => words::CONNECTION_LOST,
+        BattleHudOutcome::BattleOver => words::BATTLE_OVER,
+    }
+}
+
+/// One stored battle on the BATTLES page (P4): its day, its map, its hull, its outcome, the
+/// crew's two numbers off the index.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BattleRow {
+    pub date: String,
+    pub map: String,
+    pub vehicle: String,
+    pub outcome: String,
+    pub kills: u32,
+    pub damage_dealt: u32,
+}
+
+/// The BATTLES page as the HUD draws it: the history newest first, a window of rows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BattlesScreenModel {
+    pub rows: Vec<BattleRow>,
+    pub selected: usize,
+    pub first_visible: usize,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
 /// The shell page over the battle, if one is open.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShellModel {
     Settings(SettingsScreenModel),
     Keybinds(KeybindsScreenModel),
     Menu(MenuScreenModel),
+    Results(ResultsScreenModel),
+    Battles(BattlesScreenModel),
 }
 
 /// The row a part belongs to.
@@ -350,6 +485,7 @@ pub fn shell_row_index(part: ShellPart) -> Option<u8> {
         ShellPart::Scrim
         | ShellPart::Panel
         | ShellPart::Title
+        | ShellPart::Subtitle
         | ShellPart::Rule
         | ShellPart::Footer
         | ShellPart::ScrollBar => None,
@@ -409,7 +545,415 @@ pub(crate) fn push_shell(
         ShellModel::Settings(page) => push_settings(list, ui, theme, page, z),
         ShellModel::Keybinds(page) => push_keybinds(list, ui, theme, page, z),
         ShellModel::Menu(page) => push_menu(list, ui, theme, page, z),
+        ShellModel::Results(page) => push_results(list, ui, theme, page, z),
+        ShellModel::Battles(page) => push_battles(list, ui, theme, page, z),
     }
+}
+
+/// The BATTLES page: one row per stored battle, newest first; the selected one is lit;
+/// an empty history says so.
+fn push_battles(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &BattlesScreenModel,
+    z: &mut i16,
+) {
+    let (title, row_top, panel) =
+        push_page_frame(list, ui, theme, words::BATTLES_TITLE, KEY_ROWS_VISIBLE, z);
+    let row_rect = |visible: usize| {
+        Rect::new(
+            title.x,
+            row_top + visible as f32 * ui.px(ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(ROW_H_U),
+        )
+    };
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    if page.rows.is_empty() {
+        push_row_plate(
+            list,
+            ui,
+            theme,
+            0,
+            row_rect(0),
+            WidgetState::Disabled,
+            words::NO_BATTLES,
+            theme.text.label,
+            z,
+        );
+    }
+    for (visible, row) in
+        page.rows.iter().skip(page.first_visible).take(KEY_ROWS_VISIBLE).enumerate()
+    {
+        let index = visible as u8;
+        let rect = row_rect(visible);
+        let selected = page.selected == page.first_visible + visible;
+        push_row_plate(
+            list,
+            ui,
+            theme,
+            index,
+            rect,
+            row_state(selected, hovered_row == Some(index)),
+            &format!("{} \u{b7} {} \u{b7} {}", row.date, row.map, row.vehicle),
+            if selected { theme.lamp } else { theme.text.label },
+            z,
+        );
+        push_value_cell(
+            list,
+            ui,
+            theme,
+            index,
+            rect,
+            6.0 + NOTE_W_U,
+            &row.outcome,
+            theme.text.value,
+            z,
+        );
+        let note = Rect::new(rect.right() - ui.px(NOTE_W_U), rect.y, ui.px(NOTE_W_U - 8.0), rect.h);
+        shell_put(
+            list,
+            z,
+            ShellPart::RowNote(index),
+            note,
+            shell_text(
+                &format!(
+                    "{} {} \u{b7} {} {}",
+                    row.kills,
+                    words::STAT_KILLS,
+                    row.damage_dealt,
+                    words::DMG_UNIT
+                ),
+                Style::LABEL,
+                16.0,
+                Align::Right,
+                theme.text.label,
+                DigitMode::Tabular,
+            ),
+            WidgetState::Idle,
+        );
+    }
+    let track_top = row_rect(0).y;
+    let track_h = row_rect(KEY_ROWS_VISIBLE - 1).bottom() - track_top;
+    push_thumb(
+        list,
+        ui,
+        theme,
+        panel,
+        track_top,
+        track_h,
+        page.first_visible,
+        KEY_ROWS_VISIBLE,
+        page.rows.len(),
+        z,
+    );
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
+}
+
+/// A scroll thumb for a window of `visible` rows over `total`, from `first`.
+#[allow(clippy::too_many_arguments)]
+fn push_thumb(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    panel: Rect,
+    track_top: f32,
+    track_h: f32,
+    first: usize,
+    visible: usize,
+    total: usize,
+    z: &mut i16,
+) {
+    if total <= visible {
+        return;
+    }
+    let thumb_h = track_h * visible as f32 / total as f32;
+    let thumb_y = track_top + track_h * first as f32 / total as f32;
+    let thumb = Rect::new(panel.right() - ui.px(PAD_U * 0.5 + 2.0), thumb_y, ui.px(4.0), thumb_h);
+    shell_put(
+        list,
+        z,
+        ShellPart::ScrollBar,
+        thumb,
+        Payload::Bar { frac: 0.0, fill: theme.lamp, back: theme.lamp },
+        WidgetState::Idle,
+    );
+}
+
+/// The results page: the outcome beside the title, a tab row, and the tab's rows.
+fn push_results(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &ResultsScreenModel,
+    z: &mut i16,
+) {
+    let (title, row_top, panel) =
+        push_page_frame(list, ui, theme, words::RESULTS_TITLE, 1 + KEY_ROWS_VISIBLE, z);
+    shell_put(
+        list,
+        z,
+        ShellPart::Subtitle,
+        title,
+        shell_text(
+            &format!("{} \u{b7} {}", outcome_word(page.outcome), page.hull),
+            Style::BANNER,
+            24.0,
+            Align::Right,
+            theme.lamp,
+            DigitMode::Proportional,
+        ),
+        WidgetState::Idle,
+    );
+    let row_rect = |visible: usize| {
+        Rect::new(
+            title.x,
+            row_top + visible as f32 * ui.px(ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(ROW_H_U),
+        )
+    };
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    // Row 0: the tab, stepped by its arrows.
+    let tab_rect = row_rect(0);
+    push_row_plate(
+        list,
+        ui,
+        theme,
+        0,
+        tab_rect,
+        row_state(false, hovered_row == Some(0)),
+        words::TAB_WORD,
+        theme.text.label,
+        z,
+    );
+    let cell = push_value_cell(
+        list,
+        ui,
+        theme,
+        0,
+        tab_rect,
+        6.0 + ARROW_W_U,
+        page.tab.word(),
+        theme.text.value,
+        z,
+    );
+    push_arrows(list, ui, theme, 0, cell, tab_rect, page.hovered, (false, false), z);
+    match page.tab {
+        ResultsTab::Summary => {
+            for (i, stat) in page.stats.iter().enumerate().take(KEY_ROWS_VISIBLE - 1) {
+                let index = (i + 1) as u8;
+                let rect = row_rect(i + 1);
+                push_row_plate(
+                    list,
+                    ui,
+                    theme,
+                    index,
+                    rect,
+                    row_state(false, hovered_row == Some(index)),
+                    &stat.label,
+                    theme.text.label,
+                    z,
+                );
+                push_value_cell(
+                    list,
+                    ui,
+                    theme,
+                    index,
+                    rect,
+                    6.0,
+                    &stat.value,
+                    theme.text.value,
+                    z,
+                );
+            }
+            // P10: the REPLAY button, disabled, with the reason — and the recording's path when
+            // the session wrote one.
+            let index = (page.stats.len().min(KEY_ROWS_VISIBLE - 1) + 1) as u8;
+            let rect = row_rect(index as usize);
+            push_row_plate(
+                list,
+                ui,
+                theme,
+                index,
+                rect,
+                WidgetState::Disabled,
+                words::REPLAY,
+                theme.text.label,
+                z,
+            );
+            let cell = Rect::new(
+                rect.right() - ui.px(6.0 + VALUE_W_U),
+                rect.y + ui.px(3.0),
+                ui.px(VALUE_W_U),
+                rect.h - ui.px(6.0),
+            );
+            shell_put(
+                list,
+                z,
+                ShellPart::RowValue(index),
+                cell,
+                shell_text(
+                    &page.replay.reason,
+                    Style::VALUE,
+                    18.0,
+                    Align::Center,
+                    theme.text.value,
+                    DigitMode::Proportional,
+                ),
+                WidgetState::Disabled,
+            );
+            if let Some(path) = &page.replay.recording {
+                let note = Rect::new(
+                    rect.x + ui.px(160.0),
+                    rect.y,
+                    rect.w - ui.px(160.0 + 8.0 + VALUE_W_U),
+                    rect.h,
+                );
+                shell_put(
+                    list,
+                    z,
+                    ShellPart::RowNote(index),
+                    note,
+                    shell_text(
+                        &format!("{} {path}", words::RECORDED_TO),
+                        Style::LABEL,
+                        16.0,
+                        Align::Right,
+                        theme.lamp,
+                        DigitMode::Proportional,
+                    ),
+                    WidgetState::Idle,
+                );
+            }
+        }
+        ResultsTab::Timeline => {
+            for (visible, row) in
+                page.rows.iter().skip(page.first_visible).take(KEY_ROWS_VISIBLE).enumerate()
+            {
+                let index = (visible + 1) as u8;
+                let rect = row_rect(visible + 1);
+                push_row_plate(
+                    list,
+                    ui,
+                    theme,
+                    index,
+                    rect,
+                    row_state(false, hovered_row == Some(index)),
+                    &format!("{}  {}", row.clock, row.word),
+                    theme.text.label,
+                    z,
+                );
+                let detail =
+                    Rect::new(rect.x + ui.px(230.0), rect.y, rect.w - ui.px(230.0 + 8.0), rect.h);
+                shell_put(
+                    list,
+                    z,
+                    ShellPart::RowValue(index),
+                    detail,
+                    shell_text(
+                        &row.detail,
+                        Style::VALUE,
+                        16.0,
+                        Align::Left,
+                        theme.text.value,
+                        DigitMode::Tabular,
+                    ),
+                    WidgetState::Idle,
+                );
+            }
+            let track_top = row_rect(1).y;
+            let track_h = row_rect(KEY_ROWS_VISIBLE).bottom() - track_top;
+            push_thumb(
+                list,
+                ui,
+                theme,
+                panel,
+                track_top,
+                track_h,
+                page.first_visible,
+                KEY_ROWS_VISIBLE,
+                page.rows.len(),
+                z,
+            );
+        }
+        ResultsTab::Team => {
+            for (visible, row) in
+                page.team.iter().skip(page.first_visible).take(KEY_ROWS_VISIBLE).enumerate()
+            {
+                let index = (visible + 1) as u8;
+                let rect = row_rect(visible + 1);
+                let ink = if row.player { theme.lamp } else { theme.text.label };
+                push_row_plate(
+                    list,
+                    ui,
+                    theme,
+                    index,
+                    rect,
+                    row_state(false, hovered_row == Some(index)),
+                    &row.name,
+                    ink,
+                    z,
+                );
+                let standing = if row.destroyed { words::TL_DESTROYED } else { words::WORD_ALIVE };
+                push_value_cell(
+                    list,
+                    ui,
+                    theme,
+                    index,
+                    rect,
+                    6.0 + NOTE_W_U,
+                    standing,
+                    theme.text.value,
+                    z,
+                );
+                let crew = if row.player {
+                    words::WORD_YOU
+                } else if row.human {
+                    words::WORD_HUMAN
+                } else {
+                    words::WORD_BOT
+                };
+                let note = Rect::new(
+                    rect.right() - ui.px(NOTE_W_U),
+                    rect.y,
+                    ui.px(NOTE_W_U - 8.0),
+                    rect.h,
+                );
+                shell_put(
+                    list,
+                    z,
+                    ShellPart::RowNote(index),
+                    note,
+                    shell_text(
+                        crew,
+                        Style::LABEL,
+                        16.0,
+                        Align::Right,
+                        if row.ally { theme.text.label } else { theme.text.value },
+                        DigitMode::Proportional,
+                    ),
+                    WidgetState::Idle,
+                );
+            }
+            let track_top = row_rect(1).y;
+            let track_h = row_rect(KEY_ROWS_VISIBLE).bottom() - track_top;
+            push_thumb(
+                list,
+                ui,
+                theme,
+                panel,
+                track_top,
+                track_h,
+                page.first_visible,
+                KEY_ROWS_VISIBLE,
+                page.team.len(),
+                z,
+            );
+        }
+    }
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
 }
 
 /// The menu: a column of buttons on a narrower plate; the commits in the one red.
@@ -806,23 +1350,20 @@ fn push_keybinds(
         }
     }
     // The thumb: where the window sits on the whole list.
-    if page.rows.len() > KEY_ROWS_VISIBLE {
-        let track_top = row_rect(1).y;
-        let track_h = row_rect(KEY_ROWS_VISIBLE).bottom() - track_top;
-        let total = page.rows.len() as f32;
-        let thumb_h = track_h * KEY_ROWS_VISIBLE as f32 / total;
-        let thumb_y = track_top + track_h * page.first_visible as f32 / total;
-        let thumb =
-            Rect::new(panel.right() - ui.px(PAD_U * 0.5 + 2.0), thumb_y, ui.px(4.0), thumb_h);
-        shell_put(
-            list,
-            z,
-            ShellPart::ScrollBar,
-            thumb,
-            Payload::Bar { frac: 0.0, fill: theme.lamp, back: theme.lamp },
-            WidgetState::Idle,
-        );
-    }
+    let track_top = row_rect(1).y;
+    let track_h = row_rect(KEY_ROWS_VISIBLE).bottom() - track_top;
+    push_thumb(
+        list,
+        ui,
+        theme,
+        panel,
+        track_top,
+        track_h,
+        page.first_visible,
+        KEY_ROWS_VISIBLE,
+        page.rows.len(),
+        z,
+    );
     push_footer(list, ui, theme, panel, title, &page.footer, z);
 }
 
@@ -908,6 +1449,149 @@ pub(crate) fn demo_settings_screen() -> ShellModel {
         selected: 1,
         hovered: Some(ShellPart::RowInc(1)),
         footer: crate::app::shell::shell_footer(&crate::app::keybinds::KeyBindings::default()),
+    })
+}
+
+/// The results page as the golden stages it: a won battle in a T-54, eight numbers, a timeline
+/// of a fight — shots with their results, hits taken, a kill, spotted spans, the enemies that
+/// saw the crew — and the roster; the REPLAY disabled with its reason and a recording named.
+pub(crate) fn demo_results_screen(tab: ResultsTab) -> ShellModel {
+    use game_core::{BattleEventId, ShellId, TankId};
+    let stat =
+        |label: &str, value: &str| StatRow { label: label.to_string(), value: value.to_string() };
+    let row = |tick: u64, word: &str, detail: &str, source: RowSource| TimelineRow {
+        tick,
+        clock: format!("{}:{:02}", tick / 3600, (tick / 60) % 60),
+        word: word.to_string(),
+        detail: detail.to_string(),
+        source,
+    };
+    let team = |name: &str, ally: bool, human: bool, destroyed: bool, player: bool| TeamRow {
+        name: name.to_string(),
+        ally,
+        human,
+        destroyed,
+        player,
+    };
+    ShellModel::Results(ResultsScreenModel {
+        outcome: BattleHudOutcome::Victory,
+        hull: "T-54 \u{b7} A".to_string(),
+        stats: vec![
+            stat(words::STAT_SHOTS, "11"),
+            stat(words::STAT_HITS, "8"),
+            stat(words::STAT_PENETRATIONS, "6"),
+            stat(words::STAT_DAMAGE_DEALT, "1 480"),
+            stat(words::STAT_DAMAGE_TAKEN, "620"),
+            stat(words::STAT_KILLS, "2"),
+            stat(words::STAT_SPOTTED, "3"),
+            stat(words::STAT_SEEN_BY, "2"),
+            stat(words::STAT_DURATION, "6:42"),
+        ],
+        rows: vec![
+            row(1_140, words::SPOTTED_LAMP, "14 S", RowSource::Spotted { from_tick: 1_140 }),
+            row(
+                1_200,
+                words::HIT_PEN,
+                "BR-412D \u{b7} 148 > 132 MM @ 22\u{b0} \u{b7} LOWER GLACIS \u{b7} Tiger II \u{b7} 240 \u{b7} 310 M",
+                RowSource::Shot(ShellId(4)),
+            ),
+            row(
+                1_380,
+                words::TL_TAKEN,
+                "Tiger II \u{b7} B \u{b7} PzGr. 39/42 \u{b7} 194 > 162 MM @ 31\u{b0} \u{b7} TURRET FRONT \u{b7} GUN \u{b7} 290",
+                RowSource::Damage(BattleEventId(31)),
+            ),
+            row(
+                1_620,
+                words::HIT_RICOCHET,
+                "BR-412D \u{b7} 171 > 310 MM @ 71\u{b0} \u{b7} UPPER GLACIS \u{b7} Jagdtiger \u{b7} 0 \u{b7} 510 M",
+                RowSource::Shot(ShellId(5)),
+            ),
+            row(
+                1_640,
+                words::TL_SEEN_BY,
+                "Tiger II \u{b7} B \u{b7} 308 M \u{b7} 9 S",
+                RowSource::Observer { observer: TankId(9), from_tick: 1_100 },
+            ),
+            row(2_040, words::TL_SHOT, words::TL_NO_HIT, RowSource::Shot(ShellId(6))),
+            row(
+                2_400,
+                words::HIT_PEN,
+                "BR-412D \u{b7} 148 > 96 MM @ 8\u{b0} \u{b7} HULL SIDE \u{b7} Tiger II \u{b7} 320 \u{b7} 140 M",
+                RowSource::Shot(ShellId(7)),
+            ),
+            row(
+                2_400,
+                words::TL_DESTROYED,
+                "Tiger II \u{b7} B \u{b7} BY YOU",
+                RowSource::Kill { victim: TankId(9), tick: 2_400 },
+            ),
+            row(
+                3_300,
+                words::TL_TAKEN,
+                "UNSEEN \u{b7} HE \u{b7} 88 > 45 MM @ 40\u{b0} \u{b7} ENGINE DECK \u{b7} ENGINE \u{b7} 330",
+                RowSource::Damage(BattleEventId(58)),
+            ),
+            row(
+                4_020,
+                words::TL_DESTROYED,
+                "IS-3 \u{b7} B \u{b7} BY Panth II \u{b7} D",
+                RowSource::Kill { victim: TankId(2), tick: 4_020 },
+            ),
+        ],
+        team: vec![
+            team("T-54 \u{b7} A", true, true, false, true),
+            team("IS-3 \u{b7} B", true, false, true, false),
+            team("Cent 3 \u{b7} C", true, false, false, false),
+            team("Tiger I \u{b7} D", true, false, false, false),
+            team("Panth II \u{b7} E", true, false, true, false),
+            team("Jagdtig \u{b7} F", true, false, false, false),
+            team("T-34-85 \u{b7} G", true, false, false, false),
+            team("Tiger II \u{b7} A", false, false, false, false),
+            team("Tiger II \u{b7} B", false, false, true, false),
+            team("T-54 \u{b7} C", false, true, false, false),
+            team("Panth II \u{b7} D", false, false, false, false),
+            team("Jagdtig \u{b7} E", false, false, true, false),
+            team("IS-3 \u{b7} F", false, false, true, false),
+            team("T-34-85 \u{b7} G", false, false, true, false),
+        ],
+        replay: ReplayNote {
+            reason: words::REPLAY_REASON.to_string(),
+            recording: Some("replays/2026-09-06-prokhorovka.wotrec".to_string()),
+        },
+        tab,
+        first_visible: 0,
+        hovered: None,
+        footer: crate::app::shell::results_footer(&crate::app::keybinds::KeyBindings::default()),
+    })
+}
+
+/// The BATTLES page as the golden stages it: a week of battles, the newest selected.
+pub(crate) fn demo_battles_screen() -> ShellModel {
+    let row =
+        |date: &str, map: &str, vehicle: &str, outcome: &str, kills: u32, damage_dealt: u32| {
+            BattleRow {
+                date: date.to_string(),
+                map: map.to_string(),
+                vehicle: vehicle.to_string(),
+                outcome: outcome.to_string(),
+                kills,
+                damage_dealt,
+            }
+        };
+    ShellModel::Battles(BattlesScreenModel {
+        rows: vec![
+            row("2026-09-06 12:40", "prokhorovka", "t-54", words::VICTORY, 2, 1_480),
+            row("2026-09-06 12:21", "prokhorovka", "t-54", words::DEFEAT, 0, 310),
+            row("2026-09-06 11:58", "bystra-valley", "tiger-ii", words::VICTORY, 3, 2_050),
+            row("2026-09-05 22:14", "ostrogorsk", "is-3", words::DRAW, 1, 890),
+            row("2026-09-05 21:47", "ostrogorsk", "is-3", words::DEFEAT, 1, 1_120),
+            row("2026-09-05 21:20", "orliny-pereval", "t-54", words::VICTORY, 4, 2_610),
+        ],
+        selected: 0,
+        first_visible: 0,
+        hovered: None,
+        footer: crate::app::shell::battles_footer(&crate::app::keybinds::KeyBindings::default()),
     })
 }
 
@@ -1055,14 +1739,120 @@ mod tests {
         assert_eq!(text_of(&list, ShellPart::RowValue(1)), words::LISTENING);
     }
 
-    /// P8: the battle's menu prints its five entries and the garage's its three; the commits
+    /// P10: the REPLAY button is disabled and says why until a viewer exists; a recording the
+    /// session wrote is named beside it. P1: the outcome and the hull stand beside the title,
+    /// every number has its row, and the TEAM tab carries alive/dead and the crew's kind — no
+    /// statistics.
+    #[test]
+    fn the_replay_button_is_disabled_and_says_why_until_a_viewer_exists() {
+        let ui = Ui::reference();
+        let mut model = demo::demo_model(false);
+        model.shell = Some(demo_results_screen(ResultsTab::Summary));
+        let list = build_battle_hud_list(&model, &ui);
+        let text_of = |list: &DrawList<HudElement>, part: ShellPart| match &list
+            .find(HudElement::Shell(part))
+            .expect("part")
+            .payload
+        {
+            Payload::Text { text, .. } => text.clone(),
+            other => panic!("{part:?} is not text: {other:?}"),
+        };
+        let ShellModel::Results(page) = demo_results_screen(ResultsTab::Summary) else {
+            panic!("results")
+        };
+        let replay = (page.stats.len() + 1) as u8;
+        assert_eq!(text_of(&list, ShellPart::RowLabel(replay)), words::REPLAY);
+        assert_eq!(
+            list.find(HudElement::Shell(ShellPart::RowPlate(replay))).expect("plate").state,
+            WidgetState::Disabled
+        );
+        assert_eq!(text_of(&list, ShellPart::RowValue(replay)), words::REPLAY_REASON);
+        assert!(text_of(&list, ShellPart::RowNote(replay)).starts_with(words::RECORDED_TO));
+        assert!(text_of(&list, ShellPart::Subtitle).starts_with(words::VICTORY));
+        for (i, stat) in page.stats.iter().enumerate() {
+            assert_eq!(text_of(&list, ShellPart::RowLabel(i as u8 + 1)), stat.label);
+            assert_eq!(text_of(&list, ShellPart::RowValue(i as u8 + 1)), stat.value);
+        }
+        // Without a recording the note is absent; the reason stands.
+        let ShellModel::Results(mut page) = demo_results_screen(ResultsTab::Summary) else {
+            panic!("results")
+        };
+        page.replay.recording = None;
+        model.shell = Some(ShellModel::Results(page));
+        let list = build_battle_hud_list(&model, &ui);
+        assert!(list.find(HudElement::Shell(ShellPart::RowNote(replay))).is_none());
+        assert_eq!(text_of(&list, ShellPart::RowValue(replay)), words::REPLAY_REASON);
+        // The TEAM tab: the roster with alive/dead and the crew's kind, the player in the lamp.
+        model.shell = Some(demo_results_screen(ResultsTab::Team));
+        let list = build_battle_hud_list(&model, &ui);
+        assert_eq!(text_of(&list, ShellPart::RowLabel(1)), "T-54 \u{b7} A");
+        assert_eq!(text_of(&list, ShellPart::RowValue(1)), words::WORD_ALIVE);
+        assert_eq!(text_of(&list, ShellPart::RowNote(1)), words::WORD_YOU);
+        assert_eq!(text_of(&list, ShellPart::RowValue(2)), words::TL_DESTROYED);
+        assert_eq!(text_of(&list, ShellPart::RowNote(2)), words::WORD_BOT);
+        assert_eq!(text_of(&list, ShellPart::RowValue(0)), words::TAB_TEAM);
+        // The TIMELINE tab: a window of rows, the clock and the word on the plate, the detail
+        // beside it.
+        model.shell = Some(demo_results_screen(ResultsTab::Timeline));
+        let list = build_battle_hud_list(&model, &ui);
+        assert!(text_of(&list, ShellPart::RowLabel(1)).ends_with(words::SPOTTED_LAMP));
+        assert!(text_of(&list, ShellPart::RowValue(2)).starts_with("BR-412D"));
+    }
+
+    /// P4: the BATTLES page lists the history newest first with the day, the map, the hull,
+    /// the outcome and the crew's two numbers; the selected row is lit; an empty history says
+    /// so on a disabled plate.
+    #[test]
+    fn the_battles_page_lists_the_history_and_an_empty_one_says_so() {
+        let ui = Ui::reference();
+        let mut model = demo::demo_model(false);
+        model.shell = Some(demo_battles_screen());
+        let list = build_battle_hud_list(&model, &ui);
+        let text_of = |list: &DrawList<HudElement>, part: ShellPart| match &list
+            .find(HudElement::Shell(part))
+            .expect("part")
+            .payload
+        {
+            Payload::Text { text, .. } => text.clone(),
+            other => panic!("{part:?} is not text: {other:?}"),
+        };
+        assert_eq!(
+            text_of(&list, ShellPart::RowLabel(0)),
+            "2026-09-06 12:40 \u{b7} prokhorovka \u{b7} t-54"
+        );
+        assert_eq!(text_of(&list, ShellPart::RowValue(0)), words::VICTORY);
+        assert_eq!(
+            text_of(&list, ShellPart::RowNote(0)),
+            format!("2 {} \u{b7} 1480 {}", words::STAT_KILLS, words::DMG_UNIT)
+        );
+        assert_eq!(
+            list.find(HudElement::Shell(ShellPart::RowPlate(0))).expect("plate").state,
+            WidgetState::Focused
+        );
+        assert!(list.find(HudElement::Shell(ShellPart::RowPlate(6))).is_none(), "six battles");
+        model.shell = Some(ShellModel::Battles(BattlesScreenModel {
+            rows: Vec::new(),
+            selected: 0,
+            first_visible: 0,
+            hovered: None,
+            footer: String::new(),
+        }));
+        let list = build_battle_hud_list(&model, &ui);
+        assert_eq!(text_of(&list, ShellPart::RowLabel(0)), words::NO_BATTLES);
+        assert_eq!(
+            list.find(HudElement::Shell(ShellPart::RowPlate(0))).expect("plate").state,
+            WidgetState::Disabled
+        );
+    }
+
+    /// P8: the battle's menu prints its five entries and the garage's its four; the commits
     /// wear the one red and nothing else does; nothing is lit under a still cursor; a menu
     /// replaces the instruments like every page.
     #[test]
     fn the_menus_print_their_entries_and_only_the_commits_wear_the_red() {
         let ui = Ui::reference();
         let theme = Theme::standard();
-        for (kind, count) in [(MenuKind::Battle, 5), (MenuKind::Garage, 3)] {
+        for (kind, count) in [(MenuKind::Battle, 5), (MenuKind::Garage, 4)] {
             let mut model = demo::demo_model(false);
             model.shell = Some(demo_menu_screen(kind));
             let list = build_battle_hud_list(&model, &ui);

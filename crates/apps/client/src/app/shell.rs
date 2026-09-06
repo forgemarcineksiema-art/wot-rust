@@ -8,15 +8,18 @@ use ui_kit::theme::Palette;
 use winit::keyboard::PhysicalKey;
 
 use super::ClientApp;
+use super::history::date_word;
 use super::keybinds::{Action, Context, KeyBindings, is_bindable, key_label};
+use super::results::{ResultsInputs, results_model};
 use super::settings::{
     GAIN_STEP, SENSITIVITY_RANGE, SENSITIVITY_STEP, UI_SCALE_RANGE, UI_SCALE_STEP,
 };
 use crate::hud::elements::ShellPart;
 use crate::hud::layout::Preset;
 use crate::hud::shell::{
-    KEY_ROWS_VISIBLE, KeyRow, KeybindsScreenModel, MenuItem, MenuKind, MenuScreenModel,
-    SettingsRow, SettingsScreenModel, SettingsView, ShellModel, shell_row_index,
+    BattleRow, BattlesScreenModel, KEY_ROWS_VISIBLE, KeyRow, KeybindsScreenModel, MenuItem,
+    MenuKind, MenuScreenModel, ResultsTab, SettingsRow, SettingsScreenModel, SettingsView,
+    ShellModel, shell_row_index,
 };
 use crate::ui_strings::battle as words;
 
@@ -28,6 +31,22 @@ pub(crate) enum ShellPage {
     Settings,
     /// The key bindings of one context; row 0 is the context row.
     Keybinds(Context),
+    /// The results (P1, P2), one tab at a time; row 0 is the tab row. `stored` is a battle
+    /// off the history (P4) rather than the one just fought.
+    Results {
+        tab: ResultsTab,
+        stored: bool,
+    },
+    /// The battle history (P4), newest first.
+    Battles,
+}
+
+/// A battle read back from the history for the results page (P4).
+#[derive(Debug, Clone)]
+pub(crate) struct StoredBattle {
+    pub ledger: super::ledger::BattleLedger,
+    pub roster: Vec<net::RosterEntry>,
+    pub player_team: game_core::TeamId,
 }
 
 /// The page's live state: the selected row, the window's first action (the key bindings
@@ -41,6 +60,8 @@ pub(crate) struct ShellState {
     listening: Option<Action>,
     hovered: Option<ShellPart>,
     hits: Vec<(ShellPart, Rect)>,
+    /// The stored battle the results page shows (P4), when it is not the one just fought.
+    stored: Option<Box<StoredBattle>>,
 }
 
 impl ShellState {
@@ -52,6 +73,7 @@ impl ShellState {
             listening: None,
             hovered: None,
             hits: Vec::new(),
+            stored: None,
         }
     }
 }
@@ -67,6 +89,23 @@ pub(crate) fn shell_footer(keybinds: &KeyBindings) -> String {
         first(Action::MenuLeft),
         first(Action::MenuRight),
         words::FOOTER_CHANGE,
+        first(Action::MenuBack),
+        words::FOOTER_BACK
+    )
+}
+
+pub(crate) use super::results::results_footer;
+
+/// The footer of the BATTLES page.
+pub(crate) fn battles_footer(keybinds: &KeyBindings) -> String {
+    let first = |action: Action| first_key_label(keybinds, action);
+    format!(
+        "{}/{} {} \u{b7} {} {} \u{b7} {} {}",
+        first(Action::MenuUp),
+        first(Action::MenuDown),
+        words::FOOTER_SELECT,
+        first(Action::MenuAccept),
+        words::FOOTER_OPEN,
         first(Action::MenuBack),
         words::FOOTER_BACK
     )
@@ -194,6 +233,98 @@ impl ClientApp {
         self.open_shell_page(ShellPage::Menu(kind));
     }
 
+    /// The banner's hand-off (P1): the results, SUMMARY first.
+    pub(in crate::app) fn open_results_page(&mut self) {
+        self.results_shown = true;
+        self.open_shell_page(ShellPage::Results { tab: ResultsTab::Summary, stored: false });
+    }
+
+    /// BATTLES on the garage's menu (P4): the history, newest first.
+    pub(in crate::app) fn open_battles_page(&mut self) {
+        self.open_shell_page(ShellPage::Battles);
+    }
+
+    /// OPEN on a stored battle: the results page over its ledger.
+    fn open_stored_results(&mut self) {
+        let Some(shell) = &self.shell else { return };
+        let Some(record) = self.history.as_ref().and_then(|history| history.read(shell.selected))
+        else {
+            self.queue_audio(audio::AudioEvent::UiReject);
+            return;
+        };
+        let stored = StoredBattle {
+            ledger: record.ledger(),
+            roster: record.roster.clone(),
+            player_team: record.player_team(),
+        };
+        let mut state =
+            ShellState::open(ShellPage::Results { tab: ResultsTab::Summary, stored: true });
+        state.stored = Some(Box::new(stored));
+        self.shell = Some(state);
+        self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+    }
+
+    /// CONTINUE on the results: the garage — or, over a stored battle, back to the history.
+    fn continue_from_results(&mut self) {
+        let stored = matches!(
+            self.shell.as_ref().map(|shell| shell.page),
+            Some(ShellPage::Results { stored: true, .. })
+        );
+        self.shell = None;
+        self.queue_audio(audio::AudioEvent::UiClick { accent: !stored });
+        if stored {
+            self.open_battles_page();
+        } else {
+            self.open_garage();
+        }
+    }
+
+    fn step_results_tab(&mut self, dir: i32) {
+        let Some(shell) = &mut self.shell else { return };
+        let ShellPage::Results { tab, stored } = shell.page else { return };
+        shell.page = ShellPage::Results { tab: ring_step(&ResultsTab::ALL, tab, dir), stored };
+        shell.first_visible = 0;
+        self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+    }
+
+    fn battles_model(&self, shell: &ShellState) -> BattlesScreenModel {
+        let rows = self.history.as_ref().map_or_else(Vec::new, |history| {
+            history
+                .entries()
+                .iter()
+                .map(|entry| BattleRow {
+                    date: date_word(entry.ended_at),
+                    map: entry.map.clone(),
+                    vehicle: entry.vehicle.clone(),
+                    outcome: crate::hud::shell::outcome_word(super::history::outcome_from_slug(
+                        &entry.outcome,
+                    ))
+                    .to_string(),
+                    kills: entry.kills,
+                    damage_dealt: entry.damage_dealt,
+                })
+                .collect()
+        });
+        BattlesScreenModel {
+            rows,
+            selected: shell.selected,
+            first_visible: shell.first_visible,
+            hovered: shell.hovered,
+            footer: battles_footer(&self.keybinds),
+        }
+    }
+
+    /// The results' window one row along, never past the last full window.
+    fn scroll_results(&mut self, dir: i32) {
+        let rows = self.shell_model().map_or(0, |model| match model {
+            ShellModel::Results(page) => page.scroll_rows(),
+            _ => 0,
+        });
+        let Some(shell) = &mut self.shell else { return };
+        let last = rows.saturating_sub(KEY_ROWS_VISIBLE) as i32;
+        shell.first_visible = (shell.first_visible as i32 + dir).clamp(0, last) as usize;
+    }
+
     fn open_shell_page(&mut self, page: ShellPage) {
         self.command_wheel = None;
         self.input.release_driving();
@@ -254,6 +385,10 @@ impl ClientApp {
                 self.queue_audio(audio::AudioEvent::UiClick { accent: true });
                 self.shell = None;
                 self.quit_requested = true;
+            }
+            MenuItem::Battles => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_battles_page();
             }
         }
     }
@@ -395,6 +530,32 @@ impl ClientApp {
                 shell.listening,
                 shell.hovered,
             )),
+            ShellPage::Results { tab, .. } => match &shell.stored {
+                Some(stored) => ShellModel::Results(results_model(ResultsInputs {
+                    ledger: &stored.ledger,
+                    roster: &stored.roster,
+                    player_team: stored.player_team,
+                    recording: None,
+                    tab,
+                    first_visible: shell.first_visible,
+                    hovered: shell.hovered,
+                    footer: results_footer(&self.keybinds),
+                })),
+                None => {
+                    let roster = self.session.roster();
+                    ShellModel::Results(results_model(ResultsInputs {
+                        ledger: &self.ledger,
+                        roster: &roster,
+                        player_team: self.player_team(),
+                        recording: self.session.recording_path(),
+                        tab,
+                        first_visible: shell.first_visible,
+                        hovered: shell.hovered,
+                        footer: results_footer(&self.keybinds),
+                    }))
+                }
+            },
+            ShellPage::Battles => ShellModel::Battles(self.battles_model(shell)),
         })
     }
 
@@ -430,6 +591,25 @@ impl ClientApp {
                 Action::MenuBack => self.close_shell(),
                 _ => {}
             },
+            ShellPage::Battles => {
+                let rows = self.history.as_ref().map_or(0, |history| history.entries().len());
+                match action {
+                    Action::MenuUp if rows > 0 => self.select_row(-1, rows),
+                    Action::MenuDown if rows > 0 => self.select_row(1, rows),
+                    Action::MenuAccept if rows > 0 => self.open_stored_results(),
+                    Action::MenuBack => self.close_shell(),
+                    _ => {}
+                }
+            }
+            ShellPage::Results { .. } => match action {
+                Action::MenuLeft => self.step_results_tab(-1),
+                Action::MenuRight => self.step_results_tab(1),
+                Action::MenuUp => self.scroll_results(-1),
+                Action::MenuDown => self.scroll_results(1),
+                Action::MenuAccept => self.continue_from_results(),
+                Action::MenuBack => self.close_shell(),
+                _ => {}
+            },
             ShellPage::Keybinds(context) => {
                 let rows = 1 + actions_of(context).len();
                 match action {
@@ -452,19 +632,21 @@ impl ClientApp {
         self.shell.as_ref().map_or(0, |shell| shell.selected)
     }
 
-    /// The selection one row along, wrapping; the key bindings page's window follows it.
+    /// The selection one row along, wrapping; a scrolling page's window follows it (the key
+    /// bindings page keeps its context row at the top; the history's rows start at zero).
     fn select_row(&mut self, dir: i32, rows: usize) {
         let Some(shell) = &mut self.shell else { return };
         shell.selected = (shell.selected as i32 + dir).rem_euclid(rows as i32) as usize;
         shell.listening = None;
-        if shell.selected == 0 {
+        let header = usize::from(!matches!(shell.page, ShellPage::Battles));
+        if shell.selected < header {
             shell.first_visible = 0;
         } else {
-            let action = shell.selected - 1;
-            if action < shell.first_visible {
-                shell.first_visible = action;
-            } else if action >= shell.first_visible + KEY_ROWS_VISIBLE {
-                shell.first_visible = action + 1 - KEY_ROWS_VISIBLE;
+            let row = shell.selected - header;
+            if row < shell.first_visible {
+                shell.first_visible = row;
+            } else if row >= shell.first_visible + KEY_ROWS_VISIBLE {
+                shell.first_visible = row + 1 - KEY_ROWS_VISIBLE;
             }
         }
         self.queue_audio(audio::AudioEvent::UiClick { accent: false });
@@ -530,6 +712,29 @@ impl ClientApp {
                     self.activate_menu_item(*item);
                 }
             }
+            // The history: a click selects a battle; a second on the selected one opens it.
+            ShellPage::Battles => {
+                let index = first_visible + row as usize;
+                let rows = self.history.as_ref().map_or(0, |history| history.entries().len());
+                if index >= rows {
+                    return;
+                }
+                let already = self.shell.as_ref().is_some_and(|shell| shell.selected == index);
+                if let Some(shell) = &mut self.shell {
+                    shell.selected = index;
+                }
+                if already {
+                    self.open_stored_results();
+                } else {
+                    self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                }
+            }
+            // The results: the tab row's arrows step the tab; the rows are for reading.
+            ShellPage::Results { .. } => match (row, part) {
+                (0, ShellPart::RowDec(_)) => self.step_results_tab(-1),
+                (0, ShellPart::RowInc(_)) => self.step_results_tab(1),
+                _ => {}
+            },
             ShellPage::Settings => {
                 if let Some(shell) = &mut self.shell {
                     shell.selected = row as usize;

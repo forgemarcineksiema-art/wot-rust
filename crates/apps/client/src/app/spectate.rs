@@ -116,10 +116,19 @@ impl ClientApp {
         }
     }
 
-    /// The way on after the banner: the garage today, the results screen when P1 lands.
+    /// The way on after the banner (P1): the results page, once; after it has been read, the
+    /// garage.
     pub(super) fn hand_off_outcome(&mut self) {
-        if self.battle_outcome.is_some() && self.garage.has_started() && !self.garage.is_open() {
+        if self.battle_outcome.is_none() || !self.garage.has_started() || self.garage.is_open() {
+            return;
+        }
+        if self.shell_open() {
+            return;
+        }
+        if self.results_shown {
             self.open_garage();
+        } else {
+            self.open_results_page();
         }
     }
 }

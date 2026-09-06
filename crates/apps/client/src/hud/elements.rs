@@ -122,6 +122,8 @@ pub enum ShellPart {
     RowNote(u8),
     /// The scroll thumb of a page longer than its plate (P8).
     ScrollBar,
+    /// A word beside the title (P1): the outcome.
+    Subtitle,
 }
 
 /// The parts of the spectate strip.

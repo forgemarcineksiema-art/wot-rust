@@ -13,14 +13,23 @@
 use std::collections::BTreeMap;
 
 use game_core::{BattleEventId, DamageEvent, KillEvent, ShotFired, TankId};
+use serde::{Deserialize, Serialize};
 
 use crate::hud::BattleHudOutcome;
 
 /// A span the own hull was spotted for, in server ticks; `to_tick` is `None` while it runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct SpottedSpan {
     pub from_tick: u64,
     pub to_tick: Option<u64>,
+}
+
+/// One own shot, at the tick of the snapshot that named it (the wire stamps shots by
+/// snapshot, not by tick; the timeline orders by this).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct OwnShot {
+    pub tick: u64,
+    pub shot: ShotFired,
 }
 
 /// How the battle ended for this crew, and when.
@@ -52,7 +61,7 @@ pub(crate) struct BattleLedger {
     /// One record per (victim, tick): the wire says a hull dies once.
     kills: BTreeMap<(u64, u64), KillEvent>,
     /// The own shots, in the order the snapshots named them.
-    shots: Vec<ShotFired>,
+    shots: Vec<OwnShot>,
     spotted: Vec<SpottedSpan>,
     /// The enemies that saw the crew (v52, W-7): named by the end word, never before it.
     observers: Vec<net::SpottingRecord>,
@@ -71,6 +80,29 @@ impl BattleLedger {
         self.player
     }
 
+    /// A ledger rebuilt from stored records (P5): the same words, read back — the history's
+    /// results page is the live page over this.
+    pub(crate) fn from_records(
+        player: TankId,
+        damage: &[DamageEvent],
+        kills: &[KillEvent],
+        shots: &[OwnShot],
+        spotted: &[SpottedSpan],
+        observers: &[net::SpottingRecord],
+        end: Option<BattleEnd>,
+    ) -> Self {
+        let mut ledger = Self::new(player);
+        for event in damage {
+            ledger.damage.insert(event.event_id, *event);
+        }
+        ledger.ingest_kills(kills);
+        ledger.shots = shots.to_vec();
+        ledger.spotted = spotted.to_vec();
+        ledger.ended = end;
+        ledger.observers = observers.to_vec();
+        ledger
+    }
+
     /// A snapshot's words: the damage events it carries (stamped ones only) and the own shots.
     /// The crew's own hull is named with every snapshot, so a record started before the
     /// session knew its seat still counts the right shots.
@@ -83,8 +115,8 @@ impl BattleLedger {
             self.damage.entry(event.event_id).or_insert(*event);
         }
         for shot in &snapshot.shots_fired {
-            if shot.shooter == self.player && !self.shots.contains(shot) {
-                self.shots.push(*shot);
+            if shot.shooter == self.player && !self.shots.iter().any(|own| own.shot == *shot) {
+                self.shots.push(OwnShot { tick: snapshot.server_tick, shot: *shot });
             }
         }
     }
@@ -144,7 +176,7 @@ impl BattleLedger {
         self.kills.values()
     }
 
-    pub(crate) fn shots(&self) -> &[ShotFired] {
+    pub(crate) fn shots(&self) -> &[OwnShot] {
         &self.shots
     }
 

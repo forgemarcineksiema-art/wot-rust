@@ -68,28 +68,13 @@ impl DamageLogEntry {
 
     /// The outcome word.
     pub fn word(&self) -> &'static str {
-        use crate::ui_strings::battle as words;
-        match self.cause {
-            DamageCause::Shell => {
-                if self.shattered {
-                    words::HIT_SHATTER
-                } else if self.ricocheted {
-                    words::HIT_RICOCHET
-                } else if self.penetrated {
-                    words::HIT_PEN
-                } else if self.track.is_some() {
-                    words::HIT_TRACKED
-                } else {
-                    words::HIT_NO_PEN
-                }
-            }
-            DamageCause::Ram => words::HIT_RAM,
-            DamageCause::Impact => words::HIT_IMPACT,
-            DamageCause::Splash => words::HIT_SPLASH,
-            DamageCause::Drowning => words::HIT_DROWNED,
-            DamageCause::Fire => words::FIRE_LAMP,
-            _ => words::RACK_FUZE,
-        }
+        damage_word(
+            self.cause,
+            self.penetrated,
+            self.ricocheted,
+            self.shattered,
+            self.track.is_some(),
+        )
     }
 
     /// The row's text, one line, right-aligned under the reticle.
@@ -151,6 +136,39 @@ impl DamageLogEntry {
             parts.push(kind.short_name().to_string());
         }
         parts.join(" \u{b7} ")
+    }
+}
+
+/// The outcome word of a hit, by its cause and how the plate answered — the hit log's and the
+/// results timeline's (P2) one vocabulary.
+pub(crate) fn damage_word(
+    cause: DamageCause,
+    penetrated: bool,
+    ricocheted: bool,
+    shattered: bool,
+    tracked: bool,
+) -> &'static str {
+    use crate::ui_strings::battle as words;
+    match cause {
+        DamageCause::Shell => {
+            if shattered {
+                words::HIT_SHATTER
+            } else if ricocheted {
+                words::HIT_RICOCHET
+            } else if penetrated {
+                words::HIT_PEN
+            } else if tracked {
+                words::HIT_TRACKED
+            } else {
+                words::HIT_NO_PEN
+            }
+        }
+        DamageCause::Ram => words::HIT_RAM,
+        DamageCause::Impact => words::HIT_IMPACT,
+        DamageCause::Splash => words::HIT_SPLASH,
+        DamageCause::Drowning => words::HIT_DROWNED,
+        DamageCause::Fire => words::FIRE_LAMP,
+        _ => words::RACK_FUZE,
     }
 }
 

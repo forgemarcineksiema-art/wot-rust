@@ -951,25 +951,48 @@ fn spectating_an_ally_shows_their_panel_from_the_wire_and_nothing_about_their_ai
     assert!(app.spectate.is_none());
 }
 
-/// H20: the outcome banner hands off on Enter, or by itself after three seconds — to the
-/// garage today, to the results screen when P1 lands.
+/// H20 + P1: the outcome banner hands off on Enter, or by itself after three seconds — to
+/// the results page, once; ENTER on the page continues to the garage; after the page has been
+/// read, the banner's hand-off goes to the garage.
 #[test]
 fn the_outcome_banner_hands_off_on_enter_or_after_three_seconds() {
+    use crate::hud::shell::{ResultsTab, ShellModel};
     let mut app = in_battle();
     app.tick_outcome_hand_off(10.0);
-    assert!(!app.garage.is_open(), "no banner, no hand-off");
+    assert!(!app.garage.is_open() && !app.shell_open(), "no banner, no hand-off");
     app.battle_outcome = Some(crate::hud::BattleHudOutcome::Victory);
     app.tick_outcome_hand_off(2.9);
-    assert!(!app.garage.is_open(), "the banner is still up");
+    assert!(!app.shell_open(), "the banner is still up");
     app.tick_outcome_hand_off(0.2);
-    assert!(app.garage.is_open(), "three seconds: the way on");
+    assert!(
+        matches!(app.shell_model(), Some(ShellModel::Results(page)) if page.tab == ResultsTab::Summary),
+        "three seconds: the results, SUMMARY first"
+    );
+    assert!(!app.garage.is_open());
+    app.tick_outcome_hand_off(10.0);
+    assert!(app.shell_open() && !app.garage.is_open(), "the page stays while it is read");
+    app.on_key(PhysicalKey::Code(KeyCode::ArrowRight), true, false);
+    assert!(
+        matches!(app.shell_model(), Some(ShellModel::Results(page)) if page.tab == ResultsTab::Timeline),
+        "RIGHT: the next tab"
+    );
+    app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
+    assert!(app.garage.is_open() && !app.shell_open(), "ENTER on the page: the garage");
 
     let mut app = in_battle();
     app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
-    assert!(!app.garage.is_open(), "Enter in a live battle is nothing");
+    assert!(!app.garage.is_open() && !app.shell_open(), "Enter in a live battle is nothing");
     app.battle_outcome = Some(crate::hud::BattleHudOutcome::Defeat);
     app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
-    assert!(app.garage.is_open(), "Enter takes the hand-off at once");
+    assert!(app.shell_open() && !app.garage.is_open(), "Enter takes the hand-off at once");
+    // ESC on the page: the menu; STAY; the banner's Enter now goes to the garage — the page
+    // was read.
+    app.on_key(PhysicalKey::Code(KeyCode::Escape), true, false);
+    assert!(app.menu_open() && app.way_out_offered());
+    app.on_key(PhysicalKey::Code(KeyCode::Escape), true, false);
+    assert!(!app.shell_open());
+    app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
+    assert!(app.garage.is_open(), "the results were read once; the way on is the garage");
 }
 
 /// H22: F9 rings through the palettes (until P6's screen), and the battle HUD wears the one

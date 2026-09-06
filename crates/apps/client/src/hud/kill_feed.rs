@@ -48,7 +48,7 @@ pub struct KillFeedModel {
 }
 
 /// The cause's word when no killer is named.
-fn cause_word(cause: DamageCause) -> &'static str {
+pub(crate) fn cause_word(cause: DamageCause) -> &'static str {
     match cause {
         DamageCause::Shell => words::HIT_PEN,
         DamageCause::Ram => words::HIT_RAM,

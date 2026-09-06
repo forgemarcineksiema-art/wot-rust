@@ -137,6 +137,8 @@ impl ClientApp {
             // W-7: the observers are named by the end word, never before it.
             let log = self.session.spotting_log();
             self.ledger.name_observers(log);
+            // P5: the battle is written once, here, with the observers named.
+            self.write_battle_record();
         }
     }
 
