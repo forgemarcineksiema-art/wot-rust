@@ -457,7 +457,7 @@ mod tests {
     /// read (the marker over every spotted enemy hull), never the paint.
     #[test]
     fn every_hull_wears_its_nations_paint_whichever_team_it_fights_for() {
-        let tanks = vec![presentation_tank(7, 1), presentation_tank(3, 1), presentation_tank(9, 2)];
+        let tanks = [presentation_tank(7, 1), presentation_tank(3, 1), presentation_tank(9, 2)];
         assert_eq!(hull_color(&tanks[0]), VehicleKind::T54_1951.paint(), "the player's T-54");
         assert_eq!(
             hull_color(&tanks[2]),
