@@ -123,13 +123,15 @@ fn add_d10t(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, cy: f32,
 /// It was authored at x 0.39 and 340 mm above the trunnion, which put its muzzle through BARE
 /// CASTING 160 mm outside the embrasure — a gun firing through armour that has no port for it,
 /// and a 106 mm stub of receiver standing on the turret crown. The T-54 mounts the SGMT to the
-/// gunner's right, close enough to share the mantlet opening; `window_az_width` puts the
-/// window's edge at x ≈ 0.23, so that is the wall this has to live inside.
+/// gunner's right — the LOADER's side, starboard, −x (K13, 2026-09-06: it was built at +0.22,
+/// the gunner's own side, and the fleet handedness walk caught it) — close enough to share the
+/// mantlet opening; `window_az_width` puts the window's edge at |x| ≈ 0.23, so that is the wall
+/// this has to live inside.
 fn add_coaxial_sg43(parts: &mut Vec<VehiclePart>, axis_y: f32) {
     parts.push(box_part(
         PartKey::new("sg43_coax_receiver"),
         SubmeshKind::Turret,
-        Vec3::new(0.22, axis_y - 0.04, 0.52),
+        Vec3::new(-0.22, axis_y - 0.04, 0.52),
         Vec3::new(0.095, 0.10, 0.17),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
@@ -140,7 +142,7 @@ fn add_coaxial_sg43(parts: &mut Vec<VehiclePart>, axis_y: f32) {
         // Lengthened with the egg re-registration: the forward-registered waist carries the
         // window's floor out ~25 mm, and the old tube ended inside the casting — a gun with
         // no muzzle (`the_coaxial_muzzle_reaches_daylight_through_the_gun_window`).
-        Vec3::new(0.22, axis_y - 0.04, 0.95),
+        Vec3::new(-0.22, axis_y - 0.04, 0.95),
         Vec3::Z,
         (0.28, 0.018),
         MaterialRole::InteriorMachinery,

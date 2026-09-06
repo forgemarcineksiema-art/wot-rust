@@ -13,8 +13,8 @@
         (class: TurretShell, source: "Part list: the cast body with the roof welded in"),
         (class: TurretRing, source: "Part list: the 74 in race, electric traverse"),
         (class: TurretStowage, source: "Part list: the bustle stowage bin"),
-        (class: Cupola, source: "Part list: the commander's cupola, manual 360 deg, split hatches, a periscopic sight and seven periscopes"),
-        (class: Hatches, source: "Part list: the loader's twin covers with a periscope; the driver's split hatch front-right"),
+        (class: Cupola, source: "Part list: the commander's cupola, manual 360 deg, split hatches, a periscopic sight and seven periscopes", side: Some(Starboard)), // the British layout: commander and gunner RIGHT of the 20-pounder, loader LEFT — built PORT until K13, 2026-09-06
+        (class: Hatches, source: "Part list: the loader's twin covers with a periscope; the driver's split hatch front-right", side: Some(Centre)), // the loader's hatch LEFT, the driver's split hatch front-RIGHT
         (class: Mantlet, source: "Part list: the cast external mantlet, 152 mm at its thickest"),
         (class: GunBarrel, source: "Part list: the 20-pdr Type A, L/66.7, a 5.75 m clean tube - no brake, no fume extractor"),
         (class: CoaxMachineGun, source: "Part list: the 7.92 mm Besa"),
@@ -24,7 +24,7 @@
         (class: Exhaust, source: "Part list: twin mufflers, one each side of the rear deck"),
         (class: Fenders, source: "Part list: the long fenders running the hull's length"),
         (class: FenderStowage, source: "Part list: the fender boxes, side-loading from late 1950"),
-        (class: Headlights, source: "Part list: the headlights on the fender line"),
+        (class: Headlights, source: "Part list: the headlights on the fender line", side: Some(Port)), // the lamp on the port front fender box (F4)
         (class: Skirts, source: "Part list: full-length side plates hinged for track access, the tops covered by the removable HEAT skirts"),
         (class: TowHooks, source: "Part list: tow hooks at the edge of the glacis"),
         (class: SuspensionHardware, source: "Part list: three Horstmann bogies a side, nested coil springs; the return rollers"),

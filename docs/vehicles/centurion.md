@@ -151,7 +151,7 @@ named where they exist.
 | TurretRing | The 74 in race, electric traverse | vdoc.pub |
 | TurretStowage | The bustle stowage bin | the dossier's anatomy above |
 | Cupola | The commander's cupola, manual 360°, split hatches, a periscopic sight and seven periscopes | recognition guides |
-| Hatches | The loader's twin covers (front/rear opening) with a periscope; the driver's split hatch front-RIGHT, two covers each with a periscope | recognition guides |
+| Hatches | The loader's twin covers (front/rear opening) with a periscope, on the LEFT; the driver's split hatch front-RIGHT, two covers each with a periscope. The commander's cupola RIGHT-rear (the British layout: commander and gunner right of the gun, loader left) — the blueprint carried it port until K13, 2026-09-06 | recognition guides |
 | Mantlet | The cast external mantlet, 152 mm at its thickest | tanks-encyclopedia |
 | GunBarrel | The 20-pdr Type A, L/66.7, a 5.75 m clean tube — no brake, no fume extractor | [en.wikipedia 20-pounder](https://en.wikipedia.org/wiki/Ordnance_QF_20-pounder) |
 | CoaxMachineGun | The 7.92 mm Besa (the Browning arrives with the Mk 5, 1954/55) | Tank Encyclopedia's Besa article |

@@ -17,7 +17,7 @@
         (class: TurretShell, source: "Part list: the flattened cast dome, teardrop in plan, 220 -> 110 mm, 255 at the face"),
         (class: TurretRing, source: "Part list: 1.80 m"),
         (class: Hatches, source: "Part list: two flush roof hatches; the driver's sliding hatch in the roof behind the pike apex"),
-        (class: Periscopes, source: "Part list: three MK-4 periscopes on the roof; the driver's periscope"),
+        (class: Periscopes, source: "Part list: three MK-4 periscopes on the roof; the driver's periscope", side: Some(Port)), // the commander's MK-4s on the radio's side, left of the gun (dossier: Aerial row)
         (class: Mantlet, source: "Part list: the cast mantlet at the 255 mm face"),
         (class: GunBarrel, source: "Part list: 122 mm D-25T, 9.85 m overall"),
         (class: MuzzleFurniture, source: "Part list: the D-25T's double-baffle brake, no evacuator"),
@@ -25,7 +25,7 @@
         (class: AaMachineGun, source: "Part list: 12.7 mm DShK on a ring mount on the roof, -4..+84 deg"),
         (class: Aerial, source: "Part list: a 1-4 m rod aerial; the 10-RK-26 in the turret left of the gun"),
         (class: Exhaust, source: "Part list: the rear exhaust ports off the engine deck"),
-        (class: Headlights, source: "Part list: a single headlight on the pike nose"),
+        (class: Headlights, source: "Part list: a single headlight on the pike nose", side: Some(Port)), // as built — the digest gives no side (K13 debt)
         (class: SuspensionHardware, source: "Part list: individual torsion bars"),
     ],
 )

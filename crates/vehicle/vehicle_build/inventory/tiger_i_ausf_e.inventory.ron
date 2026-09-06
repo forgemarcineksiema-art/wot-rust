@@ -16,18 +16,20 @@
         (class: TurretShell, source: "Recognition features: horseshoe turret — flat front plate, vertical bent side wall, faceted rear"),
         (class: TurretRing, source: "Reference anatomy: turret ring 1836 mm in the clear, bearing OD 2100"),
         (class: TurretStowage, source: "The variant, pinned: simplified open bins on the ring (late), not the bowed Rommelkiste"),
-        (class: Cupola, source: "The variant, pinned: cast periscope drum cupola (from July 1943), left rear roof"),
+        (class: Cupola, source: "The variant, pinned: cast periscope drum cupola (from July 1943), left rear roof", side: Some(Port)), // the German layout: commander left
         (class: Hatches, source: "Recognition features: loader's hatch; driver's and radio operator's roof hatches"),
         (class: Mantlet, source: "Authored visual parts: the Walzenblende spanning the armour's mantlet patch band"),
         (class: GunBarrel, source: "Authored visual parts: bore-honest KwK 36, tube radius 0.1"),
         (class: MuzzleFurniture, source: "Authored visual parts: double-baffle muzzle brake, no evacuator"),
-        (class: CourseMg, source: "Recognition features: bow-MG ball on the near-vertical front; `glacis_ports`"),
+        (class: CourseMg, source: "Recognition features: bow-MG ball on the near-vertical front; `glacis_ports`", side: Some(Starboard)), // the radio operator's MG 34 right of the driver
         (class: Exhaust, source: "Recognition features: twin exhaust stacks on the rear plate with armoured covers"),
-        (class: Headlights, source: "The variant, pinned: single headlight (late)"),
+        (class: Headlights, source: "The variant, pinned: single headlight (late)", side: Some(Starboard)), // the STT 1944 sheet's lamp at x −0.52
         (class: TowHooks, source: "Blueprint Migration: tow hooks (`tow_hooks` stations)"),
         (class: TowCable, source: "Reference photographs (Tank Museum, R2-class): tow cables along the hull sides"),
         (class: SpareTracks, source: "The variant, pinned: late-production turret-side track hangers"),
         (class: Aerial, source: "Recognition features: aerial on the hull rear right"),
         (class: SuspensionHardware, source: "Recognition features: interleaved Schachtellaufwerk on swing arms, no return rollers"),
+        // Carried but never listed: named here for its side (K13, 2026-09-06).
+        (class: Periscopes, source: "the commander's side", side: Some(Port)),
     ],
 )

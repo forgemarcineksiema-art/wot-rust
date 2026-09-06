@@ -48,8 +48,8 @@ pub use description::{
     description_from_blueprint,
 };
 pub use inventory::{
-    CarriedInventory, DossierPartList, ExpectedPart, InventoryReport, InventorySpec, PartClass,
-    inventory_for,
+    CarriedInventory, ClassHandedness, DossierPartList, ExpectedPart, HANDEDNESS_CENTRE_BAND_M,
+    HANDEDNESS_ONE_SIDED_SHARE, InventoryReport, InventorySpec, PartClass, PartSide, inventory_for,
 };
 pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,

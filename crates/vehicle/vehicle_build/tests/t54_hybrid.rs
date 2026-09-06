@@ -423,7 +423,9 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // K15 + K11 (2026-09-06): the dome's stations scaled to the dossier's 2.363 m at the
     // widest cut, the road wheels widened to the drawing's 423 mm (tyre 185, slot 53).
     // Previous: 0x8104_653a_e429_4265.
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x4129_801d_bb44_d744;
+    // K13 (2026-09-06): the coaxial SGMT moved to the loader's side (x −0.22), the fleet
+    // handedness walk's first catch. Previous: 0x4129_801d_bb44_d744.
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x4e44_4494_8962_8640;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

@@ -186,11 +186,28 @@ pub enum DossierPartList {
     Pending(String),
 }
 
+/// Which side of the vehicle a class lives on. The world is right-handed with +Y up and +Z the
+/// bow, so local **+X is the PORT (left) side** (`game_core/tests/handedness.rs`). A class the
+/// dossier puts on one side (the T-54's cupola: port; its loader's hatch: starboard) authors it
+/// here, and the gate holds the built parts to it — the assertion class the 2026-08-09 mirror
+/// audit found missing, as data instead of five named tests (K13, 2026-09-06).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PartSide {
+    Port,
+    Starboard,
+    /// Symmetric about the centreline, or paired both sides.
+    Centre,
+}
+
 /// One expected class with the dossier section that names it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExpectedPart {
     pub class: PartClass,
     pub source: String,
+    /// The side the dossier puts the class on. Required by the gate once the built class sits
+    /// off-centre; a symmetric class may leave it out. Appended 2026-09-06.
+    #[serde(default)]
+    pub side: Option<PartSide>,
 }
 
 /// A vehicle's expected inventory, as authored in `inventory/<slug>.inventory.ron`.
@@ -228,6 +245,81 @@ impl InventorySpec {
 
     pub fn expected_classes(&self) -> BTreeSet<PartClass> {
         self.expected.iter().map(|e| e.class).collect()
+    }
+
+    /// The authored side of `class`, if the dossier states one.
+    pub fn side_of(&self, class: PartClass) -> Option<PartSide> {
+        self.expected.iter().find(|e| e.class == class).and_then(|e| e.side)
+    }
+}
+
+/// Where a carried class is BUILT: the x-centroid of every vertex of every part in the class,
+/// against the side the inventory authors for it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassHandedness {
+    pub class: PartClass,
+    /// Mean vertex x over the class's parts (+x = port).
+    pub centroid_x: f32,
+    /// The share of the class's vertices on the port side (x > 20 mm) among those off the
+    /// centreline. A class paired on both flanks sits between the two.
+    pub port_share: f32,
+    pub authored: Option<PartSide>,
+}
+
+/// Off-centre by more than this and a class must author its side: a part is not on "the left"
+/// by accident. Under it, a class is symmetric enough (paired fittings, hull plates) to say
+/// nothing.
+pub const HANDEDNESS_CENTRE_BAND_M: f32 = 0.15;
+
+/// A class with this share of its metal on one flank is ONE-SIDED; under it the class is paired
+/// or centred and no side is owed.
+pub const HANDEDNESS_ONE_SIDED_SHARE: f32 = 0.85;
+
+impl ClassHandedness {
+    /// Built on one flank: nearly all of the class's metal on one side, its centroid off the
+    /// centre band.
+    pub fn one_sided(&self) -> Option<PartSide> {
+        if self.centroid_x.abs() <= HANDEDNESS_CENTRE_BAND_M {
+            return None;
+        }
+        if self.port_share >= HANDEDNESS_ONE_SIDED_SHARE {
+            Some(PartSide::Port)
+        } else if self.port_share <= 1.0 - HANDEDNESS_ONE_SIDED_SHARE {
+            Some(PartSide::Starboard)
+        } else {
+            None
+        }
+    }
+
+    /// What is wrong, if anything: a one-sided class with no authored side, or a class built
+    /// on the other flank from the one authored.
+    pub fn fault(&self) -> Option<String> {
+        let built = self.one_sided();
+        let x = self.centroid_x;
+        match (self.authored, built) {
+            (None, Some(side)) => Some(format!(
+                "{:?} is built on the {side:?} flank (x {x:+.3}) but its inventory row authors no side",
+                self.class
+            )),
+            (Some(PartSide::Centre), Some(side)) => Some(format!(
+                "{:?} is authored CENTRE but built on the {side:?} flank (x {x:+.3})",
+                self.class
+            )),
+            (Some(authored @ (PartSide::Port | PartSide::Starboard)), built)
+                if built != Some(authored) =>
+            {
+                Some(format!(
+                    "{:?} is authored {authored:?} but built {} (x {x:+.3}, port share {:.2})",
+                    self.class,
+                    match built {
+                        Some(side) => format!("on the {side:?} flank"),
+                        None => "on both flanks or the centreline".to_string(),
+                    },
+                    self.port_share
+                ))
+            }
+            _ => None,
+        }
     }
 }
 
@@ -279,10 +371,43 @@ impl VehicleDescription {
         unclassified.dedup();
         CarriedInventory { classes, unclassified }
     }
+
+    /// Every carried library class with where it is built and the side its inventory authors.
+    pub fn handedness(&self, spec: &InventorySpec) -> Vec<ClassHandedness> {
+        // (sum of x, vertices, vertices on the port side, vertices off the centreline)
+        let mut sums: std::collections::BTreeMap<PartClass, (f64, usize, usize, usize)> =
+            Default::default();
+        for part in &self.parts {
+            if part.generator == GeneratorKind::Recipe {
+                continue;
+            }
+            let Some(class) = PartClass::of(part.key) else { continue };
+            let entry = sums.entry(class).or_default();
+            for v in part.mesh().vertices() {
+                entry.0 += v.position.x as f64;
+                entry.1 += 1;
+                if v.position.x > 0.02 {
+                    entry.2 += 1;
+                    entry.3 += 1;
+                } else if v.position.x < -0.02 {
+                    entry.3 += 1;
+                }
+            }
+        }
+        sums.into_iter()
+            .filter(|(_, (_, n, _, _))| *n > 0)
+            .map(|(class, (sum, n, port, off_centre))| ClassHandedness {
+                class,
+                centroid_x: (sum / n as f64) as f32,
+                port_share: if off_centre == 0 { 0.5 } else { port as f32 / off_centre as f32 },
+                authored: spec.side_of(class),
+            })
+            .collect()
+    }
 }
 
 /// The inventory report for `kind`: expected, carried, missing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InventoryReport {
     pub kind: VehicleKind,
     pub locked: bool,
@@ -291,6 +416,8 @@ pub struct InventoryReport {
     pub carried: BTreeSet<PartClass>,
     pub missing: BTreeSet<PartClass>,
     pub unclassified: Vec<&'static str>,
+    /// Where every carried class is built against the side its row authors (K13).
+    pub handedness: Vec<ClassHandedness>,
 }
 
 impl InventoryReport {
@@ -299,6 +426,7 @@ impl InventoryReport {
         let carried = description.inventory();
         let expected = spec.expected_classes();
         let missing = expected.difference(&carried.classes).copied().collect();
+        let handedness = description.handedness(&spec);
         Self {
             kind: description.kind,
             locked: spec.locked(),
@@ -310,7 +438,14 @@ impl InventoryReport {
             carried: carried.classes,
             missing,
             unclassified: carried.unclassified,
+            handedness,
         }
+    }
+
+    /// The handedness faults: off-centre classes with no authored side, authored sides the
+    /// build contradicts.
+    pub fn handedness_faults(&self) -> Vec<String> {
+        self.handedness.iter().filter_map(ClassHandedness::fault).collect()
     }
 
     pub fn is_sketch(&self) -> bool {
