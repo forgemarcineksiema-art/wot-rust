@@ -103,7 +103,14 @@ pub fn trace_shell(
             None => {}
         }
 
-        if ground_contact(position, world.heightmap) || age >= max_age_seconds {
+        // A shell that ends its step in the ground has hit TERRAIN, whatever the march above
+        // saw: a muzzle pushed into a slope (the barrel is a ghost by decision) starts with no
+        // clearance to cross, and the authoritative step names that surface (`shell_step`). The
+        // reticle reads this as Blocked, never as an open-sky Clear (the one program's S19).
+        if ground_contact(position, world.heightmap) {
+            return TraceOutcome::Obstacle { position, surface: ImpactSurface::Terrain };
+        }
+        if age >= max_age_seconds {
             return TraceOutcome::Expired(position);
         }
         travelled += segment_distance;

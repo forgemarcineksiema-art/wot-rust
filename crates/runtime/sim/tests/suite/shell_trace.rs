@@ -171,3 +171,57 @@ fn a_shell_falling_into_water_splashes_at_the_surface_not_the_bed() {
         other => panic!("expected a ground impact on the dry basin, got {other:?}"),
     }
 }
+
+/// S19: a muzzle pushed INTO the ground (the barrel is a ghost by decision, so a slope can swallow
+/// it) fires a shell the server buries on its first step and reports as a TERRAIN impact. The
+/// reticle's trace must say the same — an obstacle, never an open-sky expiry the HUD paints Clear.
+#[test]
+fn a_muzzle_buried_in_the_ground_is_a_terrain_hit_for_the_server_and_the_reticle_alike() {
+    use game_core::ImpactSurface;
+    use terrain::HeightMap;
+
+    // Flat ground under the hull, a 3 m step 4.5 m ahead of it: the T-54's muzzle (z 5.85,
+    // y 1.78) sits inside the step; the running gear and the 3 m probe cross read level ground.
+    // Wide enough that one 895 m/s step (14.9 m) still lands on the map.
+    let (width, height) = (100usize, 100usize);
+    let samples: Vec<f32> = (0..width * height)
+        .map(|index| if (index / width) as f32 >= 4.5 + 20.0 { 3.0 } else { 0.0 })
+        .collect();
+    let heightmap = HeightMap::new(width, height, 1.0, samples).expect("test heightmap");
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(20.0, 0.0, 20.0));
+    let step = FixedTimestep::from_hz(60);
+    state.apply_commands_on_terrain(&[(shooter, fire_command())], step, &heightmap);
+
+    let impact = state
+        .shell_impacts()
+        .iter()
+        .find(|impact| impact.owner == Some(shooter))
+        .expect("the buried shell dies on its first step");
+    assert_eq!(impact.surface, ImpactSurface::Terrain, "the server names the ground");
+    assert!(state.shells().is_empty(), "nothing keeps flying inside the step");
+
+    let world = ShellTraceWorld {
+        projectile_radius_m: 0.05,
+        tanks: &[],
+        blockers: &[],
+        heightmap: Some(&heightmap),
+        cover: &[],
+        water: terrain::WaterView::DRY,
+    };
+    let outcome = trace_shell(
+        Vec3::new(20.0, 1.78, 20.0 + 5.85),
+        Vec3::new(0.0, 0.0, 895.0),
+        0.083,
+        step.dt_seconds(),
+        SHELL_MAX_AGE_SECONDS,
+        &world,
+    );
+    match outcome {
+        TraceOutcome::Obstacle { surface, position } => {
+            assert_eq!(surface, ImpactSurface::Terrain, "the reticle names the same ground");
+            assert!(position.y <= 3.0, "the reported point is in the step, got {position:?}");
+        }
+        other => panic!("a buried muzzle must read Blocked on terrain, got {other:?}"),
+    }
+}
