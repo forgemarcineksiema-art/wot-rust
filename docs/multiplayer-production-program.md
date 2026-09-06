@@ -66,3 +66,55 @@ since has touched **discovery, identity, trust, or ops**.
 
 Every wave lands with locking tests on the new promises and leaves `verify.ps1` green; wire
 changes bump the protocol version additively (the v24/v38 discipline).
+
+## Delta snapshots — the design (2026-09-06; register row 9, a COST condition since game-design row 24)
+
+**Why now.** The owner's rulings of 2026-09-06: ~1 000 online, hosting cheap, 15v15 "mega
+płynne". The wire today is a FULL snapshot at 20 Hz: a saturated 30-tank snapshot measures
+8 029 B (`snapshot_budget.rs`, M5a) — 157 KiB/s per client, ~1.3 Gbit/s at 1 000 clients, past
+one port and any fair-use line; and it rides 7 fragments, so one lost datagram in seven kills a
+whole snapshot at 2 % loss. The sim fits one cheap box with room to spare (~2 % of a core per
+15v15 battle); the wire is the only thing standing between the target and a fixed ~45 €/month.
+
+**What is in the 8 029 B** (the saturated fixture, by weight): thirty `TankSnapshot` — pose
+(position, yaw, pitch, roll, turret yaw and its velocity, gun pitch, the sprung hull's
+velocities) beside SLOW state (hit points, modules, ammo counts, tracks, masks, reload,
+dispersion, fires, crew) — about 4.5 KB; the crater ledger re-sent whole (384 × 5 B ≈ 1.9 KB)
+and the cover phases (160 B) and scars, all of them PERMANENT and append-only; shells, events,
+impacts, shots (small, transient).
+
+**The design, four PRs, each a wire bump and a full gate:**
+
+1. **The world's ledgers leave the snapshot** (the v39 pattern that already moved perforations):
+   craters, cover phases and cover scars become reliable-lane events with a baseline on join,
+   exactly as `ArmorBreachDelta` does today. The snapshot stops carrying anything that grows
+   with the battle — its size becomes a function of the roster alone. Lock: the saturated
+   snapshot's size does not depend on how many craters exist (the twin of the v39 lock).
+2. **The pose is quantised**: angles as `i16` fixed point (seven fields: 14 B instead of 28),
+   the hull's velocities likewise; position stays `f32` (the map is 1 000 m and the predictor's
+   reconciliation snaps on centimetres). Lock: the round-trip error under the reticle's own
+   resolution at 400 m; the replay fixtures regenerated once, deliberately.
+3. **The slow state goes delta against a per-client baseline.** The client acks the newest
+   snapshot it applied by piggybacking `acked_snapshot_seq` on the `InputBatch` it already sends
+   sixty times a second (no new datagram; the transport's two reserved header bytes stay
+   reserved). The host keeps the last sixteen snapshots it sent each client; a snapshot names
+   its baseline seq and carries, per tank, a changed-field mask and only the changed slow
+   fields; a client whose baseline fell out of the window gets a full snapshot on the next
+   tick (self-healing; newest-wins stays: a delta whose baseline the client does not hold is
+   dropped and the next full one lands within a tick). Lock: after a lost baseline the client
+   converges within one snapshot; a two-client `LossyLoopback` battle at 2 % / 10 % loss never
+   shows a stale slow field for longer than one snapshot interval.
+4. **The measurement and the locks re-based**: the saturated 15v15 snapshot fits ONE datagram
+   (≤ 1 150 B) — `a_full_snapshot_of_the_largest_format_fits_one_datagram` replaces the
+   quarter rule as the largest format's line — and the per-client rate is recorded (target
+   ≤ 25 KiB/s at 20 Hz: 1 000 clients ≈ 200 Mbit/s at the peak, inside one Hetzner line).
+   `MAX_FRAGMENTS` stays at 40 for the join baseline and the battle-over word; the battle's
+   steady state never fragments.
+
+**What stays out of scope here**: the jitter buffer and clock sync (the interpolation alpha
+freezes under jitter today) and the shooter's rewind (N3) — the "mega płynne" half of the
+owner's ruling that is about TIME, not bytes; they follow this program in the netcode queue,
+ahead of N4.
+
+**Order in the register**: this program moves ahead of N3 and N4 — it is the cost condition
+of the one-server hosting model the game is priced on.
