@@ -73,8 +73,9 @@ fn cross_frame_group() -> ArmorBreachSet {
     let (turret_entry, turret_normal) =
         // On the face plate's refined band since the egg reshape: x −0.42 sits in the bare
         // stretch between azimuth columns at the 54-segment base grid, and a cut anchored
-        // there has no triangles inside its contour.
-        surface_anchor(SubmeshKind::Turret, Vec3::new(-0.34, 1.84, 1.05));
+        // there has no triangles inside its contour. K15 (2026-09-06) pulled the dome's
+        // stations to the dossier's 2.363 m, so the probe rides the same 2.363/2.408 scale.
+        surface_anchor(SubmeshKind::Turret, Vec3::new(-0.34, 1.84, 1.03));
     let (mantlet_entry, mantlet_normal) =
         // Probed BEHIND the trunnion plane since the measured-window rebuild: the mantlet is an
         // internal body whose face closes at trunnion −0.06, and everything ahead of it on the

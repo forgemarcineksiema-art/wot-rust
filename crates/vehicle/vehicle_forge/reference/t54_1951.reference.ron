@@ -207,6 +207,17 @@ ReferencePack(
             status: Locked,
         ),
         DimensionTarget(
+            kind: RoadWheelWidth,
+            target_m: 0.423,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "T-54 dossier (Part construction)",
+                url: "docs/vehicles/t-54.md",
+                note: "423 mm over both 185 mm tyres with the 53 mm horn slot between (the drawing; K11, 2026-09-06 — it baked 360).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
             kind: TrackWidth,
             target_m: 0.58,
             tolerance_m: 0.005,

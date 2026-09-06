@@ -135,6 +135,9 @@ pub enum DimensionKind {
     /// Ground contact length as the drawings dimension it: the road-wheel axle span, first
     /// to last (basis: Instances). Appended 2026-09-05.
     GroundContactLength,
+    /// Road-wheel assembly width over both tyres, measured off the road-wheel unit MESH along
+    /// its axle (K11: the T-54's 423 mm). Appended 2026-09-06.
+    RoadWheelWidth,
 }
 
 impl DimensionKind {
@@ -157,6 +160,7 @@ impl DimensionKind {
             DimensionKind::FenderShelfHeight => "fender shelf height (sheet top)",
             DimensionKind::HullSideTopHeight => "hull side top height (deck edge)",
             DimensionKind::GroundContactLength => "ground contact length (road-wheel axle span)",
+            DimensionKind::RoadWheelWidth => "road wheel assembly width (over both tyres)",
         }
     }
 
