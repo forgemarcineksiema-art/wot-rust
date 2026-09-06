@@ -52,6 +52,15 @@ impl InputState {
         self.cruise_level
     }
 
+    /// N: the hit log folds to its newest row, and unfolds again.
+    pub(super) fn toggle_hit_log(&mut self) {
+        self.hit_log_collapsed = !self.hit_log_collapsed;
+    }
+
+    pub(crate) fn hit_log_collapsed(&self) -> bool {
+        self.hit_log_collapsed
+    }
+
     /// Everything the keyboard and wheel can leave latched, dropped at once — the drive keys and
     /// trigger of [`Self::release_driving`] plus the modifier mirror, the fractional wheel carry
     /// and the mouse-look delta. For a focus edge: after this the input is exactly what a fresh

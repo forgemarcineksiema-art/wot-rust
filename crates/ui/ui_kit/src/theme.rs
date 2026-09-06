@@ -89,6 +89,11 @@ pub struct Semantic {
     pub hp_ramp: [Rgba; 3],
     /// The ONE red a commit wears: BATTLE, EXIT. Nothing else.
     pub commit: Rgba,
+    /// The floating numbers' tones by OUTCOME family — penetration, held, ricochet, shatter
+    /// (interface program H9, Inny Poziom S7): one muted tone each, never the shell's colour,
+    /// never neon. The owner: „nie natrętnie kolorowo, przesadnie". Locked quiet by
+    /// `the_floating_numbers_are_quiet`.
+    pub floating: [Rgba; 4],
 }
 
 /// The palettes the semantic block comes in. Append-only.
@@ -217,6 +222,12 @@ impl Semantic {
             },
             hp_ramp: [[0.45, 0.80, 0.42, 1.0], [0.95, 0.70, 0.20, 1.0], [0.85, 0.20, 0.16, 1.0]],
             commit: [0.72, 0.16, 0.12, 1.0],
+            floating: [
+                [0.66, 0.82, 0.62, 0.95],
+                [0.82, 0.66, 0.60, 0.95],
+                [0.88, 0.88, 0.84, 0.95],
+                [0.72, 0.72, 0.70, 0.95],
+            ],
         }
     }
 
@@ -236,6 +247,8 @@ impl Semantic {
                 s.verdict.no_pen = [0.45, 0.14, 0.06, 1.0];
                 s.hp_ramp =
                     [[0.30, 0.60, 1.0, 1.0], [0.95, 0.80, 0.30, 1.0], [0.55, 0.16, 0.08, 1.0]];
+                s.floating[0] = [0.62, 0.74, 0.88, 0.95];
+                s.floating[1] = [0.84, 0.70, 0.54, 0.95];
                 s.ammo = [
                     [0.90, 0.70, 0.25, 1.0],
                     [0.96, 0.94, 0.86, 1.0],
@@ -260,6 +273,8 @@ impl Semantic {
                 s.verdict.no_pen = [0.50, 0.08, 0.14, 1.0];
                 s.hp_ramp =
                     [[0.30, 0.78, 0.55, 1.0], [0.95, 0.60, 0.40, 1.0], [0.80, 0.16, 0.24, 1.0]];
+                s.floating[0] = [0.62, 0.82, 0.72, 0.95];
+                s.floating[1] = [0.84, 0.62, 0.66, 0.95];
             }
         }
         s
@@ -457,6 +472,31 @@ mod tests {
                     "{palette:?}: {name} collapse under simulation — luminance gap {luminance:.2}, chroma {chroma:.2}"
                 );
             }
+        }
+    }
+
+    /// H9: the floating numbers are quiet in every palette — a muted tone per outcome family,
+    /// readable, never neon — and the penetration and the held tones still tell apart.
+    #[test]
+    fn the_floating_numbers_are_quiet() {
+        for palette in Palette::ALL {
+            let s = Semantic::for_palette(palette);
+            for (index, tone) in s.floating.iter().enumerate() {
+                let chroma = tone[0].max(tone[1]).max(tone[2]) - tone[0].min(tone[1]).min(tone[2]);
+                let luminance = relative_luminance(*tone);
+                assert!(
+                    chroma <= 0.30,
+                    "{palette:?} floating[{index}] is loud: chroma {chroma:.2}"
+                );
+                assert!(
+                    luminance >= 0.35,
+                    "{palette:?} floating[{index}] is dim: luminance {luminance:.2}"
+                );
+            }
+            let (pen, held) = (s.floating[0], s.floating[1]);
+            let apart =
+                (pen[0] - held[0]).abs() + (pen[1] - held[1]).abs() + (pen[2] - held[2]).abs();
+            assert!(apart >= 0.25, "{palette:?}: pen and held tones fold together ({apart:.2})");
         }
     }
 

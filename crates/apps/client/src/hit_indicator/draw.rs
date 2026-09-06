@@ -3,12 +3,14 @@ use renderer_api::HudVertex;
 
 use crate::hud::push_quad;
 
-pub(super) const GRN: [f32; 4] = [0.30, 0.82, 0.34, 1.0];
-pub(super) const RED: [f32; 4] = [0.90, 0.26, 0.22, 1.0];
-const YLW: [f32; 4] = [0.92, 0.78, 0.20, 1.0];
+/// The outcome families' tones (interface program H9): the theme's quiet floating tokens —
+/// penetration, held (a bounce, near or not), ricochet, shatter. One muted tone each, never
+/// the shell's colour, never neon (Inny Poziom S7; the owner's „nie natrętnie").
+fn family_tone(index: usize) -> [f32; 4] {
+    ui_kit::theme::Theme::standard().semantic.floating[index]
+}
 /// The near-penetration's own heat: between the bounce's yellow and the ricochet's red — the
 /// "same spot again" cue, still a glyph and nothing more (no mm duel).
-const ORN: [f32; 4] = [0.95, 0.55, 0.18, 1.0];
 const WHT: [f32; 4] = [0.92, 0.90, 0.86, 0.95];
 
 pub(super) fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
@@ -21,19 +23,20 @@ pub(super) fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
 pub(super) struct MarkerOutcome {
     pub pen: bool,
     pub ric: bool,
-    pub near_pen: bool,
     pub shattered: bool,
 }
 
 pub(super) fn color_for(outcome: MarkerOutcome) -> [f32; 4] {
     if outcome.pen {
-        GRN
+        family_tone(0)
+    } else if outcome.shattered {
+        family_tone(3)
     } else if outcome.ric {
-        RED
-    } else if outcome.near_pen {
-        ORN
+        family_tone(2)
     } else {
-        YLW
+        // A held shell, near penetration or not: the same family, the same tone — the near
+        // miss is the reticle's story (its verdict), not a colour of its own on the number.
+        family_tone(1)
     }
 }
 
@@ -45,20 +48,20 @@ pub(super) fn push_marker(
     asp: f32,
 ) {
     let h: [f32; 2] = [0.005 / asp, 0.005];
+    // One quiet tone per family (H9): the number and its glyph agree, and the near miss is the
+    // reticle's story (its verdict), not a colour of its own here.
+    let tint = color_for(outcome);
     if outcome.pen {
-        push_quad(verts, c, h, fade(GRN, a));
+        push_quad(verts, c, h, fade(tint, a));
     } else if outcome.shattered {
-        // The core DIED on the plate (v47): a red cross, not the skip's bar — "that angle eats
+        // The core DIED on the plate (v47): a cross, not the skip's bar — "that angle eats
         // tungsten" is a different lesson than "it skipped somewhere".
         let o = 0.0012;
-        push_quad(verts, c, [h[0], o], fade(RED, a));
-        push_quad(verts, c, [o / asp, h[1]], fade(RED, a));
+        push_quad(verts, c, [h[0], o], fade(tint, a));
+        push_quad(verts, c, [o / asp, h[1]], fade(tint, a));
     } else if outcome.ric {
-        push_quad(verts, c, [0.004 / asp, h[1]], fade(RED, a));
+        push_quad(verts, c, [0.004 / asp, h[1]], fade(tint, a));
     } else {
-        // The non-pen cross; a near-penetration heats it orange — that was CLOSE, same spot
-        // again — from numbers the shooter already owns, never from concealed intel.
-        let tint = if outcome.near_pen { ORN } else { YLW };
         let o = 0.001;
         push_quad(verts, c, [h[0], o], fade(tint, a));
         push_quad(verts, c, [o / asp, h[1]], fade(tint, a));

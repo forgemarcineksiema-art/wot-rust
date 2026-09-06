@@ -72,8 +72,10 @@ pub struct BattleHudModel {
     pub cruise_level: i8,
     /// Sniper magnification; `None` in third person (no readout).
     pub zoom_factor: Option<f32>,
-    /// Recent dealt/taken damage rows, newest first (`hud/damage_log.rs`).
+    /// Recent dealt/taken hits, newest first (`hud/damage_log.rs`, H8).
     pub damage_log: Vec<damage_log::DamageLogEntry>,
+    /// N (H8): the log shows its newest row only.
+    pub hit_log_collapsed: bool,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
@@ -120,6 +122,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             cruise_level: 0,
             zoom_factor: None,
             damage_log: Vec::new(),
+            hit_log_collapsed: false,
             incoming_hits: Vec::new(),
             ammo: None,
             damage: None,
@@ -156,6 +159,7 @@ pub(crate) fn test_model(
         cruise_level: 0,
         zoom_factor,
         damage_log: Vec::new(),
+        hit_log_collapsed: false,
         incoming_hits: Vec::new(),
         ammo: None,
         damage: None,
@@ -302,11 +306,15 @@ pub(crate) fn build_battle_hud_list(
     if let Some(lists) = &model.team_lists {
         team_list::push_team_lists(&mut list, ui, &theme, lists, &mut order);
     }
-    {
-        let mut v = Vec::new();
-        damage_log::push_damage_log(&mut v, &model.damage_log, aspect);
-        legacy(&mut list, &mut order, HudElement::DamageLog, v);
-    }
+    // H8: the hit log under the reticle, on the toolkit.
+    damage_log::push_hit_log(
+        &mut list,
+        ui,
+        &theme,
+        &model.damage_log,
+        model.hit_log_collapsed,
+        &mut order,
+    );
     {
         let mut v = Vec::new();
         hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
