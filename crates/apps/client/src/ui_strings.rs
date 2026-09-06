@@ -134,6 +134,19 @@ pub(crate) mod battle {
     pub const MODULE_GUN: &str = "GUN";
     pub const MODULE_AMMO_RACK: &str = "AMMO RACK";
     pub const MODULE_RADIO: &str = "RADIO";
+    /// The command wheel's words (H16), `net::TeamCommand` order.
+    pub const CMD_ATTACK: &str = "ATTACK";
+    pub const CMD_HELP: &str = "HELP";
+    pub const CMD_RELOADING: &str = "RELOADING";
+    pub const CMD_AFFIRMATIVE: &str = "AFFIRMATIVE";
+    pub const CMD_NEGATIVE: &str = "NEGATIVE";
+    pub const CMD_BACK_TO_BASE: &str = "BACK TO BASE";
+    pub const CMD_FOLLOW_ME: &str = "FOLLOW ME";
+    pub const CMD_PING: &str = "PING";
+    /// The wheel's counter and its refusal (H16): „COMMANDS 3/5", „REFUSED · WAIT 12 S".
+    pub const WHEEL_COMMANDS: &str = "COMMANDS";
+    pub const WHEEL_REFUSED: &str = "REFUSED";
+    pub const WHEEL_WAIT: &str = "WAIT";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -195,6 +208,17 @@ pub(crate) mod battle {
         MODULE_GUN,
         MODULE_AMMO_RACK,
         MODULE_RADIO,
+        CMD_ATTACK,
+        CMD_HELP,
+        CMD_RELOADING,
+        CMD_AFFIRMATIVE,
+        CMD_NEGATIVE,
+        CMD_BACK_TO_BASE,
+        CMD_FOLLOW_ME,
+        CMD_PING,
+        WHEEL_COMMANDS,
+        WHEEL_REFUSED,
+        WHEEL_WAIT,
     ];
 }
 

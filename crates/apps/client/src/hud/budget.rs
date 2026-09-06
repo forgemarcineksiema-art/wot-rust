@@ -90,7 +90,7 @@ pub(crate) fn staged_enemies(kinds: [VehicleKind; 2]) -> Vec<RosterEntry> {
 
 const LINE_W_U: f32 = 400.0;
 /// Under the sixth-sense lamp's slot, whether or not the lamp is lit.
-const LINE_TOP_U: f32 = super::sixth_sense::LAMP_TOP_U + 26.0 + 4.0;
+pub(crate) const LINE_TOP_U: f32 = super::sixth_sense::LAMP_TOP_U + 26.0 + 4.0;
 
 pub(crate) fn push_budget(
     list: &mut DrawList<HudElement>,

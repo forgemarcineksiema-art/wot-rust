@@ -104,6 +104,9 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         fire_denied_age_s: None,
         scope_fade: if sniper { 1.0 } else { 0.0 },
         pause_menu: None,
+        command_wheel: None,
+        pings: None,
+        team_word: None,
     }
 }
 
@@ -452,6 +455,39 @@ fn demo_minimap() -> MinimapModel {
             age_s: 3.0,
         }],
         pings: vec![minimap::Ping { xz: [580.0, 720.0], age_s: 1.2 }],
+    }
+}
+
+/// The wheel open with AFFIRMATIVE under the mouse and one word already spent (H16).
+pub(crate) fn demo_wheel() -> super::command_wheel::CommandWheelModel {
+    super::command_wheel::CommandWheelModel {
+        open: true,
+        selected: Some(3),
+        remaining: 4,
+        wait_s: None,
+        knock_age_s: None,
+    }
+}
+
+/// A teammate's ping a second old, on the ridge to the right (H16), in reference pixels.
+pub(crate) fn demo_pings() -> super::ping_marker::PingModel {
+    super::ping_marker::PingModel {
+        marks: vec![super::ping_marker::PingMark {
+            screen_px: [1430.0, 560.0],
+            seat: 'B',
+            distance_m: 340,
+            age_s: 1.0,
+        }],
+    }
+}
+
+/// The team's newest word: C says ATTACK the Tiger II in seat A (H16).
+pub(crate) fn demo_team_word() -> super::ping_marker::TeamWord {
+    super::ping_marker::TeamWord {
+        seat: 'C',
+        command: net::TeamCommand::Attack,
+        target: Some("Tiger II \u{b7} A".to_string()),
+        age_s: 0.8,
     }
 }
 

@@ -662,6 +662,9 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             fire_denied_age_s: None,
             scope_fade: 0.0,
             pause_menu: None,
+            command_wheel: None,
+            pings: None,
+            team_word: None,
         },
         16.0 / 9.0,
     )

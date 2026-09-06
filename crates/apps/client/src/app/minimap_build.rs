@@ -175,20 +175,11 @@ impl ClientApp {
             .ghosts(move |id| spotted_ids.contains(&id))
             .map(|known| Ghost { xz: known.xz, class: known.class, age_s: known.age_s })
             .collect();
-        // The team's pings (W-5), aged against the newest server tick.
-        let now_tick =
-            self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick);
-        let tick_s = 1.0 / sim::DEFAULT_SERVER_TICK_HZ as f32;
+        // The team's pings (W-5, H16): the one list the world's marks are drawn from too.
         let pings: Vec<Ping> = self
-            .intel
-            .team_commands()
-            .filter(|relay| relay.command == net::TeamCommand::Ping)
-            .filter_map(|relay| {
-                let age_s = now_tick.saturating_sub(relay.server_tick) as f32 * tick_s;
-                (age_s <= crate::hud::minimap::PING_TTL_S)
-                    .then(|| relay.map_position.map(|xz| Ping { xz, age_s }))
-                    .flatten()
-            })
+            .team_pings()
+            .into_iter()
+            .map(|ping| Ping { xz: ping.xz, age_s: ping.age_s })
             .collect();
         let seen_from_m = crate::hud::budget::BudgetModel::from_battle(
             &roster,

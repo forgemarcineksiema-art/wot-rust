@@ -42,9 +42,8 @@ impl BattleIntel {
         self.kills.iter()
     }
 
-    /// The team's relayed commands, oldest first.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn team_commands(&self) -> impl Iterator<Item = &net::TeamCommandRelay> {
+    /// The team's relayed commands, oldest first (and newest first from the back).
+    pub(crate) fn team_commands(&self) -> impl DoubleEndedIterator<Item = &net::TeamCommandRelay> {
         self.team_commands.iter()
     }
 }
