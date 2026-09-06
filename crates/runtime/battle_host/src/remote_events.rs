@@ -8,10 +8,11 @@ use net::{CombatEvent, ProtocolMessage, SequencedCombatEvent};
 ///
 /// Sized by the v39 JOIN SEED, which is the largest burst this queue ever sees: a crew arriving
 /// mid-battle is handed every hull's existing perforations at once, bounded by
-/// `MAX_ARMOR_BREACHES * MAX_BREACH_FRAGMENTS_PER_GROUP` per tank across a full 7v7 — 672. The
-/// ordinary combat trickle is a handful of events a second, so the headroom above that costs
-/// nothing in practice and refusing a legitimate late joiner would cost a player their battle.
-pub const MAX_PENDING_COMBAT_EVENTS: usize = 1_024;
+/// `MAX_ARMOR_BREACHES * MAX_BREACH_FRAGMENTS_PER_GROUP` per tank across the largest format —
+/// 30 × 48 = 1 440 (M5, `docs/game-modes.md`; it was 1 024 for a 7v7's 672). The ordinary
+/// combat trickle is a handful of events a second, so the headroom above that costs nothing in
+/// practice and refusing a legitimate late joiner would cost a player their battle.
+pub const MAX_PENDING_COMBAT_EVENTS: usize = 2_048;
 
 #[derive(Debug)]
 pub(crate) enum RemoteEventQueueError {

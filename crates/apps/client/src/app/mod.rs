@@ -853,10 +853,29 @@ impl ClientApp {
         ))
     }
 
-    fn from_battle_config(config: RandomBattleConfig) -> Self {
+    /// A seeded SEVEN-a-side battle for the tests whose subject is a controller, not the
+    /// roster: the offline battle is 15v15 since M3, and a test that reads a turret settling
+    /// against a sight point must not move with the mode's formation.
+    #[cfg(test)]
+    pub(crate) fn new_seeded_seven_a_side(seed: u64) -> Self {
+        let config =
+            RandomBattleConfig::new(battle_host::BattleSeed::fixed(seed), VehicleKind::default());
         let local_server = session::BattleSessionKind::Local(Box::new(
             LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config),
         ));
+        Self::from_local_server(local_server)
+    }
+
+    /// The offline battle is the AI battle (`docs/game-modes.md` M3, the owner's mode 2): the
+    /// player and twenty-nine marked bots at 15v15, no socket, no account. The seven-seat
+    /// format is the online queue's business (M7b) and the practice duel's neighbour.
+    fn from_battle_config(config: RandomBattleConfig) -> Self {
+        Self::from_local_server(session::BattleSessionKind::Local(Box::new(
+            LocalAuthoritativeServer::new_ai_battle(ServerTickConfig::default(), config),
+        )))
+    }
+
+    fn from_local_server(local_server: session::BattleSessionKind) -> Self {
         let player_tank = local_server.player_tank();
         let opening_snapshot = local_server.latest_snapshot_for_player();
         let opening_cover_phases = opening_snapshot.cover_states.clone();
@@ -1052,19 +1071,27 @@ mod tests {
     }
 
     #[test]
-    fn new_app_uses_random_7v7_local_battle() {
+    fn the_ai_battle_is_fifteen_against_fifteen_and_needs_no_socket() {
         let app = ClientApp::new();
         let full_snapshot = app.session.latest_snapshot();
+        let format = game_core::BattleFormat::FifteenVsFifteen;
 
-        assert_eq!(full_snapshot.tanks.len(), 14);
+        let session::BattleSessionKind::Local(server) = &app.session else {
+            panic!("the offline battle needs no socket");
+        };
+        assert_eq!(app.session.battle_mode(), battle_host::BattleMode::AiBattle);
+        assert_eq!(full_snapshot.tanks.len(), format.total_seats());
         assert_eq!(
             full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(1)).count(),
-            7
+            format.seats_per_team()
         );
         assert_eq!(
             full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(2)).count(),
-            7
+            format.seats_per_team()
         );
+        let humans =
+            server.roster().iter().filter(|entry| entry.crew_kind == net::CrewKind::Human).count();
+        assert_eq!(humans, 1, "the player and twenty-nine marked bots");
         assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
             snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
         }));

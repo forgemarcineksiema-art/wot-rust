@@ -34,8 +34,8 @@ use super::particle::{MAX_PARTICLES, Particle};
 use super::terrain_scars::{MAX_TERRAIN_SCARS, TerrainScars};
 use super::track_marks::{MAX_TRACK_MARKS, TrackMarks};
 
-/// The battle roster the budget is sized for: 7v7.
-const BATTLE_TANKS: usize = 14;
+/// The battle roster the budget is sized for: the largest format (M5, `docs/game-modes.md`).
+const BATTLE_TANKS: usize = game_core::BattleFormat::LARGEST.total_seats();
 
 /// The locked worst case for the layers that must never be truncated: the full particle pool.
 /// Since Inny Poziom Z5 no hit mark costs an FX vertex: penetrations are analytic apertures,
@@ -49,7 +49,7 @@ const FX_GROUND_VERTEX_BUDGET: usize = 43_668;
 
 /// Slack the buffer keeps for shell tracers, the one uncapped source: they are bounded by live
 /// shells (4 s lifetime x fire cadence), not by a pool. Three stretched quads per shell, 18
-/// vertices, and a 7v7 cannot plausibly hold more than two rounds per tank in the air at once.
+/// vertices, and a battle cannot plausibly hold more than two rounds per tank in the air at once.
 const FX_TRACER_ALLOWANCE: usize = BATTLE_TANKS * 2 * 18;
 
 fn puff(position: Vec3) -> Particle {

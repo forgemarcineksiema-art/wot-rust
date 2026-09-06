@@ -66,8 +66,8 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   test-only PrototypeMedium deleted v48), replay
   regression,
   bots with routes/fire discipline, data-driven 7v7 and 15v15 setups and clocks (420 s / 900 s,
-  M2). The offline AI constructor seats one player and 29 marked bots; the garage still
-  starts 7v7 until M3. The crews are dealt across both teams (M6). Remote input
+  M2). The offline battle — the app's opening one and the garage's BATTLE — is the AI battle:
+  one player and 29 marked bots at 15v15 (M3). The crews are dealt across both teams (M6). Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
   gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
   permitting a zombie client. Personal hit, damage, absorbed-impact, and lethal truth has its own
