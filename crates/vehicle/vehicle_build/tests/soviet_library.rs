@@ -7,7 +7,7 @@ use game_core::{VehicleBlueprint, VehicleKind};
 use glam::Vec3;
 use vehicle_build::{
     PartShape, VehiclePart, cast_dome_parts_for_blueprint, fitting_parts_for_blueprint,
-    soviet_deck_parts_for_blueprint,
+    slab_hull_parts_for_blueprint, soviet_deck_parts_for_blueprint,
 };
 
 fn t34_85() -> VehicleBlueprint {
@@ -99,4 +99,70 @@ fn the_fittings_build_only_the_lamp_and_the_hooks_on_the_t34() {
         keys.iter().any(|k| k.starts_with("headlight"))
             && keys.iter().any(|k| k.starts_with("tow_hook"))
     );
+}
+
+/// The IS-3's pike hull: the tub and the upper box end where the pike takes over, and the four
+/// bow faces lie ON the armour's pike planes (the fold ridge at the sponson step, the 56° slope,
+/// the ±38° sweep) — the honesty lock the whole fleet copied, now on the library's parts.
+#[test]
+fn the_pike_bow_lies_on_the_armour_s_pike_planes() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("the IS-3 is blueprint-born");
+    let parts = slab_hull_parts_for_blueprint(&bp).expect("a welded pike");
+    let keys: Vec<&str> = parts.iter().map(|p| p.key.name).collect();
+    assert_eq!(keys, ["slab_tub", "slab_upper_box", "slab_bow_pike"]);
+    let hull = &bp.hull;
+    let sweep = hull.pike_sweep_deg.to_radians();
+    let glacis = hull.glacis_slope_deg.to_radians();
+    let fold = Vec3::new(0.0, hull.sponson_y, hull.half_len);
+    let pike = parts.iter().find(|p| p.key.name == "slab_bow_pike").unwrap().mesh();
+    for side in [1.0_f32, -1.0] {
+        let normal =
+            Vec3::new(side * sweep.sin() * glacis.cos(), glacis.sin(), sweep.cos() * glacis.cos());
+        let on_plane = pike
+            .vertices()
+            .iter()
+            .filter(|v| v.position.x * side >= -1.0e-3 && v.position.y >= hull.sponson_y - 1.0e-3)
+            .filter(|v| (normal.dot(v.position - fold)).abs() < 1.0e-3)
+            .count();
+        assert!(on_plane >= 4, "the upper pike face on its plane (side {side}): {on_plane}");
+    }
+    // The bow's forwardmost point is the fold ridge tip at the sponson step, on the centreline.
+    let tip = pike
+        .vertices()
+        .iter()
+        .map(|v| v.position)
+        .fold(Vec3::ZERO, |best, p| if p.z > best.z { p } else { best });
+    assert!((tip.z - hull.half_len).abs() < 1.0e-3 && tip.x.abs() < 1.0e-3);
+    assert!(
+        (tip.y - hull.sponson_y).abs() < 1.0e-3,
+        "the ridge tip at the sponson step: {}",
+        tip.y
+    );
+}
+
+/// The IS-3's dome carries no cupola: two flush hatches at the mirrored cupola stations and the
+/// commander's periscope; the deck hangs the fender line and the drums along the belts.
+#[test]
+fn the_is3_dome_and_deck_wear_the_heavy_s_furniture() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("the IS-3 is blueprint-born");
+    let dome = cast_dome_parts_for_blueprint(&bp).expect("the IS-3 authors its dome");
+    let keys: Vec<&str> = dome.iter().map(|p| p.key.name).collect();
+    assert!(!keys.contains(&"cupola_drum"), "no cupola: {keys:?}");
+    assert_eq!(keys.iter().filter(|k| **k == "roof_hatch").count(), 2);
+    assert!(keys.contains(&"turret_periscope"));
+    let deck = soviet_deck_parts_for_blueprint(&bp).expect("the IS-3 authors its deck");
+    let keys: Vec<&str> = deck.iter().map(|p| p.key.name).collect();
+    for key in ["fender_shelf", "fender_front", "fender_rear", "fuel_tank"] {
+        assert_eq!(keys.iter().filter(|k| **k == key).count(), 2, "{key} both sides: {keys:?}");
+    }
+    assert!(
+        !keys.contains(&"glacis_hatch") && !keys.contains(&"course_mg_port"),
+        "no glacis furniture"
+    );
+    // The drums lie along the rear shelves, over the belts, inside the hitbox width.
+    for drum in deck.iter().filter(|p| p.key.name == "fuel_tank") {
+        let (min, max) = extent(drum);
+        assert!(max.z < 0.0, "a drum along the REAR shelf: {}", max.z);
+        assert!(max.x.abs().max(min.x.abs()) <= bp.hull.hitbox_half_width + 1.0e-3);
+    }
 }

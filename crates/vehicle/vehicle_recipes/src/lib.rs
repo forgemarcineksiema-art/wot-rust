@@ -201,6 +201,7 @@ fn recipe_pieces(
         VehicleKind::PantherII => Some(panther_ii::panther_ii_pieces(hitbox, mounts, omit)),
         VehicleKind::Jagdtiger => Some(jagdtiger::jagdtiger_pieces(hitbox, mounts, omit)),
         VehicleKind::T34_85 => Some(t34_85::t34_85_pieces(hitbox, mounts, omit)),
+        VehicleKind::IS3 => Some(is3::is3_pieces(hitbox, mounts, omit)),
         _ => None,
     }
 }

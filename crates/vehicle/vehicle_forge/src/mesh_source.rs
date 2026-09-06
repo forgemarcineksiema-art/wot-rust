@@ -64,15 +64,14 @@ mod tests {
     /// goldens in `seam_lock`.)
     #[test]
     fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        for kind in [VehicleKind::IS3, VehicleKind::Centurion] {
-            let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
-            let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
-            assert_eq!(
-                seam.deterministic_hash(),
-                procedural.deterministic_hash(),
-                "{kind:?} must pass through the seam unchanged"
-            );
-            assert_eq!(shipped_fidelity(kind), Fidelity::Sketch);
-        }
+        let kind = VehicleKind::Centurion;
+        let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
+        let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
+        assert_eq!(
+            seam.deterministic_hash(),
+            procedural.deterministic_hash(),
+            "{kind:?} must pass through the seam unchanged"
+        );
+        assert_eq!(shipped_fidelity(kind), Fidelity::Sketch);
     }
 }

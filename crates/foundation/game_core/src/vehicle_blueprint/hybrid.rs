@@ -545,6 +545,11 @@ pub enum HullConstruction {
     /// II), and the bow shelf's wedge when `ArmorShape::hull_bow_shelf` is authored — the
     /// German line.
     WeldedSlab,
+    /// Welded rolled plates with a PIKE bow: the tub and the upper box ending where the pike
+    /// takes over, and the four bow faces on the plane equations the armour bakes (the fold
+    /// ridge at the sponson step, `glacis_slope_deg`, `±pike_sweep_deg`) — the IS-3. Appended
+    /// 2026-09-06.
+    WeldedPike,
 }
 
 /// Which of the German family's deck furniture a welded slab vehicle wears

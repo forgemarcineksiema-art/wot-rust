@@ -56,12 +56,45 @@ fn the_benchmark_carries_its_whole_dossier_and_nothing_unnamed() {
 
 #[test]
 fn a_sketch_carries_exactly_the_recipe_class() {
-    let report = InventoryReport::new(&authoritative_description(VehicleKind::IS3).unwrap());
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::Centurion).unwrap());
     assert!(!report.locked);
     assert!(report.is_sketch());
     assert_eq!(report.carried.len(), 1, "a wrapped recipe is one class: {:?}", report.carried);
     assert_eq!(report.missing, report.expected, "so every listed class is debt");
-    assert!(report.dossier_pending.is_none(), "the IS-3's dossier lists its parts");
+    assert!(report.dossier_pending.is_none(), "the Centurion's dossier lists its parts");
+}
+
+/// The IS-3 is the sixth (K3, 2026-09-06): 14 of its 20 classes — the pike hull, the flattened
+/// dome with its flush hatches and periscope, the D-25T with its brake, the fender line and the
+/// drums, the louvres, the exhaust ports, the driver's hatch, the lamp, the hooks. Owed: the
+/// stern plate's furniture, the deck grilles, the coax, the DShK ring, the aerial, the torsion
+/// bar hardware.
+#[test]
+fn the_is3_carries_fourteen_of_its_twenty() {
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::IS3).unwrap());
+    assert!(!report.locked);
+    assert!(!report.is_sketch(), "no recipe piece stands on the shipped IS-3");
+    for class in [
+        PartClass::HullTub,
+        PartClass::UpperHull,
+        PartClass::EngineDeck,
+        PartClass::Fenders,
+        PartClass::FenderStowage,
+        PartClass::TurretShell,
+        PartClass::TurretRing,
+        PartClass::Hatches,
+        PartClass::Periscopes,
+        PartClass::Mantlet,
+        PartClass::GunBarrel,
+        PartClass::MuzzleFurniture,
+        PartClass::Exhaust,
+        PartClass::Headlights,
+    ] {
+        assert!(report.carried.contains(&class), "{class:?} is the library's");
+    }
+    assert!(!report.carried.contains(&PartClass::Cupola), "no cupola on the IS-3");
+    assert_eq!(report.missing.len(), 6, "six classes owed: {:?}", report.missing);
+    println!("{}", report.summary_line());
 }
 
 /// The Jagdtiger is the fourth (K3, 2026-09-06) and the first casemate: 9 of its 10 classes —
@@ -223,12 +256,12 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    for (kind, at_least) in [(VehicleKind::IS3, 20), (VehicleKind::Centurion, 9)] {
-        let report = InventoryReport::new(&authoritative_description(kind).unwrap());
-        assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
-        assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());
-        assert_eq!(report.missing, report.expected, "{kind:?} is a sketch: every row is debt");
-    }
+    // The last sketch on the roster; the list shrank one vehicle at a time through K3.
+    let (kind, at_least) = (VehicleKind::Centurion, 9);
+    let report = InventoryReport::new(&authoritative_description(kind).unwrap());
+    assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
+    assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());
+    assert_eq!(report.missing, report.expected, "{kind:?} is a sketch: every row is debt");
 }
 
 /// The T-34-85 was the one vehicle whose dossier read `Needs dossier` (the inventory said

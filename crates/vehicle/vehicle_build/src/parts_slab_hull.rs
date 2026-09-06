@@ -21,6 +21,7 @@ pub use game_core::HullConstruction;
 pub fn slab_hull_parts_for_blueprint(bp: &VehicleBlueprint) -> Option<Vec<VehiclePart>> {
     match bp.visual_detail()?.construction? {
         HullConstruction::WeldedSlab => Some(slab_hull_parts(bp)),
+        HullConstruction::WeldedPike => Some(crate::parts_pike_hull::pike_hull_parts(bp)),
     }
 }
 

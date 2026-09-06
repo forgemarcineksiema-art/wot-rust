@@ -788,7 +788,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh
 
 /// IS-3: central round driver's hatch just behind the pike point, guarded headlight beside
 /// it on the centreline (photo); front tow hooks skipped — the pike carries none.
-pub(crate) fn is3_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+pub(crate) fn is3_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
     // The pike planes slice the deck's forward corners, and the turret plan reaches far
     // forward — the free roof band is NARROW. A small oval-ish hatch (the real IS-3 driver
     // hatch is compact) sits centred just behind the pike apex, with a tight clearance to
@@ -796,12 +796,15 @@ pub(crate) fn is3_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let hatch_r = 0.19;
     let hatch_z = bp.turret.ring_z + bp.turret.plan_half_length + hatch_r + 0.06;
     let mut b = MeshBuilder::new();
-    b = round_hatch(b, Vec3::new(0.0, bp.hull.deck_y + 0.002, hatch_z), hatch_r, 1.0);
-    // Headlight deferred: on the real vehicle it stands on the pike near the apex; placing
-    // it needs a pike-plane standoff (like the T-34 glacis helper) — absent beats a drum
-    // poking through the armor plane. Dossier item with the F3 fender work.
-    let _ = headlight;
-    b = tow_hooks(b, bp, &[-bp.hull.half_len + 0.14]);
+    // The hatch and the hooks are the library's when the fittings are authored.
+    if !omit.fittings {
+        b = round_hatch(b, Vec3::new(0.0, bp.hull.deck_y + 0.002, hatch_z), hatch_r, 1.0);
+        // Headlight deferred: on the real vehicle it stands on the pike near the apex; placing
+        // it needs a pike-plane standoff (like the T-34 glacis helper) — absent beats a drum
+        // poking through the armor plane. Dossier item with the F3 fender work.
+        let _ = headlight;
+        b = tow_hooks(b, bp, &[-bp.hull.half_len + 0.14]);
+    }
     b = soviet_exhaust_ports(b, bp, bp.hull.deck_y - 0.35);
     engine_deck_soviet(b, bp)
 }

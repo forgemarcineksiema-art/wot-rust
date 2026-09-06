@@ -198,6 +198,16 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
             assert!(
                 fittings.no_driver_hatch && fittings.no_cupola_hatch && fittings.no_loader_hatch
             );
+        } else if kind == VehicleKind::IS3 {
+            let detail = blueprint.visual_detail().expect("the IS-3 authors visual parts");
+            assert!(detail.is_library_complete(), "construction + cast dome + gun");
+            assert_eq!(detail.construction, Some(game_core::HullConstruction::WeldedPike));
+            assert_eq!(detail.cast_dome.map(|d| d.roof), Some(game_core::CastRoofKind::Is3));
+            let deck = detail.soviet_deck.expect("the Soviet deck");
+            assert!(deck.is_fenders && deck.fuel_drums, "the IS fender line and its drums");
+            let fittings = detail.fittings.expect("the fittings");
+            assert!(fittings.no_cupola_hatch, "no cupola on the IS-3");
+            assert!(fittings.tow_hook_center.z < 0.0, "the hooks are at the stern: no bow hooks");
             assert!(
                 blueprint.complete_visual().is_none(),
                 "the library-complete set is not the benchmark's full tree"

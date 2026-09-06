@@ -76,7 +76,8 @@ fn visual_ron(kind: VehicleKind) -> Option<&'static str> {
         VehicleKind::PantherII => Some(include_str!("../../blueprints/panther_ii.visual.ron")),
         VehicleKind::Jagdtiger => Some(include_str!("../../blueprints/jagdtiger.visual.ron")),
         VehicleKind::T34_85 => Some(include_str!("../../blueprints/t34_85.visual.ron")),
-        VehicleKind::T54_1951 | VehicleKind::IS3 | VehicleKind::Centurion => None,
+        VehicleKind::IS3 => Some(include_str!("../../blueprints/is3.visual.ron")),
+        VehicleKind::T54_1951 | VehicleKind::Centurion => None,
     }
 }
 
