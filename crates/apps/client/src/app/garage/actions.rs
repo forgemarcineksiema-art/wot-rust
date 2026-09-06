@@ -227,6 +227,8 @@ impl ClientApp {
             // H1: the hall's daylight — Auto (the player's clock) → Morning → Day → Evening.
             A::Daylight => {
                 self.garage.cycle_daylight();
+                let light = self.garage.daylight_override();
+                self.edit_settings(|settings| settings.set_daylight(light));
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
             }
             // I1: the armor inspector — the gameplay armor volumes over the parked hero.

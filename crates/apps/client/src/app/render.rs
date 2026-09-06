@@ -717,19 +717,23 @@ impl ClientApp {
             palette: self.palette(),
             layout: self.hud_layout().clone(),
             editor: self.hud_editor.as_ref().map(|editor| editor.model()),
+            shell: self.shell_model(),
         };
         // The death spectate (D9, H19) keeps the intel and drops the gun's instruments — the
         // draw list does that by name; the world-anchored marks below are the living crew's.
         let hud = {
             // The draw list (interface program F5): every instrument by name, the world-anchored
             // markers as the last three elements, one emitter. The context is the window's
-            // physical viewport at the user's scale (1.0 until settings land, P6).
+            // physical viewport at the player's interface scale (P6).
             use ui_kit::draw_list::{Element, Payload};
-            let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
+            let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, self.settings.ui_scale);
             let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
             let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
             if self.hud_editor_open() {
                 self.remember_hud_frames(crate::hud::editor::instrument_frames(&list));
+            }
+            if self.shell_open() {
+                self.remember_shell_hits(crate::hud::shell::shell_hit_rects(&list));
             }
             if !player_dead {
                 let after = list.len() as i16;

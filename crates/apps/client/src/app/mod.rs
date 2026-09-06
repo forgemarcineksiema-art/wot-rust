@@ -42,7 +42,10 @@ mod render_failure;
 mod render_tests;
 mod reticle;
 pub(crate) mod session;
-mod settings;
+pub(crate) mod settings;
+pub(crate) mod shell;
+#[cfg(test)]
+mod shell_tests;
 mod spectate;
 mod vehicle_assets;
 
@@ -651,6 +654,8 @@ pub(crate) struct ClientApp {
     layout_path: Option<std::path::PathBuf>,
     /// The HUD editor while it is open (H21).
     hud_editor: Option<hud_editor::HudEditorState>,
+    /// The shell page over the battle (P6): the settings page while it is open.
+    shell: Option<shell::ShellState>,
     /// The last built HUD's frame per instrument: what the editor hit-tests against.
     hud_frames: Vec<(crate::hud::layout::Instrument, ui_kit::rect::Rect)>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
@@ -965,6 +970,7 @@ impl ClientApp {
             layout: crate::hud::layout::HudLayout::default(),
             layout_path: None,
             hud_editor: None,
+            shell: None,
             hud_frames: Vec::new(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),

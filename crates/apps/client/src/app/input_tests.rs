@@ -1136,3 +1136,72 @@ fn a_rebound_key_drives_the_new_action_and_the_file_remembers_it() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// P6: the sensitivity is read per zoom step — the third-person multiplier scales the look in
+/// third person; in the scope the step's own multiplier does, and the third person's does not.
+#[test]
+fn sensitivity_is_read_per_zoom_step() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    let turn = |app: &mut ClientApp| {
+        app.camera_controller.set_orbit_yaw(0.0);
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+        app.input.mouse_dx = 100.0;
+        app.apply_mouse_look();
+        app.desired_aim.yaw_rad().abs()
+    };
+    assert_eq!(app.zoom_step(), 0, "third person is step zero");
+    let stock = turn(&mut app);
+    assert!(stock > 0.0);
+    app.edit_settings(|settings| settings.sensitivity[0] = 2.0);
+    let doubled = turn(&mut app);
+    assert!((doubled - stock * 2.0).abs() < 1e-5, "{doubled} vs {stock}");
+    // In the scope the step is the magnification's, and its own multiplier applies.
+    app.enter_sniper_mode();
+    let step = app.zoom_step();
+    assert!((1..crate::app::settings::SENSITIVITY_STEPS).contains(&step), "step {step}");
+    let scope_stock = turn(&mut app);
+    app.edit_settings(|settings| settings.sensitivity[step] = 0.5);
+    let scope_half = turn(&mut app);
+    assert!((scope_stock - scope_half * 2.0).abs() < 1e-5, "{scope_stock} vs {scope_half}");
+    app.edit_settings(|settings| settings.sensitivity[0] = 1.0);
+    let scope_still_half = turn(&mut app);
+    assert!(
+        (scope_still_half - scope_half).abs() < 1e-6,
+        "the third person's multiplier does not reach the scope"
+    );
+}
+
+/// P9: F11 writes the borderless setting and a fresh app starts on it; P6: the sniper key
+/// toggles the scope by default (World of Tanks) and holds it when the setting says so.
+#[test]
+fn f11_writes_the_borderless_setting_and_the_sniper_key_obeys_its_setting() {
+    use winit::keyboard::{KeyCode, PhysicalKey};
+    let dir = std::env::temp_dir().join(format!("wot-settings-f11-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("settings.json");
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.enable_settings_persistence(path.clone());
+    assert!(!app.fullscreen && !app.settings().borderless);
+    app.on_key(PhysicalKey::Code(KeyCode::F11), true, false);
+    assert!(app.fullscreen && app.settings().borderless, "F11 is the setting");
+    assert!(crate::app::settings::load_settings(&path).expect("written").borderless);
+    let mut fresh = ClientApp::new();
+    fresh.enable_settings_persistence(path.clone());
+    assert!(fresh.fullscreen, "a fresh app starts on the setting");
+    // The sniper key: a toggle by default, a hold when set.
+    assert!(app.settings().sniper_toggle);
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), false, false);
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper, "a toggle stays");
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), false, false);
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::ThirdPerson);
+    app.edit_settings(|settings| settings.sniper_toggle = false);
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), true, false);
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+    app.on_key(PhysicalKey::Code(KeyCode::ShiftLeft), false, false);
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::ThirdPerson, "a hold ends");
+    let _ = std::fs::remove_dir_all(&dir);
+}

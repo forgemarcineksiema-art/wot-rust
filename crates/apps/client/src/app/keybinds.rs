@@ -20,12 +20,14 @@ pub enum Context {
     Battle,
     Garage,
     HudEditor,
+    /// The shell's pages (P6): the settings page, later the keybinds and the results.
+    Shell,
 }
 
 impl Context {
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [Context; 4] =
-        [Context::Global, Context::Battle, Context::Garage, Context::HudEditor];
+    pub const ALL: [Context; 5] =
+        [Context::Global, Context::Battle, Context::Garage, Context::HudEditor, Context::Shell];
 }
 
 /// Every action a key can mean. Append-only: the slugs are the file's keys.
@@ -81,10 +83,17 @@ pub enum Action {
     EditorDone,
     /// The Control key the editor's reset waits for.
     EditorModifier,
+    // The shell's pages (P6).
+    MenuUp,
+    MenuDown,
+    MenuLeft,
+    MenuRight,
+    MenuAccept,
+    MenuBack,
 }
 
 impl Action {
-    pub const ALL: [Action; 45] = [
+    pub const ALL: [Action; 51] = [
         Action::ToggleFullscreen,
         Action::CyclePalette,
         Action::Forward,
@@ -130,6 +139,12 @@ impl Action {
         Action::EditorReset,
         Action::EditorDone,
         Action::EditorModifier,
+        Action::MenuUp,
+        Action::MenuDown,
+        Action::MenuLeft,
+        Action::MenuRight,
+        Action::MenuAccept,
+        Action::MenuBack,
     ];
 
     pub fn context(self) -> Context {
@@ -179,6 +194,9 @@ impl Action {
             | A::EditorReset
             | A::EditorDone
             | A::EditorModifier => Context::HudEditor,
+            A::MenuUp | A::MenuDown | A::MenuLeft | A::MenuRight | A::MenuAccept | A::MenuBack => {
+                Context::Shell
+            }
         }
     }
 
@@ -230,6 +248,12 @@ impl Action {
             A::EditorReset => "editor_reset",
             A::EditorDone => "editor_done",
             A::EditorModifier => "editor_modifier",
+            A::MenuUp => "menu_up",
+            A::MenuDown => "menu_down",
+            A::MenuLeft => "menu_left",
+            A::MenuRight => "menu_right",
+            A::MenuAccept => "menu_accept",
+            A::MenuBack => "menu_back",
         }
     }
 
@@ -288,6 +312,12 @@ impl Action {
             A::EditorReset => &[K::KeyR],
             A::EditorDone => &[K::Escape],
             A::EditorModifier => &[K::ControlLeft, K::ControlRight],
+            A::MenuUp => &[K::ArrowUp, K::KeyW],
+            A::MenuDown => &[K::ArrowDown, K::KeyS],
+            A::MenuLeft => &[K::ArrowLeft, K::KeyA],
+            A::MenuRight => &[K::ArrowRight, K::KeyD],
+            A::MenuAccept => &[K::Enter],
+            A::MenuBack => &[K::Escape],
         }
     }
 }
@@ -399,6 +429,27 @@ pub fn key_name(key: KeyCode) -> String {
 
 pub fn key_from_name(name: &str) -> Option<KeyCode> {
     BINDABLE.iter().copied().find(|key| key_name(*key) == name)
+}
+
+/// A key as the interface prints it (P6): `KeyW` → `W`, `Digit1` → `1`, `ArrowUp` → `UP`,
+/// `Escape` → `ESC`, `ShiftLeft` → `SHIFT`. The file keeps `key_name`.
+pub fn key_label(key: KeyCode) -> String {
+    let name = key_name(key);
+    let short = name
+        .strip_prefix("Key")
+        .or_else(|| name.strip_prefix("Digit"))
+        .or_else(|| name.strip_prefix("Arrow"))
+        .unwrap_or(&name);
+    let short = match short {
+        "Escape" => "ESC",
+        "ShiftLeft" | "ShiftRight" => "SHIFT",
+        "ControlLeft" | "ControlRight" => "CTRL",
+        "AltLeft" | "AltRight" => "ALT",
+        "BracketLeft" => "[",
+        "BracketRight" => "]",
+        other => other,
+    };
+    short.to_uppercase()
 }
 
 /// A key two actions of one context share.
@@ -681,5 +732,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         bindings.reset(Action::Fire);
         assert_eq!(bindings, KeyBindings::default());
+    }
+
+    /// P6: the labels the pages print for the keys — short, upper-case, never the file's name.
+    #[test]
+    fn a_key_label_is_the_short_word_the_pages_print() {
+        assert_eq!(key_label(KeyCode::KeyW), "W");
+        assert_eq!(key_label(KeyCode::Digit1), "1");
+        assert_eq!(key_label(KeyCode::ArrowUp), "UP");
+        assert_eq!(key_label(KeyCode::Escape), "ESC");
+        assert_eq!(key_label(KeyCode::ShiftLeft), "SHIFT");
+        assert_eq!(key_label(KeyCode::BracketLeft), "[");
+        assert_eq!(key_label(KeyCode::F11), "F11");
+        assert_eq!(key_label(KeyCode::Enter), "ENTER");
+        assert_eq!(key_name(KeyCode::ArrowUp), "ArrowUp", "the file keeps the long name");
     }
 }

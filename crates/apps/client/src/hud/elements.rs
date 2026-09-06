@@ -91,6 +91,8 @@ pub enum HudElement {
     Spectate(SpectatePart),
     /// The HUD editor's overlay (H21): a frame and a name per instrument, the footer.
     Editor(EditorPart),
+    /// One part of a shell page (P6).
+    Shell(ShellPart),
 }
 
 /// The parts of the editor's overlay.
@@ -98,6 +100,23 @@ pub enum HudElement {
 pub enum EditorPart {
     Frame(super::layout::Instrument),
     Label(super::layout::Instrument),
+    Footer,
+}
+
+/// The parts of a shell page (P6): the settings page, its rows by index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShellPart {
+    Scrim,
+    Panel,
+    Title,
+    Rule,
+    RowPlate(u8),
+    RowLabel(u8),
+    RowGlass(u8),
+    RowValue(u8),
+    RowBar(u8),
+    RowDec(u8),
+    RowInc(u8),
     Footer,
 }
 
@@ -221,7 +240,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 43] = [
+    pub const ALL: [HudElement; 44] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -267,6 +286,7 @@ impl HudElement {
         HudElement::NetReadout,
         HudElement::Spectate(SpectatePart::Strip),
         HudElement::Editor(EditorPart::Footer),
+        HudElement::Shell(ShellPart::Footer),
     ];
 }
 

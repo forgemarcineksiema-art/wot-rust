@@ -83,6 +83,16 @@ impl AudioEngine {
         }
     }
 
+    /// The master gain (interface program P6): the player's setting, 0 to 1, soft-clipped
+    /// after every voice. The engine's own default stands until a setting names another.
+    pub fn set_master_gain(&mut self, gain: f32) {
+        self.master_gain = gain.clamp(0.0, 1.0);
+    }
+
+    pub fn master_gain(&self) -> f32 {
+        self.master_gain
+    }
+
     pub fn set_listener(&mut self, listener: Listener) {
         self.listener = listener;
     }
@@ -377,6 +387,17 @@ impl AudioEngine {
 
 #[cfg(test)]
 mod tests {
+    /// P6: the master gain is a setting the engine takes and keeps, clamped to its range.
+    #[test]
+    fn the_master_gain_is_a_setting_the_engine_keeps() {
+        let mut engine = AudioEngine::new(48_000.0);
+        assert!((engine.master_gain() - 0.85).abs() < 1e-6, "the engine's own default");
+        engine.set_master_gain(0.4);
+        assert!((engine.master_gain() - 0.4).abs() < 1e-6);
+        engine.set_master_gain(7.0);
+        assert!((engine.master_gain() - 1.0).abs() < 1e-6, "clamped");
+    }
+
     use super::*;
     use crate::voice::{rms, zero_crossing_rate_hz};
     use crate::voices::impact::GroundKind;

@@ -40,6 +40,8 @@ impl ApplicationHandler for ClientApp {
         let millisecond_timer = timer_resolution::request_millisecond_timer();
         info!(millisecond_timer, "millisecond scheduler timer requested");
         self.window = Some(window);
+        // P9: borderless is a setting; the window takes it as soon as it exists.
+        self.apply_fullscreen_setting();
         // Pace the presentation to the actual display (F1) — and keep pacing it: the window
         // follows the player to whichever monitor they drag it to (see `WindowEvent::Moved`).
         self.sync_present_hz();
@@ -89,7 +91,13 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.hud_editor_open() {
+                if self.shell_open() {
+                    // P6: the page owns the pointer — a press answers a row's arrow; nothing
+                    // reaches the trigger underneath.
+                    if button == MouseButton::Left && state == ElementState::Pressed {
+                        self.shell_press();
+                    }
+                } else if self.hud_editor_open() {
                     // H21: the editor owns the pointer — a press takes an instrument, a
                     // release drops it; nothing reaches the trigger underneath.
                     if button == MouseButton::Left {

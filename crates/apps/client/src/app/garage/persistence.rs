@@ -52,7 +52,7 @@ pub(super) struct GarageSave {
 
 /// The override's on-disk names — a slug per variant, like the vehicles, so a save from a
 /// build with more daylights degrades one field instead of poisoning the file.
-fn daylight_slug(light: scene_build::hangar::HangarLight) -> &'static str {
+pub(in crate::app) fn daylight_slug(light: scene_build::hangar::HangarLight) -> &'static str {
     use scene_build::hangar::HangarLight;
     match light {
         HangarLight::Morning => "morning",
@@ -61,7 +61,7 @@ fn daylight_slug(light: scene_build::hangar::HangarLight) -> &'static str {
     }
 }
 
-fn daylight_from_slug(slug: &str) -> Option<scene_build::hangar::HangarLight> {
+pub(in crate::app) fn daylight_from_slug(slug: &str) -> Option<scene_build::hangar::HangarLight> {
     use scene_build::hangar::HangarLight;
     HangarLight::ALL.into_iter().find(|light| daylight_slug(*light) == slug)
 }

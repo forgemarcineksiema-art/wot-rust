@@ -16,18 +16,19 @@ use super::{font, push_panel, push_quad, theme};
 /// Full-screen wash that pushes the battle back so the modal reads as modal.
 const SCRIM_COLOR: [f32; 4] = [0.02, 0.025, 0.03, 0.55];
 const PANEL_CENTER: [f32; 2] = [0.0, 0.0];
-const PANEL_HALF: [f32; 2] = [0.30, 0.225];
+const PANEL_HALF: [f32; 2] = [0.30, 0.285];
 const TITLE_HEIGHT: f32 = 0.045;
-const TITLE_TOP_Y: f32 = 0.178;
+const TITLE_TOP_Y: f32 = 0.233;
 /// Rule under the title, in the garage's panel idiom.
-const RULE_Y: f32 = 0.108;
+const RULE_Y: f32 = 0.163;
 const RULE_HALF_X: f32 = 0.255;
 
 pub(crate) const BUTTON_HALF: [f32; 2] = [0.235, 0.042];
 /// The way into the HUD editor (H21), over the two answers.
-pub(crate) const EDITOR_CENTER: [f32; 2] = [0.0, 0.048];
-pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.055];
-pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.158];
+pub(crate) const SETTINGS_CENTER: [f32; 2] = [0.0, 0.103];
+pub(crate) const EDITOR_CENTER: [f32; 2] = [0.0, 0.0];
+pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.103];
+pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.206];
 const BUTTON_LABEL_HEIGHT: f32 = 0.036;
 
 /// Which button the cursor is over. The menu is only ever two choices, so an enum beats an index.
@@ -39,6 +40,8 @@ pub enum PauseMenuButton {
     Stay,
     /// Open the HUD editor over the battle (H21).
     HudEditor,
+    /// Open the settings page over the battle (P6).
+    Settings,
 }
 
 /// What the battle HUD needs to draw the menu. `None` on [`super::BattleHudModel`] means the
@@ -52,6 +55,9 @@ pub struct PauseMenuModel {
 /// The button at a clip-space point, or `None` between them. Shares its rects with the drawing
 /// below — a layout edit moves the picture and the click target together, never one of them.
 pub(crate) fn button_at(point: [f32; 2]) -> Option<PauseMenuButton> {
+    if in_rect(point, SETTINGS_CENTER, BUTTON_HALF) {
+        return Some(PauseMenuButton::Settings);
+    }
     if in_rect(point, EDITOR_CENTER, BUTTON_HALF) {
         return Some(PauseMenuButton::HudEditor);
     }
@@ -98,6 +104,14 @@ pub(crate) fn push_pause_menu(vertices: &mut Vec<HudVertex>, model: &PauseMenuMo
     // Leaving is the destructive choice, so it carries the commit/danger red the garage's BATTLE
     // button uses; staying is an ordinary slot. Neither is pre-selected: this is a decision the
     // player makes, not one the UI nudges.
+    push_button(
+        vertices,
+        SETTINGS_CENTER,
+        theme::color::SLOT,
+        crate::ui_strings::battle::PAUSE_SETTINGS,
+        model.hovered == Some(PauseMenuButton::Settings),
+        aspect,
+    );
     push_button(
         vertices,
         EDITOR_CENTER,
@@ -156,6 +170,8 @@ mod tests {
     /// hits that button; the gap between them hits neither.
     #[test]
     fn the_hit_test_answers_the_rects_the_menu_draws() {
+        assert_eq!(button_at(SETTINGS_CENTER), Some(PauseMenuButton::Settings));
+        assert_eq!(button_at(EDITOR_CENTER), Some(PauseMenuButton::HudEditor));
         assert_eq!(button_at(EXIT_CENTER), Some(PauseMenuButton::ExitToGarage));
         assert_eq!(button_at(STAY_CENTER), Some(PauseMenuButton::Stay));
 
@@ -168,11 +184,17 @@ mod tests {
     /// it lost, and the player would blame the click, not the layout.
     #[test]
     fn the_buttons_do_not_overlap() {
-        let gap = (EXIT_CENTER[1] - STAY_CENTER[1]).abs();
-        assert!(
-            gap > BUTTON_HALF[1] * 2.0,
-            "buttons overlap: centres {gap} apart, each {} tall",
-            BUTTON_HALF[1] * 2.0
-        );
+        let centres = [SETTINGS_CENTER, EDITOR_CENTER, EXIT_CENTER, STAY_CENTER];
+        for pair in centres.windows(2) {
+            let gap = (pair[0][1] - pair[1][1]).abs();
+            assert!(
+                gap > BUTTON_HALF[1] * 2.0,
+                "buttons overlap: centres {gap} apart, each {} tall",
+                BUTTON_HALF[1] * 2.0
+            );
+        }
+        // The top button sits under the rule; the bottom one is on the panel.
+        const _: () = assert!(SETTINGS_CENTER[1] + BUTTON_HALF[1] < RULE_Y);
+        const _: () = assert!(STAY_CENTER[1] - BUTTON_HALF[1] > -PANEL_HALF[1]);
     }
 }
