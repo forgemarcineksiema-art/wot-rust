@@ -21,6 +21,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - **One worktree per session, for the whole session** (`git worktree add ../wot-work -b <branch>
   master`, then branch inside it per PR). Cargo keys workspace artifacts by path: a fresh
   worktree per PR recompiles all 33 crates every time.
+- **Feature ping-pong is a bug**: every crate's first `[dependencies]` line is
+  `workspace_hack.workspace = true`; after adding a dependency or a feature run
+  `cargo hakari generate` and `cargo test -p quality --test feature_unification`
+  (`docs/engineering-rules.md` § Required Gates says why: 3 min of rebuild per gate, measured).
 - **One look policy**: min spec MX330 @ 60 FPS, no quality options. Frame drops are a game
   bug. Budgets are raised per-item with a measurement, never fleet-wide.
 - **Honesty doctrine**: what blocks the shell blocks the eye; collision boxes ARE the visual

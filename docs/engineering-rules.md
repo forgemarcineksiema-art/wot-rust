@@ -57,6 +57,22 @@ of the cost was a fresh worktree per PR — cargo keys a workspace crate's artif
 so a new path rebuilt all thirty-three crates every time. A session keeps ONE worktree for its
 whole run and branches inside it.
 
+The third half of the cost (2026-09-06): feature ping-pong. The resolver unifies a third-party
+crate's features only across the packages named on the command line, so `cargo test -p sim`,
+`cargo clippy --workspace --all-targets` and `cargo run -p client` each resolved a different graph
+(`log` without `std`, `smallvec` without `union`, `windows-sys` without 37 features, `glam` with
+and without `nostd-libm`) and each rebuilt what the previous one had built: measured, a workspace
+test build straight after a per-crate one rebuilt 696 units in 3 min 01 s, and the per-crate
+build after it rebuilt again, with no source changed. `crates/foundation/workspace_hack` is the
+cure: a crate with no code that declares the union of every feature any member enables, and
+that every member depends on (`workspace_hack.workspace = true`, first line of every
+`[dependencies]`). Its managed section is written by `cargo hakari generate`
+(`cargo install cargo-hakari`, config in `.config/hakari.toml`); what hakari's model leaves out
+(empty `default` features, host-only crates) goes by hand under
+`[target.'cfg(all())'.dependencies]`. The lock is `quality/tests/feature_unification.rs`: it runs
+`cargo tree` for the eight invocations the gates and the player use and requires one graph. A new
+dependency or feature fails that test in twenty seconds, not as a mysterious rebuild.
+
 `cargo check --workspace --all-targets` is deliberately NOT a separate gate: clippy
 `--all-targets` already runs the full compiler front-end over every target, so a second
 check would be redundant work (the script says so). The benchmark compile

@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+workspace_hack.workspace = true
 game_core.workspace = true
 glam.workspace = true
 meshopt.workspace = true

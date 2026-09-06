@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+workspace_hack.workspace = true
 anyhow.workspace = true
 battle_host.workspace = true
 clap.workspace = true

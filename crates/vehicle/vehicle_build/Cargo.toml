@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+workspace_hack.workspace = true
 cast_loft.workspace = true
 detail.workspace = true
 game_core.workspace = true

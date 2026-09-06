@@ -275,6 +275,7 @@ name = "audio"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -308,6 +309,7 @@ dependencies = [
  "sim",
  "terrain",
  "tracing",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -598,6 +600,7 @@ dependencies = [
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -740,6 +743,7 @@ dependencies = [
  "vehicle_geometry",
  "vehicle_recipes",
  "winit",
+ "workspace_hack",
  "world_forge",
 ]
 
@@ -987,6 +991,7 @@ dependencies = [
  "glam",
  "revolve",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1020,6 +1025,7 @@ dependencies = [
  "revolve",
  "sweep",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1105,6 +1111,7 @@ dependencies = [
  "terrain",
  "ui_kit",
  "winit",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1153,6 +1160,7 @@ dependencies = [
  "glam",
  "net",
  "terrain",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1346,6 +1354,7 @@ dependencies = [
  "glam",
  "ron",
  "serde",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1893,6 +1902,7 @@ dependencies = [
  "serde",
  "terrain",
  "thiserror 2.0.18",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -1909,6 +1919,7 @@ name = "matchmaker"
 version = "0.1.0"
 dependencies = [
  "game_core",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2026,6 +2037,7 @@ dependencies = [
  "sim",
  "terrain",
  "thiserror 2.0.18",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2454,6 +2466,7 @@ dependencies = [
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2532,6 +2545,7 @@ dependencies = [
  "parry3d",
  "serde",
  "terrain",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2697,6 +2711,9 @@ checksum = "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f"
 [[package]]
 name = "quality"
 version = "0.1.0"
+dependencies = [
+ "workspace_hack",
+]
 
 [[package]]
 name = "quick-xml"
@@ -2841,6 +2858,7 @@ dependencies = [
  "bytemuck",
  "game_core",
  "glam",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2857,6 +2875,7 @@ dependencies = [
  "renderer_api",
  "tracing",
  "wgpu",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2867,6 +2886,7 @@ dependencies = [
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -2959,6 +2979,7 @@ dependencies = [
  "renderer_api",
  "sim",
  "terrain",
+ "workspace_hack",
  "world_forge",
 ]
 
@@ -2993,6 +3014,7 @@ version = "0.1.0"
 dependencies = [
  "glam",
  "thiserror 2.0.18",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3004,6 +3026,7 @@ dependencies = [
  "png",
  "sdf",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3070,6 +3093,7 @@ dependencies = [
  "terrain",
  "tracing",
  "tracing-subscriber",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3099,6 +3123,7 @@ dependencies = [
  "serde",
  "serde_json",
  "terrain",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3197,6 +3222,7 @@ dependencies = [
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3248,6 +3274,7 @@ dependencies = [
  "glam",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3277,6 +3304,7 @@ dependencies = [
  "bincode",
  "serde",
  "thiserror 2.0.18",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3333,6 +3361,7 @@ name = "timer_resolution"
 version = "0.1.0"
 dependencies = [
  "windows-sys 0.52.0",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3440,6 +3469,7 @@ dependencies = [
  "terrain",
  "vehicle_forge",
  "vehicle_recipes",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3528,6 +3558,7 @@ dependencies = [
  "ab_glyph",
  "game_core",
  "renderer_api",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3613,6 +3644,7 @@ dependencies = [
  "sweep",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3631,6 +3663,7 @@ dependencies = [
  "vehicle_build",
  "vehicle_geometry",
  "vehicle_recipes",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3642,6 +3675,7 @@ dependencies = [
  "glam",
  "serde",
  "thiserror 2.0.18",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -3653,6 +3687,7 @@ dependencies = [
  "revolve",
  "vehicle_build",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
@@ -4582,6 +4617,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace_hack"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.11.1",
+ "bytemuck",
+ "byteorder",
+ "clap",
+ "clap_builder",
+ "crossbeam-utils",
+ "downcast-rs 2.0.2",
+ "either",
+ "foldhash 0.2.0",
+ "glam",
+ "half",
+ "hashbrown 0.16.1",
+ "indexmap",
+ "log",
+ "num-traits",
+ "proc-macro2",
+ "quote",
+ "regex-automata",
+ "serde",
+ "serde_core",
+ "serde_json",
+ "smallvec",
+ "syn",
+ "thiserror 2.0.18",
+ "tracing-core",
+ "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "world_forge"
 version = "0.1.0"
 dependencies = [
@@ -4594,6 +4662,7 @@ dependencies = [
  "sweep",
  "thiserror 2.0.18",
  "vehicle_geometry",
+ "workspace_hack",
 ]
 
 [[package]]
