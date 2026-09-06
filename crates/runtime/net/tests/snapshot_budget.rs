@@ -23,8 +23,9 @@ use glam::Vec3;
 use net::transport::{MAX_DATAGRAM_PAYLOAD, MAX_FRAGMENTS, fragment_message};
 use net::{ProtocolMessage, ShellSnapshot, Snapshot, SnapshotDelivery, TankSnapshot, encode_frame};
 
-/// A full 7v7.
-const BATTLE_TANKS: u64 = 14;
+/// The largest format's full roster (`docs/game-modes.md` M5): every budget that was sized for
+/// fourteen tanks is judged at thirty, and the lock names the format rather than a number.
+const BATTLE_TANKS: u64 = game_core::BattleFormat::LARGEST.total_seats() as u64;
 
 fn lobe(index: u64, seed: u64) -> ApertureLobe {
     let entry = Vec3::new(index as f32 * 0.31 - 1.5, 0.9, 1.2);
@@ -172,9 +173,9 @@ fn a_snapshots_size_does_not_depend_on_how_much_shooting_has_happened() {
 }
 
 /// And the absolute bound, with the headroom stated so the next person to add a field can see
-/// what they are spending.
+/// what they are spending — at the LARGEST format, since the transport's line was re-based to it.
 #[test]
-fn a_full_7v7_snapshot_fits_one_transport_message_with_room_to_spare() {
+fn a_full_snapshot_of_the_largest_format_fits_its_budget() {
     let frame =
         late_battle_delivery(MAX_ARMOR_BREACHES as u64, MAX_BREACH_FRAGMENTS_PER_GROUP as u64);
     let capacity = MAX_DATAGRAM_PAYLOAD * MAX_FRAGMENTS;

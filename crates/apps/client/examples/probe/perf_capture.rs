@@ -213,6 +213,9 @@ struct Config {
     grass: bool,
     fov: f32,
     fleet: Option<FleetGear>,
+    /// The seat count the fleet row parks: seven a side is the historical instrument, fifteen
+    /// a side (`docs/game-modes.md` M5) the largest format's worst view.
+    format: game_core::BattleFormat,
     shadows: bool,
     ssao: bool,
     /// Inny Poziom S1: six shot lights live in the frame's local slots — the barrage worst
@@ -236,6 +239,7 @@ impl Config {
             grass: true,
             fov: 60.0,
             fleet: None,
+            format: game_core::BattleFormat::SevenVsSeven,
             shadows: true,
             ssao: true,
             shot_lights: false,
@@ -244,7 +248,7 @@ impl Config {
     }
 }
 
-/// The 7v7, built through the SAME call the battle makes.
+/// The lineup of one format, built through the SAME call the battle makes.
 ///
 /// It used to be built through `tank_render_objects_tiered` into the SCENE frame -- a second
 /// vehicle path the game does not use. That drew the fleet with the scene shader instead of
@@ -254,21 +258,24 @@ impl Config {
 fn battle_lineup(
     battlefield: &terrain::BattlefieldMap,
     catalog: &mut client::VehicleAssetCatalog,
+    format: game_core::BattleFormat,
     eye: Option<[f32; 3]>,
 ) -> client::VehicleRenderFrame {
     use game_core::VehicleKind;
 
     // An engagement, not a parade: the fourteen sit 27..180 m out from the eye path (which walks
     // +Z from z=380 to z~443), so about four of them fall inside the 60 m gear-detail threshold
-    // at the closest point and the rest stay on the distance tier. A lineup parked at ONE range
-    // would measure a tier the game never draws alone.
+    // at the closest point and the rest stay on the distance tier (the thirty reach 324 m). A
+    // lineup parked at ONE range would measure a tier the game never draws alone.
     let roster = VehicleKind::PLAYABLE;
-    let mut tanks = Vec::with_capacity(14);
-    for slot in 0..14u32 {
-        let team = slot / 7;
-        let file = slot % 7;
+    let seats = format.seats_per_team() as u32;
+    let mut tanks = Vec::with_capacity(format.total_seats());
+    for slot in 0..format.total_seats() as u32 {
+        let team = slot / seats;
+        let file = slot % seats;
         let kind = roster[slot as usize % roster.len()];
-        let x = 442.0 + (file as f32 - 3.0) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
+        let x =
+            442.0 + (file as f32 - (seats / 2) as f32) * 12.0 + if team == 0 { -7.0 } else { 7.0 };
         let z = 470.0 + slot as f32 * 9.0;
         let ground = battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
         tanks.push(engine::PresentationTank {
@@ -399,8 +406,9 @@ fn frame_time_capture() {
     let mut catalog = client::VehicleAssetCatalog::default();
     // Both tiers are built once, so every mesh the rotation can ask for is on the GPU before any
     // frame is timed; a first-use bake inside a timed block would be measured as frame cost.
-    let warm = battle_lineup(&battlefield, &mut catalog, None);
-    let _ = battle_lineup(&battlefield, &mut catalog, Some([0.0, 0.0, -10_000.0]));
+    let largest = game_core::BattleFormat::LARGEST;
+    let warm = battle_lineup(&battlefield, &mut catalog, largest, None);
+    let _ = battle_lineup(&battlefield, &mut catalog, largest, Some([0.0, 0.0, -10_000.0]));
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }
@@ -442,6 +450,13 @@ fn frame_time_capture() {
         Config { grass: false, ..Config::named("no near ring") },
         Config { fov: 18.0, ..Config::named("scope 18deg") },
         Config { fleet: Some(FleetGear::FromEye), ..Config::named("full + 7v7") },
+        // The largest format's worst view (`docs/game-modes.md` M5): thirty hulls on the same
+        // path, the row the MX330 verdict per map is recorded from.
+        Config {
+            fleet: Some(FleetGear::FromEye),
+            format: game_core::BattleFormat::FifteenVsFifteen,
+            ..Config::named("full + 15v15")
+        },
         Config { fleet: Some(FleetGear::FromEye), hud: true, ..Config::named("full + 7v7 + HUD") },
         Config {
             fleet: Some(FleetGear::FromEye),
@@ -455,7 +470,7 @@ fn frame_time_capture() {
     ];
     // The per-config arrays below are fixed-size, so a row added to the table without this
     // number moving would silently drop off the end of the report.
-    const CONFIGS: usize = 11;
+    const CONFIGS: usize = 12;
     assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
@@ -583,7 +598,9 @@ fn frame_time_capture() {
                 // detail tier a tank draws at is a function of where the camera is this frame.
                 let fleet = tanks.map_or_else(
                     || client::VehicleRenderFrame { objects: Vec::new(), armor_damage: Vec::new() },
-                    |gear| battle_lineup(&battlefield, &mut catalog, gear.eye(eye.into())),
+                    |gear| {
+                        battle_lineup(&battlefield, &mut catalog, cfg.format, gear.eye(eye.into()))
+                    },
                 );
                 for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
                     renderer.register_vehicle_mesh(&ctx, handle, &mesh);

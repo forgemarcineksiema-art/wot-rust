@@ -28,8 +28,9 @@ const CLIENT_TIMEOUT_MS: u64 = 10_000;
 const UNESTABLISHED_GRACE_MS: u64 = 2_000;
 /// Hard ceiling on tracked client addresses. A public UDP port hears anyone, and every new
 /// source allocates a `RemoteClient` BEFORE any message is validated; without a cap a spoofed
-/// source flood is unbounded memory. Sized well above the seven seats plus reconnect churn.
-const MAX_TRACKED_CLIENTS: usize = 32;
+/// source flood is unbounded memory. Sized well above the largest format's thirty seats plus
+/// reconnect churn (`docs/game-modes.md` M5; it was 32 for seven seats).
+pub const MAX_TRACKED_CLIENTS: usize = 64;
 /// How many times the battle-over word is repeated (unreliable wire, no ack lane needed).
 const BATTLE_ENDED_REPEATS: u32 = 20;
 const RETIRED_SESSION_IDS: usize = 4;

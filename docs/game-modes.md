@@ -75,9 +75,9 @@ The numbers a reader would quote back are pinned to their source by the `quality
 - **The lobby** (`crates/runtime/battle_host/src/remote.rs`, `crates/apps/server/src/main.rs`):
   one process, one battle; starts when the format's one-team capacity is seated or the deadline passes
   (`--lobby-wait-s`, default 30 s), every empty seat a bot; an empty lobby never starts; the next
-  lobby opens when the battle ends. **lobby table cap today: 32** tracked addresses (the flood cap
-  of N0) — sized "well above the seven seats plus reconnect churn"; thirty seated crews plus their
-  reconnects press against it.
+  lobby opens when the battle ends. **lobby table cap today: 64** tracked addresses (the flood cap
+  of N0) — re-based by M5 from 32 ("well above the seven seats plus reconnect churn") to seat the
+  largest format's thirty crews plus their reconnects; the flood-cap lock reads the constant.
 - **battle time limit today: 420** s for 7v7, **900** s for 15v15, owned by
   `BattleFormat::time_limit_s()`. `RANDOM_BATTLE_TIME_LIMIT_S` is the compatibility alias
   for 7v7; the live host reads the selected format. The existing `StartBattle` word carries
@@ -91,15 +91,21 @@ The numbers a reader would quote back are pinned to their source by the `quality
 - **The roster is honest about bots already**: protocol v51's `RosterEntry.crew_kind` is
   `Bot | Human` (`crates/runtime/net/src/roster.rs`), so the HUD's lists, the kill feed and the
   results screen can mark a bot without a new wire field.
-- **The wire** (measured 2026-09-06 by
-  `a_full_7v7_snapshot_fits_one_transport_message_with_room_to_spare`, `crates/runtime/net/tests/snapshot_budget.rs`):
-  a saturated 14-tank snapshot is 5 245 B of the transport's 32 200 B (5 of 28 fragments,
-  102 KiB/s per client at 20 Hz). The standing rule is a QUARTER of the transport (8 050 B) so a
-  new field is a decision, not a surprise.
-- **The renderer**: `worst_case_7v7_battle_fits_the_vehicle_instance_budget` and its aperture
-  twin (`crates/apps/client/src/vehicle/render_frame.rs`) lock 14 hulls of the instance-heaviest
-  vehicle into the 1 MiB instance buffer. The frame: 7v7 on the MX330 measured 59 FPS p50 in
-  2026-08 (the 4× MSAA instrument; the game ships 1×).
+- **The wire** (measured 2026-09-06 by `a_full_snapshot_of_the_largest_format_fits_its_budget`,
+  `crates/runtime/net/tests/snapshot_budget.rs`, since M5 built at the LARGEST format): a
+  saturated 30-tank snapshot is 8 029 B of the transport's 46 000 B (7 of 40 fragments,
+  157 KiB/s per client at 20 Hz); the 14-tank one was 5 245 B of 32 200 B (5 of 28) — the
+  fixture's world (craters, cover states, shells) is most of the bytes, so thirty tanks cost
+  1.5× fourteen, not 2.1×. The standing rule is a QUARTER of the transport (11 500 B) so a new
+  field is a decision, not a surprise.
+- **The renderer**: `worst_case_battle_of_the_largest_format_fits_the_vehicle_instance_budget`,
+  its aperture twin and `every_damaged_frame_of_the_largest_format_has_a_header`
+  (`crates/apps/client/src/vehicle/render_frame.rs`) lock thirty hulls of the instance-heaviest
+  vehicle into the 1 MiB instance buffer, 6 144 apertures and 128 damage headers (M5; they were
+  14 hulls, 3 072 and 64); the crater ledger holds 384 (was 256) so the ground keeps half the
+  armour scars of thirty tanks. The frame: 7v7 on the MX330 measured 59 FPS p50 in 2026-08 (the 4×
+  MSAA instrument; the game ships 1×); the "full + 15v15" row of `perf_capture` exists since M5
+  and has no cold MX330 number yet (M5b).
 - **The spawn grid**: seven offsets in a three-column grid behind each zone's centre
   (`random_battle_spawn_position`: one at −8 m, three at −22 m, three at −40 m, ±1.5 m jitter),
   `slot % 7` past that — an eighth seat would land on the first.
@@ -173,17 +179,18 @@ battle with a few strangers in it, and it says so.
 
 A format is not a number in a table until each of these has a measurement at 30 tanks.
 
-1. **The wire.** Linear in hulls: a saturated 30-tank snapshot ≈ 11 240 B — 35 % of the
-   transport, 10 of 28 fragments, ~219 KiB/s per client at 20 Hz. It FITS, and it breaks the
-   quarter rule (8 050 B). A lost fragment still kills the whole snapshot: at 2 % loss, one
-   snapshot in ten at five fragments, one in five at ten. **Decided (the owner, 2026-09-06,
+1. **The wire.** MEASURED at thirty (M5a, 2026-09-06), not extrapolated: a saturated 30-tank
+   snapshot is 8 029 B — the world around the tanks is most of the bytes, so thirty cost 1.4×
+   fourteen (5 245 B), not the 2.1× first estimated here. **Decided (the owner, 2026-09-06,
    finding 3): the budget was sized for 14 tanks, so it is RAISED to the largest format and the
-   payload is OPTIMISED** — the transport's line re-based so a saturated 30-tank snapshot keeps
-   the quarter's headroom, then delta snapshots or a smaller per-tank payload with a loss estimate
-   on the ack lane (netcode row 9) until thirty tanks ride five fragments again, because a raised
-   line changes what FITS and not the loss arithmetic (one snapshot in five at 2 % loss is a
-   stutter on every remote hull). Both are M5, which precedes the format's first humans (M6, M7).
-   The AI battle is offline. A full-human 15v15 host uploads ~6.4 MiB/s; a 7v7, ~1.4.
+   payload is OPTIMISED** — the transport's line re-based (28 → 40 fragments, 46 000 B) so the
+   largest format's snapshot keeps the quarter's headroom (it sits at 17.5 %, 7 fragments), then
+   delta snapshots or a smaller per-tank payload with a loss estimate on the ack lane (netcode
+   row 9) as the optimisation, because a raised line changes what FITS and not the loss
+   arithmetic: a lost fragment still kills its snapshot — at 2 % loss one snapshot in ten at five
+   fragments, one in seven at seven. Both are M5; the line landed (M5a), the diet is owed (M5b)
+   before the format meets its first humans (M6, M7). The AI battle is offline. A full-human
+   15v15 host uploads ~4.6 MiB/s at 157 KiB/s per client; a 7v7, ~1.4.
 2. **The frame.** Thirty hulls in view is the worst case the one-look policy has never met; the
    vehicle instance and aperture locks (`render_frame.rs`) are re-derived at the LARGEST format,
    and `perf_capture` gains a "15v15 worst view" row measured cold on the MX330 (the A→B→A
@@ -235,8 +242,8 @@ decision here, a register row where a register exists, and a lock in the row tha
    (netcode row 9), the vehicle LOD ladder (lane K) — is lane M's work in M5, never a gate that
    keeps the format offline and never a quality option. Recorded as
    `docs/multiplayer-production-program.md` register row 16. Lock:
-   `a_full_snapshot_of_the_largest_format_fits_its_budget` and the instance and aperture locks
-   at thirty.
+   `a_full_snapshot_of_the_largest_format_fits_its_budget` and the instance, aperture and
+   header locks at thirty — landed as M5a (2026-09-06).
 
 ## Part V — the rows (lane M), in order
 
@@ -246,15 +253,16 @@ decision here, a register row where a register exists, and a lock in the row tha
 | ~~M2~~ | ~~**The format is data**~~ — **CLOSED (2026-09-06)**, begun by GPT-6 Astra, finished by Claude (R1, R8, finding 2): `game_core::BattleFormat` (seats, clock, spawn formation; append-only) through `RandomBattleConfig.format`, the setup, the local host (`new_random`, `new_ai_battle`, `new_random_for_humans`), the lobby's threshold and `StartBattle`'s clock from the format; the clocks 420 s / 900 s; the five-column grid for fifteen; `BattleMode` grows `Random15v15` and `AiBattle`; the 7v7 deployment byte-identical on all five maps | `crates/foundation/game_core/src/battle_format.rs`, `crates/runtime/battle_host/src/battle.rs`, `setup.rs`, `local.rs`, `remote.rs` | `a_15v15_setup_spawns_thirty_tanks_with_the_player_on_team_one`; `the_7v7_format_is_todays_battle_byte_for_byte` (the replay fixtures and the five map soaks untouched); `every_seat_of_every_format_lands_inside_its_zone`; `the_7v7_clock_is_seven_minutes_and_the_15v15_clock_fifteen` |
 | M3 | **The AI battle on the button**: the garage's BATTLE entry becomes BATTLE (online, the format switch 7v7 · 15v15, disabled with the reason until M7) and AI BATTLE (offline 15v15, today's local path); the results screen says which mode it was | `crates/apps/client/src/app/garage/actions.rs`, `crates/apps/client/src/app/mod.rs` | `the_ai_battle_is_fifteen_against_fifteen_and_needs_no_socket`; the garage golden (the G lane draws it) |
 | ~~M4~~ | ~~**The 15-seat spawn gate per map**~~ — **CLOSED (2026-09-06)**: `GameplaySpec.formats` in every shipped blueprint (`formats: [SevenVsSeven, FifteenVsFifteen]`; empty means every format), the report's `formats` check judges every seat of every offered format WHERE THE HOST DEPLOYS IT — `BattleFormat::seat_position` is the one arithmetic both use, at the jitter's four corners: inside the zone's radius, on the map, dry, clear of cover by the widest hull — and `map_forge::formats(map)` is what the host and the queue read; all five maps offer both. The compiled map is unchanged, so no golden moved | `crates/foundation/game_core/src/battle_format.rs`, `crates/world/map_forge/src/report.rs`, `crates/world/map_forge/src/catalog.rs`, `crates/world/map_forge/blueprints/*.map.ron` | `a_map_offers_only_the_formats_its_zones_seat` (a 50 m zone certifies 7v7 and refuses 15v15, naming the seat), `every_shipped_map_offers_both_formats_and_seats_them`; the host's `every_seat_of_every_format_lands_inside_its_zone` and `the_7v7_format_is_todays_battle_byte_for_byte` unchanged |
-| M5 | **The budgets re-based, and the optimisation** (Part IV 1–3, finding 3; the owner: every budget sized for 14 tanks is raised to the largest format): the table of every 14-based number — the transport's line, the vehicle instance and aperture buffers, the lobby's table cap, the `14` in every worst-case lock — re-based to thirty with a measurement each; the wire's payload optimised (delta snapshots / a smaller per-tank payload, netcode row 9) until a 30-tank snapshot rides five fragments again; the `perf_capture` 15v15 row and the `battle_tick` row at 30 on the MX330 — a map that fails is optimised until it passes | `crates/runtime/net/tests/snapshot_budget.rs`, `crates/apps/client/src/vehicle/render_frame.rs`, `crates/apps/client/examples/probe/perf_capture.rs` | `a_full_snapshot_of_the_largest_format_fits_its_budget`; every budget lock names the largest format; the recorded measurement per map, with the date |
+| ~~M5a~~ | ~~**The budgets re-based**~~ — **CLOSED (2026-09-06)** (Part IV 1–3, finding 3; the owner: every budget sized for 14 tanks is raised to the largest format): `MAX_FRAGMENTS` 28 → 40 (46 000 B; the wire format unchanged), `MAX_DAMAGE_APERTURES` 3 072 → 6 144, `MAX_DAMAGE_HEADERS` 64 → 128, `MAX_TRACKED_CLIENTS` 32 → 64, `sim::MAX_CRATERS` 256 → 384 (the ground stays at half the armour scars of thirty tanks), the instance buffer locked at thirty; every lock counts from `BattleFormat::LARGEST`; the saturated 30-tank snapshot measured at 8 029 B (17.5 %, 7 fragments); `battle_tick` gains `random_15v15_tick`, `perf_capture` builds its lineup per format and gains "full + 15v15" | `crates/runtime/net/src/transport.rs`, `crates/runtime/net/tests/snapshot_budget.rs`, `crates/render/renderer_wgpu/src/scene_renderer/armor_damage.rs`, `crates/apps/client/src/vehicle/render_frame.rs`, `crates/runtime/battle_host/src/remote.rs`, `crates/runtime/battle_host/benches/battle_tick.rs`, `crates/apps/client/examples/probe/perf_capture.rs` | `a_full_snapshot_of_the_largest_format_fits_its_budget`, `worst_case_battle_of_the_largest_format_fits_the_vehicle_instance_budget`, `..._fits_the_grouped_aperture_budget`, `every_damaged_frame_of_the_largest_format_has_a_header`, the flood-cap lock against the constant |
+| M5b | **The optimisation and the measurements**: the cold MX330 number of "full + 15v15" per shipped map (the A→B→A sandwich) with the verdict recorded, per map; `random_15v15_tick` recorded against the 7v7 rows; the payload diet (delta snapshots / a smaller per-tank payload, netcode row 9) until a 30-tank snapshot rides five fragments again; the vehicle LOD ladder where a map fails the frame (lane K) — a map that fails is optimised until it passes, never a quality option | `crates/apps/client/examples/probe/perf_capture.rs`, `crates/runtime/battle_host/benches/battle_tick.rs`, `crates/runtime/net/src/` | the recorded measurement per map, with the date; the snapshot at five fragments |
 | M6 | **Humans on both sides** of the dedicated host (R4, finding 1 — the mode's definition, the first online row): seats dealt across the two teams, the lobby's "full" = both teams' seats, the anti-wallhack filter unchanged (it is per viewer already) | `crates/runtime/battle_host/src/remote.rs`, `setup.rs` | `two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid` (a two-client `MemoryHub` lock, armed the way netcode block 3's was) |
 | M7 | **The matchmaker and the coordinator** (R2, R3, R5, R10): the pure crate (`tickets × now → battles`), the coordinator process, the host registration, the seat token in the hello (a wire bump, additive), the queue screen — a P-lane row this document owes the interface program: format, humans found / seats, bots that will fill, countdown, CANCEL, the other format | a new runtime crate, `crates/apps/server/src/main.rs`, the netcode program's N4 | `the_band_never_widens_and_the_deadline_always_starts`, `humans_split_evenly_and_bots_mirror_the_tier_histogram`, `the_same_tickets_deal_the_same_battle` (determinism); the queue screen's golden |
 | M8 | **Identity and rating** (D4, R6): after N5 — OpenSkill over identity-bound tickets, the store, the weight by human share | the netcode program's N5 | `a_battle_with_humans_on_one_side_moves_no_rating`; `a_bot_is_a_fixed_rating_filler` |
 | M9 | **Bot substitution** (R7): a crew past its reconnect budget hands the hull to the bot brain; the roster flips | `crates/runtime/battle_host/src/remote.rs`, `bots.rs` | `a_crew_that_never_returns_becomes_a_bot_and_the_roster_says_so` |
 
 **Order.** M2 → M3 first (the AI battle at 15v15 is playable with no network and answers the
-frame question early), M4 and M5 in the same week (the measurements decide whether 15v15 ships on
-every map or on some — and the optimisation until every map does), M6 first among the online
+frame question early), M4 and M5 in the same week (M5a's budgets landed; M5b's measurements decide
+whether 15v15 ships on every map or on some — and the optimisation until every map does), M6 first among the online
 rows (before M7 and before any online test), M7 with N4, M8 after N5, M9 when the reconnect
 budget has met a real drop. The netcode program's waves interleave: nothing in lane M waits for
 N3 (lag compensation), M7 cannot land before N4's discovery, and row 9's delta snapshots are

@@ -67,7 +67,7 @@ const FX_VERTEX_CAPACITY: u64 = 1 << 20;
 pub const fn fx_vertex_budget() -> usize {
     (FX_VERTEX_CAPACITY as usize) / std::mem::size_of::<renderer_api::FxVertex>()
 }
-pub use armor_damage::armor_damage_aperture_budget;
+pub use armor_damage::{armor_damage_aperture_budget, armor_damage_header_budget};
 pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
 
 pub struct SceneRenderer {

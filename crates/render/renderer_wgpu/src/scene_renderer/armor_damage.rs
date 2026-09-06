@@ -4,13 +4,23 @@ use renderer_api::ArmorDamageInstance;
 
 use crate::GpuContext;
 
-pub const MAX_DAMAGE_HEADERS: usize = 64;
-/// Fourteen visible tanks, each with 12 physical groups, four pose-frame fragments per group and
-/// four union lobes per fragment, plus headroom. The descriptor buffer is still below 192 KiB.
-pub const MAX_DAMAGE_APERTURES: usize = 3_072;
+/// One header per damaged armour frame on screen (hull, turret, mantlet) plus the empty first
+/// slot: thirty visible tanks — the largest format, `docs/game-modes.md` M5 — need 91; 128
+/// leaves headroom. It was 64, sized for fourteen tanks.
+pub const MAX_DAMAGE_HEADERS: usize = 128;
+/// Thirty visible tanks (the largest format), each with 12 physical groups, four pose-frame
+/// fragments per group and four union lobes per fragment: 5 760, plus headroom. The descriptor
+/// buffer is 384 KiB. It was 3 072 for fourteen tanks (M5, the owner's ruling that every budget
+/// sized for 14 rises to 30).
+pub const MAX_DAMAGE_APERTURES: usize = 6_144;
 
 pub const fn armor_damage_aperture_budget() -> usize {
     MAX_DAMAGE_APERTURES
+}
+
+/// How many damaged frames the header buffer seats (the first slot is the "no damage" header).
+pub const fn armor_damage_header_budget() -> usize {
+    MAX_DAMAGE_HEADERS - 1
 }
 
 #[repr(C)]

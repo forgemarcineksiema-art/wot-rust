@@ -491,11 +491,14 @@ fn unestablished_sources_neither_start_the_battle_nor_overrun_the_table() {
     }
     host.tick(1_000, &mut server_port);
     assert!(!host.is_running(), "junk sources must not start the battle");
+    let cap = battle_host::remote::MAX_TRACKED_CLIENTS;
     assert!(
-        host.tracked_client_count() <= 32,
-        "the client table is capped, got {}",
+        host.tracked_client_count() <= cap,
+        "the client table is capped at {cap}, got {}",
         host.tracked_client_count()
     );
+    // The cap is a budget sized for the largest format (M5): thirty seats plus reconnect churn.
+    assert!(cap > game_core::BattleFormat::LARGEST.total_seats(), "the cap seats every crew");
 }
 
 /// Seat=vehicle (netcode block 3, v49): each crew's GARAGE PICK spawns as its hull. Client
