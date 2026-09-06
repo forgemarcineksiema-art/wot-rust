@@ -18,7 +18,7 @@
 //! rearrangement of the generator's internals can fake either answer.
 
 use game_core::{VehicleKind, WheelFace};
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use vehicle_geometry::{GeometryMesh, RunningGearKinematics, road_wheel_unit_mesh};
 
 /// Fraction of a ring at `radius` (in the wheel's face plane) that is covered by metal, measured
@@ -282,3 +282,52 @@ fn the_t54_wheel_is_a_dished_stamping_bolted_together() {
 /// The documented count: a T-54 road wheel's two discs are bolted to each other with ten bolts
 /// and pressed onto a steel hub.
 const HUB_BOLTS_EXPECTED: usize = 10;
+
+/// K11: the T-54's spider-web disc is punched with twenty-four ROUND holes — twelve small near
+/// the collar, twelve large under the rim — each a through-opening: a ray along the axle through
+/// the hole's centre meets no metal, the rib beside it does, and the rim around it is a ring of
+/// vertices at the hole's radius on both faces. The distance tier keeps the plain mid band (a
+/// 50 mm hole is sub-pixel at the switch range).
+#[test]
+fn the_t54_disc_is_punched_with_twenty_four_round_holes() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("running gear");
+    let mesh = road_wheel_unit_mesh(&kin);
+    let r = kin.wheel_radius;
+    let ribs = kin.wheel_spokes;
+    let pitch = std::f32::consts::TAU / ribs as f32;
+    let mut checked = 0;
+    for (ring_r, hole_r) in [(r * 0.415, r * 0.058), (r * 0.572, r * 0.072)] {
+        for i in 0..ribs {
+            // Holes sit half a pitch off the ribs.
+            let theta = pitch * 0.5 + i as f32 * pitch;
+            let centre = Vec3::new(0.0, theta.sin() * ring_r, theta.cos() * ring_r);
+            assert!(
+                !ray_along_axle_hits(mesh.vertices(), mesh.indices(), centre),
+                "hole {i} on the {ring_r:.3} m ring: the axle ray through its centre meets metal"
+            );
+            let rib = theta + pitch * 0.5;
+            let on_rib = Vec3::new(0.0, rib.sin() * ring_r, rib.cos() * ring_r);
+            assert!(
+                ray_along_axle_hits(mesh.vertices(), mesh.indices(), on_rib),
+                "the rib beside hole {i} on the {ring_r:.3} m ring is metal"
+            );
+            // A round rim: the hole's edge is a ring of points at its radius, on both faces.
+            let rim = mesh
+                .vertices()
+                .iter()
+                .filter(|v| {
+                    let d = Vec2::new(v.position.y - centre.y, v.position.z - centre.z).length();
+                    (d - hole_r).abs() < 1.0e-4
+                })
+                .count();
+            assert!(rim >= 16, "hole {i} on the {ring_r:.3} m ring: a round rim, not {rim} points");
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 24, "twelve small and twelve large holes");
+    // The far tier keeps the mid band: no holes, fewer triangles, the same silhouette (the
+    // distance-tier lock in `gear_mesh_quality.rs` holds the envelope).
+    let far = road_wheel_unit_mesh(&kin.at_detail(vehicle_geometry::GearDetail::Far));
+    let ring_metal = ring_occupancy(&far, r * 0.48);
+    assert!(ring_metal > 0.99, "the far tier's mid band is a plain ring: {ring_metal:.2}");
+}
