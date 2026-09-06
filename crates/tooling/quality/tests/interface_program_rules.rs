@@ -93,7 +93,15 @@ fn every_evidence_path_in_the_interface_program_exists() {
         .unwrap_or_else(|_| panic!("{PROGRAM} should be readable"));
 
     let rows = register_rows(&doc);
-    assert!(!rows.is_empty(), "{PROGRAM} should carry a register with F/H/P/G rows");
+    // A closed register has no open row to read: the program is history, and its closed rows
+    // may cite files the campaign itself retired. The graduation has to be written down.
+    if rows.is_empty() {
+        assert!(
+            doc.contains("The register closed on"),
+            "{PROGRAM}: no open register row and no closing word — the register lost its shape"
+        );
+        return;
+    }
 
     let mut offenders = Vec::new();
     let mut checked = 0usize;

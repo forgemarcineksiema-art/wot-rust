@@ -171,10 +171,11 @@ is the opposite of the battlefield's: the field hides a tank, the hangar sells o
 - **The framing is part of the look.** A hero framing that points at the emptiest wall makes
   a furnished workshop read as a grey box. The camera is authored with the same care as the
   palette.
-- **The UI has its own look and its own program.** The flat graphite plate with one amber
+- **The UI has its own look and its own policy.** The flat graphite plate with one amber
   accent was revoked by the owner on 2026-09-05; the target — steel, enamel and instrument glass,
   with depth, material and a full semantic palette — and its locks live in
-  `docs/interface-program.md` (Part I). What stays true here: the HUD grades through nothing.
+  `docs/interface-policy.md` (graduated 2026-09-06 from `docs/interface-program.md`). What stays
+  true here: the HUD grades through nothing.
   It is drawn after the display transform and answers to its own locks alone.
 
 Garage profiles obey the same envelope ceilings as the outdoor looks (rule 6), and the

@@ -549,14 +549,20 @@ fn recorded_goldens_hold_the_value_structure() {
     // last open value bound. Nothing in the reflection or the material work could move it: a
     // specular term and an albedo treatment cannot lift shade, only light can, and the room's
     // shade mass is what the next wave has to argue with.
-    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.81;
+    // G13 (2026-09-06): the garage's own program re-measured every room frame after the
+    // interface rebuilt the screens over it — the hero 0.766, the inspector 0.717, the Tiger II
+    // 0.734, the Jagdtiger 0.711 — so the ceiling comes down to 0.78 with the number, and the
+    // 0.75 target stays a debt of the hero frame alone (0.016).
+    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.78;
     const GARAGE_DARK_CEILING_TARGET: f32 = 0.75;
     // B1's second lock: the moody grade may deepen the room, but the bottom of the histogram
     // stays readable on a cheap TN panel — the 5th percentile of the ROOM frame holds a real
     // floor. The first B1 candidate (exposure 1.02, black point 0.028) crushed this to 0.009
     // and read as a black hole on anything but a calibrated display; the shipped grade
     // measures 0.020 against this floor.
-    const GARAGE_P05_FLOOR: f32 = 0.015;
+    // G13 (2026-09-06): the lowest room frame measures 0.024 (the inspector views), so the
+    // floor rises to 0.02 with the number.
+    const GARAGE_P05_FLOOR: f32 = 0.02;
     // The screen frame is the room frame plus the overlay and nothing else, so the share of
     // pixels the two disagree on IS the UI's footprint. It is the one measurement that catches a
     // HUD which failed to build, failed to upload, or rendered with no font atlas bound — all

@@ -25,7 +25,7 @@ of the text or adds a dated row to the table. Nothing else in `docs/` outranks t
 | 9 Render, 10 Art direction | `docs/art-direction-policy.md` (the seven rules and their locks), `docs/art-direction-program.md` (the defect register), lanes **O**, **Q**, **N**, **T** |
 | 11 Audio | `crates/runtime/audio` (pure DSP, deterministic); S4 owes the mechanical layer; crew voices are an R-lane row |
 | 13 Świat | lanes **Z** (destruction — Z1–Z3 done), **B** (buildings, W5), **T** (terrain), **F** (flora), **H** (water); `docs/map-forge-policy.md`, `docs/maps/*.md` |
-| 15 UI/UX | `docs/interface-program.md` (2026-09-05): lanes **F** (foundation), **H** (battle HUD), **P** (product shell), **G** (garage); it absorbs lane **U** (U1–U11), V3, L1 and L2 of the second pass; L3 (the replay viewer) stays there |
+| 15 UI/UX | `docs/interface-policy.md` (graduated 2026-09-06) — the design; `docs/interface-program.md` (2026-09-05) — the register that built it: lanes **F** (foundation), **H** (battle HUD), **P** (product shell), **G** (garage), closed 2026-09-06; it absorbed lane **U** (U1–U11), V3, L1 and L2 of the second pass; L3 (the replay viewer) stays there |
 | 16 Sieć | `docs/netcode-*.md`, wire v49, the netcode register; identity/Steam is the open block |
 | 17 Boty | standing: the route brain, cover scoring, PvE-first is the population decision |
 | 18 Narzędzia | Map Forge, the editor, the probes, `map-atlas`, replays as fixtures |
