@@ -17,6 +17,7 @@ mod identity_enum_rules;
 mod interface_program_rules;
 mod kernel_purity;
 mod layer_rules;
+mod linker_config;
 mod math_backend_parity;
 mod movement_rules;
 mod naming_rules;

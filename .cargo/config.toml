@@ -1,0 +1,8 @@
+# Linker (2026-09-06, the build-time program, step 2). MSVC `link.exe` was the bulk of every test
+# build's CPU time (sim: ~180 CPU-seconds of linking per gate before the one-binary-per-crate
+# rule); `rust-lld` ships with the toolchain and links the same objects 2-3x faster. The switch
+# invalidates every artifact once (a cold rebuild); it never changes what the code computes —
+# the replay pins and the bake-hash goldens are the proof that it did not.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustflags = ["-C", "linker-flavor=lld-link"]
