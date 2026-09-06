@@ -400,7 +400,7 @@ impl ClientApp {
         // battle was a free heal: G mid-fight, confirm, and the hull came back factory-new while
         // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
         // garage's Battle button IS the next battle.
-        if self.session.battle_mode() == battle_host::BattleMode::Random7v7 {
+        if self.session.battle_mode() != battle_host::BattleMode::PracticeDuel {
             // The garage map row overrides the env/default resolution; AUTO (`None`) keeps
             // `runtime_from_env` intact — including the editor's Ctrl+P `.map.ron` playtest path.
             let mut battle_config = battle_host::RandomBattleConfig::runtime_from_env(spec.kind);
@@ -419,8 +419,11 @@ impl ClientApp {
                 battle_config.seed = battle_host::BattleSeed::fixed(TEST_BATTLE_SEED);
             }
             let previous_map = self.session.map_id();
+            // M3 (`docs/game-modes.md`): the garage's BATTLE is the AI battle — 15v15, the
+            // player and marked bots, offline. The button keeps its word until M7b puts the
+            // online queue beside it (one re-bless of the garage's frame, not two).
             self.session = crate::app::session::BattleSessionKind::Local(Box::new(
-                battle_host::LocalAuthoritativeServer::new_random_7v7(
+                battle_host::LocalAuthoritativeServer::new_ai_battle(
                     battle_host::ServerTickConfig::default(),
                     battle_config,
                 ),
@@ -691,13 +694,15 @@ mod tests {
         app.open_garage();
         app.confirm_garage_selection();
 
+        let format = game_core::BattleFormat::FifteenVsFifteen;
         assert_eq!(app.session.authoritative_tick(), 0, "a FRESH battle, not a respawn");
-        assert_eq!(app.session.latest_snapshot().tanks.len(), 14, "full fresh roster");
+        assert_eq!(app.session.latest_snapshot().tanks.len(), format.total_seats(), "full roster");
+        assert_eq!(app.session.battle_mode(), battle_host::BattleMode::AiBattle);
         assert_eq!(app.session.battle_outcome(), None);
         assert_eq!(
             app.session.battle_time_remaining_s(),
-            Some(battle_host::RANDOM_BATTLE_TIME_LIMIT_S as f32),
-            "the battle clock starts full again"
+            Some(format.time_limit_s() as f32),
+            "the battle clock starts full again — the AI battle's fifteen minutes"
         );
     }
 
@@ -709,7 +714,10 @@ mod tests {
         app.confirm_garage_selection();
 
         let full_snapshot = app.session.latest_snapshot();
-        assert_eq!(full_snapshot.tanks.len(), 14);
+        assert_eq!(
+            full_snapshot.tanks.len(),
+            game_core::BattleFormat::FifteenVsFifteen.total_seats()
+        );
         assert!(full_snapshot.tanks.iter().any(|tank| {
             tank.tank_id == app.player_tank
                 && tank.team == game_core::TeamId(1)

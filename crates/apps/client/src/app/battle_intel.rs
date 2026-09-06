@@ -5,8 +5,9 @@
 
 use std::collections::VecDeque;
 
-/// How many kills the feed remembers. A 7v7 has at most thirteen deaths a crew can watch.
-const KILL_MEMORY: usize = 16;
+/// How many kills the feed remembers. The largest format has at most twenty-nine deaths a
+/// crew can watch (M5: sized for thirty, it was sixteen for fourteen).
+const KILL_MEMORY: usize = 32;
 /// How many relays are kept for the wheel's echo strip.
 const COMMAND_MEMORY: usize = 8;
 

@@ -283,8 +283,10 @@ mod tests {
         // past each other instead of stopping dead, so the roster covers more ground in 300 ticks
         // and seed 42 grew a neighbour that reaches the player. Seeds 7, 99 and 1234 all settle;
         // this is the fragility the note above already describes, not a new one.
-        let mut app = ClientApp::new_seeded(7);
-        app.confirm_garage_selection();
+        // Seven a side on purpose (M3 made the offline battle 15v15): the subject here is the
+        // turret controller, and the denser thirty-hull formation put a neighbour's nudge under
+        // the assert — the same fragility, answered by pinning the field, not by another seed.
+        let mut app = ClientApp::new_seeded_seven_a_side(7);
         app.seed_prediction();
 
         // Let the turret-tracking loop settle against the sight lane, then watch it for a while.
