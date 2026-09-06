@@ -1,0 +1,108 @@
+// Panther II (the Fort Benning specimen: the up-armoured Panther II hull under a Panther Ausf. G
+// turret) — authored visual parts (Forge 2.0 K3, 2026-09-06, the third vehicle the library builds
+// whole, by the same file the Tiger II used). The library builds every class from this file and
+// the blueprint: the welded prism hull on the armour planes (the 55° glacis, the 29° leaned upper
+// sides), the German deck with the Panther's own bow — twin driver's periscope hoods, the MG
+// Kugelblende at its glacis station, the curved fender sweeps over the sprockets — the G turret
+// with its splayed cheeks and flat rear, the KwK 42 behind the G-Blende, the fittings. The bake
+// frame: +Y up, +Z bow, +X port. Dossier: docs/vehicles/panzerkampfwagen-v-panther-ii.md.
+VisualDetailFile(
+    kind: PantherII,
+    detail: VisualDetail(
+        // The 7.5 cm KwK 42 L/70: bore 75 mm -> bore_radius 0.0375; tube radius 0.085 = the
+        // gameplay gun's; double-baffle brake, no evacuator. The G-Blende: the curved cast band
+        // across the narrow front plate, spanning the armour's mantlet patch band (0.92 .. 1.22;
+        // trunnion_z 1.20 -> trunnion-relative -0.28 .. +0.02), widest 0.30 = the gameplay
+        // mantlet_radius, flattened 2.00 x 1.10 (the recipe's G-Blende scale).
+        gun: Some(GunVisual(
+            barrel_radius: 0.085,
+            muzzle_radius: 0.05,
+            bore_radius: 0.0375,
+            muzzle_taper: 0.2,
+            barrel_segments: 12,
+            mantlet_profile: (
+                (-0.28, 0.0),
+                (-0.26, 0.22),
+                (-0.20, 0.28),
+                (-0.13, 0.30),
+                (-0.05, 0.30),
+                (0.0, 0.26),
+                (0.015, 0.14),
+                (0.02, 0.0),
+            ),
+            mantlet_segments: 12,
+            mantlet_scale: (2.00, 1.10, 1.0),
+            muzzle_brake: Some(MuzzleBrakeVisual(
+                radius: 0.13,
+                length: 0.32,
+                baffles: 2,
+            )),
+            module_delta_scale: 0.65,
+        )),
+        // Welded plate on the armour planes: the tub, the upper box whose sides lean the armour
+        // table's 29° from the sponson fold.
+        construction: Some(WeldedSlab),
+        // The Panther Ausf. G turret (the recipe's proportions, lifted into data): a 1.20 m front
+        // plate at 20° whose cheeks SPLAY to the full beam 0.35 m behind the ring, walls to
+        // 0.93 m behind the ring, a flat 1.80 m rear plate on the rear armour plane at 20° with
+        // the corners chamfered, every wall leaning its own slope; no bin; the G-Blende's oval
+        // socket 2.00 x 1.10. `bustle` is unread under a flat rear.
+        welded_turret: Some(WeldedTurretVisual(
+            cheek_x: 0.60,
+            cheek_setback: 1.50,
+            wall_end_behind_ring: 0.93,
+            bustle: ((0.90, 0.0), (0.90, 0.0)),
+            bin_depth: 0.0,
+            bin_half_width: 0.0,
+            bin_half_height: 0.0,
+            bin_rise: 0.0,
+            ring_height: 0.12,
+            ring_segments: 14,
+            socket_segments: 12,
+            flat_rear_half_width: Some(0.90),
+            leaned_walls: true,
+            socket_scale: Some((2.00, 1.10)),
+        )),
+        // The Panther's deck: open stacks off the 30° stern, no spare links on the bow, no slot
+        // visor and no periscope box — the driver's TWIN periscope hoods at the roof's front edge
+        // (left), the MG Kugelblende in the 55° glacis right at its own station, and the CURVED
+        // fender sweeps over the front sprockets instead of the family's drooping flap.
+        german_deck: Some(GermanDeckVisual(
+            exhaust_shields: false,
+            spare_links: 0,
+            driver_visor: false,
+            periscope_hood: false,
+            rear_flaps: false,
+            twin_periscopes: true,
+            curved_sweep: true,
+            mg_ball: Some((-0.60, 1.42)),
+        )),
+        fittings: Some(FittingsVisual(
+            // The commander's lid on the cupola drum (roof 2.72 + 0.25 proud = 2.97; the lid's
+            // coaming to 2.99, the hitbox top and the dossier's height), port, rear; the crown
+            // flush with the drum's top.
+            cupola_hatch_center: (0.22, 2.94, -0.55),
+            cupola_hatch_radius: 0.29,
+            cupola_hatch_half_height: 0.03,
+            // The two bow hatches on the hull roof, 0.42 m behind the deck's front edge (the 55°
+            // glacis cuts the roof at z 2.19): the driver's, port, the radio operator's, starboard.
+            driver_hatch_center: (0.495, 1.88, 1.77),
+            driver_hatch_radius: 0.23,
+            driver_hatch_half_height: 0.05,
+            // The loader's hatch on the turret roof, starboard, forward, inside the roof plan the
+            // splayed leaned cheeks leave (half-width ~0.58 at z 0.55).
+            loader_hatch_center: (-0.33, 2.705, 0.55),
+            loader_hatch_radius: 0.19,
+            loader_hatch_half_height: 0.03,
+            // The ONE Bosch light standing on the glacis LEFT (F4): the glacis point (0.95, 1.70)
+            // pushed 0.10 along the plate normal; the lamp's body seats back on the plate.
+            headlight_center: (0.95, 1.757, 2.489),
+            headlight_radius: 0.075,
+            headlight_half_height: 0.10,
+            // The bow shackles on the lower hull's shoulders at the nose.
+            tow_hook_center: (0.614, 1.08, 3.295),
+            tow_hook_half: (0.10, 0.08, 0.12),
+            second_bow_hatch_center: Some((-0.495, 1.88, 1.77)),
+        )),
+    ),
+)

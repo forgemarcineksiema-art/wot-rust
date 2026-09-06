@@ -60,11 +60,11 @@ mod tests {
     }
 
     /// Every vehicle with no library part yet passes straight through to the procedural mesh,
-    /// byte for byte. (The Tiger I and the Tiger II are the library's since K3 and are pinned by
-    /// their own goldens in `seam_lock`.)
+    /// byte for byte. (The Tiger I, the Tiger II and the Panther II are the library's since K3
+    /// and are pinned by their own goldens in `seam_lock`.)
     #[test]
     fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        for kind in [VehicleKind::T34_85, VehicleKind::Jagdtiger, VehicleKind::PantherII] {
+        for kind in [VehicleKind::T34_85, VehicleKind::Jagdtiger, VehicleKind::IS3] {
             let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
             let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
             assert_eq!(

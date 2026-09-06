@@ -134,3 +134,21 @@ Regenerate it with:
 ```powershell
 cargo run -p tools -- generate-vehicle --vehicle panther-ii --output assets/vehicles/panther_ii.vehicle.json
 ```
+
+## Library parts (2026-09-06)
+
+The Panther II is the third vehicle the part library builds whole (Forge 2.0 K3, by the Tiger II's file): `crates/foundation/game_core/blueprints/panther_ii.visual.ron` authors the construction, the G turret, the gun, the deck furniture and the fittings; the blueprint keeps every armour number (plus `cupola_height 0.25`: the drum tops at 2.97 and its lid's coaming at 2.99, the hitbox top and the dossier's height). The recipe (`vehicle_recipes::panther_ii`) is split into named pieces that stay out when the library builds their class; none stands on the shipped vehicle, which ships at `Fidelity::Benchmark`.
+
+| Class | Part | Source of the shape |
+| --- | --- | --- |
+| Hull tub, upper hull | `slab_tub`, `slab_upper_box` — plate solids on the armour planes, the upper sides leaning 29° | The wedge, honestly |
+| Turret shell | `turret_shell` — the G prism: a 1.20 m front at 20°, cheeks splaying to the full beam 0.35 m behind the ring, a flat 1.80 m rear at 20° with chamfered corners, every wall leaning; no bin | Reference anatomy (PII.1) |
+| Mantlet | `gun_mantlet` — the G-Blende, the armour's patch band 0.92..1.22 flattened 2.00 × 1.10; `mantlet_socket` oval | Reference anatomy |
+| Cupola, hatches, headlight | `cupola_drum` + lid; two bow hatches at x ±0.495, z 1.77; `loader_hatch`; the ONE Bosch light on the glacis left at (0.95, 1.76) | PII.3 (F4) |
+| Gun barrel, muzzle furniture | `gun_barrel` bore-honest 75 mm; `muzzle_brake` double baffle | KwK 42 L/70 |
+| Course MG | `course_mg_port` — the Kugelblende in the 55° glacis right at (−0.60, 1.42) | PII.3 |
+| Periscopes | `periscope_hood` ×2 with their glass at the roof's front edge, left | PII.3 |
+| Fenders | `fender_sweep` ×3 a side — the curved sweep over the front sprockets | PII.3 (F3) |
+| Exhaust | `exhaust_stack_0/1` open, dark-mouthed, off the 30° stern with a top bracket | (not listed by the dossier; carried) |
+
+The Soviet 1944 Panther layout sheet (`output/refs/panther_ii/VTP1944-1_Panther_layout.jpg`, the D/A hull) reads 6900 / 8850 / 2910 / 3430 mm; the Panther II's anchors (6.87 / 8.86 / 2.99 with the G turret / 3.42) already sit inside their tolerances, so no anchor moved. Still owed: the stern plate's furniture (`SternPlate`), traced outlines (K0).

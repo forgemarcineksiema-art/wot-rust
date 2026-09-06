@@ -572,7 +572,7 @@ pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMe
 /// ON the glacis left (F4 — not the family's central deck light), and the CURVED front
 /// fender sweeps over the sprockets (F3 — three chained slanted segments, not the Tiger II's
 /// single drooping flap).
-pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
     let hull = &bp.hull;
     let edge = deck_front_edge(bp);
     let glacis = hull.glacis_slope_deg.to_radians();
@@ -583,9 +583,10 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         Vec3::new(x, y, hull.half_len - run) + Vec3::new(0.0, glacis.cos(), glacis.sin()) * standoff
     };
     let mut b = MeshBuilder::new();
-    // Two round roof hatches (driver left, radio operator right) with hinge and handle.
+    // Two round roof hatches (driver left, radio operator right) with hinge and handle — the
+    // library's when the visual file authors the fittings.
     let hatch_z = edge - 0.42;
-    if !turret_covers(bp, hatch_z, 0.21) {
+    if !omit.fittings && !turret_covers(bp, hatch_z, 0.21) {
         for sign in [-1.0_f32, 1.0] {
             b = round_hatch(
                 b,
@@ -618,16 +619,19 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
             smoothing: SG_HARD,
         },
     );
-    // ONE Bosch headlight standing on the glacis LEFT on a short bracket (F4).
-    let light = on_glacis(0.95, 1.70, 0.10);
-    b = b.plate_box(
-        on_glacis(0.95, 1.70, 0.05),
-        Vec3::new(0.03, 0.03, 0.05),
-        0.01,
-        MaterialRole::BarrelSteel,
-        SG_HARD,
-    );
-    b = headlight(b, light, 0.075, false);
+    // ONE Bosch headlight standing on the glacis LEFT on a short bracket (F4) — the library's
+    // lamp when the fittings are authored.
+    if !omit.fittings {
+        let light = on_glacis(0.95, 1.70, 0.10);
+        b = b.plate_box(
+            on_glacis(0.95, 1.70, 0.05),
+            Vec3::new(0.03, 0.03, 0.05),
+            0.01,
+            MaterialRole::BarrelSteel,
+            SG_HARD,
+        );
+        b = headlight(b, light, 0.075, false);
+    }
     // Curved front fender sweeps over the sprockets: three chained slanted segments per side
     // approximating the Panther's quarter-round mudguard.
     let band_half = ((bp.track.outer_x - bp.track.inner_x) * 0.5).max(0.05);
@@ -663,7 +667,11 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
             );
         }
     }
-    let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    let b = if omit.fittings {
+        b
+    } else {
+        tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14])
+    };
     let b = german_exhaust_stacks(b, bp);
     engine_deck_german(b, bp)
 }

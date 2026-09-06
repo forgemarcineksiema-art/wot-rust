@@ -123,11 +123,15 @@ fn plate_shell(t: &TurretShape, v: &WeldedTurretVisual) -> MeshBuilder {
     // The starboard half of the plan at a station: `side_x` is where the side wall stands,
     // `front_dz` / `rear_dz` how far the front and rear plates have retreated, and the hairs
     // keep the leaned corners inside the converged side line.
+    // The side wall's end stays behind a leaned rear plate's retreat at the roof (the G turret's
+    // rear corner chamfer sits INSIDE the rear plate's lean; the Henschel's wall end is well
+    // ahead of it and never moves).
     let half = |side_x: f32, front_dz: f32, rear_dz: f32, hairs: (f32, f32)| -> Vec<Vec2> {
+        let wall_end_z = (t.ring_z - v.wall_end_behind_ring).max(rear_z + rear_dz + 0.05);
         let mut half = vec![
             Vec2::new(v.cheek_x.min(side_x - hairs.0), front_z - front_dz),
             Vec2::new(side_x, front_z - v.cheek_setback),
-            Vec2::new(side_x, t.ring_z - v.wall_end_behind_ring),
+            Vec2::new(side_x, wall_end_z),
         ];
         match v.flat_rear_half_width {
             Some(width) => half.push(Vec2::new(width.min(side_x - hairs.1), rear_z + rear_dz)),

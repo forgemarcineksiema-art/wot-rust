@@ -60,6 +60,9 @@ BlueprintFile(
         cupola_x: 0.22,
         cupola_z: -0.55,
         cupola_radius: 0.31,
+        // The drum stands 0.25 above the roof and its lid's coaming 2 cm above that: 2.99, the
+        // hitbox top and the dossier's height to the cupola (K3 parts, 2026-09-06).
+        cupola_height: Some(0.25),
         plan_half_width: 1.02,
         plan_half_length: 1.15,
         mantlet_radius: 0.30,
