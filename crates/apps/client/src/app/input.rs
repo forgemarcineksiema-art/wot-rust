@@ -2,7 +2,7 @@ use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
 use winit::keyboard::PhysicalKey;
 
 use super::keybinds::{Action, Context};
-use winit::window::{CursorGrabMode, Fullscreen};
+use winit::window::CursorGrabMode;
 
 use super::ClientApp;
 use crate::{BattleCameraInput, BattleCameraMode};
@@ -50,14 +50,12 @@ impl ClientApp {
     }
 
     /// Borderless fullscreen on the monitor the window is on, or back to the maximized window.
-    /// Borderless, not exclusive: the same picture with no mode switch, no black flash on an
-    /// alt-tab, and the OS compositor's own vsync — which is also why the pacer re-reads the
-    /// display afterwards (the window may have landed on another monitor's refresh rate).
+    /// P9: the setting is the truth — F11 writes it and the window follows
+    /// (`apply_fullscreen_setting`); the pacer re-reads the display afterwards (the window may
+    /// have landed on another monitor's refresh rate).
     pub(in crate::app) fn toggle_fullscreen(&mut self) {
-        self.fullscreen = !self.fullscreen;
-        if let Some(window) = &self.window {
-            window.set_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None)));
-        }
+        let borderless = !self.fullscreen;
+        self.edit_settings(|settings| settings.borderless = borderless);
         self.sync_present_hz();
     }
 
@@ -70,6 +68,13 @@ impl ClientApp {
     /// leaning on the keyboard. Releases still fall through — swallowing those would strand a key
     /// that was already held when the menu opened.
     pub(in crate::app) fn on_battle_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
+        // P6: a shell page has the keyboard while it is open; the battle sees nothing.
+        if self.shell_open() {
+            if let Some(action) = self.keybinds.action(Context::Shell, key) {
+                self.shell_action(action, pressed);
+            }
+            return;
+        }
         // H21: the HUD editor has the keyboard while it is open — every press and release.
         if self.hud_editor_open() {
             if let Some(action) = self.keybinds.action(Context::HudEditor, key) {
@@ -128,6 +133,13 @@ impl ClientApp {
             // never lays the gun (the owner, 2026-09-02: no aim assist of any kind).
             Action::MarkTarget if pressed => self.mark_target(),
             Action::MinimapSize | Action::HitLogFold | Action::MarkTarget => {}
+            // The sniper key toggles the scope (World of Tanks, the default) or holds it —
+            // the player's setting (P6).
+            Action::Sniper if self.settings.sniper_toggle => {
+                if pressed && !self.garage.is_open() {
+                    self.toggle_camera_mode();
+                }
+            }
             Action::Sniper => {
                 if pressed {
                     self.begin_sniper_hold();
@@ -407,7 +419,9 @@ impl ClientApp {
         }
         // Mouse-right (dx > 0) must look right; +orbit_yaw points toward world +X = screen
         // left, so negate it. The FOV ratio slows the look exactly as much as zoom magnifies it.
-        let scale = self.camera_controller.look_sensitivity_scale();
+        // The player's own sensitivity for this zoom step (P6) rides on the sight's scale.
+        let scale = self.camera_controller.look_sensitivity_scale()
+            * self.settings.sensitivity_for(self.zoom_step());
         let yaw_delta = -dx * MOUSE_YAW_SENSITIVITY * scale;
         let pitch_delta = dy * MOUSE_PITCH_SENSITIVITY * scale;
         if self.input.free_look {
@@ -442,6 +456,10 @@ impl ClientApp {
         // Tracked in every mode (interface program F5/F7): the HUD editor and the command
         // wheel read the cursor in battle; capture decides visibility, not tracking.
         self.cursor_px = [x, y];
+        if self.shell_open() {
+            self.shell_cursor([x, y]);
+            return;
+        }
         if self.hud_editor_open() {
             self.hud_editor_cursor([x, y]);
             return;
@@ -485,6 +503,10 @@ impl ClientApp {
             Some(crate::hud::pause_menu::PauseMenuButton::HudEditor) => {
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
                 self.open_hud_editor();
+            }
+            Some(crate::hud::pause_menu::PauseMenuButton::Settings) => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_settings_page();
             }
             None => {}
         }

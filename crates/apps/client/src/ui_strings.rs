@@ -176,6 +176,39 @@ pub(crate) mod battle {
     pub const MILLISECONDS: &str = "MS";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
+    /// The escape menu's SETTINGS (P6).
+    pub const PAUSE_SETTINGS: &str = "SETTINGS";
+    /// The settings page (P6): its title, its rows, its words.
+    pub const SETTINGS_TITLE: &str = "SETTINGS";
+    pub const SET_PALETTE: &str = "PALETTE";
+    pub const SET_VOLUME: &str = "MASTER VOLUME";
+    pub const SET_SENS_THIRD: &str = "SENSITIVITY \u{b7} THIRD PERSON";
+    pub const SET_SENS_SCOPE: &str = "SENSITIVITY \u{b7} SCOPE";
+    pub const SET_UI_SCALE: &str = "INTERFACE SCALE";
+    pub const SET_SNIPER_KEY: &str = "SNIPER KEY";
+    pub const SET_FULLSCREEN: &str = "FULLSCREEN";
+    pub const SET_DAYLIGHT: &str = "HALL DAYLIGHT";
+    pub const SET_HUD_PRESET: &str = "HUD PRESET";
+    pub const WORD_HOLD: &str = "HOLD";
+    pub const WORD_TOGGLE: &str = "TOGGLE";
+    pub const WORD_BORDERLESS: &str = "BORDERLESS";
+    pub const WORD_WINDOWED: &str = "WINDOWED";
+    pub const WORD_AUTO: &str = "AUTO";
+    pub const WORD_MORNING: &str = "MORNING";
+    pub const WORD_DAY: &str = "DAY";
+    pub const WORD_EVENING: &str = "EVENING";
+    pub const WORD_MINIMAL: &str = "MINIMAL";
+    pub const WORD_STANDARD: &str = "STANDARD";
+    pub const WORD_FULL: &str = "FULL";
+    pub const WORD_DEUTERANOPIA: &str = "DEUTERANOPIA";
+    pub const WORD_PROTANOPIA: &str = "PROTANOPIA";
+    pub const WORD_TRITANOPIA: &str = "TRITANOPIA";
+    /// The page's arrows and the footer's words.
+    pub const ARROW_DEC: &str = "<";
+    pub const ARROW_INC: &str = ">";
+    pub const FOOTER_SELECT: &str = "SELECT";
+    pub const FOOTER_CHANGE: &str = "CHANGE";
+    pub const FOOTER_BACK: &str = "BACK";
     #[cfg(test)]
     pub const ALL: &[&str] = &[
         SPEED_UNIT,
@@ -265,6 +298,36 @@ pub(crate) mod battle {
         NET_SNAPSHOT,
         NET_LOCAL,
         MILLISECONDS,
+        PAUSE_SETTINGS,
+        SETTINGS_TITLE,
+        SET_PALETTE,
+        SET_VOLUME,
+        SET_SENS_THIRD,
+        SET_SENS_SCOPE,
+        SET_UI_SCALE,
+        SET_SNIPER_KEY,
+        SET_FULLSCREEN,
+        SET_DAYLIGHT,
+        SET_HUD_PRESET,
+        WORD_HOLD,
+        WORD_TOGGLE,
+        WORD_BORDERLESS,
+        WORD_WINDOWED,
+        WORD_AUTO,
+        WORD_MORNING,
+        WORD_DAY,
+        WORD_EVENING,
+        WORD_MINIMAL,
+        WORD_STANDARD,
+        WORD_FULL,
+        WORD_DEUTERANOPIA,
+        WORD_PROTANOPIA,
+        WORD_TRITANOPIA,
+        ARROW_DEC,
+        ARROW_INC,
+        FOOTER_SELECT,
+        FOOTER_CHANGE,
+        FOOTER_BACK,
     ];
 }
 

@@ -173,6 +173,19 @@ impl GarageState {
         self.inspector
     }
 
+    pub(in crate::app) fn daylight_override(&self) -> Option<scene_build::hangar::HangarLight> {
+        self.daylight_override
+    }
+
+    /// The settings file's word (P6): the daylight lives there now; the garage's file keeps
+    /// its copy for older builds.
+    pub(in crate::app) fn set_daylight_override(
+        &mut self,
+        light: Option<scene_build::hangar::HangarLight>,
+    ) {
+        self.daylight_override = light;
+    }
+
     /// `L` in the hangar: cycle Auto → Morning → Day → Evening → Auto, persisted.
     pub(in crate::app) fn cycle_daylight(&mut self) {
         use scene_build::hangar::HangarLight;

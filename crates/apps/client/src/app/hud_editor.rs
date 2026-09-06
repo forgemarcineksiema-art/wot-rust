@@ -85,7 +85,7 @@ impl ClientApp {
 
     /// Pixels per `u` on the current viewport, at scale one.
     fn px_per_u(&self) -> f32 {
-        self.viewport.1 as f32 / ui_kit::ui::REFERENCE_HEIGHT_PX
+        self.viewport.1 as f32 / ui_kit::ui::REFERENCE_HEIGHT_PX * self.settings.ui_scale
     }
 
     /// The cursor moved: the hover follows it; an instrument in hand follows it too.
@@ -150,7 +150,7 @@ impl ClientApp {
         }
     }
 
-    fn set_preset(&mut self, preset: Preset) {
+    pub(in crate::app) fn set_preset(&mut self, preset: Preset) {
         self.layout.preset = preset;
         self.persist_layout();
         self.queue_audio(audio::AudioEvent::UiClick { accent: false });

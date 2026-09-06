@@ -37,6 +37,7 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod review;
 pub(crate) mod scope_overlay;
+pub(crate) mod shell;
 pub(crate) mod sixth_sense;
 pub(crate) mod spectate;
 pub(crate) mod speed;
@@ -139,6 +140,9 @@ pub struct BattleHudModel {
     pub layout: layout::HudLayout,
     /// The HUD editor's overlay while it is open (H21).
     pub editor: Option<editor::EditorModel>,
+    /// A shell page over the battle (P6): the settings page while it is open — it replaces
+    /// the instruments.
+    pub shell: Option<shell::ShellModel>,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -181,6 +185,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             palette: ui_kit::theme::Palette::Standard,
             layout: crate::hud::layout::HudLayout::default(),
             editor: None,
+            shell: None,
         },
         aspect,
     )
@@ -235,6 +240,7 @@ pub(crate) fn test_model(
         palette: ui_kit::theme::Palette::Standard,
         layout: crate::hud::layout::HudLayout::default(),
         editor: None,
+        shell: None,
     }
 }
 
@@ -290,6 +296,12 @@ pub(crate) fn build_battle_hud_list(
     ) {
         list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(*order));
         *order += 1;
+    }
+    // P6: a shell page replaces the battle's instruments — a page the player opened to read,
+    // over a scrim; the escape menu is its way in and its way out.
+    if let Some(page) = &model.shell {
+        shell::push_shell(&mut list, ui, &theme, page, &mut order);
+        return list;
     }
     let reticle = model.reticle.unwrap_or_else(default_reticle);
 

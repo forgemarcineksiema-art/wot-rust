@@ -210,3 +210,43 @@ fn rust_files_under(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         }
     }
 }
+
+/// P9: borderless is the only fullscreen — no `Fullscreen::Exclusive` anywhere in the client
+/// (a mode switch, a black flash on alt-tab, a fight with the compositor's vsync) — and the
+/// window takes the SETTING, not a flag of its own: F11 writes `settings.json`, the window
+/// follows it the moment it exists.
+#[test]
+fn borderless_is_the_only_fullscreen_and_it_is_a_setting() {
+    let root = workspace_root();
+    let mut files = Vec::new();
+    rust_files_under(&root.join("crates/apps/client/src"), &mut files);
+    let mut exclusive = Vec::new();
+    for path in files {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        if source.contains("Fullscreen::Exclusive") {
+            exclusive.push(
+                path.strip_prefix(&root).unwrap_or(&path).to_string_lossy().replace('\\', "/"),
+            );
+        }
+    }
+    assert!(exclusive.is_empty(), "exclusive fullscreen is not on offer: {exclusive:?}");
+    let settings =
+        fs::read_to_string(root.join("crates/apps/client/src/app/settings.rs")).expect("settings");
+    assert!(settings.contains("pub borderless: bool"), "borderless is a setting");
+    assert!(
+        settings.contains("Fullscreen::Borderless(None)"),
+        "the setting is what the window takes"
+    );
+    let lifecycle = fs::read_to_string(root.join("crates/apps/client/src/app/lifecycle.rs"))
+        .expect("lifecycle");
+    assert!(
+        lifecycle.contains("self.apply_fullscreen_setting();"),
+        "the window takes the setting when it exists"
+    );
+    let input =
+        fs::read_to_string(root.join("crates/apps/client/src/app/input.rs")).expect("input");
+    assert!(
+        input.contains("settings.borderless = borderless"),
+        "F11 writes the setting, not a flag of its own"
+    );
+}

@@ -52,10 +52,12 @@ pub enum HudState {
     PresetMinimal,
     /// The FULL preset (H21): everything, the log open.
     PresetFull,
+    /// The settings page (P6): the shell over the battle, a row selected, an arrow hovered.
+    ShellSettings,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 20] = [
+    pub const ALL: [HudState; 21] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -76,6 +78,7 @@ impl HudState {
         HudState::PaletteDeuteranopia,
         HudState::PresetMinimal,
         HudState::PresetFull,
+        HudState::ShellSettings,
     ];
 
     /// The golden's name stem.
@@ -101,6 +104,7 @@ impl HudState {
             HudState::PaletteDeuteranopia => "palette_deuteranopia",
             HudState::PresetMinimal => "preset_minimal",
             HudState::PresetFull => "preset_full",
+            HudState::ShellSettings => "shell_settings",
         }
     }
 
@@ -202,6 +206,7 @@ impl HudState {
                 model.pings = Some(super::demo::demo_pings());
                 model.team_word = Some(super::demo::demo_team_word());
             }
+            HudState::ShellSettings => model.shell = Some(super::shell::demo_settings_screen()),
             HudState::MinimapLarge => {
                 if let Some(map) = &mut model.minimap {
                     map.size = super::minimap::MinimapSize::Large;
@@ -279,9 +284,13 @@ mod tests {
                 let list = crate::hud::hud_state_list(state, size, 1920, 1080);
                 let viewport = 1920.0 * 1080.0;
                 for element in list.iter() {
-                    // The editor's panes veil the instruments they frame: a mode the crew
-                    // opened from the escape menu, not a popup (H21).
-                    if matches!(element.id, crate::hud::HudElement::Editor(_)) {
+                    // The editor's panes veil the instruments they frame, and a shell page
+                    // replaces them: modes the crew opened FROM the escape menu, its own
+                    // layers, not popups (H21, P6).
+                    if matches!(
+                        element.id,
+                        crate::hud::HudElement::Editor(_) | crate::hud::HudElement::Shell(_)
+                    ) {
                         continue;
                     }
                     let area = element.rect.w * element.rect.h;
