@@ -759,3 +759,18 @@ fn the_chime_plays_once_per_span() {
     assert_eq!(chimes(&app), 2, "the next span rings again");
     assert!(app.spotted_before);
 }
+
+/// H15: M cycles the minimap's three sizes on the edge, small → standard → large → small.
+#[test]
+fn m_cycles_the_minimap_through_its_three_sizes() {
+    use crate::hud::minimap::MinimapSize;
+    let mut app = in_battle();
+    assert_eq!(app.input.minimap_size(), MinimapSize::Standard);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyM), true, false);
+    assert_eq!(app.input.minimap_size(), MinimapSize::Large);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyM), true, true);
+    assert_eq!(app.input.minimap_size(), MinimapSize::Large, "a repeat is not a press");
+    app.on_key(PhysicalKey::Code(KeyCode::KeyM), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyM), true, false);
+    assert_eq!(app.input.minimap_size(), MinimapSize::Small);
+}

@@ -356,7 +356,7 @@ pub(crate) fn build_battle_hud_list(
     if let Some(map) = &model.minimap {
         // H0: an enamel plate, the relief baked into the sheet as ONE quad, the vector overlays
         // on top, and a pane of glass over the lot.
-        let map_rect = minimap::map_rect_px(ui);
+        let map_rect = minimap::map_rect_px(ui, map.size);
         let enamel = theme.plates.enamel_black;
         list.push(
             Element::new(
@@ -384,6 +384,103 @@ pub(crate) fn build_battle_hud_list(
         let mut v = Vec::new();
         minimap::push_minimap(&mut v, map, aspect);
         legacy(&mut list, &mut order, HudElement::Minimap, v);
+        // H15: the blips are class glyphs in the team colours, with the seat where it fits; the
+        // grid's letters and numbers along the edges on the sizes that fit them.
+        let glyph = ui.px(if map.size.labelled() { 14.0 } else { 11.0 });
+        for (index, (blip, enemy)) in map
+            .allies
+            .iter()
+            .map(|b| (b, false))
+            .chain(map.enemies.iter().map(|b| (b, true)))
+            .enumerate()
+        {
+            let i = index as u8;
+            let center = map.world_to_px(blip.xz, ui);
+            let color = if enemy { theme.semantic.team_enemy } else { theme.semantic.team_ally };
+            list.push(
+                Element::new(
+                    HudElement::MinimapBlip(i),
+                    Rect::new(center[0] - glyph * 0.5, center[1] - glyph * 0.5, glyph, glyph),
+                    Payload::Icon { icon: ui_kit::icons::HudIcon::for_class(blip.class), color },
+                )
+                .clipped(Some(map_rect))
+                .z(order),
+            );
+            order += 1;
+            if map.size.labelled() {
+                list.push(
+                    Element::new(
+                        HudElement::MinimapSeat(i),
+                        Rect::new(
+                            center[0] + glyph * 0.55,
+                            center[1] - ui.px(8.0),
+                            ui.px(18.0),
+                            ui.px(16.0),
+                        ),
+                        Payload::Text {
+                            text: blip.seat.to_string(),
+                            style: ui_kit::font::Style::VALUE_STRONG,
+                            size_u: 16.0,
+                            align: ui_kit::draw_list::Align::Left,
+                            color,
+                            digits: ui_kit::draw_list::DigitMode::Proportional,
+                        },
+                    )
+                    .clipped(Some(map_rect))
+                    .z(order),
+                );
+                order += 1;
+            }
+        }
+        if map.size.labelled() {
+            let cell = map_rect.w / minimap::GRID_CELLS as f32;
+            for i in 0..minimap::GRID_CELLS {
+                let letter = char::from(b'A' + i as u8).to_string();
+                list.push(
+                    Element::new(
+                        HudElement::MinimapGridLabel(i as u8),
+                        Rect::new(
+                            map_rect.x + i as f32 * cell,
+                            map_rect.y + ui.px(1.0),
+                            cell,
+                            ui.px(16.0),
+                        ),
+                        Payload::Text {
+                            text: letter,
+                            style: ui_kit::font::Style::VALUE,
+                            size_u: 16.0,
+                            align: ui_kit::draw_list::Align::Center,
+                            color: theme.text.label_dim,
+                            digits: ui_kit::draw_list::DigitMode::Proportional,
+                        },
+                    )
+                    .z(order),
+                );
+                order += 1;
+                let row = (minimap::GRID_CELLS - 1 - i) as f32;
+                list.push(
+                    Element::new(
+                        HudElement::MinimapGridLabel((minimap::GRID_CELLS + i) as u8),
+                        Rect::new(
+                            map_rect.x + ui.px(3.0),
+                            map_rect.y + row * cell + cell * 0.5,
+                            ui.px(24.0),
+                            ui.px(16.0),
+                        ),
+                        Payload::Text {
+                            text: (i + 1).to_string(),
+                            style: ui_kit::font::Style::VALUE,
+                            size_u: 16.0,
+                            align: ui_kit::draw_list::Align::Left,
+                            color: theme.text.label_dim,
+                            digits: ui_kit::draw_list::DigitMode::Tabular,
+                        },
+                    )
+                    .z(order),
+                );
+                order += 1;
+            }
+        }
         list.push(
             Element::new(
                 HudElement::MinimapGlass,

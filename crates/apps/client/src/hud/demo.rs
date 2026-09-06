@@ -424,6 +424,7 @@ fn demo_minimap() -> MinimapModel {
         })
         .collect();
     MinimapModel {
+        size: minimap::MinimapSize::Standard,
         extent_m: [1000.0, 1000.0],
         relief,
         water: vec![false; res * res],
@@ -431,10 +432,26 @@ fn demo_minimap() -> MinimapModel {
         cover: vec![MinimapBox { center_xz: [520.0, 470.0], half_xz: [40.0, 14.0] }],
         player_xz: [420.0, 300.0],
         player_heading_rad: 0.5,
+        player_turret_yaw_rad: 1.3,
         view_yaw_rad: 0.5,
         view_half_fov_rad: 0.45,
-        allies: vec![[470.0, 360.0]],
-        enemies: vec![[640.0, 660.0]],
+        view_range_m: 440.0,
+        seen_from_m: Some(360.0),
+        allies: vec![
+            minimap::Blip { xz: [470.0, 360.0], class: game_core::VehicleClass::Heavy, seat: 'B' },
+            minimap::Blip { xz: [330.0, 250.0], class: game_core::VehicleClass::Medium, seat: 'C' },
+        ],
+        enemies: vec![minimap::Blip {
+            xz: [640.0, 660.0],
+            class: game_core::VehicleClass::Heavy,
+            seat: 'A',
+        }],
+        ghosts: vec![minimap::Ghost {
+            xz: [760.0, 540.0],
+            class: game_core::VehicleClass::TankDestroyer,
+            age_s: 3.0,
+        }],
+        pings: vec![minimap::Ping { xz: [580.0, 720.0], age_s: 1.2 }],
     }
 }
 

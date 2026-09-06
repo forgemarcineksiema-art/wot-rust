@@ -6,7 +6,7 @@ use engine::PresentationTank;
 use terrain::HeightMap;
 
 use crate::app::ClientApp;
-use crate::hud::minimap::{MinimapBox, MinimapModel, RELIEF_RES};
+use crate::hud::minimap::{Blip, Ghost, MinimapBox, MinimapModel, Ping, RELIEF_RES};
 
 /// Half-angle of the minimap view wedge (radians) — a readable spread, not the true camera FOV.
 const VIEW_HALF_FOV_RAD: f32 = 0.55;
@@ -140,28 +140,71 @@ impl ClientApp {
         let player = tanks.iter().find(|tank| tank.id == self.player_tank)?;
         let player_team = self.player_team();
         let player_bit = player_team.spotting_bit();
+        let roster = self.session.roster();
+        let seat_of = |id: game_core::TankId| {
+            roster
+                .iter()
+                .find(|entry| entry.tank_id == id)
+                .map_or(' ', net::RosterEntry::seat_letter)
+        };
 
         let xz = |tank: &PresentationTank| [tank.translation[0], tank.translation[2]];
+        let blip = |tank: &PresentationTank| Blip {
+            xz: xz(tank),
+            class: tank.vehicle.class(),
+            seat: seat_of(tank.id),
+        };
         let allies = tanks
             .iter()
             .filter(|t| t.id != self.player_tank && t.team == player_team && t.hit_points > 0)
-            .map(xz)
+            .map(blip)
             .collect();
-        let enemies = tanks
+        let spotted: Vec<&PresentationTank> = tanks
             .iter()
             .filter(|t| {
                 t.team != player_team
                     && t.hit_points > 0
                     && t.spotted_by_teams_mask & player_bit != 0
             })
-            .map(xz)
             .collect();
+        let enemies: Vec<Blip> = spotted.iter().map(|t| blip(t)).collect();
+        // The memory (H15): the ghosts are the hulls seen before and not now.
+        let spotted_ids: Vec<game_core::TankId> = spotted.iter().map(|t| t.id).collect();
+        let ghosts: Vec<Ghost> = self
+            .ghosts
+            .ghosts(move |id| spotted_ids.contains(&id))
+            .map(|known| Ghost { xz: known.xz, class: known.class, age_s: known.age_s })
+            .collect();
+        // The team's pings (W-5), aged against the newest server tick.
+        let now_tick =
+            self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick);
+        let tick_s = 1.0 / sim::DEFAULT_SERVER_TICK_HZ as f32;
+        let pings: Vec<Ping> = self
+            .intel
+            .team_commands()
+            .filter(|relay| relay.command == net::TeamCommand::Ping)
+            .filter_map(|relay| {
+                let age_s = now_tick.saturating_sub(relay.server_tick) as f32 * tick_s;
+                (age_s <= crate::hud::minimap::PING_TTL_S)
+                    .then(|| relay.map_position.map(|xz| Ping { xz, age_s }))
+                    .flatten()
+            })
+            .collect();
+        let seen_from_m = crate::hud::budget::BudgetModel::from_battle(
+            &roster,
+            player_team,
+            self.predictor.speed_mps(),
+            self.own_shot.fire_age_s(),
+            sim::DEFAULT_SIMULATION_TICK_HZ as f32,
+        )
+        .map(|budget| budget.seen_from_m as f32);
 
         let extent = self.battlefield.heightmap.extent_m();
         let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
 
         // Map yaw convention: heading 0 points up (+world z), so yaw = atan2(x, z).
         Some(MinimapModel {
+            size: self.input.minimap_size(),
             extent_m,
             relief: self.minimap_static.relief.clone(),
             water: self.minimap_static.water.clone(),
@@ -169,10 +212,15 @@ impl ClientApp {
             cover: self.minimap_static.cover.clone(),
             player_xz: [player.translation[0], player.translation[2]],
             player_heading_rad: player.hull_yaw_rad,
+            player_turret_yaw_rad: player.hull_yaw_rad + player.turret_yaw_rad,
             view_yaw_rad: camera_forward_xz[0].atan2(camera_forward_xz[1]),
             view_half_fov_rad: VIEW_HALF_FOV_RAD,
+            view_range_m: self.player_spec().view_range_m(),
+            seen_from_m,
             allies,
             enemies,
+            ghosts,
+            pings,
         })
     }
 }

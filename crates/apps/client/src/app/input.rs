@@ -100,6 +100,8 @@ impl ClientApp {
             // key repeat must not climb the ladder on its own, so the edge alone counts.
             PhysicalKey::Code(KeyCode::KeyR) if pressed => self.input.cruise_up(),
             PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
+            // H15: M cycles the minimap through its three sizes.
+            PhysicalKey::Code(KeyCode::KeyM) if pressed => self.input.cycle_minimap(),
             // H8: N folds the hit log to its newest row and unfolds it again.
             PhysicalKey::Code(KeyCode::KeyN) if pressed => self.input.toggle_hit_log(),
             // H11: T marks the hull under the reticle as THE target and tells the team. It
