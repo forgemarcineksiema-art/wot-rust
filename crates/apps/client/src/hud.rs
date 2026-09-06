@@ -5,6 +5,7 @@ use ui_kit::rect::Rect;
 use crate::hud::reticle::ReticleStatus;
 
 pub(crate) mod ammo_panel;
+pub(crate) mod budget;
 pub(crate) mod damage_log;
 pub(crate) mod damage_panel;
 pub(crate) mod demo;
@@ -29,6 +30,7 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod review;
 pub(crate) mod scope_overlay;
+pub(crate) mod sixth_sense;
 pub(crate) mod speed;
 pub(crate) mod spot_bracket;
 pub(crate) mod states;
@@ -93,6 +95,10 @@ pub struct BattleHudModel {
     pub team_lists: Option<team_list::TeamListsModel>,
     /// The world-anchored markers (H10): every spotted enemy, the target in full.
     pub markers: Option<marker::MarkerModel>,
+    /// The sixth sense (H13): lit exactly while the own mask says an enemy sees us.
+    pub sixth_sense_lit: bool,
+    /// The visibility budget line (H14); `None` before the roster lands.
+    pub budget: Option<budget::BudgetModel>,
     /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
@@ -133,6 +139,8 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             top_bar: None,
             team_lists: None,
             markers: None,
+            sixth_sense_lit: false,
+            budget: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
             fire_denied_age_s: None,
@@ -171,6 +179,8 @@ pub(crate) fn test_model(
         top_bar: None,
         team_lists: None,
         markers: None,
+        sixth_sense_lit: false,
+        budget: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -308,6 +318,11 @@ pub(crate) fn build_battle_hud_list(
     }
     if let Some(lists) = &model.team_lists {
         team_list::push_team_lists(&mut list, ui, &theme, lists, &mut order);
+    }
+    // H13/H14: the sixth-sense lamp under the top bar, the budget line under the lamp's slot.
+    sixth_sense::push_sixth_sense(&mut list, ui, &theme, model.sixth_sense_lit, &mut order);
+    if let Some(budget) = &model.budget {
+        budget::push_budget(&mut list, ui, &theme, budget, &mut order);
     }
     // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
     // where the reticle is; the reticle stays on top.

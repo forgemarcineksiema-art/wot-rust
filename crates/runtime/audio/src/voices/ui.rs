@@ -199,3 +199,74 @@ mod tests {
         assert!(second_window > trough * 1.5, "the second beat must rise over the decay");
     }
 }
+
+/// The sixth sense (interface program H13): two struck partials a fifth apart, the second a
+/// beat behind the first — a small bell in the same steel as the rest of the interface, not a
+/// synth beep. Short: it says „seen" and gets out of the way.
+pub struct SixthSenseChime {
+    age_samples: usize,
+    first: (f32, f32, ExpDecay),
+    second: (f32, f32, ExpDecay),
+    second_start: usize,
+}
+
+impl SixthSenseChime {
+    pub fn new(sample_rate_hz: f32) -> Self {
+        Self {
+            age_samples: 0,
+            first: (
+                0.0,
+                std::f32::consts::TAU * 880.0 / sample_rate_hz,
+                ExpDecay::new(0.45, 0.12, sample_rate_hz),
+            ),
+            second: (
+                0.0,
+                std::f32::consts::TAU * 1320.0 / sample_rate_hz,
+                ExpDecay::new(0.38, 0.15, sample_rate_hz),
+            ),
+            second_start: (0.11 * sample_rate_hz) as usize,
+        }
+    }
+}
+
+impl Voice for SixthSenseChime {
+    fn render(&mut self, out: &mut [f32]) -> bool {
+        for sample in out.iter_mut() {
+            let (phase, step, env) = &mut self.first;
+            *phase += *step;
+            let mut acc = phase.sin() * env.step();
+            if self.age_samples >= self.second_start {
+                let (phase, step, env) = &mut self.second;
+                *phase += *step;
+                acc += phase.sin() * env.step();
+            }
+            *sample = acc;
+            self.age_samples += 1;
+        }
+        !(self.first.2.is_quiet()
+            && (self.second.2.is_quiet() || self.age_samples < self.second_start))
+    }
+}
+
+#[cfg(test)]
+mod sixth_sense_tests {
+    use super::*;
+    use crate::voice::{peak, render_to_vec};
+
+    /// The chime is audible, short, and rings its second note after the first.
+    #[test]
+    fn the_sixth_sense_chime_is_short_and_rings_twice() {
+        let rate = 48_000.0;
+        let mut voice = SixthSenseChime::new(rate);
+        let samples = render_to_vec(&mut voice, 96_000);
+        assert!(peak(&samples) > 0.3, "audible");
+        // The envelope's quiet mark is far below hearing; the bell is over well inside 1.5 s.
+        assert!(samples.len() < 72_000, "short: {} samples", samples.len());
+        let first_beat = peak(&samples[..(0.10 * rate) as usize]);
+        let second_beat = peak(&samples[(0.11 * rate) as usize..(0.20 * rate) as usize]);
+        assert!(
+            first_beat > 0.3 && second_beat > 0.3,
+            "two notes: {first_beat:.2} {second_beat:.2}"
+        );
+    }
+}

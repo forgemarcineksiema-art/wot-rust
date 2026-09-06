@@ -610,6 +610,9 @@ pub(crate) struct ClientApp {
     target_mark: Option<TankId>,
     /// The spotted hull whose projected box holds the reticle's aim this frame, for T.
     hull_under_reticle: Option<TankId>,
+    /// Whether the own mask said „spotted" on the last snapshot (H13): the chime plays on the
+    /// rising edge, once per span.
+    spotted_before: bool,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -906,6 +909,7 @@ impl ClientApp {
             intel: battle_intel::BattleIntel::default(),
             target_mark: None,
             hull_under_reticle: None,
+            spotted_before: false,
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),

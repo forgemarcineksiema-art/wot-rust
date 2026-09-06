@@ -736,3 +736,26 @@ fn a_target_mark_follows_the_hull_and_dies_with_its_visibility_and_never_moves_t
     app.refresh_target_mark([TankId(3)].into_iter());
     assert_eq!(app.target_mark, None);
 }
+
+/// H13: the chime plays once per spotted span — on the rising edge of the own mask, never
+/// while it stays set, and again only after it cleared.
+#[test]
+fn the_chime_plays_once_per_span() {
+    let mut app = in_battle();
+    app.pending_audio.clear();
+    let chimes = |app: &ClientApp| {
+        app.pending_audio.iter().filter(|e| matches!(e, audio::AudioEvent::SixthSense)).count()
+    };
+    app.sixth_sense_edge(false);
+    assert_eq!(chimes(&app), 0);
+    app.sixth_sense_edge(true);
+    assert_eq!(chimes(&app), 1, "the edge rings");
+    app.sixth_sense_edge(true);
+    app.sixth_sense_edge(true);
+    assert_eq!(chimes(&app), 1, "a span rings once");
+    app.sixth_sense_edge(false);
+    assert_eq!(chimes(&app), 1);
+    app.sixth_sense_edge(true);
+    assert_eq!(chimes(&app), 2, "the next span rings again");
+    assert!(app.spotted_before);
+}

@@ -230,6 +230,24 @@ impl ClientApp {
         }
     }
 
+    /// The other team in a two-team battle: whose spotting bit is the sixth sense's.
+    pub(super) fn enemy_team(&self) -> game_core::TeamId {
+        if self.player_team() == game_core::TeamId(1) {
+            game_core::TeamId(2)
+        } else {
+            game_core::TeamId(1)
+        }
+    }
+
+    /// The sixth sense's edge (H13): the chime plays when the own mask goes from clear to set,
+    /// once per spotted span — never while it stays set, never on a memory of it.
+    pub(super) fn sixth_sense_edge(&mut self, lit_now: bool) {
+        if lit_now && !self.spotted_before {
+            self.queue_audio(audio::AudioEvent::SixthSense);
+        }
+        self.spotted_before = lit_now;
+    }
+
     /// The mark dies with the hull's visibility: gone from the snapshot — unspotted, or dead —
     /// gone from the HUD, so the marker can never point at a memory.
     pub(super) fn refresh_target_mark(&mut self, visible: impl Iterator<Item = game_core::TankId>) {

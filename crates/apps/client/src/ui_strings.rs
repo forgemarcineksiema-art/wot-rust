@@ -98,6 +98,14 @@ pub(crate) mod battle {
     pub const AMMO_SWITCHING: &str = "SWITCHING";
     /// Millimetres, after a penetration figure (H6).
     pub const MILLIMETRES: &str = "MM";
+    /// The sixth-sense lamp (H13).
+    pub const SPOTTED_LAMP: &str = "SPOTTED";
+    /// The visibility budget line (H14): „SEEN FROM 308 M · MOVING".
+    pub const SEEN_FROM: &str = "SEEN FROM";
+    pub const BUDGET_STILL: &str = "STILL";
+    pub const BUDGET_MOVING: &str = "MOVING";
+    pub const BUDGET_FIRED: &str = "FIRED";
+    pub const SECONDS_UNIT: &str = "S";
     /// The hit log's words for the causes without a shell (H8).
     pub const HIT_RAM: &str = "RAM";
     pub const HIT_SPLASH: &str = "SPLASH";
@@ -156,6 +164,12 @@ pub(crate) mod battle {
         RADIO_OUT,
         AMMO_SWITCHING,
         MILLIMETRES,
+        SPOTTED_LAMP,
+        SEEN_FROM,
+        BUDGET_STILL,
+        BUDGET_MOVING,
+        BUDGET_FIRED,
+        SECONDS_UNIT,
         HIT_RAM,
         HIT_SPLASH,
         HIT_IMPACT,

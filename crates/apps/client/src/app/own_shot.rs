@@ -35,6 +35,8 @@ pub(super) struct OwnShotPrediction {
     /// The client's own copy of the reload after a predicted shot: a second click inside the
     /// snapshot window that has not yet reported the reload must not predict a second flash.
     lockout_s: f32,
+    /// Seconds since the last predicted shot (H14).
+    last_fire_age_s: Option<f32>,
 }
 
 impl OwnShotPrediction {
@@ -49,6 +51,13 @@ impl OwnShotPrediction {
         self.predicted_total += 1;
         self.unconfirmed.push(0.0);
         self.lockout_s = self.lockout_s.max(reload_s);
+        self.last_fire_age_s = Some(0.0);
+    }
+
+    /// Seconds since the crew's last shot (H14): the sim reveals a gun that fired for
+    /// `FIRE_REVEAL_TICKS`, and the budget line says so. `None` before the first shot.
+    pub fn fire_age_s(&self) -> Option<f32> {
+        self.last_fire_age_s
     }
 
     /// Seconds of reload the client itself still counts after its last predicted shot.
@@ -67,6 +76,9 @@ impl OwnShotPrediction {
     /// report whether a held click is due to fire this tick.
     pub fn tick(&mut self, dt: f32) -> bool {
         self.lockout_s = (self.lockout_s - dt).max(0.0);
+        if let Some(age) = &mut self.last_fire_age_s {
+            *age += dt;
+        }
         for age in &mut self.unconfirmed {
             *age += dt;
         }

@@ -36,6 +36,9 @@ pub enum AudioEvent {
     /// The garage REFUSED an edit (incompatible fit): the dull knock that answers the red flash,
     /// so a rejection is heard, not only seen.
     UiReject,
+    /// The sixth sense (interface program H13): the crew has just been SPOTTED — the own mask
+    /// on the wire went from clear to set. Once per span, never repeated while it stays set.
+    SixthSense,
     /// The garage repair beat (Hala v4 R2): the wrench works for `seconds` — the shop is
     /// HEARD fixing what the nameplate says it is fixing.
     RepairWork { seconds: f32 },

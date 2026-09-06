@@ -109,7 +109,7 @@ impl HudState {
                 model.damage = Some(super::demo::wounded_damage_panel());
             }
             HudState::OnFire => model.damage = Some(super::demo::burning_damage_panel()),
-            HudState::Spotted => {}
+            HudState::Spotted => model.sixth_sense_lit = true,
             HudState::KillConfirmed => model.kill_confirm_age_s = Some(0.4),
             HudState::OutcomeBanner => model.battle_outcome = Some(BattleHudOutcome::Victory),
             HudState::PauseMenu => {
