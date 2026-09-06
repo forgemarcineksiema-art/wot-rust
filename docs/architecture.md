@@ -59,8 +59,8 @@ move), and the app-to-app allowlist is empty.
 - `sim`: deterministic fixed tick simulation — movement, aiming, combat, spotting,
   destruction, replay regression fixtures.
 - `physics`: the custom deterministic movement math — SAT footprint collision, terrain
-  contact, the support envelope, water wading. No physics engine: `parry3d` survives only
-  as the currently uncalled `parry_query` seam (see `docs/physics-policy.md`).
+  contact, the support envelope, water wading. No physics engine at all: rapier left on
+  2026-08-02 and parry3d on 2026-09-07 (see `docs/physics-policy.md`).
 - `net`: binary protocol messages, transport framing, the per-viewer snapshot filter, and
   wire snapshot tests.
 - `matchmaker`: the queue's pure core (`docs/game-modes.md` M7a) — tickets × now → battle
@@ -156,7 +156,7 @@ about prose. The old required-docs path list was removed on purpose
 by being cited from the tests that enforce it, not by a test asserting the file exists").
 What the gate actually locks today: the layer DAG and app isolation (`layer_rules.rs`), the
 render surface confined to the crates that own it (`architecture_rules.rs` — default-deny
-tables for `wgpu`/`winit`/`renderer_wgpu`/`renderer_api`), the parry3d/no-rapier dependency
-pin (`parry_feature_rules.rs`), simulation/render separation, identity-enum append rules,
+tables for `wgpu`/`winit`/`renderer_wgpu`/`renderer_api`), the no-physics-engine
+pin (`no_physics_engine_rules.rs`), simulation/render separation, identity-enum append rules,
 duplication and naming hygiene, and the other rule files under
 `crates/tooling/quality/tests/`. The complete local gate is `./scripts/verify.ps1`.

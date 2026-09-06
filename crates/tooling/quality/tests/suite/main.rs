@@ -22,7 +22,7 @@ mod math_backend_parity;
 mod movement_rules;
 mod naming_rules;
 mod no_duplicate_free_functions;
-mod parry_feature_rules;
+mod no_physics_engine_rules;
 mod render_pass_recorder;
 mod render_sample_count;
 mod roadmap_claims;
