@@ -6,7 +6,7 @@ mod elements;
 mod layout;
 mod overlay;
 mod panels;
-pub(super) mod persistence;
+pub(crate) mod persistence;
 mod selection;
 #[cfg(test)]
 mod state_tests;

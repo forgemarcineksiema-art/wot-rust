@@ -61,6 +61,8 @@ pub struct Ui {
     viewport_px: [f32; 2],
     user_scale: f32,
     clip: Vec<Rect>,
+    /// Added to every anchored rectangle (H21): an instrument's nudge from its designed place.
+    nudge_px: [f32; 2],
 }
 
 impl Ui {
@@ -70,7 +72,28 @@ impl Ui {
             viewport_px: [width_px.max(1) as f32, height_px.max(1) as f32],
             user_scale: user_scale.clamp(0.5, 3.0),
             clip: Vec::new(),
+            nudge_px: [0.0, 0.0],
         }
+    }
+
+    /// The same context with every anchored rectangle nudged by `nudge_u` (in this context's
+    /// `u`, +x right, +y down) and the scale multiplied by `scale`: one instrument's placement
+    /// (H21). The nudge compounds with any already set.
+    pub fn nudged(&self, nudge_u: [f32; 2], scale: f32) -> Ui {
+        Ui {
+            viewport_px: self.viewport_px,
+            user_scale: (self.user_scale * scale.max(0.1)).clamp(0.5, 3.0),
+            clip: self.clip.clone(),
+            nudge_px: [
+                self.nudge_px[0] + self.px(nudge_u[0]),
+                self.nudge_px[1] + self.px(nudge_u[1]),
+            ],
+        }
+    }
+
+    /// The nudge in force, in physical pixels.
+    pub fn nudge_px(&self) -> [f32; 2] {
+        self.nudge_px
     }
 
     /// The 1080p context at scale one: what the goldens and the unit tests lay out in.
@@ -128,10 +151,15 @@ impl Ui {
         let w = self.px(size_u[0]);
         let h = self.px(size_u[1]);
         let f = anchor.fraction();
-        let ox = self.px(offset_u[0]) * (1.0 - 2.0 * f[0]);
-        let oy = self.px(offset_u[1]) * (1.0 - 2.0 * f[1]);
-        let x = frame.x + (frame.w - w) * f[0] + ox;
-        let y = frame.y + (frame.h - h) * f[1] + oy;
+        // An offset moves inward from the anchored edges; on a centred axis (no edge) it is a
+        // plain translation, +x right and +y down.
+        let inward = |offset: f32, fraction: f32| {
+            if (fraction - 0.5).abs() < 1e-6 { offset } else { offset * (1.0 - 2.0 * fraction) }
+        };
+        let ox = inward(self.px(offset_u[0]), f[0]);
+        let oy = inward(self.px(offset_u[1]), f[1]);
+        let x = frame.x + (frame.w - w) * f[0] + ox + self.nudge_px[0];
+        let y = frame.y + (frame.h - h) * f[1] + oy + self.nudge_px[1];
         Rect::new(x, y, w, h)
     }
 
@@ -189,6 +217,27 @@ mod tests {
         assert_eq!([br.right(), br.bottom()], [1920.0 - 16.0, 1080.0 - 16.0]);
         let c = ui.anchor(Anchor::Center, [200.0, 100.0], [0.0, 0.0]);
         assert_eq!(c.center(), [960.0, 540.0]);
+    }
+
+    /// H21: a centred axis takes its offset as a translation; a nudged context moves every
+    /// anchored rectangle by the nudge and scales its `u`.
+    #[test]
+    fn a_nudged_context_moves_every_anchor_and_a_centre_takes_its_offset() {
+        let ui = Ui::reference();
+        let below = ui.anchor(Anchor::Center, [200.0, 100.0], [0.0, 110.0]);
+        assert_eq!(below.center(), [960.0, 650.0]);
+        let right_of_top = ui.anchor(Anchor::Top, [200.0, 100.0], [30.0, 8.0]);
+        assert_eq!(right_of_top.center()[0], 990.0);
+        assert_eq!(right_of_top.y, 8.0);
+        let nudged = ui.nudged([40.0, -30.0], 1.0);
+        let a = ui.anchor(Anchor::BottomLeft, [100.0, 50.0], [12.0, 12.0]);
+        let b = nudged.anchor(Anchor::BottomLeft, [100.0, 50.0], [12.0, 12.0]);
+        assert_eq!([b.x - a.x, b.y - a.y], [40.0, -30.0]);
+        assert_eq!(nudged.nudge_px(), [40.0, -30.0]);
+        let bigger = ui.nudged([0.0, 0.0], 1.5);
+        assert!((bigger.px(10.0) - 15.0).abs() < 1e-6);
+        let twice = nudged.nudged([1.0, 1.0], 1.0);
+        assert_eq!(twice.nudge_px(), [41.0, -29.0]);
     }
 
     #[test]

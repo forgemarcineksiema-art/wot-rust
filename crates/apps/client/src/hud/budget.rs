@@ -8,7 +8,6 @@ use game_core::{TeamId, VehicleKind};
 use net::RosterEntry;
 use ui_kit::draw_list::{Align, DigitMode, DrawList, Element, Payload};
 use ui_kit::font::Style;
-use ui_kit::rect::Rect;
 use ui_kit::theme::Theme;
 use ui_kit::ui::Ui;
 
@@ -99,9 +98,8 @@ pub(crate) fn push_budget(
     model: &BudgetModel,
     z: &mut i16,
 ) {
-    let viewport = ui.viewport();
-    let w = ui.px(LINE_W_U);
-    let rect = Rect::new(viewport.center()[0] - w * 0.5, ui.px(LINE_TOP_U), w, ui.px(18.0));
+    // Hung from the top through the anchor (H21: the context's nudge moves it with the stack).
+    let rect = ui.anchor(ui_kit::ui::Anchor::Top, [LINE_W_U, 18.0], [0.0, LINE_TOP_U]);
     list.push(
         Element::new(
             HudElement::BudgetLine,

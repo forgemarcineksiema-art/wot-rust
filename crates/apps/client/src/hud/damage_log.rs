@@ -13,7 +13,7 @@ use ui_kit::draw_list::{Align, DigitMode, DrawList, Element, Payload};
 use ui_kit::font::Style;
 use ui_kit::rect::Rect;
 use ui_kit::theme::Theme;
-use ui_kit::ui::Ui;
+use ui_kit::ui::{Anchor, Ui};
 
 use super::elements::{HitLogPart, HudElement};
 
@@ -289,10 +289,15 @@ pub(crate) fn push_hit_log(
         list.push(element.z(*z));
         *z += 1;
     };
-    let viewport = ui.viewport();
     let width = ui.px(LOG_W_U);
-    let left = viewport.center()[0] - width * 0.5;
-    let top = viewport.center()[1] + ui.px(LOG_TOP_BELOW_CENTER_U);
+    // Hung from the centre (H21: the context's nudge moves it with the rest of the log).
+    let first = ui.anchor(
+        Anchor::Center,
+        [LOG_W_U, ROW_H_U],
+        [0.0, LOG_TOP_BELOW_CENTER_U + ROW_H_U * 0.5],
+    );
+    let left = first.x;
+    let top = first.y;
     let enamel = theme.plates.enamel_black;
     let shown = if collapsed { 1 } else { LOG_CAP };
     for (index, entry) in entries.iter().take(shown).enumerate() {

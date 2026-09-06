@@ -89,6 +89,16 @@ pub enum HudElement {
     NetReadout,
     /// The dead crew's strip (H19): whose hull it rides, and the keys.
     Spectate(SpectatePart),
+    /// The HUD editor's overlay (H21): a frame and a name per instrument, the footer.
+    Editor(EditorPart),
+}
+
+/// The parts of the editor's overlay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EditorPart {
+    Frame(super::layout::Instrument),
+    Label(super::layout::Instrument),
+    Footer,
 }
 
 /// The parts of the spectate strip.
@@ -211,7 +221,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 42] = [
+    pub const ALL: [HudElement; 43] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -256,6 +266,7 @@ impl HudElement {
         HudElement::KillFeed(KillFeedPart::Word(0)),
         HudElement::NetReadout,
         HudElement::Spectate(SpectatePart::Strip),
+        HudElement::Editor(EditorPart::Footer),
     ];
 }
 

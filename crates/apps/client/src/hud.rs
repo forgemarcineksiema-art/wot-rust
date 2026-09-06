@@ -11,6 +11,7 @@ pub(crate) mod damage_log;
 pub(crate) mod damage_panel;
 pub(crate) mod demo;
 pub(crate) mod demo_strip;
+pub(crate) mod editor;
 pub(crate) mod elements;
 pub use ui_kit::font;
 pub(crate) mod health;
@@ -18,6 +19,7 @@ pub(crate) mod hit_direction;
 pub(crate) use ui_kit::icons;
 pub(crate) mod kill_feed;
 pub(crate) mod kill_marker;
+pub(crate) mod layout;
 pub(crate) mod marker;
 pub(crate) mod minimap;
 pub(crate) mod net_readout;
@@ -133,6 +135,10 @@ pub struct BattleHudModel {
     pub dead: Option<spectate::DeadModel>,
     /// The semantic palette the HUD wears (H22): the player's setting.
     pub palette: ui_kit::theme::Palette,
+    /// The layout (H21): the preset and every instrument's placement.
+    pub layout: layout::HudLayout,
+    /// The HUD editor's overlay while it is open (H21).
+    pub editor: Option<editor::EditorModel>,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -173,6 +179,8 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             net: None,
             dead: None,
             palette: ui_kit::theme::Palette::Standard,
+            layout: crate::hud::layout::HudLayout::default(),
+            editor: None,
         },
         aspect,
     )
@@ -225,6 +233,8 @@ pub(crate) fn test_model(
         net: None,
         dead: None,
         palette: ui_kit::theme::Palette::Standard,
+        layout: crate::hud::layout::HudLayout::default(),
+        editor: None,
     }
 }
 
@@ -340,10 +350,14 @@ pub(crate) fn build_battle_hud_list(
     }
     // H1, H2: the first instruments of the new toolkit — plates, text, bars and glass by name,
     // in the unit `u`, so they scale with the size class where the legacy quads cannot.
+    // H21: every instrument lays out in its own context — nudged and scaled by its placement
+    // — and the preset says which show. The reticle stack above has no placement.
+    let layout = &model.layout;
+    let ui_of = |instrument: layout::Instrument| layout.ui_for(ui, instrument);
     if let Some(bar) = &model.top_bar {
         top_bar::push_top_bar(
             &mut list,
-            ui,
+            &ui_of(layout::Instrument::TopBar),
             &theme,
             bar,
             model.battle_clock_remaining_s,
@@ -351,23 +365,48 @@ pub(crate) fn build_battle_hud_list(
         );
     }
     if let Some(lists) = &model.team_lists {
-        team_list::push_team_lists(&mut list, ui, &theme, lists, &mut order);
+        team_list::push_team_lists(
+            &mut list,
+            &ui_of(layout::Instrument::TeamLists),
+            &theme,
+            lists,
+            &mut order,
+        );
     }
     // H13/H14: the sixth-sense lamp under the top bar, the budget line under the lamp's slot.
-    sixth_sense::push_sixth_sense(&mut list, ui, &theme, model.sixth_sense_lit, &mut order);
-    if let Some(budget) = &model.budget {
-        budget::push_budget(&mut list, ui, &theme, budget, &mut order);
+    let ui_stack = ui_of(layout::Instrument::TopStack);
+    sixth_sense::push_sixth_sense(&mut list, &ui_stack, &theme, model.sixth_sense_lit, &mut order);
+    if let Some(budget) = &model.budget
+        && layout.shows_budget()
+    {
+        budget::push_budget(&mut list, &ui_stack, &theme, budget, &mut order);
     }
     // H16: the team's newest word under the budget line.
     if let Some(word) = &model.team_word {
-        ping_marker::push_team_word(&mut list, ui, &theme, word, &mut order);
+        ping_marker::push_team_word(&mut list, &ui_stack, &theme, word, &mut order);
     }
     // H3, H18: the kill feed under the enemy ear, the connection under the frame counter.
-    if let Some(feed) = &model.kill_feed {
-        kill_feed::push_kill_feed(&mut list, ui, &theme, feed, &mut order);
+    if let Some(feed) = &model.kill_feed
+        && layout.shows(layout::Instrument::KillFeed)
+    {
+        kill_feed::push_kill_feed(
+            &mut list,
+            &ui_of(layout::Instrument::KillFeed),
+            &theme,
+            feed,
+            &mut order,
+        );
     }
-    if let Some(net) = &model.net {
-        net_readout::push_net_readout(&mut list, ui, &theme, net, &mut order);
+    if let Some(net) = &model.net
+        && layout.shows(layout::Instrument::NetReadout)
+    {
+        net_readout::push_net_readout(
+            &mut list,
+            &ui_of(layout::Instrument::NetReadout),
+            &theme,
+            net,
+            &mut order,
+        );
     }
     // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
     // where the reticle is; the reticle stays on top. The team's pings (H16) ride with them.
@@ -386,10 +425,10 @@ pub(crate) fn build_battle_hud_list(
     if !wheel_open {
         damage_log::push_hit_log(
             &mut list,
-            ui,
+            &ui_of(layout::Instrument::HitLog),
             &theme,
             &model.damage_log,
-            model.hit_log_collapsed,
+            layout.hit_log_folded(model.hit_log_collapsed),
             &mut order,
         );
     }
@@ -399,17 +438,38 @@ pub(crate) fn build_battle_hud_list(
         legacy(&mut list, &mut order, HudElement::HitDirection, v);
     }
     // H5/H6: the speed instrument and the ammunition panel, on the new toolkit.
-    speed::push_speed(&mut list, ui, &theme, model.speed_kmh, model.cruise_level, &mut order);
+    speed::push_speed(
+        &mut list,
+        &ui_of(layout::Instrument::Speed),
+        &theme,
+        model.speed_kmh,
+        model.cruise_level,
+        &mut order,
+    );
     if let Some(ammo) = &model.ammo {
-        ammo_panel::push_ammo_panel(&mut list, ui, &theme, ammo, &mut order);
+        ammo_panel::push_ammo_panel(
+            &mut list,
+            &ui_of(layout::Instrument::Ammo),
+            &theme,
+            ammo,
+            &mut order,
+        );
     }
     // H4/H17: the damage panel — the four callout instruments folded into one plate.
     if let Some(damage) = &model.damage {
-        damage_panel::push_damage_panel(&mut list, ui, &theme, damage, &mut order);
+        damage_panel::push_damage_panel(
+            &mut list,
+            &ui_of(layout::Instrument::DamagePanel),
+            &theme,
+            damage,
+            &mut order,
+        );
     }
     if let Some(map) = &model.minimap {
         // H0: an enamel plate, the relief baked into the sheet as ONE quad, the vector overlays
-        // on top, and a pane of glass over the lot.
+        // on top, and a pane of glass over the lot. H21: the whole square in its own context.
+        let ui_map = ui_of(layout::Instrument::Minimap);
+        let ui = &ui_map;
         let map_rect = minimap::map_rect_px(ui, map.size);
         let enamel = theme.plates.enamel_black;
         list.push(
@@ -437,6 +497,14 @@ pub(crate) fn build_battle_hud_list(
         order += 1;
         let mut v = Vec::new();
         minimap::push_minimap(&mut v, map, aspect);
+        // The overlay is clip-space vertices: they take the square's nudge as a clip translation.
+        let nudge = ui.nudge_px();
+        let viewport = ui.viewport();
+        let shift = [nudge[0] * 2.0 / viewport.w, -nudge[1] * 2.0 / viewport.h];
+        for vertex in &mut v {
+            vertex.position[0] += shift[0];
+            vertex.position[1] += shift[1];
+        }
         legacy(&mut list, &mut order, HudElement::Minimap, v);
         // H15: the blips are class glyphs in the team colours, with the seat where it fits; the
         // grid's letters and numbers along the edges on the sizes that fit them.
@@ -582,6 +650,11 @@ pub(crate) fn build_battle_hud_list(
     if let Some(wheel) = &model.command_wheel {
         command_wheel::push_command_wheel(&mut list, ui, &theme, wheel, &mut order);
     }
+    // H21: the editor's overlay over the living instruments, under the modal.
+    if let Some(editor) = &model.editor {
+        let frames = editor::instrument_frames(&list);
+        editor::push_editor(&mut list, ui, &theme, &frames, editor, &mut order);
+    }
     // H19: a dead crew keeps the intel — sat back — and nothing of its own gun; the ally it
     // rides, if any, brings its strip and its panel full-lit. The banner keeps its light; the modal
     // below draws over all of it.
@@ -589,7 +662,8 @@ pub(crate) fn build_battle_hud_list(
         list.retain(spectate::survives_death);
         list.dim_where(spectate::INTEL_ALPHA, spectate::dimmed_when_dead);
         if let Some(strip) = &dead.spectating {
-            spectate::push_spectate(&mut list, ui, &theme, strip, &mut order);
+            let ui_stack = model.layout.ui_for(ui, layout::Instrument::TopStack);
+            spectate::push_spectate(&mut list, &ui_stack, &theme, strip, &mut order);
         }
     }
     // Last, so the modal sits over every battle marker — including the outcome banner, which a

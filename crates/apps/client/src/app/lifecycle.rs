@@ -89,7 +89,16 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.pause_menu.is_some() {
+                if self.hud_editor_open() {
+                    // H21: the editor owns the pointer — a press takes an instrument, a
+                    // release drops it; nothing reaches the trigger underneath.
+                    if button == MouseButton::Left {
+                        match state {
+                            ElementState::Pressed => self.hud_editor_press(),
+                            ElementState::Released => self.hud_editor_release(),
+                        }
+                    }
+                } else if self.pause_menu.is_some() {
                     // The ESC modal owns the pointer: a click answers it, and must not recapture
                     // the cursor or reach the trigger underneath.
                     if button == MouseButton::Left && state == ElementState::Pressed {

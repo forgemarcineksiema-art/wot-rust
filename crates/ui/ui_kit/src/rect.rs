@@ -71,6 +71,19 @@ impl Rect {
         Rect { x: self.x + dx, y: self.y + dy, ..*self }
     }
 
+    /// The smallest rectangle holding both (an empty one contributes nothing).
+    pub fn union(&self, other: &Rect) -> Rect {
+        if self.is_empty() {
+            return *other;
+        }
+        if other.is_empty() {
+            return *self;
+        }
+        let x = self.x.min(other.x);
+        let y = self.y.min(other.y);
+        Rect::new(x, y, self.right().max(other.right()) - x, self.bottom().max(other.bottom()) - y)
+    }
+
     /// Whether `other` lies entirely inside this rectangle.
     pub fn encloses(&self, other: &Rect) -> bool {
         other.x >= self.x

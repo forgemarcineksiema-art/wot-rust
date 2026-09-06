@@ -174,7 +174,12 @@ impl MinimapModel {
     pub(crate) fn world_to_px(&self, xz: [f32; 2], ui: &Ui) -> [f32; 2] {
         let clip = self.world_to_clip(xz, ui.aspect());
         let viewport = ui.viewport();
-        [(clip[0] + 1.0) * 0.5 * viewport.w, (1.0 - clip[1]) * 0.5 * viewport.h]
+        // The square's nudge (H21) moves its blips with it.
+        let nudge = ui.nudge_px();
+        [
+            (clip[0] + 1.0) * 0.5 * viewport.w + nudge[0],
+            (1.0 - clip[1]) * 0.5 * viewport.h + nudge[1],
+        ]
     }
 
     pub(crate) fn world_to_clip(&self, xz: [f32; 2], aspect: f32) -> [f32; 2] {
@@ -190,8 +195,9 @@ pub(crate) fn map_rect_px(ui: &Ui, size: MinimapSize) -> Rect {
     let half_h = size.half_h();
     let center = size.center(ui.aspect());
     let hx = half_h / ui.aspect().max(0.01);
-    let left = (center[0] - hx + 1.0) * 0.5 * viewport.w;
-    let top = (1.0 - (center[1] + half_h)) * 0.5 * viewport.h;
+    let nudge = ui.nudge_px();
+    let left = (center[0] - hx + 1.0) * 0.5 * viewport.w + nudge[0];
+    let top = (1.0 - (center[1] + half_h)) * 0.5 * viewport.h + nudge[1];
     Rect::new(left, top, hx * viewport.w, half_h * viewport.h)
 }
 
