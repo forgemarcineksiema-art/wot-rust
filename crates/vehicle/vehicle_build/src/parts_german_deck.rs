@@ -331,10 +331,81 @@ pub fn german_deck_parts(
         }
     }
 
-    // --- the fender flaps over the wraps, or the Panther's curved sweep over the bow wrap -------
+    if deck.flank_stowage {
+        // Hull-flank stowage on the leaned sponson plates: the tow cable, the jack and its timber
+        // block, the tool box — every piece lies ON the armour plane the sponson's upper side
+        // leans on, never floating off it (the Jagdtiger recipe's rule, lifted below the seam).
+        let lean = bp.armor.hull_side.0.to_radians().tan();
+        let wall_x = |y: f32| hull.half_width - (y - hull.sponson_y) * lean;
+        // (key, centre Z, half length along Z, centre Y, half height, proud of the plate)
+        let items = [
+            ("tow_cable", 2.05_f32, 0.42_f32, 1.62_f32, 0.085_f32, 0.070_f32),
+            ("tool_jack", 1.05, 0.30, 1.60, 0.100, 0.085),
+            ("tool_block", 0.20, 0.50, 1.63, 0.060, 0.050),
+            ("tool_box", -1.55, 0.46, 1.61, 0.090, 0.075),
+        ];
+        for (side, sign) in [-1.0_f32, 1.0].into_iter().enumerate() {
+            for (key, cz, half_z, cy, half_y, proud) in items {
+                parts.push(part(
+                    PartKey::indexed(key, side as u16),
+                    MaterialRole::TrackMetal,
+                    PartLod::Detail,
+                    MeshBuilder::new()
+                        .extrude(
+                            Vec3::new(0.0, 0.0, cz),
+                            ExtrudeSpec {
+                                section: crate::parts_casemate::plate_pad(
+                                    wall_x,
+                                    sign,
+                                    cy - half_y,
+                                    cy + half_y,
+                                    proud,
+                                ),
+                                axis: Axis::Z,
+                                half_depth: half_z,
+                                material: MaterialRole::TrackMetal,
+                                smoothing: SG_HARD,
+                            },
+                        )
+                        .build(),
+                ));
+            }
+        }
+    }
+
+    // --- the fender flaps over the wraps, the Panther's curved sweep, or the Jagdtiger's flat
+    // guards over the bow wrap ------------------------------------------------------------------
     let track = &bp.track;
     let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
     let wrap_outer = track.end_radius + 0.02 + 0.055;
+    if deck.flat_bow_guards {
+        // Large FLAT guards over the front sprockets with a downturned lip closing the leading
+        // edge — the Jagdtiger's read, unlike the Tiger II's drooping hinged flaps.
+        for (i, sign) in [-1.0_f32, 1.0].into_iter().enumerate() {
+            parts.push(part(
+                PartKey::indexed("fender_guard", i as u16),
+                MaterialRole::RolledArmor,
+                PartLod::Detail,
+                MeshBuilder::new()
+                    .plate_box(
+                        Vec3::new(sign * track.center_x, hull.sponson_y + 0.03, track.end_z + 0.18),
+                        Vec3::new(band_half * 0.96, 0.015, 0.42),
+                        0.02,
+                        MaterialRole::RolledArmor,
+                        SG_HARD,
+                    )
+                    .plate_box(
+                        Vec3::new(sign * track.center_x, hull.sponson_y - 0.03, track.end_z + 0.59),
+                        Vec3::new(band_half * 0.92, 0.05, 0.015),
+                        0.012,
+                        MaterialRole::RolledArmor,
+                        SG_HARD,
+                    )
+                    .build(),
+            ));
+        }
+        return parts;
+    }
     if deck.curved_sweep {
         // Three chained slanted segments per side approximating the Panther's quarter-round
         // mudguard: the chain rides ABOVE the wrap circle's top and only drops once past the

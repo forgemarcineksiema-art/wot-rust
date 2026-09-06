@@ -95,6 +95,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
         construction: None,
         welded_turret: None,
         german_deck: None,
+        casemate: None,
         hull: Some(HullVisual {
             // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
             // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the
@@ -281,6 +282,8 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
             // One bow hatch: the T-54's driver sits alone at the bow.
             second_bow_hatch_center: None,
+            no_cupola_hatch: false,
+            no_loader_hatch: false,
         }),
         // Clean factory-fresh detailing only: a louvered rear-deck grille, a boxed left-fender
         // exhaust cover, two low turret-roof periscopes, fender lips and a restrained glacis weld

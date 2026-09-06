@@ -34,6 +34,14 @@ pub struct FittingsVisual {
     /// with the driver's radius and height. `None` on a vehicle with one bow hatch (the T-54).
     #[serde(default)]
     pub second_bow_hatch_center: Option<Vec3>,
+    /// A casemate carries no cupola: its lid and hardware are not built (the station fields
+    /// stay as documentation). Appended 2026-09-06.
+    #[serde(default)]
+    pub no_cupola_hatch: bool,
+    /// A casemate's roof hatches are its own (`CasemateVisual::hatches`): the loader's lid is
+    /// not built. Appended 2026-09-06.
+    #[serde(default)]
+    pub no_loader_hatch: bool,
 }
 
 /// Visual-only factory detailing for the hybrid path. Clean-build intent: a freshly delivered

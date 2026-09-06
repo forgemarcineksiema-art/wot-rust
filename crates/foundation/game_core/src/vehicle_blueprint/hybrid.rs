@@ -432,6 +432,12 @@ pub struct VisualDetail {
     /// Tiger I's. Appended 2026-09-06.
     #[serde(default)]
     pub german_deck: Option<GermanDeckVisual>,
+    /// The welded-in casemate's furniture, when the library builds a casemate vehicle (Forge
+    /// 2.0 K3, the Jagdtiger): the prism itself is the blueprint's (`TurretForm::Casemate`);
+    /// this is what stands on it. A vehicle authors a casemate OR a welded turret. Appended
+    /// 2026-09-06.
+    #[serde(default)]
+    pub casemate: Option<CasemateVisual>,
 }
 
 /// The horseshoe's plan, relative to the blueprint's turret: the flat front plate spans
@@ -509,6 +515,48 @@ pub struct GermanDeckVisual {
     /// (x -0.62, y 1.58). Appended 2026-09-06.
     #[serde(default)]
     pub mg_ball: Option<(f32, f32)>,
+    /// LARGE FLAT bow guards over the front sprockets with a downturned front lip (the
+    /// Jagdtiger's read) in place of the flap or the sweep. Appended 2026-09-06.
+    #[serde(default)]
+    pub flat_bow_guards: bool,
+    /// Hull-flank stowage on the leaned sponson plates — the tow cable, the jack and its timber
+    /// block, the tool box (the Jagdtiger's enormous bare flank). Appended 2026-09-06.
+    #[serde(default)]
+    pub flank_stowage: bool,
+}
+
+/// What stands on a welded-in casemate (`vehicle_build::casemate_parts`): the prism is the
+/// blueprint's `TurretShape` (a `Casemate` form — plan, slopes, the cupola station reused for
+/// the commander's periscope housing); the furniture and the cast gun collar are here.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CasemateVisual {
+    /// Half the height of the commander's low periscope housing at the cupola station.
+    pub periscope_housing_half_height: f32,
+    /// The ventilator dome on the roof: `(x, z ahead of the ring centre, half-width)`.
+    pub ventilator: Option<(f32, f32, f32)>,
+    /// The two flush crew hatches on the roof, mirrored: `(x, z behind the ring centre, radius)`.
+    pub hatches: Option<(f32, f32, f32)>,
+    /// The cast collar's rings, root first: `(radius, stand-off ahead of the face plane)`; the
+    /// root ring sits ON the plate.
+    pub collar: [(f32, f32); 4],
+    /// The collar squashed in Y (an oval wider than tall, so it stays on the face).
+    pub collar_y_scale: f32,
+    pub collar_segments: u8,
+    /// Spare-shoe rows racked on the side walls, or none.
+    pub racks: Option<ShoeRackVisual>,
+}
+
+/// A row of spare shoes on a carrier rail, hung on a leaning wall so each shoe's outer face
+/// lies ON the armour plane.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ShoeRackVisual {
+    pub row_y_above_ring: f32,
+    pub half_y: f32,
+    pub thickness: f32,
+    pub shoes: u8,
+    pub pitch: f32,
+    /// The first shoe's z relative to the ring centre (+Z forward).
+    pub first_z: f32,
 }
 
 impl Default for GermanDeckVisual {
@@ -522,6 +570,8 @@ impl Default for GermanDeckVisual {
             twin_periscopes: false,
             curved_sweep: false,
             mg_ball: None,
+            flat_bow_guards: false,
+            flank_stowage: false,
         }
     }
 }
@@ -550,7 +600,9 @@ impl VisualDetail {
     /// and the vehicle ships at Benchmark fidelity with part-aware LODs.
     pub fn is_library_complete(&self) -> bool {
         self.is_complete()
-            || (self.construction.is_some() && self.welded_turret.is_some() && self.gun.is_some())
+            || (self.construction.is_some()
+                && (self.welded_turret.is_some() || self.casemate.is_some())
+                && self.gun.is_some())
     }
 
     /// The FULL truth-aligned view — `Some` only when every part is authored, so the analytic

@@ -17,14 +17,41 @@ use vehicle_geometry::{
     MaterialRole, MeshBuilder,
 };
 
-pub(crate) fn jagdtiger(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn jagdtiger(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    let pieces = jagdtiger_pieces(hitbox, mounts, super::deck_details::DeckOmit::default());
+    let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
+        revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
+    };
+    assemble(
+        VehicleKind::Jagdtiger,
+        concat(pieces.hull),
+        concat(pieces.turret),
+        concat(pieces.gun),
+        pieces.mounts,
+    )
+}
+
+/// The Jagdtiger as the pieces its recipe is made of (Forge 2.0 K3, 2026-09-06): the leaned
+/// prism hull, the deck with the bow guards, the flank stowage, the casemate with its
+/// furniture, racks and collar, and the gun group. `jagdtiger` is these concatenated in this
+/// order and welded; each piece stays out when the part library builds its class (`DeckOmit`).
+pub(crate) fn jagdtiger_pieces(
+    _hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+    omit: super::deck_details::DeckOmit,
+) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::Jagdtiger).expect("Jagdtiger has a blueprint");
-    let hull = shade_hull(
-        blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
-            .append(&super::deck_details::jagdtiger_deck(&bp))
-            .append(&hull_flank_stowage(&bp))
-            .build(),
-    );
+    let mut hull = Vec::with_capacity(3);
+    if !omit.slab {
+        hull.push((
+            "recipe_hull_prism",
+            shade_hull(blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0).build()),
+        ));
+    }
+    if !omit.deck {
+        hull.push(("recipe_hull_deck", shade_hull(super::deck_details::jagdtiger_deck(&bp, omit))));
+        hull.push(("recipe_hull_stowage", shade_hull(hull_flank_stowage(&bp))));
+    }
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
@@ -46,7 +73,12 @@ pub(crate) fn jagdtiger(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
         },
     );
 
-    assemble(VehicleKind::Jagdtiger, hull, casemate, gun, *mounts)
+    super::RecipePieces {
+        hull,
+        turret: if omit.turret { Vec::new() } else { vec![("recipe_turret", casemate)] },
+        gun: if omit.gun { Vec::new() } else { vec![("recipe_gun", gun)] },
+        mounts: *mounts,
+    }
 }
 
 /// Z of the casemate's 250 mm face at height `y`. The face leans back with height at

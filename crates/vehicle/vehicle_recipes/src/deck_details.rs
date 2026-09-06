@@ -677,20 +677,23 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> Geometry
 }
 
 /// The Jagdtiger's bow hatches sit AHEAD of the casemate; the engine deck behind it.
-pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
     let edge = deck_front_edge(bp);
     let hatch_z = edge - 0.38;
     let mut b = MeshBuilder::new();
-    for sign in [-1.0_f32, 1.0] {
-        b = round_hatch(
-            b,
-            Vec3::new(sign * bp.hull.lower_half_width * 0.48, bp.hull.deck_y + 0.002, hatch_z),
-            0.21,
-            sign,
-        );
+    // The bow hatches, the light and the hooks are the library's when the fittings are authored.
+    if !omit.fittings {
+        for sign in [-1.0_f32, 1.0] {
+            b = round_hatch(
+                b,
+                Vec3::new(sign * bp.hull.lower_half_width * 0.48, bp.hull.deck_y + 0.002, hatch_z),
+                0.21,
+                sign,
+            );
+        }
+        b = headlight(b, Vec3::new(0.0, bp.hull.deck_y + 0.10, edge - 0.10), 0.085, false);
+        b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     }
-    b = headlight(b, Vec3::new(0.0, bp.hull.deck_y + 0.10, edge - 0.10), 0.085, false);
-    b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     b = german_exhaust_stacks(b, bp);
     // Bow MG Kugelblende in the glacis right (dossier JT.2) — the ball's seat sits just
     // ahead of the 50-degree plate, like the Tiger I's, scaled to the Jagdtiger's glacis.
