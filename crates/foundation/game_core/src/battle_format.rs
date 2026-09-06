@@ -74,6 +74,30 @@ impl BattleFormat {
         }
         .copied()
     }
+
+    /// How far the host's seeded jitter moves a seat on each local axis, metres (±).
+    pub const SPAWN_JITTER_M: f32 = 1.5;
+
+    /// A seat's point on the ground plane: the formation offset (right, forward) plus a local
+    /// jitter, rotated by the zone's facing yaw about its centre `[x, z]`. The host deploys
+    /// through this and the map report (`map_forge`, the `formats` check of M4) judges the same
+    /// points — a map cannot certify a seat the host would put somewhere else. `None` for a seat
+    /// the format does not have.
+    pub fn seat_position(
+        self,
+        seat: usize,
+        center_xz: [f32; 2],
+        facing_yaw_rad: f32,
+        jitter_local: [f32; 2],
+    ) -> Option<[f32; 2]> {
+        let [local_x, local_z] = self.spawn_offset(seat)?;
+        let (sin, cos) = facing_yaw_rad.sin_cos();
+        let dx = local_x + jitter_local[0];
+        let dz = local_z + jitter_local[1];
+        // right = (cos, -sin), forward = (sin, cos); summed in the host's historical order so
+        // the seven-seat deployment stays byte-identical.
+        Some([center_xz[0] + cos * dx + sin * dz, center_xz[1] + (-sin) * dx + cos * dz])
+    }
 }
 
 #[cfg(test)]

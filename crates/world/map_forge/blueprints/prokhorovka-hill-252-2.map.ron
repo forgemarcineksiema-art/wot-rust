@@ -655,6 +655,7 @@ MapBlueprint(
         ),
     ],
     gameplay: GameplaySpec(
+        formats: [SevenVsSeven, FifteenVsFifteen],
         spawns: [
             SpawnSpec(
                 team: 1,

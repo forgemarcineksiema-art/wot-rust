@@ -50,8 +50,10 @@ fn two_lakes() -> MapBlueprint {
         scenery: Vec::new(),
         roads: Vec::new(),
         gameplay: map_forge::blueprint::GameplaySpec {
+            formats: Vec::new(),
             spawns: vec![
-                SpawnSpec { team: 1, at: [150.0, 40.0], facing_yaw_rad: 0.0, radius_m: None },
+                // 100 m in: the report's `formats` check seats fifteen inside the map.
+                SpawnSpec { team: 1, at: [150.0, 100.0], facing_yaw_rad: 0.0, radius_m: None },
                 SpawnSpec { team: 2, at: [150.0, 260.0], facing_yaw_rad: 0.0, radius_m: None },
             ],
             strategic_points: Vec::new(),

@@ -60,6 +60,13 @@ pub fn cached_blueprint(map: MapId) -> &'static MapBlueprint {
     &all[index]
 }
 
+/// The battle formats a shipped map offers (`docs/game-modes.md` M4): the blueprint's list,
+/// every format when it does not say — and every one of them certified by the report's
+/// `formats` check, since `battlefield` refuses a map with errors.
+pub fn formats(map: MapId) -> Vec<game_core::BattleFormat> {
+    cached_blueprint(map).gameplay.offered_formats()
+}
+
 /// Compile the shipped map. Deterministic: every call, on any machine, yields the same
 /// battlefield. Panics if the catalog ever ships a map that fails its own contracts — that
 /// is a build-time bug, caught by the catalog tests.
