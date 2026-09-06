@@ -20,8 +20,21 @@
 
 use std::time::Instant;
 
+/// The map the probe measures: `WOT_MAP` read by the SAME parser the game uses (a shipped slug
+/// or a `.map.ron` path; unset = the default map), so a verdict per map (`docs/game-modes.md`
+/// M5b) is one run per slug and nothing the probe interprets on its own.
+pub(crate) fn probe_map() -> terrain::MapId {
+    battle_host::RandomBattleConfig::runtime_from_env(game_core::VehicleKind::BENCHMARK).map
+}
+
 pub(crate) fn run() {
-    let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
+    let map = probe_map();
+    println!(
+        "perf_capture on {} (WOT_MAP={})",
+        map.slug(),
+        std::env::var("WOT_MAP").unwrap_or_default()
+    );
+    let battlefield = map_forge::battlefield(map);
 
     let t = Instant::now();
     let ((gv, gi), (sv, si)) = client::battlefield_ground_and_statics_meshes(&battlefield, &[]);
@@ -130,7 +143,7 @@ pub(crate) fn run() {
     );
 
     // Grass: the real per-frame cost, averaged hot.
-    let materials = client::terrain_material_set_for(terrain::MapId::BystraValley);
+    let materials = client::terrain_material_set_for(map);
     let eye = glam::Vec3::new(500.0, 8.0, 470.0);
     let mut count = 0;
     let t = Instant::now();
@@ -329,7 +342,7 @@ fn frame_time_capture() {
     const WARMUP: usize = 20;
     const FRAMES: usize = 180;
     let (width, height) = (1920u32, 1080u32);
-    let map = terrain::MapId::BystraValley;
+    let map = probe_map();
 
     let battlefield = map_forge::battlefield(map);
     let materials = client::terrain_material_set_for(map);

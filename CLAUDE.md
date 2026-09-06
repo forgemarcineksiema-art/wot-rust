@@ -52,7 +52,7 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - `crates/tooling/quality` — **the ratchet**: its gate tests enforce the layer DAG, append-only
   identity enums and the W0 rules. Burn allowlist entries down; never widen one to get green.
 - Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.
-- Perf: `cargo run -p client --release --example probe -- perf_capture`; sim bench `combat_hot_path`.
+- Perf: `cargo run -p client --release --example probe -- perf_capture` (`WOT_MAP=<slug>` picks the map, as in the game); sim bench `combat_hot_path`.
 
 ## Environment pitfalls (Windows / PowerShell 5.1)
 - `Get-Content -Raw` without encoding mangles UTF-8 (Polish comments!) — edit files with
