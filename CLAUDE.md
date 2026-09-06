@@ -50,6 +50,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
   reconciliation table (2026-09-02). Every design decision cites a chapter of it or adds a dated
   row to that table; where the table and the text disagree, the table wins.**
 - `docs/ROADMAP.md` — **the whole picture: systems inventory and the honest gap list, start here**.
+- `docs/program.md` — **the one queue (2026-09-07)**: every open row of every lane (collision X, driving J,
+  destruction Z, terrain T, the shot S, visibility V, topology W, buildings B, the picture D, interface U,
+  the forge K…) and their order; the owner delegated the open decisions on 2026-09-07 — each is dated
+  there and in the GDD table (rows 25–35). A row closes with a number or a frame.
 - `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
   the target look, its 7 rules and their locks.
 - `docs/vehicles/t-54.md` — the benchmark vehicle dossier (the fleet's bar; siblings alongside).

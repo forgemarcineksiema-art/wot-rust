@@ -1,5 +1,7 @@
 # Inny Poziom — The Second Pass
 
+> **2026-09-07: the queue and every open row moved to `docs/program.md` (the one document).** This file keeps the diagnosis, the decisions of the second pass and the full text of its rows; ids quoted in `docs/program.md` resolve here.
+
 Approved 2026-09-01. The owner named ten things that read as unfinished — the geometry kernels and
 the fleet, the picture, the physics, Honest Steel, the armour, the tracks, the flora, the shot, the
 fleet's identity, the HUD — and asked for all of them to be taken "to a completely different level".

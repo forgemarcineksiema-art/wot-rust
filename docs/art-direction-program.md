@@ -1,5 +1,7 @@
 # Art Direction 3.0 — Pulling The Picture Up To The Policy
 
+> **2026-09-07: the D register's open rows (D4, D8, D9, D15, D18, D33) and the new rows D34–D45 live in `docs/program.md`.** This file keeps D1–D33 in full and the closed rows.
+
 [art-direction-policy.md](art-direction-policy.md) states the target look and carries the locks.
 **This document states why the shipped picture does not obey it, and in what order that gets
 fixed.** The policy is the bible; this is the campaign. When the register below is empty and every
