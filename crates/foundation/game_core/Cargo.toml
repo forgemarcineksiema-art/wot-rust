@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+workspace_hack.workspace = true
 glam.workspace = true
 ron.workspace = true
 serde.workspace = true

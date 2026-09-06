@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+workspace_hack.workspace = true
 bytemuck.workspace = true
 encase.workspace = true
 naga.workspace = true

@@ -1,7 +1,7 @@
 [workspace]
 # Crates are grouped into layer folders (foundation/kernels/vehicle/runtime/render/apps/tooling);
 # the glob picks up every crate one level inside `crates/`.
-members = ["crates/*/*"]
+members = ["crates/*/*","crates/foundation/workspace_hack"]
 resolver = "3"
 
 [workspace.package]
@@ -76,6 +76,8 @@ world_forge = { path = "crates/world/world_forge" }
 scene_build = { path = "crates/world/scene_build" }
 timer_resolution = { path = "crates/runtime/timer_resolution" }
 vehicle_geometry = { path = "crates/kernels/vehicle_geometry" }
+# Feature unification: every member depends on it (`workspace_hack/Cargo.toml` says why).
+workspace_hack = { path = "crates/foundation/workspace_hack" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
