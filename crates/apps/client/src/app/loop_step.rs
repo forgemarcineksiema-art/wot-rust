@@ -62,6 +62,7 @@ impl ClientApp {
                 fire = false;
                 select_ammo = None;
                 let outcome = self.session.take_pending_remote_tick();
+                self.ledger.ingest_kills(&outcome.kills);
                 self.intel.ingest(outcome.kills, outcome.team_commands);
                 self.apply_armor_breach_deltas(outcome.armor_breaches);
                 if let Some(snapshot) = outcome.snapshot {
@@ -110,6 +111,7 @@ impl ClientApp {
             });
             self.client_tick += 1;
             self.ticks_since_snapshot = self.ticks_since_snapshot.saturating_add(1);
+            self.ledger.ingest_kills(&outcome.kills);
             self.intel.ingest(outcome.kills, outcome.team_commands);
             self.apply_armor_breach_deltas(outcome.armor_breaches);
             if let Some(snapshot) = outcome.snapshot {
@@ -124,6 +126,18 @@ impl ClientApp {
     }
 
     fn refresh_battle_outcome(&mut self) {
+        let before = self.battle_outcome;
+        self.refresh_battle_outcome_word();
+        // P3: the end is recorded once, on the edge, at the newest tick the client has heard.
+        if before.is_none()
+            && let Some(outcome) = self.battle_outcome
+        {
+            let tick = self.server_tick_now();
+            self.ledger.end(tick, outcome);
+        }
+    }
+
+    fn refresh_battle_outcome_word(&mut self) {
         self.battle_outcome = self
             .session
             .battle_outcome()

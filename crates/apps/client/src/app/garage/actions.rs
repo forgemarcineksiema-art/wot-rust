@@ -305,6 +305,8 @@ impl ClientApp {
             self.client_tick = 0;
             self.damage_log = crate::hud::damage_log::DamageLog::default();
             self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();
+            // P3: the inbox starts with the battle (the record below, once the seat is known).
+            self.intel = crate::app::battle_intel::BattleIntel::default();
             self.hit_indicator = crate::hit_indicator::HitIndicator::default();
             self.fx = crate::fx::FxSystem::default();
             self.tank_scars.clear();
@@ -325,6 +327,8 @@ impl ClientApp {
         }
         let snapshot = self.session.change_player_vehicle_with_spec_for_player(spec.clone());
         self.player_tank = self.session.player_tank();
+        // P3: a battle's record starts with the battle, in the crew's own seat.
+        self.ledger = crate::app::ledger::BattleLedger::new(self.player_tank);
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;
