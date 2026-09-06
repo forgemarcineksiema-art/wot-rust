@@ -190,7 +190,9 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    for (kind, at_least) in [(VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)] {
+    for (kind, at_least) in
+        [(VehicleKind::T34_85, 22), (VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)]
+    {
         let report = InventoryReport::new(&authoritative_description(kind).unwrap());
         assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
         assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());
@@ -198,9 +200,16 @@ fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
     }
 }
 
+/// The T-34-85 was the one vehicle whose dossier read `Needs dossier` (the inventory said
+/// `Pending`, invented nothing); its research pass landed 2026-09-06, so every playable vehicle
+/// now lists its parts — and the `Pending` mechanism stays covered by the spec's own unit test.
 #[test]
-fn a_vehicle_without_a_dossier_part_list_says_so() {
+fn every_playable_vehicle_s_dossier_lists_its_parts() {
+    for kind in VehicleKind::PLAYABLE {
+        let report = InventoryReport::new(&authoritative_description(kind).unwrap());
+        assert!(report.dossier_pending.is_none(), "{kind:?}: the dossier lists its parts");
+        assert!(!report.expected.is_empty(), "{kind:?}: at least one class is named");
+    }
     let report = InventoryReport::new(&authoritative_description(VehicleKind::T34_85).unwrap());
-    assert!(report.dossier_pending.is_some(), "the T-34-85 dossier says `Needs dossier`");
-    assert!(report.expected.is_empty(), "nothing invented in its place");
+    assert!(report.expected.len() >= 22, "the T-34-85's 22 rows: {}", report.expected.len());
 }

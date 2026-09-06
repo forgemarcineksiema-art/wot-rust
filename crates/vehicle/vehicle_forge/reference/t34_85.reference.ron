@@ -50,6 +50,95 @@ ReferencePack(
             note: "The 85 overhangs a modest 2 m — a medium\'s gun, not a heavy\'s.",
         ),
     ],
-    dimensions: [],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 6.1,
+            tolerance_m: 0.03,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "6100 mm over the tracks (ru.wikipedia; ligastrelkov); 8.10 - 6.10 = the ZiS-S-53's 2.00 m overhang.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 8.1,
+            tolerance_m: 0.04,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "8100 mm gun forward with the ZiS-S-53 (ru.wikipedia; historyofwar) — the D-5T run's 8300 is not this vehicle.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.0,
+            tolerance_m: 0.03,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "3000 mm over the tracks (ru.wikipedia; historyofwar; armor.photos); the upper sides overhang the belts to the full beam.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.71,
+            tolerance_m: 0.04,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "2700 (ru.wikipedia; historyofwar) / 2720 (Zaloga) to the cupola apex; roof-vs-cupola convention unstated — Target until the library builds the cupola to the authored height.",
+            ),
+            status: Target,
+        ),
+        DimensionTarget(
+            kind: GroundClearance,
+            target_m: 0.4,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "400 mm (ru.wikipedia; en.wikipedia; armor.photos).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TrackWidth,
+            target_m: 0.5,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "500 mm waffle shoes (ru.wikipedia; victorymuseum; Armorama) — the 550 mm figure is the earlier STZ pattern.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.83,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "830 mm (the 830 x 150 tyre — Tank Archives; armor.photos), five a side.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TurretRingDiameter,
+            target_m: 1.6,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "T-34-85 dossier (Reference anatomy)",
+                url: "docs/vehicles/t-34-85.md",
+                note: "1600 mm outer race, widened from 1425 for the 85 (en.wikipedia; Tank Archives; victorymuseum).",
+            ),
+            status: Locked,
+        ),
+    ],
     outlines: [],
 )

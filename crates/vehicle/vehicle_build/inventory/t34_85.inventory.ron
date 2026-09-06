@@ -1,10 +1,33 @@
-// t34_85 — no part list yet: docs/vehicles/t-34-85.md has the form-rules section reads `Needs dossier`.
-// The inventory gate reports this as the vehicle's first debt (Forge 2.0 K3). A research
-// pass (the dossier template's Form rules + Part construction tables) fills `expected`;
-// nothing is invented here in its place.
+// T-34-85 (1944, ZiS-S-53, Factory 183 flattened turret) — the part classes the dossier lists
+// (docs/vehicles/t-34-85.md, researched 2026-09-06), one row per class with the section that
+// names it. TARGET: the vehicle is a recipe sketch today; every row is debt until the part
+// library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
 (
     vehicle: "t34_85",
-    dossier: Pending("docs/vehicles/t-34-85.md: the form-rules section reads `Needs dossier`"),
+    dossier: Complete,
     locked: false,
-    expected: [],
+    expected: [
+        (class: HullTub, source: "Part construction: the tub between the tracks, floor 20 mm"),
+        (class: UpperHull, source: "Part construction: glacis 45 @ 60°, raked upper sides 45 @ 40°, the driver's hatch in the glacis"),
+        (class: SternPlate, source: "Part construction: rear plate 45 @ 47–48° carrying the rear tow hooks"),
+        (class: EngineDeck, source: "Part construction: rear deck panels over the V-2-34"),
+        (class: DeckGrille, source: "Part construction: the circular fan-intake grille and the rectangular radiator louvres"),
+        (class: Fenders, source: "Part construction: full-length mudguards, curved at bow and stern"),
+        (class: FenderStowage, source: "Part construction: external fuel drums and tool boxes"),
+        (class: TurretShell, source: "Part construction: the Factory-183 flattened single casting, no cheek bulges"),
+        (class: TurretRing, source: "Part construction: 1.600 m outer race"),
+        (class: TurretRails, source: "Part construction: infantry handrails on the turret walls"),
+        (class: Cupola, source: "Part construction: commander's cupola aft, five triplex slits, two-leaf folding hatch"),
+        (class: Hatches, source: "Part construction: loader's rectangular roof hatch, right; the driver's glacis hatch"),
+        (class: Mantlet, source: "Part construction: the ZiS-S-53's rounded external cast mantlet, 40 mm"),
+        (class: GunBarrel, source: "Part construction: ZiS-S-53, L/54.6, 4.645 m tube"),
+        (class: CourseMg, source: "Part construction: bow DT in a ball mount right of the driver"),
+        (class: CoaxMachineGun, source: "Part construction: coaxial DT right of the gun"),
+        (class: Ventilator, source: "Part construction: two bulbous ventilator domes at the roof's rear"),
+        (class: Exhaust, source: "Part construction: twin round outlets low on the rear plate"),
+        (class: Headlights, source: "Part construction: single headlight on the glacis, left"),
+        (class: TowHooks, source: "Part construction: cast hooks with spring catches at the glacis and stern corners"),
+        (class: Periscopes, source: "Part construction: the driver's MK-4 hood(s) on the glacis hatch; roof periscopes"),
+        (class: SuspensionHardware, source: "Part construction: Christie coil springs, the wheel-1/2 gap"),
+    ],
 )
