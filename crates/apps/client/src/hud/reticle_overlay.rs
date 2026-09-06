@@ -7,6 +7,32 @@
 //! distance. The broken BLOCKED form (terrain/ally/arc) and the reload arc draw in both modes —
 //! they report the player's own gun, not the target's armor. The glyphs themselves live in
 //! `hud/reticle_marks.rs`; this module owns the honesty matrix.
+//!
+//! THE AUDIT (interface program H27, 2026-09-06) — every mark against the four questions the
+//! player asks in the second they look at the sight, and the one it answers:
+//!
+//! | mark                              | question                        | verdict |
+//! |-----------------------------------|---------------------------------|---------|
+//! | dispersion ring                   | where will I hit (the spread)   | stays — it IS the sight |
+//! | central marker / aim dot          | where will I hit (the aim)      | stays |
+//! | gun marker (fades as it merges)   | where will I hit (right now)    | stays — gone once merged |
+//! | impact X (sniper, fades in apart) | where will I hit (the landing)  | stays — one mark, when it differs |
+//! | impact leader (blocked only)      | where will I hit (not there)    | stays — a line, only on a refusal |
+//! | marker colour (sniper)            | will it penetrate               | stays |
+//! | pen / mm readouts (sniper)        | will it penetrate (the numbers) | stays |
+//! | distance readout                  | where will I hit (how far)      | stays |
+//! | BLOCKED form + block distance     | may I fire (no: what eats it)   | stays |
+//! | arc-limit stop + label            | may I fire (no: the arc bit)    | stays |
+//! | denied flash                      | may I fire (no, just now)       | stays |
+//! | reload arc + number               | how long until I may            | stays — one place |
+//! | ready ring                        | how long until I may (now)      | stays — a beat |
+//! | scope surround                    | (the optics, not a question)    | stays, sniper only |
+//! | spot brackets (A9)                | where are the enemies           | GONE — not the sight's question; the markers (H10) answer it |
+//!
+//! Nothing answers a question twice: the gun marker and the impact X both say „where", but
+//! never at once — the gun marker fades as the barrel merges with the aim and the X fades in
+//! only as the landing leaves it. The `reticle_strip` frame is byte-identical through this
+//! audit (the brackets were never on the strip); the owner's signature on it is the row's.
 
 use renderer_api::HudVertex;
 

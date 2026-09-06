@@ -33,7 +33,6 @@ const VERTEX_EQUALITY_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/hud/minimap.rs", 2, Hold::Burn),
     ("crates/apps/client/src/hud/reticle_overlay_tests.rs", 42, Hold::Held),
     ("crates/apps/client/src/hud/scope_overlay.rs", 2, Hold::Held),
-    ("crates/apps/client/src/hud/spot_bracket.rs", 1, Hold::Held),
     ("crates/apps/client/src/hud/tests.rs", 16, Hold::Burn),
 ];
 
@@ -64,15 +63,13 @@ const LEGACY_CALL_SITE_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/hud/reticle_overlay.rs", 8, Hold::Held),
     ("crates/apps/client/src/hud/reticle_readouts.rs", 5, Hold::Held),
     ("crates/apps/client/src/hud/scope_overlay.rs", 2, Hold::Held),
-    ("crates/apps/client/src/hud/spot_bracket.rs", 2, Hold::Held),
     ("crates/apps/client/src/hud/tests.rs", 1, Hold::Burn),
 ];
 
 const SCANNED_DIRS: &[&str] = &["crates/apps/client/src"];
 
 /// Files whose counts are held rather than burned, by path fragment.
-const HELD_FRAGMENTS: &[&str] =
-    &["/hud/reticle", "/hud/demo_strip.rs", "/hud/scope_overlay.rs", "/hud/spot_bracket.rs"];
+const HELD_FRAGMENTS: &[&str] = &["/hud/reticle", "/hud/demo_strip.rs", "/hud/scope_overlay.rs"];
 
 const VERTEX_NEEDLES: &[&str] = &[".color ==", ".color !="];
 const CALL_NEEDLES: &[&str] = &[
