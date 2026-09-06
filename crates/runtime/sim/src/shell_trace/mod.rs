@@ -4,7 +4,6 @@
 //! exact impact the server will resolve, so a previewed hit is never one the server rejects.
 
 mod cover;
-mod legacy_boxes;
 mod tank;
 mod terrain;
 mod types;

@@ -19,7 +19,7 @@ pub struct TraceTank {
     pub hitbox: HitboxProfile,
     pub turret_ring_z_m: f32,
     pub armor: ArmorProfile,
-    pub armor_volumes: Option<&'static VehicleArmorVolumes>,
+    pub armor_volumes: &'static VehicleArmorVolumes,
     /// The turret has been blown off (ammo-rack detonation wreck): the trace skips the turret box
     /// / turret armor volume, so a shot that would have struck the turret passes over the hull —
     /// the collision truth matches the picture of a decapitated wreck. Live tanks are always
@@ -43,7 +43,8 @@ impl TraceTank {
             hitbox: spec.hitbox,
             turret_ring_z_m: spec.mounts.turret_ring.translation.z,
             armor: spec.hull,
-            armor_volumes: vehicle_armor_volumes(spec.kind),
+            armor_volumes: vehicle_armor_volumes(spec.kind)
+                .expect("every playable vehicle owns its armour volumes (armor_coverage lock)"),
             turret_detached: false,
         }
     }
@@ -63,7 +64,8 @@ impl TraceTank {
             hitbox: HitboxProfile::for_vehicle(kind),
             turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,
             armor: kind.spec().hull,
-            armor_volumes: vehicle_armor_volumes(kind),
+            armor_volumes: vehicle_armor_volumes(kind)
+                .expect("every playable vehicle owns its armour volumes (armor_coverage lock)"),
             turret_detached: false,
         }
     }

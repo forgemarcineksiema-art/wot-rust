@@ -11,16 +11,15 @@ fn sim_state_uses_combat_pipeline_not_placeholder_shell_motion() {
     let combat =
         fs::read_to_string(root.join("crates/runtime/sim/src/combat.rs")).expect("sim combat");
     // The shared shell-collision kernel (server + client reticle) owns armor-zone resolution:
-    // the volume path in tank.rs plus the legacy band path split into legacy_boxes.rs.
+    // the baked-volume path in tank.rs (the legacy band path left with S22, 2026-09-07).
     let trace = fs::read_to_string(root.join("crates/runtime/sim/src/shell_trace/tank.rs"))
-        .expect("sim shell-trace tank helpers")
-        + &fs::read_to_string(root.join("crates/runtime/sim/src/shell_trace/legacy_boxes.rs"))
-            .expect("sim shell-trace legacy band helpers");
+        .expect("sim shell-trace tank helpers");
 
     assert!(state.contains("CombatTickContext"));
     assert!(state.contains("try_fire_shell"));
     assert!(combat.contains("resolve_penetration"));
-    assert!(trace.contains("ArmorZone"));
+    // The struck plane of a baked armour volume names the zone (S22: no band classifier left).
+    assert!(trace.contains("plane.zone"));
     assert!(trace.contains("zone.facing()"));
     assert!(combat.contains("DamageEvent"));
 }
