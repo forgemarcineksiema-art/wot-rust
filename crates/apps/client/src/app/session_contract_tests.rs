@@ -34,6 +34,13 @@ fn seeded_loss_retries_one_fire_edge_until_it_is_applied_once() {
     let mut fire_queued = false;
     let mut minimum_rounds = initial_rounds;
     let mut own_snapshots = 0_usize;
+    // The bound on the unacknowledged history is a property of the RUN, not of the last two
+    // datagrams: under thirty percent loss two lost ACKs in a row are a one-in-eleven event at
+    // every step, so the history breathes a few inputs above the replay window and settles
+    // again. What the lock must refuse is a history that GROWS — an ACK path that stopped.
+    let replay_window = ReplicationConfig::default().max_prediction_ticks as usize;
+    let mut history_peak = 0_usize;
+    let mut steps_within_window_since_1000 = 0_usize;
 
     for step in 0..2_400_u64 {
         let now_ms = step * 17;
@@ -43,6 +50,10 @@ fn seeded_loss_retries_one_fire_edge_until_it_is_applied_once() {
         let outcome = remote.tick_with_player_input_at(contract_input(command), now_ms);
         host.pump(now_ms, &mut server_port);
         host.tick(now_ms, &mut server_port);
+        history_peak = history_peak.max(remote.inputs.len());
+        if step >= 1_000 && remote.inputs.len() <= replay_window {
+            steps_within_window_since_1000 += 1;
+        }
         if let (Some(tank), Some(snapshot)) = (remote.assigned_tank, outcome.snapshot)
             && let Some(own) = snapshot.tanks.iter().find(|candidate| candidate.tank_id == tank)
         {
@@ -58,9 +69,16 @@ fn seeded_loss_retries_one_fire_edge_until_it_is_applied_once() {
         initial_rounds - 1,
         "the true edge is retried through loss, while all later false commands prevent repeats"
     );
+    // The handshake front-loads the history (inputs queue while the seat word rides the lossy
+    // wire), so the peak is judged against twice the replay window; the second lock is the one
+    // that catches an ACK path that stopped.
     assert!(
-        remote.inputs.len() <= ReplicationConfig::default().max_prediction_ticks as usize,
-        "snapshot ACKs must keep prediction history bounded"
+        history_peak <= 2 * replay_window,
+        "ACKs must keep the unacknowledged history bounded: peak {history_peak} against a replay window of {replay_window}"
+    );
+    assert!(
+        steps_within_window_since_1000 >= 1_000,
+        "ACKs must keep flowing: the history sat inside the replay window on only {steps_within_window_since_1000} of the last 1 400 steps"
     );
 }
 
