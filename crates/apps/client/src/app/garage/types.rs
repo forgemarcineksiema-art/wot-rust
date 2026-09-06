@@ -29,6 +29,8 @@ pub(in crate::app) enum GarageHit {
     CloseTechTree,
     /// Empty scene — start orbiting the camera.
     Scene,
+    /// BATTLE while the hull is locked in a battle that still runs (G14): a knock, nothing more.
+    Locked,
 }
 
 /// Which garage screen is active: the hangar (vehicle + loadout editor) or the browse-only tech

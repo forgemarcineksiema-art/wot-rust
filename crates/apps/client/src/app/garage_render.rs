@@ -116,12 +116,16 @@ impl ClientApp {
             variation.decals(),
             &snapshot,
         );
-        let mut hud = self.garage.overlay_vertices(aspect);
+        // G1: the screen lays itself out in the window's viewport at the player's scale;
+        // G14: a hull locked in a running battle says so on its BATTLE.
+        self.garage.set_viewport(self.viewport.0, self.viewport.1, self.settings.ui_scale);
+        self.refresh_garage_lock();
+        let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, self.settings.ui_scale);
+        let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
+        let mut hud = self.garage.overlay_vertices(&ui, &theme);
         // P8: a shell page over the garage — its menu, the settings, the keys — through the
         // draw list, appended after the garage's own overlay.
         if let Some(page) = self.shell_model() {
-            let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, self.settings.ui_scale);
-            let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
             let mut list = ui_kit::draw_list::DrawList::new();
             let mut order: i16 = 0;
             crate::hud::shell::push_shell(&mut list, &ui, &theme, &page, &mut order);

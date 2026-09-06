@@ -27,7 +27,6 @@ enum Hold {
 /// Lines asserting vertex-colour equality (`.color ==` / `.color !=`) per file. Seeded
 /// 2026-09-05 from the tree.
 const VERTEX_EQUALITY_CEILINGS: &[(&str, usize, Hold)] = &[
-    ("crates/apps/client/src/app/garage/panels/stats.rs", 1, Hold::Burn),
     ("crates/apps/client/src/hud/demo_strip.rs", 1, Hold::Held),
     ("crates/apps/client/src/hud/hit_direction.rs", 4, Hold::Burn),
     ("crates/apps/client/src/hud/minimap.rs", 2, Hold::Burn),
@@ -39,16 +38,7 @@ const VERTEX_EQUALITY_CEILINGS: &[(&str, usize, Hold)] = &[
 /// Direct calls to the legacy primitives (`push_quad(`, `push_panel(`, `push_text(`, …)
 /// outside `ui_kit` and the reticle files, per file. Seeded 2026-09-05.
 const LEGACY_CALL_SITE_CEILINGS: &[(&str, usize, Hold)] = &[
-    ("crates/apps/client/src/app/garage/overlay.rs", 2, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/carousel.rs", 9, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/crew.rs", 5, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/inspector_legend.rs", 5, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/loadout.rs", 11, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/nameplate.rs", 4, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/options.rs", 6, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/stats.rs", 6, Hold::Burn),
     ("crates/apps/client/src/app/garage/panels/techtree.rs", 8, Hold::Burn),
-    ("crates/apps/client/src/app/garage/panels/topbar.rs", 7, Hold::Burn),
     ("crates/apps/client/src/hit_indicator.rs", 1, Hold::Burn),
     ("crates/apps/client/src/hit_indicator/draw.rs", 20, Hold::Burn),
     ("crates/apps/client/src/hud/demo_strip.rs", 2, Hold::Held),

@@ -161,6 +161,11 @@ impl<K: ElementKey> DrawList<K> {
         }
     }
 
+    /// The element by name, to restyle after the list is built (the hover, a lock).
+    pub fn find_mut(&mut self, id: K) -> Option<&mut Element<K>> {
+        self.elements.iter_mut().find(|e| e.id == id)
+    }
+
     pub fn find(&self, id: K) -> Option<&Element<K>> {
         self.elements.iter().find(|e| e.id == id)
     }
