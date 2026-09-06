@@ -126,6 +126,26 @@ impl LocalAuthoritativeServer {
         net::roster_from_tanks(self.sim.tanks(), &self.human_tanks)
     }
 
+    /// M9 (`docs/game-modes.md` R7): a crew past its reconnect budget hands its hull to the bot
+    /// brain — the hull keeps fighting for its side and the roster says who drives it. `true`
+    /// when the roster changed.
+    pub fn adopt_hull_as_bot(&mut self, tank: TankId) -> bool {
+        let was_human = self.human_tanks.contains(&tank);
+        self.human_tanks.retain(|human| *human != tank);
+        self.bots.adopt(tank) || was_human
+    }
+
+    /// M9: a crew — returning, or fresh — claims a hull the brain drives; the brain lets go and
+    /// the roster names a crew again. `true` when the roster changed.
+    pub fn release_hull_to_crew(&mut self, tank: TankId) -> bool {
+        let released = self.bots.release(tank);
+        let was_bot = !self.human_tanks.contains(&tank);
+        if was_bot {
+            self.human_tanks.push(tank);
+        }
+        released || was_bot
+    }
+
     /// The local crew's word to its team (protocol v51, W-5): admitted by the same limiter the
     /// remote host runs, relayed on the next tick as `AuthoritativeTick::team_commands`. A
     /// refused command returns `false` so the client can knock.

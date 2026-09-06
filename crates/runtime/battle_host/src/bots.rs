@@ -153,11 +153,14 @@ pub(crate) struct BotRoster {
     /// `map_forge::hull_down_positions` the map report gauges with, so the bots hold exactly the
     /// crests the contract counts.
     hull_down: Option<Vec<map_forge::HullDownSpot>>,
+    /// The battle's seed, kept so a hull adopted mid-battle (M9) draws its route and posture the
+    /// way the original brains drew theirs.
+    seed: Option<BattleSeed>,
 }
 
 impl BotRoster {
     pub(crate) fn empty() -> Self {
-        Self { agents: Vec::new(), hull_down: None }
+        Self { agents: Vec::new(), hull_down: None, seed: None }
     }
 
     pub(crate) fn new(tank_ids: Vec<TankId>, seed: BattleSeed) -> Self {
@@ -168,7 +171,31 @@ impl BotRoster {
                 BotAgent::new(tank_id, seed_route_index(seed, index), bot_posture(index))
             })
             .collect();
-        Self { agents, hull_down: None }
+        Self { agents, hull_down: None, seed: Some(seed) }
+    }
+
+    /// M9 (`docs/game-modes.md` R7): a crew that never came back hands its hull to a brain, which
+    /// takes the next index in the roster's seeded sequence. Idempotent — `false` when a brain
+    /// already drives the hull.
+    pub(crate) fn adopt(&mut self, tank_id: TankId) -> bool {
+        if self.drives(tank_id) {
+            return false;
+        }
+        let index = self.agents.len();
+        let seed = self.seed.unwrap_or(BattleSeed::fixed(0));
+        self.agents.push(BotAgent::new(tank_id, seed_route_index(seed, index), bot_posture(index)));
+        true
+    }
+
+    /// M9: a crew claims the hull back and the brain lets go. `false` when none drove it.
+    pub(crate) fn release(&mut self, tank_id: TankId) -> bool {
+        let before = self.agents.len();
+        self.agents.retain(|agent| agent.tank_id != tank_id);
+        self.agents.len() != before
+    }
+
+    pub(crate) fn drives(&self, tank_id: TankId) -> bool {
+        self.agents.iter().any(|agent| agent.tank_id == tank_id)
     }
 
     /// `live_cover` is the cover the battle actually blocks with THIS tick (rubble lowered,
