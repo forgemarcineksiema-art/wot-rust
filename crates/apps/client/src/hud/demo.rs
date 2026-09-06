@@ -90,9 +90,10 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         team_lists: Some(demo_team_lists()),
         markers: Some(demo_markers()),
         sixth_sense_lit: false,
-        // Moving at 24 km/h against a T-54 and a Tiger II: the full 440 m.
+        // Moving at 24 km/h against the benchmark and the fleet's heaviest (a Tiger II today,
+        // chosen by mass, never by name — vehicles are data): the full 440 m.
         budget: super::budget::BudgetModel::from_battle(
-            &super::budget::staged_enemies([VehicleKind::BENCHMARK, VehicleKind::TigerII]),
+            &super::budget::staged_enemies([VehicleKind::BENCHMARK, heaviest_playable()]),
             game_core::TeamId(1),
             24.0 / 3.6,
             None,
@@ -104,6 +105,15 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         scope_fade: if sniper { 1.0 } else { 0.0 },
         pause_menu: None,
     }
+}
+
+/// The heaviest vehicle on the roster, by its spec's mass — the demo's stand-in for "a heavy".
+fn heaviest_playable() -> VehicleKind {
+    VehicleKind::PLAYABLE
+        .into_iter()
+        .filter(|kind| *kind != VehicleKind::BENCHMARK)
+        .max_by(|a, b| a.spec_ref().mass_kg.total_cmp(&b.spec_ref().mass_kg))
+        .unwrap_or(VehicleKind::BENCHMARK)
 }
 
 fn row(
