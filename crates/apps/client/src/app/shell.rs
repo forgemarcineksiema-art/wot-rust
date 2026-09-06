@@ -146,7 +146,7 @@ pub(crate) fn keybinds_footer(keybinds: &KeyBindings) -> String {
     )
 }
 
-fn first_key_label(keybinds: &KeyBindings, action: Action) -> String {
+pub(crate) fn first_key_label(keybinds: &KeyBindings, action: Action) -> String {
     keybinds.keys(action).first().map_or_else(|| "-".to_string(), |key| key_label(*key))
 }
 

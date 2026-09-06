@@ -254,6 +254,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             vehicle,
             glam::Vec3::new(0.0, client::TURNTABLE_TOP_M, 0.0),
             scene_build::hangar::HERO_PARK_YAW,
+            0.0,
         ));
     }
     if let Some(seconds) = work_seconds {

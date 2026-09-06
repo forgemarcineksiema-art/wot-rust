@@ -126,15 +126,18 @@ pub enum GarageScreen {
     TechTree,
     /// A module slot's option list, open over the hangar screen.
     OptionList,
+    /// The VEHICLE column compared against a second hull (G3), over the hangar screen.
+    Compare,
 }
 
 impl GarageScreen {
     /// Every screen, so the review set and its coverage lock cannot disagree about the list.
-    pub const ALL: [GarageScreen; 4] = [
+    pub const ALL: [GarageScreen; 5] = [
         GarageScreen::Room,
         GarageScreen::Hangar,
         GarageScreen::TechTree,
         GarageScreen::OptionList,
+        GarageScreen::Compare,
     ];
 
     /// The golden's name for this screen.
@@ -144,6 +147,7 @@ impl GarageScreen {
             GarageScreen::Hangar => "garage_screen",
             GarageScreen::TechTree => "garage_tech_tree",
             GarageScreen::OptionList => "garage_option_list",
+            GarageScreen::Compare => "garage_compare",
         }
     }
 }

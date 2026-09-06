@@ -1,20 +1,16 @@
 //! Vehicle selection and the per-vehicle draft memory: switching vehicles stashes the outgoing
 //! draft and restores the incoming one (or stock if never edited), instead of the old reset. The
-//! disk half of persistence lives in `persistence.rs`; this is its in-memory counterpart.
+//! disk half of persistence lives in `persistence.rs`; this is its in-memory counterpart. The
+//! arrows and the carousel walk the ROSTER the chips let through (G9).
 
 use game_core::VehicleKind;
 
 use super::layout::{CAR_VISIBLE, carousel_window, clamp_carousel_scroll};
 use super::{FitSlot, GarageState, LoadoutDraft};
 
-fn roster_len() -> usize {
-    VehicleKind::PLAYABLE.len()
-}
-
 impl GarageState {
-    /// Select a vehicle by kind. A convenience wrapper over `select_index`; used by tests (the
-    /// UI selects by carousel index or tech-tree node, never by kind directly).
-    #[cfg(test)]
+    /// Select a vehicle by kind: the filtered cycle's word (the carousel and the tree select by
+    /// absolute index).
     pub(in crate::app) fn select_vehicle(&mut self, vehicle: VehicleKind) {
         if let Some(index) = VehicleKind::PLAYABLE.iter().position(|kind| *kind == vehicle) {
             self.select_index(index);
@@ -22,7 +18,7 @@ impl GarageState {
     }
 
     pub(in crate::app) fn select_index(&mut self, index: usize) {
-        if index < roster_len() && index != self.selected_index {
+        if index < VehicleKind::PLAYABLE.len() && index != self.selected_index {
             // Stash the outgoing vehicle's edits, then restore the incoming vehicle's own draft
             // (or stock if it has never been edited). The keyboard focus returns to the gun slot —
             // the most-edited slot — and the inspection framing resets.
@@ -38,20 +34,36 @@ impl GarageState {
             self.rejected_slot = None;
             self.focused_slot = FitSlot::Gun;
             self.option_list = None;
+            // G8: a new hull parks its turret straight; G3: the hull on the turntable compares
+            // to nothing.
+            self.hero_turret_yaw = 0.0;
+            if self.compare == Some(self.selected_vehicle()) {
+                self.compare = None;
+            }
             self.persist();
         }
     }
 
+    /// `←` / `→`: the next hull the chips let through (G9), wrapping; a selection the chips
+    /// exclude steps onto the roster from its end.
     pub(in crate::app) fn cycle(&mut self, delta: isize) {
-        let len = roster_len() as isize;
-        let index = (self.selected_index as isize + delta).rem_euclid(len) as usize;
-        self.select_index(index);
+        let roster = self.roster();
+        if roster.is_empty() {
+            return;
+        }
+        let len = roster.len() as isize;
+        let next = match roster.iter().position(|kind| *kind == self.selected_vehicle()) {
+            Some(at) => (at as isize + delta).rem_euclid(len),
+            None if delta >= 0 => 0,
+            None => len - 1,
+        };
+        self.select_vehicle(roster[next as usize]);
     }
 
     /// Scroll the carousel window by one step (`-1` left, `+1` right), clamped to the roster.
     pub(in crate::app) fn scroll_carousel(&mut self, delta: i8) {
         let next = self.carousel_scroll as isize + delta as isize;
-        self.carousel_scroll = clamp_carousel_scroll(roster_len(), next.max(0) as usize);
+        self.carousel_scroll = clamp_carousel_scroll(self.roster().len(), next.max(0) as usize);
     }
 
     /// Whether the cursor is over the carousel row — used to route the mouse wheel to scrolling
@@ -64,17 +76,19 @@ impl GarageState {
     }
 
     /// Nudge the scroll so the selected vehicle sits inside the visible window.
-    fn scroll_selection_into_view(&mut self) {
-        let count = roster_len();
+    pub(super) fn scroll_selection_into_view(&mut self) {
+        let roster = self.roster();
+        let count = roster.len();
         if count <= CAR_VISIBLE {
             self.carousel_scroll = 0;
             return;
         }
+        let at = roster.iter().position(|kind| *kind == self.selected_vehicle()).unwrap_or(0);
         let window = carousel_window(count, self.carousel_scroll);
-        if self.selected_index < window.start {
-            self.carousel_scroll = self.selected_index;
-        } else if self.selected_index >= window.end {
-            self.carousel_scroll = self.selected_index + 1 - CAR_VISIBLE;
+        if at < window.start {
+            self.carousel_scroll = at;
+        } else if at >= window.end {
+            self.carousel_scroll = at + 1 - CAR_VISIBLE;
         }
         self.carousel_scroll = clamp_carousel_scroll(count, self.carousel_scroll);
     }

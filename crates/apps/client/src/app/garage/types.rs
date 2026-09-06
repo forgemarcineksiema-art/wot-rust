@@ -1,6 +1,7 @@
 //! Garage hit-test results and view enum, split from `mod.rs` for reviewability.
 
 use super::draft::FitSlot;
+use super::filter::Chip;
 
 /// What a left-button press in the garage landed on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +32,20 @@ pub(in crate::app) enum GarageHit {
     Scene,
     /// BATTLE while the hull is locked in a battle that still runs (G14): a knock, nothing more.
     Locked,
+    /// Shift-click on a carousel cell (G3): compare the VEHICLE column against this hull
+    /// (absolute roster index); the same cell again clears it.
+    Compare(usize),
+    /// A filter chip (G9): walk its ring by `dir` (+1 plain click, -1 shift-click).
+    Chip(Chip, i8),
+}
+
+/// What a press on the scene took (G8): nothing, the orbit camera, or the hero's turret.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(in crate::app) enum Drag {
+    #[default]
+    None,
+    Camera,
+    Turret,
 }
 
 /// Which garage screen is active: the hangar (vehicle + loadout editor) or the browse-only tech

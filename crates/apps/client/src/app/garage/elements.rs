@@ -75,12 +75,26 @@ pub(crate) enum GarageElement {
     OptionName(u8),
     OptionStat(u8),
     OptionDelta(u8),
+    /// The key legend on the top bar (G6), one line each.
+    HintLine(u8),
+    /// The carousel's filter chips (G9): the control, its label, its value.
+    Chip(u8),
+    ChipLabel(u8),
+    ChipValue(u8),
+    /// The tooltip of the control the cursor rests on (G6).
+    TooltipPlate,
+    TooltipText,
+    /// The compared hull's name on the VEHICLE column's header (G3), and its numbers and the
+    /// signed deltas beside the own column.
+    CompareName,
+    StatOther(u8),
+    StatDelta(u8),
 }
 
 impl GarageElement {
     /// Walked by the tests; the identity rule wants it whole (a data variant once).
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [GarageElement; 68] = [
+    pub const ALL: [GarageElement; 77] = [
         GarageElement::TopBar,
         GarageElement::Nameplate,
         GarageElement::Crew,
@@ -149,6 +163,15 @@ impl GarageElement {
         GarageElement::OptionName(0),
         GarageElement::OptionStat(0),
         GarageElement::OptionDelta(0),
+        GarageElement::HintLine(0),
+        GarageElement::Chip(0),
+        GarageElement::ChipLabel(0),
+        GarageElement::ChipValue(0),
+        GarageElement::TooltipPlate,
+        GarageElement::TooltipText,
+        GarageElement::CompareName,
+        GarageElement::StatOther(0),
+        GarageElement::StatDelta(0),
     ];
 }
 

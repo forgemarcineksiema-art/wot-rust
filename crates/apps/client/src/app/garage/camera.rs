@@ -120,9 +120,18 @@ impl GarageState {
     }
 
     pub(in crate::app) fn apply_drag(&mut self, dx: f32, dy: f32) {
-        if !self.dragging {
-            return;
+        match self.drag {
+            super::types::Drag::None => return,
+            // G8: a drag that began on a turret plate turns the turret and nothing else — not
+            // the camera, not its spring, not the idle drift.
+            super::types::Drag::Turret => {
+                self.drag_travel_px += dx.abs() + dy.abs();
+                self.turn_turret(dx);
+                return;
+            }
+            super::types::Drag::Camera => {}
         }
+        self.drag_travel_px += dx.abs() + dy.abs();
         // Manual drag overrides any focus/return spring and wakes the idle clock.
         self.camera_target = None;
         self.idle_seconds = 0.0;
@@ -188,7 +197,7 @@ impl GarageState {
             if arrived {
                 self.camera_target = None;
             }
-        } else if !self.dragging && self.idle_seconds > AUTO_ORBIT_IDLE_S {
+        } else if self.drag == super::types::Drag::None && self.idle_seconds > AUTO_ORBIT_IDLE_S {
             self.orbit_yaw += AUTO_ORBIT_SPEED * dt;
             // The turntable turns WITH the idle drift (E2): machinery presenting the
             // vehicle, not a frozen diorama. Interaction pauses both through the shared

@@ -230,3 +230,33 @@ fn map_cycle_walks_auto_then_every_shipped_map_and_wraps() {
     garage.cycle_map(-1);
     assert_eq!(garage.selected_map(), terrain::MapId::SHIPPED.last().copied());
 }
+
+/// G9: the chips survive a restart through the save file, and a slug from a future build (or a
+/// hand-edit) degrades that chip to ALL — never a panic, never the rest of the file.
+#[test]
+fn the_chips_survive_a_restart_and_garbage_degrades_to_all() {
+    use super::filter::Chip;
+
+    let path = temp_save_path("chips");
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    let mut garage = GarageState::default();
+    garage.enable_persistence(path.clone());
+    garage.cycle_chip(Chip::Class, 2);
+    garage.cycle_chip(Chip::Nation, 1);
+    garage.cycle_chip(Chip::Tier, 1);
+    let set = *garage.filter();
+    assert!(set.class.is_some() && set.nation.is_some() && set.tier.is_some());
+
+    let mut restarted = GarageState::default();
+    restarted.enable_persistence(path.clone());
+    assert_eq!(*restarted.filter(), set, "the chips survive the restart");
+
+    let raw = std::fs::read_to_string(&path).unwrap().replace("\"heavy\"", "\"hovercraft\"");
+    std::fs::write(&path, raw).unwrap();
+    let mut degraded = GarageState::default();
+    degraded.enable_persistence(path.clone());
+    assert_eq!(degraded.filter().class, None, "an unknown class is ALL");
+    assert_eq!(degraded.filter().nation, set.nation, "the other chips keep their word");
+    assert_eq!(degraded.filter().tier, set.tier);
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
+}

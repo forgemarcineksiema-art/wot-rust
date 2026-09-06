@@ -48,6 +48,14 @@ pub(super) struct GarageSave {
     /// unknown value degrades to the clock instead of failing the parse.
     #[serde(default)]
     pub daylight_override: Option<String>,
+    /// The carousel's chips (G9): "medium" / "heavy" / "td", "ussr" / "germany" / "britain",
+    /// a tier; absent = ALL. Slugs like the daylight's, so an unknown one degrades to ALL.
+    #[serde(default)]
+    pub filter_class: Option<String>,
+    #[serde(default)]
+    pub filter_nation: Option<String>,
+    #[serde(default)]
+    pub filter_tier: Option<u8>,
 }
 
 /// The override's on-disk names — a slug per variant, like the vehicles, so a save from a
@@ -76,6 +84,9 @@ impl GarageSave {
             selected_vehicle: selected_vehicle.slug().to_string(),
             loadouts: loadouts.iter().map(|(kind, l)| (kind.slug().to_string(), *l)).collect(),
             daylight_override: None,
+            filter_class: None,
+            filter_nation: None,
+            filter_tier: None,
         }
     }
 
@@ -180,6 +191,13 @@ impl GarageState {
                 self.saved = save.resolved_loadouts();
                 self.daylight_override =
                     save.daylight_override.as_deref().and_then(daylight_from_slug);
+                self.filter = super::filter::CarouselFilter {
+                    class: save.filter_class.as_deref().and_then(super::filter::class_from_slug),
+                    nation: save.filter_nation.as_deref().and_then(super::filter::nation_from_slug),
+                    tier: save
+                        .filter_tier
+                        .filter(|tier| super::filter::tiers_present().contains(tier)),
+                };
                 self.foreign_loadouts = save
                     .loadouts
                     .iter()
@@ -216,6 +234,9 @@ impl GarageState {
         loadouts.insert(self.selected_vehicle(), self.draft.to_saved());
         let mut save = GarageSave::new(self.selected_vehicle(), &loadouts);
         save.daylight_override = self.daylight_override.map(|l| daylight_slug(l).to_string());
+        save.filter_class = self.filter.class.map(|c| super::filter::class_slug(c).to_string());
+        save.filter_nation = self.filter.nation.map(|n| super::filter::nation_slug(n).to_string());
+        save.filter_tier = self.filter.tier;
         // Entries this build could not resolve ride along verbatim — a resolvable slug can
         // never collide with them, so `or_insert` is only belt-and-braces.
         for (slug, loadout) in &self.foreign_loadouts {

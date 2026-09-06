@@ -15,16 +15,24 @@ use crate::app::ClientApp;
 const TEST_BATTLE_SEED: u64 = 0x5748_4154_5F41_494D;
 
 impl GarageState {
+    /// The orbit drag, from a press on nothing in particular (the tests' word; a press on the
+    /// scene goes through `press_scene`, which reads the hero first).
+    #[cfg(test)]
     pub(super) fn begin_drag(&mut self) {
-        self.dragging = true;
+        self.drag = super::types::Drag::Camera;
+        self.drag_travel_px = 0.0;
+        self.hero_press = None;
     }
 
     /// `crate::app`-visible: focus loss must also drop the drag — an unfocused window never
     /// delivers the button release that would have ended it.
     pub(in crate::app) fn end_drag(&mut self) {
-        self.dragging = false;
+        self.drag = super::types::Drag::None;
+        self.hero_press = None;
     }
 
+    /// The cursor, in clip space, from the app. The interaction machine reads it at the
+    /// frame's tick and at the press and the release (G6) — never here, per mouse event.
     pub(in crate::app) fn set_cursor(&mut self, clip: [f32; 2]) {
         self.cursor_clip = clip;
     }
@@ -50,6 +58,7 @@ impl ClientApp {
         }
         self.garage.open();
         self.refresh_garage_lock();
+        self.refresh_garage_hints();
         // H1: the hall's daylight follows the PLAYER'S OWN CLOCK (standing user decision) —
         // refreshed on each open, so an evening session gets the evening hall. The state
         // itself never reads the wall clock; this is the one seam where the real world
@@ -77,6 +86,12 @@ impl ClientApp {
         self.garage.set_locked(locked);
     }
 
+    /// G6: the legend and the tooltips print the table's keys — read every garage frame, so a
+    /// rebinding on the keys page shows the moment the page closes.
+    pub(in crate::app) fn refresh_garage_hints(&mut self) {
+        self.garage.set_key_labels(super::hints::KeyLabels::from_table(&self.keybinds));
+    }
+
     #[cfg(test)]
     pub(in crate::app) fn select_garage_vehicle(&mut self, vehicle: VehicleKind) {
         self.garage.select_vehicle(vehicle);
@@ -84,13 +99,63 @@ impl ClientApp {
         self.queue_audio(audio::AudioEvent::UiClick { accent: false });
     }
 
-    /// Route a left-button press in the garage to selection, fitting, Battle, or orbiting.
-    /// Shift held while clicking a module slot cycles that slot backward.
+    /// The primary button went down in the garage (G6): the machine takes the press; a press
+    /// on the scene starts a drag (the camera, or the turret from a turret plate — G8); an open
+    /// option list is modal and a press beside its rows closes it, swallowing the release. The
+    /// controls themselves act on the RELEASE — `garage_primary_release` — the way every
+    /// desktop has behaved for forty years. The tree keeps its legacy nodes until G12, so in
+    /// that view the press still acts.
     pub(in crate::app) fn garage_primary_press(&mut self) {
         let shift = self.input.shift;
-        let view = self.garage.view();
         let hit = self.garage.hit_test(shift);
+        self.garage.press_cursor();
+        if self.garage.view() == super::GarageView::TechTree {
+            self.garage.cancel_press();
+            self.garage_act(hit, shift);
+            return;
+        }
+        if self.garage.option_list().is_some() {
+            if !matches!(hit, GarageHit::OptionRow(..)) {
+                self.garage.close_option_list();
+                self.garage.cancel_press();
+            }
+            return;
+        }
+        if hit == GarageHit::Scene {
+            self.garage.press_scene();
+        }
+    }
 
+    /// The primary button came up: a click on the control that was pressed, or the end of a
+    /// drag — and a press on a module's plate that never travelled opens that module (G8).
+    pub(in crate::app) fn garage_primary_release(&mut self) {
+        let shift = self.input.shift;
+        let released = self.garage.release_cursor();
+        if let Some(slot) = self.garage.end_press() {
+            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+            self.garage.set_focused_slot(slot);
+            self.garage.open_option_list(slot);
+            self.garage.focus_module(slot);
+            return;
+        }
+        if released.is_none() || self.garage.view() == super::GarageView::TechTree {
+            return;
+        }
+        let hit = self.garage.hit_test(shift);
+        self.garage_act(hit, shift);
+    }
+
+    /// A press and its release on the same spot: the click, for the locks.
+    #[cfg(test)]
+    pub(in crate::app) fn garage_click(&mut self) {
+        self.garage_primary_press();
+        self.garage_primary_release();
+    }
+
+    /// What a click does: selection, fitting, Battle, the map, the tabs, the chips, compare.
+    /// Shift held while clicking a module slot cycles that slot backward.
+    fn garage_act(&mut self, hit: GarageHit, shift: bool) {
+        let view = self.garage.view();
         // An open option list is modal: a click either picks a row (installing it) or dismisses the
         // list — nothing behind it acts on the same press.
         if self.garage.option_list().is_some() {
@@ -117,6 +182,10 @@ impl ClientApp {
                     self.garage.close_tech_tree();
                 }
             }
+            // G3: the compared hull.
+            GarageHit::Compare(index) => self.garage.toggle_compare(index),
+            // G9: a chip's ring, forward on a click, back on a shift-click.
+            GarageHit::Chip(chip, dir) => self.garage.cycle_chip(chip, dir),
             GarageHit::CarouselScroll(dir) => self.garage.scroll_carousel(dir),
             // Plain click opens the informed option list for the slot; Shift+click keeps the express
             // backward cycle (no list). Both fly the camera to frame the module.
@@ -146,12 +215,10 @@ impl ClientApp {
             GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
             GarageHit::CloseTechTree => self.garage.close_tech_tree(),
-            GarageHit::Scene => self.garage.begin_drag(),
+            // The scene's press already took the camera (or the turret) in `garage_primary_press`;
+            // in the tree view a press on nothing is a press on nothing.
+            GarageHit::Scene => {}
         }
-    }
-
-    pub(in crate::app) fn garage_primary_release(&mut self) {
-        self.garage.end_drag();
     }
 
     /// Move the pre-battle map choice. The world it names starts baking on the next garage
@@ -461,11 +528,11 @@ mod tests {
         let before = app.garage.draft().ammo_counts()[0];
 
         assert!(app.garage.set_cursor_on(E::AmmoMinus(0)));
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.draft().ammo_counts()[0], before - 1, "plain click moves one round");
 
         app.input.set_shift(true);
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.draft().ammo_counts()[0], before - 6, "shift+click moves five");
         assert_eq!(
             app.garage.draft().ammo_index(),
@@ -491,7 +558,7 @@ mod tests {
         assert!(app.garage.set_cursor_on(E::ModuleSlot(1))); // Gun slot (a real choice on the T-54)
         let stock = app.garage.draft().gun_name();
 
-        app.garage_primary_press();
+        app.garage_click();
 
         assert_eq!(
             app.garage.option_list(),
@@ -515,7 +582,7 @@ mod tests {
         // Shift+click is the express path: it cycles backward (from stock, wraps to the alternate
         // gun) and never opens the list.
         app.input.set_shift(true);
-        app.garage_primary_press();
+        app.garage_click();
 
         assert_eq!(app.garage.option_list(), None, "the express cycle opens no list");
         assert_ne!(
@@ -533,11 +600,11 @@ mod tests {
 
         // Open the gun list, then click the alternate option row (row 1).
         assert!(app.garage.set_cursor_on(E::ModuleSlot(1)));
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
 
         assert!(app.garage.set_cursor_on(E::OptionRow(1)));
-        app.garage_primary_press();
+        app.garage_click();
 
         assert_eq!(app.garage.option_list(), None, "picking a row closes the list");
         assert_ne!(app.garage.draft().gun_name(), stock, "the picked gun is installed");
@@ -548,12 +615,12 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         assert!(app.garage.set_cursor_on(E::ModuleSlot(1)));
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
 
         // A click in empty scene space dismisses the list and must not start a camera drag.
         app.garage.set_cursor([0.0, 0.0]);
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.option_list(), None, "clicking away closes the list");
         assert!(!app.garage.is_dragging(), "the dismiss click does not start an orbit drag");
     }
@@ -568,7 +635,7 @@ mod tests {
         assert_eq!(app.garage.view(), GarageView::TechTree);
 
         app.garage.set_cursor(tree_node_center(VehicleKind::TigerI));
-        app.garage_primary_press();
+        app.garage_click();
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
         assert_eq!(app.garage.selected_vehicle(), VehicleKind::TigerI);
@@ -654,7 +721,7 @@ mod tests {
         app.open_garage();
         assert!(app.garage.set_cursor_on(E::MapRow));
         while app.garage.selected_map() != Some(terrain::MapId::Ostrogorsk) {
-            app.garage_primary_press();
+            app.garage_click();
         }
         app.confirm_garage_selection();
         assert_eq!(app.session.map_id(), terrain::MapId::Ostrogorsk);
@@ -968,7 +1035,7 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.open_tech_tree();
         app.garage.set_cursor(TREE_CLOSE_CENTER);
-        app.garage_primary_press();
+        app.garage_click();
         assert_eq!(app.garage.view(), GarageView::Hangar);
     }
 
@@ -1004,6 +1071,96 @@ mod tests {
         let second = fingerprint();
         assert!(!first.is_empty(), "the deploy produces a roster");
         assert_eq!(first, second, "same input, same battle — roster, spawns and all");
+    }
+
+    /// G8: a click on a module's plate on the hero — the cursor's ray through the camera, the
+    /// trace's own volumes — focuses that module and opens its list when it has a choice; a
+    /// press that travels is the orbit drag and opens nothing; the floor beside the hero is
+    /// the camera's alone.
+    #[test]
+    fn clicking_a_module_on_the_hero_opens_its_slot() {
+        use crate::app::garage::hero_pick::hero_point_where;
+
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::BENCHMARK);
+        let mut opened = 0;
+        for slot in [FitSlot::Gun, FitSlot::Hull, FitSlot::Engine, FitSlot::Suspension] {
+            let Some(clip) =
+                hero_point_where(&mut app.garage, |hit| hit.slot == Some(slot) && !hit.turret)
+            else {
+                continue;
+            };
+            app.garage.set_cursor(clip);
+            app.garage.close_option_list();
+            app.garage_primary_press();
+            assert!(
+                app.garage.is_dragging(),
+                "a press on the hero holds the camera until it travels"
+            );
+            app.garage_primary_release();
+            assert_eq!(app.garage.focused_slot(), slot, "the click focuses the module");
+            let has_choice = app.garage.draft().has_choice(slot);
+            assert_eq!(app.garage.option_list(), has_choice.then_some(slot), "{slot:?}");
+            opened += usize::from(has_choice);
+            // A press that travels orbits the camera and opens nothing.
+            app.garage.close_option_list();
+            let eye = app.garage.orbit_camera().eye;
+            app.garage_primary_press();
+            app.garage.apply_drag(40.0, 0.0);
+            app.garage_primary_release();
+            assert_eq!(app.garage.option_list(), None, "a drag is not a click");
+            assert_ne!(app.garage.orbit_camera().eye, eye, "the drag orbited the camera");
+        }
+        assert!(opened >= 1, "at least one module with a real choice was clicked open");
+        // The roof of the hall: nothing to click, the camera to drag.
+        app.garage.set_cursor([0.95, 0.95]);
+        app.garage_primary_press();
+        assert!(app.garage.is_dragging());
+        app.garage_primary_release();
+        assert_eq!(app.garage.option_list(), None);
+        assert!(!app.garage.is_dragging());
+    }
+
+    /// G8: a press on a turret plate and a drag turn the turret — the camera, the selection,
+    /// the loadout and the focus stay exactly where they were; a drag from a hull plate turns
+    /// the camera and leaves the turret; a new hull parks its turret straight.
+    #[test]
+    fn dragging_the_turret_turns_it_and_nothing_else() {
+        use crate::app::garage::hero_pick::hero_point_where;
+
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::BENCHMARK);
+        let turret = hero_point_where(&mut app.garage, |hit| hit.turret).expect("a turret plate");
+        app.garage.set_cursor(turret);
+        let before = app.garage.clone();
+        app.garage_primary_press();
+        app.garage.apply_drag(80.0, 30.0);
+        app.garage_primary_release();
+        assert!(app.garage.hero_turret_yaw().abs() > 0.1, "the turret turned");
+        assert_eq!(app.garage.orbit_camera().eye, before.orbit_camera().eye, "the camera did not");
+        assert_eq!(app.garage.selected_vehicle(), before.selected_vehicle());
+        assert_eq!(app.garage.draft(), before.draft());
+        assert_eq!(app.garage.focused_slot(), before.focused_slot());
+        assert_eq!(app.garage.option_list(), None);
+        assert!(!app.garage.is_dragging());
+        // The render parks the turret where the drag left it.
+        let mut snapshot =
+            crate::app::garage_render::garage_preview_snapshot(VehicleKind::BENCHMARK);
+        snapshot.turret_yaw_rad = app.garage.hero_turret_yaw();
+        assert_ne!(snapshot.turret_yaw_rad, 0.0);
+        // A hull plate: the camera's drag, the turret untouched.
+        let hull = hero_point_where(&mut app.garage, |hit| !hit.turret && hit.slot.is_some())
+            .expect("a hull plate");
+        app.garage.set_cursor(hull);
+        let yaw = app.garage.hero_turret_yaw();
+        app.garage_primary_press();
+        app.garage.apply_drag(80.0, 0.0);
+        app.garage_primary_release();
+        assert_eq!(app.garage.hero_turret_yaw(), yaw, "a hull drag leaves the turret");
+        assert_ne!(app.garage.orbit_camera().eye, before.orbit_camera().eye, "and orbits");
+        // A fresh hull parks straight.
+        app.garage.select_vehicle(VehicleKind::PLAYABLE[1]);
+        assert_eq!(app.garage.hero_turret_yaw(), 0.0);
     }
 }
 
@@ -1045,7 +1202,7 @@ mod lock_tests {
         let ticks_before = app.session.authoritative_tick();
         app.pending_audio.clear();
         assert!(app.garage.set_cursor_on(E::BattleButton));
-        app.garage_primary_press();
+        app.garage_click();
         assert!(
             app.pending_audio.contains(&audio::AudioEvent::UiReject),
             "a click on the lock knocks"

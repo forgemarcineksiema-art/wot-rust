@@ -27,6 +27,8 @@ impl ClientApp {
         // the focus/return spring and the idle auto-orbit.
         self.apply_mouse_look();
         self.garage.tick_camera(dt);
+        // G6: the tooltip clock runs while the cursor rests.
+        self.garage.tick_interaction(dt);
         self.garage.tick_drive_in(dt);
         // The field's dust settles while the hall stands (J2).
         self.garage.tick_dust(dt);
@@ -70,6 +72,8 @@ impl ClientApp {
         let mut snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
         snapshot.position[2] = pose.z;
         snapshot.yaw_rad = pose.yaw_rad;
+        // G8: the turret where the player dragged it.
+        snapshot.turret_yaw_rad = self.garage.hero_turret_yaw();
         // The hero still wears the fight it came back from (L1): masks, thrown belt and the
         // decal history merge into the parked snapshot — earned state only, a clean machine
         // parks exactly as before. The repair jack (L2) lifts the hull off its springs for
@@ -120,6 +124,7 @@ impl ClientApp {
         // G14: a hull locked in a running battle says so on its BATTLE.
         self.garage.set_viewport(self.viewport.0, self.viewport.1, self.settings.ui_scale);
         self.refresh_garage_lock();
+        self.refresh_garage_hints();
         let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, self.settings.ui_scale);
         let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
         let mut hud = self.garage.overlay_vertices(&ui, &theme);
@@ -165,6 +170,7 @@ impl ClientApp {
                 self.garage.selected_vehicle(),
                 Vec3::new(0.0, crate::TURNTABLE_TOP_M, pose.z),
                 pose.yaw_rad,
+                self.garage.hero_turret_yaw(),
             ));
         }
 
