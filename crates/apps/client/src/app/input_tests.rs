@@ -888,3 +888,87 @@ fn a_ping_lands_on_the_minimap_and_in_the_world_for_the_team_only() {
         Some(format!("{} \u{b7} {}", enemy.vehicle.short_name(), enemy.seat_letter()).as_str())
     );
 }
+
+/// H19: a dead crew rides its living allies with the arrows; the ridden hull's panel is the
+/// wire's own snapshot of it — and nothing about that hull's aim exists to show.
+#[test]
+fn spectating_an_ally_shows_their_panel_from_the_wire_and_nothing_about_their_aim() {
+    let mut app = in_battle();
+    let player_team = app.player_team();
+    let mut snapshot = app.render_state.latest_snapshot().expect("snapshot").clone();
+    snapshot.server_tick += 1;
+    for tank in &mut snapshot.tanks {
+        if tank.tank_id == app.player_tank {
+            tank.hit_points = 0;
+        }
+    }
+    let allies: Vec<game_core::TankId> = snapshot
+        .tanks
+        .iter()
+        .filter(|t| t.team == player_team && t.tank_id != app.player_tank && t.hit_points > 0)
+        .map(|t| t.tank_id)
+        .collect();
+    assert!(allies.len() >= 2, "a 7v7 leaves allies to ride: {allies:?}");
+    app.accept_and_sync(snapshot.clone());
+    assert!(app.tick_death_spectate(), "dead");
+    app.refresh_spectate(true);
+    assert!(app.spectate.is_none(), "the own wreck first");
+    app.on_key(PhysicalKey::Code(KeyCode::ArrowRight), true, false);
+    let first = app.spectate.expect("the first living ally");
+    assert!(allies.contains(&first));
+    let strip = app.spectate_model().expect("the strip");
+    let ally = snapshot.tanks.iter().find(|t| t.tank_id == first).expect("ally");
+    assert_eq!(strip.index, 0);
+    assert_eq!(strip.count, allies.len());
+    assert!(strip.name.starts_with(ally.vehicle.short_name()), "{}", strip.name);
+    assert_eq!(strip.panel.hit_points, ally.hit_points, "the wire's hit points");
+    // The camera follows the ridden hull.
+    let ridden = app.spectated_tank().expect("ridden");
+    assert_eq!(ridden.tank_id, first);
+    // Left from the first ally is the own wreck again; right past the last is too.
+    app.on_key(PhysicalKey::Code(KeyCode::ArrowLeft), true, false);
+    assert!(app.spectate.is_none());
+    for _ in 0..allies.len() {
+        app.on_key(PhysicalKey::Code(KeyCode::ArrowRight), true, false);
+    }
+    assert_eq!(app.spectate, Some(*allies.last().unwrap()));
+    app.on_key(PhysicalKey::Code(KeyCode::ArrowRight), true, false);
+    assert!(app.spectate.is_none(), "past the last: the own wreck");
+    // A ridden hull that dies is let go.
+    app.on_key(PhysicalKey::Code(KeyCode::ArrowRight), true, false);
+    let mut later = snapshot.clone();
+    later.server_tick += 1;
+    for tank in &mut later.tanks {
+        if tank.tank_id == first {
+            tank.hit_points = 0;
+        }
+    }
+    app.accept_and_sync(later);
+    app.refresh_spectate(true);
+    assert!(app.spectate.is_none());
+    // Alive again (a new battle): nobody is ridden.
+    app.spectate = Some(first);
+    app.refresh_spectate(false);
+    assert!(app.spectate.is_none());
+}
+
+/// H20: the outcome banner hands off on Enter, or by itself after three seconds — to the
+/// garage today, to the results screen when P1 lands.
+#[test]
+fn the_outcome_banner_hands_off_on_enter_or_after_three_seconds() {
+    let mut app = in_battle();
+    app.tick_outcome_hand_off(10.0);
+    assert!(!app.garage.is_open(), "no banner, no hand-off");
+    app.battle_outcome = Some(crate::hud::BattleHudOutcome::Victory);
+    app.tick_outcome_hand_off(2.9);
+    assert!(!app.garage.is_open(), "the banner is still up");
+    app.tick_outcome_hand_off(0.2);
+    assert!(app.garage.is_open(), "three seconds: the way on");
+
+    let mut app = in_battle();
+    app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
+    assert!(!app.garage.is_open(), "Enter in a live battle is nothing");
+    app.battle_outcome = Some(crate::hud::BattleHudOutcome::Defeat);
+    app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
+    assert!(app.garage.is_open(), "Enter takes the hand-off at once");
+}

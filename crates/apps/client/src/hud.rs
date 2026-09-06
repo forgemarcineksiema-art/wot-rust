@@ -35,6 +35,7 @@ pub(crate) mod reticle_sweep;
 pub(crate) mod review;
 pub(crate) mod scope_overlay;
 pub(crate) mod sixth_sense;
+pub(crate) mod spectate;
 pub(crate) mod speed;
 pub(crate) mod spot_bracket;
 pub(crate) mod states;
@@ -127,6 +128,9 @@ pub struct BattleHudModel {
     pub kill_feed: Option<kill_feed::KillFeedModel>,
     /// The connection readout (H18); `None` in the offline examples.
     pub net: Option<net_readout::NetReadoutModel>,
+    /// The dead crew's HUD (H19): `Some` once the own hull is a wreck — the intel sits back,
+    /// the gun's instruments go, an ally's panel may come off the wire.
+    pub dead: Option<spectate::DeadModel>,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -165,6 +169,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             team_word: None,
             kill_feed: None,
             net: None,
+            dead: None,
         },
         aspect,
     )
@@ -215,6 +220,7 @@ pub(crate) fn test_model(
         team_word: None,
         kill_feed: None,
         net: None,
+        dead: None,
     }
 }
 
@@ -548,6 +554,16 @@ pub(crate) fn build_battle_hud_list(
     // H16: the command wheel over the battle, under the modal only.
     if let Some(wheel) = &model.command_wheel {
         command_wheel::push_command_wheel(&mut list, ui, &theme, wheel, &mut order);
+    }
+    // H19: a dead crew keeps the intel — sat back — and nothing of its own gun; the ally it
+    // rides, if any, brings its strip and its panel full-lit. The banner keeps its light; the modal
+    // below draws over all of it.
+    if let Some(dead) = &model.dead {
+        list.retain(spectate::survives_death);
+        list.dim_where(spectate::INTEL_ALPHA, spectate::dimmed_when_dead);
+        if let Some(strip) = &dead.spectating {
+            spectate::push_spectate(&mut list, ui, &theme, strip, &mut order);
+        }
     }
     // Last, so the modal sits over every battle marker — including the outcome banner, which a
     // player can be reading when they reach for ESC.

@@ -85,6 +85,16 @@ pub enum HudElement {
     KillFeed(KillFeedPart),
     /// The connection readout under the frame counter (H18).
     NetReadout,
+    /// The dead crew's strip (H19): whose hull it rides, and the keys.
+    Spectate(SpectatePart),
+}
+
+/// The parts of the spectate strip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SpectatePart {
+    Strip,
+    Name,
+    Keys,
 }
 
 /// The parts of a kill-feed row, by row index: the killer's name, the word, the wreck's name.
@@ -199,7 +209,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 40] = [
+    pub const ALL: [HudElement; 41] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -242,6 +252,7 @@ impl HudElement {
         HudElement::TeamWord,
         HudElement::KillFeed(KillFeedPart::Word(0)),
         HudElement::NetReadout,
+        HudElement::Spectate(SpectatePart::Strip),
     ];
 }
 

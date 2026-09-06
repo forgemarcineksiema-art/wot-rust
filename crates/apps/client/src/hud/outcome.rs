@@ -50,8 +50,9 @@ pub(crate) fn push_battle_outcome(
     let label_width = crate::hud::font::text_width(label, 0.052, aspect);
     crate::hud::font::push_text(vertices, label, -label_width * 0.5, 0.463, 0.052, aspect, color);
 
-    // The battle is over and input is dead — the one thing the player needs now is the way out.
-    let hint = crate::ui_strings::battle::RETURN_TO_GARAGE_HINT;
+    // The battle is over and input is dead — the one thing the player needs now is the way on:
+    // Enter continues at once, the banner hands off by itself after three seconds (H20).
+    let hint = crate::ui_strings::battle::OUTCOME_CONTINUE_HINT;
     let hint_width = crate::hud::font::text_width(hint, 0.034, aspect);
     crate::hud::font::push_text(
         vertices,

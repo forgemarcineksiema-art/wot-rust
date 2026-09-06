@@ -146,6 +146,21 @@ impl<K: ElementKey> DrawList<K> {
         self.elements.last_mut().expect("just pushed")
     }
 
+    /// Keep only the elements `keep` admits (a dead crew's HUD keeps the intel, H19).
+    pub fn retain(&mut self, mut keep: impl FnMut(&K) -> bool) {
+        self.elements.retain(|element| keep(&element.id));
+    }
+
+    /// Multiply the alpha of every colour of the elements `pick` admits by `alpha`: the intel
+    /// a dead crew still reads sits back at 0.7 (H19).
+    pub fn dim_where(&mut self, alpha: f32, pick: impl Fn(&K) -> bool) {
+        for element in &mut self.elements {
+            if pick(&element.id) {
+                dim_payload(&mut element.payload, alpha);
+            }
+        }
+    }
+
     pub fn find(&self, id: K) -> Option<&Element<K>> {
         self.elements.iter().find(|e| e.id == id)
     }
@@ -295,6 +310,26 @@ fn emit_element<K: ElementKey>(
     }
 }
 
+fn dim_payload(payload: &mut Payload, alpha: f32) {
+    let dim = |color: &mut [f32; 4]| color[3] *= alpha;
+    match payload {
+        Payload::Plate { color, .. }
+        | Payload::Text { color, .. }
+        | Payload::Icon { color, .. }
+        | Payload::Glass { color, .. }
+        | Payload::Image { color, .. } => dim(color),
+        Payload::Bar { fill, back, .. } => {
+            dim(fill);
+            dim(back);
+        }
+        Payload::Legacy(vertices) => {
+            for vertex in vertices {
+                vertex.color[3] *= alpha;
+            }
+        }
+    }
+}
+
 /// The six corners of a rectangle as (pixel position, local offset) in the emitter's quad
 /// order: top-left, bottom-left, bottom-right, top-left, bottom-right, top-right.
 fn quad_corners(rect: Rect) -> [([f32; 2], [f32; 2]); 6] {
@@ -387,6 +422,41 @@ pub fn plate_tile(style: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    /// H19: `retain` keeps what the picker admits and `dim_where` scales only the picked
+    /// elements' alpha — every payload kind, the legacy vertices included.
+    #[test]
+    fn retain_and_dim_where_touch_only_the_picked_elements() {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        enum Id {
+            Intel,
+            Crew,
+        }
+        let mut list: DrawList<Id> = DrawList::new();
+        list.push(Element::new(
+            Id::Intel,
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            Payload::Bar { frac: 0.5, fill: [1.0, 1.0, 1.0, 1.0], back: [0.0, 0.0, 0.0, 0.5] },
+        ));
+        list.push(Element::new(
+            Id::Crew,
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            Payload::Legacy(vec![HudVertex::new([0.0, 0.0], [1.0, 1.0, 1.0, 1.0])]),
+        ));
+        list.dim_where(0.7, |id| *id == Id::Intel);
+        match &list.find(Id::Intel).expect("intel").payload {
+            Payload::Bar { fill, back, .. } => {
+                assert!((fill[3] - 0.7).abs() < 1e-6 && (back[3] - 0.35).abs() < 1e-6);
+            }
+            other => panic!("{other:?}"),
+        }
+        match &list.find(Id::Crew).expect("crew").payload {
+            Payload::Legacy(vertices) => assert_eq!(vertices[0].color[3], 1.0, "not picked"),
+            other => panic!("{other:?}"),
+        }
+        list.retain(|id| *id == Id::Intel);
+        assert!(list.find(Id::Crew).is_none() && list.find(Id::Intel).is_some());
+    }
+
     use super::*;
     use crate::sheet::SheetTile;
 
