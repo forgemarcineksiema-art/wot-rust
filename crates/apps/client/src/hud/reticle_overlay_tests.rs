@@ -665,6 +665,8 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             command_wheel: None,
             pings: None,
             team_word: None,
+            kill_feed: None,
+            net: None,
         },
         16.0 / 9.0,
     )

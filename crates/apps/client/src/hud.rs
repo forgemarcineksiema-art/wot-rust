@@ -16,9 +16,11 @@ pub use ui_kit::font;
 pub(crate) mod health;
 pub(crate) mod hit_direction;
 pub(crate) use ui_kit::icons;
+pub(crate) mod kill_feed;
 pub(crate) mod kill_marker;
 pub(crate) mod marker;
 pub(crate) mod minimap;
+pub(crate) mod net_readout;
 pub(crate) mod number;
 pub(crate) mod outcome;
 pub(crate) mod pause_menu;
@@ -121,6 +123,10 @@ pub struct BattleHudModel {
     pub pings: Option<ping_marker::PingModel>,
     /// The team's newest word (H16); `None` when none is fresh.
     pub team_word: Option<ping_marker::TeamWord>,
+    /// The kill feed (H3): every kill on the field, off the wire; `None` before the roster.
+    pub kill_feed: Option<kill_feed::KillFeedModel>,
+    /// The connection readout (H18); `None` in the offline examples.
+    pub net: Option<net_readout::NetReadoutModel>,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -157,6 +163,8 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             command_wheel: None,
             pings: None,
             team_word: None,
+            kill_feed: None,
+            net: None,
         },
         aspect,
     )
@@ -205,6 +213,8 @@ pub(crate) fn test_model(
         command_wheel: None,
         pings: None,
         team_word: None,
+        kill_feed: None,
+        net: None,
     }
 }
 
@@ -341,6 +351,13 @@ pub(crate) fn build_battle_hud_list(
     // H16: the team's newest word under the budget line.
     if let Some(word) = &model.team_word {
         ping_marker::push_team_word(&mut list, ui, &theme, word, &mut order);
+    }
+    // H3, H18: the kill feed under the enemy ear, the connection under the frame counter.
+    if let Some(feed) = &model.kill_feed {
+        kill_feed::push_kill_feed(&mut list, ui, &theme, feed, &mut order);
+    }
+    if let Some(net) = &model.net {
+        net_readout::push_net_readout(&mut list, ui, &theme, net, &mut order);
     }
     // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
     // where the reticle is; the reticle stays on top. The team's pings (H16) ride with them.

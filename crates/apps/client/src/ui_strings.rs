@@ -147,6 +147,13 @@ pub(crate) mod battle {
     pub const WHEEL_COMMANDS: &str = "COMMANDS";
     pub const WHEEL_REFUSED: &str = "REFUSED";
     pub const WHEEL_WAIT: &str = "WAIT";
+    /// The kill feed's word between the killer and the wreck (H3).
+    pub const KILL_WORD: &str = "DESTROYED";
+    /// The connection readout (H18): „RTT 48 MS · SNAP 32 MS", or „LOCAL" for the local host.
+    pub const NET_RTT: &str = "RTT";
+    pub const NET_SNAPSHOT: &str = "SNAP";
+    pub const NET_LOCAL: &str = "LOCAL";
+    pub const MILLISECONDS: &str = "MS";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -219,6 +226,11 @@ pub(crate) mod battle {
         WHEEL_COMMANDS,
         WHEEL_REFUSED,
         WHEEL_WAIT,
+        KILL_WORD,
+        NET_RTT,
+        NET_SNAPSHOT,
+        NET_LOCAL,
+        MILLISECONDS,
     ];
 }
 

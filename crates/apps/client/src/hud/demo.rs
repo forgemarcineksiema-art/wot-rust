@@ -107,6 +107,12 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         command_wheel: None,
         pings: None,
         team_word: None,
+        kill_feed: None,
+        net: Some(super::net_readout::NetReadoutModel {
+            local: false,
+            rtt_ms: Some(48),
+            snapshot_age_ms: 32,
+        }),
     }
 }
 
@@ -488,6 +494,35 @@ pub(crate) fn demo_team_word() -> super::ping_marker::TeamWord {
         command: net::TeamCommand::Attack,
         target: Some("Tiger II \u{b7} A".to_string()),
         age_s: 0.8,
+    }
+}
+
+/// Three kills on the feed (H3): a kill between two enemies this crew never saw, an ally's
+/// kill, and a drowning with no killer to name.
+pub(crate) fn demo_kill_feed() -> super::kill_feed::KillFeedModel {
+    use super::kill_feed::{FeedName, KillRow};
+    let name = |text: &str, enemy: bool| FeedName { text: text.to_string(), enemy };
+    super::kill_feed::KillFeedModel {
+        rows: vec![
+            KillRow {
+                killer: None,
+                victim: name("T-54 \u{b7} E", false),
+                cause: game_core::DamageCause::Drowning,
+                age_s: 0.6,
+            },
+            KillRow {
+                killer: Some(name("T-54 \u{b7} B", false)),
+                victim: name("Tiger II \u{b7} C", true),
+                cause: game_core::DamageCause::Shell,
+                age_s: 2.4,
+            },
+            KillRow {
+                killer: Some(name("Jagdtiger \u{b7} D", true)),
+                victim: name("Tiger I \u{b7} F", true),
+                cause: game_core::DamageCause::Fire,
+                age_s: 5.1,
+            },
+        ],
     }
 }
 

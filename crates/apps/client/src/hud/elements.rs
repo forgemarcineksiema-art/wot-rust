@@ -81,6 +81,18 @@ pub enum HudElement {
     Ping(PingPart),
     /// The team's newest word, under the budget line (H16).
     TeamWord,
+    /// One part of one kill-feed row (H3), newest first.
+    KillFeed(KillFeedPart),
+    /// The connection readout under the frame counter (H18).
+    NetReadout,
+}
+
+/// The parts of a kill-feed row, by row index: the killer's name, the word, the wreck's name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KillFeedPart {
+    Killer(u8),
+    Word(u8),
+    Victim(u8),
 }
 
 /// The parts of the command wheel, by command index.
@@ -187,7 +199,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 38] = [
+    pub const ALL: [HudElement; 40] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -228,6 +240,8 @@ impl HudElement {
         HudElement::CommandWheel(WheelPart::Counter),
         HudElement::Ping(PingPart::Disc(0)),
         HudElement::TeamWord,
+        HudElement::KillFeed(KillFeedPart::Word(0)),
+        HudElement::NetReadout,
     ];
 }
 

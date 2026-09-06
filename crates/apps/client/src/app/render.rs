@@ -719,6 +719,8 @@ impl ClientApp {
                 self.ping_model(view_proj, [self.viewport.0 as f32, self.viewport.1 as f32]),
             ),
             team_word: self.team_word(),
+            kill_feed: self.kill_feed_model(),
+            net: Some(self.session.net_readout()),
         };
         // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
         // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.

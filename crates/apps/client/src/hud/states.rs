@@ -42,10 +42,12 @@ pub enum HudState {
     /// The command wheel open (H16), a word chosen, a teammate's ping in the world and the
     /// echo strip.
     CommandWheelOpen,
+    /// The kill feed at three rows (H3) and the connection readout with a slow wire (H18).
+    KillFeed,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 15] = [
+    pub const ALL: [HudState; 16] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -61,6 +63,7 @@ impl HudState {
         HudState::AmmoSwitching,
         HudState::MinimapLarge,
         HudState::CommandWheelOpen,
+        HudState::KillFeed,
     ];
 
     /// The golden's name stem.
@@ -81,6 +84,7 @@ impl HudState {
             HudState::AmmoSwitching => "ammo_switching",
             HudState::MinimapLarge => "minimap_large",
             HudState::CommandWheelOpen => "command_wheel_open",
+            HudState::KillFeed => "kill_feed",
         }
     }
 
@@ -137,6 +141,14 @@ impl HudState {
             HudState::AmmoSwitching => {
                 model.ammo = Some(super::demo::demo_ammo(1));
                 model.vitals.reload_remaining_s = 5.1;
+            }
+            HudState::KillFeed => {
+                model.kill_feed = Some(super::demo::demo_kill_feed());
+                model.net = Some(super::net_readout::NetReadoutModel {
+                    local: false,
+                    rtt_ms: Some(184),
+                    snapshot_age_ms: 61,
+                });
             }
             HudState::CommandWheelOpen => {
                 model.command_wheel = Some(super::demo::demo_wheel());
