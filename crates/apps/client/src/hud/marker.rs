@@ -64,7 +64,7 @@ impl MarkerModel {
             if tank.spotted_by_teams_mask & player_bit == 0 {
                 continue;
             }
-            let Some((min, max)) = super::spot_bracket::projected_hitbox(
+            let Some((min, max)) = super::hull_box::projected_hitbox(
                 tank.translation,
                 tank.hull_yaw_rad,
                 tank.vehicle,

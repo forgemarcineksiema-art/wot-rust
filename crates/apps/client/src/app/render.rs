@@ -543,16 +543,6 @@ impl ClientApp {
             projection.far_plane_m(),
         );
         self.tick_motion_fx(&presentation_tanks, frame_dt);
-        // A spotted enemy is marked in the scope (Inny Poziom A9): corner brackets on the
-        // projected hitbox, sniper mode only, the same visibility bit as the floating bar.
-        let spot_brackets = crate::hud::spot_bracket::spotted_enemy_brackets(
-            &presentation_tanks,
-            self.player_tank,
-            self.player_team(),
-            view_proj,
-            aspect,
-            self.camera_controller.mode() == crate::camera::BattleCameraMode::Sniper,
-        );
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         // H15: the map's memory sees every spotted enemy this frame and forgets wrecks at once.
@@ -744,14 +734,6 @@ impl ClientApp {
             if !player_dead {
                 let after = list.len() as i16;
                 let world = ui_kit::rect::Rect::default();
-                list.push(
-                    Element::new(
-                        crate::hud::HudElement::SpotBrackets,
-                        world,
-                        Payload::Legacy(spot_brackets),
-                    )
-                    .z(after + 1),
-                );
                 list.push(
                     Element::new(
                         crate::hud::HudElement::HitIndicator,

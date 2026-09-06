@@ -10,7 +10,7 @@ use std::io::BufWriter;
 use battle_host::{LocalAuthoritativeServer, ServerTickConfig};
 use client::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraMode, CameraSubject,
-    append_tank_mesh, battlefield_scene_mesh, demo_battle_hud, spot_bracket_for_hull,
+    append_tank_mesh, battlefield_scene_mesh, demo_battle_hud,
 };
 use net::ClientInputCommand;
 use renderer_api::view_projection_matrix;
@@ -105,21 +105,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             projection.near_plane_m(),
             projection.far_plane_m(),
         );
-        let mut hud = demo_battle_hud(sniper, aspect);
-        if sniper {
-            for tank in
-                snapshot.tanks.iter().filter(|t| t.tank_id != player && t.team != player_tank.team)
-            {
-                spot_bracket_for_hull(
-                    tank.position,
-                    tank.yaw_rad,
-                    tank.vehicle,
-                    view_proj,
-                    aspect,
-                    &mut hud,
-                );
-            }
-        }
+        let hud = demo_battle_hud(sniper, aspect);
         renderer.set_hud(&ctx, &hud);
         renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
         let pixels = target.read_rgba8(&ctx)?;
