@@ -480,7 +480,6 @@ mod tests {
         assert_eq!(VehicleKind::T34_85.nation(), Nation::Ussr);
     }
 
-    #[test]
     /// K24: three base coats a player tells apart at a glance, none dark enough for the shader
     /// to read as a burnt wreck (luma ≥ 0.36 keeps a fully muddied hull above the 0.30 knee).
     #[test]
