@@ -1,5 +1,6 @@
-//! The material sheet (interface program F2): the steel, the enamel and the glass the interface
-//! is made of, as one 512 x 512 RGBA texture of sixteen 128 px tiles, generated here and
+//! The material sheet (interface program F2; amplitudes raised in the look pass of 2026-09-06 —
+//! at the first amplitudes every plate read as a flat fill in the frames): the steel, the
+//! enamel and the glass the interface is made of, as one 512 x 512 RGBA texture of sixteen 128 px tiles, generated here and
 //! nowhere else.
 //!
 //! Every tile is a MODULATION map centred at one half: the HUD shader multiplies a plate's own
@@ -177,7 +178,7 @@ fn paint(tile: SheetTile, x: u32, y: u32) -> [u8; 4] {
             // Lines along x: the noise is stretched sixteen to one, and a fine speckle breaks it.
             let lines = periodic_noise(x, y, 32, 2, 0xB2) - 0.5;
             let grain = hash(x, y, 0xB3) - 0.5;
-            let v = neutral + lines * 0.14 + grain * 0.04;
+            let v = neutral + lines * 0.22 + grain * 0.06;
             grey(v, 255)
         }
         SheetTile::PaintedSteel => {
@@ -185,7 +186,7 @@ fn paint(tile: SheetTile, x: u32, y: u32) -> [u8; 4] {
             let blotch = periodic_noise(x, y, 32, 32, 0x51) - 0.5;
             let detail = periodic_noise(x, y, 8, 8, 0x52) - 0.5;
             let speckle = hash(x, y, 0x53) - 0.5;
-            let v = neutral + blotch * 0.10 + detail * 0.05 + speckle * 0.03;
+            let v = neutral + blotch * 0.14 + detail * 0.08 + speckle * 0.04;
             // Paint is warm: the red channel a hair above the blue.
             [to_byte(v + 0.01), to_byte(v), to_byte(v - 0.01), 255]
         }
@@ -194,7 +195,7 @@ fn paint(tile: SheetTile, x: u32, y: u32) -> [u8; 4] {
             // speckle wide enough to be a texture at all, and a faint blotch under it.
             let speckle = hash(x, y, 0xE1) - 0.5;
             let blotch = periodic_noise(x, y, 32, 32, 0xE2) - 0.5;
-            grey(neutral + speckle * 0.05 + blotch * 0.04, 255)
+            grey(neutral + speckle * 0.06 + blotch * 0.05, 255)
         }
         SheetTile::WornMask => {
             // Where the stencil's paint is gone, in red; a soft threshold on a blotch field.
@@ -272,7 +273,8 @@ mod tests {
 
     /// The sheet's identity. A different number is a different material on every plate in the
     /// game: bless it on purpose, in the PR that changed the generator, with the tiles looked at.
-    const SHEET_HASH: u64 = 0xcec3_ca5e_82e2_3060;
+    // Re-pinned 2026-09-06 (the look pass): the amplitudes rose, the tiles were looked at.
+    const SHEET_HASH: u64 = 0x1901_0373_2c55_ce45;
 
     #[test]
     fn the_material_sheet_is_deterministic() {

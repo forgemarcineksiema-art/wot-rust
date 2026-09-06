@@ -17,15 +17,15 @@ use super::screen::{plate, put, put_control, text};
 // The legend: three lines in the top bar's empty left third.
 const HINT_LEFT_U: f32 = 30.0;
 const HINT_TOP_U: f32 = 20.0;
-const HINT_PITCH_U: f32 = 26.0;
-const HINT_SIZE_U: [f32; 2] = [440.0, 22.0];
+const HINT_PITCH_U: f32 = 28.0;
+const HINT_SIZE_U: [f32; 2] = [440.0, 24.0];
 // The chips: a stack in the bottom-left corner, beside the carousel.
 const CHIP_LEFT_U: f32 = 20.0;
 const CHIP_BOTTOM_U: f32 = 14.0;
 const CHIP_PITCH_U: f32 = 50.0;
 const CHIP_SIZE_U: [f32; 2] = [340.0, 40.0];
 // The tooltip: a small enamel plate under (or over) the control it explains.
-const TOOLTIP_H_U: f32 = 30.0;
+const TOOLTIP_H_U: f32 = 34.0;
 const TOOLTIP_PAD_U: f32 = 12.0;
 const TOOLTIP_GAP_U: f32 = 6.0;
 const TOOLTIP_MARGIN_U: f32 = 8.0;
@@ -37,7 +37,8 @@ pub(super) fn text_px_width(ui: &Ui, style: Style, text: &str, size_u: f32) -> f
         * ui.aspect()
 }
 
-/// The key legend (G6): every key from the table, three lines, dim — a reference, not a shout.
+/// The key legend (G6): every key from the table, three lines in the label's ink — a reference,
+/// legible (the look pass: dim at 16 u read as noise in the frame).
 pub(super) fn push_hint_strip(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageState) {
     for (i, line) in hint_lines(state.key_labels()).iter().enumerate() {
         let rect = Rect::new(
@@ -54,9 +55,9 @@ pub(super) fn push_hint_strip(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, st
                 text(
                     line,
                     Style::LABEL,
-                    16.0,
+                    18.0,
                     Align::Left,
-                    theme.text.label_dim,
+                    theme.text.label,
                     DigitMode::Proportional,
                 ),
             )
@@ -91,7 +92,7 @@ pub(super) fn push_chips(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: 
             text(
                 chip.word(),
                 Style::LABEL,
-                16.0,
+                18.0,
                 Align::Left,
                 theme.text.label,
                 DigitMode::Proportional,
@@ -125,7 +126,7 @@ pub(super) fn push_tooltip(
 ) {
     let viewport = ui.viewport();
     let margin = ui.px(TOOLTIP_MARGIN_U);
-    let w = text_px_width(ui, Style::VALUE, words, 16.0) + 2.0 * ui.px(TOOLTIP_PAD_U);
+    let w = text_px_width(ui, Style::VALUE, words, 18.0) + 2.0 * ui.px(TOOLTIP_PAD_U);
     let h = ui.px(TOOLTIP_H_U);
     let x =
         (anchor.center()[0] - w * 0.5).clamp(margin, (viewport.right() - margin - w).max(margin));
@@ -141,6 +142,6 @@ pub(super) fn push_tooltip(
         list,
         E::TooltipText,
         rect,
-        text(words, Style::VALUE, 16.0, Align::Center, theme.text.value, DigitMode::Proportional),
+        text(words, Style::VALUE, 18.0, Align::Center, theme.text.value, DigitMode::Proportional),
     );
 }

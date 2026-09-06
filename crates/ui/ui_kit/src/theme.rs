@@ -142,13 +142,16 @@ impl Theme {
         Self {
             palette: Palette::Standard,
             plates: Plates {
+                // The look pass (2026-09-06): the brushed steel cooler, the painted steel more
+                // olive — at the first values the two read as one plate in every frame. The
+                // luminance stays where the contrast lock put it (label_dim at 3:1 over brushed).
                 steel_brushed: PlateMaterial {
                     tile: SheetTile::BrushedSteel.index(),
-                    color: [0.30, 0.31, 0.33, 0.94],
+                    color: [0.29, 0.31, 0.35, 0.94],
                 },
                 steel_painted: PlateMaterial {
                     tile: SheetTile::PaintedSteel.index(),
-                    color: [0.24, 0.26, 0.22, 0.95],
+                    color: [0.23, 0.25, 0.18, 0.95],
                 },
                 enamel_black: PlateMaterial {
                     tile: SheetTile::EnamelBlack.index(),
@@ -159,7 +162,8 @@ impl Theme {
                     color: [0.10, 0.12, 0.14, 0.35],
                 },
             },
-            bevel_u: 2.0,
+            // Three units, not two: a two-pixel rim vanished at 1080p (the look pass, 2026-09-06).
+            bevel_u: 3.0,
             inset_u: 1.5,
             hairline_u: 1.0,
             glass_alpha: 0.12,

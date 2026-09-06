@@ -28,8 +28,9 @@ const TILE_UNITS: f32 = 128.0;
 const TILE_NEUTRAL_GAIN: f32 = 2.0;
 // The bevel's light comes from the top-left of the screen (screen y grows downward).
 const BEVEL_LIGHT_DIR: vec2<f32> = vec2<f32>(-0.70710678, -0.70710678);
-const BEVEL_STRENGTH: f32 = 0.35;
-const GLASS_BAND_STRENGTH: f32 = 0.18;
+// Raised from 0.35 in the look pass (2026-09-06): at 0.35 a plate's rim did not read in a frame.
+const BEVEL_STRENGTH: f32 = 0.55;
+const GLASS_BAND_STRENGTH: f32 = 0.26;
 
 struct VsIn {
     @location(0) position: vec2<f32>,

@@ -116,6 +116,8 @@ pub(crate) enum GarageElement {
     InspectorLine(u8),
     InspectorShootMe,
     InspectorShootMeLabel,
+    /// The nation's colour at a tree line's head (the look pass): a swatch, not the words.
+    TreeLineSwatch(u8),
 }
 
 impl GarageElement {
@@ -137,7 +139,7 @@ impl GarageElement {
 impl GarageElement {
     /// Walked by the tests; the identity rule wants it whole (a data variant once).
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [GarageElement; 99] = [
+    pub const ALL: [GarageElement; 100] = [
         GarageElement::TopBar,
         GarageElement::Nameplate,
         GarageElement::Crew,
@@ -237,6 +239,7 @@ impl GarageElement {
         GarageElement::InspectorLine(0),
         GarageElement::InspectorShootMe,
         GarageElement::InspectorShootMeLabel,
+        GarageElement::TreeLineSwatch(0),
     ];
 }
 
