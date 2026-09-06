@@ -49,6 +49,7 @@ impl ClientApp {
             }
         }
         self.garage.open();
+        self.refresh_garage_lock();
         // H1: the hall's daylight follows the PLAYER'S OWN CLOCK (standing user decision) —
         // refreshed on each open, so an evening session gets the evening hall. The state
         // itself never reads the wall clock; this is the one seam where the real world
@@ -60,6 +61,20 @@ impl ClientApp {
         // the hull driving itself while its commander shopped for modules.
         self.input.release_driving();
         self.set_cursor_captured(false);
+    }
+
+    /// G14: a destroyed hull is locked until its battle ends — the garage's BATTLE says how
+    /// long. Read every garage frame from the battle the crew left.
+    pub(in crate::app) fn refresh_garage_lock(&mut self) {
+        let dead = self
+            .render_state
+            .latest_snapshot()
+            .and_then(|s| s.tanks.iter().find(|t| t.tank_id == self.player_tank))
+            .is_some_and(|t| t.hit_points == 0);
+        let running = self.garage.has_started() && self.session.battle_outcome().is_none();
+        let locked =
+            (dead && running).then(|| self.session.battle_time_remaining_s().unwrap_or(0.0));
+        self.garage.set_locked(locked);
     }
 
     #[cfg(test)]
@@ -91,7 +106,7 @@ impl ClientApp {
 
         // Every acted-on control answers with the switch click; orbiting the camera is not a
         // control, and Battle lands its own accented click in `confirm_garage_selection`.
-        if !matches!(hit, GarageHit::Scene | GarageHit::Battle) {
+        if !matches!(hit, GarageHit::Scene | GarageHit::Battle | GarageHit::Locked) {
             self.queue_audio(audio::AudioEvent::UiClick { accent: false });
         }
         match hit {
@@ -126,6 +141,8 @@ impl ClientApp {
                 self.garage.adjust_ammo_count(index, dir as i32 * step);
             }
             GarageHit::Battle => self.confirm_garage_selection(),
+            // G14: the hull is still in a battle — the button says so; a click is a knock.
+            GarageHit::Locked => self.queue_audio(audio::AudioEvent::UiReject),
             GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
             GarageHit::CloseTechTree => self.garage.close_tech_tree(),
@@ -267,6 +284,11 @@ impl ClientApp {
     }
 
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
+        // G14: a hull locked in a running battle does not deploy again until it ends.
+        if self.garage.is_locked() {
+            self.queue_audio(audio::AudioEvent::UiReject);
+            return;
+        }
         // The commit deserves a heavier hand on the switch than browsing.
         self.queue_audio(audio::AudioEvent::UiClick { accent: true });
         let spec = self.garage.confirm();
@@ -370,7 +392,7 @@ impl ClientApp {
 #[cfg(test)]
 mod tests {
     use super::super::FitSlot;
-    use super::super::layout::{BATTLE_CENTER, ammo_slot_center, module_slot_center};
+    use super::super::elements::GarageElement as E;
     use super::*;
     use winit::keyboard::KeyCode;
 
@@ -390,7 +412,7 @@ mod tests {
     fn right_click_on_module_slot_cycles_backward() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        app.garage.set_cursor(module_slot_center(1)); // Gun slot
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1))); // Gun slot
         let before = app.garage.draft().gun_name();
         app.garage_secondary_press();
         let after = app.garage.draft().gun_name();
@@ -400,7 +422,7 @@ mod tests {
     #[test]
     fn right_click_on_battle_does_not_fire() {
         let mut app = ClientApp::new();
-        app.garage.set_cursor(BATTLE_CENTER);
+        assert!(app.garage.set_cursor_on(E::BattleButton));
         app.garage_secondary_press();
         assert!(app.garage.is_open(), "right-click never commits to battle");
         assert!(!app.garage.has_started());
@@ -413,7 +435,7 @@ mod tests {
 
         // An accepted express cycle answers with the plain click only.
         app.pending_audio.clear();
-        app.garage.set_cursor(module_slot_center(1)); // Gun slot
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1))); // Gun slot
         app.garage_secondary_press();
         assert!(
             !app.pending_audio.contains(&audio::AudioEvent::UiReject),
@@ -434,13 +456,11 @@ mod tests {
 
     #[test]
     fn clicking_the_ammo_zones_edits_the_rack_and_shift_steps_by_five() {
-        use crate::app::garage::layout::ammo_adjust_centers;
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        let (minus, _plus) = ammo_adjust_centers(0);
         let before = app.garage.draft().ammo_counts()[0];
 
-        app.garage.set_cursor(minus);
+        assert!(app.garage.set_cursor_on(E::AmmoMinus(0)));
         app.garage_primary_press();
         assert_eq!(app.garage.draft().ammo_counts()[0], before - 1, "plain click moves one round");
 
@@ -459,7 +479,7 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         let before = app.garage.draft().ammo_index();
-        app.garage.set_cursor(ammo_slot_center(1));
+        assert!(app.garage.set_cursor_on(E::AmmoSlot(1)));
         app.garage_secondary_press();
         assert_eq!(app.garage.draft().ammo_index(), before, "right-click does not touch ammo");
     }
@@ -468,7 +488,7 @@ mod tests {
     fn plain_click_on_a_swappable_slot_opens_its_option_list_without_changing_the_fit() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        app.garage.set_cursor(module_slot_center(1)); // Gun slot (a real choice on the T-54)
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1))); // Gun slot (a real choice on the T-54)
         let stock = app.garage.draft().gun_name();
 
         app.garage_primary_press();
@@ -489,7 +509,7 @@ mod tests {
     fn shift_click_express_cycles_backward_without_opening_a_list() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        app.garage.set_cursor(module_slot_center(1)); // Gun slot
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1))); // Gun slot
         let stock = app.garage.draft().gun_name();
 
         // Shift+click is the express path: it cycles backward (from stock, wraps to the alternate
@@ -512,12 +532,11 @@ mod tests {
         let stock = app.garage.draft().gun_name();
 
         // Open the gun list, then click the alternate option row (row 1).
-        app.garage.set_cursor(module_slot_center(1));
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1)));
         app.garage_primary_press();
         assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
 
-        app.garage
-            .set_cursor(crate::app::garage::layout::option_row_center(FitSlot::Gun.index(), 1));
+        assert!(app.garage.set_cursor_on(E::OptionRow(1)));
         app.garage_primary_press();
 
         assert_eq!(app.garage.option_list(), None, "picking a row closes the list");
@@ -528,7 +547,7 @@ mod tests {
     fn clicking_outside_an_open_list_dismisses_it_without_acting() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        app.garage.set_cursor(module_slot_center(1));
+        assert!(app.garage.set_cursor_on(E::ModuleSlot(1)));
         app.garage_primary_press();
         assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
 
@@ -633,7 +652,7 @@ mod tests {
 
         // Click the map row until Ostrogorsk is set, then commit: the fresh battle runs there.
         app.open_garage();
-        app.garage.set_cursor(crate::app::garage::layout::MAP_PICK_CENTER);
+        assert!(app.garage.set_cursor_on(E::MapRow));
         while app.garage.selected_map() != Some(terrain::MapId::Ostrogorsk) {
             app.garage_primary_press();
         }
@@ -985,5 +1004,71 @@ mod tests {
         let second = fingerprint();
         assert!(!first.is_empty(), "the deploy produces a roster");
         assert_eq!(first, second, "same input, same battle — roster, spawns and all");
+    }
+}
+
+#[cfg(test)]
+mod lock_tests {
+    use super::super::elements::GarageElement as E;
+    use super::*;
+
+    /// G14: a destroyed hull is locked until its battle ends, and the garage says so — BATTLE
+    /// wears IN BATTLE with the clock, a click on it knocks, ENTER does not deploy; the moment
+    /// the battle ends the hull is free and BATTLE commits again.
+    #[test]
+    fn a_destroyed_vehicle_is_locked_until_its_battle_ends_and_says_so() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(5);
+        let player = app.player_tank;
+        let player_team = app.player_team();
+        let enemies: Vec<game_core::TankId> = app
+            .session
+            .roster()
+            .iter()
+            .filter(|entry| entry.team != player_team)
+            .map(|entry| entry.tank_id)
+            .collect();
+        let crate::app::session::BattleSessionKind::Local(server) = &mut app.session else {
+            panic!("the desktop battle")
+        };
+        server.knock_out_for_test(player);
+        app.run_fixed_ticks(3);
+        app.open_garage();
+        assert!(app.garage.is_locked(), "a dead crew's hull is locked in its battle");
+        let ui = app.garage.ui();
+        let list = crate::app::garage::screen::build_screen_list(&app.garage, &ui, None);
+        assert_eq!(
+            list.find(E::BattleButton).expect("battle").state,
+            ui_kit::draw_list::WidgetState::Disabled
+        );
+        let ticks_before = app.session.authoritative_tick();
+        app.pending_audio.clear();
+        assert!(app.garage.set_cursor_on(E::BattleButton));
+        app.garage_primary_press();
+        assert!(
+            app.pending_audio.contains(&audio::AudioEvent::UiReject),
+            "a click on the lock knocks"
+        );
+        assert!(app.garage.is_open(), "and deploys nothing");
+        app.confirm_garage_selection();
+        assert!(
+            app.garage.is_open() && app.session.authoritative_tick() == ticks_before,
+            "ENTER neither"
+        );
+        // The battle ends: every enemy gone; the next garage frame frees the hull.
+        let crate::app::session::BattleSessionKind::Local(server) = &mut app.session else {
+            panic!("the desktop battle")
+        };
+        for enemy in &enemies {
+            server.knock_out_for_test(*enemy);
+        }
+        app.garage.close_for_test();
+        app.run_fixed_ticks(3);
+        assert!(app.battle_outcome.is_some());
+        app.open_garage();
+        assert!(!app.garage.is_locked(), "the battle is over: the hull is free");
+        app.confirm_garage_selection();
+        assert!(!app.garage.is_open(), "BATTLE commits again");
     }
 }

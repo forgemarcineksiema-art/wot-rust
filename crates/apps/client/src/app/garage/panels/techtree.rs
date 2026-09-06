@@ -9,13 +9,17 @@ use renderer_api::HudVertex;
 use crate::app::garage::GarageHit;
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::{
-    BATTLE, PANEL, SLOT, SLOT_SELECTED, TEXT, TEXT_DIM, TREE_CLOSE_CENTER, TREE_CLOSE_HALF,
-    TREE_LINE_LABEL_Y, TREE_NATION_LABEL_Y, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect,
-    tree_col_x, tree_columns, tree_node_center, tree_node_half,
+    TREE_CLOSE_CENTER, TREE_CLOSE_HALF, TREE_LINE_LABEL_Y, TREE_NATION_LABEL_Y, TREE_PANEL_CENTER,
+    TREE_PANEL_HALF, in_rect, tree_col_x, tree_columns, tree_node_center, tree_node_half,
 };
 use crate::hud::font::{push_text, text_width};
 use crate::hud::push_panel;
+use crate::hud::theme::color::{PANEL, SLOT, SLOT_SELECTED, TEXT, TEXT_DIM, VALUE};
 use crate::hud::theme::{CHAMFER_PANEL, CHAMFER_SLOT};
+
+/// The plate BACK is cut from (G7): a plain slot, the same steel as a node — never the
+/// commit's signal red, which the hangar's BATTLE alone may wear.
+pub(in crate::app::garage) const BACK_PLATE: [f32; 4] = SLOT;
 
 /// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre,
 /// its node half-extents).
@@ -98,7 +102,8 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
         push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.012, size, aspect, TEXT);
     }
 
-    push_panel(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, CHAMFER_SLOT, aspect, BATTLE);
+    // G7: BACK is a way out, not a commit — it wears a plain slot, never the signal red.
+    push_panel(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, CHAMFER_SLOT, aspect, BACK_PLATE);
     let label = crate::ui_strings::garage::BACK;
     let w = text_width(label, 0.028, aspect);
     push_text(

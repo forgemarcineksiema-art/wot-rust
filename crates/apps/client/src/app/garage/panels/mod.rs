@@ -1,12 +1,4 @@
-//! The garage HUD regions, arranged like the WoT beta garage. Each region draws into the shared
-//! HUD vertex buffer using rects from [`super::layout`]; `overlay` orchestrates and hit-tests them.
+//! What the garage still draws on the legacy primitives: the tech tree, until G12 lays it out
+//! by tier on the draw list. Every hangar panel is an element of `super::screen`.
 
-pub(in crate::app::garage) mod carousel;
-pub(in crate::app::garage) mod crew;
-pub(in crate::app::garage) mod inspector_legend;
-pub(in crate::app::garage) mod loadout;
-pub(in crate::app::garage) mod nameplate;
-pub(in crate::app::garage) mod options;
-pub(in crate::app::garage) mod stats;
 pub(in crate::app::garage) mod techtree;
-pub(in crate::app::garage) mod topbar;

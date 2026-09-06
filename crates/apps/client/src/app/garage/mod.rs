@@ -7,9 +7,12 @@ mod layout;
 mod overlay;
 mod panels;
 pub(crate) mod persistence;
+mod screen;
 mod selection;
+mod silhouette;
 #[cfg(test)]
 mod state_tests;
+mod stats;
 mod types;
 mod wear;
 
@@ -97,6 +100,12 @@ pub(super) struct GarageState {
     /// a beat he steps toward the ring instead of walking his round, and the paused clock is
     /// what lets him resume the round exactly where the beat interrupted it — no snap.
     mechanic_pause_s: f32,
+    /// The viewport the screen lays itself out in and the player's interface scale (G1): the
+    /// app tells the garage every frame; the reference 1080p until it does.
+    viewport_px: [f32; 2],
+    ui_scale: f32,
+    /// G14: seconds left in the battle the hull is still locked in; `None` when it is free.
+    locked_remaining_s: Option<f32>,
 }
 
 impl Default for GarageState {
@@ -132,6 +141,9 @@ impl Default for GarageState {
             wear: None,
             repair: None,
             mechanic_pause_s: 0.0,
+            viewport_px: [1920.0, 1080.0],
+            ui_scale: 1.0,
+            locked_remaining_s: None,
         }
     }
 }
@@ -224,9 +236,22 @@ pub(in crate::app) fn daylight_for_local_clock() -> scene_build::hangar::HangarL
 /// the inspector golden, so the locked frame carries the ramp's unit exactly the way the
 /// live screen does.
 pub fn garage_inspector_legend(aspect: f32) -> Vec<renderer_api::HudVertex> {
-    let mut v = Vec::new();
-    panels::inspector_legend::draw(&mut v, aspect);
-    v
+    let mut state = GarageState::default();
+    state.toggle_inspector();
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    let mut list = screen::build_screen_list(&state, &ui, None);
+    list.retain(|id| {
+        matches!(
+            id,
+            elements::GarageElement::LegendPlate
+                | elements::GarageElement::LegendTitle
+                | elements::GarageElement::LegendSwatch(_)
+                | elements::GarageElement::LegendLabel(_)
+                | elements::GarageElement::LegendUnit
+        )
+    });
+    list.emit(&ui, &ui_kit::theme::Theme::standard())
 }
 
 pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVertex> {
@@ -234,7 +259,9 @@ pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVert
     if tech_tree {
         state.open_tech_tree();
     }
-    state.overlay_vertices(aspect)
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
 }
 
 /// Build the garage overlay with a module option list open — for offscreen review of the picker.
@@ -249,7 +276,9 @@ pub fn garage_overlay_option_list(
     let mut state = GarageState::default();
     state.select_index(vehicle_index.min(game_core::VehicleKind::PLAYABLE.len() - 1));
     state.open_option_list(FitSlot::ALL[slot_index.min(FitSlot::ALL.len() - 1)]);
-    state.overlay_vertices(aspect)
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
 }
 
 impl GarageState {
@@ -401,6 +430,7 @@ impl GarageState {
 
     /// Commit the edited loadout: lock the garage and hand back the assembled spec to install.
     pub(super) fn confirm(&mut self) -> TankSpec {
+        self.locked_remaining_s = None;
         self.started = true;
         self.open = false;
         self.dragging = false;
@@ -431,12 +461,19 @@ impl GarageState {
         self.rejected_slot
     }
 
-    pub(super) fn overlay_vertices(&self, aspect: f32) -> Vec<renderer_api::HudVertex> {
+    /// The screen as vertices, laid out in `ui` (the app's viewport at the player's scale).
+    pub(super) fn overlay_vertices(
+        &self,
+        ui: &ui_kit::ui::Ui,
+        theme: &ui_kit::theme::Theme,
+    ) -> Vec<renderer_api::HudVertex> {
         if !self.open {
             return Vec::new();
         }
-        overlay::build(self, aspect)
+        overlay::build(self, ui, theme)
     }
+
+    /// What the cursor is on, from the rectangles the screen draws.
     pub(super) fn hit_test(&self, shift: bool) -> GarageHit {
         overlay::hit_test(self, shift)
     }

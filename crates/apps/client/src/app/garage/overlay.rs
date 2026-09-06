@@ -1,19 +1,17 @@
-//! Garage HUD orchestration and cursor hit-testing. Draws the WoT-style regions (top bar, left
-//! crew, right stats, bottom loadout strip, bottom carousel) from [`super::panels`] and maps the
-//! cursor to a [`GarageHit`] using the same rects from [`super::layout`]. A subtle bright quad is
-//! drawn over the element under the cursor so clickable areas read as interactive.
+//! The garage overlay's seams: the screen as vertices, and the cursor as a hit — both off the
+//! one draw list `screen.rs` builds (interface program G1). The tree view still carries its
+//! legacy vertices and their hover wash until G12.
 
-use game_core::VehicleKind;
 use renderer_api::HudVertex;
-use ui_kit::draw_list::{DrawList, Element, Payload};
-use ui_kit::rect::Rect;
+#[cfg(test)]
+use ui_kit::draw_list::DrawList;
+use ui_kit::theme::Theme;
+use ui_kit::ui::Ui;
 
+#[cfg(test)]
 use super::elements::GarageElement;
-
-use super::draft::FitSlot;
-use super::layout::*;
-use super::{GarageHit, GarageState, GarageView, panels};
-use crate::hud::push_quad;
+use super::layout::{TREE_CLOSE_CENTER, TREE_CLOSE_HALF, in_rect};
+use super::{GarageHit, GarageState, GarageView, panels, screen};
 
 impl GarageState {
     /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
@@ -27,474 +25,83 @@ impl GarageState {
     }
 }
 
-pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
-    build_list(state, aspect)
-        .emit(&ui_kit::ui::Ui::for_aspect(aspect), &ui_kit::theme::Theme::standard())
+pub(super) fn build(state: &GarageState, ui: &Ui, theme: &Theme) -> Vec<HudVertex> {
+    screen::build_screen(state, ui, theme).emit(ui, theme)
 }
 
-/// The overlay as a draw list (interface program F5): one element per panel in paint order,
-/// each carrying its legacy vertices verbatim; the G wave restyles them one by one.
-pub(super) fn build_list(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
-    if !state.is_open() {
-        return DrawList::new();
-    }
-    match state.view() {
-        GarageView::Hangar => build_hangar(state, aspect),
-        GarageView::TechTree => build_tech_tree(state, aspect),
-    }
-}
-
-fn legacy(list: &mut DrawList<GarageElement>, id: GarageElement, vertices: Vec<HudVertex>) {
-    let z = list.len() as i16;
-    list.push(Element::new(id, Rect::default(), Payload::Legacy(vertices)).z(z));
-}
-
-fn build_hangar(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
-    let mut list = DrawList::new();
-    let spec = state.draft().assembled_spec();
-    let mut v = Vec::new();
-    panels::topbar::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::TopBar, v);
-    let mut v = Vec::new();
-    panels::nameplate::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::Nameplate, v);
-    let mut v = Vec::new();
-    panels::crew::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::Crew, v);
-    let mut v = Vec::new();
-    panels::stats::draw(&mut v, &spec, aspect);
-    legacy(&mut list, GarageElement::Stats, v);
-    let mut v = Vec::new();
-    panels::loadout::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::Loadout, v);
-    let mut v = Vec::new();
-    panels::carousel::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::Carousel, v);
-
-    // The armor inspector's mm legend (R1): on screen exactly while the overlay it explains
-    // is — a color ramp without its unit was a guess, not an instrument.
-    if state.inspector_on() {
-        let mut v = Vec::new();
-        panels::inspector_legend::draw(&mut v, aspect);
-        legacy(&mut list, GarageElement::InspectorLegend, v);
-    }
-
-    // The option list, if open, floats above the loadout strip on top of everything else.
-    if let Some(slot) = state.option_list() {
-        let mut v = Vec::new();
-        panels::options::draw(&mut v, state, slot, aspect);
-        legacy(&mut list, GarageElement::Options, v);
-    }
-
-    if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
-        let mut v = Vec::new();
-        push_quad(&mut v, center, half, HOVER);
-        legacy(&mut list, GarageElement::Hover, v);
-    }
-
-    list
-}
-
-fn build_tech_tree(state: &GarageState, aspect: f32) -> DrawList<GarageElement> {
-    let mut list = DrawList::new();
-    let mut v = Vec::new();
-    panels::topbar::draw(&mut v, state, aspect);
-    legacy(&mut list, GarageElement::TopBar, v);
-    legacy(&mut list, GarageElement::TechTree, panels::techtree::draw(state, aspect));
-
-    if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
-        let mut v = Vec::new();
-        push_quad(&mut v, center, half, HOVER);
-        legacy(&mut list, GarageElement::Hover, v);
-    }
-
-    list
-}
-
-/// Map the element under the cursor to its rect so a hover highlight can be drawn.
-fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
-    match hit {
-        GarageHit::Battle => Some((BATTLE_CENTER, BATTLE_HALF)),
-        GarageHit::MapCycle(_) => Some((MAP_PICK_CENTER, MAP_PICK_HALF)),
-        GarageHit::ModuleCycle(slot, _) => Some((module_slot_center(slot.index()), SLOT_HALF)),
-        GarageHit::OptionRow(slot, i) => {
-            Some((option_row_center(slot.index(), *i), OPTION_ROW_HALF))
-        }
-        GarageHit::AmmoSelect(i) => Some((ammo_slot_center(*i), SLOT_HALF)),
-        GarageHit::AmmoAdjust(i, dir) => {
-            let (minus, plus) = ammo_adjust_centers(*i);
-            Some((if *dir < 0 { minus } else { plus }, AMMO_ADJUST_HALF))
-        }
-        // A vehicle node lives in a different place per view: the bottom carousel in the hangar, a
-        // nation column in the tech tree. Resolve the rect against the active view so the highlight
-        // lands on the node the click would hit (the old code always used the carousel rect, so
-        // hovering a tree node lit an unrelated cell at the bottom of the screen).
-        GarageHit::Vehicle(i) => match state.view() {
-            GarageView::TechTree => panels::techtree::node_rect_for_index(*i),
-            GarageView::Hangar => carousel_cell_rect(state, *i),
-        },
-        GarageHit::CarouselScroll(dir) => {
-            let (left, right) = carousel_arrows();
-            Some((if *dir < 0 { left } else { right }, CAR_ARROW_HALF))
-        }
-        GarageHit::OpenTechTree => Some((TECH_TREE_TAB_CENTER, TECH_TREE_TAB_HALF)),
-        // CloseTechTree fires from either the top-bar tab or the tree's BACK button — highlight
-        // whichever the cursor is actually over.
-        GarageHit::CloseTechTree => {
-            let p = state.cursor_clip();
-            if in_rect(p, TREE_CLOSE_CENTER, TREE_CLOSE_HALF) {
-                Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF))
-            } else if in_rect(p, GARAGE_TAB_CENTER, GARAGE_TAB_HALF) {
-                Some((GARAGE_TAB_CENTER, GARAGE_TAB_HALF))
-            } else {
-                Some((TECH_TREE_TAB_CENTER, TECH_TREE_TAB_HALF))
-            }
-        }
-        GarageHit::Scene => None,
-    }
-}
-
-/// Screen rect of an absolute roster cell, if it currently sits inside the visible window.
-fn carousel_cell_rect(state: &GarageState, absolute: usize) -> Option<([f32; 2], [f32; 2])> {
-    let count = VehicleKind::PLAYABLE.len();
-    let window = carousel_window(count, state.carousel_scroll());
-    window
-        .contains(&absolute)
-        .then(|| (carousel_cell_center(absolute - window.start, window.len()), CAR_HALF))
+/// The screen as a draw list, the hovered control lit.
+#[cfg(test)]
+pub(super) fn build_list(state: &GarageState, ui: &Ui, theme: &Theme) -> DrawList<GarageElement> {
+    screen::build_screen(state, ui, theme)
 }
 
 pub(super) fn hit_test(state: &GarageState, shift: bool) -> GarageHit {
-    let p = state.cursor_clip();
-
-    // The TECH TREE tab toggles between views and is hit-testable in both.
-    if in_rect(p, TECH_TREE_TAB_CENTER, TECH_TREE_TAB_HALF) {
-        return match state.view() {
-            GarageView::Hangar => GarageHit::OpenTechTree,
-            GarageView::TechTree => GarageHit::CloseTechTree,
-        };
-    }
-
-    // ...and so does GARAGE, which used to be drawn as a tab beside it and answer to nothing. A
-    // tab that looks like its neighbour and ignores a click is a bug the player reads as a dead
-    // interface; from the hangar it is already the active view, so it falls through to the scene.
-    if in_rect(p, GARAGE_TAB_CENTER, GARAGE_TAB_HALF) && state.view() == GarageView::TechTree {
-        return GarageHit::CloseTechTree;
-    }
-
-    // The map row lives on the top bar like the tab, so it cycles in both views too.
-    if in_rect(p, MAP_PICK_CENTER, MAP_PICK_HALF) {
-        return GarageHit::MapCycle(if shift { -1 } else { 1 });
-    }
-
-    match state.view() {
-        GarageView::Hangar => hit_test_hangar(state, shift),
-        GarageView::TechTree => panels::techtree::hit_test(state),
-    }
+    screen::hit_screen(state, &state.ui(), shift)
 }
 
-fn hit_test_hangar(state: &GarageState, shift: bool) -> GarageHit {
+/// The tree's legacy hover: a node or BACK under the cursor, in clip space.
+pub(super) fn tree_hover_rect(state: &GarageState) -> Option<([f32; 2], [f32; 2])> {
+    if state.view() != GarageView::TechTree {
+        return None;
+    }
     let p = state.cursor_clip();
-    let cycle_dir = if shift { -1 } else { 1 };
-
-    // An open option list is a modal popup: its rows take priority over the controls beneath it.
-    if let Some(slot) = state.option_list() {
-        let rows = state.draft().module_options(slot).len();
-        for i in 0..rows {
-            if in_rect(p, option_row_center(slot.index(), i), OPTION_ROW_HALF) {
-                return GarageHit::OptionRow(slot, i);
-            }
-        }
+    if in_rect(p, TREE_CLOSE_CENTER, TREE_CLOSE_HALF) {
+        return Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF));
     }
-
-    if in_rect(p, BATTLE_CENTER, BATTLE_HALF) {
-        return GarageHit::Battle;
+    match panels::techtree::hit_test(state) {
+        GarageHit::Vehicle(index) => panels::techtree::node_rect_for_index(index),
+        _ => None,
     }
-    for (i, slot) in FitSlot::ALL.into_iter().enumerate() {
-        if in_rect(p, module_slot_center(i), SLOT_HALF) {
-            return GarageHit::ModuleCycle(slot, cycle_dir);
-        }
-    }
-    for i in 0..state.draft().ammo_options().len() {
-        // The − / + count zones sit inside the slot's bottom band and take priority over the
-        // select area, so editing the fill never switches the loaded round.
-        let (minus, plus) = ammo_adjust_centers(i);
-        if in_rect(p, minus, AMMO_ADJUST_HALF) {
-            return GarageHit::AmmoAdjust(i, -1);
-        }
-        if in_rect(p, plus, AMMO_ADJUST_HALF) {
-            return GarageHit::AmmoAdjust(i, 1);
-        }
-        if in_rect(p, ammo_slot_center(i), SLOT_HALF) {
-            return GarageHit::AmmoSelect(i);
-        }
-    }
-    let count = VehicleKind::PLAYABLE.len();
-    if carousel_overflows(count) {
-        let (left, right) = carousel_arrows();
-        if in_rect(p, left, CAR_ARROW_HALF) {
-            return GarageHit::CarouselScroll(-1);
-        }
-        if in_rect(p, right, CAR_ARROW_HALF) {
-            return GarageHit::CarouselScroll(1);
-        }
-    }
-    let window = carousel_window(count, state.carousel_scroll());
-    for (slot, absolute) in window.clone().enumerate() {
-        if in_rect(p, carousel_cell_center(slot, window.len()), CAR_HALF) {
-            return GarageHit::Vehicle(absolute);
-        }
-    }
-    GarageHit::Scene
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use game_core::VehicleKind;
+    use ui_kit::draw_list::Payload;
 
-    fn at(garage: &mut GarageState, point: [f32; 2]) -> GarageHit {
-        garage.set_cursor(point);
-        garage.hit_test(false)
-    }
-
-    fn at_shift(garage: &mut GarageState, point: [f32; 2]) -> GarageHit {
-        garage.set_cursor(point);
-        garage.hit_test(true)
-    }
-
+    /// The tree view carries its legacy vertices verbatim on one element and lights a hovered
+    /// node with the old wash; the hangar carries no legacy element at all.
     #[test]
-    fn cursor_hits_battle_carousel_and_scene() {
-        let mut g = GarageState::default();
-        assert_eq!(at(&mut g, BATTLE_CENTER), GarageHit::Battle);
-        // The roster fits (< CAR_VISIBLE), so absolute index == visible slot.
-        assert_eq!(
-            at(&mut g, carousel_cell_center(3, VehicleKind::PLAYABLE.len())),
-            GarageHit::Vehicle(3)
-        );
-        assert_eq!(at(&mut g, [0.0, 0.0]), GarageHit::Scene);
-    }
-
-    #[test]
-    fn clicking_a_module_slot_cycles_it_and_ammo_slot_selects() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        // Gun is index 1 in FitSlot::ALL.
-        assert_eq!(at(&mut g, module_slot_center(1)), GarageHit::ModuleCycle(FitSlot::Gun, 1));
-        assert_eq!(at(&mut g, ammo_slot_center(1)), GarageHit::AmmoSelect(1));
-    }
-
-    #[test]
-    fn shift_click_on_a_module_slot_cycles_backward() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        assert_eq!(
-            at_shift(&mut g, module_slot_center(1)),
-            GarageHit::ModuleCycle(FitSlot::Gun, -1)
-        );
-        // Non-shift still cycles forward (regression guard).
-        assert_eq!(at(&mut g, module_slot_center(1)), GarageHit::ModuleCycle(FitSlot::Gun, 1));
-    }
-
-    #[test]
-    fn shift_does_not_change_ammo_battle_or_vehicle_hits() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        assert_eq!(at_shift(&mut g, BATTLE_CENTER), GarageHit::Battle);
-        assert_eq!(at_shift(&mut g, ammo_slot_center(1)), GarageHit::AmmoSelect(1));
-        assert_eq!(
-            at_shift(&mut g, carousel_cell_center(2, VehicleKind::PLAYABLE.len())),
-            GarageHit::Vehicle(2)
-        );
-    }
-
-    #[test]
-    fn ammo_adjust_zones_hit_before_the_slots_select_area() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        let (minus, plus) = ammo_adjust_centers(1);
-        assert_eq!(at(&mut g, minus), GarageHit::AmmoAdjust(1, -1));
-        assert_eq!(at(&mut g, plus), GarageHit::AmmoAdjust(1, 1));
-        // The icon band (upper half of the slot) still selects the round.
-        let c = ammo_slot_center(1);
-        assert_eq!(at(&mut g, [c[0], c[1] + 0.03]), GarageHit::AmmoSelect(1));
-        // And the hover highlight lands on the zone, not the whole slot.
-        g.set_cursor(plus);
-        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((plus, AMMO_ADJUST_HALF)));
-    }
-
-    /// W1: the proficiency dial is gone — a click where its arrows used to sit orbits the
-    /// scene like any other empty floor, and no control answers.
-    #[test]
-    fn the_old_proficiency_arrows_are_plain_scene_now() {
-        let mut g = GarageState::default();
-        assert_eq!(at(&mut g, [-0.855, 0.18]), GarageHit::Scene);
-        assert_eq!(at(&mut g, [-0.745, 0.18]), GarageHit::Scene);
-    }
-
-    #[test]
-    fn hover_rect_returns_none_for_scene() {
-        let mut g = GarageState::default();
-        g.set_cursor([0.0, 0.0]);
-        assert_eq!(hover_rect(&g, &g.hit_test(false)), None);
-    }
-
-    #[test]
-    fn cursor_hits_the_map_row_and_shift_cycles_backward() {
-        let mut g = GarageState::default();
-        assert_eq!(at(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(1));
-        assert_eq!(at_shift(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(-1));
-        // The hover highlight lands on the row.
-        g.set_cursor(MAP_PICK_CENTER);
-        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((MAP_PICK_CENTER, MAP_PICK_HALF)));
-        // The row lives on the top bar like the TECH TREE tab, so it stays clickable there too.
-        g.open_tech_tree();
-        assert_eq!(at(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(1));
-    }
-
-    #[test]
-    fn hover_rect_returns_the_battle_button_rect() {
-        let mut g = GarageState::default();
-        g.set_cursor(BATTLE_CENTER);
-        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((BATTLE_CENTER, BATTLE_HALF)));
-    }
-
-    #[test]
-    fn hover_rect_returns_a_module_slot_rect() {
-        let mut g = GarageState::default();
-        let center = module_slot_center(1);
-        g.set_cursor(center);
-        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((center, SLOT_HALF)));
-    }
-
-    #[test]
-    fn build_emits_hover_quad_over_clickable_elements() {
-        let mut g = GarageState::default();
-        let aspect = 16.0 / 9.0;
-
-        g.set_cursor([0.0, 0.0]);
-        let baseline = build(&g, aspect).len();
-
-        g.set_cursor(BATTLE_CENTER);
-        let with_hover = build(&g, aspect).len();
-        assert!(with_hover > baseline, "hovering a clickable element should emit extra vertices");
-    }
-
-    #[test]
-    fn an_open_option_list_hit_tests_its_rows_above_the_controls_beneath() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        g.open_option_list(FitSlot::Gun);
-
-        let row = option_row_center(FitSlot::Gun.index(), 1);
-        g.set_cursor(row);
-        assert_eq!(g.hit_test(false), GarageHit::OptionRow(FitSlot::Gun, 1), "rows hit-test first");
-        assert_eq!(
-            hover_rect(&g, &g.hit_test(false)),
-            Some((row, OPTION_ROW_HALF)),
-            "the hover highlight lands on the option row"
-        );
-    }
-
-    #[test]
-    fn an_open_option_list_draws_extra_vertices() {
-        let mut g = GarageState::default();
-        g.select_vehicle(VehicleKind::T54_1951);
-        let aspect = 16.0 / 9.0;
-        let closed = build(&g, aspect).len();
-        g.open_option_list(FitSlot::Gun);
-        let open = build(&g, aspect).len();
-        assert!(open > closed, "the open option list must add panel + row + text vertices");
-    }
-
-    #[test]
-    fn hover_over_a_tree_node_lights_the_node_not_a_carousel_cell() {
-        use crate::app::garage::layout::tree_node_center;
-
-        let mut g = GarageState::default();
-        g.open_tech_tree();
-        let node = tree_node_center(game_core::VehicleKind::TigerI);
-        g.set_cursor(node);
-        let rect = hover_rect(&g, &g.hit_test(false)).expect("a tree node must have a hover rect");
-        assert!(
-            (rect.0[1] - node[1]).abs() < 1.0e-6,
-            "hover must land on the tree node, not the bottom carousel row"
-        );
-        assert!(
-            rect.0[1] > 0.0,
-            "the node sits in the upper tree band, not at CAR_Y at the bottom"
-        );
-    }
-
-    #[test]
-    fn hover_over_the_tree_back_button_lights_the_back_button() {
-        let mut g = GarageState::default();
-        g.open_tech_tree();
-        g.set_cursor(TREE_CLOSE_CENTER);
-        assert_eq!(
-            hover_rect(&g, &g.hit_test(false)),
-            Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF)),
-            "the BACK button must highlight on hover"
-        );
-    }
-
-    #[test]
-    fn clicking_tech_tree_tab_in_hangar_opens_tech_tree() {
-        let mut g = GarageState::default();
-        assert_eq!(at(&mut g, TECH_TREE_TAB_CENTER), GarageHit::OpenTechTree);
-    }
-
-    /// The GARAGE tab was drawn as a tab and hit-tested as nothing. From the tech tree it now
-    /// takes the player home, and it highlights where it is drawn.
-    #[test]
-    fn clicking_the_garage_tab_in_tech_tree_returns_to_the_hangar() {
-        let mut g = GarageState::default();
-        g.open_tech_tree();
-        assert_eq!(at(&mut g, GARAGE_TAB_CENTER), GarageHit::CloseTechTree);
-        g.set_cursor(GARAGE_TAB_CENTER);
-        assert_eq!(
-            hover_rect(&g, &g.hit_test(false)),
-            Some((GARAGE_TAB_CENTER, GARAGE_TAB_HALF)),
-            "the highlight must land on the GARAGE tab, not its neighbour"
-        );
-    }
-
-    /// From the hangar, GARAGE is already the active view — it must not swallow a scene click
-    /// (the orbit drag starts on `Scene`).
-    #[test]
-    fn the_garage_tab_falls_through_to_the_scene_in_the_hangar() {
-        let mut g = GarageState::default();
-        assert_eq!(at(&mut g, GARAGE_TAB_CENTER), GarageHit::Scene);
-    }
-
-    #[test]
-    fn clicking_tech_tree_tab_in_tech_tree_closes_it() {
-        let mut g = GarageState::default();
-        g.open_tech_tree();
-        g.set_cursor(TECH_TREE_TAB_CENTER);
-        assert_eq!(g.hit_test(false), GarageHit::CloseTechTree);
-    }
-}
-
-#[cfg(test)]
-mod list_tests {
-    use super::*;
-
-    #[test]
-    fn the_garage_list_emits_the_legacy_overlay_byte_for_byte_and_names_its_panels() {
+    fn the_tree_rides_its_legacy_element_and_the_hangar_none() {
         let mut state = GarageState::default();
         state.open();
-        let aspect = 16.0 / 9.0;
-        let list = build_list(&state, aspect);
-        let expected: Vec<HudVertex> = list
-            .iter()
-            .flat_map(|e| match &e.payload {
-                Payload::Legacy(v) => v.clone(),
-                _ => Vec::new(),
-            })
-            .collect();
-        assert_eq!(build(&state, aspect), expected);
-        for id in [GarageElement::TopBar, GarageElement::Stats, GarageElement::Carousel] {
-            assert!(list.find(id).is_some(), "{id:?} is a named element");
-        }
-        assert!(list.find(GarageElement::TechTree).is_none(), "the hangar shows no tree");
+        let ui = state.ui();
+        let theme = Theme::standard();
+        let hangar = build_list(&state, &ui, &theme);
+        assert!(
+            hangar.iter().all(|e| !matches!(e.payload, Payload::Legacy(_))),
+            "the hangar is the toolkit's"
+        );
+        state.open_tech_tree();
+        let tree = build_list(&state, &ui, &theme);
+        assert!(tree.find(GarageElement::TechTree).is_some());
+        assert!(tree.find(GarageElement::Hover).is_none(), "nothing hovered");
+        state.set_cursor(super::super::layout::tree_node_center(VehicleKind::TigerI));
+        let tree = build_list(&state, &ui, &theme);
+        assert!(tree.find(GarageElement::Hover).is_some(), "the node under the cursor is lit");
+        assert_eq!(
+            hit_test(&state, false),
+            GarageHit::Vehicle(
+                VehicleKind::PLAYABLE
+                    .iter()
+                    .position(|k| *k == VehicleKind::TigerI)
+                    .expect("playable")
+            )
+        );
+        state.set_cursor(TREE_CLOSE_CENTER);
+        assert_eq!(hit_test(&state, false), GarageHit::CloseTechTree);
+        assert_eq!(tree_hover_rect(&state), Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF)));
+    }
+
+    /// The vertices are the list's emission — nothing is drawn beside the list.
+    #[test]
+    fn the_overlay_is_the_lists_emission() {
+        let mut state = GarageState::default();
+        state.open();
+        let ui = state.ui();
+        let theme = Theme::standard();
+        assert_eq!(build(&state, &ui, &theme), build_list(&state, &ui, &theme).emit(&ui, &theme));
+        assert!(!build(&state, &ui, &theme).is_empty());
     }
 }

@@ -360,7 +360,7 @@ Columns: the defect, the evidence, the wave, and what closes it. IDs by wave: **
 with a sentence; a closed row is struck through and annotated, never deleted; IDs are never
 reused. Rows that absorb a row of `docs/inny-poziom-program.md` say so, and that row points here.
 
-Numbers under lock in this document: **stat rows today: 9**
+Numbers under lock in this document: **stat rows today: 13**
 (`crates/apps/client/src/app/garage/layout.rs`), **icons baked today: 24**
 (`crates/ui/ui_kit/src/icons.rs`); the wire version above.
 
@@ -433,20 +433,20 @@ Every row lands with its `hud_states` golden. Evidence is the client as of 2026-
 
 | ID | Defect | Evidence | Wave | Closes when |
 |---|---|---|---|---|
-| G1 | **The stat column is nine anonymous numbers** | `crates/apps/client/src/app/garage/panels/stats.rs:136-146`, `crates/apps/client/src/app/garage/layout.rs:83` | G | `every_stat_row_prints_its_own_label_a_number_and_a_bar_against_the_roster` (absorbs U6) |
-| G2 | No derived values (GDD §15.4) | `crates/apps/client/src/app/garage/panels/stats.rs` | G | `the_derived_rows_agree_with_the_resolver_and_the_sim_to_1e_3` |
+| ~~G1~~ | ~~**The stat column is nine anonymous numbers**~~ — **CLOSED (2026-09-06)**: thirteen labelled rows (`garage/stats.rs`), each with its number and unit and a bar against the whole playable roster — the roster's best fills it, its worst empties it, a lower reload fills further — with the class's median ticked; the column follows the assembled spec | `crates/apps/client/src/app/garage/stats.rs`, `crates/apps/client/src/app/garage/screen.rs` | G | `every_stat_row_prints_its_own_label_a_number_and_a_bar_against_the_roster`, `every_stat_row_is_drawn_with_its_label_number_bar_and_tick` (absorbs U6) |
+| ~~G2~~ | ~~No derived values (GDD §15.4)~~ — **CLOSED (2026-09-06)**: EFFECTIVE FRONT @ 0° through the same resolver a shell meets (`resolve_penetration_at_distance_on_zone_scaled`, upper glacis, 100 m), POWER / TONNE, DISPERSION MOVING (the sim's settled minimum plus the spec's movement bloom, under the spec's cap) | `crates/apps/client/src/app/garage/stats.rs` | G | `the_derived_rows_agree_with_the_resolver_and_the_sim_to_1e_3` |
 | G3 | No compare; the good/bad delta colours are orphaned | `crates/apps/client/src/app/garage/layout.rs:138-139` | G | `a_compare_column_shows_both_numbers_and_the_signed_delta`; `garage_compare` |
-| G4 | **„Which tank am I in and why" is unanswerable**: the nameplate is tier and nation | `crates/apps/client/src/app/garage/panels/nameplate.rs` | G | `the_nameplate_names_the_class_and_the_role` (absorbs U7) |
-| G5 | **Ammunition is illegible and unexplained**: designations at 0.016 under the screen's own 0.022 floor | `crates/apps/client/src/app/garage/panels/loadout.rs:54-55`, `crates/apps/client/src/app/garage/panels/inspector_legend.rs:22-24` | G | `no_garage_string_renders_below_the_legibility_floor` (absorbs U8) |
+| ~~G4~~ | ~~**„Which tank am I in and why" is unanswerable**: the nameplate is tier and nation~~ — **CLOSED (2026-09-06)**: the plate names the hull, „VIII · HEAVY · USSR", and its role — one sentence per vehicle, `VehicleKind::role_line()` in `game_core` so every screen says the same | `crates/foundation/game_core/src/vehicle_kind.rs`, `crates/apps/client/src/app/garage/screen.rs` | G | `the_nameplate_names_the_class_and_the_role` (absorbs U7) |
+| ~~G5~~ | ~~**Ammunition is illegible and unexplained**: designations at 0.016 under the screen's own 0.022 floor~~ — **CLOSED (2026-09-06)**: every ammunition slot prints the round's designation, its penetration at 100 m and its damage, and its count between its − and +; the rack line says how full; nothing on the screen prints under 16 u (`GARAGE_TEXT_FLOOR_U`) | `crates/apps/client/src/app/garage/screen.rs` | G | `no_garage_string_renders_below_the_legibility_floor` (absorbs U8) |
 | G6 | **No press state, no tooltips, no key legend**: fourteen keys bound and one printed | `crates/apps/client/src/app/garage/overlay.rs:57-59`, `crates/apps/client/src/app/garage/actions.rs:175-250` | G | `every_clickable_has_three_states`, `the_hint_strip_prints_the_bound_keys_not_literals` (absorbs U9) |
-| G7 | **BACK wears the commit red** | `crates/apps/client/src/app/garage/panels/techtree.rs:101` | G | `signal_red_is_only_worn_by_commit` (absorbs U10) |
+| ~~G7~~ | ~~**BACK wears the commit red**~~ — **CLOSED (2026-09-06)**: the one red is BATTLE's alone on the hangar screen, and a locked hull's BATTLE wears none; the tree's BACK is a plain slot | `crates/apps/client/src/app/garage/screen.rs`, `crates/apps/client/src/app/garage/panels/techtree.rs` | G | `signal_red_is_only_worn_by_commit` (absorbs U10) |
 | G8 | **Clicking a module on the 3D tank does nothing**; the turret cannot be turned | `crates/apps/client/src/app/garage/overlay.rs:157-210` | G | `clicking_a_module_on_the_hero_opens_its_slot`, `dragging_the_turret_turns_it_and_nothing_else` (absorbs U11) |
-| G9 | No carousel filters | `crates/apps/client/src/app/garage/panels/carousel.rs` | G | `a_filtered_carousel_cycles_only_what_passes_the_chips` |
-| G10 | Two tabs of seven | `crates/apps/client/src/app/garage/panels/topbar.rs`, `crates/world/scene_build/src/review_views.rs:120-148` | G | `GarageScreen` appended with the new screens, one golden each under `every_garage_screen_is_under_an_image_lock` |
+| G9 | No carousel filters | `crates/apps/client/src/app/garage/screen.rs` | G | `a_filtered_carousel_cycles_only_what_passes_the_chips` |
+| G10 | Two tabs of seven | `crates/apps/client/src/app/garage/screen.rs`, `crates/world/scene_build/src/review_views.rs:120-148` | G | `GarageScreen` appended with the new screens, one golden each under `every_garage_screen_is_under_an_image_lock` |
 | G11 | **The inspector answers nothing at a point**; no „shoot me" mode | `crates/apps/client/src/vehicle/armor_overlay.rs`, `crates/foundation/game_core/src/armor/impact.rs:65` | G | `the_inspector_equals_the_shell_on_a_thousand_points` (absorbs L1); `garage_inspector_point`, `garage_inspector_shoot_me` |
 | G12 | The tree has no edges and no „what follows"; columns are nation-and-class pairs | `crates/apps/client/src/app/garage/panels/techtree.rs`, `crates/apps/client/src/app/garage/layout.rs:252-265` | G | `a_tree_node_says_what_it_is_and_what_follows_it_and_nothing_it_cannot_know` |
 | G13 | Eight goldens lock the old look | `crates/apps/client/tests/goldens/look/garage_screen.png` | G (last) | one bless PR with the before/after numbers; the garage bounds of `look_goldens.rs` re-measured and moved only with the number in the message |
-| G14 | No locked-vehicle state after a death | `crates/apps/client/src/app/garage/mod.rs` | G | `a_destroyed_vehicle_is_locked_until_its_battle_ends_and_says_so` |
+| ~~G14~~ | ~~No locked-vehicle state after a death~~ — **CLOSED (2026-09-06)**: a destroyed hull's BATTLE is disabled and says IN BATTLE · M:SS off the battle clock while its battle runs; a click knocks, ENTER does not deploy; the outcome frees it (`refresh_garage_lock` every garage frame) | `crates/apps/client/src/app/garage/actions.rs`, `crates/apps/client/src/app/garage/screen.rs` | G | `a_destroyed_vehicle_is_locked_until_its_battle_ends_and_says_so` |
 
 ---
 

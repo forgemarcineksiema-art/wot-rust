@@ -4,7 +4,7 @@
 
 use game_core::VehicleKind;
 
-use super::layout::{CAR_HALF, CAR_VISIBLE, CAR_Y, carousel_window, clamp_carousel_scroll};
+use super::layout::{CAR_VISIBLE, carousel_window, clamp_carousel_scroll};
 use super::{FitSlot, GarageState, LoadoutDraft};
 
 fn roster_len() -> usize {
@@ -57,7 +57,10 @@ impl GarageState {
     /// Whether the cursor is over the carousel row — used to route the mouse wheel to scrolling
     /// instead of camera zoom.
     pub(in crate::app) fn cursor_over_carousel(&self) -> bool {
-        (self.cursor_clip[1] - CAR_Y).abs() <= CAR_HALF[1] + 0.02
+        let ui = self.ui();
+        super::screen::build_screen_list(self, &ui, None)
+            .find(super::elements::GarageElement::CarouselPlate)
+            .is_some_and(|plate| plate.rect.contains(self.cursor_px(&ui)))
     }
 
     /// Nudge the scroll so the selected vehicle sits inside the visible window.

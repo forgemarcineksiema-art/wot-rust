@@ -50,7 +50,7 @@ pub(crate) use elements::HudElement;
 pub(crate) use outcome::BattleHudOutcome;
 #[cfg(test)]
 pub(crate) use outcome::OUTCOME_VICTORY_COLOR;
-pub(crate) use primitives::{push_hairline, push_panel, push_quad};
+pub(crate) use primitives::{push_panel, push_quad};
 pub(crate) use reticle_overlay::HudReticle;
 pub use review::{HudReviewView, hud_review_views};
 pub use states::{HudSizeClass, HudState};

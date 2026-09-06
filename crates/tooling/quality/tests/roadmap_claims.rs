@@ -112,10 +112,10 @@ const CLAIMS: &[Claim] = &[
     Claim {
         doc: "docs/interface-program.md",
         anchor: "**stat rows today: ",
-        source: "crates/apps/client/src/app/garage/layout.rs",
-        owner: Owner::NumberAfter("pub(super) const STAT_ROWS: usize = "),
-        why: "the garage wave relabels every stat row; the count it starts from must be the \
-              column's own",
+        source: "crates/apps/client/src/app/garage/stats.rs",
+        owner: Owner::NumberAfter("pub const ALL: [StatKind; "),
+        why: "the garage wave relabelled every stat row (G1); the count the document quotes \
+              must be the column's own",
     },
     Claim {
         doc: "docs/interface-program.md",

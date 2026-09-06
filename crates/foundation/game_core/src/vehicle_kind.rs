@@ -246,6 +246,38 @@ impl VehicleKind {
     /// World of Tanks combat tier (1–10). The matchmaking bracket and the tree's vertical axis.
     /// Numbers match the live Tankopedia: T-34-85 is VI, Tiger I is VII, the T8 park is VIII,
     /// T-54 and Jagdtiger are IX.
+    /// One sentence on how the hull fights (interface program G4): the nameplate's answer to
+    /// „which tank am I in and why". Content, not a stat — it lives with the vehicle so every
+    /// screen says the same thing.
+    pub fn role_line(self) -> &'static str {
+        match self {
+            VehicleKind::T54_1951 => {
+                "Fast medium on a sloped hull: flank, hold the ridge, keep the gun on them"
+            }
+            VehicleKind::TigerI => {
+                "The 88 works from the second line; the flat plates want an angle"
+            }
+            VehicleKind::TigerII => {
+                "The thickest front on the field: lead the push, take the hits meant for the mediums"
+            }
+            VehicleKind::Jagdtiger => {
+                "A 128 mm casemate: pick a lane and own it — a turn is a decision"
+            }
+            VehicleKind::PantherII => {
+                "Long 88 on a fast hull: snipe from the ridge, the flanks are thin"
+            }
+            VehicleKind::IS3 => {
+                "Pike nose and a rounded turret: brawl close, bounce what the front takes"
+            }
+            VehicleKind::Centurion => {
+                "Post-war medium: the 20-pounder from hull-down, the turret takes the bounce"
+            }
+            VehicleKind::T34_85 => {
+                "The 85 on a light hull: scout the flank, spot, finish what the heavies start"
+            }
+        }
+    }
+
     pub fn tier(self) -> u8 {
         match self {
             VehicleKind::T34_85 => 6,

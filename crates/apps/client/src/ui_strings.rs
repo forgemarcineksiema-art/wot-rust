@@ -29,6 +29,31 @@ pub(crate) mod garage {
     /// Milliradians — the unit the whole aiming promise is written in (no +-25% roll, a gun that
     /// groups where it is pointed). It belongs on the screen where the gun is chosen.
     pub const UNIT_MRAD: &str = "mrad";
+    pub const UNIT_KILOWATTS_PER_TONNE: &str = "kW/t";
+    pub const UNIT_HIT_POINTS: &str = "hp";
+    /// The VEHICLE column's labels (G1): every row says what it is.
+    pub const STAT_HIT_POINTS: &str = "HIT POINTS";
+    pub const STAT_ARMOUR: &str = "ARMOUR HULL / TURRET";
+    pub const STAT_EFFECTIVE_FRONT: &str = "EFFECTIVE FRONT @ 0\u{b0}";
+    pub const STAT_POWER: &str = "ENGINE";
+    pub const STAT_POWER_PER_TONNE: &str = "POWER / TONNE";
+    pub const STAT_TOP_SPEED: &str = "TOP SPEED";
+    pub const STAT_TRAVERSE: &str = "TURRET TRAVERSE";
+    pub const STAT_PENETRATION: &str = "PENETRATION @ 100 M";
+    pub const STAT_DAMAGE: &str = "DAMAGE PER SHOT";
+    pub const STAT_DISPERSION: &str = "DISPERSION";
+    pub const STAT_DISPERSION_MOVING: &str = "DISPERSION MOVING";
+    pub const STAT_AIM_TIME: &str = "AIM TIME";
+    pub const STAT_RELOAD: &str = "RELOAD";
+    /// G14: the hull is in a battle that still runs.
+    pub const IN_BATTLE: &str = "IN BATTLE";
+    /// The inspector's legend.
+    pub const LEGEND_TITLE: &str = "ARMOUR";
+    pub const LEGEND_UNIT: &str = "MM";
+    /// The nameplate's repair tag (L2).
+    pub const NAME_DAMAGED: &str = "DAMAGED";
+    pub const NAME_REPAIR_HINT: &str = "R REPAIR";
+    pub const NAME_REPAIRING: &str = "REPAIRING...";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -45,6 +70,27 @@ pub(crate) mod garage {
         UNIT_MILLIMETERS,
         UNIT_SECONDS,
         UNIT_MRAD,
+        UNIT_KILOWATTS_PER_TONNE,
+        UNIT_HIT_POINTS,
+        STAT_HIT_POINTS,
+        STAT_ARMOUR,
+        STAT_EFFECTIVE_FRONT,
+        STAT_POWER,
+        STAT_POWER_PER_TONNE,
+        STAT_TOP_SPEED,
+        STAT_TRAVERSE,
+        STAT_PENETRATION,
+        STAT_DAMAGE,
+        STAT_DISPERSION,
+        STAT_DISPERSION_MOVING,
+        STAT_AIM_TIME,
+        STAT_RELOAD,
+        IN_BATTLE,
+        LEGEND_TITLE,
+        LEGEND_UNIT,
+        NAME_DAMAGED,
+        NAME_REPAIR_HINT,
+        NAME_REPAIRING,
     ];
 }
 
