@@ -114,7 +114,18 @@ impl ClientApp {
             variation.decals(),
             &snapshot,
         );
-        let hud = self.garage.overlay_vertices(aspect);
+        let mut hud = self.garage.overlay_vertices(aspect);
+        // P8: a shell page over the garage — its menu, the settings, the keys — through the
+        // draw list, appended after the garage's own overlay.
+        if let Some(page) = self.shell_model() {
+            let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, self.settings.ui_scale);
+            let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
+            let mut list = ui_kit::draw_list::DrawList::new();
+            let mut order: i16 = 0;
+            crate::hud::shell::push_shell(&mut list, &ui, &theme, &page, &mut order);
+            self.remember_shell_hits(crate::hud::shell::shell_hit_rects(&list));
+            hud.extend(list.emit(&ui, &theme));
+        }
 
         // Dust streams off the tracks while the tank rolls in; the pool ages out once it parks.
         if self.garage.poll_drive_dust() {

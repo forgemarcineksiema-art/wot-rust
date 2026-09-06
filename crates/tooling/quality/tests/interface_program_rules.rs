@@ -136,9 +136,10 @@ fn a_path_is_read_the_way_a_register_cell_writes_it() {
     assert!(paths_in("nothing here").is_empty());
 }
 
-/// H24: the only full-screen scrim the battle HUD knows is the escape menu's. A quad with
-/// clip half-extents `[1.0, 1.0]` covers the whole viewport; outside `pause_menu.rs` nothing
-/// in `hud/` may push one — a popup in battle is a rule broken, not a feature.
+/// H24: nothing in `hud/` pushes a full-screen quad (clip half-extents `[1.0, 1.0]`): the
+/// only scrim the battle knows is the shell's, a draw-list bar under a page the crew opened
+/// from the menu (P6, P8) — a popup in battle is a rule broken, not a feature. The legacy
+/// escape modal that once held the exemption retired with P8.
 #[test]
 fn nothing_modal_appears_in_battle_but_the_escape_menu() {
     let root = workspace_root();
@@ -150,7 +151,7 @@ fn nothing_modal_appears_in_battle_but_the_escape_menu() {
             continue;
         }
         let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        if name == "pause_menu.rs" || name.ends_with("tests.rs") {
+        if name.ends_with("tests.rs") {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();

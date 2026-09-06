@@ -57,7 +57,6 @@ const LEGACY_CALL_SITE_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/hud/minimap.rs", 3, Hold::Burn),
     ("crates/apps/client/src/hud/number.rs", 1, Hold::Burn),
     ("crates/apps/client/src/hud/outcome.rs", 3, Hold::Burn),
-    ("crates/apps/client/src/hud/pause_menu.rs", 7, Hold::Burn),
     ("crates/apps/client/src/hud/readouts.rs", 6, Hold::Burn),
     ("crates/apps/client/src/hud/reticle_marks.rs", 9, Hold::Held),
     ("crates/apps/client/src/hud/reticle_overlay.rs", 8, Hold::Held),

@@ -54,7 +54,7 @@ impl ClientApp {
 
     /// From the escape menu: the menu closes, the cursor is freed, the editor takes the keys.
     pub(super) fn open_hud_editor(&mut self) {
-        self.pause_menu = None;
+        self.shell = None;
         self.command_wheel = None;
         self.input.release_driving();
         self.hud_editor = Some(HudEditorState::default());

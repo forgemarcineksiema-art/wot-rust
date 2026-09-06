@@ -26,7 +26,6 @@ pub(crate) mod minimap;
 pub(crate) mod net_readout;
 pub(crate) mod number;
 pub(crate) mod outcome;
-pub(crate) mod pause_menu;
 pub(crate) mod ping_marker;
 pub use ui_kit::primitives;
 pub(crate) mod readouts;
@@ -119,8 +118,6 @@ pub struct BattleHudModel {
     /// camera's mode-blend clock, so the optics iris in/out WITH the view instead of hard-cutting
     /// (see `camera::present::scope_dressing`).
     pub scope_fade: f32,
-    /// The ESC modal when it is up; `None` is a closed menu (`hud/pause_menu.rs`).
-    pub pause_menu: Option<pause_menu::PauseMenuModel>,
     /// The command wheel (H16) while Z is held or a refusal still knocks; `None` otherwise.
     pub command_wheel: Option<command_wheel::CommandWheelModel>,
     /// The team's pings in the world (H16); `None` before the battle.
@@ -175,7 +172,6 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             reload_ready_age_s: None,
             fire_denied_age_s: None,
             scope_fade: 0.0,
-            pause_menu: None,
             command_wheel: None,
             pings: None,
             team_word: None,
@@ -230,7 +226,6 @@ pub(crate) fn test_model(
         } else {
             0.0
         },
-        pause_menu: None,
         command_wheel: None,
         pings: None,
         team_word: None,
@@ -677,13 +672,6 @@ pub(crate) fn build_battle_hud_list(
             let ui_stack = model.layout.ui_for(ui, layout::Instrument::TopStack);
             spectate::push_spectate(&mut list, &ui_stack, &theme, strip, &mut order);
         }
-    }
-    // Last, so the modal sits over every battle marker — including the outcome banner, which a
-    // player can be reading when they reach for ESC.
-    if let Some(menu) = &model.pause_menu {
-        let mut v = Vec::new();
-        pause_menu::push_pause_menu(&mut v, menu, aspect);
-        legacy(&mut list, &mut order, HudElement::PauseMenu, v);
     }
     list
 }

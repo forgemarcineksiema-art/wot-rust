@@ -51,6 +51,14 @@ impl ClientApp {
             Some(_) => return,
             None => {}
         }
+        // P6/P8: a shell page — a menu, the settings, the keys — has the keyboard while it is
+        // open, over the garage and the battle alike; nothing underneath sees a key.
+        if self.shell_open() {
+            if let Some(action) = self.keybinds.action(Context::Shell, key) {
+                self.shell_action(action, pressed);
+            }
+            return;
+        }
         if pressed && self.garage.is_open() && self.garage_keyboard(key) {
             return;
         }
@@ -87,12 +95,6 @@ impl ClientApp {
         if self.hud_editor_open() {
             if let Some(action) = self.keybinds.action(Context::HudEditor, key) {
                 self.hud_editor_action(action, pressed);
-            }
-            return;
-        }
-        if pressed && self.pause_menu.is_some() {
-            if self.keybinds.action(Context::Battle, key) == Some(Action::Escape) {
-                self.close_pause_menu();
             }
             return;
         }
@@ -187,23 +189,13 @@ impl ClientApp {
         }
     }
 
+    /// ESC in a live battle: the menu (P8: a shell page). A wheel open under it would say a
+    /// word on the next Z release: it closes unsaid. The driving keys are released rather than
+    /// left latched: the battle does NOT pause, and a hull driving on by itself while its
+    /// commander reads a menu is exactly the kind of hidden consequence this game refuses. It
+    /// coasts to a stop, in the open, visibly.
     pub(in crate::app) fn open_pause_menu(&mut self) {
-        self.pause_menu = Some(super::PauseMenuState::opened());
-        // A wheel open under the menu would say a word on the next Z release: it closes unsaid.
-        self.command_wheel = None;
-        // Release the driving keys rather than leaving them latched: the battle does NOT pause,
-        // and a hull driving on by itself while its commander reads a menu is exactly the kind of
-        // hidden consequence this game refuses. It coasts to a stop, in the open, visibly.
-        self.input.release_driving();
-        self.set_cursor_captured(false);
-    }
-
-    pub(in crate::app) fn close_pause_menu(&mut self) {
-        self.pause_menu = None;
-        // Mouse motion accumulated while the menu was up must not be spent as a look delta the
-        // moment it closes, or the turret jumps to wherever the player was pointing at a button.
-        self.input.clear_mouse_look();
-        self.set_cursor_captured(true);
+        self.open_menu(crate::hud::shell::MenuKind::Battle);
     }
 
     /// A mouse press in the live battle view (no garage, no modal): it (re)captures the cursor,
@@ -236,7 +228,7 @@ impl ClientApp {
         self.command_wheel = None;
         self.input.release_all_latches();
         self.garage.end_drag();
-        self.set_cursor_captured(focused && !self.garage.is_open() && self.pause_menu.is_none());
+        self.set_cursor_captured(focused && !self.garage.is_open() && !self.shell_open());
     }
 
     pub(super) fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
@@ -244,8 +236,8 @@ impl ClientApp {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
-        if self.pause_menu.is_some() {
-            // No camera dolly behind an open modal — the view stays where the player left it.
+        if self.shell_open() {
+            // No camera dolly behind an open page — the view stays where the player left it.
             return;
         }
         if self.garage.is_open() {
@@ -401,8 +393,8 @@ impl ClientApp {
     }
 
     pub(super) fn apply_mouse_look(&mut self) {
-        if self.pause_menu.is_some() || self.hud_editor_open() {
-            // The cursor is answering the modal, not aiming the gun.
+        if self.shell_open() || self.hud_editor_open() {
+            // The cursor is answering a page, not aiming the gun.
             self.input.clear_mouse_look();
             return;
         }
@@ -472,16 +464,12 @@ impl ClientApp {
             self.hud_editor_cursor([x, y]);
             return;
         }
-        if !self.garage.is_open() && self.pause_menu.is_none() {
+        if !self.garage.is_open() {
             return;
         }
         let (w, h) = self.viewport;
         let clip_x = (x / w as f32) * 2.0 - 1.0;
         let clip_y = 1.0 - (y / h as f32) * 2.0;
-        if let Some(menu) = &mut self.pause_menu {
-            menu.cursor_clip = [clip_x, clip_y];
-            return;
-        }
         self.garage.set_cursor([clip_x, clip_y]);
     }
 
@@ -490,38 +478,6 @@ impl ClientApp {
     #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn cursor_px(&self) -> [f32; 2] {
         self.cursor_px
-    }
-
-    /// A left click while the ESC modal is up. Off both buttons it does nothing: a modal that
-    /// closed on a stray click would drop the player back into the battle without an answer.
-    pub(in crate::app) fn pause_menu_primary_press(&mut self) {
-        let Some(menu) = &self.pause_menu else {
-            return;
-        };
-        match menu.hovered() {
-            Some(crate::hud::pause_menu::PauseMenuButton::ExitToGarage) => {
-                self.queue_audio(audio::AudioEvent::UiClick { accent: true });
-                self.pause_menu = None;
-                self.open_garage();
-            }
-            Some(crate::hud::pause_menu::PauseMenuButton::Stay) => {
-                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
-                self.close_pause_menu();
-            }
-            Some(crate::hud::pause_menu::PauseMenuButton::HudEditor) => {
-                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
-                self.open_hud_editor();
-            }
-            Some(crate::hud::pause_menu::PauseMenuButton::Settings) => {
-                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
-                self.open_settings_page();
-            }
-            Some(crate::hud::pause_menu::PauseMenuButton::Keybinds) => {
-                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
-                self.open_keybinds_page();
-            }
-            None => {}
-        }
     }
 
     pub(super) fn set_cursor_captured(&mut self, captured: bool) {
