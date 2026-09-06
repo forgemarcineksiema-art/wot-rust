@@ -86,12 +86,21 @@ pub fn armor_inspector_fx_vertices(
 /// lifted a hand's width off the steel so it reads over the volume, in `rgb` — the lamp for a
 /// question, the verdict's colour once SHOOT ME answers.
 pub fn inspector_point_fx_vertices(point: Vec3, normal: Vec3, rgb: [f32; 3]) -> Vec<FxVertex> {
-    const MARKER_RADIUS_M: f32 = 0.14;
+    // The look pass (2026-09-06): a 14 cm disc vanished under the plate's own colour; a dark
+    // ring under a 22 cm disc reads from the hero framing.
+    const MARKER_RADIUS_M: f32 = 0.22;
+    const MARKER_RING_M: f32 = 0.06;
     const MARKER_LIFT_M: f32 = 0.06;
-    const MARKER_ALPHA: f32 = 0.85;
+    const MARKER_ALPHA: f32 = 0.9;
     let normal = normal.try_normalize().unwrap_or(Vec3::Y);
-    let disc = disc_polygon(point + normal * MARKER_LIFT_M, normal, MARKER_RADIUS_M);
     let mut out = Vec::new();
+    let ring = disc_polygon(
+        point + normal * (MARKER_LIFT_M * 0.5),
+        normal,
+        MARKER_RADIUS_M + MARKER_RING_M,
+    );
+    fan_triangles(&mut out, &ring, &|p| p, [0.0, 0.0, 0.0, MARKER_ALPHA]);
+    let disc = disc_polygon(point + normal * MARKER_LIFT_M, normal, MARKER_RADIUS_M);
     fan_triangles(
         &mut out,
         &disc,

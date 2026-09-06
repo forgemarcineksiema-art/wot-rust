@@ -139,7 +139,15 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
             icon,
             Payload::Icon { icon: HudIcon::for_class(line.class), color: theme.text.label },
         );
+        // The nation is a swatch beside the head, and the words wear the value's ink: the
+        // nation colours were made for the carousel's cells and sank into the panel here.
         let c = line.nation.color();
+        put(
+            list,
+            E::TreeLineSwatch(row as u8),
+            Rect::new(head.x - ui.px(12.0), head.y + ui.px(8.0), ui.px(6.0), node_h - ui.px(16.0)),
+            Payload::Bar { frac: 0.0, fill: theme.text.value, back: [c[0], c[1], c[2], 0.95] },
+        );
         put(
             list,
             E::TreeLineLabel(row as u8),
@@ -158,7 +166,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
                 Style::LABEL,
                 18.0,
                 Align::Left,
-                [c[0], c[1], c[2], 0.95],
+                theme.text.value,
                 DigitMode::Proportional,
             ),
         );
