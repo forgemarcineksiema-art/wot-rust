@@ -14,7 +14,7 @@ fn the_lobby_waits_for_its_format_and_sends_its_clock_to_every_crew() {
             RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::TigerII)
                 .with_format(format);
         let mut host = RemoteBattleServer::new(ServerTickConfig::default(), config, 60_000, 0);
-        let seats = format.seats_per_team();
+        let seats = format.total_seats();
         let mut clients: Vec<_> = (0..seats)
             .map(|seat| {
                 let port = hub.port(format!("10.0.0.{}:5000", seat + 2).parse().expect("client"));
@@ -25,8 +25,9 @@ fn the_lobby_waits_for_its_format_and_sends_its_clock_to_every_crew() {
         let mut started = vec![false; seats];
         for step in 0..200_u64 {
             let now = step * 16;
-            // Keep the last seat empty long enough to prove fourteen (or six) cannot fill
-            // the selected lobby. In particular, 15v15 must never start at seven crews.
+            // Keep the last seat empty long enough to prove twenty-nine (or thirteen) cannot
+            // fill the selected lobby: since M6 "full" is BOTH teams' seats, so 15v15 never
+            // starts at fifteen crews and 7v7 never at seven.
             let active = if step < 100 { seats - 1 } else { seats };
             for (index, (client, port)) in clients.iter_mut().take(active).enumerate() {
                 for message in client.tick(now, port).expect("client tick") {

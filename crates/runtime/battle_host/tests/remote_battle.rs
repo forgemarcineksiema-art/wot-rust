@@ -118,6 +118,85 @@ fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {
     assert!(snapshot_a.tanks.len() < 14 && snapshot_a.team_hit_points[1] > 0);
 }
 
+/// M6 (`docs/game-modes.md` R4, the owner: "ludzie muszą być w jednej jak i drugiej drużynie"):
+/// two crews in one lobby are dealt to OPPOSITE teams — the roster says so, each crew's cut still
+/// carries every hull of its own side and, at spawn distances, not the other crew's. Armed the way
+/// netcode block 3's lock was: on the team-one-only host both crews sat side by side and the
+/// opposite-teams assertion fails.
+#[test]
+fn two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.2.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut ports = [
+        hub.port("10.0.2.2:5000".parse().expect("addr")),
+        hub.port("10.0.2.3:5000".parse().expect("addr")),
+    ];
+    let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
+        seed: BattleSeed::fixed(21),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 400, 0);
+    let mut clients =
+        [ClientSession::connect(server_addr, 0), ClientSession::connect(server_addr, 0)];
+    let mut assigned = [None, None];
+    let mut snapshots: [Option<net::Snapshot>; 2] = [None, None];
+    let mut rosters: [Option<Vec<net::RosterEntry>>; 2] = [None, None];
+    for step in 0..400_u64 {
+        let now_ms = step * 16;
+        for index in 0..2 {
+            for message in clients[index].tick(now_ms, &mut ports[index]).expect("client tick") {
+                match message {
+                    ProtocolMessage::StartBattle { assigned_tank, .. } => {
+                        assigned[index] = Some(assigned_tank);
+                    }
+                    ProtocolMessage::BattleRoster { entries, .. } => rosters[index] = Some(entries),
+                    ProtocolMessage::SnapshotDelivery(delivery) => {
+                        snapshots[index] = Some(delivery.snapshot);
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(tank) = assigned[index] {
+                let batch = ProtocolMessage::InputBatch {
+                    session_id: clients[index].session_id(),
+                    commands: vec![net::ClientInputCommand {
+                        client_tick: step,
+                        tank_id: tank,
+                        command: sim::TankCommand::idle(),
+                    }],
+                };
+                clients[index].endpoint.send(&mut ports[index], &batch).expect("input batch");
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+    let tanks = [assigned[0].expect("A seated"), assigned[1].expect("B seated")];
+    let roster = rosters[0].clone().expect("A has the roster");
+    assert_eq!(roster, rosters[1].clone().expect("B has the roster"));
+    let team_of = |tank| roster.iter().find(|e| e.tank_id == tank).expect("named").team;
+    assert_ne!(team_of(tanks[0]), team_of(tanks[1]), "two crews, two sides");
+    for team in [game_core::TeamId(1), game_core::TeamId(2)] {
+        let humans =
+            roster.iter().filter(|e| e.team == team && e.crew_kind == net::CrewKind::Human).count();
+        assert_eq!(humans, 1, "one crew a side, the rest bots (team {})", team.0);
+    }
+    for index in 0..2 {
+        let snapshot = snapshots[index].clone().expect("receives snapshots");
+        let own = team_of(tanks[index]);
+        let own_side = roster.iter().filter(|e| e.team == own).count();
+        let seen_own = snapshot.tanks.iter().filter(|t| t.team == own).count();
+        assert_eq!(seen_own, own_side, "a crew's cut carries every hull of its own side");
+        assert!(
+            !snapshot.tanks.iter().any(|t| t.tank_id == tanks[1 - index]),
+            "at spawn distances the other crew is an unspotted enemy and stays off the wire"
+        );
+    }
+}
+
 /// v51 (W-5): the command wheel's word goes to the team — and only as many as the SERVER
 /// admits. A crew that sends eight in a burst hears five relays; the sixth, seventh and eighth
 /// were refused where a modded client cannot reach.
