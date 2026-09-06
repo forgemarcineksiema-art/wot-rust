@@ -28,7 +28,7 @@ pub enum HudState {
     KillConfirmed,
     /// The battle's outcome banner.
     OutcomeBanner,
-    /// The escape modal over the battle.
+    /// The escape menu over the battle (P8: a shell page — five entries).
     PauseMenu,
     /// The HUD editor open (H21) once it exists; today the frame where it would be.
     HudEditorOpen,
@@ -128,7 +128,6 @@ impl HudState {
         model.fire_denied_age_s = None;
         model.kill_confirm_age_s = None;
         model.battle_outcome = None;
-        model.pause_menu = None;
         model.incoming_hits.clear();
         model.damage = Some(super::demo::quiet_damage_panel());
         match self {
@@ -151,7 +150,7 @@ impl HudState {
             HudState::KillConfirmed => model.kill_confirm_age_s = Some(0.4),
             HudState::OutcomeBanner => model.battle_outcome = Some(BattleHudOutcome::Victory),
             HudState::PauseMenu => {
-                model.pause_menu = Some(super::pause_menu::PauseMenuModel { hovered: None });
+                model.shell = Some(super::shell::demo_menu_screen(super::shell::MenuKind::Battle));
             }
             HudState::HudEditorOpen => {
                 model.kill_feed = Some(super::demo::demo_kill_feed());
@@ -328,7 +327,7 @@ mod tests {
         }
         assert!(HudState::Reloading.model().vitals.reload_remaining_s > 0.0);
         assert!(HudState::OutcomeBanner.model().battle_outcome.is_some());
-        assert!(HudState::PauseMenu.model().pause_menu.is_some());
-        assert!(HudState::ThirdPersonIdle.model().pause_menu.is_none());
+        assert!(HudState::PauseMenu.model().shell.is_some());
+        assert!(HudState::ThirdPersonIdle.model().shell.is_none());
     }
 }

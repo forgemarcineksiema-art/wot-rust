@@ -106,12 +106,6 @@ impl ApplicationHandler for ClientApp {
                             ElementState::Released => self.hud_editor_release(),
                         }
                     }
-                } else if self.pause_menu.is_some() {
-                    // The ESC modal owns the pointer: a click answers it, and must not recapture
-                    // the cursor or reach the trigger underneath.
-                    if button == MouseButton::Left && state == ElementState::Pressed {
-                        self.pause_menu_primary_press();
-                    }
                 } else if self.garage.is_open() {
                     // Garage menu: left click drives selection / Battle / orbit, cursor stays free.
                     // Right click cycles a module slot backward (no other hit acts on it).
@@ -154,6 +148,11 @@ impl ApplicationHandler for ClientApp {
         // keeps pumping.
         if let Some(reason) = self.fatal_error.take() {
             error!(%reason, "fatal: leaving the event loop");
+            event_loop.exit();
+            return;
+        }
+        // P8: the menu's QUIT — every file is already written on its change.
+        if self.quit_requested {
             event_loop.exit();
             return;
         }

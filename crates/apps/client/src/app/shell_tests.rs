@@ -4,11 +4,11 @@
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use super::ClientApp;
+use super::input_tests::in_battle;
 use super::keybinds::{Action, Context, KeyBindings};
 use super::shell::shell_footer;
 use crate::hud::elements::{HudElement, ShellPart};
-use crate::hud::pause_menu::{KEYBINDS_CENTER, PauseMenuButton, SETTINGS_CENTER};
-use crate::hud::shell::{SettingsRow, ShellModel};
+use crate::hud::shell::{MenuItem, MenuKind, SettingsRow, ShellModel};
 
 fn key(code: KeyCode) -> PhysicalKey {
     PhysicalKey::Code(code)
@@ -26,10 +26,8 @@ fn the_settings_page_opens_from_the_escape_menu_steps_a_setting_and_escapes_back
     app.confirm_garage_selection();
     app.enable_settings_persistence(path.clone());
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("menu").cursor_clip = SETTINGS_CENTER;
-    assert_eq!(app.pause_menu.expect("menu").hovered(), Some(PauseMenuButton::Settings));
-    app.pause_menu_primary_press();
-    assert!(app.shell_open() && app.pause_menu.is_none(), "the page is up, the menu is down");
+    app.click_menu_item(MenuItem::Settings);
+    assert!(app.shell_open() && !app.menu_open(), "the page is up, the menu is down");
     // The page has the keys: W is MENU UP here (it wraps to the last row), never the throttle.
     app.on_battle_keyboard(key(KeyCode::KeyW), true);
     assert!(!app.input.forward, "the page never drives");
@@ -63,7 +61,7 @@ fn the_settings_page_opens_from_the_escape_menu_steps_a_setting_and_escapes_back
     assert!((app.settings().ui_scale - 1.05).abs() < 1e-5, "{}", app.settings().ui_scale);
     // Esc: back to the menu.
     app.on_battle_keyboard(key(KeyCode::Escape), true);
-    assert!(!app.shell_open() && app.pause_menu.is_some(), "back to the menu");
+    assert!(app.menu_open(), "back to the menu");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -92,9 +90,7 @@ fn the_keybinds_page_rebinds_a_key_names_the_conflict_and_resets_it() {
     app.confirm_garage_selection();
     app.enable_keybinds_persistence(path.clone());
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("menu").cursor_clip = KEYBINDS_CENTER;
-    assert_eq!(app.pause_menu.expect("menu").hovered(), Some(PauseMenuButton::Keybinds));
-    app.pause_menu_primary_press();
+    app.click_menu_item(MenuItem::Keybinds);
     let Some(ShellModel::Keybinds(page)) = app.shell_model() else { panic!("the page") };
     assert_eq!(page.context, Context::Battle);
     assert_eq!(page.selected, 0, "the context row first");
@@ -138,6 +134,96 @@ fn the_keybinds_page_rebinds_a_key_names_the_conflict_and_resets_it() {
     assert_eq!((page.context, page.selected, page.first_visible), (Context::Garage, 0, 0));
     // Esc: back to the menu.
     app.on_battle_keyboard(key(KeyCode::Escape), true);
-    assert!(!app.shell_open() && app.pause_menu.is_some(), "back to the menu");
+    assert!(app.menu_open(), "back to the menu");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A start of the escape lock's walk: the app in one screen.
+type Start = Box<dyn Fn() -> ClientApp>;
+
+/// P8: from every screen, ESC reaches a menu with a way out — QUIT or EXIT TO GARAGE — in
+/// at most three presses: the cold garage, its option list, a live battle, the garage over
+/// it, the HUD editor, the settings page, the key bindings page.
+#[test]
+fn escape_always_offers_a_way_out() {
+    let starts: Vec<(&str, Start)> = vec![
+        ("cold garage", Box::new(ClientApp::new)),
+        (
+            "option list",
+            Box::new(|| {
+                let mut app = ClientApp::new();
+                app.garage.open_option_list(super::garage::FitSlot::Gun);
+                app
+            }),
+        ),
+        ("battle", Box::new(in_battle)),
+        (
+            "garage over the battle",
+            Box::new(|| {
+                let mut app = in_battle();
+                app.open_garage();
+                app
+            }),
+        ),
+        (
+            "hud editor",
+            Box::new(|| {
+                let mut app = in_battle();
+                app.open_hud_editor();
+                app
+            }),
+        ),
+        (
+            "settings page",
+            Box::new(|| {
+                let mut app = in_battle();
+                app.open_settings_page();
+                app
+            }),
+        ),
+        (
+            "key bindings page",
+            Box::new(|| {
+                let mut app = in_battle();
+                app.open_keybinds_page();
+                app
+            }),
+        ),
+    ];
+    for (name, start) in starts {
+        let mut app = start();
+        let mut presses = 0;
+        while !app.way_out_offered() && presses < 3 {
+            app.on_key(key(KeyCode::Escape), true, false);
+            app.on_key(key(KeyCode::Escape), false, false);
+            presses += 1;
+        }
+        assert!(app.way_out_offered(), "{name}: no way out after {presses} presses");
+    }
+}
+
+/// P8: the cold garage's menu — SETTINGS and KEY BINDINGS open their pages over the garage
+/// and ESC brings the garage's menu back, not the battle's; QUIT asks the loop to leave; a
+/// battle menu's STAY returns the gun to the mouse.
+#[test]
+fn the_garage_menu_opens_its_pages_and_quit_asks_the_loop_to_leave() {
+    let mut app = ClientApp::new();
+    app.on_key(key(KeyCode::Escape), true, false);
+    let Some(ShellModel::Menu(menu)) = app.shell_model() else { panic!("the garage's menu") };
+    assert_eq!(menu.kind, MenuKind::Garage);
+    assert_eq!(menu.selected, 0, "SETTINGS first, never the commit");
+    app.on_battle_keyboard(key(KeyCode::Enter), true);
+    assert!(matches!(app.shell_model(), Some(ShellModel::Settings(_))), "SETTINGS opens");
+    app.on_key(key(KeyCode::Escape), true, false);
+    let Some(ShellModel::Menu(menu)) = app.shell_model() else { panic!("back to the menu") };
+    assert_eq!(menu.kind, MenuKind::Garage, "the garage's, not the battle's");
+    assert!(!app.quit_requested());
+    app.click_menu_item(MenuItem::Quit);
+    assert!(app.quit_requested() && !app.shell_open(), "QUIT: the loop leaves");
+    // The battle's menu: STAY hands the gun back.
+    let mut app = in_battle();
+    app.open_pause_menu();
+    assert!(!app.cursor_captured);
+    app.click_menu_item(MenuItem::Stay);
+    assert!(!app.shell_open() && app.cursor_captured, "STAY: the mouse is the gun again");
 }

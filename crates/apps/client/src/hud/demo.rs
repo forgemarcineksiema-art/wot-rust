@@ -103,7 +103,6 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: if sniper { 1.0 } else { 0.0 },
-        pause_menu: None,
         command_wheel: None,
         pings: None,
         team_word: None,

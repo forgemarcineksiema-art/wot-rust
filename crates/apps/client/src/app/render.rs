@@ -702,10 +702,6 @@ impl ClientApp {
             reload_ready_age_s: self.reload_ready_age_s,
             fire_denied_age_s: self.fire_denied_age_s,
             scope_fade: self.camera_controller.scope_dressing(),
-            pause_menu: self
-                .pause_menu
-                .as_ref()
-                .map(|menu| crate::hud::pause_menu::PauseMenuModel { hovered: menu.hovered() }),
             command_wheel: self.command_wheel_model(),
             pings: Some(
                 self.ping_model(view_proj, [self.viewport.0 as f32, self.viewport.1 as f32]),

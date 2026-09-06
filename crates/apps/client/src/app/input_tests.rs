@@ -368,10 +368,10 @@ fn garage_mouse_delta_is_discarded_before_battle_control_starts() {
 
 // --- The ESC leave-battle modal -----------------------------------------------------------
 
-use crate::hud::pause_menu::{EXIT_CENTER, PauseMenuButton, STAY_CENTER};
+use crate::hud::shell::MenuItem;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-fn in_battle() -> ClientApp {
+pub(super) fn in_battle() -> ClientApp {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
     app.run_fixed_ticks(5);
@@ -458,13 +458,13 @@ fn f11_toggles_fullscreen_from_every_screen_and_reaches_nothing_underneath() {
     app.on_key(f11, true, false);
     assert!(!app.fullscreen, "the battle toggles it off");
     assert_eq!(app.camera_controller.mode(), mode, "and the battle saw nothing");
-    assert!(app.pause_menu.is_none());
+    assert!(!app.menu_open());
     app.on_key(f11, false, false);
 
     app.open_pause_menu();
     app.on_key(f11, true, false);
     assert!(app.fullscreen, "the modal lets it through");
-    assert!(app.pause_menu.is_some(), "and stays up");
+    assert!(app.menu_open(), "and stays up");
 }
 
 // --- OS key auto-repeat --------------------------------------------------------------------
@@ -490,14 +490,14 @@ fn os_key_repeat_is_not_a_second_press() {
 
     // ESC: the modal opens on the press and stays open through the repeats.
     app.on_key(key(KeyCode::Escape), true, false);
-    assert!(app.pause_menu.is_some());
+    assert!(app.menu_open());
     for _ in 0..7 {
         app.on_key(key(KeyCode::Escape), true, true);
     }
-    assert!(app.pause_menu.is_some(), "a held ESC must not answer its own question");
+    assert!(app.menu_open(), "a held ESC must not answer its own question");
     app.on_key(key(KeyCode::Escape), false, false);
     app.on_key(key(KeyCode::Escape), true, false);
-    assert!(app.pause_menu.is_none(), "the second real press dismisses it");
+    assert!(!app.menu_open(), "the second real press dismisses it");
 
     // Space: the trigger latches on the press; a repeat arriving after the batch consumed it
     // must not latch again (that repeat was the refusal knock every 33 ms of a reload).
@@ -528,13 +528,13 @@ fn os_key_repeat_is_not_a_second_press() {
 #[test]
 fn escape_raises_the_leave_battle_modal_and_escape_again_dismisses_it() {
     let mut app = in_battle();
-    assert!(app.pause_menu.is_none(), "a fresh battle has no modal up");
+    assert!(!app.menu_open(), "a fresh battle has no modal up");
 
     app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
-    assert!(app.pause_menu.is_some(), "ESC in battle raises the modal");
+    assert!(app.menu_open(), "ESC in battle raises the modal");
 
     app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
-    assert!(app.pause_menu.is_none(), "ESC again dismisses it");
+    assert!(!app.menu_open(), "ESC again dismisses it");
     assert!(app.garage.has_started() && !app.garage.is_open(), "dismissing returns to the battle");
 }
 
@@ -545,8 +545,7 @@ fn the_modal_opens_with_neither_choice_under_the_cursor() {
     let mut app = in_battle();
     app.open_pause_menu();
 
-    let menu = app.pause_menu.expect("modal open");
-    assert_eq!(menu.hovered(), None);
+    assert_eq!(app.shell_hovered(), None);
 }
 
 /// The battle does NOT pause, so a hull whose driver is reading a menu must stop rather than
@@ -591,7 +590,7 @@ fn the_modal_swallows_mouse_look_instead_of_swinging_the_turret() {
     assert_eq!(app.desired_aim.yaw_rad(), 0.0, "and it never reached the aim");
 
     app.input.mouse_dx = 240.0;
-    app.close_pause_menu();
+    app.close_menu();
     assert_eq!(app.input.mouse_dx, 0.0, "closing clears what was collected over the buttons");
 }
 
@@ -602,17 +601,13 @@ fn clicking_exit_opens_the_garage_and_clicking_stay_returns_to_the_battle() {
     let mut app = in_battle();
 
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("open").cursor_clip = STAY_CENTER;
-    assert_eq!(app.pause_menu.expect("open").hovered(), Some(PauseMenuButton::Stay));
-    app.pause_menu_primary_press();
-    assert!(app.pause_menu.is_none(), "STAY dismisses the modal");
+    app.click_menu_item(MenuItem::Stay);
+    assert!(!app.menu_open(), "STAY dismisses the modal");
     assert!(!app.garage.is_open(), "and does NOT leave the battle");
 
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("open").cursor_clip = EXIT_CENTER;
-    assert_eq!(app.pause_menu.expect("open").hovered(), Some(PauseMenuButton::ExitToGarage));
-    app.pause_menu_primary_press();
-    assert!(app.pause_menu.is_none(), "the modal closes behind the choice");
+    app.click_menu_item(MenuItem::ExitToGarage);
+    assert!(!app.menu_open(), "the modal closes behind the choice");
     assert!(app.garage.is_open(), "EXIT TO GARAGE opens the garage over the battle");
 }
 
@@ -622,25 +617,29 @@ fn clicking_exit_opens_the_garage_and_clicking_stay_returns_to_the_battle() {
 fn a_click_off_both_buttons_leaves_the_modal_up() {
     let mut app = in_battle();
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("open").cursor_clip =
-        [0.0, (EXIT_CENTER[1] + STAY_CENTER[1]) * 0.5];
+    app.stage_shell_hits();
+    app.shell_cursor([1.0, 1.0]);
 
-    app.pause_menu_primary_press();
+    app.shell_press();
 
-    assert!(app.pause_menu.is_some(), "the question stands until it is answered");
+    assert!(app.menu_open(), "the question stands until it is answered");
     assert!(!app.garage.is_open());
 }
 
-/// Before a battle exists (the player has never left the garage) ESC keeps its plain meaning:
-/// hand the cursor back. Raising a "leave battle?" modal over the garage would be nonsense.
+/// Before a battle exists (the player has never left the garage) ESC raises the garage's own
+/// menu — SETTINGS, KEY BINDINGS, QUIT — never the battle's; the battle's router alone still
+/// keeps ESC's plain meaning there (the cursor handed back, no menu).
 #[test]
-fn escape_before_the_first_battle_raises_no_modal() {
+fn escape_before_the_first_battle_raises_the_garage_menu() {
     let mut app = ClientApp::new();
     assert!(!app.garage.has_started());
 
     app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+    assert!(!app.menu_open(), "the battle's router raises nothing over a cold garage");
 
-    assert!(app.pause_menu.is_none());
+    app.on_key(PhysicalKey::Code(KeyCode::Escape), true, false);
+    assert!(app.menu_open() && app.way_out_offered(), "the garage's menu, with QUIT");
+    assert!(app.garage.is_open(), "the garage stays under it");
 }
 
 /// F5/F7: the cursor is tracked in battle too — the HUD editor and the command wheel read it —
@@ -649,7 +648,7 @@ fn escape_before_the_first_battle_raises_no_modal() {
 fn the_cursor_is_tracked_in_battle() {
     let mut app = ClientApp::new();
     app.garage.close_for_test();
-    assert!(app.pause_menu.is_none());
+    assert!(!app.menu_open());
     app.on_cursor_moved(320.0, 200.0);
     assert_eq!(app.cursor_px(), [320.0, 200.0]);
 }
@@ -1011,9 +1010,8 @@ fn the_hud_editor_drags_an_instrument_and_saves_on_close() {
     app.enable_layout_persistence(path.clone());
     app.viewport = (1920, 1080);
     app.open_pause_menu();
-    app.pause_menu.as_mut().expect("open").cursor_clip = crate::hud::pause_menu::EDITOR_CENTER;
-    app.pause_menu_primary_press();
-    assert!(app.hud_editor_open() && app.pause_menu.is_none(), "the menu hands over");
+    app.click_menu_item(MenuItem::HudEditor);
+    assert!(app.hud_editor_open() && !app.menu_open(), "the menu hands over");
     // The frames come from the last built HUD; stage them as the builder would.
     let ui = ui_kit::ui::Ui::reference();
     let mut model = crate::hud::demo::demo_model(false);

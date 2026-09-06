@@ -103,7 +103,10 @@ pub(crate) mod battle {
     pub const INSTRUMENT_NET: &str = "CONNECTION";
     /// Header of the ESC modal. Phrased as the question being asked, so neither button has to
     /// repeat the stakes.
-    pub const PAUSE_TITLE: &str = "LEAVE BATTLE?";
+    pub const MENU_TITLE: &str = "MENU";
+    /// The cold garage's way out (P8).
+    pub const MENU_QUIT: &str = "QUIT";
+    pub const FOOTER_CHOOSE: &str = "CHOOSE";
     /// The ESC modal's destructive choice.
     pub const PAUSE_EXIT_TO_GARAGE: &str = "EXIT TO GARAGE";
     /// The ESC modal's dismiss choice; names what happens, not the key that does it.
@@ -258,7 +261,9 @@ pub(crate) mod battle {
         INSTRUMENT_HIT_LOG,
         INSTRUMENT_KILL_FEED,
         INSTRUMENT_NET,
-        PAUSE_TITLE,
+        MENU_TITLE,
+        MENU_QUIT,
+        FOOTER_CHOOSE,
         PAUSE_EXIT_TO_GARAGE,
         PAUSE_STAY,
         FIRE_LAMP,

@@ -2,9 +2,10 @@
 //! brushed plate, a row per setting, the value under glass between its two arrows, a bar
 //! where the value sits on a range — and the key bindings page — one context at a time, an
 //! action per row with its keys under glass, a row that LISTENS, a shared key named on both
-//! rows; the footer of each names the keys from the table (P7). Drawn INSTEAD of the battle's
-//! instruments while open: a page the player opened to read, over a scrim, the battle still
-//! moving behind it. The escape menu is the way in and the way out.
+//! rows — and the menu itself: the escape menu over the battle and the cold garage's own, a
+//! column of buttons; the footer of each names the keys from the table (P7). Drawn INSTEAD of
+//! the battle's instruments while open: a page the player opened to read, over a scrim, the
+//! battle still moving behind it. The menu is the way in and the way out.
 
 use ui_kit::draw_list::{Align, DigitMode, DrawList, Element, Payload, WidgetState};
 use ui_kit::font::Style;
@@ -32,6 +33,9 @@ const ARROW_W_U: f32 = 30.0;
 /// The key bindings page: the note's width and the rows on one plate (the rest scroll).
 const NOTE_W_U: f32 = 210.0;
 pub const KEY_ROWS_VISIBLE: usize = 14;
+/// The menu: a narrower plate, taller buttons.
+const MENU_W_U: f32 = 480.0;
+const MENU_ROW_H_U: f32 = 44.0;
 /// The scrim under the page: the battle sat back, never hidden.
 const SCRIM: [f32; 4] = [0.02, 0.025, 0.03, 0.62];
 
@@ -245,11 +249,91 @@ pub struct KeybindsScreenModel {
     pub footer: String,
 }
 
+/// A menu's entries (P8). Append-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MenuItem {
+    Stay,
+    Settings,
+    Keybinds,
+    HudEditor,
+    ExitToGarage,
+    Quit,
+}
+
+impl MenuItem {
+    /// Every entry, for the locks: each one sits on some menu.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub const ALL: [MenuItem; 6] = [
+        MenuItem::Stay,
+        MenuItem::Settings,
+        MenuItem::Keybinds,
+        MenuItem::HudEditor,
+        MenuItem::ExitToGarage,
+        MenuItem::Quit,
+    ];
+
+    pub fn word(self) -> &'static str {
+        match self {
+            MenuItem::Stay => words::PAUSE_STAY,
+            MenuItem::Settings => words::PAUSE_SETTINGS,
+            MenuItem::Keybinds => words::PAUSE_KEYBINDS,
+            MenuItem::HudEditor => words::PAUSE_HUD_EDITOR,
+            MenuItem::ExitToGarage => words::PAUSE_EXIT_TO_GARAGE,
+            MenuItem::Quit => words::MENU_QUIT,
+        }
+    }
+
+    /// The commits — leaving the battle, leaving the game — wear the one red.
+    pub fn is_commit(self) -> bool {
+        matches!(self, MenuItem::ExitToGarage | MenuItem::Quit)
+    }
+
+    /// A way out of where the player is: the lock's word.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn is_way_out(self) -> bool {
+        self.is_commit()
+    }
+}
+
+/// Which menu: the escape menu over a live battle, or the cold garage's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MenuKind {
+    Battle,
+    Garage,
+}
+
+impl MenuKind {
+    /// The entries, top to bottom. Nothing destructive sits first: the keyboard's selection
+    /// starts on SETTINGS.
+    pub fn items(self) -> &'static [MenuItem] {
+        match self {
+            MenuKind::Battle => &[
+                MenuItem::Settings,
+                MenuItem::Keybinds,
+                MenuItem::HudEditor,
+                MenuItem::ExitToGarage,
+                MenuItem::Stay,
+            ],
+            MenuKind::Garage => &[MenuItem::Settings, MenuItem::Keybinds, MenuItem::Quit],
+        }
+    }
+}
+
+/// The menu as the HUD draws it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuScreenModel {
+    pub kind: MenuKind,
+    pub selected: usize,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
 /// The shell page over the battle, if one is open.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShellModel {
     Settings(SettingsScreenModel),
     Keybinds(KeybindsScreenModel),
+    Menu(MenuScreenModel),
 }
 
 /// The row a part belongs to.
@@ -324,7 +408,73 @@ pub(crate) fn push_shell(
     match model {
         ShellModel::Settings(page) => push_settings(list, ui, theme, page, z),
         ShellModel::Keybinds(page) => push_keybinds(list, ui, theme, page, z),
+        ShellModel::Menu(page) => push_menu(list, ui, theme, page, z),
     }
+}
+
+/// The menu: a column of buttons on a narrower plate; the commits in the one red.
+fn push_menu(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &MenuScreenModel,
+    z: &mut i16,
+) {
+    let items = page.kind.items();
+    let (title, row_top, panel) = push_page_frame_sized(
+        list,
+        ui,
+        theme,
+        words::MENU_TITLE,
+        MENU_W_U,
+        MENU_ROW_H_U,
+        items.len(),
+        z,
+    );
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    let painted = theme.plates.steel_painted;
+    for (i, item) in items.iter().enumerate() {
+        let index = i as u8;
+        let rect = Rect::new(
+            title.x,
+            row_top + i as f32 * ui.px(MENU_ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(MENU_ROW_H_U),
+        );
+        let selected = i == page.selected;
+        let color = if item.is_commit() { theme.semantic.commit } else { painted.color };
+        shell_put(
+            list,
+            z,
+            ShellPart::RowPlate(index),
+            rect,
+            Payload::Plate { tile: painted.tile, radius_u: 2.0, bevel_u: 1.0, color },
+            row_state(selected, hovered_row == Some(index)),
+        );
+        let ink = if item.is_commit() {
+            theme.text.value
+        } else if selected {
+            theme.lamp
+        } else {
+            theme.text.label
+        };
+        shell_put(
+            list,
+            z,
+            ShellPart::RowLabel(index),
+            rect,
+            shell_text(
+                item.word(),
+                Style::LABEL,
+                20.0,
+                Align::Center,
+                ink,
+                DigitMode::Proportional,
+            ),
+            WidgetState::Idle,
+        );
+    }
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
 }
 
 /// The plate, the title and the rule every page shares: the rows' left edge, their width,
@@ -337,15 +487,29 @@ fn push_page_frame(
     rows: usize,
     z: &mut i16,
 ) -> (Rect, f32, Rect) {
+    push_page_frame_sized(list, ui, theme, title_word, PANEL_W_U, ROW_H_U, rows, z)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_page_frame_sized(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    title_word: &str,
+    width_u: f32,
+    row_h_u: f32,
+    rows: usize,
+    z: &mut i16,
+) -> (Rect, f32, Rect) {
     let panel_h = PAD_U
         + TITLE_H_U
         + 3.0
         + RULE_GAP_U
-        + rows as f32 * (ROW_H_U + ROW_GAP_U)
+        + rows as f32 * (row_h_u + ROW_GAP_U)
         + FOOTER_GAP_U
         + FOOTER_H_U
         + PAD_U;
-    let panel = ui.anchor(Anchor::Center, [PANEL_W_U, panel_h], [0.0, 0.0]);
+    let panel = ui.anchor(Anchor::Center, [width_u, panel_h], [0.0, 0.0]);
     let brushed = theme.plates.steel_brushed;
     shell_put(
         list,
@@ -747,6 +911,16 @@ pub(crate) fn demo_settings_screen() -> ShellModel {
     })
 }
 
+/// A menu as the golden stages it: nothing under the cursor, the top entry selected.
+pub(crate) fn demo_menu_screen(kind: MenuKind) -> ShellModel {
+    ShellModel::Menu(MenuScreenModel {
+        kind,
+        selected: 0,
+        hovered: None,
+        footer: crate::app::shell::menu_footer(&crate::app::keybinds::KeyBindings::default()),
+    })
+}
+
 /// The key bindings page as the golden stages it: the battle's keys, FIRE bound to W and so
 /// shared with FORWARD — both rows say so — FIRE selected.
 pub(crate) fn demo_keybinds_screen() -> ShellModel {
@@ -879,5 +1053,45 @@ mod tests {
         model.shell = Some(ShellModel::Keybinds(page));
         let list = build_battle_hud_list(&model, &ui);
         assert_eq!(text_of(&list, ShellPart::RowValue(1)), words::LISTENING);
+    }
+
+    /// P8: the battle's menu prints its five entries and the garage's its three; the commits
+    /// wear the one red and nothing else does; nothing is lit under a still cursor; a menu
+    /// replaces the instruments like every page.
+    #[test]
+    fn the_menus_print_their_entries_and_only_the_commits_wear_the_red() {
+        let ui = Ui::reference();
+        let theme = Theme::standard();
+        for (kind, count) in [(MenuKind::Battle, 5), (MenuKind::Garage, 3)] {
+            let mut model = demo::demo_model(false);
+            model.shell = Some(demo_menu_screen(kind));
+            let list = build_battle_hud_list(&model, &ui);
+            assert!(list.iter().all(|element| matches!(element.id, HudElement::Shell(_))));
+            for (i, item) in kind.items().iter().enumerate() {
+                let plate =
+                    list.find(HudElement::Shell(ShellPart::RowPlate(i as u8))).expect("plate");
+                let Payload::Plate { color, .. } = plate.payload else { panic!("a plate") };
+                assert_eq!(color == theme.semantic.commit, item.is_commit(), "{kind:?} {item:?}");
+                let Payload::Text { text, .. } = &list
+                    .find(HudElement::Shell(ShellPart::RowLabel(i as u8)))
+                    .expect("label")
+                    .payload
+                else {
+                    panic!("a word")
+                };
+                assert_eq!(text, item.word());
+                assert_ne!(plate.state, WidgetState::Hover, "nothing is lit under a still cursor");
+            }
+            assert!(list.find(HudElement::Shell(ShellPart::RowPlate(count))).is_none());
+            assert!(kind.items().iter().any(|item| item.is_way_out()), "{kind:?} has a way out");
+            assert!(!kind.items()[0].is_commit(), "{kind:?}: the selection starts on a safe entry");
+        }
+        for item in MenuItem::ALL {
+            assert!(
+                MenuKind::Battle.items().contains(&item)
+                    || MenuKind::Garage.items().contains(&item),
+                "{item:?} sits on no menu"
+            );
+        }
     }
 }

@@ -15,14 +15,16 @@ use super::settings::{
 use crate::hud::elements::ShellPart;
 use crate::hud::layout::Preset;
 use crate::hud::shell::{
-    KEY_ROWS_VISIBLE, KeyRow, KeybindsScreenModel, SettingsRow, SettingsScreenModel, SettingsView,
-    ShellModel, shell_row_index,
+    KEY_ROWS_VISIBLE, KeyRow, KeybindsScreenModel, MenuItem, MenuKind, MenuScreenModel,
+    SettingsRow, SettingsScreenModel, SettingsView, ShellModel, shell_row_index,
 };
 use crate::ui_strings::battle as words;
 
 /// Which page is up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShellPage {
+    /// The menu: the way in to the other pages and the way out.
+    Menu(MenuKind),
     Settings,
     /// The key bindings of one context; row 0 is the context row.
     Keybinds(Context),
@@ -65,6 +67,21 @@ pub(crate) fn shell_footer(keybinds: &KeyBindings) -> String {
         first(Action::MenuLeft),
         first(Action::MenuRight),
         words::FOOTER_CHANGE,
+        first(Action::MenuBack),
+        words::FOOTER_BACK
+    )
+}
+
+/// The footer of a menu.
+pub(crate) fn menu_footer(keybinds: &KeyBindings) -> String {
+    let first = |action: Action| first_key_label(keybinds, action);
+    format!(
+        "{}/{} {} \u{b7} {} {} \u{b7} {} {}",
+        first(Action::MenuUp),
+        first(Action::MenuDown),
+        words::FOOTER_SELECT,
+        first(Action::MenuAccept),
+        words::FOOTER_CHOOSE,
         first(Action::MenuBack),
         words::FOOTER_BACK
     )
@@ -167,17 +184,135 @@ impl ClientApp {
         self.open_shell_page(ShellPage::Settings);
     }
 
-    /// KEY BINDINGS on the escape menu: the battle's keys first.
+    /// KEY BINDINGS on the menu: the battle's keys first.
     pub(in crate::app) fn open_keybinds_page(&mut self) {
         self.open_shell_page(ShellPage::Keybinds(Context::Battle));
     }
 
+    /// ESC: the menu over the battle, or the cold garage's own (P8).
+    pub(in crate::app) fn open_menu(&mut self, kind: MenuKind) {
+        self.open_shell_page(ShellPage::Menu(kind));
+    }
+
     fn open_shell_page(&mut self, page: ShellPage) {
-        self.pause_menu = None;
         self.command_wheel = None;
         self.input.release_driving();
         self.shell = Some(ShellState::open(page));
         self.set_cursor_captured(false);
+    }
+
+    /// Whether a menu is up (not one of its pages); the locks read it, P1's hand-off next.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(in crate::app) fn menu_open(&self) -> bool {
+        matches!(self.shell.as_ref().map(|shell| shell.page), Some(ShellPage::Menu(_)))
+    }
+
+    /// The menu the pages go back to: the cold garage's, or the battle's.
+    fn menu_kind_here(&self) -> MenuKind {
+        if self.garage.is_open() && !self.garage.has_started() {
+            MenuKind::Garage
+        } else {
+            MenuKind::Battle
+        }
+    }
+
+    /// ESC on the menu, or STAY: the page goes; in the battle the mouse is the gun again and
+    /// the motion collected over the buttons is dropped.
+    pub(in crate::app) fn close_menu(&mut self) {
+        self.shell = None;
+        if !self.garage.is_open() {
+            self.input.clear_mouse_look();
+            self.set_cursor_captured(true);
+        }
+    }
+
+    /// A menu entry, chosen by key or by click.
+    fn activate_menu_item(&mut self, item: MenuItem) {
+        match item {
+            MenuItem::Stay => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.close_menu();
+            }
+            MenuItem::Settings => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_settings_page();
+            }
+            MenuItem::Keybinds => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_keybinds_page();
+            }
+            MenuItem::HudEditor => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_hud_editor();
+            }
+            MenuItem::ExitToGarage => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: true });
+                self.shell = None;
+                self.open_garage();
+            }
+            MenuItem::Quit => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: true });
+                self.shell = None;
+                self.quit_requested = true;
+            }
+        }
+    }
+
+    /// QUIT was chosen: the loop leaves on its next turn (the loop reads the field; the
+    /// locks read this).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn quit_requested(&self) -> bool {
+        self.quit_requested
+    }
+
+    /// Whether the page up offers a way out — QUIT or EXIT TO GARAGE (the lock's word).
+    #[cfg(test)]
+    pub(in crate::app) fn way_out_offered(&self) -> bool {
+        match self.shell.as_ref().map(|shell| shell.page) {
+            Some(ShellPage::Menu(kind)) => kind.items().iter().any(|item| item.is_way_out()),
+            _ => false,
+        }
+    }
+
+    /// The part under the cursor, for the locks.
+    #[cfg(test)]
+    pub(in crate::app) fn shell_hovered(&self) -> Option<ShellPart> {
+        self.shell.as_ref().and_then(|shell| shell.hovered)
+    }
+
+    /// Stage the page's parts as a frame would, for the mouse locks.
+    #[cfg(test)]
+    pub(in crate::app) fn stage_shell_hits(&mut self) {
+        let Some(page) = self.shell_model() else { return };
+        let ui = ui_kit::ui::Ui::new(1920, 1080, 1.0);
+        let theme = ui_kit::theme::Theme::standard();
+        let mut list = ui_kit::draw_list::DrawList::new();
+        let mut order: i16 = 0;
+        crate::hud::shell::push_shell(&mut list, &ui, &theme, &page, &mut order);
+        self.remember_shell_hits(crate::hud::shell::shell_hit_rects(&list));
+    }
+
+    /// Click a menu entry as the mouse would: the cursor over its plate, then the press.
+    #[cfg(test)]
+    pub(in crate::app) fn click_menu_item(&mut self, item: MenuItem) {
+        let Some(ShellPage::Menu(kind)) = self.shell.as_ref().map(|shell| shell.page) else {
+            panic!("no menu is up")
+        };
+        let index = kind.items().iter().position(|it| *it == item).expect("the entry") as u8;
+        self.stage_shell_hits();
+        let rect = self
+            .shell
+            .as_ref()
+            .and_then(|shell| {
+                shell
+                    .hits
+                    .iter()
+                    .find(|(part, _)| *part == ShellPart::RowPlate(index))
+                    .map(|(_, r)| *r)
+            })
+            .expect("the entry's plate");
+        self.shell_cursor(rect.center());
+        self.shell_press();
     }
 
     /// The row listening for its next key, if any: while it listens, every key is its.
@@ -210,10 +345,11 @@ impl ClientApp {
         }
     }
 
-    /// Esc: back to the escape menu the page came from.
+    /// Esc on a page: back to the menu it came from.
     pub(in crate::app) fn close_shell(&mut self) {
         if self.shell.take().is_some() {
-            self.pause_menu = Some(super::PauseMenuState::opened());
+            let kind = self.menu_kind_here();
+            self.shell = Some(ShellState::open(ShellPage::Menu(kind)));
         }
     }
 
@@ -239,6 +375,12 @@ impl ClientApp {
     pub(in crate::app) fn shell_model(&self) -> Option<ShellModel> {
         let shell = self.shell.as_ref()?;
         Some(match shell.page {
+            ShellPage::Menu(kind) => ShellModel::Menu(MenuScreenModel {
+                kind,
+                selected: shell.selected,
+                hovered: shell.hovered,
+                footer: menu_footer(&self.keybinds),
+            }),
             ShellPage::Settings => ShellModel::Settings(SettingsScreenModel {
                 view: self.settings_view(),
                 selected: shell.selected,
@@ -270,6 +412,16 @@ impl ClientApp {
         }
         let Some(page) = self.shell.as_ref().map(|shell| shell.page) else { return };
         match page {
+            ShellPage::Menu(kind) => match action {
+                Action::MenuUp => self.select_row(-1, kind.items().len()),
+                Action::MenuDown => self.select_row(1, kind.items().len()),
+                Action::MenuAccept => {
+                    let item = kind.items()[self.selected_row().min(kind.items().len() - 1)];
+                    self.activate_menu_item(item);
+                }
+                Action::MenuBack => self.close_menu(),
+                _ => {}
+            },
             ShellPage::Settings => match action {
                 Action::MenuUp => self.select_row(-1, SettingsRow::ALL.len()),
                 Action::MenuDown => self.select_row(1, SettingsRow::ALL.len()),
@@ -371,6 +523,13 @@ impl ClientApp {
         let page = shell.page;
         let first_visible = shell.first_visible;
         match page {
+            // A click on an entry chooses it; off every entry it does nothing — a menu that
+            // closed on a stray click would drop the player back without an answer.
+            ShellPage::Menu(kind) => {
+                if let Some(item) = kind.items().get(row as usize) {
+                    self.activate_menu_item(*item);
+                }
+            }
             ShellPage::Settings => {
                 if let Some(shell) = &mut self.shell {
                     shell.selected = row as usize;

@@ -198,15 +198,16 @@ impl ClientApp {
                     self.garage.close_option_list();
                 } else if self.garage.is_camera_off_hero() {
                     self.garage.return_to_hero_view();
-                } else {
+                } else if self.garage.has_started() {
                     self.garage.close_if_started();
-                    if !self.garage.is_open() {
-                        // Mirrors `close_pause_menu`: back in the live battle the mouse is the
-                        // gun again — recapture it, and drop the motion accumulated while it
-                        // was a pointer so the turret does not jump on the first frame.
-                        self.input.clear_mouse_look();
-                        self.set_cursor_captured(true);
-                    }
+                    // Mirrors `close_pause_menu`: back in the live battle the mouse is the gun
+                    // again — recapture it, and drop the motion accumulated while it was a
+                    // pointer so the turret does not jump on the first frame.
+                    self.input.clear_mouse_look();
+                    self.set_cursor_captured(true);
+                } else {
+                    // P8: a cold garage's Esc raises its own menu — SETTINGS, KEY BINDINGS, QUIT.
+                    self.open_menu(crate::hud::shell::MenuKind::Garage);
                 }
             }
             // Keyboard loadout editing: focus + cycle + ammo + crew.

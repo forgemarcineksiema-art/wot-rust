@@ -29,7 +29,7 @@ impl ClientApp {
 
     /// Z pressed in a live battle: the wheel opens with the mouse at its hub.
     pub(super) fn open_command_wheel(&mut self) {
-        if self.garage.has_started() && self.pause_menu.is_none() {
+        if self.garage.has_started() && !self.shell_open() {
             self.command_wheel = Some([0.0, 0.0]);
         }
     }
