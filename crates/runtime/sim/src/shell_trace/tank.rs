@@ -1,8 +1,7 @@
-use game_core::math::{plate_normal, world_to_tank_local};
+use game_core::math::world_to_tank_local;
 use game_core::{TaggedPlane, VehicleArmorVolumes, segment_volume_entry_with_margin};
 use glam::{Mat3, Vec3};
 
-use super::legacy_boxes::{classify_hull, classify_turret, hull_volume_entry, turret_volume_entry};
 use super::{SegmentImpact, TraceTank};
 
 /// Nearest tank the segment `previous -> current` enters (analytic ray vs hull-local AABB). The
@@ -24,14 +23,11 @@ pub(super) fn first_tank_impact(
         })
 }
 
-/// A tank is two volumes, not one box: the full-plan hull slab below the armor split, and the
-/// narrower turret box above it. The turret box traverses with the turret about the ring axis, so
-/// a shot at turret height that visually passes beside the turret really passes — it no longer
-/// connects with deck air the old full-plan box put there.
-///
-/// Blueprint vehicles go further: their baked [`VehicleArmorVolumes`] replace the boxes and the
-/// classification bands entirely — the entering PLANE of a convex armor volume is the struck
-/// plate, carrying its own true normal and zone.
+/// A tank is its baked convex armour volumes: the hull volumes in the hull frame, the turret and
+/// the cupola in the turret frame (rotated about the ring axis). The entering PLANE of the
+/// nearest volume is the struck plate, carrying its own true normal, zone and thickness scale.
+/// Every playable vehicle owns its volumes (`game_core/tests/suite/armor_coverage.rs`); the
+/// two-box band model that stood in for unmigrated hulls left with the one program's S22.
 fn tank_segment_hit(
     previous: Vec3,
     current: Vec3,
@@ -39,71 +35,9 @@ fn tank_segment_hit(
     tank: &TraceTank,
     radius_m: f32,
 ) -> Option<SegmentImpact> {
-    let hitbox = tank.hitbox;
-    let mut swept_hitbox = hitbox;
-    swept_hitbox.half_width_m += radius_m;
-    swept_hitbox.half_height_m += radius_m;
-    swept_hitbox.half_length_m += radius_m;
-    swept_hitbox.turret_half_width_m += radius_m;
-    swept_hitbox.turret_half_length_m += radius_m;
-    swept_hitbox.turret_min_y_m -= radius_m;
-    let half = Vec3::new(hitbox.half_width_m, hitbox.half_height_m, hitbox.half_length_m);
-    let start = world_to_tank_local(previous, tank.position, hitbox.center_y_m, tank.hull);
-    let end = world_to_tank_local(current, tank.position, hitbox.center_y_m, tank.hull);
-
-    if let Some(volumes) = tank.armor_volumes {
-        return armor_volume_hit(start, end, previous, current, velocity, tank, volumes, radius_m);
-    }
-
-    let hull = hull_volume_entry(start, end, &swept_hitbox);
-    // A decapitated wreck has no turret box to strike: the shot passes over the hull.
-    let turret = if tank.turret_detached {
-        None
-    } else {
-        turret_volume_entry(start, end, tank, &swept_hitbox)
-    };
-    // (Legacy band model below — blueprint vehicles returned through the volume path above.)
-
-    let (hit_t, zone, side_x) = match (hull, turret) {
-        (Some((hull_t, hull_local)), Some((turret_t, turret_local))) => {
-            if turret_t <= hull_t {
-                let (zone, x) = classify_turret(turret_local, &hitbox);
-                (turret_t, zone, x)
-            } else {
-                let (zone, x) = classify_hull(hull_local, half, hitbox.turret_min_y_m);
-                (hull_t, zone, x)
-            }
-        }
-        (Some((hull_t, hull_local)), None) => {
-            let (zone, x) = classify_hull(hull_local, half, hitbox.turret_min_y_m);
-            (hull_t, zone, x)
-        }
-        (None, Some((turret_t, turret_local))) => {
-            let (zone, x) = classify_turret(turret_local, &hitbox);
-            (turret_t, zone, x)
-        }
-        (None, None) => return None,
-    };
-
-    let center_position = previous.lerp(current, hit_t);
-    let facing = zone.facing();
-    // The impact angle is measured against the plate's TRUE normal: facet slope, hull attitude,
-    // and turret traverse all live in the geometry. Nothing downstream may add slope again.
-    let slope_degrees = tank.armor.plate(zone).slope_degrees;
-    let normal = plate_normal(tank.hull, tank.turret_yaw_rad, zone, side_x, slope_degrees);
-    let direction = velocity.normalize_or_zero();
-    let impact_angle_degrees = (-direction).dot(normal).clamp(-1.0, 1.0).acos().to_degrees();
-    let hit_position = center_position - normal * radius_m;
-    Some(SegmentImpact::Tank {
-        id: tank.id,
-        facing,
-        zone,
-        impact_angle_degrees,
-        hit_position,
-        plate_normal: normal,
-        // The legacy band path has no per-plate geometry: the zone's facet IS the plate.
-        thickness_scale: 1.0,
-    })
+    let start = world_to_tank_local(previous, tank.position, tank.hitbox.center_y_m, tank.hull);
+    let end = world_to_tank_local(current, tank.position, tank.hitbox.center_y_m, tank.hull);
+    armor_volume_hit(start, end, previous, current, velocity, tank, tank.armor_volumes, radius_m)
 }
 
 /// The baked-volume narrow phase: the nearest entering plane across the hull volumes (hull
