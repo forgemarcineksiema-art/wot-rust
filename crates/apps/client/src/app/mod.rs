@@ -20,6 +20,7 @@ mod input;
 mod input_state;
 #[cfg(test)]
 mod input_tests;
+pub(crate) mod keybinds;
 pub(crate) mod ledger;
 mod lifecycle;
 mod live_cover;
@@ -642,6 +643,9 @@ pub(crate) struct ClientApp {
     settings: settings::Settings,
     /// Where they persist; `None` keeps tests and offscreen renders off the disk.
     settings_path: Option<std::path::PathBuf>,
+    /// The keys as a table (P7): every action's keys, the defaults until rebound.
+    keybinds: keybinds::KeyBindings,
+    keybinds_path: Option<std::path::PathBuf>,
     /// The HUD layout (H21): the preset and every instrument's placement.
     layout: crate::hud::layout::HudLayout,
     layout_path: Option<std::path::PathBuf>,
@@ -956,6 +960,8 @@ impl ClientApp {
             outcome_age_s: 0.0,
             settings: settings::Settings::default(),
             settings_path: None,
+            keybinds: keybinds::KeyBindings::default(),
+            keybinds_path: None,
             layout: crate::hud::layout::HudLayout::default(),
             layout_path: None,
             hud_editor: None,
@@ -1006,6 +1012,7 @@ pub fn run() -> anyhow::Result<()> {
     app.enable_garage_persistence();
     app.enable_settings_persistence(settings::settings_path());
     app.enable_layout_persistence(ClientApp::default_layout_path());
+    app.enable_keybinds_persistence(keybinds::keybinds_path());
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

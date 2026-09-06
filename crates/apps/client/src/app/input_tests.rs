@@ -1106,3 +1106,33 @@ fn the_ledger_fills_from_the_wire_once_and_starts_fresh_with_the_battle() {
     );
     assert_eq!(app.ledger.player(), app.player_tank);
 }
+
+/// P7: the keys are the table's — a rebinding changes what a key does at once, the file
+/// remembers it, and the other context keeps its own word for the same key.
+#[test]
+fn a_rebound_key_drives_the_new_action_and_the_file_remembers_it() {
+    use crate::app::keybinds::{Action, Context, load_keybinds};
+    let dir = std::env::temp_dir().join(format!("wot-keybinds-app-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("keybinds.json");
+    let mut app = in_battle();
+    app.enable_keybinds_persistence(path.clone());
+    app.on_key(PhysicalKey::Code(KeyCode::KeyH), true, false);
+    assert!(!app.input.forward, "H means nothing by default");
+    app.rebind(Action::Forward, KeyCode::KeyH);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyH), true, false);
+    assert!(app.input.forward, "H drives now");
+    app.on_key(PhysicalKey::Code(KeyCode::KeyH), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyW), true, false);
+    assert!(!app.input.forward, "W no longer does");
+    assert_eq!(load_keybinds(&path).expect("written").keys(Action::Forward), &[KeyCode::KeyH]);
+    assert_eq!(
+        app.keybinds().action(Context::Garage, PhysicalKey::Code(KeyCode::KeyZ)),
+        Some(Action::GarageAmmo1)
+    );
+    assert_eq!(
+        app.keybinds().action(Context::Battle, PhysicalKey::Code(KeyCode::KeyZ)),
+        Some(Action::CommandWheel)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -131,31 +131,23 @@ impl ClientApp {
         }
     }
 
-    /// The editor's keys: 1/2/3 the presets, Ctrl+R the design, Esc done. Returns whether the
-    /// key was the editor's.
-    pub(super) fn hud_editor_key(
-        &mut self,
-        key: winit::keyboard::PhysicalKey,
-        pressed: bool,
-    ) -> bool {
-        use winit::keyboard::{KeyCode, PhysicalKey};
-        let Some(editor) = self.hud_editor.as_mut() else { return false };
-        match key {
-            PhysicalKey::Code(KeyCode::ControlLeft | KeyCode::ControlRight) => {
-                editor.ctrl = pressed;
-            }
-            PhysicalKey::Code(KeyCode::Escape) if pressed => self.close_hud_editor(),
-            PhysicalKey::Code(KeyCode::Digit1) if pressed => self.set_preset(Preset::Minimal),
-            PhysicalKey::Code(KeyCode::Digit2) if pressed => self.set_preset(Preset::Standard),
-            PhysicalKey::Code(KeyCode::Digit3) if pressed => self.set_preset(Preset::Full),
-            PhysicalKey::Code(KeyCode::KeyR) if pressed && editor.ctrl => {
+    /// The editor's actions (P7): 1/2/3 the presets, Ctrl+R the design, Esc done.
+    pub(super) fn hud_editor_action(&mut self, action: super::keybinds::Action, pressed: bool) {
+        use super::keybinds::Action as A;
+        let Some(editor) = self.hud_editor.as_mut() else { return };
+        match action {
+            A::EditorModifier => editor.ctrl = pressed,
+            A::EditorDone if pressed => self.close_hud_editor(),
+            A::EditorPresetMinimal if pressed => self.set_preset(Preset::Minimal),
+            A::EditorPresetStandard if pressed => self.set_preset(Preset::Standard),
+            A::EditorPresetFull if pressed => self.set_preset(Preset::Full),
+            A::EditorReset if pressed && editor.ctrl => {
                 self.layout.reset();
                 self.persist_layout();
                 self.queue_audio(audio::AudioEvent::UiClick { accent: true });
             }
             _ => {}
         }
-        true
     }
 
     fn set_preset(&mut self, preset: Preset) {
