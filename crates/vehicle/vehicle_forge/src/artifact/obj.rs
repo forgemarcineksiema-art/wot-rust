@@ -105,6 +105,7 @@ fn gear_object_name(part: GearPart, side: f32) -> String {
         // the side suffix below already tells the two apart.
         GearPart::SwingArm | GearPart::SwingArmLeft => "SwingArms",
         GearPart::Damper | GearPart::DamperLeft => "Dampers",
+        GearPart::IdlerCrank | GearPart::IdlerCrankLeft => "IdlerCranks",
         GearPart::ReturnRoller => "ReturnRollers",
     };
     // Side by the world convention (+X is the vehicle's PORT side) so an inspector can check the
@@ -205,6 +206,8 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
         let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(&kin);
         let damper = vehicle_geometry::damper_unit_mesh(&kin);
         let damper_left = vehicle_geometry::damper_unit_mesh_left(&kin);
+        let idler_crank = vehicle_geometry::idler_crank_unit_mesh(&kin);
+        let idler_crank_left = vehicle_geometry::idler_crank_unit_mesh_left(&kin);
         let return_roller = return_roller_unit_mesh(&kin);
         // Group instances per part and side so the outliner reads like the real assembly.
         let mut groups: Vec<(String, Vec<(&GeometryMesh, Mat4)>)> = Vec::new();
@@ -218,6 +221,8 @@ pub fn export_obj(kind: VehicleKind, baked: &BakedVehicle, mtl_name: &str) -> Ob
                 GearPart::SwingArmLeft => &swing_arm_left,
                 GearPart::Damper => &damper,
                 GearPart::DamperLeft => &damper_left,
+                GearPart::IdlerCrank => &idler_crank,
+                GearPart::IdlerCrankLeft => &idler_crank_left,
                 GearPart::ReturnRoller => &return_roller,
             };
             let name = gear_object_name(placement.part, placement.transform.w_axis.x);

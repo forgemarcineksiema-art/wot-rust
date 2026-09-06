@@ -371,6 +371,13 @@ pub enum GearPart {
     Damper,
     /// The left-hand [`GearPart::Damper`], mirrored geometry like [`GearPart::SwingArmLeft`].
     DamperLeft,
+    /// The idler's eccentric tension crank: the arm from the hull bearing to the idler axle,
+    /// with the worm housing at the bearing end. Its own part since K12 (2026-09-06): until
+    /// then it rode inside the idler's unit mesh and TURNED WITH THE WHEEL. It pivots toward
+    /// the hull, so like the arm it is chiral and the left side mirrors.
+    IdlerCrank,
+    /// The left-hand [`GearPart::IdlerCrank`], mirrored geometry like [`GearPart::SwingArmLeft`].
+    IdlerCrankLeft,
 }
 
 /// One instanced running-gear part: the unit mesh to draw and where (hull-local).

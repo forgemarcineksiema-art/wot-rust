@@ -394,6 +394,8 @@ pub fn composed_triangles(
         let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(kin);
         let damper = vehicle_geometry::damper_unit_mesh(kin);
         let damper_left = vehicle_geometry::damper_unit_mesh_left(kin);
+        let idler_crank = vehicle_geometry::idler_crank_unit_mesh(kin);
+        let idler_crank_left = vehicle_geometry::idler_crank_unit_mesh_left(kin);
         let return_roller = return_roller_unit_mesh(kin);
         for placement in running_gear_placements(kin, 0.0, 0.0) {
             let mesh = match placement.part {
@@ -405,6 +407,8 @@ pub fn composed_triangles(
                 GearPart::SwingArmLeft => &swing_arm_left,
                 GearPart::Damper => &damper,
                 GearPart::DamperLeft => &damper_left,
+                GearPart::IdlerCrank => &idler_crank,
+                GearPart::IdlerCrankLeft => &idler_crank_left,
                 GearPart::ReturnRoller => &return_roller,
             };
             push_mesh_triangles(&mut tris, mesh, placement.transform, false);

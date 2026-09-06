@@ -87,6 +87,7 @@ fn drawn_triangle_count(kind: VehicleKind) -> usize {
             swing_arm_unit_mesh(&kin),
             vehicle_geometry::return_roller_unit_mesh(&kin),
             vehicle_geometry::damper_unit_mesh(&kin),
+            vehicle_geometry::idler_crank_unit_mesh(&kin),
         );
         for placement in running_gear_placements(&kin, 0.0, 0.0) {
             total += match placement.part {
@@ -99,6 +100,7 @@ fn drawn_triangle_count(kind: VehicleKind) -> usize {
                 GearPart::ReturnRoller => meshes.5.triangle_count(),
                 // Mirrored pair, same count by construction.
                 GearPart::Damper | GearPart::DamperLeft => meshes.6.triangle_count(),
+                GearPart::IdlerCrank | GearPart::IdlerCrankLeft => meshes.7.triangle_count(),
             };
         }
     }

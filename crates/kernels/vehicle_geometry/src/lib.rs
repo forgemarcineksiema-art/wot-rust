@@ -45,7 +45,10 @@ pub use running_gear::{
 pub use running_gear_arms::{
     damper_unit_mesh, damper_unit_mesh_left, swing_arm_unit_mesh, swing_arm_unit_mesh_left,
 };
-pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket_unit_mesh};
+pub use running_gear_end_wheels::{
+    end_wheel_unit_mesh, idler_crank_unit_mesh, idler_crank_unit_mesh_left, idler_unit_mesh,
+    sprocket_unit_mesh,
+};
 pub use running_gear_geom::track_link_unit_mesh;
 pub use running_gear_place::{
     GearDynamics, running_gear_placements, running_gear_placements_dynamic,

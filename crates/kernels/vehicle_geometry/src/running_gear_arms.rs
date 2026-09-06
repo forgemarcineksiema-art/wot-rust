@@ -44,7 +44,7 @@ pub fn swing_arm_unit_mesh_left(kin: &RunningGearKinematics) -> GeometryMesh {
 
 /// Mirror a mesh across the YZ plane, keeping it a valid outward-facing mesh: a mirror has a
 /// negative determinant, so the triangle winding is reversed to compensate.
-fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
+pub(crate) fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
     let vertices = mesh
         .vertices()
         .iter()

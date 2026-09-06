@@ -118,6 +118,16 @@ impl VehicleMeshCatalog {
                 &name("damper_left"),
                 &vehicle_geometry::damper_unit_mesh_left(&kin),
             ),
+            idler_crank: self.register_gear_mesh(
+                kind,
+                &name("idler_crank"),
+                &vehicle_geometry::idler_crank_unit_mesh(&kin),
+            ),
+            idler_crank_left: self.register_gear_mesh(
+                kind,
+                &name("idler_crank_left"),
+                &vehicle_geometry::idler_crank_unit_mesh_left(&kin),
+            ),
             idler: self.register_gear_mesh(kind, &name("idler"), &idler_unit_mesh(&kin)),
             sprocket: self.register_gear_mesh(kind, &name("sprocket"), &sprocket_unit_mesh(&kin)),
             link: self.register_gear_mesh(kind, &name("track_link"), &track_link_unit_mesh(&kin)),
