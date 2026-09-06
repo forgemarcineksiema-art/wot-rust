@@ -655,6 +655,8 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             top_bar: None,
             team_lists: None,
             markers: None,
+            sixth_sense_lit: false,
+            budget: None,
             kill_confirm_age_s: None,
             reload_ready_age_s,
             fire_denied_age_s: None,

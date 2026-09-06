@@ -61,6 +61,12 @@ impl ClientApp {
         for tank in &snapshot.tanks {
             self.tank_scars.entry(tank.tank_id).or_default().sync_from_snapshot(tank);
         }
+        // H13: the sixth sense reads the own mask off every snapshot; the edge rings the bell.
+        let enemy_bit = self.enemy_team().spotting_bit();
+        let lit_now = player.as_ref().is_some_and(|tank| {
+            crate::hud::sixth_sense::lit(tank.spotted_by_teams_mask, enemy_bit)
+        });
+        self.sixth_sense_edge(lit_now);
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         self.track_feedback.ingest(&snapshot.damage_events, self.player_tank);

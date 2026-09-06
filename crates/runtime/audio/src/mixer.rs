@@ -21,7 +21,7 @@ use crate::voices::hangar::HangarAmbience;
 use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::track::TrackSnap;
 use crate::voices::traverse::TraverseVoice;
-use crate::voices::ui::{DoubleThud, MechanicalClick, RejectedThunk};
+use crate::voices::ui::{DoubleThud, MechanicalClick, RejectedThunk, SixthSenseChime};
 use crate::voices::workshop::RatchetWork;
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
@@ -235,6 +235,10 @@ impl AudioEngine {
             AudioEvent::UiReject => {
                 let voice = Box::new(RejectedThunk::new(self.sample_rate_hz, seed));
                 self.spawn_flat(voice, 0.45);
+            }
+            AudioEvent::SixthSense => {
+                // Flat like every interface cue: the bell is the crew's, not the world's.
+                self.spawn_flat(Box::new(SixthSenseChime::new(self.sample_rate_hz)), 0.5);
             }
             AudioEvent::RepairWork { seconds } => {
                 // The wrench at the listener's own bench: flat like every garage cue, held

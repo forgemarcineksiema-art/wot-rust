@@ -64,6 +64,11 @@ pub enum HudElement {
     HitLog(HitLogPart),
     /// One part of one world-anchored marker (H10), by marker index.
     Marker(MarkerPart),
+    /// The sixth-sense lamp and its word (H13).
+    SixthSenseLamp,
+    SixthSenseText,
+    /// The visibility budget line (H14).
+    BudgetLine,
 }
 
 /// The parts of a marker: the target wears them all, a known hull only the bar.
@@ -154,7 +159,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 29] = [
+    pub const ALL: [HudElement; 32] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -186,6 +191,9 @@ impl HudElement {
         HudElement::Ammo(AmmoPart::SwitchingBand),
         HudElement::HitLog(HitLogPart::Row(0)),
         HudElement::Marker(MarkerPart::Bar(0)),
+        HudElement::SixthSenseLamp,
+        HudElement::SixthSenseText,
+        HudElement::BudgetLine,
     ];
 }
 

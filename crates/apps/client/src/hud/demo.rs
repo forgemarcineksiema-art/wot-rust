@@ -89,6 +89,15 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         }),
         team_lists: Some(demo_team_lists()),
         markers: Some(demo_markers()),
+        sixth_sense_lit: false,
+        // Moving at 24 km/h against a T-54 and a Tiger II: the full 440 m.
+        budget: super::budget::BudgetModel::from_battle(
+            &super::budget::staged_enemies([VehicleKind::BENCHMARK, VehicleKind::TigerII]),
+            game_core::TeamId(1),
+            24.0 / 3.6,
+            None,
+            60.0,
+        ),
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
