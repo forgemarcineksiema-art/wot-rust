@@ -725,6 +725,8 @@ impl ClientApp {
             net: Some(self.session.net_readout()),
             dead: player_dead.then(|| self.dead_model()),
             palette: self.palette(),
+            layout: self.hud_layout().clone(),
+            editor: self.hud_editor.as_ref().map(|editor| editor.model()),
         };
         // The death spectate (D9, H19) keeps the intel and drops the gun's instruments — the
         // draw list does that by name; the world-anchored marks below are the living crew's.
@@ -736,6 +738,9 @@ impl ClientApp {
             let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
             let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
             let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
+            if self.hud_editor_open() {
+                self.remember_hud_frames(crate::hud::editor::instrument_frames(&list));
+            }
             if !player_dead {
                 let after = list.len() as i16;
                 let world = ui_kit::rect::Rect::default();

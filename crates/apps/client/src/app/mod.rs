@@ -9,11 +9,12 @@ mod commands;
 #[cfg(test)]
 mod fire_fx_tests;
 mod frame_scene;
-mod garage;
+pub(crate) mod garage;
 mod garage_render;
 pub(crate) mod ghosts;
 #[cfg(test)]
 mod hit_mark_tests;
+mod hud_editor;
 mod ingest;
 mod input;
 mod input_state;
@@ -638,6 +639,13 @@ pub(crate) struct ClientApp {
     settings: settings::Settings,
     /// Where they persist; `None` keeps tests and offscreen renders off the disk.
     settings_path: Option<std::path::PathBuf>,
+    /// The HUD layout (H21): the preset and every instrument's placement.
+    layout: crate::hud::layout::HudLayout,
+    layout_path: Option<std::path::PathBuf>,
+    /// The HUD editor while it is open (H21).
+    hud_editor: Option<hud_editor::HudEditorState>,
+    /// The last built HUD's frame per instrument: what the editor hit-tests against.
+    hud_frames: Vec<(crate::hud::layout::Instrument, ui_kit::rect::Rect)>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -944,6 +952,10 @@ impl ClientApp {
             outcome_age_s: 0.0,
             settings: settings::Settings::default(),
             settings_path: None,
+            layout: crate::hud::layout::HudLayout::default(),
+            layout_path: None,
+            hud_editor: None,
+            hud_frames: Vec::new(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),
@@ -989,6 +1001,7 @@ pub fn run() -> anyhow::Result<()> {
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
     app.enable_settings_persistence(settings::settings_path());
+    app.enable_layout_persistence(ClientApp::default_layout_path());
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

@@ -1062,6 +1062,11 @@ fn every_battle_readout_sits_on_glass_at_three_to_one() {
     let mut checked = 0usize;
     let mut offenders: Vec<String> = Vec::new();
     for view in client::hud_review_views() {
+        // The editor's panes veil the instruments on purpose (H21): the crew arranges there,
+        // it does not read; the floor is for the battle's own frames.
+        if view.state == client::HudState::HudEditorOpen {
+            continue;
+        }
         let pixels = read_png(&hud_golden_path(&view.name));
         let list = client::hud_state_list(view.state, view.size, WIDTH, HEIGHT);
         let elements: Vec<_> = list.iter().collect();

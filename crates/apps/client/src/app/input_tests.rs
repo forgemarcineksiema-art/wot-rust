@@ -997,3 +997,64 @@ fn f9_cycles_the_palette_and_the_hud_wears_it() {
         .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette));
     assert_ne!(standard, deuteranopia, "the HUD wears the palette");
 }
+
+/// H21: the escape menu opens the editor; a drag on the minimap's frame moves the minimap by
+/// exactly the mouse's travel (in `u`); the release and the close write the file; 1/2/3 pick
+/// the preset and Ctrl+R restores the design; the reticle has no frame to take.
+#[test]
+fn the_hud_editor_drags_an_instrument_and_saves_on_close() {
+    use crate::hud::layout::{Instrument, Preset, load_layout};
+    let dir = std::env::temp_dir().join(format!("wot-hud-editor-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("hud_layout.json");
+    let mut app = in_battle();
+    app.enable_layout_persistence(path.clone());
+    app.viewport = (1920, 1080);
+    app.open_pause_menu();
+    app.pause_menu.as_mut().expect("open").cursor_clip = crate::hud::pause_menu::EDITOR_CENTER;
+    app.pause_menu_primary_press();
+    assert!(app.hud_editor_open() && app.pause_menu.is_none(), "the menu hands over");
+    // The frames come from the last built HUD; stage them as the builder would.
+    let ui = ui_kit::ui::Ui::reference();
+    let mut model = crate::hud::demo::demo_model(false);
+    model.layout = app.hud_layout().clone();
+    let list = crate::hud::build_battle_hud_list(&model, &ui);
+    app.remember_hud_frames(crate::hud::editor::instrument_frames(&list));
+    let minimap = app
+        .hud_frames
+        .iter()
+        .find(|(i, _)| *i == Instrument::Minimap)
+        .map(|(_, rect)| *rect)
+        .expect("the minimap is framed");
+    let grab = minimap.center();
+    app.on_cursor_moved(grab[0], grab[1]);
+    app.hud_editor_press();
+    app.on_cursor_moved(grab[0] - 300.0, grab[1] - 40.0);
+    assert_eq!(app.hud_layout().nudge(Instrument::Minimap), [-300.0, -40.0]);
+    app.hud_editor_release();
+    assert_eq!(
+        load_layout(&path).expect("written on release").nudge(Instrument::Minimap),
+        [-300.0, -40.0]
+    );
+    // Nothing takes the reticle: a press at the screen's centre grabs no instrument.
+    app.on_cursor_moved(960.0, 540.0);
+    app.hud_editor_press();
+    assert!(app.hud_editor.as_ref().expect("open").drag.is_none());
+    // The presets, and the design back.
+    app.on_key(PhysicalKey::Code(KeyCode::Digit1), true, false);
+    assert_eq!(app.hud_layout().preset, Preset::Minimal);
+    app.on_key(PhysicalKey::Code(KeyCode::Digit3), true, false);
+    assert_eq!(app.hud_layout().preset, Preset::Full);
+    app.on_key(PhysicalKey::Code(KeyCode::ControlLeft), true, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    assert_eq!(*app.hud_layout(), crate::hud::layout::HudLayout::default(), "Ctrl+R: the design");
+    app.on_key(PhysicalKey::Code(KeyCode::ControlLeft), false, false);
+    app.on_key(PhysicalKey::Code(KeyCode::KeyR), true, false);
+    assert_eq!(app.hud_layout().preset, Preset::Standard, "R alone is nothing here");
+    assert_eq!(app.input.cruise_level(), 0, "the battle never saw R");
+    // Esc closes and writes; the battle has the keys again.
+    app.on_key(PhysicalKey::Code(KeyCode::Escape), true, false);
+    assert!(!app.hud_editor_open());
+    assert_eq!(load_layout(&path), Some(crate::hud::layout::HudLayout::default()));
+    let _ = std::fs::remove_dir_all(&dir);
+}

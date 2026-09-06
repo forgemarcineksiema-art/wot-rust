@@ -669,6 +669,8 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             net: None,
             dead: None,
             palette: ui_kit::theme::Palette::Standard,
+            layout: crate::hud::layout::HudLayout::default(),
+            editor: None,
         },
         16.0 / 9.0,
     )

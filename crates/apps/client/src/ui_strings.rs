@@ -85,6 +85,22 @@ pub(crate) mod battle {
     /// The dead crew's strip (H19): who it rides with, and the keys that step through.
     pub const SPECTATING: &str = "SPECTATING";
     pub const SPECTATE_KEYS: &str = "< >";
+    /// The escape menu's way into the HUD editor (H21).
+    pub const PAUSE_HUD_EDITOR: &str = "HUD EDITOR";
+    /// The editor's footer: what the hands do.
+    pub const EDITOR_FOOTER: &str =
+        "DRAG TO MOVE \u{b7} 1 2 3 PRESET \u{b7} CTRL+R RESET \u{b7} ESC DONE";
+    /// The instruments' names on the editor's frames (H21), `Instrument::ALL` order.
+    pub const INSTRUMENT_TOP_BAR: &str = "TOP BAR";
+    pub const INSTRUMENT_TEAM_LISTS: &str = "TEAM LISTS";
+    pub const INSTRUMENT_TOP_STACK: &str = "LAMP \u{b7} BUDGET \u{b7} WORD";
+    pub const INSTRUMENT_MINIMAP: &str = "MINIMAP";
+    pub const INSTRUMENT_DAMAGE_PANEL: &str = "DAMAGE PANEL";
+    pub const INSTRUMENT_SPEED: &str = "SPEED";
+    pub const INSTRUMENT_AMMO: &str = "AMMUNITION";
+    pub const INSTRUMENT_HIT_LOG: &str = "HIT LOG";
+    pub const INSTRUMENT_KILL_FEED: &str = "KILL FEED";
+    pub const INSTRUMENT_NET: &str = "CONNECTION";
     /// Header of the ESC modal. Phrased as the question being asked, so neither button has to
     /// repeat the stakes.
     pub const PAUSE_TITLE: &str = "LEAVE BATTLE?";
@@ -182,6 +198,18 @@ pub(crate) mod battle {
         OUTCOME_CONTINUE_HINT,
         SPECTATING,
         SPECTATE_KEYS,
+        PAUSE_HUD_EDITOR,
+        EDITOR_FOOTER,
+        INSTRUMENT_TOP_BAR,
+        INSTRUMENT_TEAM_LISTS,
+        INSTRUMENT_TOP_STACK,
+        INSTRUMENT_MINIMAP,
+        INSTRUMENT_DAMAGE_PANEL,
+        INSTRUMENT_SPEED,
+        INSTRUMENT_AMMO,
+        INSTRUMENT_HIT_LOG,
+        INSTRUMENT_KILL_FEED,
+        INSTRUMENT_NET,
         PAUSE_TITLE,
         PAUSE_EXIT_TO_GARAGE,
         PAUSE_STAY,

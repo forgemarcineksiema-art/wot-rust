@@ -115,6 +115,8 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         }),
         dead: None,
         palette: ui_kit::theme::Palette::Standard,
+        layout: crate::hud::layout::HudLayout::default(),
+        editor: None,
     }
 }
 

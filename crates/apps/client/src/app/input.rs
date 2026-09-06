@@ -65,6 +65,10 @@ impl ClientApp {
     /// leaning on the keyboard. Releases still fall through — swallowing those would strand a key
     /// that was already held when the menu opened.
     pub(in crate::app) fn on_battle_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
+        // H21: the HUD editor has the keyboard while it is open — every press and release.
+        if self.hud_editor_open() && self.hud_editor_key(key, pressed) {
+            return;
+        }
         if pressed && self.pause_menu.is_some() {
             if matches!(key, PhysicalKey::Code(KeyCode::Escape)) {
                 self.close_pause_menu();
@@ -370,7 +374,7 @@ impl ClientApp {
     }
 
     pub(super) fn apply_mouse_look(&mut self) {
-        if self.pause_menu.is_some() {
+        if self.pause_menu.is_some() || self.hud_editor_open() {
             // The cursor is answering the modal, not aiming the gun.
             self.input.clear_mouse_look();
             return;
@@ -431,6 +435,10 @@ impl ClientApp {
         // Tracked in every mode (interface program F5/F7): the HUD editor and the command
         // wheel read the cursor in battle; capture decides visibility, not tracking.
         self.cursor_px = [x, y];
+        if self.hud_editor_open() {
+            self.hud_editor_cursor([x, y]);
+            return;
+        }
         if !self.garage.is_open() && self.pause_menu.is_none() {
             return;
         }
@@ -466,6 +474,10 @@ impl ClientApp {
             Some(crate::hud::pause_menu::PauseMenuButton::Stay) => {
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
                 self.close_pause_menu();
+            }
+            Some(crate::hud::pause_menu::PauseMenuButton::HudEditor) => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_hud_editor();
             }
             None => {}
         }

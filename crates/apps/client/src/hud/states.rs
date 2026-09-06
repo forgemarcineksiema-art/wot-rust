@@ -48,10 +48,14 @@ pub enum HudState {
     DeadSpectating,
     /// The deuteranopia palette (H22): every semantic pair apart by luminance and the blue axis.
     PaletteDeuteranopia,
+    /// The MINIMAL preset (H21): no feed, no connection line, no budget, the log folded.
+    PresetMinimal,
+    /// The FULL preset (H21): everything, the log open.
+    PresetFull,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 18] = [
+    pub const ALL: [HudState; 20] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -70,6 +74,8 @@ impl HudState {
         HudState::KillFeed,
         HudState::DeadSpectating,
         HudState::PaletteDeuteranopia,
+        HudState::PresetMinimal,
+        HudState::PresetFull,
     ];
 
     /// The golden's name stem.
@@ -93,6 +99,8 @@ impl HudState {
             HudState::KillFeed => "kill_feed",
             HudState::DeadSpectating => "dead_spectating",
             HudState::PaletteDeuteranopia => "palette_deuteranopia",
+            HudState::PresetMinimal => "preset_minimal",
+            HudState::PresetFull => "preset_full",
         }
     }
 
@@ -136,7 +144,22 @@ impl HudState {
             HudState::PauseMenu => {
                 model.pause_menu = Some(super::pause_menu::PauseMenuModel { hovered: None });
             }
-            HudState::HudEditorOpen => {}
+            HudState::HudEditorOpen => {
+                model.kill_feed = Some(super::demo::demo_kill_feed());
+                model.editor = Some(super::editor::EditorModel {
+                    hovered: Some(super::layout::Instrument::Minimap),
+                    dragging: None,
+                });
+            }
+            HudState::PresetMinimal => {
+                model.kill_feed = Some(super::demo::demo_kill_feed());
+                model.layout.preset = super::layout::Preset::Minimal;
+            }
+            HudState::PresetFull => {
+                model.kill_feed = Some(super::demo::demo_kill_feed());
+                model.hit_log_collapsed = true;
+                model.layout.preset = super::layout::Preset::Full;
+            }
             HudState::TeamListsMixed => {
                 model.team_lists = Some(super::demo::mixed_team_lists());
                 model.top_bar = Some(super::top_bar::TopBarModel {
@@ -256,6 +279,11 @@ mod tests {
                 let list = crate::hud::hud_state_list(state, size, 1920, 1080);
                 let viewport = 1920.0 * 1080.0;
                 for element in list.iter() {
+                    // The editor's panes veil the instruments they frame: a mode the crew
+                    // opened from the escape menu, not a popup (H21).
+                    if matches!(element.id, crate::hud::HudElement::Editor(_)) {
+                        continue;
+                    }
                     let area = element.rect.w * element.rect.h;
                     assert!(
                         area <= viewport * 0.20,

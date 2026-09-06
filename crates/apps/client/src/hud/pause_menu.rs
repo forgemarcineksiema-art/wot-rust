@@ -16,16 +16,18 @@ use super::{font, push_panel, push_quad, theme};
 /// Full-screen wash that pushes the battle back so the modal reads as modal.
 const SCRIM_COLOR: [f32; 4] = [0.02, 0.025, 0.03, 0.55];
 const PANEL_CENTER: [f32; 2] = [0.0, 0.0];
-const PANEL_HALF: [f32; 2] = [0.30, 0.175];
+const PANEL_HALF: [f32; 2] = [0.30, 0.225];
 const TITLE_HEIGHT: f32 = 0.045;
-const TITLE_TOP_Y: f32 = 0.128;
+const TITLE_TOP_Y: f32 = 0.178;
 /// Rule under the title, in the garage's panel idiom.
-const RULE_Y: f32 = 0.058;
+const RULE_Y: f32 = 0.108;
 const RULE_HALF_X: f32 = 0.255;
 
 pub(crate) const BUTTON_HALF: [f32; 2] = [0.235, 0.042];
-pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.005];
-pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.108];
+/// The way into the HUD editor (H21), over the two answers.
+pub(crate) const EDITOR_CENTER: [f32; 2] = [0.0, 0.048];
+pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.055];
+pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.158];
 const BUTTON_LABEL_HEIGHT: f32 = 0.036;
 
 /// Which button the cursor is over. The menu is only ever two choices, so an enum beats an index.
@@ -35,6 +37,8 @@ pub enum PauseMenuButton {
     ExitToGarage,
     /// Dismiss the menu and go back to driving.
     Stay,
+    /// Open the HUD editor over the battle (H21).
+    HudEditor,
 }
 
 /// What the battle HUD needs to draw the menu. `None` on [`super::BattleHudModel`] means the
@@ -48,6 +52,9 @@ pub struct PauseMenuModel {
 /// The button at a clip-space point, or `None` between them. Shares its rects with the drawing
 /// below — a layout edit moves the picture and the click target together, never one of them.
 pub(crate) fn button_at(point: [f32; 2]) -> Option<PauseMenuButton> {
+    if in_rect(point, EDITOR_CENTER, BUTTON_HALF) {
+        return Some(PauseMenuButton::HudEditor);
+    }
     if in_rect(point, EXIT_CENTER, BUTTON_HALF) {
         return Some(PauseMenuButton::ExitToGarage);
     }
@@ -91,6 +98,14 @@ pub(crate) fn push_pause_menu(vertices: &mut Vec<HudVertex>, model: &PauseMenuMo
     // Leaving is the destructive choice, so it carries the commit/danger red the garage's BATTLE
     // button uses; staying is an ordinary slot. Neither is pre-selected: this is a decision the
     // player makes, not one the UI nudges.
+    push_button(
+        vertices,
+        EDITOR_CENTER,
+        theme::color::SLOT,
+        crate::ui_strings::battle::PAUSE_HUD_EDITOR,
+        model.hovered == Some(PauseMenuButton::HudEditor),
+        aspect,
+    );
     push_button(
         vertices,
         EXIT_CENTER,
