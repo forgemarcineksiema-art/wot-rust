@@ -1,7 +1,8 @@
 BlueprintFile(
     kind: Centurion,
     hull: HullShape(
-        half_len: 3.8,
+        // 7557 mm hull (24 ft 9.5 in, the 1965 User Handbook via en.wikipedia; Discovery UK 7.55) — K3 data, 2026-09-06.
+        half_len: 3.7785,
         half_width: 1.6,
         belly_y: 0.51,
         deck_y: 1.88,
@@ -16,7 +17,8 @@ BlueprintFile(
             bottom_y: 0.33,
             front_z: 2.9,
             rear_z: -2.9,
-            standoff_m: 0.08,
+            // The side plates stand 3.38 m wide (11 ft 1 in, the Handbook and the placard): 0.10 off the belt.
+            standoff_m: 0.10,
             thickness_m: 0.008,
         )),
         hitbox_half_width: 1.7,
@@ -90,7 +92,8 @@ BlueprintFile(
     gun: GunShape(
         trunnion_y: 2.16,
         trunnion_z: 1.3,
-        muzzle_z: 6.03,
+        // 9830 mm overall gun forward (the Handbook; a museum placard's 32 ft 4 in) over the 7.557 hull.
+        muzzle_z: 6.0515,
         barrel_radius: 0.095,
         evacuator: None,
         muzzle_brake: None,
