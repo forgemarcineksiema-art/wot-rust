@@ -1192,3 +1192,26 @@ fn the_german_sprocket_is_spoked_at_the_near_tier() {
     let soviet = covered_bins(&sprocket_unit_mesh(&t54), t54.sprocket_radius());
     assert_eq!(soviet, 64, "the Soviet sprocket keeps its disc: {soviet} of 64 bins covered");
 }
+
+/// The IS-3's return rollers stand over the gaps between its road wheels (an authored
+/// `roller_stations`), clear of every wheel by their two radii — the disc-merge rule's own
+/// condition, stated for the vehicle whose ⌀385 rollers made it bite.
+#[test]
+fn the_is3_return_rollers_stand_over_the_wheel_gaps() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::IS3).expect("IS-3 gear");
+    assert_eq!(kin.roller_zs.len(), 3);
+    for &rz in &kin.roller_zs {
+        let nearest = kin.wheel_zs.iter().map(|wz| (wz - rz).abs()).fold(f32::INFINITY, f32::min);
+        assert!(
+            nearest > 0.40,
+            "a roller over a gap, not a wheel: {nearest:.3} m off the nearest axle"
+        );
+        let dy = kin.roller_y - kin.cy;
+        assert!(
+            nearest.hypot(dy) >= kin.roller_radius + kin.wheel_radius,
+            "the roller clears the wheel: {:.3} vs {:.3}",
+            nearest.hypot(dy),
+            kin.roller_radius + kin.wheel_radius
+        );
+    }
+}

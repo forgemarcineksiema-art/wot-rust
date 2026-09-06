@@ -52,6 +52,12 @@ pub struct TrackShape {
     pub return_rollers: usize,
     /// Radius of one return roller (ignored when `return_rollers` is 0).
     pub roller_radius: f32,
+    /// Where the return rollers stand along the run (hull z), when the drawing says: the IS-3's
+    /// three sit over the GAPS between its road wheels — spread evenly they sink into the
+    /// wheels. `None` spreads `return_rollers` evenly along the middle of the run (the
+    /// Centurion). Appended 2026-09-06.
+    #[serde(default, deserialize_with = "leak_wheel_stations")]
+    pub roller_stations: Option<&'static [f32]>,
     /// Schachtellaufwerk: how far INBOARD every odd-indexed road wheel sits relative to the even
     /// row. `0` is the ordinary single file; a large offset (≈ a wheel's width) reads as the
     /// Tiger's interleaved double row, a small one as the Tiger II/Panther overlapped stagger.
