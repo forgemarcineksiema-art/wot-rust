@@ -197,6 +197,130 @@ fn two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_wh
     }
 }
 
+/// M9 (`docs/game-modes.md` R7): a crew that goes silent keeps its hull through the reconnect
+/// budget; past it the bot brain drives the hull and the roster says so — to the host and, on
+/// the wire, to every crew still playing; a crew that returns later takes the hull back and the
+/// roster names a crew again.
+#[test]
+fn a_crew_that_never_returns_becomes_a_bot_and_the_roster_says_so() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.4.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut ports = [
+        hub.port("10.0.4.2:5000".parse().expect("addr")),
+        hub.port("10.0.4.3:5000".parse().expect("addr")),
+    ];
+    let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
+        seed: BattleSeed::fixed(21),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 400, 0);
+    let mut clients =
+        [ClientSession::connect(server_addr, 0), ClientSession::connect(server_addr, 0)];
+    let mut assigned: [Option<game_core::TankId>; 2] = [None, None];
+    let mut roster_seen_by_a: Option<Vec<net::RosterEntry>> = None;
+    let driver_of = |roster: &[net::RosterEntry], tank| {
+        roster.iter().find(|e| e.tank_id == tank).expect("named").crew_kind
+    };
+    // Both crews play for two seconds; then B goes silent for good.
+    let silent_from = 150_u64;
+    let takeover_step = silent_from + (10_000 + battle_host::remote::BOT_TAKEOVER_MS) / 16;
+    let mut tank_b_still_human_before_takeover = false;
+    for step in 0..(takeover_step + 400) {
+        let now_ms = step * 16;
+        for index in 0..2 {
+            if index == 1 && step >= silent_from {
+                continue;
+            }
+            for message in clients[index].tick(now_ms, &mut ports[index]).expect("client tick") {
+                match message {
+                    ProtocolMessage::StartBattle { assigned_tank, .. } => {
+                        assigned[index] = Some(assigned_tank);
+                    }
+                    ProtocolMessage::BattleRoster { entries, .. } if index == 0 => {
+                        roster_seen_by_a = Some(entries);
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(tank) = assigned[index] {
+                let batch = ProtocolMessage::InputBatch {
+                    session_id: clients[index].session_id(),
+                    commands: vec![net::ClientInputCommand {
+                        client_tick: step,
+                        tank_id: tank,
+                        command: sim::TankCommand::idle(),
+                    }],
+                };
+                clients[index].endpoint.send(&mut ports[index], &batch).expect("input batch");
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+        if step == takeover_step - 200
+            && let (Some(tank_b), Some(roster)) = (assigned[1], host.roster())
+        {
+            tank_b_still_human_before_takeover = driver_of(&roster, tank_b) == net::CrewKind::Human;
+        }
+    }
+    let (tank_a, tank_b) = (assigned[0].expect("A seated"), assigned[1].expect("B seated"));
+    assert!(tank_b_still_human_before_takeover, "inside the budget the hull waits for its crew");
+    let roster = host.roster().expect("running");
+    assert_eq!(
+        driver_of(&roster, tank_b),
+        net::CrewKind::Bot,
+        "past the budget a brain drives B's hull"
+    );
+    assert_eq!(driver_of(&roster, tank_a), net::CrewKind::Human, "A still drives its own");
+    let on_the_wire = roster_seen_by_a.clone().expect("A heard the roster");
+    assert_eq!(driver_of(&on_the_wire, tank_b), net::CrewKind::Bot, "and A was told");
+
+    // B comes back as a fresh session: the only free hull is its old one, the brain lets go.
+    // Its clocks start when it dials, like a real client's; a session dialled at t=0 and first
+    // ticked a minute later would time itself out before the ServerHello arrives.
+    let mut returned = ClientSession::connect(server_addr, (takeover_step + 400) * 16);
+    let mut returned_port = hub.port("10.0.4.9:5000".parse().expect("addr"));
+    let mut reseated = None;
+    for step in (takeover_step + 400)..(takeover_step + 700) {
+        let now_ms = step * 16;
+        for message in returned.tick(now_ms, &mut returned_port).expect("client tick") {
+            if let ProtocolMessage::StartBattle { assigned_tank, .. } = message {
+                reseated = Some(assigned_tank);
+            }
+        }
+        for message in clients[0].tick(now_ms, &mut ports[0]).expect("client tick") {
+            if let ProtocolMessage::BattleRoster { entries, .. } = message {
+                roster_seen_by_a = Some(entries);
+            }
+        }
+        for (client, port, tank) in [
+            (&mut returned, &mut returned_port, reseated),
+            (&mut clients[0], &mut ports[0], Some(tank_a)),
+        ] {
+            if let Some(tank) = tank {
+                let batch = ProtocolMessage::InputBatch {
+                    session_id: client.session_id(),
+                    commands: vec![net::ClientInputCommand {
+                        client_tick: step,
+                        tank_id: tank,
+                        command: sim::TankCommand::idle(),
+                    }],
+                };
+                client.endpoint.send(port, &batch).expect("input batch");
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+    assert_eq!(reseated, Some(tank_b), "the returning crew gets its hull back");
+    let roster = host.roster().expect("running");
+    assert_eq!(driver_of(&roster, tank_b), net::CrewKind::Human, "the brain let go");
+    let on_the_wire = roster_seen_by_a.expect("A heard the roster again");
+    assert_eq!(driver_of(&on_the_wire, tank_b), net::CrewKind::Human, "and A was told again");
+}
+
 /// v51 (W-5): the command wheel's word goes to the team — and only as many as the SERVER
 /// admits. A crew that sends eight in a burst hears five relays; the sixth, seventh and eighth
 /// were refused where a modded client cannot reach.

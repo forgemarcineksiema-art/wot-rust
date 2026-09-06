@@ -30,6 +30,14 @@ const UNESTABLISHED_GRACE_MS: u64 = 2_000;
 pub const MAX_TRACKED_CLIENTS: usize = 64;
 /// How many times the battle-over word is repeated (unreliable wire, no ack lane needed).
 const BATTLE_ENDED_REPEATS: u32 = 20;
+/// A seat freed this long ago (ms) belongs to a crew that is not coming back: the client's own
+/// re-dial budget is thirty tries two seconds apart (netcode block 4), so past a minute the hull
+/// goes to the bot brain and the roster says so (M9, `docs/game-modes.md` R7). Until then it
+/// idles for the crew that may still return, and a crew that returns later takes it back.
+pub const BOT_TAKEOVER_MS: u64 = 60_000;
+/// How many ticks a CHANGED roster is repeated to every seated crew — the wire is lossy and the
+/// team list is blind without it; the same discipline as the battle-over word.
+const ROSTER_REPEATS: u32 = 20;
 const RETIRED_SESSION_IDS: usize = 4;
 
 /// Commands a crew may have waiting for one tick. Anything past this is dropped at intake —
@@ -130,11 +138,13 @@ enum Phase {
     Running { core: Box<LocalAuthoritativeServer>, ended_repeats: u32 },
 }
 
-/// Seats whose crew vanished mid-battle: a reconnecting (or fresh) client claims one and the
-/// tank goes back under human control — the late joiner converges from the very first snapshot,
-/// because a snapshot IS the full battle state (breaches, cover, turrets and all).
+/// Seats whose crew vanished mid-battle, with the moment (ms) they were freed: a reconnecting
+/// (or fresh) client claims one and the tank goes back under human control — the late joiner
+/// converges from the very first snapshot, because a snapshot IS the full battle state
+/// (breaches, cover, turrets and all). Past [`BOT_TAKEOVER_MS`] the bot brain drives the hull
+/// meanwhile (M9); the seat stays claimable.
 #[derive(Default)]
-struct FreeSeats(Vec<TankId>);
+struct FreeSeats(Vec<(TankId, u64)>);
 
 /// The whole host. Drive [`RemoteBattleServer::pump`] as often as you like (it drains the wire)
 /// and [`RemoteBattleServer::tick`] at the simulation cadence.
@@ -146,6 +156,8 @@ pub struct RemoteBattleServer {
     phase: Phase,
     /// The next handshake's hello order (N10).
     next_hello_seq: u64,
+    /// Ticks left of repeating a changed roster to every seated crew (M9).
+    roster_repeats: u32,
 }
 
 impl RemoteBattleServer {
@@ -162,6 +174,15 @@ impl RemoteBattleServer {
             free_seats: FreeSeats::default(),
             phase: Phase::Lobby { deadline_ms: now_ms + lobby_wait_ms },
             next_hello_seq: 1,
+            roster_repeats: 0,
+        }
+    }
+
+    /// The live roster — every hull named with who drives it — once the battle runs.
+    pub fn roster(&self) -> Option<Vec<net::RosterEntry>> {
+        match &self.phase {
+            Phase::Running { core, .. } => Some(core.roster()),
+            Phase::Lobby { .. } => None,
         }
     }
 
@@ -240,10 +261,15 @@ impl RemoteBattleServer {
                     let _ = client.endpoint.send(transport, &hello);
                     // Mid-battle hello: a late joiner (or a reconnect) takes a freed seat, or is
                     // refused honestly — never left hanging in a lobby that will not come.
-                    if let Phase::Running { core, .. } = &self.phase {
+                    if let Phase::Running { core, .. } = &mut self.phase {
                         if client.tank.is_none() {
-                            if let Some(tank) = self.free_seats.0.pop() {
+                            if let Some((tank, _)) = self.free_seats.0.pop() {
                                 client.tank = Some(tank);
+                                // M9: if the brain took the hull meanwhile, the crew takes it
+                                // back and everyone hears the roster change.
+                                if core.release_hull_to_crew(tank) {
+                                    self.roster_repeats = ROSTER_REPEATS;
+                                }
                             } else {
                                 let refuse = ProtocolMessage::Disconnect {
                                     session_id,
@@ -323,7 +349,7 @@ impl RemoteBattleServer {
                     if let Some(gone) = self.clients.remove(&from)
                         && let Some(tank) = gone.tank
                     {
-                        self.free_seats.0.push(tank);
+                        self.free_seats.0.push((tank, now_ms));
                     }
                 }
                 _ => {}
@@ -339,7 +365,7 @@ impl RemoteBattleServer {
                 if client.is_established() { CLIENT_TIMEOUT_MS } else { UNESTABLISHED_GRACE_MS };
             let alive = now_ms.saturating_sub(client.last_heard_ms) < budget;
             if !alive && let Some(tank) = client.tank {
-                free_seats.0.push(tank);
+                free_seats.0.push((tank, now_ms));
             }
             alive
         });
@@ -374,6 +400,19 @@ impl RemoteBattleServer {
                 }
             }
             Phase::Running { core, ended_repeats } => {
+                // M9: a hull whose crew is past the reconnect budget goes to the bot brain — it
+                // keeps fighting for its side from this tick, and the roster says who drives it.
+                let mut adopted = false;
+                for (tank, freed_at_ms) in &self.free_seats.0 {
+                    if now_ms.saturating_sub(*freed_at_ms) >= BOT_TAKEOVER_MS
+                        && core.adopt_hull_as_bot(*tank)
+                    {
+                        adopted = true;
+                    }
+                }
+                if adopted {
+                    self.roster_repeats = ROSTER_REPEATS;
+                }
                 let tick = core.authoritative_tick();
                 let inputs: Vec<(TankId, sim::TankCommand)> = self
                     .clients
@@ -509,6 +548,20 @@ impl RemoteBattleServer {
                         let _ = client.endpoint.send(transport, &roster);
                     }
                 }
+                // A roster that changed mid-battle (M9: a hull handed to a brain or back to a
+                // crew) goes to every seated crew for a while, the lossy wire's way.
+                if self.roster_repeats > 0 {
+                    self.roster_repeats -= 1;
+                    for client in self.clients.values_mut() {
+                        if client.tank.is_some() {
+                            let changed = ProtocolMessage::BattleRoster {
+                                session_id: client.session_id,
+                                entries: roster.clone(),
+                            };
+                            let _ = client.endpoint.send(transport, &changed);
+                        }
+                    }
+                }
 
                 if let Some(snapshot) = result.snapshot {
                     let observers = core.observer_masks();
@@ -588,7 +641,7 @@ impl RemoteBattleServer {
                     if client.event_overflowed
                         && let Some(tank) = client.tank
                     {
-                        free_seats.0.push(tank);
+                        free_seats.0.push((tank, now_ms));
                     }
                     !client.event_overflowed
                 });

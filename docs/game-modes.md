@@ -172,7 +172,7 @@ battle with a few strangers in it, and it says so.
 | The matchmaker (pure) | the lobby's "first seven, then bots" | the crate — M7 |
 | The coordinator (service) | none | M7, with the netcode program's N4 (discovery, `PeerId`) |
 | Identity and rating | none; a player is an address | N5 (Steam), then M8 |
-| Bot substitution | none; a lost crew's hull stands still | M9 |
+| Bot substitution | past a minute of silence (the client's re-dial budget) the bot brain drives the hull and the roster says so; a returning crew takes it back (M9) | — |
 
 ## Part IV — what 15v15 costs (the constraints, with today's numbers)
 
@@ -259,7 +259,7 @@ decision here, a register row where a register exists, and a lock in the row tha
 | ~~M6~~ | ~~**Humans on both sides**~~ — **CLOSED (2026-09-06)** (R4, finding 1 — the mode's definition, the first online row): `human_team` deals the crews in a snake by hello order (1-2-2-1; by rating when M8 lands), at most one more on a side, humans in a team's first seats and bots after; the lobby's "full" = both teams' seats; the anti-wallhack filter unchanged (it is per viewer already); one crew is still the desktop battle bit for bit | `crates/runtime/battle_host/src/remote.rs`, `setup.rs` | `two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid` (a two-client `MemoryHub` lock, armed the way netcode block 3's was) |
 | M7 | **The matchmaker and the coordinator** (R2, R3, R5, R10): the pure crate (`tickets × now → battles`), the coordinator process, the host registration, the seat token in the hello (a wire bump, additive), the queue screen — a P-lane row this document owes the interface program: format, humans found / seats, bots that will fill, countdown, CANCEL, the other format | a new runtime crate, `crates/apps/server/src/main.rs`, the netcode program's N4 | `the_band_never_widens_and_the_deadline_always_starts`, `humans_split_evenly_and_bots_mirror_the_tier_histogram`, `the_same_tickets_deal_the_same_battle` (determinism); the queue screen's golden |
 | M8 | **Identity and rating** (D4, R6): after N5 — OpenSkill over identity-bound tickets, the store, the weight by human share | the netcode program's N5 | `a_battle_with_humans_on_one_side_moves_no_rating`; `a_bot_is_a_fixed_rating_filler` |
-| M9 | **Bot substitution** (R7): a crew past its reconnect budget hands the hull to the bot brain; the roster flips | `crates/runtime/battle_host/src/remote.rs`, `bots.rs` | `a_crew_that_never_returns_becomes_a_bot_and_the_roster_says_so` |
+| ~~M9~~ | ~~**Bot substitution**~~ — **CLOSED (2026-09-06)** (R7): a seat freed by silence, a goodbye or an overflow remembers when; past `BOT_TAKEOVER_MS` (60 s — the client's thirty re-dials two seconds apart) the bot brain adopts the hull with the roster's next seeded route and posture, the roster flips to `Bot` and is repeated to every seated crew for twenty ticks; a crew that claims the seat later takes the hull back and the roster names a crew again | `crates/runtime/battle_host/src/remote.rs`, `bots.rs`, `local.rs` | `a_crew_that_never_returns_becomes_a_bot_and_the_roster_says_so` (two crews, one silent: Human inside the budget, Bot past it — on the host and on A's wire — and Human again when a fresh session claims the hull) |
 
 **Order.** M2 → M3 first (the AI battle at 15v15 is playable with no network and answers the
 frame question early), M4 and M5 in the same week (M5a's budgets landed; M5b's measurements decide
