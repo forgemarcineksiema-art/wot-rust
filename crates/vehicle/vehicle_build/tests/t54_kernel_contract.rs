@@ -148,6 +148,18 @@ fn every_lod_is_deterministic() {
 
 // ---- Cast-shell silhouette properties ----------------------------------------------------------
 
+/// K15: the casting is the dossier's 2.363 m long at its widest cut (S1 measured it; the loft
+/// carried 2.408 and only a ±0.06 plan ratio watched it). Pinned to ±10 mm on the stations
+/// themselves — the armour volumes and the loft read the same stations, so the shell's length
+/// and the shot's are one number.
+#[test]
+fn the_cast_dome_is_the_dossier_s_length_at_its_widest_cut() {
+    let visual = turret_visual();
+    let longest =
+        visual.stations.iter().map(|s| s.half_len_front + s.half_len_rear).fold(0.0_f32, f32::max);
+    assert!((longest - 2.363).abs() <= 0.010, "the dome's plan length: {longest:.3} vs 2.363");
+}
+
 #[test]
 fn the_cast_shell_is_lower_and_wider_than_tall() {
     let b = t54_turret_loft(&turret_visual()).bounds().expect("shell bounds");

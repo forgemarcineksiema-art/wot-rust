@@ -89,7 +89,10 @@ BlueprintFile(
         return_rollers: 0,
         roller_radius: 0.0,
         overlap_inner_dx: 0.0,
-        wheel_half_width: 0.18,
+        // The assembly's 423 mm over both tyres (the drawing, dossier § Part construction:
+        // 185 mm tyres with a 53 mm slot between them — the slot is 12.5 % of the width, see
+        // `tyre_gap_half`); it baked 360 until K11 (2026-09-06).
+        wheel_half_width: 0.2115,
         link_half_width: 0.23,
         link_count: Some(90),
         // NO RETURN ROLLERS, so the top run rests on the road wheels and scallops between

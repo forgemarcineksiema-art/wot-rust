@@ -179,6 +179,9 @@ pub(crate) fn measure_dimensions(
             DimensionKind::RoadWheelDiameter => {
                 (kin.as_ref().and_then(road_wheel_diameter_from_mesh), MeasurementBasis::Mesh)
             }
+            DimensionKind::RoadWheelWidth => {
+                (kin.as_ref().and_then(road_wheel_width_from_mesh), MeasurementBasis::Mesh)
+            }
             // The ring race is interior — invisible to an exterior bake — so the anchor pins
             // the blueprint's declared ring against the dossier, and the report says so.
             DimensionKind::TurretRingDiameter => (
@@ -262,6 +265,21 @@ fn gear_kinematics(
 fn road_wheel_diameter_from_mesh(kin: &RunningGearKinematics) -> Option<f32> {
     let bounds = road_wheel_unit_mesh(kin).bounds()?;
     Some((bounds.max.y - bounds.min.y).max(bounds.max.z - bounds.min.z))
+}
+
+/// The wheel assembly's width along its axle, tyre face to tyre face — the RUBBER's extent,
+/// not the hub cap's (the cap stands proud of the outboard disc).
+fn road_wheel_width_from_mesh(kin: &RunningGearKinematics) -> Option<f32> {
+    let mesh = road_wheel_unit_mesh(kin);
+    let xs: Vec<f32> = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.material == vehicle_geometry::MaterialRole::Rubber)
+        .map(|v| v.position.x)
+        .collect();
+    let lo = xs.iter().copied().fold(f32::INFINITY, f32::min);
+    let hi = xs.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    (hi > lo).then_some(hi - lo)
 }
 
 /// Track gauge as placed: twice the mean |x| of the link instances (both belts).

@@ -59,6 +59,10 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
             //     lip drops ~4 cm below the 1.58 roofline with a slight tuck - the shadow line
             //     every reference photograph shows around the base of the dome.
             //
+            // The stations' lengths carry the dossier's 2.363 m at the widest cut (K15,
+            // 2026-09-06: they summed to 2.408 — 45 mm long, watched only by a ±0.06 ratio;
+            // every station's front and rear half-length scaled by 2.363/2.408, the registration
+            // untouched).
             // The blunt nose stands: the front tips fall steeply above the window band.
             // Front-heaviness now lives where the metal has it - the casting still reaches
             // farther forward of the RING AXIS than rearward (1.28 vs 1.128), but each
@@ -67,71 +71,71 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
             LoftStation {
                 y: 1.54,
                 half_width: 1.074,
-                half_len_front: 1.065,
-                half_len_rear: 1.275,
+                half_len_front: 1.0451,
+                half_len_rear: 1.2512,
                 z_center: 0.18,
             },
             LoftStation {
                 y: 1.58,
                 half_width: 1.090,
-                half_len_front: 1.075,
-                half_len_rear: 1.305,
+                half_len_front: 1.0549,
+                half_len_rear: 1.2806,
                 z_center: 0.19,
             },
             LoftStation {
                 y: 1.66,
                 half_width: 1.125,
-                half_len_front: 1.080,
-                half_len_rear: 1.328,
+                half_len_front: 1.0598,
+                half_len_rear: 1.3032,
                 z_center: 0.20,
             },
             LoftStation {
                 y: 1.76,
                 half_width: 1.125,
-                half_len_front: 1.075,
-                half_len_rear: 1.320,
+                half_len_front: 1.0549,
+                half_len_rear: 1.2953,
                 z_center: 0.20,
             },
             LoftStation {
                 y: 1.88,
                 half_width: 1.105,
-                half_len_front: 1.055,
-                half_len_rear: 1.265,
+                half_len_front: 1.0353,
+                half_len_rear: 1.2414,
                 z_center: 0.19,
             },
             LoftStation {
                 y: 2.00,
                 half_width: 1.060,
-                half_len_front: 1.015,
-                half_len_rear: 1.170,
+                half_len_front: 0.9960,
+                half_len_rear: 1.1481,
                 z_center: 0.17,
             },
             LoftStation {
                 y: 2.12,
                 half_width: 0.980,
-                half_len_front: 0.915,
-                half_len_rear: 0.995,
+                half_len_front: 0.8979,
+                half_len_rear: 0.9764,
                 z_center: 0.15,
             },
             LoftStation {
                 y: 2.22,
                 half_width: 0.865,
-                half_len_front: 0.770,
-                half_len_rear: 0.815,
+                half_len_front: 0.7556,
+                half_len_rear: 0.7998,
                 z_center: 0.13,
             },
             LoftStation {
                 y: 2.30,
                 half_width: 0.700,
-                half_len_front: 0.625,
-                half_len_rear: 0.625,
+                half_len_front: 0.6133,
+                half_len_rear: 0.6133,
                 z_center: 0.11,
             },
             LoftStation {
                 y: 2.36,
                 half_width: 0.495,
-                half_len_front: 0.410,
-                half_len_rear: 0.440,
+                half_len_front: 0.4023,
+                half_len_rear: 0.4318,
                 z_center: 0.09,
             },
             // The roof plate: a small near-flat crown the photo shows, big enough to root the
@@ -140,8 +144,8 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
             LoftStation {
                 y: 2.40,
                 half_width: 0.420,
-                half_len_front: 0.385,
-                half_len_rear: 0.390,
+                half_len_front: 0.3778,
+                half_len_rear: 0.3827,
                 z_center: 0.06,
             },
         ],
