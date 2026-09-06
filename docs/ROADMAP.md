@@ -2,8 +2,9 @@
 
 The whole picture — not the current sprint. Program docs (urban map, destruction, fleet…)
 are execution details; THIS is what the game is and what it still owes the player.
-Release shape: buy-to-play (~20-25 EUR), 7v7, nation trees (lines and tiers), skill
-matchmaking from day one. The retired release-ladder notes live in git history
+Release shape: buy-to-play (~20-25 EUR), two modes — PvP at 7v7 or 15v15 by the player's
+choice with marked bots in every empty seat, and an AI battle at 15v15 (`docs/game-modes.md`,
+the owner 2026-09-06) — nation trees (lines and tiers), skill matchmaking from day one. The retired release-ladder notes live in git history
 (`git show 83b261d:docs/product-program.md`).
 
 ## The creed (why this game exists)
@@ -92,12 +93,17 @@ down anywhere — the document that held them was retired):
    and dedicated-server operations — the register and wave plan are in
    `docs/multiplayer-production-program.md`.
 2. **Meta & matchmaking**: OpenSkill-based MM, sessions/lobbies, player identity, and a
-   record that a battle happened at all (today the game keeps none). Progression is **proof,
+   record that a battle happened at all (today the game keeps none). The queue is DESIGNED
+   in `docs/game-modes.md` (Part III: one queue per format and band, the band never widens,
+   bots fill on a deadline, humans split evenly, rating only when both sides had humans) and
+   built by its lane M rows M6–M9 with the netcode program's N4/N5. Progression is **proof,
    never power**: no XP, no credits, no research, and no module unlocks — modules carry real
    stat deltas, so gating them behind time would be power behind time, which the creed
    forbids.
 3. **Content breadth**: more vehicles per nation/line (Britain has one tank), 2-3 more maps,
-   game modes beyond the single 7v7 skirmish.
+   the second format and the AI battle (`docs/game-modes.md` M2–M5: the format as data, 15v15
+   per map behind a 15-seat spawn gate and an MX330 measurement at thirty hulls), the
+   objectives beyond last-team-standing.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
    only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,
    trailers/devlogs, NAME of the game. The interface half of this (settings, keybinds, the

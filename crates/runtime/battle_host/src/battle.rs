@@ -10,6 +10,14 @@ pub enum BattleMode {
     Random7v7,
 }
 
+/// Seats on each side of a random battle. The ONE number behind "7v7": the roster, the spawn
+/// grid, the dedicated host's lobby threshold and every "fourteen tanks" lock count from it.
+/// `docs/game-modes.md` (the owner, 2026-09-06) makes the format DATA — 7v7 or 15v15 by the
+/// player's choice, and an AI battle at 15v15 — so this literal is named first, quoted by the
+/// document and pinned to it by the `quality` gate (`roadmap_claims`), and grows into a
+/// per-format value with M2 instead of being found in four files by grep.
+pub const SEATS_PER_TEAM: usize = 7;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattleSeed(u64);
 
