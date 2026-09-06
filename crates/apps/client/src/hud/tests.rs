@@ -269,6 +269,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         cruise_level: 0,
         zoom_factor: Some(4.2),
         damage_log: Vec::new(),
+        hit_log_collapsed: false,
         incoming_hits: Vec::new(),
         ammo: None,
         damage: None,
@@ -304,6 +305,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         cruise_level: 0,
         zoom_factor: None,
         damage_log: Vec::new(),
+        hit_log_collapsed: false,
         incoming_hits: Vec::new(),
         ammo: None,
         damage: None,
@@ -347,6 +349,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         cruise_level: 0,
         zoom_factor: None,
         damage_log: Vec::new(),
+        hit_log_collapsed: false,
         incoming_hits: Vec::new(),
         ammo: None,
         damage: None,
@@ -481,9 +484,7 @@ fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
     }
     assert!(!expected.is_empty());
     assert_eq!(legacy_only.emit(&ui, &theme), expected, "legacy payloads ride verbatim, in order");
-    for id in
-        [HudElement::Reticle, HudElement::Readouts, HudElement::DamageLog, HudElement::HitDirection]
-    {
+    for id in [HudElement::Reticle, HudElement::Readouts, HudElement::HitDirection] {
         assert!(list.find(id).is_some(), "{id:?} is a named element");
     }
     assert!(list.find(HudElement::PauseMenu).is_none(), "no menu, no element");

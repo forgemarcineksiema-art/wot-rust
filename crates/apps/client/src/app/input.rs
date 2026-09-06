@@ -100,6 +100,8 @@ impl ClientApp {
             // key repeat must not climb the ladder on its own, so the edge alone counts.
             PhysicalKey::Code(KeyCode::KeyR) if pressed => self.input.cruise_up(),
             PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
+            // H8: N folds the hit log to its newest row and unfolds it again.
+            PhysicalKey::Code(KeyCode::KeyN) if pressed => self.input.toggle_hit_log(),
             PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
                 if pressed {
                     self.begin_sniper_hold();

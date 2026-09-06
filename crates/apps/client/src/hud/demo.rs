@@ -66,37 +66,8 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         speed_kmh: 24.0,
         cruise_level: 2,
         zoom_factor: sniper.then_some(6.9),
-        damage_log: vec![
-            DamageLogEntry {
-                direction: LogDirection::Dealt,
-                damage_hp: 240,
-                module: Some(ModuleSlot::Gun),
-                track: None,
-                other_vehicle: VehicleKind::PLAYABLE
-                    .iter()
-                    .copied()
-                    .find(|kind| *kind != VehicleKind::BENCHMARK),
-                // The staged dealt row also shows a gunner knock — the "G" callout — and the
-                // named round (v47).
-                crew_hits_mask: game_core::CrewRole::Gunner.mask_bit(),
-                round: Some(game_core::RoundId::Pzgr39_42),
-                age_s: 0.5,
-            },
-            DamageLogEntry {
-                direction: LogDirection::Taken,
-                damage_hp: 0,
-                module: None,
-                track: Some((game_core::TrackSide::Right, true)),
-                other_vehicle: VehicleKind::PLAYABLE
-                    .iter()
-                    .copied()
-                    .filter(|kind| *kind != VehicleKind::BENCHMARK)
-                    .nth(1),
-                crew_hits_mask: 0,
-                round: Some(game_core::RoundId::Of471),
-                age_s: 1.5,
-            },
-        ],
+        damage_log: demo_hit_log(),
+        hit_log_collapsed: false,
         incoming_hits: vec![IncomingHit {
             bearing_rad: 2.1,
             age_s: 0.3,
@@ -186,6 +157,73 @@ pub(crate) fn mixed_team_lists() -> super::team_list::TeamListsModel {
             row(V::T34_85, 'G', false, None, true, false, false),
         ],
     }
+}
+
+/// The staged hit log (H8): a dealt penetration on a turret front with a gunner knock, a taken
+/// track hit, and a taken ricochet at range — the three families the eye must tell apart.
+pub(crate) fn demo_hit_log() -> Vec<DamageLogEntry> {
+    let others: Vec<VehicleKind> = VehicleKind::PLAYABLE
+        .iter()
+        .copied()
+        .filter(|kind| *kind != VehicleKind::BENCHMARK)
+        .collect();
+    let base = DamageLogEntry {
+        direction: LogDirection::Dealt,
+        damage_hp: 0,
+        module: None,
+        track: None,
+        other_vehicle: others.first().copied(),
+        crew_hits_mask: 0,
+        round: None,
+        age_s: 0.5,
+        cause: game_core::DamageCause::Shell,
+        penetrated: false,
+        ricocheted: false,
+        shattered: false,
+        shell_penetration_mm: 148,
+        effective_armor_mm: 162,
+        impact_angle_degrees: 31,
+        zone: game_core::ArmorZone::TurretFront,
+        distance_m: Some(412),
+    };
+    vec![
+        DamageLogEntry {
+            damage_hp: 240,
+            module: Some(ModuleSlot::Gun),
+            crew_hits_mask: game_core::CrewRole::Gunner.mask_bit(),
+            round: Some(game_core::RoundId::Pzgr39_42),
+            penetrated: true,
+            shell_penetration_mm: 194,
+            effective_armor_mm: 162,
+            ..base
+        },
+        DamageLogEntry {
+            direction: LogDirection::Taken,
+            track: Some((game_core::TrackSide::Right, true)),
+            other_vehicle: others.get(1).copied(),
+            round: Some(game_core::RoundId::Of471),
+            age_s: 1.5,
+            zone: game_core::ArmorZone::RightTrack,
+            impact_angle_degrees: 12,
+            shell_penetration_mm: 61,
+            effective_armor_mm: 80,
+            distance_m: Some(268),
+            ..base
+        },
+        DamageLogEntry {
+            direction: LogDirection::Taken,
+            other_vehicle: others.get(2).copied(),
+            round: Some(game_core::RoundId::Br412D),
+            age_s: 3.2,
+            ricocheted: true,
+            zone: game_core::ArmorZone::UpperGlacis,
+            impact_angle_degrees: 71,
+            shell_penetration_mm: 171,
+            effective_armor_mm: 310,
+            distance_m: Some(510),
+            ..base
+        },
+    ]
 }
 
 /// The staged ammunition: the benchmark's three rounds, the server's selection in slot 0 and

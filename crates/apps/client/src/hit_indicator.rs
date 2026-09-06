@@ -24,26 +24,11 @@ struct HitFeedback {
     /// A non-penetration that FAILED by less than the back-face margin — derived from the
     /// pen-vs-armor numbers the shooter already owns (mirror of `shell_spalls_on_nonpen` in the
     /// sim), never from the target's concealed crew state.
-    near_pen: bool,
     /// The brittle core's death on the plate (wire v47): the shooter's mark says the round
     /// SHATTERED — stop feeding tungsten to that angle — where a plain ricochet says "it skipped".
     shattered: bool,
     module: Option<ModuleSlot>,
     age: f32,
-}
-
-/// The shooter-side mirror of the sim's back-face margin: within 12% of the effective steel
-/// (clamped 5–35 mm) of getting in. Same constants as `sim/src/combat.rs` — a divergence here
-/// makes the HUD lie about what the sim rewards.
-fn near_penetration(event: &DamageEvent) -> bool {
-    if event.penetrated
-        || event.ricocheted
-        || event.shell_type == game_core::ShellType::HighExplosive
-    {
-        return false;
-    }
-    let margin_mm = (event.effective_armor_mm * 0.12).clamp(5.0, 35.0);
-    event.shell_penetration_mm > event.effective_armor_mm - margin_mm
 }
 
 /// What the marker prints beside its glyph (Inny Poziom A6): the damage when there was any,
@@ -88,7 +73,6 @@ impl HitIndicator {
             damage_hp: e.damage_hp,
             penetrated: e.penetrated,
             ricocheted: e.ricocheted,
-            near_pen: near_penetration(e),
             shattered: e.shattered,
             module: e.module,
             age: 0.0,
@@ -128,7 +112,6 @@ impl HitIndicator {
             let outcome = MarkerOutcome {
                 pen: entry.penetrated,
                 ric: entry.ricocheted,
-                near_pen: entry.near_pen,
                 shattered: entry.shattered,
             };
             let dmg_color = color_for(outcome);
@@ -194,8 +177,8 @@ mod tests {
     const IDENTITY: [[f32; 4]; 4] =
         [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
 
-    fn outcome(pen: bool, ric: bool, near_pen: bool, shattered: bool) -> MarkerOutcome {
-        MarkerOutcome { pen, ric, near_pen, shattered }
+    fn outcome(pen: bool, ric: bool, shattered: bool) -> MarkerOutcome {
+        MarkerOutcome { pen, ric, shattered }
     }
 
     /// Inny Poziom A6: a landed shot that dealt nothing prints WHAT HAPPENED, never "0".
@@ -203,23 +186,23 @@ mod tests {
     fn a_zero_damage_hit_prints_its_outcome_in_a_word() {
         use crate::ui_strings::battle as words;
         assert_eq!(
-            hit_label(0, outcome(false, true, false, false), None),
+            hit_label(0, outcome(false, true, false), None),
             HitLabel::Word(words::HIT_RICOCHET)
         );
         assert_eq!(
-            hit_label(0, outcome(false, false, false, true), None),
+            hit_label(0, outcome(false, false, true), None),
             HitLabel::Word(words::HIT_SHATTER)
         );
         assert_eq!(
-            hit_label(0, outcome(false, false, false, false), Some(ModuleSlot::Suspension)),
+            hit_label(0, outcome(false, false, false), Some(ModuleSlot::Suspension)),
             HitLabel::Word(words::HIT_TRACKED)
         );
         assert_eq!(
-            hit_label(0, outcome(false, false, true, false), None),
+            hit_label(0, outcome(false, false, false), None),
             HitLabel::Word(words::HIT_NO_PEN)
         );
         assert_eq!(
-            hit_label(0, outcome(false, false, false, false), None),
+            hit_label(0, outcome(false, false, false), None),
             HitLabel::Word(words::HIT_NO_PEN)
         );
     }
@@ -230,14 +213,12 @@ mod tests {
     fn a_zero_never_becomes_a_number_and_damage_never_becomes_a_word() {
         for pen in [false, true] {
             for ric in [false, true] {
-                for near in [false, true] {
-                    for shattered in [false, true] {
-                        for module in [None, Some(ModuleSlot::Suspension), Some(ModuleSlot::Gun)] {
-                            let o = outcome(pen, ric, near, shattered);
-                            assert!(matches!(hit_label(0, o, module), HitLabel::Word(_)));
-                            assert_eq!(hit_label(320, o, module), HitLabel::Damage(320));
-                            assert_eq!(hit_label(25_000, o, module), HitLabel::Damage(9_999));
-                        }
+                for shattered in [false, true] {
+                    for module in [None, Some(ModuleSlot::Suspension), Some(ModuleSlot::Gun)] {
+                        let o = outcome(pen, ric, shattered);
+                        assert!(matches!(hit_label(0, o, module), HitLabel::Word(_)));
+                        assert_eq!(hit_label(320, o, module), HitLabel::Damage(320));
+                        assert_eq!(hit_label(25_000, o, module), HitLabel::Damage(9_999));
                     }
                 }
             }
@@ -254,7 +235,6 @@ mod tests {
             damage_hp: 0,
             penetrated: false,
             ricocheted: true,
-            near_pen: false,
             shattered: false,
             module: None,
             age: 0.0,

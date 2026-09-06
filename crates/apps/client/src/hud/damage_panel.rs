@@ -176,9 +176,6 @@ impl DamagePanelModel {
     }
 }
 
-/// The damage log's colour for a crewman hit (the retired crew row's red, tagged as before).
-pub(crate) const CREW_DOWN: [f32; 4] = super::theme::tagged([0.90, 0.26, 0.22, 1.0], 0.95);
-
 pub(crate) fn role_letter(role: CrewRole) -> &'static str {
     match role {
         CrewRole::Commander => "C",

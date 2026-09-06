@@ -98,6 +98,34 @@ pub(crate) mod battle {
     pub const AMMO_SWITCHING: &str = "SWITCHING";
     /// Millimetres, after a penetration figure (H6).
     pub const MILLIMETRES: &str = "MM";
+    /// The hit log's words for the causes without a shell (H8).
+    pub const HIT_RAM: &str = "RAM";
+    pub const HIT_SPLASH: &str = "SPLASH";
+    pub const HIT_IMPACT: &str = "IMPACT";
+    pub const HIT_DROWNED: &str = "DROWNED";
+    /// The hit log's armour zones (H8), `game_core::ArmorZone` order.
+    pub const ZONE_UPPER_GLACIS: &str = "UPPER GLACIS";
+    pub const ZONE_LOWER_PLATE: &str = "LOWER PLATE";
+    pub const ZONE_HULL_SIDE: &str = "HULL SIDE";
+    pub const ZONE_HULL_REAR: &str = "HULL REAR";
+    pub const ZONE_TURRET_FRONT: &str = "TURRET FRONT";
+    pub const ZONE_MANTLET: &str = "MANTLET";
+    pub const ZONE_TURRET_SIDE: &str = "TURRET SIDE";
+    pub const ZONE_TURRET_REAR: &str = "TURRET REAR";
+    pub const ZONE_ROOF: &str = "ROOF";
+    pub const ZONE_LEFT_TRACK: &str = "LEFT TRACK";
+    pub const ZONE_RIGHT_TRACK: &str = "RIGHT TRACK";
+    pub const ZONE_SKIRT: &str = "SKIRT";
+    pub const ZONE_HULL_DECK: &str = "HULL DECK";
+    pub const ZONE_CUPOLA: &str = "CUPOLA";
+    pub const ZONE_GLACIS_PORT: &str = "GLACIS PORT";
+    /// The hit log's module names (H8), `game_core::ModuleSlot` order.
+    pub const MODULE_ENGINE: &str = "ENGINE";
+    pub const MODULE_SUSPENSION: &str = "SUSPENSION";
+    pub const MODULE_TURRET: &str = "TURRET RING";
+    pub const MODULE_GUN: &str = "GUN";
+    pub const MODULE_AMMO_RACK: &str = "AMMO RACK";
+    pub const MODULE_RADIO: &str = "RADIO";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -128,6 +156,31 @@ pub(crate) mod battle {
         RADIO_OUT,
         AMMO_SWITCHING,
         MILLIMETRES,
+        HIT_RAM,
+        HIT_SPLASH,
+        HIT_IMPACT,
+        HIT_DROWNED,
+        ZONE_UPPER_GLACIS,
+        ZONE_LOWER_PLATE,
+        ZONE_HULL_SIDE,
+        ZONE_HULL_REAR,
+        ZONE_TURRET_FRONT,
+        ZONE_MANTLET,
+        ZONE_TURRET_SIDE,
+        ZONE_TURRET_REAR,
+        ZONE_ROOF,
+        ZONE_LEFT_TRACK,
+        ZONE_RIGHT_TRACK,
+        ZONE_SKIRT,
+        ZONE_HULL_DECK,
+        ZONE_CUPOLA,
+        ZONE_GLACIS_PORT,
+        MODULE_ENGINE,
+        MODULE_SUSPENSION,
+        MODULE_TURRET,
+        MODULE_GUN,
+        MODULE_AMMO_RACK,
+        MODULE_RADIO,
     ];
 }
 

@@ -434,6 +434,8 @@ pub(crate) struct InputState {
     left: bool,
     right: bool,
     brake: bool,
+    /// N (interface program H8): the hit log shows its newest row only.
+    hit_log_collapsed: bool,
     /// Cruise control (interface program H5, World of Tanks' R/F): a latched throttle level,
     /// `-2..=3` — three forward steps, two in reverse, zero off. A held W/S overrides it for
     /// the hold; the brake clears it.

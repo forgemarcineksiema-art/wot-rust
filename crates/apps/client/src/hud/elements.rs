@@ -21,8 +21,6 @@ pub enum HudElement {
     ReloadNumber,
     /// Health, reload bars, zoom, FPS, speed.
     Readouts,
-    /// The dealt/taken damage log.
-    DamageLog,
     /// Incoming-hit direction arcs.
     HitDirection,
     Minimap,
@@ -64,6 +62,17 @@ pub enum HudElement {
     Speed(SpeedPart),
     /// One part of the ammunition panel (H6).
     Ammo(AmmoPart),
+    /// One part of one hit-log row (H8), newest first.
+    HitLog(HitLogPart),
+}
+
+/// The parts of a hit-log row, by row index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HitLogPart {
+    Row(u8),
+    /// The outcome family's square.
+    Verdict(u8),
+    Text(u8),
 }
 
 /// The parts of the speed instrument.
@@ -141,7 +150,6 @@ impl HudElement {
         HudElement::DeniedFlash,
         HudElement::ReloadNumber,
         HudElement::Readouts,
-        HudElement::DamageLog,
         HudElement::HitDirection,
         HudElement::Minimap,
         HudElement::Outcome,
@@ -166,6 +174,7 @@ impl HudElement {
         HudElement::DamagePanel(DamagePart::Plate),
         HudElement::Speed(SpeedPart::Plate),
         HudElement::Ammo(AmmoPart::SwitchingBand),
+        HudElement::HitLog(HitLogPart::Row(0)),
     ];
 }
 
