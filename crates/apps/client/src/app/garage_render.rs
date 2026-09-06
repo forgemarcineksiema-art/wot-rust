@@ -88,10 +88,12 @@ impl ClientApp {
         }
         // At the static settle its mass earns (J1): the hero SITS on its springs in the
         // hangar instead of standing on the authoring pose.
+        // Its nation's paint — the same coat the battle gives it (K24). The hero used to wear
+        // a pale showroom tint that no vehicle wears anywhere else.
         let mut objects = tank_vehicle_render_objects_at_rest(
             &mut self.vehicle_asset_catalog,
             &snapshot,
-            [0.72, 0.76, 0.62],
+            snapshot.vehicle.paint(),
             &variation,
             pose.track_left_m,
             pose.track_right_m,

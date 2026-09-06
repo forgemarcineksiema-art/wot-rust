@@ -872,11 +872,19 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
     // F3, the heavy fleet at its own spec-derived boom. Recorded at first bless:
     // tiger2 p50 0.253 / dark 49.6% / form 0.0110; jagdtiger p50 0.283 / dark 43.5% /
     // form 0.0127 — floors and ceilings carry the same ~6-10% slack the hero's do.
+    //
+    // Re-derived 2026-09-07 (K24-1), openly: those numbers were recorded off the pale
+    // SHOWROOM tint (luma 0.74) that no vehicle wore in battle; the heroes now wear their
+    // nation's coat — dunkelgelb, luma 0.55 — so the subject's median falls with the PAINT,
+    // not the light — and the hall itself darkened in the same PR (D33 decided: concrete
+    // 0.30 → 0.18, whitewash 0.38 → 0.25) so the hero keeps leading its room in a real coat.
+    // Measured in the coat, in the darker hall: tiger2 p50 0.183 / dark 63.5% / form 0.0090;
+    // jagdtiger p50 0.198 / dark 60.6% / form 0.0103. Same ~8% slack on every bound.
     SubjectBounds {
         view: "garage_hero_tiger2",
-        median_floor: 0.230,
-        dark_ceiling: 0.55,
-        form_floor: 0.0100,
+        median_floor: 0.168,
+        dark_ceiling: 0.69,
+        form_floor: 0.0083,
     },
     // form_floor re-derived 0.0115 -> 0.0105 at the 2026-08-10 relight (Światło służy
     // czołgowi), openly: the original floor was recorded on a frame where the roof-lattice
@@ -885,9 +893,9 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
     // floor carries the same ~9% slack the tiger2 entry does.
     SubjectBounds {
         view: "garage_hero_jagdtiger",
-        median_floor: 0.255,
-        dark_ceiling: 0.49,
-        form_floor: 0.0105,
+        median_floor: 0.182,
+        dark_ceiling: 0.66,
+        form_floor: 0.0095,
     },
     // F3's close orbit: the running gear fills the crop, and earth-toned tracks sit almost
     // entirely under the 0.25 luma bar — dark here measures the PAINT (see the note above on

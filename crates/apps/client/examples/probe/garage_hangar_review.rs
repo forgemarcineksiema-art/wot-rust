@@ -102,7 +102,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let objects = client::tank_vehicle_render_objects_at_rest(
         &mut catalog,
         &snapshot,
-        [0.72, 0.76, 0.62],
+        snapshot.vehicle.paint(),
         &client::VehicleVariation::from_snapshot(&snapshot),
         0.0,
         0.0,

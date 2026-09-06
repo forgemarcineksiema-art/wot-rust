@@ -205,8 +205,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             // constant `garage_preview_snapshot` parks the live hero at.
             yaw_rad: crate::hangar::HERO_PARK_YAW,
             turret_yaw_rad: 0.0,
-            // The garage's own showroom tint, not the battle green.
-            hull_color: [0.72, 0.76, 0.62],
+            // Its nation's paint, the same coat as in battle (K24).
+            hull_color: VehicleKind::T54_1951.paint(),
         },
         // The hull and turret mass, on the ROOM view only — the overlay views are half
         // instrument panel and answer to their own locks.
@@ -236,7 +236,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
             yaw_rad: crate::hangar::HERO_PARK_YAW,
             turret_yaw_rad: 0.0,
-            hull_color: [0.72, 0.76, 0.62],
+            hull_color: VehicleKind::T54_1951.paint(),
         },
         // The close pass IS the subject: the crop trims only the frame's edges (the wall
         // sliver top-right, the floor at the bottom corners) and the subject bounds do the
@@ -261,7 +261,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
                 position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
                 yaw_rad: crate::hangar::HERO_PARK_YAW,
                 turret_yaw_rad: 0.0,
-                hull_color: [0.72, 0.76, 0.62],
+                hull_color: VehicleKind::T54_1951.paint(),
             },
             subject_box: Some(heavy_subject_box(kind)),
             close_up: false,
@@ -284,7 +284,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
             yaw_rad: crate::hangar::HERO_PARK_YAW,
             turret_yaw_rad: 0.0,
-            hull_color: [0.72, 0.76, 0.62],
+            hull_color: VehicleKind::T54_1951.paint(),
         },
         // The subject is deliberately UNDER an overlay here; the hero view already measures
         // the bare vehicle, and a crop of translucent color would measure the overlay.
@@ -491,7 +491,7 @@ fn prokhorovka_identity_views(
                 position: [tank_x, tank_ground, tank_z],
                 yaw_rad: 0.45,
                 turret_yaw_rad: 0.0,
-                hull_color: [0.30, 0.40, 0.28],
+                hull_color: VehicleKind::T54_1951.paint(),
             }),
             // Frames the hull flank and running gear ONLY. Authored against the rendered frame
             // and deliberately kept off the ground: the void UNDER a tank is black correctly, and
@@ -518,7 +518,7 @@ fn prokhorovka_identity_views(
                 turret_yaw_rad: 0.0,
                 // The player's own green (`vehicle::render_frame`) — the hull a player stares at
                 // for a whole battle.
-                hull_color: [0.30, 0.40, 0.28],
+                hull_color: VehicleKind::T54_1951.paint(),
             }),
             // THE COUNTERWEIGHT. The backlit frame measures the side the sun never reaches, so
             // every lever that helps it is a lever that could wash out the side the sun DOES
@@ -581,8 +581,9 @@ pub fn sniper_review_eye_xz(tank_x: f32, tank_z: f32) -> [f32; 2] {
         tank_z + SNIPER_REVIEW_RANGE_M * SNIPER_REVIEW_BEARING_RAD.cos(),
     ]
 }
-/// The enemy's paint as the battle tints it — the client locks this against its own constant.
-pub const SNIPER_REVIEW_ENEMY_PAINT: [f32; 3] = [0.46, 0.29, 0.25];
+/// The target's paint as the battle gives it — a T-54's nation coat (K24); the client locks
+/// this against `VehicleKind::T54_1951.paint()`.
+pub const SNIPER_REVIEW_ENEMY_PAINT: [f32; 3] = game_core::Nation::Ussr.paint();
 /// The sniper eye above the hull origin: the gun trunnion line plus the sight's stand-off (the
 /// client's `SNIPER_SIGHT_ABOVE_TRUNNION_M`, locked equal from that side).
 pub const SNIPER_REVIEW_SIGHT_ABOVE_TRUNNION_M: f32 = 0.12;
