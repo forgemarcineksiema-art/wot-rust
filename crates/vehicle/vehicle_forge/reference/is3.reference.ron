@@ -55,6 +55,95 @@ ReferencePack(
             note: "The 122 mm D-25T overhangs almost half the hull again.",
         ),
     ],
-    dimensions: [],
+    dimensions: [
+        DimensionTarget(
+            kind: HullLength,
+            target_m: 6.9,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "6900 mm (ru.wikipedia; victorymuseum); the 6.77 the blueprint carried is the IS-2's 6770 mm.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: OverallLengthWithGun,
+            target_m: 9.85,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "9850 mm gun forward (ru.wikipedia; wikireading); en.wikipedia's 9.725 is the IS-2's neighbourhood.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HullWidth,
+            target_m: 3.15,
+            tolerance_m: 0.05,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "3150 mm over the tracks (consistent with the blueprint's belts); the 3.39 gabarit is over the fenders.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: HeightToTurretRoof,
+            target_m: 2.45,
+            tolerance_m: 0.07,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "2440-2450 mm to the dome's roof (en/ru.wikipedia; wikireading) — no cupola, so the roof is the apex; the instrument reads the armour skin's apex, and the commander's MK-4 periscope hood (cast) stands 6 cm over the 2.44 roof — the band holds the roof AND the hood, not a cupola.",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: GroundClearance,
+            target_m: 0.46,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "460 mm (en.wikipedia; ru 450; wikireading 435).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TrackWidth,
+            target_m: 0.65,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "650 mm OMSh shoes (ru.wikipedia; wikireading; victorymuseum; modelist-konstruktor).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: RoadWheelDiameter,
+            target_m: 0.55,
+            tolerance_m: 0.01,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "550 mm, six a side, unrubberized (four sources).",
+            ),
+            status: Locked,
+        ),
+        DimensionTarget(
+            kind: TurretRingDiameter,
+            target_m: 1.8,
+            tolerance_m: 0.02,
+            source: ReferenceSource(
+                label: "IS-3 dossier (Reference anatomy, researched)",
+                url: "docs/vehicles/is-3.md",
+                note: "1800 mm, the IS family's widened ring (parkpatriot.ru).",
+            ),
+            status: Locked,
+        ),
+    ],
     outlines: [],
 )

@@ -7,7 +7,7 @@ is GEOMETRY first — the bow and the turret both defeat shells by shape, not by
 
 ## Reference anatomy (blueprint-verified)
 
-- Hull 6.77 m long, 3.15 m over the 650 mm tracks, 2.44 m to the turret roof; 9.85 m overall
+- Hull 6.90 m long (the 6.77 this line carried until 2026-09-06 was the IS-2's), 3.15 m over the 650 mm tracks, 2.44 m to the turret roof; 9.85 m overall
   with the gun forward (muzzle at z = 6.46).
 - **Pike nose ("shchuchy nos")**: two 110 mm upper bow plates at 56° from vertical, swept ±38°
   in plan, meeting at a central ridge. Head-on, each face presents a compound angle (~64° true);
@@ -108,3 +108,58 @@ cage the German fleet carries:
 
   **Owed:** a 1:1 running-gear session with drawings, the way the T-54 got one — not another web
   table. Until then no gameplay trait may be derived from this vehicle's contact length.
+
+## Reference anatomy, researched (2026-09-06)
+
+The 1945 production IS-3 (Object 703, ChKZ), NOT the IS-3M modernization (TPK-1 sight, two 200 L
+drums, the B-54K-IS engine). Every row carries its sources; the pack (`is3.reference.ron`) now locks
+the dimension anchors — the "no `DimensionTarget`s" debt above is closed.
+
+| Dimension | Value | Source | Confidence | Encoded as |
+| --- | ---: | --- | --- | --- |
+| Hull length | 6.90 m | [ru.wikipedia ИС-3](https://ru.wikipedia.org/wiki/ИС-3) (6900 mm); [victorymuseum.ru](https://victorymuseum.ru/encyclopedia/technic/bronetankovaya-tekhnika/tyazhelyy-tank-is-3-obraztsa-1945-goda-sssr/) — one Soviet-table lineage. **The 6.77 m this dossier carried is the IS-2's 6770 mm** ([army.lv IS-2](http://army.lv/ru/is-2/harakteristiki/631/546)): sibling contamination | medium-high | `HullLength` 6.90 ±0.05 (Locked); `half_len 3.45` (was 3.385) |
+| Overall length, gun forward | 9.85 m | ru.wikipedia (9850); [military.wikireading.ru](https://military.wikireading.ru/8302) | high (en.wikipedia's 9.725 rejected: the IS-2's neighbourhood) | `OverallLengthWithGun` 9.85 ±0.05 (Locked); `muzzle_z 6.40` |
+| Width over the tracks | 3.15 m | consistent with `outer_x 1.575`; ru.wikipedia's single width field is the 3.39 m gabarit over the fenders (en.wikipedia's 3.07 is the IS-2's) | medium | `HullWidth` 3.15 ±0.05 (Locked) |
+| Height to the turret roof | 2.44–2.45 m — the dome's own roof: the IS-3 carries NO cupola, only flush MK-4 periscopes, so roof and silhouette apex coincide | [en.wikipedia IS-3](https://en.wikipedia.org/wiki/IS-3) (2.44); ru.wikipedia (2450); wikireading (2440) | high | `HeightToTurretRoof` 2.45 ±0.07 (Locked; the instrument reads the armour skin's apex, and the commander's cast MK-4 hood stands 6 cm over the roof — the band holds the roof and the hood); `roof_y 2.44` (was 2.39 — the open item above is decided); `hitbox_half_height 1.30`, `hitbox_half_length 3.50` grow with the hull and the hood |
+| Ground clearance | 0.46 m | en.wikipedia (460; ru 450; wikireading 435) | medium | `GroundClearance` 0.46 ±0.02 (Locked) |
+| Track width | 650 mm | ru.wikipedia; wikireading; victorymuseum; [modelist-konstruktor](https://modelist-konstruktor.com/bronekollekcziya/is-3-poslednij-tank-proryva) | high | `TrackWidth` 0.65 ±0.01 (Locked) |
+| Road wheels | 6 × ⌀550 mm a side, unrubberized | the same four sources | high | `RoadWheelDiameter` 0.55 ±0.01 (Locked) |
+| Return rollers | 3 × ⌀385 mm a side, rubberized | the same four sources | high | `roller_radius 0.1925` (was 0.11 — the open item above) |
+| Turret ring | 1.80 m (the IS family's, Kotin's widened ring) | [parkpatriot.ru](https://parkpatriot.ru/o-parke/tekhnika-parka/tank-is-3/) | high | `TurretRingDiameter` 1.80 ±0.02 (Locked) |
+| Pike plates | 110 mm at 56° from vertical (55° in the Zaloga line); the plan "подворот" 43° (one lineage) against the blueprint's ±38° — a convention question (half-angle from the centreline or the angle turned between the plates?), unresolved | ru.wikipedia; en.wikipedia | medium | `glacis_slope_deg 56` ✓; `pike_sweep_deg 38` unchanged until the drawing settles it |
+| Lower bow plate 63°; driver's roof plate 73°; rear TWO facets — lower 41°, upper 48° (the blueprint's one 18° facet is a simplification); tub sides 90 mm | ru.wikipedia | medium | not modelled as their own facets yet |
+| Turret casting | 220 → 110 mm sides/rear, 255 at the face, slopes −8…35°; plan not found in metres (the blueprint's 2.60 × 2.30 stays unverified) | ru.wikipedia | medium | — |
+| Tracks | 86 OMSh shoes a side (79 minimum), pitch 160–162 mm | modelist-konstruktor; wikireading | high | `link_count 86` ✓ |
+
+## Part list (the inventory gate reads this table)
+
+| Class | Fact | Source |
+| --- | --- | --- |
+| HullTub | The welded tub, sides 90 mm behind the tracks | ru.wikipedia |
+| UpperHull | Two 110 mm pike plates at 56° swept 43° meeting at the ridge; the lower plate 63°; the driver's roof plate 73° | ru.wikipedia |
+| SternPlate | 60 mm, lower 41°, upper 48° | ru.wikipedia |
+| EngineDeck | The stepped-down rear deck over the V-11 | [tankarchives.com](https://www.tankarchives.com/2016/06/is-3-tank-with-piked-nose.html) |
+| DeckGrille | The radiator grilles on the stepped deck | tankarchives.com |
+| Fenders | Full-length fender shelves both sides | Commons gallery |
+| FenderStowage | Four external 90 L drums on the rear shelves (the IS-3M's two 200 L are not this vehicle) | tankarchives.com |
+| TurretShell | The flattened cast dome, teardrop in plan, 220 → 110 mm, 255 at the face | ru.wikipedia |
+| TurretRing | 1.80 m | parkpatriot.ru |
+| Hatches | Two flush roof hatches; the driver's SLIDING hatch in the roof behind the pike apex | ru.wikipedia (the driver's hatch); Commons |
+| Periscopes | Three MK-4 periscopes on the roof (the TPK-1 is the IS-3M's); the driver's periscope | ru.wikipedia |
+| Mantlet | The cast mantlet at the 255 mm face | ru.wikipedia |
+| GunBarrel | 122 mm D-25T, 9.85 m overall | ru.wikipedia |
+| MuzzleFurniture | The D-25T's double-baffle brake, no evacuator | ru.wikipedia |
+| CoaxMachineGun | 7.62 mm DTM coaxial | ru.wikipedia; en.wikipedia |
+| AaMachineGun | 12.7 mm DShK on a ring mount on the roof, −4°…+84° | ru.wikipedia; en.wikipedia |
+| Aerial | A 1–4 m rod aerial; the 10-RK-26 in the turret left of the gun | ru.wikipedia |
+| Exhaust | The rear exhaust ports off the engine deck | tankarchives.com |
+| Headlights | A single headlight on the pike nose | Commons gallery |
+| SuspensionHardware | Individual torsion bars | ru.wikipedia |
+
+What the IS-3 does NOT carry (documented absences): a cupola (flush periscopes instead), a bow
+machine gun (deleted by design), smoke canisters, side skirts.
+
+The open item above ("2.44 vs 2.39") is decided: 2.44 is the dome's roof (no cupola), and the
+blueprint follows it. No public-domain drawing exists (the Commons armour profiles are CC-BY-SA;
+the 1955/62 Soviet manual is not PD); PD photographs for camera-matching: the Kubinka pair by
+Alf van Beem ([pic1](https://commons.wikimedia.org/wiki/File:IS-3_in_the_Kubinka_Tank_Museum_pic1.JPG)).

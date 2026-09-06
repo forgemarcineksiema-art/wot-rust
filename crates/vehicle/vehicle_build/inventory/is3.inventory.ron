@@ -1,19 +1,31 @@
-// IS-3 — the part classes the dossier lists (docs/vehicles/is-3.md), one row per class with the
-// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
-// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+// IS-3 (1945 production, Object 703) — the part classes the dossier lists (docs/vehicles/is-3.md,
+// § Part list, researched 2026-09-06), one row per class with the fact that names it. TARGET: the
+// vehicle is a recipe sketch today; every row is debt until the part library builds it (Forge 2.0
+// K3). Nothing the dossier does not name is listed.
 (
     vehicle: "is3",
     dossier: Complete,
     locked: false,
     expected: [
-        (class: HullTub, source: "Shape locks: `is3_hull.rs` — the pike step line runs through the tub corner; tub sides behind the tracks 90 mm"),
-        (class: UpperHull, source: "Reference anatomy: the pike nose — two 110 mm upper bow plates at 56°, swept ±38° in plan, meeting at a ridge"),
-        (class: TurretShell, source: "Reference anatomy: the flattened cast dome, 250 mm at the face with 55° of continuous curvature, overhanging its ring"),
-        (class: TurretRing, source: "Reference anatomy: the 1.8 m ring the dome overhangs"),
-        (class: GunBarrel, source: "Reference anatomy: 9.85 m overall with the D-25T forward (muzzle at z = 6.46)"),
-        (class: MuzzleFurniture, source: "Shape locks: the D-25T wears its brake and no evacuator"),
-        (class: EngineDeck, source: "Reference anatomy: the stepped-down engine deck behind the 1.62 m hull roof"),
-        (class: Fenders, source: "Reference anatomy: the rear fender shelves"),
-        (class: FenderStowage, source: "Reference anatomy: two external cylindrical fuel drums lying along the rear fender shelves (visual stowage)"),
+        (class: HullTub, source: "Part list: the welded tub, sides 90 mm behind the tracks"),
+        (class: UpperHull, source: "Part list: two 110 mm pike plates at 56° swept 43° meeting at the ridge; the lower plate 63°; the driver's roof plate 73°"),
+        (class: SternPlate, source: "Part list: 60 mm, lower 41°, upper 48°"),
+        (class: EngineDeck, source: "Part list: the stepped-down rear deck over the V-11"),
+        (class: DeckGrille, source: "Part list: the radiator grilles on the stepped deck"),
+        (class: Fenders, source: "Part list: full-length fender shelves both sides"),
+        (class: FenderStowage, source: "Part list: four external 90 L drums on the rear shelves"),
+        (class: TurretShell, source: "Part list: the flattened cast dome, teardrop in plan, 220 -> 110 mm, 255 at the face"),
+        (class: TurretRing, source: "Part list: 1.80 m"),
+        (class: Hatches, source: "Part list: two flush roof hatches; the driver's sliding hatch in the roof behind the pike apex"),
+        (class: Periscopes, source: "Part list: three MK-4 periscopes on the roof; the driver's periscope"),
+        (class: Mantlet, source: "Part list: the cast mantlet at the 255 mm face"),
+        (class: GunBarrel, source: "Part list: 122 mm D-25T, 9.85 m overall"),
+        (class: MuzzleFurniture, source: "Part list: the D-25T's double-baffle brake, no evacuator"),
+        (class: CoaxMachineGun, source: "Part list: 7.62 mm DTM coaxial"),
+        (class: AaMachineGun, source: "Part list: 12.7 mm DShK on a ring mount on the roof, -4..+84 deg"),
+        (class: Aerial, source: "Part list: a 1-4 m rod aerial; the 10-RK-26 in the turret left of the gun"),
+        (class: Exhaust, source: "Part list: the rear exhaust ports off the engine deck"),
+        (class: Headlights, source: "Part list: a single headlight on the pike nose"),
+        (class: SuspensionHardware, source: "Part list: individual torsion bars"),
     ],
 )
