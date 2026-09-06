@@ -26,6 +26,9 @@ pub(crate) struct GearMeshSet {
     /// The lever shock absorbers at the blueprint's damped stations (and the left mirror).
     pub damper: MeshHandle,
     pub damper_left: MeshHandle,
+    /// The idler's tension crank (and the left mirror): placed unrotated at the idler axle.
+    pub idler_crank: MeshHandle,
+    pub idler_crank_left: MeshHandle,
 }
 
 /// Both detail tiers of one vehicle's running gear, registered once at load.
@@ -97,6 +100,8 @@ pub(crate) fn gear_objects_from(
                 GearPart::SwingArmLeft => set.swing_arm_left,
                 GearPart::Damper => set.damper,
                 GearPart::DamperLeft => set.damper_left,
+                GearPart::IdlerCrank => set.idler_crank,
+                GearPart::IdlerCrankLeft => set.idler_crank_left,
                 GearPart::ReturnRoller => set.return_roller,
             };
             RenderObject {

@@ -47,15 +47,20 @@ pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .append(&steel_rim(0.0, r * 0.62, r * 0.88, half_w, seg))
         .append(&tread_band(0.0, r, half_w * 0.9, seg))
         .append(&wheel_disc_at(0.0, r * 0.28, half_w * 1.12, seg, MaterialRole::TrackMetal))
-        // The tension crank: the eccentric arm the axle rides, standing inboard of the wheel.
-        // It is a close-range read — inboard of the wheel, in the hull's shadow — so it goes
-        // with the rest of the surface detail at the distance tier.
-        .append(&if kin.detail == crate::GearDetail::Near {
-            tension_crank(kin, r)
-        } else {
-            GeometryMesh::default()
-        })
         .build()
+}
+
+/// The idler's eccentric tension crank — its own part ([`crate::GearPart::IdlerCrank`]), placed
+/// at the idler axle UNROTATED: a crank spans the hull bearing and the axle, and until K12
+/// (2026-09-06) it lived inside the idler's mesh and turned with the wheel.
+pub fn idler_crank_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    tension_crank(kin, kin.idler_radius())
+}
+
+/// The left-hand crank: mirrored geometry, winding re-reversed, because the arm reaches
+/// inboard and pivots toward the hull on both sides.
+pub fn idler_crank_unit_mesh_left(kin: &RunningGearKinematics) -> GeometryMesh {
+    crate::running_gear_arms::mirror_x(&idler_crank_unit_mesh(kin))
 }
 
 /// The idler's cast spokes: closed bars from the hub boss out to the web ring, with open air
@@ -120,21 +125,33 @@ fn steel_rim(
 /// The idler's eccentric tension crank: the arm between the hull bearing and the wheel axle.
 /// Turning it walks the axle along an arc and takes up the slack — the mechanism that makes a
 /// thrown track a repair rather than a write-off.
+///
+/// The bearing sits TOWARD THE HULL from the axle — aft of a front idler, ahead of a rear one —
+/// 35° off straight down, so the arm reads as a crank and not as a stub; until K12 it pointed
+/// straight down and carried its worm housing on the axle instead of at the bearing.
 fn tension_crank(kin: &RunningGearKinematics, r: f32) -> GeometryMesh {
     let arm_x = -kin.wheel_half_width * 1.35;
     let reach = r * 0.55;
-    MeshBuilder::new()
-        // The arm, reaching back and down from the axle to its bearing.
+    // The extrude section is (z, y): toward the hull's middle is -z for a front idler (rear
+    // drive) and +z for a rear one (front drive).
+    let toward_hull = if kin.drive_front { 1.0 } else { -1.0 };
+    let (sin, cos) = 35.0_f32.to_radians().sin_cos();
+    let dir = Vec2::new(toward_hull * sin, -cos);
+    let perp = Vec2::new(-dir.y, dir.x);
+    let root = dir * 0.055;
+    let end = dir * reach;
+    let mut builder = MeshBuilder::new()
+        // The arm, from the axle boss to the bearing.
         .append(
             &MeshBuilder::new()
                 .extrude(
                     Vec3::new(arm_x, 0.0, 0.0),
                     ExtrudeSpec {
                         section: vec![
-                            Vec2::new(-0.045, -0.055),
-                            Vec2::new(0.045, -0.055),
-                            Vec2::new(0.030, -reach),
-                            Vec2::new(-0.030, -reach),
+                            root - perp * 0.045,
+                            root + perp * 0.045,
+                            end + perp * 0.030,
+                            end - perp * 0.030,
                         ],
                         axis: Axis::X,
                         half_depth: 0.030,
@@ -143,10 +160,31 @@ fn tension_crank(kin: &RunningGearKinematics, r: f32) -> GeometryMesh {
                     },
                 )
                 .build(),
-        )
-        // The worm housing at the bearing end.
-        .append(&wheel_disc_at(arm_x, 0.070, 0.040, 10, MaterialRole::TrackMetal))
-        .build()
+        );
+    // The axle boss and the worm housing at the bearing end: close-range reads, inboard of the
+    // wheel in the hull's shadow, so they go with the rest of the surface detail at range.
+    if kin.detail == crate::GearDetail::Near {
+        builder = builder
+            .append(&wheel_disc_at(arm_x, 0.055, 0.032, 10, MaterialRole::TrackMetal))
+            .append(
+                &MeshBuilder::new()
+                    .capped_revolve_at(
+                        Vec3::new(arm_x, end.y, end.x),
+                        RevolveSpec {
+                            profile: vec![
+                                ProfilePoint::new(0.070, -0.040),
+                                ProfilePoint::new(0.070, 0.040),
+                            ],
+                            axis: Axis::X,
+                            segments: 10,
+                            material: MaterialRole::TrackMetal,
+                            smoothing: SG_WHEEL,
+                        },
+                    )
+                    .build(),
+            );
+    }
+    builder.build()
 }
 
 /// A rubber tire tread ring at `radius`, spanning `center_x ± half_width` along the axle, with

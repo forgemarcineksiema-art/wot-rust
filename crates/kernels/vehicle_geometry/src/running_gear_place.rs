@@ -227,6 +227,15 @@ fn place_side(
                 * facing(side_sign, spin),
         });
     }
+    // The idler's tension crank spans the hull bearing and the axle, so it does NOT spin with
+    // the wheel (until K12 it rode inside the idler's mesh and turned with it). It pivots
+    // toward the hull, which a half-turn about Y would send the other way — so, like the arm,
+    // the left side instances the mirrored mesh, and neither side is rotated.
+    let crank_part = if side_sign < 0.0 { GearPart::IdlerCrankLeft } else { GearPart::IdlerCrank };
+    out.push(GearPlacement {
+        part: crank_part,
+        transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.end_cy, idler_z)),
+    });
 
     // A thrown track is OFF the wheels: the whole loop lies on the field (the shed ribbon),
     // so the broken side draws no belt at all — bare road wheels, the way every photograph

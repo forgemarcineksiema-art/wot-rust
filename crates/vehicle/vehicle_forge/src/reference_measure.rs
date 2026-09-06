@@ -479,6 +479,8 @@ fn running_gear_bounds(kin: &RunningGearKinematics) -> Option<MeshBounds> {
     let swing_arm_left = vehicle_geometry::swing_arm_unit_mesh_left(kin);
     let damper = vehicle_geometry::damper_unit_mesh(kin);
     let damper_left = vehicle_geometry::damper_unit_mesh_left(kin);
+    let idler_crank = vehicle_geometry::idler_crank_unit_mesh(kin);
+    let idler_crank_left = vehicle_geometry::idler_crank_unit_mesh_left(kin);
     let return_roller = vehicle_geometry::return_roller_unit_mesh(kin);
     let mut bounds: Option<MeshBounds> = None;
     for placement in running_gear_placements(kin, 0.0, 0.0) {
@@ -491,6 +493,8 @@ fn running_gear_bounds(kin: &RunningGearKinematics) -> Option<MeshBounds> {
             GearPart::SwingArmLeft => &swing_arm_left,
             GearPart::Damper => &damper,
             GearPart::DamperLeft => &damper_left,
+            GearPart::IdlerCrank => &idler_crank,
+            GearPart::IdlerCrankLeft => &idler_crank_left,
             GearPart::ReturnRoller => &return_roller,
         };
         include_transformed_mesh(&mut bounds, mesh, placement.transform);

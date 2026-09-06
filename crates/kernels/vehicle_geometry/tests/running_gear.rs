@@ -820,31 +820,79 @@ fn the_t54_sprocket_meshes_the_belt_it_is_given() {
 
 /// The idler is the TENSIONER. Its eccentric crank is the part that makes a thrown track a
 /// repair, and it is also how you tell the idler end of the tank from the drive end at a glance.
+/// K12: the crank is its OWN part — it spans the hull bearing and the axle, so it does not turn
+/// with the wheel (it used to) — placed unrotated at the idler axle on both sides, its bearing
+/// end toward the hull: aft of the T-54's front idler, ahead of the Tiger I's rear one.
 #[test]
-fn the_idler_carries_its_tension_crank() {
+fn the_idler_s_tension_crank_pivots_toward_the_hull_and_does_not_turn() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
-    let mesh = idler_unit_mesh(&kin);
-    let inboard_of_the_wheel =
-        mesh.vertices().iter().filter(|v| v.position.x < -kin.wheel_half_width * 1.2).count();
+    let wheel = idler_unit_mesh(&kin);
     assert!(
-        inboard_of_the_wheel > 0,
-        "the tension crank must stand inboard of the idler disc, where the hull bearing is"
+        wheel.vertices().iter().all(|v| v.position.x >= -kin.wheel_half_width * 1.2),
+        "the spinning idler carries nothing inboard of its hub any more — the crank is its own part"
     );
-    let below_the_axle = mesh
-        .vertices()
-        .iter()
-        .filter(|v| v.position.x < -kin.wheel_half_width * 1.2)
-        .map(|v| v.position.z.hypot(v.position.y))
-        .fold(0.0_f32, f32::max);
-    assert!(
-        below_the_axle > kin.end_radius * 0.35,
-        "the crank arm must reach out to its bearing, not sit on the axle: {below_the_axle:.3}"
-    );
-
     // And its tyres are STEEL, not rubber (dossier: 510 mm cast wheel, steel tyres).
     assert!(
-        mesh.vertices().iter().all(|v| v.material == MaterialRole::TrackMetal),
+        wheel.vertices().iter().all(|v| v.material == MaterialRole::TrackMetal),
         "the T-54 idler runs on steel tyres — rubber made it read as a second road wheel"
+    );
+
+    // Inboard of the hub cap (1.12 half-widths): the housing is 80 mm wide along the axle and
+    // must clear the wheel, not sit a fixed distance from it.
+    let crank = vehicle_geometry::idler_crank_unit_mesh(&kin);
+    assert!(
+        crank.vertices().iter().all(|v| v.position.x < -kin.wheel_half_width * 1.12),
+        "the tension crank stands inboard of the idler's hub, where the hull bearing is"
+    );
+    let bearing = crank
+        .vertices()
+        .iter()
+        .map(|v| v.position)
+        .max_by(|a, b| a.z.hypot(a.y).total_cmp(&b.z.hypot(b.y)))
+        .expect("crank vertices");
+    assert!(
+        bearing.z.hypot(bearing.y) > kin.end_radius * 0.35,
+        "the crank arm reaches out to its bearing, not sits on the axle: {bearing:?}"
+    );
+    assert!(bearing.z < -0.1, "a front idler's bearing is AFT of its axle: {bearing:?}");
+    assert!(bearing.y < 0.0, "and below it: {bearing:?}");
+
+    let tiger = RunningGearKinematics::for_vehicle(VehicleKind::TigerI).expect("Tiger I gear");
+    assert!(tiger.drive_front, "the Tiger drives at the bow, so its idler is the stern wheel");
+    let tiger_crank = vehicle_geometry::idler_crank_unit_mesh(&tiger);
+    let tiger_bearing = tiger_crank
+        .vertices()
+        .iter()
+        .map(|v| v.position)
+        .max_by(|a, b| a.z.hypot(a.y).total_cmp(&b.z.hypot(b.y)))
+        .expect("crank vertices");
+    assert!(
+        tiger_bearing.z > 0.1,
+        "a rear idler's bearing is AHEAD of its axle: {tiger_bearing:?}"
+    );
+
+    // Placed once per side at the idler axle, unrotated, the left one the mirrored mesh.
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    assert_eq!(count(&placements, GearPart::IdlerCrank), 1);
+    assert_eq!(count(&placements, GearPart::IdlerCrankLeft), 1);
+    let idler = placements.iter().find(|p| p.part == GearPart::Idler).expect("idler");
+    for p in placements
+        .iter()
+        .filter(|p| matches!(p.part, GearPart::IdlerCrank | GearPart::IdlerCrankLeft))
+    {
+        let (_, rotation, translation) = p.transform.to_scale_rotation_translation();
+        assert!(rotation.abs_diff_eq(glam::Quat::IDENTITY, 1.0e-5), "the crank does not spin");
+        assert!((translation.z - idler.transform.w_axis.z).abs() < 1.0e-4, "on the idler's axle");
+        assert_eq!(
+            translation.x < 0.0,
+            p.part == GearPart::IdlerCrankLeft,
+            "the left crank is the mirrored mesh on the port side"
+        );
+    }
+    let left = vehicle_geometry::idler_crank_unit_mesh_left(&kin);
+    assert!(
+        left.vertices().iter().all(|v| v.position.x > kin.wheel_half_width * 1.12),
+        "the mirrored crank reaches inboard on the port side"
     );
 }
 

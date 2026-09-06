@@ -108,7 +108,9 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
                 | GearPart::SwingArmLeft
                 | GearPart::ReturnRoller
                 | GearPart::Damper
-                | GearPart::DamperLeft => {}
+                | GearPart::DamperLeft
+                | GearPart::IdlerCrank
+                | GearPart::IdlerCrankLeft => {}
             }
             if placement.transform.w_axis.x < 0.0 {
                 left += 1;

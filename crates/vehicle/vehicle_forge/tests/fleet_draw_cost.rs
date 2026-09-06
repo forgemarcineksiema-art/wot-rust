@@ -45,6 +45,7 @@ fn gear_tris(kin: &RunningGearKinematics) -> usize {
     let sprocket = sprocket_unit_mesh(kin).triangle_count();
     let roller = return_roller_unit_mesh(kin).triangle_count();
     let damper = vehicle_geometry::damper_unit_mesh(kin).triangle_count();
+    let crank = vehicle_geometry::idler_crank_unit_mesh(kin).triangle_count();
     running_gear_placements(kin, 0.0, 0.0)
         .iter()
         .map(|placement| match placement.part {
@@ -57,6 +58,8 @@ fn gear_tris(kin: &RunningGearKinematics) -> usize {
             GearPart::ReturnRoller => roller,
             // Mirrored pair again: one count serves both hands.
             GearPart::Damper | GearPart::DamperLeft => damper,
+            // And the crank, mirrored the same way.
+            GearPart::IdlerCrank | GearPart::IdlerCrankLeft => crank,
         })
         .sum()
 }
