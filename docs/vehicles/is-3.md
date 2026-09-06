@@ -163,3 +163,7 @@ The open item above ("2.44 vs 2.39") is decided: 2.44 is the dome's roof (no cup
 blueprint follows it. No public-domain drawing exists (the Commons armour profiles are CC-BY-SA;
 the 1955/62 Soviet manual is not PD); PD photographs for camera-matching: the Kubinka pair by
 Alf van Beem ([pic1](https://commons.wikimedia.org/wiki/File:IS-3_in_the_Kubinka_Tank_Museum_pic1.JPG)).
+
+## Library parts (2026-09-06)
+
+The IS-3 is the sixth vehicle the part library builds whole: `crates/foundation/game_core/blueprints/is3.visual.ron` authors the construction (`WeldedPike` — the tub, the upper box and the four bow faces on the armour's pike planes, the recipe's `is3_hull.rs` lifted below the seam), the cast dome's IS-3 roof (no cupola: two flush hatches and the commander's periscope), the D-25T with its brake, the Soviet deck with the IS fender line and the two drums, and the fittings (the driver's round hatch behind the pike apex, the lamp on the roof's left, the STERN hooks — the pike carries none). The recipe (`vehicle_recipes::is3`) is split into named pieces that stay out when the library builds their class; none stands on the shipped vehicle, which ships at `Fidelity::Benchmark`. 14 of 20 classes carried; owed: the stern plate's furniture, the deck grilles, the coaxial DTM, the DShK ring mount, the aerial, the torsion-bar hardware.
