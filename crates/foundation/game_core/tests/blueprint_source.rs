@@ -142,8 +142,9 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
 /// fleet: the KwK 36 with its double-baffle brake and the Walzenblende body, no canvas,
 /// and deliberately NOT the complete view); the Tiger II (Forge 2.0 K3, 2026-09-06) authors
 /// the library-complete set — construction, welded turret, gun — from
-/// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree, and the Panther II the same
-/// from `panther_ii.visual.ron`; everyone else carries nothing yet.
+/// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree, the Panther II the same
+/// from `panther_ii.visual.ron`, and the Jagdtiger its casemate set (construction, casemate,
+/// gun) from `jagdtiger.visual.ron`; everyone else carries nothing yet.
 #[test]
 fn the_visual_slot_roster_is_a_deliberate_decision() {
     let mut walked = 0;
@@ -174,6 +175,18 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
             assert!(turret.bin_depth <= 0.0, "no stowage bin on the Henschel or the G turret");
             let deck = detail.german_deck.expect("the deck's furniture is chosen");
             assert!(!deck.exhaust_shields, "open stacks on the leaned German sterns");
+        } else if kind == VehicleKind::Jagdtiger {
+            let detail = blueprint.visual_detail().expect("the Jagdtiger authors visual parts");
+            assert!(detail.is_library_complete(), "construction + casemate + gun");
+            assert!(detail.welded_turret.is_none(), "a casemate is not a welded turret");
+            let casemate = detail.casemate.expect("the casemate's furniture");
+            assert!(casemate.hatches.is_some() && casemate.racks.is_some());
+            let fittings = detail.fittings.expect("the bow fittings");
+            assert!(
+                fittings.no_cupola_hatch && fittings.no_loader_hatch,
+                "no cupola, no loader lid"
+            );
+            assert!(detail.gun.map(|g| g.muzzle_brake.is_none()).unwrap_or(false), "plain muzzle");
             assert!(
                 blueprint.complete_visual().is_none(),
                 "the library-complete set is not the benchmark's full tree"

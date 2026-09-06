@@ -56,12 +56,39 @@ fn the_benchmark_carries_its_whole_dossier_and_nothing_unnamed() {
 
 #[test]
 fn a_sketch_carries_exactly_the_recipe_class() {
-    let report = InventoryReport::new(&authoritative_description(VehicleKind::Jagdtiger).unwrap());
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::IS3).unwrap());
     assert!(!report.locked);
     assert!(report.is_sketch());
     assert_eq!(report.carried.len(), 1, "a wrapped recipe is one class: {:?}", report.carried);
     assert_eq!(report.missing, report.expected, "so every listed class is debt");
-    assert!(report.dossier_pending.is_none(), "the Jagdtiger's dossier lists its parts");
+    assert!(report.dossier_pending.is_none(), "the IS-3's dossier lists its parts");
+}
+
+/// The Jagdtiger is the fourth (K3, 2026-09-06) and the first casemate: 9 of its 10 classes —
+/// the leaned prism hull, the casemate as `TurretShell`, the cast collar as `Mantlet`, the PaK 44
+/// with its plain muzzle, the periscope housing, the shoe racks, the flat bow guards, the
+/// Kugelblende. The stern plate's furniture is the debt left.
+#[test]
+fn the_jagdtiger_carries_its_dossier_but_the_stern_plate() {
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::Jagdtiger).unwrap());
+    assert!(!report.locked);
+    assert!(!report.is_sketch(), "no recipe piece stands on the shipped Jagdtiger");
+    for class in [
+        PartClass::HullTub,
+        PartClass::UpperHull,
+        PartClass::TurretShell,
+        PartClass::Mantlet,
+        PartClass::GunBarrel,
+        PartClass::Periscopes,
+        PartClass::SpareTracks,
+        PartClass::Fenders,
+        PartClass::CourseMg,
+    ] {
+        assert!(report.carried.contains(&class), "{class:?} is the library's");
+    }
+    assert!(!report.carried.contains(&PartClass::Cupola), "a casemate has no cupola");
+    assert_eq!(report.missing, [PartClass::SternPlate].into_iter().collect());
+    println!("{}", report.summary_line());
 }
 
 /// The Tiger II is the second vehicle the library builds whole (K3, 2026-09-06): 14 of its 15
@@ -163,9 +190,7 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    for (kind, at_least) in
-        [(VehicleKind::Jagdtiger, 10), (VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)]
-    {
+    for (kind, at_least) in [(VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)] {
         let report = InventoryReport::new(&authoritative_description(kind).unwrap());
         assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
         assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());

@@ -124,6 +124,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     let slab = blueprint.as_ref().and_then(vehicle_build::slab_hull_parts_for_blueprint);
     let gun = blueprint.as_ref().and_then(vehicle_build::gun_parts_for_blueprint);
     let turret = blueprint.as_ref().and_then(vehicle_build::welded_turret_parts_for_blueprint);
+    let casemate = blueprint.as_ref().and_then(vehicle_build::casemate_parts_for_blueprint);
     let deck = blueprint.as_ref().and_then(vehicle_build::german_deck_parts_for_blueprint);
     let fittings = blueprint.as_ref().and_then(vehicle_build::fitting_parts_for_blueprint);
     let fenders = blueprint.as_ref().and_then(vehicle_build::fender_parts_for_blueprint);
@@ -131,7 +132,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     let omit = deck_details::DeckOmit {
         slab: slab.is_some(),
         gun: gun.is_some(),
-        turret: turret.is_some(),
+        turret: turret.is_some() || casemate.is_some(),
         deck: deck.is_some(),
         fittings: fittings.is_some(),
         guards: fenders.is_some(),
@@ -146,6 +147,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
             description.parts.extend(slab.unwrap_or_default());
             description.parts.extend(gun.unwrap_or_default());
             description.parts.extend(turret.unwrap_or_default());
+            description.parts.extend(casemate.unwrap_or_default());
             description.parts.extend(deck.unwrap_or_default());
             description.parts.extend(fittings.unwrap_or_default());
             description.parts.extend(fenders.unwrap_or_default());
@@ -193,6 +195,7 @@ fn recipe_pieces(
         VehicleKind::TigerI => Some(tiger_i::tiger_i_pieces(hitbox, mounts, omit)),
         VehicleKind::TigerII => Some(tiger_ii::tiger_ii_pieces(hitbox, mounts, omit)),
         VehicleKind::PantherII => Some(panther_ii::panther_ii_pieces(hitbox, mounts, omit)),
+        VehicleKind::Jagdtiger => Some(jagdtiger::jagdtiger_pieces(hitbox, mounts, omit)),
         _ => None,
     }
 }

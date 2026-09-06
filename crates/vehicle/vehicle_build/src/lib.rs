@@ -14,6 +14,7 @@ mod description;
 mod inventory;
 mod manifest;
 mod part;
+mod parts_casemate;
 mod parts_fittings;
 mod parts_german_deck;
 mod parts_gun;
@@ -50,6 +51,7 @@ pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,
 };
 pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTolerance};
+pub use parts_casemate::{casemate_parts, casemate_parts_for_blueprint};
 pub use parts_fittings::{
     exhaust_housing, fender_brackets, flap_ribs, periscope, periscope_guards, periscope_prism,
 };

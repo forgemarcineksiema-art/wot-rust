@@ -1,0 +1,109 @@
+// Jagdtiger (the 12.8 cm PaK 44 vehicle on the lengthened Tiger II chassis, the Aberdeen specimen's
+// plain muzzle) — authored visual parts (Forge 2.0 K3, 2026-09-06, the fourth vehicle the library
+// builds whole and the first CASEMATE). The library builds every class from this file and the
+// blueprint: the welded prism hull on the armour planes (the 50° glacis, the 25° leaned upper
+// sides running unbroken into the casemate), the welded-in casemate with its low periscope
+// housing, ventilator, flush hatches, cast gun collar and shoe racks, the PaK 44, the German deck
+// with the Jagdtiger's flat bow guards and its flank stowage, the fittings. The bake frame: +Y up,
+// +Z bow, +X port. Dossier: docs/vehicles/jagdtiger.md.
+VisualDetailFile(
+    kind: Jagdtiger,
+    detail: VisualDetail(
+        // The 12.8 cm PaK 44 L/55: bore 128 mm -> bore_radius 0.064; tube radius 0.135 = the
+        // gameplay gun's; PLAIN muzzle (the dossier's decision: no brake in service), no
+        // evacuator. The moving mantlet works inside the cast collar: the armour's patch band
+        // 1.06 .. 1.38 (trunnion_z 1.30 -> trunnion-relative -0.24 .. +0.08), radius 0.36 = the
+        // gameplay mantlet_radius, round.
+        gun: Some(GunVisual(
+            barrel_radius: 0.135,
+            muzzle_radius: 0.10,
+            bore_radius: 0.064,
+            muzzle_taper: 0.15,
+            barrel_segments: 14,
+            mantlet_profile: (
+                (-0.24, 0.0),
+                (-0.22, 0.26),
+                (-0.16, 0.33),
+                (-0.08, 0.36),
+                (0.0, 0.36),
+                (0.05, 0.30),
+                (0.075, 0.16),
+                (0.08, 0.0),
+            ),
+            mantlet_segments: 14,
+            mantlet_scale: (1.0, 1.0, 1.0),
+            muzzle_brake: None,
+            module_delta_scale: 0.65,
+        )),
+        // Welded plate on the armour planes: the tub, the upper box whose sides lean the armour
+        // table's 25° from the sponson fold — the same lean the casemate's walls continue.
+        construction: Some(WeldedSlab),
+        // The welded-in casemate (the recipe's proportions, lifted into data): the rectangular
+        // prism is the blueprint's (plan 2.712 x 3.20, front 15°, sides 25°, rear 5°); here only
+        // what stands on it — the commander's periscope housing 7 cm high at the cupola station,
+        // the ventilator dome forward left, the two flush crew hatches 0.95 m behind the ring at
+        // x ±0.52, the cast collar's four rings (radius, stand-off) seated on the leaning face
+        // and squashed 0.617 in Y so the casting stays on the plate, and six narrow shoes on a
+        // carrier rail a side, 0.42 m above the ring seat.
+        casemate: Some(CasemateVisual(
+            periscope_housing_half_height: 0.035,
+            ventilator: Some((0.42, 0.62, 0.115)),
+            hatches: Some((0.52, 0.95, 0.27)),
+            collar: ((0.60, 0.0), (0.57, 0.07), (0.44, 0.15), (0.26, 0.22)),
+            collar_y_scale: 0.617,
+            collar_segments: 16,
+            racks: Some(ShoeRackVisual(
+                row_y_above_ring: 0.42,
+                half_y: 0.115,
+                thickness: 0.075,
+                shoes: 6,
+                pitch: 0.34,
+                first_z: -1.05,
+            )),
+        )),
+        // The Jagdtiger's deck: open stacks off the 30° stern, no spare links on the bow (they
+        // hang on the casemate), no visor, no periscope hood (the commander's housing is the
+        // casemate's), the MG Kugelblende in the glacis right at its station, LARGE FLAT bow
+        // guards over the front sprockets (F3) instead of a flap, and the hull-flank stowage —
+        // tow cable, jack, its timber block, the tool box — on the leaned sponson plates.
+        german_deck: Some(GermanDeckVisual(
+            exhaust_shields: false,
+            spare_links: 0,
+            driver_visor: false,
+            periscope_hood: false,
+            rear_flaps: false,
+            twin_periscopes: false,
+            curved_sweep: false,
+            mg_ball: Some((-0.58, 1.45)),
+            flat_bow_guards: true,
+            flank_stowage: true,
+        )),
+        fittings: Some(FittingsVisual(
+            // No cupola and no loader's lid on a casemate: the roof carries the periscope
+            // housing and two flush hatches (the casemate's own parts). The two stations below
+            // are those parts' — kept as documentation, not built (`no_cupola_hatch`,
+            // `no_loader_hatch`).
+            cupola_hatch_center: (-0.45, 2.95, -0.90),
+            cupola_hatch_radius: 0.14,
+            cupola_hatch_half_height: 0.03,
+            loader_hatch_center: (0.52, 2.88, -1.25),
+            loader_hatch_radius: 0.27,
+            loader_hatch_half_height: 0.03,
+            no_cupola_hatch: true,
+            no_loader_hatch: true,
+            // The two bow hatches AHEAD of the casemate, 0.38 m behind the deck's front edge (the
+            // glacis cuts the roof at z 2.82): the driver's, port, the radio operator's, starboard.
+            driver_hatch_center: (0.475, 1.89, 2.435),
+            driver_hatch_radius: 0.21,
+            driver_hatch_half_height: 0.05,
+            // The central Bosch light at the deck's front edge.
+            headlight_center: (0.0, 1.96, 2.715),
+            headlight_radius: 0.085,
+            headlight_half_height: 0.10,
+            // The bow shackles on the lower hull's shoulders at the nose.
+            tow_hook_center: (0.614, 1.05, 3.76),
+            tow_hook_half: (0.10, 0.08, 0.12),
+            second_bow_hatch_center: Some((-0.475, 1.89, 2.435)),
+        )),
+    ),
+)

@@ -75,29 +75,32 @@ pub struct HatchSeats {
 /// (so they traverse); the driver's hatch and the glacis headlight ride the hull. Each is its own
 /// part, not anonymous greeble.
 pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehiclePart> {
-    let mut parts = vec![
-        drum_fitting(
+    let mut parts = vec![drum_fitting(
+        PartKey::new("driver_hatch"),
+        SubmeshKind::Hull,
+        f.driver_hatch_center,
+        f.driver_hatch_radius,
+        f.driver_hatch_half_height,
+    )];
+    // A casemate carries no cupola and no loader's lid (its roof hatches are its own parts).
+    if !f.no_cupola_hatch {
+        parts.push(drum_fitting(
             PartKey::new("cupola_hatch"),
             SubmeshKind::Turret,
             f.cupola_hatch_center,
             f.cupola_hatch_radius,
             f.cupola_hatch_half_height,
-        ),
-        drum_fitting(
-            PartKey::new("driver_hatch"),
-            SubmeshKind::Hull,
-            f.driver_hatch_center,
-            f.driver_hatch_radius,
-            f.driver_hatch_half_height,
-        ),
-        drum_fitting(
+        ));
+    }
+    if !f.no_loader_hatch {
+        parts.push(drum_fitting(
             PartKey::new("loader_hatch"),
             SubmeshKind::Turret,
             f.loader_hatch_center,
             f.loader_hatch_radius,
             f.loader_hatch_half_height,
-        ),
-    ];
+        ));
+    }
     if let Some(center) = f.second_bow_hatch_center {
         parts.push(drum_fitting(
             PartKey::new("radio_hatch"),
@@ -121,15 +124,17 @@ pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehicleP
     // thing on the tank and its lid already sits at the top of the silhouette; a bar stacked on
     // top of that stands the vehicle above its own collision box, and the doctrine is that the
     // box IS the footprint. It is also where the handle is: you pull this lid round, not up.
-    parts.extend(hatch_hardware(
-        "cupola_hatch",
-        SubmeshKind::Turret,
-        f.cupola_hatch_center,
-        f.cupola_hatch_radius,
-        f.cupola_hatch_half_height,
-        HandlePlacement::Rim,
-        seats.cupola,
-    ));
+    if !f.no_cupola_hatch {
+        parts.extend(hatch_hardware(
+            "cupola_hatch",
+            SubmeshKind::Turret,
+            f.cupola_hatch_center,
+            f.cupola_hatch_radius,
+            f.cupola_hatch_half_height,
+            HandlePlacement::Rim,
+            seats.cupola,
+        ));
+    }
     parts.extend(hatch_hardware(
         "driver_hatch",
         SubmeshKind::Hull,
@@ -139,15 +144,17 @@ pub fn t54_fitting_parts(f: &FittingsVisual, seats: &HatchSeats) -> Vec<VehicleP
         HandlePlacement::Crown,
         seats.driver,
     ));
-    parts.extend(hatch_hardware(
-        "loader_hatch",
-        SubmeshKind::Turret,
-        f.loader_hatch_center,
-        f.loader_hatch_radius,
-        f.loader_hatch_half_height,
-        HandlePlacement::Crown,
-        seats.loader,
-    ));
+    if !f.no_loader_hatch {
+        parts.extend(hatch_hardware(
+            "loader_hatch",
+            SubmeshKind::Turret,
+            f.loader_hatch_center,
+            f.loader_hatch_radius,
+            f.loader_hatch_half_height,
+            HandlePlacement::Crown,
+            seats.loader,
+        ));
+    }
     parts
 }
 

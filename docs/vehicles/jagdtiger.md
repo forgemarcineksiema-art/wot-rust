@@ -125,3 +125,22 @@ Regenerate it with:
 ```powershell
 cargo run -p tools -- generate-vehicle --vehicle jagdtiger --output assets/vehicles/jagdtiger.vehicle.json
 ```
+
+## Library parts (2026-09-06)
+
+The Jagdtiger is the fourth vehicle the part library builds whole and the first CASEMATE (Forge 2.0 K3): `crates/foundation/game_core/blueprints/jagdtiger.visual.ron` authors the construction, the casemate's furniture (`CasemateVisual` — its own class, not a turret with a cupola), the gun, the deck furniture and the fittings; the blueprint keeps the prism and every armour number. The recipe (`vehicle_recipes::jagdtiger`) is split into named pieces that stay out when the library builds their class; none stands on the shipped vehicle, which ships at `Fidelity::Benchmark`.
+
+| Class | Part | Source of the shape |
+| --- | --- | --- |
+| Hull tub, upper hull | `slab_tub`, `slab_upper_box` — plate solids on the armour planes, the upper sides leaning 25° | The welded-in casemate, honestly |
+| Turret shell | `turret_shell` — the rectangular casemate prism, front 15°, sides 25° continuing the hull's plane, rear 5° | The welded-in casemate, honestly |
+| Mantlet | `mantlet_socket` — the cast collar, four rings seated on the leaning face, 1.20 m across, squashed 0.617 in Y | PR-JT.2 shape list |
+| Gun barrel | `gun_barrel` bore-honest 128 mm, tube 0.135, PLAIN muzzle (no brake, the dossier's decision) | PaK 44 L/55 |
+| Periscopes | `periscope_housing` — the commander's low box at the cupola station (7 cm), no cupola | The welded-in casemate, honestly |
+| Hatches | `casemate_hatch_0/1` flush on the rear roof; `driver_hatch`/`radio_hatch` ahead of the casemate | JT.3 |
+| Spare tracks | `spare_track` ×6 a side on `spare_track_rail`, each shoe's outer face on the 25° wall | PR-JT.2 shape list |
+| Fenders | `fender_guard_0/1` — large flat bow guards with a downturned lip | PR-JT.2 (F3) |
+| Course MG | `course_mg_port` — the Kugelblende at (−0.58, 1.45) in the 50° glacis (seated on the plate that folds at the sponson; the recipe's nose-line rule had it 0.47 m inside the hull) | PR-JT.2 |
+| Stowage (beyond the list) | `tow_cable`, `tool_jack`, `tool_block`, `tool_box` on the leaned sponson plates; `turret_ventilator`; the open stacks with brackets | JT.3 |
+
+Still owed: the stern plate's furniture (`SternPlate`), a reference drawing (none found on Commons) and with it the K0 outlines.
