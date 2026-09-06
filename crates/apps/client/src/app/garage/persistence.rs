@@ -100,7 +100,7 @@ pub(super) fn save_path() -> PathBuf {
     config_dir().map_or_else(|| PathBuf::from("garage.json"), |dir| dir.join("garage.json"))
 }
 
-fn config_dir() -> Option<PathBuf> {
+pub(in crate::app) fn config_dir() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))

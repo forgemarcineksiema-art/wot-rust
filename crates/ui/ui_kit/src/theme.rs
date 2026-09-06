@@ -211,7 +211,9 @@ impl Semantic {
                 [0.84, 0.66, 0.30, 1.0],
                 [0.92, 0.88, 0.72, 1.0],
                 [0.62, 0.56, 0.74, 1.0],
-                [0.58, 0.64, 0.36, 1.0],
+                // Olive, a shade darker than the brass of AP: the two read apart by luminance
+                // as well as by hue (H22).
+                [0.50, 0.58, 0.30, 1.0],
             ],
             module: [[0.45, 0.80, 0.42, 1.0], [0.95, 0.70, 0.20, 1.0], [0.62, 0.14, 0.12, 1.0]],
             verdict: Verdict {
@@ -263,7 +265,7 @@ impl Semantic {
                     [0.90, 0.68, 0.28, 1.0],
                     [0.96, 0.94, 0.86, 1.0],
                     [0.34, 0.28, 0.44, 1.0],
-                    [0.55, 0.62, 0.34, 1.0],
+                    [0.48, 0.56, 0.28, 1.0],
                 ];
                 s.team_ally = [0.20, 0.72, 0.62, 1.0];
                 s.team_enemy = [0.92, 0.18, 0.30, 1.0];
@@ -471,6 +473,44 @@ mod tests {
                     luminance >= 0.20 || chroma >= 0.35,
                     "{palette:?}: {name} collapse under simulation — luminance gap {luminance:.2}, chroma {chroma:.2}"
                 );
+            }
+        }
+    }
+
+    /// H22: no semantic pair differs by hue alone — within every group that is read side by
+    /// side (the three teams, the module states, the health ramp, the verdicts, the rounds),
+    /// every pair keeps a luminance gap or a chroma gap that survives the palette's deficiency.
+    #[test]
+    fn no_semantic_pair_differs_by_hue_alone_in_any_palette() {
+        for palette in Palette::ALL {
+            let s = Semantic::for_palette(palette);
+            let groups: [(&str, Vec<Rgba>); 5] = [
+                ("teams", vec![s.team_self, s.team_ally, s.team_enemy]),
+                ("modules", s.module.to_vec()),
+                ("health", s.hp_ramp.to_vec()),
+                (
+                    "verdicts",
+                    vec![s.verdict.pen, s.verdict.no_pen, s.verdict.ricochet, s.verdict.shatter],
+                ),
+                ("rounds", s.ammo.to_vec()),
+            ];
+            for (name, colors) in groups {
+                for i in 0..colors.len() {
+                    for j in (i + 1)..colors.len() {
+                        let (a, b) = (
+                            simulate_deficiency(colors[i], palette),
+                            simulate_deficiency(colors[j], palette),
+                        );
+                        let luminance = (relative_luminance(a) - relative_luminance(b)).abs();
+                        let chroma =
+                            ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2))
+                                .sqrt();
+                        assert!(
+                            luminance >= 0.12 || chroma >= 0.30,
+                            "{palette:?}: {name} {i}/{j} differ by hue alone under simulation — luminance gap {luminance:.2}, chroma {chroma:.2}"
+                        );
+                    }
+                }
             }
         }
     }

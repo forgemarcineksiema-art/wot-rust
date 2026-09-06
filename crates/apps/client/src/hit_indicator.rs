@@ -99,7 +99,12 @@ impl HitIndicator {
         self.entries.retain(|e| e.age < FEEDBACK_TTL);
     }
 
-    pub(crate) fn render_vertices(&self, view_proj: [[f32; 4]; 4], aspect: f32) -> Vec<HudVertex> {
+    pub(crate) fn render_vertices(
+        &self,
+        view_proj: [[f32; 4]; 4],
+        aspect: f32,
+        palette: ui_kit::theme::Palette,
+    ) -> Vec<HudVertex> {
         let mut verts = Vec::new();
         for entry in &self.entries {
             let Some(mut clip) = world_to_clip_xy(entry.hit_position, view_proj) else { continue };
@@ -114,7 +119,7 @@ impl HitIndicator {
                 ric: entry.ricocheted,
                 shattered: entry.shattered,
             };
-            let dmg_color = color_for(outcome);
+            let dmg_color = color_for(outcome, palette);
             let num_w = match hit_label(entry.damage_hp, outcome, entry.module) {
                 HitLabel::Damage(damage) => {
                     let num_digits = crate::hud::number::digit_count(damage);
@@ -151,7 +156,7 @@ impl HitIndicator {
 
             let mcx = clip[0] - num_w * 0.5 - 0.012;
             let mcy = clip[1] + 0.02;
-            push_marker(&mut verts, [mcx, mcy], outcome, alpha, aspect);
+            push_marker(&mut verts, [mcx, mcy], outcome, alpha, aspect, palette);
 
             // Damage number + result glyph + module icon and NOTHING more: the mm duel
             // (pen vs armor bar and both numbers) drowned the read in a fight — the color
@@ -241,7 +246,11 @@ mod tests {
         });
         let view_proj = glam::Mat4::perspective_rh(1.0, 16.0 / 9.0, 0.1, 100.0)
             * glam::Mat4::look_at_rh(Vec3::ZERO, Vec3::Z * 10.0, Vec3::Y);
-        let vertices = indicator.render_vertices(view_proj.to_cols_array_2d(), 16.0 / 9.0);
+        let vertices = indicator.render_vertices(
+            view_proj.to_cols_array_2d(),
+            16.0 / 9.0,
+            ui_kit::theme::Palette::Standard,
+        );
         assert!(!vertices.is_empty(), "the marker draws at a visible point");
         assert!(
             vertices.iter().any(|vertex| vertex.uv[0] >= 0.0 && vertex.uv != [0.0, 0.0]),
@@ -280,8 +289,18 @@ mod tests {
         };
         indicator.ingest_damage_events(&[hit], TankId(1));
         indicator.tick(0.5);
-        assert!(!indicator.render_vertices(IDENTITY, aspect).is_empty(), "drawn at half a second");
+        assert!(
+            !indicator
+                .render_vertices(IDENTITY, aspect, ui_kit::theme::Palette::Standard)
+                .is_empty(),
+            "drawn at half a second"
+        );
         indicator.tick(0.71);
-        assert!(indicator.render_vertices(IDENTITY, aspect).is_empty(), "gone inside a beat");
+        assert!(
+            indicator
+                .render_vertices(IDENTITY, aspect, ui_kit::theme::Palette::Standard)
+                .is_empty(),
+            "gone inside a beat"
+        );
     }
 }

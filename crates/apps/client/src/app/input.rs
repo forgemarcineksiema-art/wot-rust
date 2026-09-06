@@ -32,6 +32,12 @@ impl ClientApp {
             self.toggle_fullscreen();
             return;
         }
+        // H22: F9 cycles the semantic palette until P6's settings screen lands; the choice
+        // persists, and it is the window's key like F11 — it reaches nothing underneath.
+        if pressed && matches!(key, PhysicalKey::Code(KeyCode::F9)) {
+            self.cycle_palette();
+            return;
+        }
         if pressed && self.garage.is_open() && self.garage_keyboard(key) {
             return;
         }
