@@ -67,11 +67,10 @@ The numbers a reader would quote back are pinned to their source by the `quality
 - **seats per team today: 7** in the default format; **15** in `FifteenVsFifteen`.
   `game_core::BattleFormat` owns the count, clock and spawn formation; `RandomBattleConfig`
   carries it through setup and the lobby. `battle_host::SEATS_PER_TEAM` is a compatibility
-  alias for the seven-seat default. Humans sit on
-  **team one only** (`random_battle_setup_for_humans` reserves the first `humans` team-one slots;
-  team two is all bots): the dedicated host of today hosts co-op against bots, never humans
-  against humans. That is the largest single gap between "multiplayer" as the code has it and
-  PvP as Part I means it (row M6).
+  alias for the seven-seat default. Since M6 the crews are dealt across **both teams**
+  (`random_battle_setup_for_humans`, a snake by hello order — `human_team` — with at most one
+  more crew on a side; humans take a team's first seats, bots the rest); before it the host
+  reserved team one for the crews and hosted co-op against bots, never humans against humans.
 - **The lobby** (`crates/runtime/battle_host/src/remote.rs`, `crates/apps/server/src/main.rs`):
   one process, one battle; starts when the format's one-team capacity is seated or the deadline passes
   (`--lobby-wait-s`, default 30 s), every empty seat a bot; an empty lobby never starts; the next
@@ -168,7 +167,7 @@ battle with a few strangers in it, and it says so.
 |---|---|---|
 | The format through the host | `BattleFormat` through setup, local authority and lobby (M2) | thirty-hull release measurements — M5 |
 | The AI battle | `new_ai_battle`: one human, 29 bots, 900 s; no socket (M2) | the garage entry — M3 |
-| Humans on both sides of a dedicated host | team one only | M6 |
+| Humans on both sides of a dedicated host | dealt in a snake by hello order, "full" = both teams' seats (M6) | by rating — M8 |
 | The queue screen | none (`WOT_CONNECT`, a loud refusal) | the interface program's P lane (M7 names the row) |
 | The matchmaker (pure) | the lobby's "first seven, then bots" | the crate — M7 |
 | The coordinator (service) | none | M7, with the netcode program's N4 (discovery, `PeerId`) |
@@ -225,7 +224,9 @@ decision here, a register row where a register exists, and a lock in the row tha
    choice. Decision:** M6 is the first online row — before M7 and before any online test; it
    deals seats across both teams by R4 and makes "full" both teams' seats; the per-viewer filter
    needs nothing. Recorded as `docs/multiplayer-production-program.md` register row 15 and in
-   `docs/ROADMAP.md`'s gap list. Lock: M6's two-client test.
+   `docs/ROADMAP.md`'s gap list. Lock: M6's two-client test —
+   `two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid`,
+   landed 2026-09-06.
 2. **The design's 7-minute clock was never implemented**; the code has one 600 s limit for the
    7v7. **The owner (2026-09-06): "w 15 vs 15 bitwa ma trwać 15 minut, w 7 vs 7 — 7 minut".
    Decision:** the clock is the format's row (R8: 420 s for 7v7, 900 s for 15v15), the battle's
@@ -255,7 +256,7 @@ decision here, a register row where a register exists, and a lock in the row tha
 | ~~M4~~ | ~~**The 15-seat spawn gate per map**~~ — **CLOSED (2026-09-06)**: `GameplaySpec.formats` in every shipped blueprint (`formats: [SevenVsSeven, FifteenVsFifteen]`; empty means every format), the report's `formats` check judges every seat of every offered format WHERE THE HOST DEPLOYS IT — `BattleFormat::seat_position` is the one arithmetic both use, at the jitter's four corners: inside the zone's radius, on the map, dry, clear of cover by the widest hull — and `map_forge::formats(map)` is what the host and the queue read; all five maps offer both. The compiled map is unchanged, so no golden moved | `crates/foundation/game_core/src/battle_format.rs`, `crates/world/map_forge/src/report.rs`, `crates/world/map_forge/src/catalog.rs`, `crates/world/map_forge/blueprints/*.map.ron` | `a_map_offers_only_the_formats_its_zones_seat` (a 50 m zone certifies 7v7 and refuses 15v15, naming the seat), `every_shipped_map_offers_both_formats_and_seats_them`; the host's `every_seat_of_every_format_lands_inside_its_zone` and `the_7v7_format_is_todays_battle_byte_for_byte` unchanged |
 | ~~M5a~~ | ~~**The budgets re-based**~~ — **CLOSED (2026-09-06)** (Part IV 1–3, finding 3; the owner: every budget sized for 14 tanks is raised to the largest format): `MAX_FRAGMENTS` 28 → 40 (46 000 B; the wire format unchanged), `MAX_DAMAGE_APERTURES` 3 072 → 6 144, `MAX_DAMAGE_HEADERS` 64 → 128, `MAX_TRACKED_CLIENTS` 32 → 64, `sim::MAX_CRATERS` 256 → 384 (the ground stays at half the armour scars of thirty tanks), the instance buffer locked at thirty; every lock counts from `BattleFormat::LARGEST`; the saturated 30-tank snapshot measured at 8 029 B (17.5 %, 7 fragments); `battle_tick` gains `random_15v15_tick`, `perf_capture` builds its lineup per format and gains "full + 15v15" | `crates/runtime/net/src/transport.rs`, `crates/runtime/net/tests/snapshot_budget.rs`, `crates/render/renderer_wgpu/src/scene_renderer/armor_damage.rs`, `crates/apps/client/src/vehicle/render_frame.rs`, `crates/runtime/battle_host/src/remote.rs`, `crates/runtime/battle_host/benches/battle_tick.rs`, `crates/apps/client/examples/probe/perf_capture.rs` | `a_full_snapshot_of_the_largest_format_fits_its_budget`, `worst_case_battle_of_the_largest_format_fits_the_vehicle_instance_budget`, `..._fits_the_grouped_aperture_budget`, `every_damaged_frame_of_the_largest_format_has_a_header`, the flood-cap lock against the constant |
 | M5b | **The optimisation and the measurements**: the cold MX330 number of "full + 15v15" per shipped map (the A→B→A sandwich) with the verdict recorded, per map; `random_15v15_tick` recorded against the 7v7 rows; the payload diet (delta snapshots / a smaller per-tank payload, netcode row 9) until a 30-tank snapshot rides five fragments again; the vehicle LOD ladder where a map fails the frame (lane K) — a map that fails is optimised until it passes, never a quality option | `crates/apps/client/examples/probe/perf_capture.rs`, `crates/runtime/battle_host/benches/battle_tick.rs`, `crates/runtime/net/src/` | the recorded measurement per map, with the date; the snapshot at five fragments |
-| M6 | **Humans on both sides** of the dedicated host (R4, finding 1 — the mode's definition, the first online row): seats dealt across the two teams, the lobby's "full" = both teams' seats, the anti-wallhack filter unchanged (it is per viewer already) | `crates/runtime/battle_host/src/remote.rs`, `setup.rs` | `two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid` (a two-client `MemoryHub` lock, armed the way netcode block 3's was) |
+| ~~M6~~ | ~~**Humans on both sides**~~ — **CLOSED (2026-09-06)** (R4, finding 1 — the mode's definition, the first online row): `human_team` deals the crews in a snake by hello order (1-2-2-1; by rating when M8 lands), at most one more on a side, humans in a team's first seats and bots after; the lobby's "full" = both teams' seats; the anti-wallhack filter unchanged (it is per viewer already); one crew is still the desktop battle bit for bit | `crates/runtime/battle_host/src/remote.rs`, `setup.rs` | `two_crews_on_opposite_teams_see_each_other_as_enemies_and_the_filter_hides_what_it_hid` (a two-client `MemoryHub` lock, armed the way netcode block 3's was) |
 | M7 | **The matchmaker and the coordinator** (R2, R3, R5, R10): the pure crate (`tickets × now → battles`), the coordinator process, the host registration, the seat token in the hello (a wire bump, additive), the queue screen — a P-lane row this document owes the interface program: format, humans found / seats, bots that will fill, countdown, CANCEL, the other format | a new runtime crate, `crates/apps/server/src/main.rs`, the netcode program's N4 | `the_band_never_widens_and_the_deadline_always_starts`, `humans_split_evenly_and_bots_mirror_the_tier_histogram`, `the_same_tickets_deal_the_same_battle` (determinism); the queue screen's golden |
 | M8 | **Identity and rating** (D4, R6): after N5 — OpenSkill over identity-bound tickets, the store, the weight by human share | the netcode program's N5 | `a_battle_with_humans_on_one_side_moves_no_rating`; `a_bot_is_a_fixed_rating_filler` |
 | M9 | **Bot substitution** (R7): a crew past its reconnect budget hands the hull to the bot brain; the roster flips | `crates/runtime/battle_host/src/remote.rs`, `bots.rs` | `a_crew_that_never_returns_becomes_a_bot_and_the_roster_says_so` |

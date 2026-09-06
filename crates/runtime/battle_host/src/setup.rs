@@ -56,13 +56,17 @@ pub(crate) fn random_battle_setup(config: RandomBattleConfig) -> BattleSetup {
     random_battle_setup_for_humans(config, &[None]).0
 }
 
-/// The dedicated server's variant (N2): reserve the first `humans` team-one slots for connected
-/// players (returned in slot order); everything else is a bot. `humans == 1` is exactly the
-/// desktop battle.
-/// Seat=vehicle (netcode block 3, v49): each human slot spawns the crew's GARAGE PICK.
-/// `human_vehicles[slot]` is that crew's wish; `None` falls back to the host's
-/// `player_vehicle` for slot 0 (the historical single-human contract, bit-for-bit) and to
-/// the benchmark for later seats — a predictable hull, never a random bot draw.
+/// The dedicated server's variant (N2), and since M6 (`docs/game-modes.md` R4; the owner,
+/// 2026-09-06: "ludzie muszą być w jednej jak i drugiej drużynie, boty mają zapełniać puste
+/// miejsca") the deal across BOTH teams: crew `i` of `human_vehicles` sits on the team
+/// [`human_team`] names — a snake by seat order (1-2-2-1 …; by rating when M8 lands), so the two
+/// sides differ by at most one human — takes its team's next seat, and every seat no human took
+/// is a bot. The human tanks come back in crew order. `human_vehicles.len() == 1` is exactly
+/// the desktop battle: team one, seat A, bit for bit.
+/// Seat=vehicle (netcode block 3, v49): each human seat spawns the crew's GARAGE PICK.
+/// `human_vehicles[i]` is that crew's wish; `None` falls back to the host's `player_vehicle`
+/// for crew 0 (the historical single-human contract) and to the benchmark for later crews — a
+/// predictable hull, never a random bot draw.
 pub(crate) fn random_battle_setup_for_humans(
     config: RandomBattleConfig,
     human_vehicles: &[Option<game_core::VehicleKind>],
@@ -75,31 +79,46 @@ pub(crate) fn random_battle_setup_for_humans(
     // grips it — it is derived from the map, so it never rides the wire.
     sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
     let mut bot_ids = Vec::new();
-    let team_one = random_battle_spawn_zone(&battlefield, 1);
-    let team_two = random_battle_spawn_zone(&battlefield, 2);
+    let zones =
+        [random_battle_spawn_zone(&battlefield, 1), random_battle_spawn_zone(&battlefield, 2)];
 
-    let humans = human_vehicles.len().clamp(1, config.format.seats_per_team());
-    let mut human_tanks = Vec::with_capacity(humans);
-    for slot in 0..config.format.seats_per_team() {
-        let vehicle = if slot < humans {
-            match human_vehicles.get(slot).copied().flatten() {
-                Some(pick) => pick,
-                None if slot == 0 => config.player_vehicle,
-                None => game_core::VehicleKind::BENCHMARK,
+    let humans = human_vehicles.len().clamp(1, config.format.total_seats());
+    // Which crews sit on which team, in seat order within the team.
+    let mut crews_by_team: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+    for crew in 0..humans {
+        crews_by_team[human_team(crew)].push(crew);
+    }
+    let mut human_tanks = vec![TankId(0); humans];
+    let mut target_tank = TankId(0);
+    // Team one's seats, then team two's: the spawn order every tank id and every 7v7 replay
+    // fixture counts on. The bot draws keep their historical salts (10 + seat, 30 + seat).
+    for (team, zone) in zones.into_iter().enumerate() {
+        let salt = if team == 0 { 10 } else { 30 };
+        for seat in 0..config.format.seats_per_team() {
+            let crew = crews_by_team[team].get(seat).copied();
+            let vehicle = match crew {
+                Some(crew) => match human_vehicles.get(crew).copied().flatten() {
+                    Some(pick) => pick,
+                    None if crew == 0 => config.player_vehicle,
+                    None => game_core::VehicleKind::BENCHMARK,
+                },
+                None => random_battle_bot_vehicle(
+                    config.seed,
+                    salt + seat as u64,
+                    config.player_vehicle,
+                ),
+            };
+            let id = random_battle_spawn(&mut sim, &battlefield, zone, seat, vehicle, config);
+            match crew {
+                Some(crew) => human_tanks[crew] = id,
+                None => bot_ids.push(id),
             }
-        } else {
-            random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle)
-        };
-        let id = random_battle_spawn(&mut sim, &battlefield, team_one, slot, vehicle, config);
-        if slot < humans {
-            human_tanks.push(id);
-        } else {
-            bot_ids.push(id);
+            if team == 1 && seat == 0 {
+                target_tank = id;
+            }
         }
     }
     let player_tank = human_tanks[0];
-    let target_tank =
-        random_battle_spawn_enemy_team(&mut sim, &battlefield, team_two, config, &mut bot_ids);
     sim.refresh_spotting(Some(&battlefield.heightmap), &battlefield.static_cover);
 
     (
@@ -121,24 +140,11 @@ pub(crate) fn random_battle_setup_for_humans(
     )
 }
 
-fn random_battle_spawn_enemy_team(
-    sim: &mut SimulationState,
-    map: &BattlefieldMap,
-    zone: &SpawnZone,
-    config: RandomBattleConfig,
-    bot_ids: &mut Vec<TankId>,
-) -> TankId {
-    let mut target_tank = TankId(0);
-    for slot in 0..config.format.seats_per_team() {
-        let vehicle =
-            random_battle_bot_vehicle(config.seed, 30 + slot as u64, config.player_vehicle);
-        let id = random_battle_spawn(sim, map, zone, slot, vehicle, config);
-        if slot == 0 {
-            target_tank = id;
-        }
-        bot_ids.push(id);
-    }
-    target_tank
+/// The team (0 or 1) crew `crew` sits on: a snake, 1-2-2-1 — crews 0 and 3 on team one, 1 and 2
+/// on team two, then again — so any count of humans splits with at most one more on a side.
+/// M8 sorts the crews by rating before this deal; until then the order is the hello order.
+pub fn human_team(crew: usize) -> usize {
+    usize::from(matches!(crew % 4, 1 | 2))
 }
 
 fn random_battle_spawn_zone(map: &BattlefieldMap, team: u16) -> &SpawnZone {

@@ -67,7 +67,7 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   regression,
   bots with routes/fire discipline, data-driven 7v7 and 15v15 setups and clocks (420 s / 900 s,
   M2). The offline AI constructor seats one player and 29 marked bots; the garage still
-  starts 7v7 until M3. Humans remain on team one only until `docs/game-modes.md` M6. Remote input
+  starts 7v7 until M3. The crews are dealt across both teams (M6). Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
   gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
   permitting a zombie client. Personal hit, damage, absorbed-impact, and lethal truth has its own
@@ -92,9 +92,9 @@ down anywhere — the document that held them was retired):
    reconnect and client prediction work today. Still missing are public-session
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture
    and dedicated-server operations — the register and wave plan are in
-   `docs/multiplayer-production-program.md`. Found 2026-09-06: the dedicated host seats humans
-   on team one only (co-op against bots, never humans against humans) — the owner: humans on
-   both teams is the mode's definition — `docs/game-modes.md` M6, register row 15.
+   `docs/multiplayer-production-program.md`. The team-one-only host found 2026-09-06 (co-op
+   against bots, never humans against humans) was closed the same day by `docs/game-modes.md`
+   M6: the crews are dealt across both teams.
 2. **Meta & matchmaking**: OpenSkill-based MM, sessions/lobbies, player identity, and a
    record that a battle happened at all (today the game keeps none). The queue is DESIGNED
    in `docs/game-modes.md` (Part III: one queue per format and band, the band never widens,

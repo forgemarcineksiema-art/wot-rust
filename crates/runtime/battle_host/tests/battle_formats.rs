@@ -71,6 +71,61 @@ fn a_15v15_setup_spawns_thirty_tanks_with_the_player_on_team_one() {
     assert!(roster.iter().all(|seat| VehicleKind::TigerII.in_matchmaking_bracket(seat.vehicle)));
 }
 
+/// M6 (`docs/game-modes.md` R4): the crews are dealt across BOTH teams in a snake, so the sides
+/// differ by at most one human, every crew keeps its pick, and one crew is still the desktop
+/// battle on team one.
+#[test]
+fn humans_are_dealt_across_both_teams_in_a_snake() {
+    use game_core::{TeamId, VehicleKind};
+    let wishes = [
+        Some(VehicleKind::IS3),
+        Some(VehicleKind::TigerI),
+        None,
+        Some(VehicleKind::Centurion),
+        Some(VehicleKind::T34_85),
+    ];
+    for format in BattleFormat::ALL {
+        let (server, human_tanks) = LocalAuthoritativeServer::new_random_for_humans(
+            ServerTickConfig::default(),
+            RandomBattleConfig::new(BattleSeed::fixed(42), VehicleKind::TigerII)
+                .with_format(format),
+            &wishes,
+        );
+        let roster = server.roster();
+        let mut per_team = [0_usize; 2];
+        for (crew, tank) in human_tanks.iter().enumerate() {
+            let entry = roster.iter().find(|e| e.tank_id == *tank).expect("every crew is seated");
+            assert_eq!(entry.crew_kind, net::CrewKind::Human);
+            let team = usize::from(entry.team.0 - 1);
+            assert_eq!(
+                team,
+                battle_host::human_team(crew),
+                "crew {crew} sits where the snake says"
+            );
+            per_team[team] += 1;
+            let wish = wishes[crew].unwrap_or(VehicleKind::BENCHMARK);
+            assert_eq!(entry.vehicle, wish, "crew {crew} drives its garage pick");
+        }
+        assert_eq!(per_team, [3, 2], "{format:?}: five crews split three and two");
+        assert_eq!(
+            roster.iter().filter(|e| e.crew_kind == net::CrewKind::Human).count(),
+            wishes.len(),
+            "no other hull is human"
+        );
+        assert_eq!(roster.len(), format.total_seats(), "every other seat is a bot");
+        assert_eq!(server.player_tank(), human_tanks[0]);
+    }
+    // One crew is the desktop battle: team one, seat A.
+    let (server, human_tanks) = LocalAuthoritativeServer::new_random_for_humans(
+        ServerTickConfig::default(),
+        RandomBattleConfig::new(BattleSeed::fixed(42), VehicleKind::TigerII),
+        &[None],
+    );
+    let roster = server.roster();
+    let seat = roster.iter().find(|e| e.tank_id == human_tanks[0]).expect("seated");
+    assert_eq!((seat.team, seat.seat, seat.vehicle), (TeamId(1), 0, VehicleKind::TigerII));
+}
+
 #[test]
 fn every_seat_of_every_format_lands_inside_its_zone() {
     for &map_id in terrain::MapId::SHIPPED {

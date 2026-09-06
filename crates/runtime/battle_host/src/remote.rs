@@ -1,5 +1,5 @@
-//! The dedicated battle host (N2): one process, one transport, one format's human seats and bots
-//! for every empty seat. The lobby waits for players or a deadline, the battle runs the same
+//! The dedicated battle host (N2): one process, one transport, a format's seats on BOTH teams
+//! for the crews (M6: dealt in a snake by hello order) and bots for every empty seat. The lobby waits for players or a deadline, the battle runs the same
 //! `LocalAuthoritativeServer` core the desktop game uses, and every snapshot leaves the building
 //! ALREADY filtered per viewer — the anti-wallhack cut happens here, before the wire, unioning
 //! team-shared intel (radio permitting) with each crew's own eyes.
@@ -15,11 +15,8 @@ use net::{CombatEvent, DisconnectReason, ProtocolMessage, SnapshotDelivery};
 use crate::battle::BattleOutcome;
 use crate::remote_events::{RemoteEventQueue, RemoteEventQueueError};
 use crate::remote_input::RemoteInputQueue;
-use crate::{LocalAuthoritativeServer, RandomBattleConfig, SEATS_PER_TEAM, ServerTickConfig};
+use crate::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 
-/// Legacy seven-seat default. The live lobby reads `battle.format.seats_per_team()`;
-/// humans still sit on team one until M6 seats them on both sides.
-pub const LOBBY_FULL_PLAYERS: usize = SEATS_PER_TEAM;
 /// A joined client that stays silent this long (ms) is dropped.
 const CLIENT_TIMEOUT_MS: u64 = 10_000;
 /// An address that has sent traffic but never completed a hello (`session_id` still 0) is a
@@ -364,7 +361,7 @@ impl RemoteBattleServer {
                     let lobby = ProtocolMessage::LobbyState {
                         session_id: client.session_id,
                         players: players as u8,
-                        needed: self.battle.format.seats_per_team() as u8,
+                        needed: self.battle.format.total_seats() as u8,
                         countdown_ticks: countdown_ms / 50,
                     };
                     let _ = client.endpoint.send(transport, &lobby);
@@ -372,7 +369,7 @@ impl RemoteBattleServer {
                 if players == 0 {
                     return; // an empty lobby never starts; the deadline restarts on first join
                 }
-                if players >= self.battle.format.seats_per_team() || now_ms >= deadline {
+                if players >= self.battle.format.total_seats() || now_ms >= deadline {
                     self.start_battle(transport);
                 }
             }
@@ -616,7 +613,7 @@ impl RemoteBattleServer {
         established.sort_by_key(|(seq, _, _)| *seq);
         let seats: Vec<(std::net::SocketAddr, Option<game_core::VehicleKind>)> = established
             .into_iter()
-            .take(self.battle.format.seats_per_team())
+            .take(self.battle.format.total_seats())
             .map(|(_, address, wish)| (address, wish))
             .collect();
         let wishes: Vec<Option<game_core::VehicleKind>> =
