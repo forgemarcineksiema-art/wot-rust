@@ -16,7 +16,7 @@ use std::process::Command;
 use quality::workspace::workspace_root;
 
 /// The crates whose feature set decides which arithmetic runs.
-const MATH_CRATES: &[&str] = &["glam", "glamx", "num-traits", "libm", "parry3d"];
+const MATH_CRATES: &[&str] = &["glam", "num-traits", "libm"];
 /// The crates that must never be absent from either binary's graph — if `cargo tree` finds no
 /// such package, the lock would be comparing two empty sets and proving nothing.
 const LOAD_BEARING: &[&str] = &["glam", "num-traits"];

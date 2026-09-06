@@ -6,13 +6,10 @@ the hand-rolled SAT footprint test (`crates/runtime/physics/src/collision.rs`,
 heightmap stepping, and the running-gear support envelope
 (`crates/runtime/physics/src/track_contact.rs`).
 
-rapier3d left the workspace 2026-08-02. `parry3d` remains a dependency, but its only entry
-point — `physics::parry_query::tank_footprints_intersect_query`
-(`crates/runtime/physics/src/parry_query.rs:7`) — currently has ZERO production callers: the
-only references are its own `#[cfg(test)]` module and the re-export. That is an OPEN decision,
-not a settled one: either the query earns a production caller, or `parry3d` follows rapier out
-of the workspace. `crates/tooling/quality/tests/parry_feature_rules.rs` pins the feature set
-meanwhile, so a version bump cannot drag rapier back in through it.
+rapier3d left the workspace 2026-08-02 and parry3d on 2026-09-07 (`docs/program.md` X9): its one
+entry point, `physics::parry_query::tank_footprints_intersect_query`, had zero production
+callers for a month. `crates/tooling/quality/tests/suite/no_physics_engine_rules.rs` keeps both
+out of the workspace manifest.
 
 ## Custom Code Owns
 
@@ -34,10 +31,9 @@ deterministic code end to end: SAT footprints, heightmap stepping, the support e
 
 **Rapier left the workspace 2026-08-02** (audit D6: `RapierWorld`, its collider constructors and
 the "ownership policy" beside them were an API surface consumed only by their own tests).
-`parry3d` stays, narrowly, for the footprint-intersection query (`physics::parry_query`), pinned
-to `default-features = false` + `dim3`/`f32` with no SIMD/parallel features — enforced by
-`quality/tests/parry_feature_rules.rs`, which also holds the door shut behind rapier: re-adding
-it is a design decision with its own tests, not a dependency drive-by.
+`parry3d` outlived it by a month for a footprint-intersection query nothing called, and left on
+2026-09-07 — `quality/tests/suite/no_physics_engine_rules.rs` holds the door shut behind both:
+re-adding a physics engine is a design decision with its own row, not a dependency drive-by.
 
 ## Gravity Is A Scale Decision
 
