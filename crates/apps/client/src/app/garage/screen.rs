@@ -14,8 +14,11 @@ use ui_kit::rect::Rect;
 use ui_kit::theme::Theme;
 use ui_kit::ui::{Anchor, Ui};
 
+use super::chrome::{push_chips, push_hint_strip, push_tooltip};
 use super::draft::FitSlot;
 use super::elements::GarageElement as E;
+use super::filter::Chip;
+use super::hints::tooltip_text;
 use super::layout::{
     ammo_icon, carousel_overflows, carousel_window, map_pick_label, slot_icon, slot_label,
 };
@@ -44,9 +47,15 @@ const LEGEND_TOP_U: f32 = 270.0;
 const CREW_SIZE_U: [f32; 2] = [330.0, 400.0];
 const CREW_OFFSET_U: [f32; 2] = [30.0, -60.0];
 const CREW_ROW_H_U: f32 = 62.0;
-const STATS_SIZE_U: [f32; 2] = [400.0, 660.0];
-const STATS_OFFSET_U: [f32; 2] = [20.0, 40.0];
-const STAT_ROW_H_U: f32 = 44.0;
+const STATS_SIZE_U: [f32; 2] = [400.0, 600.0];
+// Hung from the top-right corner under the bar, so the widened compare column (G3) never
+// reaches the loadout strip below it.
+const STATS_OFFSET_U: [f32; 2] = [20.0, 130.0];
+// G3: the column widens for the compared hull's numbers and the deltas beside the own.
+const STATS_COMPARE_SIZE_U: [f32; 2] = [560.0, 600.0];
+const COMPARE_OWN_RIGHT_U: f32 = 230.0;
+const COMPARE_OTHER_RIGHT_U: f32 = 100.0;
+const STAT_ROW_H_U: f32 = 40.0;
 const HEADER_H_U: f32 = 30.0;
 const PAD_U: f32 = 14.0;
 // The loadout strip and the carousel along the bottom.
@@ -70,7 +79,7 @@ const OPTION_ROW_PITCH_U: f32 = 60.0;
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const GARAGE_TEXT_FLOOR_U: f32 = 16.0;
 
-fn text(
+pub(super) fn text(
     text: &str,
     style: Style,
     size_u: f32,
@@ -81,17 +90,27 @@ fn text(
     Payload::Text { text: text.to_string(), style, size_u, align, color, digits }
 }
 
-fn put(list: &mut DrawList<E>, id: E, rect: Rect, payload: Payload) {
+pub(super) fn put(list: &mut DrawList<E>, id: E, rect: Rect, payload: Payload) {
     let z = list.len() as i16;
     list.push(Element::new(id, rect, payload).z(z));
 }
 
-fn put_control(list: &mut DrawList<E>, id: E, rect: Rect, payload: Payload, state: WidgetState) {
+pub(super) fn put_control(
+    list: &mut DrawList<E>,
+    id: E,
+    rect: Rect,
+    payload: Payload,
+    state: WidgetState,
+) {
     let z = list.len() as i16;
     list.push(Element::new(id, rect, payload).z(z).interactive(state));
 }
 
-fn plate(theme: &Theme, material: ui_kit::theme::PlateMaterial, radius_u: f32) -> Payload {
+pub(super) fn plate(
+    theme: &Theme,
+    material: ui_kit::theme::PlateMaterial,
+    radius_u: f32,
+) -> Payload {
     let _ = theme;
     Payload::Plate { tile: material.tile, radius_u, bevel_u: 1.0, color: material.color }
 }
@@ -143,7 +162,7 @@ impl GarageState {
         let Some(rect) = list.find(element).map(|e| e.rect) else { return false };
         let c = rect.center();
         let v = ui.viewport();
-        self.cursor_clip = [c[0] / v.w * 2.0 - 1.0, 1.0 - c[1] / v.h * 2.0];
+        self.set_cursor([c[0] / v.w * 2.0 - 1.0, 1.0 - c[1] / v.h * 2.0]);
         true
     }
 }
@@ -156,7 +175,8 @@ pub(super) fn hit_key(state: &GarageState, ui: &Ui) -> Option<E> {
 /// What a click lands on, from the same rectangles the screen draws.
 pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit {
     let dir: isize = if shift { -1 } else { 1 };
-    let window = carousel_window(VehicleKind::PLAYABLE.len(), state.carousel_scroll());
+    let roster = state.roster();
+    let window = carousel_window(roster.len(), state.carousel_scroll());
     match hit_key(state, ui) {
         Some(E::BattleButton) => {
             if state.is_locked() {
@@ -183,9 +203,20 @@ pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit
         Some(E::AmmoSlot(i)) => GarageHit::AmmoSelect(usize::from(i)),
         Some(E::AmmoMinus(i)) => GarageHit::AmmoAdjust(usize::from(i), -1),
         Some(E::AmmoPlus(i)) => GarageHit::AmmoAdjust(usize::from(i), 1),
-        Some(E::CarouselCell(i)) => GarageHit::Vehicle(window.start + usize::from(i)),
+        // The cells are the roster the chips let through (G9); shift on one compares (G3).
+        Some(E::CarouselCell(i)) => match roster.get(window.start + usize::from(i)) {
+            Some(kind) => {
+                let absolute = VehicleKind::PLAYABLE
+                    .iter()
+                    .position(|k| k == kind)
+                    .expect("the roster is playable");
+                if shift { GarageHit::Compare(absolute) } else { GarageHit::Vehicle(absolute) }
+            }
+            None => GarageHit::Scene,
+        },
         Some(E::CarouselArrow(0)) => GarageHit::CarouselScroll(-1),
         Some(E::CarouselArrow(_)) => GarageHit::CarouselScroll(1),
+        Some(E::Chip(i)) => GarageHit::Chip(Chip::ALL[usize::from(i)], dir as i8),
         _ => match state.view() {
             GarageView::TechTree => super::panels::techtree::hit_test(state),
             GarageView::Hangar => GarageHit::Scene,
@@ -227,7 +258,14 @@ pub(super) fn build_screen(state: &GarageState, ui: &Ui, theme: &Theme) -> DrawL
             list.push(Element::new(E::Hover, rect, wash).z(z));
         }
     }
-    let _ = theme;
+    // G6: the tooltip of the control the cursor has rested on, over everything.
+    if let Some(key) = state.tooltip_key()
+        && Some(key) == hovered
+        && let Some(anchor) = list.find(key).map(|e| e.rect)
+        && let Some(words) = tooltip_text(state, key)
+    {
+        push_tooltip(&mut list, ui, theme, anchor, &words);
+    }
     list
 }
 
@@ -240,6 +278,7 @@ pub(super) fn build_screen_list(state: &GarageState, ui: &Ui, hovered: Option<E>
         return list;
     }
     push_garage_top_bar(&mut list, ui, &theme, state);
+    push_hint_strip(&mut list, ui, &theme, state);
     if state.view() == GarageView::Hangar {
         push_nameplate(&mut list, ui, &theme, state);
         if state.inspector_on() {
@@ -249,6 +288,7 @@ pub(super) fn build_screen_list(state: &GarageState, ui: &Ui, hovered: Option<E>
         push_stats(&mut list, ui, &theme, state);
         push_loadout(&mut list, ui, &theme, state);
         push_carousel(&mut list, ui, &theme, state);
+        push_chips(&mut list, ui, &theme, state);
         if let Some(slot) = state.option_list() {
             push_options(&mut list, ui, &theme, state, slot);
         }
@@ -257,7 +297,12 @@ pub(super) fn build_screen_list(state: &GarageState, ui: &Ui, hovered: Option<E>
         && let Some(element) = list.find_mut(key)
         && element.state == WidgetState::Idle
     {
-        element.state = WidgetState::Hover;
+        // G6: the machine's word — pressed while the button is down on it, hovered otherwise.
+        element.state = if state.pressed_key() == Some(key) {
+            WidgetState::Pressed
+        } else {
+            WidgetState::Hover
+        };
     }
     list
 }
@@ -432,7 +477,12 @@ fn push_nameplate(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &Garage
         Some((words::NAME_REPAIRING.to_string(), theme.lamp))
     } else if state.hero_is_marked() {
         Some((
-            format!("{} \u{b7} {}", words::NAME_DAMAGED, words::NAME_REPAIR_HINT),
+            format!(
+                "{} \u{b7} {} {}",
+                words::NAME_DAMAGED,
+                state.key_labels().repair,
+                words::HINT_REPAIR
+            ),
             theme.semantic.module[1],
         ))
     } else {
@@ -588,7 +638,11 @@ fn push_crew(list: &mut DrawList<E>, ui: &Ui, theme: &Theme) {
 
 fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageState) {
     let spec = state.draft().assembled_spec();
-    let plate_rect = ui.anchor(Anchor::Right, STATS_SIZE_U, STATS_OFFSET_U);
+    // G3: with a hull to compare against, the numbers sit in two columns and the delta in a
+    // third; the plate widens to hold them.
+    let other = state.compare_spec();
+    let size = if other.is_some() { STATS_COMPARE_SIZE_U } else { STATS_SIZE_U };
+    let plate_rect = ui.anchor(Anchor::TopRight, size, STATS_OFFSET_U);
     put(list, E::StatsPlate, plate_rect, plate(theme, theme.plates.steel_painted, 3.0));
     let top = push_column_header(
         list,
@@ -600,16 +654,21 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
         words::VEHICLE,
     );
     let pad = ui.px(PAD_U);
+    let text_right = plate_rect.right() - pad;
+    let own_right =
+        if other.is_some() { text_right - ui.px(COMPARE_OWN_RIGHT_U) } else { text_right };
+    let other_right = text_right - ui.px(COMPARE_OTHER_RIGHT_U);
+    let header = Rect::new(
+        plate_rect.x + pad,
+        plate_rect.y + pad,
+        plate_rect.w - 2.0 * pad,
+        ui.px(HEADER_H_U),
+    );
     // The matchmaking bracket on the header row: a battle is tier ±1.
     put(
         list,
         E::StatsTier,
-        Rect::new(
-            plate_rect.x + pad,
-            plate_rect.y + pad,
-            plate_rect.w - 2.0 * pad,
-            ui.px(HEADER_H_U),
-        ),
+        Rect::new(header.x, header.y, own_right - header.x, header.h),
         text(
             game_core::tier_roman(spec.kind.tier()),
             Style::BANNER,
@@ -619,7 +678,27 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
             DigitMode::Proportional,
         ),
     );
+    if let Some(other) = &other {
+        put(
+            list,
+            E::CompareName,
+            header,
+            text(
+                &format!(
+                    "{} \u{b7} {}",
+                    other.kind.short_name().to_uppercase(),
+                    game_core::tier_roman(other.kind.tier())
+                ),
+                Style::LABEL,
+                18.0,
+                Align::Right,
+                theme.text.value,
+                DigitMode::Proportional,
+            ),
+        );
+    }
     let dim = theme.text.label_dim;
+    let other_rows = other.as_ref().map(stat_rows);
     for (i, row) in stat_rows(&spec).iter().enumerate() {
         let index = i as u8;
         let y = top + i as f32 * ui.px(STAT_ROW_H_U);
@@ -631,7 +710,7 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
             Payload::Icon { icon: row.kind.icon(), color: theme.text.label },
         );
         let text_left = icon.right() + ui.px(12.0);
-        let text_w = plate_rect.right() - pad - text_left;
+        let text_w = own_right - text_left;
         let line = Rect::new(text_left, y + ui.px(2.0), text_w, ui.px(20.0));
         put(
             list,
@@ -659,6 +738,29 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
                 DigitMode::Tabular,
             ),
         );
+        if let (Some(other), Some(rows)) = (&other, &other_rows) {
+            put(
+                list,
+                E::StatOther(index),
+                Rect::new(own_right, line.y, other_right - own_right, line.h),
+                text(
+                    &rows[i].value,
+                    Style::VALUE,
+                    18.0,
+                    Align::Right,
+                    theme.text.label,
+                    DigitMode::Tabular,
+                ),
+            );
+            let delta = row.kind.measure(&spec) - row.kind.measure(other);
+            let (word, color) = fmt_delta(theme, row.kind.higher_is_better(), delta);
+            put(
+                list,
+                E::StatDelta(index),
+                Rect::new(other_right, line.y, text_right - other_right, line.h),
+                text(&word, Style::VALUE, 16.0, Align::Right, color, DigitMode::Tabular),
+            );
+        }
         let bar = Rect::new(text_left, y + ui.px(28.0), text_w, ui.px(3.0));
         put(
             list,
@@ -678,16 +780,6 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
             tick,
             Payload::Bar { frac: 0.0, fill: theme.text.value, back: theme.text.value },
         );
-    }
-}
-
-fn slot_state(focused: bool, rejected: bool) -> WidgetState {
-    if rejected {
-        WidgetState::Pressed
-    } else if focused {
-        WidgetState::Focused
-    } else {
-        WidgetState::Idle
     }
 }
 
@@ -712,7 +804,7 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             E::ModuleSlot(index),
             rect,
             Payload::Plate { tile: painted.tile, radius_u: 2.0, bevel_u: 1.0, color },
-            slot_state(state.focused_slot() == slot, rejected),
+            if state.focused_slot() == slot { WidgetState::Focused } else { WidgetState::Idle },
         );
         let tint = if draft.has_choice(slot) { theme.text.value } else { theme.text.label_dim };
         put(
@@ -875,26 +967,29 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
 }
 
 fn push_carousel(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageState) {
-    let count = VehicleKind::PLAYABLE.len();
+    // G9: the cells are the roster the chips let through.
+    let roster = state.roster();
+    let count = roster.len();
     let window = carousel_window(count, state.carousel_scroll());
     let visible = window.len();
     let strip = ui.anchor(
         Anchor::Bottom,
-        [visible as f32 * CAR_PITCH_U + 40.0, CAR_CELL_SIZE_U[1] + 20.0],
+        [visible.max(1) as f32 * CAR_PITCH_U + 40.0, CAR_CELL_SIZE_U[1] + 20.0],
         [0.0, CAR_BOTTOM_U],
     );
     put(list, E::CarouselPlate, strip, plate(theme, theme.plates.steel_brushed, 3.0));
     let painted = theme.plates.steel_painted;
-    for (slot, absolute) in window.clone().enumerate() {
+    for (slot, at) in window.clone().enumerate() {
         let index = slot as u8;
-        let kind = VehicleKind::PLAYABLE[absolute];
+        let kind = roster[at];
         let cell = Rect::new(
             strip.x + ui.px(20.0 + slot as f32 * CAR_PITCH_U),
             strip.y + ui.px(10.0),
             ui.px(CAR_CELL_SIZE_U[0]),
             ui.px(CAR_CELL_SIZE_U[1]),
         );
-        let selected = absolute == state.selected_index();
+        let selected = kind == state.selected_vehicle();
+        let compared = state.compare() == Some(kind);
         put_control(
             list,
             E::CarouselCell(index),
@@ -909,18 +1004,17 @@ fn push_carousel(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageS
         );
         let nation = kind.nation();
         let c = nation.color();
+        // G3: the compared hull's cell says so where its nation goes.
+        let (tag, tag_color) = if compared {
+            (format!("{} \u{b7} {}", words::COMPARE_TAG, nation.label().to_uppercase()), theme.lamp)
+        } else {
+            (nation.label().to_uppercase(), [c[0], c[1], c[2], 0.95])
+        };
         put(
             list,
             E::CarouselNation(index),
             Rect::new(cell.x, cell.y + ui.px(6.0), cell.w, ui.px(18.0)),
-            text(
-                &nation.label().to_uppercase(),
-                Style::LABEL,
-                16.0,
-                Align::Center,
-                [c[0], c[1], c[2], 0.95],
-                DigitMode::Proportional,
-            ),
+            text(&tag, Style::LABEL, 16.0, Align::Center, tag_color, DigitMode::Proportional),
         );
         put(
             list,
@@ -1104,6 +1198,18 @@ fn fmt_stat(x: f32) -> String {
     }
 }
 
+/// A signed delta as the compare column prints it (G3): `+` for more, `-` for less, `=` for
+/// the same; the ramp's good when it is the better way round for this row, its bad otherwise.
+fn fmt_delta(theme: &Theme, higher_is_better: bool, delta: f32) -> (String, [f32; 4]) {
+    if delta.abs() < 1.0e-3 {
+        return ("=".to_string(), theme.text.label_dim);
+    }
+    let better = (delta > 0.0) == higher_is_better;
+    let sign = if delta > 0.0 { "+" } else { "-" };
+    let color = if better { theme.semantic.hp_ramp[0] } else { theme.semantic.hp_ramp[2] };
+    (format!("{sign}{}", fmt_stat(delta.abs())), color)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1263,6 +1369,9 @@ mod tests {
         assert_eq!(hit(&mut state, E::AmmoMinus(1), false), GarageHit::AmmoAdjust(1, -1));
         assert_eq!(hit(&mut state, E::AmmoPlus(1), false), GarageHit::AmmoAdjust(1, 1));
         assert_eq!(hit(&mut state, E::CarouselCell(3), false), GarageHit::Vehicle(3));
+        assert_eq!(hit(&mut state, E::CarouselCell(3), true), GarageHit::Compare(3));
+        assert_eq!(hit(&mut state, E::Chip(0), false), GarageHit::Chip(Chip::Class, 1));
+        assert_eq!(hit(&mut state, E::Chip(2), true), GarageHit::Chip(Chip::Tier, -1));
         assert!(!state.set_cursor_on(E::CarouselArrow(0)), "the roster fits: no arrows");
         state.set_cursor([0.0, 0.0]);
         assert_eq!(hit_screen(&state, &ui, false), GarageHit::Scene);
@@ -1331,5 +1440,269 @@ mod tests {
         let strip = list.find(E::LoadoutPlate).expect("strip").rect;
         let stats = list.find(E::StatsPlate).expect("stats").rect;
         assert!(strip.intersect(&stats).is_none(), "the strip and the column do not overlap");
+    }
+
+    /// G6: every clickable control on the screen has its three states — idle, hovered under
+    /// the cursor, PRESSED while the button is down on it — and a release on it is the click
+    /// the machine reports; a control the builder already marks (the selected cell, a locked
+    /// BATTLE) keeps its own word.
+    #[test]
+    fn every_clickable_has_three_states() {
+        let (mut state, ui) = hangar();
+        state.select_vehicle(VehicleKind::BENCHMARK);
+        state.open_option_list(FitSlot::Gun);
+        let theme = Theme::standard();
+        let ids: Vec<E> = build_screen_list(&state, &ui, None)
+            .iter()
+            .filter(|e| e.interactive && e.state == WidgetState::Idle)
+            .map(|e| e.id)
+            .collect();
+        assert!(ids.len() >= 20, "the hangar is full of controls: {}", ids.len());
+        let mut walked = 0;
+        for id in ids {
+            assert!(state.set_cursor_on(id), "{id:?} is drawn");
+            if hit_key(&state, &ui) != Some(id) {
+                continue; // covered by the modal list's rows
+            }
+            let list = build_screen(&state, &ui, &theme);
+            assert_eq!(list.find(id).expect("drawn").state, WidgetState::Hover, "{id:?} hovers");
+            state.press_cursor();
+            let list = build_screen(&state, &ui, &theme);
+            assert_eq!(list.find(id).expect("drawn").state, WidgetState::Pressed, "{id:?} presses");
+            assert_eq!(state.release_cursor(), Some(id), "{id:?} clicks on release");
+            let list = build_screen(&state, &ui, &theme);
+            assert_eq!(list.find(id).expect("drawn").state, WidgetState::Hover, "{id:?} rests");
+            walked += 1;
+        }
+        assert!(walked >= 20, "{walked} controls walked the three states");
+        // A press that leaves the control before its release is no click.
+        assert!(state.set_cursor_on(E::MapRow));
+        state.press_cursor();
+        assert!(state.set_cursor_on(E::TabTechTree));
+        assert_eq!(state.release_cursor(), None);
+        assert_eq!(
+            build_screen(&state, &ui, &theme).find(E::MapRow).expect("map").state,
+            WidgetState::Idle
+        );
+    }
+
+    /// G6: the legend prints the table's keys, never a literal — rebind REPAIR and DEPLOY and
+    /// the strip says the new keys and forgets the old; no garage string carries a key of its
+    /// own; the tree view keeps the legend on its bar.
+    #[test]
+    fn the_hint_strip_prints_the_bound_keys_not_literals() {
+        use crate::app::garage::hints::KeyLabels;
+        use crate::app::keybinds::{Action, KeyBindings, key_label};
+        use winit::keyboard::KeyCode;
+
+        let (mut state, ui) = hangar();
+        let strip = |state: &GarageState| {
+            let list = build_screen_list(state, &ui, None);
+            (0..3u8).map(|i| text_of(&list, E::HintLine(i))).collect::<Vec<_>>().join(" ")
+        };
+        let default = strip(&state);
+        let table = KeyBindings::default();
+        for (action, word) in [
+            (Action::GaragePrev, words::HINT_SELECT),
+            (Action::Repair, words::HINT_REPAIR),
+            (Action::GarageConfirm, words::BATTLE),
+            (Action::GarageBack, words::BACK),
+            (Action::Inspector, words::HINT_ARMOUR),
+        ] {
+            let key = key_label(table.keys(action)[0]);
+            assert!(default.contains(&format!("{key} ")) && default.contains(word), "{default}");
+        }
+        let mut table = KeyBindings::default();
+        table.bind(Action::Repair, KeyCode::KeyH);
+        table.bind(Action::GarageConfirm, KeyCode::Space);
+        state.set_key_labels(KeyLabels::from_table(&table));
+        let rebound = strip(&state);
+        assert!(rebound.contains(&format!("H {}", words::HINT_REPAIR)), "{rebound}");
+        assert!(!rebound.contains(&format!("R {}", words::HINT_REPAIR)), "{rebound}");
+        assert!(rebound.contains(&format!("SPACE {}", words::BATTLE)), "{rebound}");
+        assert!(!rebound.contains(&format!("ENTER {}", words::BATTLE)), "{rebound}");
+        for word in words::ALL {
+            assert!(
+                !word.starts_with("R ") && !word.contains(" R ") && !word.starts_with("ENTER"),
+                "{word:?} carries a key the table owns"
+            );
+        }
+        state.open_tech_tree();
+        assert!(build_screen_list(&state, &ui, None).find(E::HintLine(2)).is_some());
+    }
+
+    /// G6: a tooltip waits the toolkit's delay, names the control and its key, sits inside
+    /// the frame, dies with the hover and never shows under a held button.
+    #[test]
+    fn a_garage_tooltip_names_the_control_and_its_key_after_the_delay() {
+        use ui_kit::interaction::TOOLTIP_DELAY_S;
+
+        let (mut state, ui) = hangar();
+        let theme = Theme::standard();
+        assert!(state.set_cursor_on(E::BattleButton));
+        state.tick_interaction(TOOLTIP_DELAY_S * 0.5);
+        assert!(build_screen(&state, &ui, &theme).find(E::TooltipPlate).is_none(), "too soon");
+        state.tick_interaction(TOOLTIP_DELAY_S);
+        let list = build_screen(&state, &ui, &theme);
+        let tip = text_of(&list, E::TooltipText);
+        assert!(
+            tip.contains(words::TIP_DEPLOY) && tip.contains(&state.key_labels().confirm),
+            "{tip}"
+        );
+        let plate = list.find(E::TooltipPlate).expect("plate").rect;
+        assert!(ui.viewport().encloses(&plate));
+        assert!(plate.encloses(&list.find(E::TooltipText).expect("text").rect));
+        assert!(plate.y >= list.find(E::BattleButton).expect("battle").rect.bottom());
+        // A held button shows none; a cursor that leaves takes it away.
+        state.press_cursor();
+        assert!(build_screen(&state, &ui, &theme).find(E::TooltipPlate).is_none());
+        state.release_cursor();
+        state.set_cursor([0.0, 0.0]);
+        state.tick_interaction(2.0);
+        assert!(build_screen(&state, &ui, &theme).find(E::TooltipPlate).is_none());
+        // Every control has words; the floor and the plates have none.
+        assert!(state.set_cursor_on(E::ModuleSlot(1)));
+        state.tick_interaction(1.0);
+        assert!(text_of(&build_screen(&state, &ui, &theme), E::TooltipText).contains("GUN"));
+        assert_eq!(tooltip_text(&state, E::StatsPlate), None);
+    }
+
+    /// G3: shift-click on a carousel cell compares — both numbers on every row, the signed
+    /// delta in the ramp's good or bad, the header naming the other hull, the cell tagged VS —
+    /// and the same cell again, or selecting that hull, clears it.
+    #[test]
+    fn a_compare_column_shows_both_numbers_and_the_signed_delta() {
+        let (mut state, ui) = hangar();
+        state.select_vehicle(VehicleKind::BENCHMARK);
+        let theme = Theme::standard();
+        assert!(build_screen_list(&state, &ui, None).find(E::StatOther(0)).is_none());
+        let narrow = build_screen_list(&state, &ui, None).find(E::StatsPlate).expect("plate").rect;
+        assert!(state.set_cursor_on(E::CarouselCell(1)));
+        assert_eq!(hit_screen(&state, &ui, true), GarageHit::Compare(1));
+        state.toggle_compare(1);
+        let other = VehicleKind::PLAYABLE[1];
+        assert_eq!(state.compare(), Some(other));
+        let theirs = state.compare_spec().expect("compared");
+        let own = state.draft().assembled_spec();
+        let list = build_screen_list(&state, &ui, None);
+        let plate = list.find(E::StatsPlate).expect("plate").rect;
+        assert!(plate.w > narrow.w, "the column widens for the second hull");
+        assert!(ui.viewport().encloses(&plate));
+        let strip = list.find(E::LoadoutPlate).expect("strip").rect;
+        assert!(plate.intersect(&strip).is_none(), "the widened column stays off the strip");
+        assert_eq!(
+            text_of(&list, E::CompareName),
+            format!(
+                "{} \u{b7} {}",
+                other.short_name().to_uppercase(),
+                game_core::tier_roman(other.tier())
+            )
+        );
+        assert_eq!(
+            text_of(&list, E::CarouselNation(1)),
+            format!("VS \u{b7} {}", other.nation().label().to_uppercase())
+        );
+        let mut signed = 0;
+        for (i, kind) in StatKind::ALL.iter().enumerate() {
+            let index = i as u8;
+            assert_eq!(text_of(&list, E::StatValue(index)), kind.value(&own));
+            assert_eq!(text_of(&list, E::StatOther(index)), kind.value(&theirs));
+            let delta = kind.measure(&own) - kind.measure(&theirs);
+            let printed = text_of(&list, E::StatDelta(index));
+            let Payload::Text { color, .. } =
+                list.find(E::StatDelta(index)).expect("delta").payload
+            else {
+                panic!("text")
+            };
+            if delta.abs() < 1.0e-3 {
+                assert_eq!(printed, "=");
+            } else {
+                signed += 1;
+                assert!(
+                    printed.starts_with(if delta > 0.0 { "+" } else { "-" }),
+                    "{kind:?}: {printed}"
+                );
+                let better = (delta > 0.0) == kind.higher_is_better();
+                assert_eq!(
+                    color,
+                    if better { theme.semantic.hp_ramp[0] } else { theme.semantic.hp_ramp[2] },
+                    "{kind:?}"
+                );
+            }
+            let value = list.find(E::StatValue(index)).expect("own").rect;
+            let theirs_rect = list.find(E::StatOther(index)).expect("other").rect;
+            let delta_rect = list.find(E::StatDelta(index)).expect("delta").rect;
+            assert!(
+                value.right() <= theirs_rect.x + 0.5 && theirs_rect.right() <= delta_rect.x + 0.5
+            );
+            assert!(plate.encloses(&delta_rect));
+        }
+        assert!(signed >= 5, "two different hulls differ somewhere");
+        state.toggle_compare(1);
+        assert_eq!(state.compare(), None, "the same cell again clears the compare");
+        state.toggle_compare(1);
+        state.select_index(1);
+        assert_eq!(state.compare(), None, "selecting the compared hull clears it");
+        state.toggle_compare(1);
+        assert_eq!(state.compare(), None, "the turntable's own hull compares to nothing");
+    }
+
+    /// G9: a chip filters the carousel to what passes it and the arrows cycle only that; the
+    /// chips print their words, the lamp on a set one; shift walks a ring back; a filter that
+    /// nothing passes leaves the selection standing and the carousel empty, never a panic.
+    #[test]
+    fn a_filtered_carousel_cycles_only_what_passes_the_chips() {
+        let (mut state, ui) = hangar();
+        assert_eq!(
+            text_of(&build_screen_list(&state, &ui, None), E::ChipValue(0)),
+            words::CHIP_ALL
+        );
+        state.cycle_chip(Chip::Class, 1);
+        let class = state.filter().class.expect("the first stop is a class");
+        let roster = state.roster();
+        assert!(
+            roster.iter().all(|k| k.class() == class) && roster.len() < VehicleKind::PLAYABLE.len()
+        );
+        let list = build_screen_list(&state, &ui, None);
+        for (i, kind) in roster.iter().enumerate() {
+            assert_eq!(text_of(&list, E::CarouselName(i as u8)), kind.short_name());
+        }
+        assert!(
+            list.find(E::CarouselCell(roster.len() as u8)).is_none(),
+            "no cell past the roster"
+        );
+        assert_eq!(text_of(&list, E::ChipValue(0)), class.label().to_uppercase());
+        let Payload::Text { color, .. } = list.find(E::ChipValue(0)).expect("value").payload else {
+            panic!("text")
+        };
+        assert_eq!(color, Theme::standard().lamp, "a set chip reads in the lamp");
+        let mut seen = Vec::new();
+        for _ in 0..=roster.len() {
+            state.cycle(1);
+            seen.push(state.selected_vehicle());
+        }
+        assert!(seen.iter().all(|k| roster.contains(k)), "{seen:?} strays off the roster");
+        assert_eq!(seen.first(), seen.last(), "the arrows wrap inside the roster");
+        state.cycle(-1);
+        assert!(roster.contains(&state.selected_vehicle()));
+        // Shift walks the ring back to ALL.
+        state.cycle_chip(Chip::Class, -1);
+        assert_eq!(state.filter().class, None);
+        assert_eq!(state.roster().len(), VehicleKind::PLAYABLE.len());
+        // Nothing passes TD × Britain: the carousel empties, the selection stands.
+        let selected = state.selected_vehicle();
+        while state.filter().class != Some(game_core::VehicleClass::TankDestroyer) {
+            state.cycle_chip(Chip::Class, 1);
+        }
+        while state.filter().nation != Some(game_core::Nation::Britain) {
+            state.cycle_chip(Chip::Nation, 1);
+        }
+        assert!(state.roster().is_empty());
+        state.cycle(1);
+        assert_eq!(state.selected_vehicle(), selected);
+        let list = build_screen_list(&state, &ui, None);
+        assert!(list.find(E::CarouselCell(0)).is_none());
+        assert!(list.find(E::CarouselPlate).is_some());
+        assert_eq!(hit_screen(&state, &ui, false), GarageHit::Scene);
     }
 }

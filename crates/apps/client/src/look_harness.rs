@@ -500,6 +500,11 @@ pub fn render_hangar_review_views(
             scene_build::review_views::GarageScreen::OptionList => {
                 crate::garage_overlay_option_list(0, 1, aspect)
             }
+            // G3: the T-54 against the Tiger I — the roster's first two hulls, both columns
+            // and every delta on the plate.
+            scene_build::review_views::GarageScreen::Compare => {
+                crate::garage_overlay_compare(0, 1, aspect)
+            }
         };
         renderer.set_hud(&ctx, &hud);
 
@@ -529,6 +534,7 @@ pub fn render_hangar_review_views(
                 view.vehicle.kind,
                 glam::Vec3::from_array(view.vehicle.position),
                 view.vehicle.yaw_rad,
+                view.vehicle.turret_yaw_rad,
             ));
             renderer.set_fx(&ctx, &fx);
         } else {

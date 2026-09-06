@@ -27,13 +27,16 @@ const ALPHA: f32 = 0.40;
 /// The seed polygon half-size a face is clipped from — larger than any plate in the fleet.
 const SEED_HALF_M: f32 = 8.0;
 
-/// The full inspector overlay for `kind` parked at `position` with the hull at `yaw_rad`
-/// (turret at rest — the garage parks it centered). Returns an empty set for vehicles whose
-/// armor volumes are not yet blueprint-born; the inspector shows nothing rather than a guess.
+/// The full inspector overlay for `kind` parked at `position` with the hull at `yaw_rad` and
+/// the turret traversed by `turret_yaw_rad` about its ring (G8: the garage's turret drag —
+/// the overlay follows the turret exactly as the shell trace does). Returns an empty set for
+/// vehicles whose armor volumes are not yet blueprint-born; the inspector shows nothing rather
+/// than a guess.
 pub fn armor_inspector_fx_vertices(
     kind: VehicleKind,
     position: Vec3,
     yaw_rad: f32,
+    turret_yaw_rad: f32,
 ) -> Vec<FxVertex> {
     let Some(volumes) = vehicle_armor_volumes(kind) else {
         return Vec::new();
@@ -41,10 +44,23 @@ pub fn armor_inspector_fx_vertices(
     let profile = kind.spec().hull;
     let center_y = kind.spec().hitbox.center_y_m;
     let rot = Mat3::from_rotation_y(yaw_rad);
-    let to_world = |p: Vec3| position + Vec3::Y * center_y + rot * p;
+    // The turret's volumes traverse about the ring before they ride the hull — the sim's own
+    // frame (`shell_trace::tank` brings a hull point INTO the turret frame by `-turret_yaw`).
+    let ring = Vec3::new(0.0, 0.0, volumes.turret_ring_z);
+    let traverse = Mat3::from_rotation_y(turret_yaw_rad);
+    let to_world_on = |on_turret: bool, p: Vec3| {
+        let local = if on_turret { ring + traverse * (p - ring) } else { p };
+        position + Vec3::Y * center_y + rot * local
+    };
 
     let mut out = Vec::new();
-    for volume in volumes.hull.iter().chain([&volumes.turret, &volumes.cupola]) {
+    let framed = volumes
+        .hull
+        .iter()
+        .map(|volume| (volume, false))
+        .chain([(&volumes.turret, true), (&volumes.cupola, true)]);
+    for (volume, on_turret) in framed {
+        let to_world = |p: Vec3| to_world_on(on_turret, p);
         for (index, plane) in volume.planes.iter().enumerate() {
             let Some(polygon) = clipped_face(volume, index) else {
                 continue;
@@ -185,7 +201,7 @@ mod tests {
     #[test]
     fn every_face_lies_on_a_gameplay_plane_of_the_hulls_own_volumes() {
         let volumes = vehicle_armor_volumes(VehicleKind::T54_1951).expect("blueprint-born");
-        let overlay = armor_inspector_fx_vertices(VehicleKind::T54_1951, Vec3::ZERO, 0.0);
+        let overlay = armor_inspector_fx_vertices(VehicleKind::T54_1951, Vec3::ZERO, 0.0, 0.0);
         assert!(overlay.len() >= 3 * 20, "a hull is many faces, got {} vertices", overlay.len());
         let center_y = VehicleKind::T54_1951.spec().hitbox.center_y_m;
         let all_volumes: Vec<&ArmorVolume> =
@@ -224,7 +240,7 @@ mod tests {
     #[test]
     fn the_inspector_never_guesses() {
         for kind in VehicleKind::PLAYABLE {
-            let overlay = armor_inspector_fx_vertices(kind, Vec3::ZERO, 0.0);
+            let overlay = armor_inspector_fx_vertices(kind, Vec3::ZERO, 0.0, 0.0);
             if vehicle_armor_volumes(kind).is_some() {
                 assert!(!overlay.is_empty(), "{kind:?} has volumes but no overlay");
             } else {
@@ -248,7 +264,7 @@ mod tests {
         // Discs emit 12-gon fans on top of face fans: the overlay must be strictly larger
         // than the same build with patches ignored would be. Cheap proxy: enough vertices to
         // carry the discs (10 triangles each).
-        let overlay = armor_inspector_fx_vertices(VehicleKind::T54_1951, Vec3::ZERO, 0.0);
+        let overlay = armor_inspector_fx_vertices(VehicleKind::T54_1951, Vec3::ZERO, 0.0, 0.0);
         assert!(overlay.len() > patch_count * 30, "discs are in the overlay");
     }
 }

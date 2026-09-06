@@ -28,7 +28,7 @@ pub enum NavKey {
 /// How long the cursor rests on an element before its tooltip shows.
 pub const TOOLTIP_DELAY_S: f32 = 0.45;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Interaction<K> {
     cursor_px: [f32; 2],
     hover: Option<K>,
@@ -157,6 +157,12 @@ impl<K: Copy + Eq + Hash + std::fmt::Debug> Interaction<K> {
         } else {
             WidgetState::Idle
         }
+    }
+
+    /// The press is void — the screen changed under it (a modal list closed on it) — so no
+    /// release will fire it.
+    pub fn cancel_press(&mut self) {
+        self.pressed = None;
     }
 
     /// The screen went away (a modal opened, the garage closed): every latch drops.

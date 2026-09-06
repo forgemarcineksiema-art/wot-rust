@@ -1,8 +1,12 @@
 mod actions;
 mod camera;
+mod chrome;
 mod draft;
 mod drive_in;
 mod elements;
+mod filter;
+mod hero_pick;
+mod hints;
 mod layout;
 mod overlay;
 mod panels;
@@ -34,6 +38,7 @@ use self::camera::CameraTarget;
 pub(crate) use self::draft::{FitSlot, LoadoutDraft};
 use self::persistence::SavedLoadout;
 pub(super) use self::types::{GarageHit, GarageView};
+use ui_kit::draw_list::DrawList;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct GarageState {
@@ -63,7 +68,23 @@ pub(super) struct GarageState {
     idle_turntable_yaw: f32,
     drive_in: drive_in::DriveIn,
     cursor_clip: [f32; 2],
-    dragging: bool,
+    /// The interaction machine (G6): hover, press and the tooltip clock, over the screen's own
+    /// draw list — a click is the release on what was pressed.
+    interaction: ui_kit::interaction::Interaction<elements::GarageElement>,
+    /// What a press on the scene took (G8): the camera, the turret, or nothing.
+    drag: types::Drag,
+    /// How far the press travelled: a press that never travels is a click on the hero.
+    drag_travel_px: f32,
+    /// The module under a press on the hero, until the release decides click or drag.
+    hero_press: Option<FitSlot>,
+    /// The turret's traverse on the parked hero (G8), hull-relative; a fresh hull parks at zero.
+    hero_turret_yaw: f32,
+    /// The carousel's chips (G9), persisted with the save.
+    filter: filter::CarouselFilter,
+    /// The hull the VEHICLE column is compared against (G3); a session's, never saved.
+    compare: Option<VehicleKind>,
+    /// The table's keys as the legend and the tooltips print them (G6), fed by the app.
+    key_labels: hints::KeyLabels,
     /// Slot whose last cycle was rejected by compatibility (shown red until any interaction clears).
     rejected_slot: Option<FitSlot>,
     /// Module slot with keyboard focus (`[`/`]` move it, `Q`/`E` cycle it).
@@ -128,7 +149,14 @@ impl Default for GarageState {
             idle_turntable_yaw: 0.0,
             drive_in: drive_in::DriveIn::default(),
             cursor_clip: [2.0, 2.0],
-            dragging: false,
+            interaction: ui_kit::interaction::Interaction::default(),
+            drag: types::Drag::None,
+            drag_travel_px: 0.0,
+            hero_press: None,
+            hero_turret_yaw: 0.0,
+            filter: filter::CarouselFilter::default(),
+            compare: None,
+            key_labels: hints::KeyLabels::default(),
             rejected_slot: None,
             focused_slot: FitSlot::Gun,
             option_list: None,
@@ -281,6 +309,27 @@ pub fn garage_overlay_option_list(
     state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
 }
 
+/// The hangar with the VEHICLE column compared against a second hull (G3) — the review golden
+/// `garage_compare`. `vehicle_index` and `other_index` are `VehicleKind::PLAYABLE` slots; out of
+/// range clamps, and an `other` equal to the selection takes the next hull.
+pub fn garage_overlay_compare(
+    vehicle_index: usize,
+    other_index: usize,
+    aspect: f32,
+) -> Vec<renderer_api::HudVertex> {
+    let last = game_core::VehicleKind::PLAYABLE.len() - 1;
+    let mut state = GarageState::default();
+    state.select_index(vehicle_index.min(last));
+    let mut other = other_index.min(last);
+    if other == state.selected_index() {
+        other = (other + 1) % (last + 1);
+    }
+    state.toggle_compare(other);
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
+}
+
 impl GarageState {
     /// Closes the garage regardless of `started`: the battle-mode tests need the battle.
     #[cfg(test)]
@@ -298,7 +347,8 @@ impl GarageState {
 
     pub(super) fn open(&mut self) {
         self.open = true;
-        self.dragging = false;
+        self.drag = types::Drag::None;
+        self.interaction.clear();
     }
 
     pub(super) fn close_if_started(&mut self) {
@@ -407,7 +457,7 @@ impl GarageState {
 
     #[cfg(test)]
     pub(super) fn is_dragging(&self) -> bool {
-        self.dragging
+        self.drag != types::Drag::None
     }
 
     /// Test hook: force the fitted turret's caliber limit under the alternate gun so cycling
@@ -419,13 +469,13 @@ impl GarageState {
 
     pub(super) fn open_tech_tree(&mut self) {
         self.view = GarageView::TechTree;
-        self.dragging = false;
+        self.drag = types::Drag::None;
         self.option_list = None;
     }
 
     pub(super) fn close_tech_tree(&mut self) {
         self.view = GarageView::Hangar;
-        self.dragging = false;
+        self.drag = types::Drag::None;
     }
 
     /// Commit the edited loadout: lock the garage and hand back the assembled spec to install.
@@ -433,7 +483,8 @@ impl GarageState {
         self.locked_remaining_s = None;
         self.started = true;
         self.open = false;
-        self.dragging = false;
+        self.drag = types::Drag::None;
+        self.interaction.clear();
         self.option_list = None;
         self.persist();
         self.draft.assembled_spec()
@@ -459,6 +510,111 @@ impl GarageState {
 
     pub(super) fn rejected_slot(&self) -> Option<FitSlot> {
         self.rejected_slot
+    }
+
+    // --- G9: the chips and the roster they let through -----------------------------------
+
+    pub(super) fn filter(&self) -> &filter::CarouselFilter {
+        &self.filter
+    }
+
+    /// The hulls the chips let through, in the roster's order.
+    pub(super) fn roster(&self) -> Vec<VehicleKind> {
+        self.filter.roster()
+    }
+
+    /// Walk a chip's ring; the carousel follows, the choice persists.
+    pub(super) fn cycle_chip(&mut self, chip: filter::Chip, dir: i8) {
+        self.filter.cycle(chip, dir);
+        self.scroll_selection_into_view();
+        self.persist();
+    }
+
+    // --- G3: the compared hull --------------------------------------------------------------
+
+    pub(super) fn compare(&self) -> Option<VehicleKind> {
+        self.compare
+    }
+
+    /// Shift-click on a carousel cell: compare against that hull; the same cell again clears
+    /// it, and the hull on the turntable compares to nothing.
+    pub(super) fn toggle_compare(&mut self, index: usize) {
+        let Some(kind) = VehicleKind::PLAYABLE.get(index).copied() else { return };
+        self.compare = if kind == self.selected_vehicle() || self.compare == Some(kind) {
+            None
+        } else {
+            Some(kind)
+        };
+    }
+
+    /// The compared hull as it would deploy: its saved loadout when it has one, stock otherwise.
+    pub(super) fn compare_spec(&self) -> Option<TankSpec> {
+        let kind = self.compare?;
+        Some(match self.saved.get(&kind) {
+            Some(saved) => LoadoutDraft::from_saved(kind, saved).assembled_spec(),
+            None => LoadoutDraft::for_vehicle(kind).assembled_spec(),
+        })
+    }
+
+    // --- G6: the table's keys and the interaction machine -----------------------------------
+
+    pub(super) fn key_labels(&self) -> &hints::KeyLabels {
+        &self.key_labels
+    }
+
+    /// The table's keys, from the app, every garage frame — so a rebinding shows at once.
+    pub(in crate::app) fn set_key_labels(&mut self, labels: hints::KeyLabels) {
+        if self.key_labels != labels {
+            self.key_labels = labels;
+        }
+    }
+
+    pub(super) fn set_focused_slot(&mut self, slot: FitSlot) {
+        self.focused_slot = slot;
+    }
+
+    /// The element the button is down on, if any.
+    pub(super) fn pressed_key(&self) -> Option<elements::GarageElement> {
+        self.interaction.pressed()
+    }
+
+    /// The element whose tooltip is due: hovered for the delay, not pressed.
+    pub(super) fn tooltip_key(&self) -> Option<elements::GarageElement> {
+        self.interaction.tooltip()
+    }
+
+    /// The machine sees the cursor over the screen as it is drawn NOW — once per frame from
+    /// the tick, and at the press and the release, never per mouse event (the screen is a
+    /// full layout, and a polling mouse would build it a thousand times a second).
+    fn sync_interaction(&mut self) -> DrawList<elements::GarageElement> {
+        let ui = self.ui();
+        let list = screen::build_screen_list(self, &ui, None);
+        let px = self.cursor_px(&ui);
+        self.interaction.on_cursor(px, &list);
+        list
+    }
+
+    /// The primary button went down over the screen.
+    pub(super) fn press_cursor(&mut self) {
+        let list = self.sync_interaction();
+        self.interaction.on_press(&list);
+    }
+
+    /// The primary button came up: the click, if the cursor is still on what it pressed.
+    pub(super) fn release_cursor(&mut self) -> Option<elements::GarageElement> {
+        let list = self.sync_interaction();
+        self.interaction.on_release(&list)
+    }
+
+    /// The screen changed under the press (a modal list closed on it): no release fires it.
+    pub(super) fn cancel_press(&mut self) {
+        self.interaction.cancel_press();
+    }
+
+    /// The tooltip clock, every garage frame, over where the cursor rests now.
+    pub(in crate::app) fn tick_interaction(&mut self, dt: f32) {
+        self.sync_interaction();
+        self.interaction.tick(dt);
     }
 
     /// The screen as vertices, laid out in `ui` (the app's viewport at the player's scale).

@@ -52,8 +52,36 @@ pub(crate) mod garage {
     pub const LEGEND_UNIT: &str = "MM";
     /// The nameplate's repair tag (L2).
     pub const NAME_DAMAGED: &str = "DAMAGED";
-    pub const NAME_REPAIR_HINT: &str = "R REPAIR";
     pub const NAME_REPAIRING: &str = "REPAIRING...";
+    /// The key legend on the top bar (G6): the words beside the table's keys — the keys
+    /// themselves come from the binding table, never from here.
+    pub const HINT_SELECT: &str = "SELECT";
+    pub const HINT_FOCUS: &str = "FOCUS";
+    pub const HINT_CYCLE: &str = "CYCLE";
+    pub const HINT_AMMO: &str = "AMMO";
+    pub const HINT_MAP: &str = "MAP";
+    pub const HINT_ARMOUR: &str = "ARMOUR";
+    pub const HINT_LIGHT: &str = "LIGHT";
+    pub const HINT_REPAIR: &str = "REPAIR";
+    pub const HINT_TREE: &str = "TREE";
+    /// The tooltips (G6).
+    pub const TIP_LOCKED: &str = "LOCKED UNTIL THE BATTLE ENDS";
+    pub const TIP_DEPLOY: &str = "DEPLOY";
+    pub const TIP_MAP: &str = "NEXT MAP";
+    pub const TIP_SHIFT_BACK: &str = "SHIFT-CLICK BACK";
+    pub const TIP_CHOOSE: &str = "CLICK TO CHOOSE";
+    pub const TIP_LOAD: &str = "LOAD THIS ROUND";
+    pub const TIP_COUNT: &str = "ONE ROUND \u{b7} SHIFT FIVE";
+    pub const TIP_COMPARE: &str = "SHIFT-CLICK TO COMPARE";
+    pub const TIP_SCROLL: &str = "SCROLL THE ROSTER";
+    pub const TIP_INSTALL: &str = "INSTALL";
+    pub const TIP_FILTER: &str = "FILTER BY";
+    /// The carousel's chips (G9) and the compared cell's tag (G3).
+    pub const CHIP_CLASS: &str = "CLASS";
+    pub const CHIP_NATION: &str = "NATION";
+    pub const CHIP_TIER: &str = "TIER";
+    pub const CHIP_ALL: &str = "ALL";
+    pub const COMPARE_TAG: &str = "VS";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -89,8 +117,32 @@ pub(crate) mod garage {
         LEGEND_TITLE,
         LEGEND_UNIT,
         NAME_DAMAGED,
-        NAME_REPAIR_HINT,
         NAME_REPAIRING,
+        HINT_SELECT,
+        HINT_FOCUS,
+        HINT_CYCLE,
+        HINT_AMMO,
+        HINT_MAP,
+        HINT_ARMOUR,
+        HINT_LIGHT,
+        HINT_REPAIR,
+        HINT_TREE,
+        TIP_LOCKED,
+        TIP_DEPLOY,
+        TIP_MAP,
+        TIP_SHIFT_BACK,
+        TIP_CHOOSE,
+        TIP_LOAD,
+        TIP_COUNT,
+        TIP_COMPARE,
+        TIP_SCROLL,
+        TIP_INSTALL,
+        TIP_FILTER,
+        CHIP_CLASS,
+        CHIP_NATION,
+        CHIP_TIER,
+        CHIP_ALL,
+        COMPARE_TAG,
     ];
 }
 
