@@ -63,6 +63,9 @@ move), and the app-to-app allowlist is empty.
   as the currently uncalled `parry_query` seam (see `docs/physics-policy.md`).
 - `net`: binary protocol messages, transport framing, the per-viewer snapshot filter, and
   wire snapshot tests.
+- `matchmaker`: the queue's pure core (`docs/game-modes.md` M7a) — tickets × now → battle
+  plans; no socket, no clock, no randomness; the coordinator (M7b) calls it and `battle_host`
+  seats its plans (`new_from_plan`).
 - `battle_host`: the authoritative battle loop, local and remote — commands in, fixed
   ticks, filtered snapshots and the reliable personal-event lane out.
 - `audio`: the whole audible world as pure DSP — renderer- and device-free.
