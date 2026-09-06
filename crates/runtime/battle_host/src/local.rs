@@ -5,7 +5,7 @@ use terrain::{BattlefieldMap, MapId};
 
 use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
-use crate::battle::{BattleMode, BattleOutcome, RANDOM_BATTLE_TIME_LIMIT_S};
+use crate::battle::{BattleFormat, BattleMode, BattleOutcome};
 use crate::bots::BotRoster;
 use crate::setup::{BattleSetup, practice_duel_setup};
 
@@ -37,6 +37,7 @@ pub struct LocalAuthoritativeServer {
     battlefield: BattlefieldMap,
     weather: MatchWeather,
     mode: BattleMode,
+    format: Option<BattleFormat>,
     player_tank: TankId,
     target_tank: TankId,
     bots: BotRoster,
@@ -75,7 +76,19 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn new_random_7v7(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
-        Self::from_setup(config, crate::setup::random_7v7_setup(battle))
+        Self::new_random(config, battle.with_format(BattleFormat::SevenVsSeven))
+    }
+
+    pub fn new_random(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
+        Self::from_setup(config, crate::setup::random_battle_setup(battle))
+    }
+
+    /// One player, twenty-nine bots, no socket or account. AI battles always use 15v15.
+    pub fn new_ai_battle(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
+        let mut setup =
+            crate::setup::random_battle_setup(battle.with_format(BattleFormat::FifteenVsFifteen));
+        setup.mode = BattleMode::AiBattle;
+        Self::from_setup(config, setup)
     }
 
     /// The dedicated server's constructor (N2): the first `humans` team-one tanks belong to
@@ -85,8 +98,21 @@ impl LocalAuthoritativeServer {
         battle: RandomBattleConfig,
         human_vehicles: &[Option<game_core::VehicleKind>],
     ) -> (Self, Vec<TankId>) {
+        Self::new_random_for_humans(
+            config,
+            battle.with_format(BattleFormat::SevenVsSeven),
+            human_vehicles,
+        )
+    }
+
+    /// Format-aware dedicated setup. M6 will distribute human seats across both teams.
+    pub fn new_random_for_humans(
+        config: ServerTickConfig,
+        battle: RandomBattleConfig,
+        human_vehicles: &[Option<game_core::VehicleKind>],
+    ) -> (Self, Vec<TankId>) {
         let (setup, human_tanks) =
-            crate::setup::random_7v7_setup_for_humans(battle, human_vehicles);
+            crate::setup::random_battle_setup_for_humans(battle, human_vehicles);
         let mut server = Self::from_setup(config, setup);
         server.human_tanks = human_tanks.clone();
         (server, human_tanks)
@@ -147,12 +173,9 @@ impl LocalAuthoritativeServer {
 
     fn from_setup(config: ServerTickConfig, setup: BattleSetup) -> Self {
         let latest_snapshot = Snapshot::from(&setup.sim);
-        let time_limit_ticks = match setup.mode {
-            BattleMode::PracticeDuel => None,
-            BattleMode::Random7v7 => {
-                Some(u64::from(config.server_tick_hz()) * u64::from(RANDOM_BATTLE_TIME_LIMIT_S))
-            }
-        };
+        let time_limit_ticks = setup
+            .format
+            .map(|format| u64::from(config.server_tick_hz()) * u64::from(format.time_limit_s()));
         Self {
             config,
             sim: setup.sim,
@@ -160,6 +183,7 @@ impl LocalAuthoritativeServer {
             battlefield: setup.battlefield,
             weather: setup.weather,
             mode: setup.mode,
+            format: setup.format,
             player_tank: setup.player_tank,
             target_tank: setup.target_tank,
             bots: setup.bots,
@@ -224,6 +248,10 @@ impl LocalAuthoritativeServer {
 
     pub fn battle_mode(&self) -> BattleMode {
         self.mode
+    }
+
+    pub fn battle_format(&self) -> Option<BattleFormat> {
+        self.format
     }
 
     /// The map this battle runs on. The client regenerates the identical battlefield from

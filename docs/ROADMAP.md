@@ -65,8 +65,9 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   team-private v46, concrete-round identity and the tungsten shatter flag v47, the
   test-only PrototypeMedium deleted v48), replay
   regression,
-  bots with routes/fire discipline, the 7v7
-  format (humans on team one only until `docs/game-modes.md` M6). Remote input
+  bots with routes/fire discipline, data-driven 7v7 and 15v15 setups and clocks (420 s / 900 s,
+  M2). The offline AI constructor seats one player and 29 marked bots; the garage still
+  starts 7v7 until M3. Humans remain on team one only until `docs/game-modes.md` M6. Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
   gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
   permitting a zombie client. Personal hit, damage, absorbed-impact, and lethal truth has its own
@@ -103,8 +104,9 @@ down anywhere — the document that held them was retired):
    stat deltas, so gating them behind time would be power behind time, which the creed
    forbids.
 3. **Content breadth**: more vehicles per nation/line (Britain has one tank), 2-3 more maps,
-   the second format and the AI battle (`docs/game-modes.md` M2–M5: the format as data, 15v15
-   per map behind a 15-seat spawn gate and an MX330 measurement at thirty hulls), the
+   the second format and the AI battle on the player's screen (`docs/game-modes.md` M3–M5:
+   M2 supplies the format and offline setup; still owed are the garage entry, per-map spawn
+   clearance/navigation gate and an MX330 measurement at thirty hulls), the
    objectives beyond last-team-standing.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
    only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,

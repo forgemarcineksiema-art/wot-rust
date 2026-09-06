@@ -131,8 +131,8 @@ const CLAIMS: &[Claim] = &[
     Claim {
         doc: "docs/game-modes.md",
         anchor: "**seats per team today: ",
-        source: "crates/runtime/battle_host/src/battle.rs",
-        owner: Owner::NumberAfter("pub const SEATS_PER_TEAM: usize = "),
+        source: "crates/foundation/game_core/src/battle_format.rs",
+        owner: Owner::NumberAfter("pub const SEVEN_VS_SEVEN_SEATS: usize = "),
         why: "the seat count is the number the two formats are measured against; the day it               becomes per-format data the document must say so",
     },
     Claim {
@@ -145,8 +145,8 @@ const CLAIMS: &[Claim] = &[
     Claim {
         doc: "docs/game-modes.md",
         anchor: "**battle time limit today: ",
-        source: "crates/runtime/battle_host/src/battle.rs",
-        owner: Owner::NumberAfter("pub const RANDOM_BATTLE_TIME_LIMIT_S: u32 = "),
+        source: "crates/foundation/game_core/src/battle_format.rs",
+        owner: Owner::NumberAfter("pub const SEVEN_VS_SEVEN_TIME_LIMIT_S: u32 = "),
         why: "the per-format timers are proposed against today's one limit; a moved limit               silently re-bases the proposal",
     },
     Claim {

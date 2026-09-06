@@ -22,6 +22,9 @@ use std::path::{Path, PathBuf};
 /// so the register cannot rot into a list of good intentions.
 const IDENTITY_ENUMS: &[&str] = &[
     "ArmorZone",
+    // The battle format (M2, 2026-09-06): seats, clock and spawn formation per row; map
+    // blueprints will store which formats a map offers (M4), so its variant order is identity.
+    "BattleFormat",
     "DamageCause",
     "MapId",
     "MaterialRole",
@@ -171,6 +174,7 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
             "Timber",
         ],
     ),
+    ("BattleFormat", &["SevenVsSeven", "FifteenVsFifteen"]),
     ("ModuleSlot", &["Engine", "Suspension", "Turret", "Gun", "AmmoRack", "Radio"]),
     ("Nation", &["Ussr", "Germany", "Britain"]),
     (

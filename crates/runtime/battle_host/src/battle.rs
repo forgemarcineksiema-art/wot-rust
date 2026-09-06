@@ -1,5 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub use game_core::{
+    BattleFormat, SEVEN_VS_SEVEN_SEATS as SEATS_PER_TEAM,
+    SEVEN_VS_SEVEN_TIME_LIMIT_S as RANDOM_BATTLE_TIME_LIMIT_S,
+};
 use game_core::{TeamId, VehicleKind};
 use sim::TankState;
 use terrain::MapId;
@@ -8,15 +12,9 @@ use terrain::MapId;
 pub enum BattleMode {
     PracticeDuel,
     Random7v7,
+    Random15v15,
+    AiBattle,
 }
-
-/// Seats on each side of a random battle. The ONE number behind "7v7": the roster, the spawn
-/// grid, the dedicated host's lobby threshold and every "fourteen tanks" lock count from it.
-/// `docs/game-modes.md` (the owner, 2026-09-06) makes the format DATA — 7v7 or 15v15 by the
-/// player's choice, and an AI battle at 15v15 — so this literal is named first, quoted by the
-/// document and pinned to it by the `quality` gate (`roadmap_claims`), and grows into a
-/// per-format value with M2 instead of being found in four files by grep.
-pub const SEATS_PER_TEAM: usize = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattleSeed(u64);
@@ -65,11 +63,12 @@ pub struct RandomBattleConfig {
     /// Which world this battle happens on. Server and client both regenerate the map from
     /// this id — see [`terrain::MapId`].
     pub map: MapId,
+    pub format: BattleFormat,
 }
 
 impl RandomBattleConfig {
     pub fn new(seed: BattleSeed, player_vehicle: VehicleKind) -> Self {
-        Self { seed, player_vehicle, map: MapId::default() }
+        Self { seed, player_vehicle, map: MapId::default(), format: BattleFormat::default() }
     }
 
     pub fn runtime(player_vehicle: VehicleKind) -> Self {
@@ -105,12 +104,12 @@ impl RandomBattleConfig {
         self.map = map;
         self
     }
-}
 
-/// Time limit for a random battle, the safety net that guarantees every battle ends: two
-/// last-tank survivors camping opposite corners (or two stuck bots) must not hang the battle
-/// forever. Ten minutes fits the 7v7 scale — real fights resolve well under it.
-pub const RANDOM_BATTLE_TIME_LIMIT_S: u32 = 600;
+    pub fn with_format(mut self, format: BattleFormat) -> Self {
+        self.format = format;
+        self
+    }
+}
 
 /// Why a battle ended without a winner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

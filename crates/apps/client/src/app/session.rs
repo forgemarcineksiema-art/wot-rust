@@ -852,6 +852,7 @@ mod tests {
 
     fn battle() -> RandomBattleConfig {
         RandomBattleConfig {
+            format: game_core::BattleFormat::SevenVsSeven,
             seed: BattleSeed::fixed(33),
             player_vehicle: game_core::VehicleKind::T54_1951,
             map: MapId::default(),
