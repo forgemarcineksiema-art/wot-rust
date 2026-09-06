@@ -60,6 +60,9 @@ pub struct LocalAuthoritativeServer {
     /// per client, so local play cannot say more than a remote crew could.
     command_limiter: net::TeamCommandLimiter,
     pending_team_commands: Vec<net::TeamCommandRelay>,
+    /// Who saw whom (v52, W-7): from the observer masks, once per snapshot tick; closed at
+    /// the end; read per hull after the battle.
+    spotting_log: crate::SpottingLog,
 }
 
 impl LocalAuthoritativeServer {
@@ -169,7 +172,14 @@ impl LocalAuthoritativeServer {
             human_tanks: vec![setup.player_tank],
             command_limiter: net::TeamCommandLimiter::default(),
             pending_team_commands: Vec::new(),
+            spotting_log: crate::SpottingLog::default(),
         }
+    }
+
+    /// The spotting log for one hull (v52, W-7): every enemy that saw it, from how far, from
+    /// when to when — empty until the battle is over, so a live client never holds an observer.
+    pub fn spotting_log_for(&self, tank: TankId) -> Vec<net::SpottingRecord> {
+        self.spotting_log.for_target(tank)
     }
 
     pub fn change_player_vehicle(&mut self, requested_vehicle: VehicleKind) -> Snapshot {
@@ -192,6 +202,7 @@ impl LocalAuthoritativeServer {
         self.pending_shell_impacts.clear();
         self.pending_shots_fired.clear();
         self.outcome = None;
+        self.spotting_log = crate::SpottingLog::default();
         self.sim
             .refresh_spotting(Some(&self.battlefield.heightmap), &self.battlefield.static_cover);
         self.latest_snapshot = Snapshot::from(&self.sim);
@@ -372,6 +383,16 @@ impl LocalAuthoritativeServer {
             // The clock is a safety net, not a verdict of "nobody won". Whoever is ahead on hulls
             // when it runs out has won the battle — see `BattleOutcome::from_time_expiry`.
             self.outcome = Some(BattleOutcome::from_tanks_at_time_expiry(self.sim.tanks()));
+        }
+        // v52 (W-7): who sees whom, from the same observer masks the per-viewer cut reads — one
+        // word per snapshot tick; the battle's end closes every open span.
+        let emitting = self.config.snapshot_schedule().should_emit(self.sim.tick());
+        if emitting && !self.spotting_log.is_finished() {
+            let masks = self.observer_masks();
+            self.spotting_log.observe(self.sim.tanks(), &masks, self.sim.tick());
+        }
+        if self.outcome.is_some() {
+            self.spotting_log.finish(self.sim.tick());
         }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
         self.pending_shots_fired.extend_from_slice(self.sim.shots_fired());

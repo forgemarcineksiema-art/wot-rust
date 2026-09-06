@@ -606,3 +606,69 @@ fn the_local_roster_names_every_hull_and_the_local_crew_is_limited_like_a_remote
     assert!(tick.team_commands.iter().all(|relay| relay.from == server.player_tank()));
     assert!(tick.kills.is_empty(), "nobody died on the first tick");
 }
+
+/// v52 (W-7): the spotting log names every ENEMY that saw the crew's hull — from how far, from
+/// which tick to which — never an ally, and nothing at all while the battle still runs; the
+/// enemy's own log names the crew back.
+#[test]
+fn the_spotting_log_names_every_enemy_that_saw_the_crew_and_never_an_ally() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::TigerII),
+    );
+    let player = server.player_tank();
+    let player_team = server.tanks().iter().find(|t| t.id == player).expect("player").team;
+    let enemy = server.tanks().iter().find(|t| t.team != player_team).expect("an enemy").id;
+    let others: Vec<game_core::TankId> =
+        server.tanks().iter().map(|t| t.id).filter(|id| *id != player && *id != enemy).collect();
+    let enemies: Vec<game_core::TankId> =
+        server.tanks().iter().filter(|t| t.team != player_team).map(|t| t.id).collect();
+
+    server.place_for_test(player, glam::Vec3::new(150.0, 0.0, 150.0));
+    server.place_for_test(enemy, glam::Vec3::new(190.0, 0.0, 150.0));
+    for tank in &others {
+        server.place_for_test(*tank, glam::Vec3::new(850.0, 0.0, 850.0));
+    }
+    let tick = |server: &mut LocalAuthoritativeServer, client_tick: u64| {
+        server.tick_with_player_input(ClientInputCommand {
+            client_tick,
+            tank_id: player,
+            command: TankCommand::idle(),
+        })
+    };
+    for client_tick in 0..12 {
+        tick(&mut server, client_tick);
+    }
+    assert!(server.battle_outcome().is_none(), "precondition: the battle runs");
+    assert!(
+        server.spotting_log_for(player).is_empty(),
+        "a live battle names no observer, even one already looking"
+    );
+    // The end: every enemy knocked out, the log closes on the outcome's tick.
+    for tank in &enemies {
+        server.knock_out_for_test(*tank);
+    }
+    tick(&mut server, 12);
+    assert!(server.battle_outcome().is_some(), "the board decides");
+    let log = server.spotting_log_for(player);
+    assert_eq!(log.len(), 1, "one enemy at 40 m saw the crew: {log:?}");
+    let record = log[0];
+    assert_eq!(record.observer, enemy);
+    assert!((record.distance_m - 40.0).abs() < 3.0, "hull to hull: {}", record.distance_m);
+    assert!(record.from_tick < record.to_tick, "{record:?}");
+    assert!(record.to_tick <= server.authoritative_tick());
+    assert!(
+        !log.iter().any(|record| {
+            server.tanks().iter().any(|t| t.id == record.observer && t.team == player_team)
+        }),
+        "never an ally"
+    );
+    let theirs = server.spotting_log_for(enemy);
+    assert!(
+        theirs.iter().any(|record| record.observer == player),
+        "the enemy's own log names the crew back: {theirs:?}"
+    );
+    for tank in &others {
+        assert!(!log.iter().any(|record| record.observer == *tank), "a hull 1 km away saw nothing");
+    }
+}

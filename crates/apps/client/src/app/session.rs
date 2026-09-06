@@ -242,6 +242,15 @@ impl BattleSessionKind {
         }
     }
 
+    /// The crew's spotting log (protocol v52, W-7): every enemy that saw its hull, from how
+    /// far, from when to when — empty until the battle is over, on either host.
+    pub(super) fn spotting_log(&self) -> Vec<net::SpottingRecord> {
+        match self {
+            Self::Local(server) => server.spotting_log_for(server.player_tank()),
+            Self::Remote(session) => session.spotting_log.clone(),
+        }
+    }
+
     pub fn battle_time_remaining_s(&self) -> Option<f32> {
         match self {
             Self::Local(server) => server.battle_time_remaining_s(),
@@ -348,6 +357,8 @@ pub struct RemoteSession {
     /// `latest_server_tick` so it costs no per-snapshot bytes.
     time_limit_tick: Option<u64>,
     outcome: Option<battle_host::BattleOutcome>,
+    /// The crew's spotting log (v52, W-7), off the end word; empty until it lands.
+    spotting_log: Vec<net::SpottingRecord>,
     inputs: RemoteInputHistory,
     combat_events: RemoteCombatEventInbox,
     pending_combat_events: Vec<net::CombatEvent>,
@@ -407,6 +418,7 @@ impl RemoteSession {
             pending_reconciliation: None,
             delivery_ready: false,
             terminal_reason: None,
+            spotting_log: Vec::new(),
             redial_attempts: 0,
             next_redial_ms: None,
             seat_started_ms: None,
@@ -616,7 +628,9 @@ impl RemoteSession {
                 ProtocolMessage::InputAck { last_processed_input_seq, .. } => {
                     self.inputs.acknowledge_wire(Some(last_processed_input_seq));
                 }
-                ProtocolMessage::BattleEnded { winning_team, .. } => {
+                ProtocolMessage::BattleEnded { winning_team, spotting_log, .. } => {
+                    // v52 (W-7): the observers, named now and never before.
+                    self.spotting_log = spotting_log;
                     // The wire carries WHO won, not HOW — so a remote client cannot tell an
                     // elimination from a decision on the clock, and the variant below is a stand-in
                     // for "somebody won", not a claim about the manner of it. That is honest enough

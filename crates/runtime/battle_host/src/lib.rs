@@ -12,6 +12,7 @@ pub mod remote;
 pub(crate) mod remote_events;
 mod remote_input;
 mod setup;
+mod spotting_log;
 pub mod stats;
 
 pub use battle::{
@@ -21,6 +22,7 @@ pub use battle::{
 pub use local::{AuthoritativeTick, LocalAuthoritativeServer};
 pub use match_info::{pick_weather, supported_weather};
 pub use remote_events::MAX_PENDING_COMBAT_EVENTS;
+pub use spotting_log::SpottingLog;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ServerTickConfig {

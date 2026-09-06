@@ -14,12 +14,14 @@ mod roster;
 pub mod session;
 mod snapshot_filter;
 mod snapshot_schedule;
+mod spotting_log;
 mod team_command;
 pub mod transport;
 
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use roster::{CrewKind, RosterEntry, roster_from_tanks};
 pub use snapshot_schedule::SnapshotSchedule;
+pub use spotting_log::SpottingRecord;
 pub use team_command::{
     TEAM_COMMAND_WINDOW_S, TEAM_COMMANDS_PER_WINDOW, TeamCommand, TeamCommandLimiter,
     TeamCommandRelay,
@@ -159,7 +161,13 @@ pub use team_command::{
 /// viewer's own team; `TeamCommand`/`CombatEvent::TeamCommand` is the command wheel's relay
 /// with the server's rate limit; `DamageEvent.distance_m` is the range of a hit. All appends
 /// with `serde(default)`; the fixtures were re-pinned as v51.
-pub const PROTOCOL_VERSION: u16 = 51;
+///
+/// v52 (interface program, W-7): `BattleEnded.spotting_log` — every enemy that saw the
+/// recipient's hull, from how far, from which tick to which — kept by the host from the observer
+/// masks it already computes for the per-viewer cut, closed at the battle's end and handed to
+/// each crew for THEIR hull only, after the battle, so a live client never holds an observer.
+/// An append with `serde(default)`; the fixtures were re-pinned as v52.
+pub const PROTOCOL_VERSION: u16 = 52;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -630,10 +638,13 @@ pub enum ProtocolMessage {
         /// remote HUD had to HIDE the timer (it knew the current tick but not the deadline).
         time_limit_tick: Option<u64>,
     },
-    /// v29: the battle is over. `winning_team` is `None` for a draw.
+    /// v29: the battle is over. `winning_team` is `None` for a draw. v52: `spotting_log` names
+    /// every enemy that saw THIS recipient's hull, and when — after the battle only.
     BattleEnded {
         session_id: u64,
         winning_team: Option<u16>,
+        #[serde(default)]
+        spotting_log: Vec<SpottingRecord>,
     },
     /// v36: newest-wins world state plus this recipient's input ACK/reconciliation motion.
     SnapshotDelivery(SnapshotDelivery),
