@@ -175,16 +175,21 @@ fn random_battle_spawn_position(
     slot: usize,
     config: RandomBattleConfig,
 ) -> Vec3 {
-    let [local_x, local_z] = config.format.spawn_offset(slot).expect("seat in battle format");
     let seed = config.seed;
-    let jitter_x = (seed.random_battle_unit(100 + slot as u64) - 0.5) * 3.0;
-    let jitter_z = (seed.random_battle_unit(200 + slot as u64) - 0.5) * 3.0;
-    let yaw = zone.facing_yaw_rad;
-    let forward = Vec3::new(yaw.sin(), 0.0, yaw.cos());
-    let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
-    let center = Vec3::from_array(zone.center);
-    let flat = center + right * (local_x + jitter_x) + forward * (local_z + jitter_z);
-    random_battle_ground_position(map, flat.x, flat.z)
+    let jitter = game_core::BattleFormat::SPAWN_JITTER_M * 2.0;
+    let jitter_x = (seed.random_battle_unit(100 + slot as u64) - 0.5) * jitter;
+    let jitter_z = (seed.random_battle_unit(200 + slot as u64) - 0.5) * jitter;
+    // The same arithmetic the map report certifies (M4): one seat, one point.
+    let [x, z] = config
+        .format
+        .seat_position(
+            slot,
+            [zone.center[0], zone.center[2]],
+            zone.facing_yaw_rad,
+            [jitter_x, jitter_z],
+        )
+        .expect("seat in battle format");
+    random_battle_ground_position(map, x, z)
 }
 
 fn random_battle_ground_position(map: &BattlefieldMap, x: f32, z: f32) -> Vec3 {

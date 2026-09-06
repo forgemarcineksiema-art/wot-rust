@@ -105,9 +105,9 @@ down anywhere — the document that held them was retired):
    forbids.
 3. **Content breadth**: more vehicles per nation/line (Britain has one tank), 2-3 more maps,
    the second format and the AI battle on the player's screen (`docs/game-modes.md` M3–M5:
-   M2 supplies the format and offline setup; still owed are the garage entry, per-map spawn
-   clearance/navigation gate and an MX330 measurement at thirty hulls), the
-   objectives beyond last-team-standing.
+   M2 supplies the format and offline setup, M4 the per-map format gate — every shipped map
+   offers both; still owed are the garage entry and the budgets re-based to thirty hulls
+   with the MX330 measurement), the objectives beyond last-team-standing.
 4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
    only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,
    trailers/devlogs, NAME of the game. The interface half of this (settings, keybinds, the

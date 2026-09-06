@@ -603,6 +603,11 @@ pub enum RoadSpec {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GameplaySpec {
+    /// The battle formats this map offers (`docs/game-modes.md` M4). Empty means every
+    /// format; either way the report's `formats` check decides whether the zones seat them,
+    /// and `map_forge::formats` is what the host and the queue read.
+    #[serde(default)]
+    pub formats: Vec<game_core::BattleFormat>,
     #[serde(default)]
     pub spawns: Vec<SpawnSpec>,
     #[serde(default)]
@@ -613,6 +618,18 @@ pub struct GameplaySpec {
     pub capture_zones: Vec<CaptureZoneSpec>,
     #[serde(default)]
     pub features: Vec<FeatureSpec>,
+}
+
+impl GameplaySpec {
+    /// The formats the map offers: the authored list, or every format when the document
+    /// does not say.
+    pub fn offered_formats(&self) -> Vec<game_core::BattleFormat> {
+        if self.formats.is_empty() {
+            game_core::BattleFormat::ALL.to_vec()
+        } else {
+            self.formats.clone()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

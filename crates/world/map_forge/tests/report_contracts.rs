@@ -1,7 +1,7 @@
 //! Locks for the contract report itself: the checks that guard an AUTHOR's mistakes must
 //! fire on a synthetic bad blueprint — a shipped map never exercises them (it ships clean).
 
-use game_core::WeatherVariant;
+use game_core::{BattleFormat, WeatherVariant};
 use map_forge::blueprint::{
     BaseSpec, EnvironmentSpec, Gauss2Term, GridSpec, GroundLayerSpec, GroundMaterialsSpec,
     LightingPreset, LookSpec, MapBlueprint, MetaSpec, SpawnSpec, SymmetrySpec, TerrainOp,
@@ -33,9 +33,11 @@ fn flat_square() -> MapBlueprint {
         scenery: Vec::new(),
         roads: Vec::new(),
         gameplay: map_forge::blueprint::GameplaySpec {
+            formats: Vec::new(),
             spawns: vec![
                 SpawnSpec { team: 1, at: [150.0, 150.0], facing_yaw_rad: 0.0, radius_m: None },
-                SpawnSpec { team: 2, at: [150.0, 40.0], facing_yaw_rad: 0.0, radius_m: None },
+                // 100 m in: a 55 m zone facing +z seats fifteen without a seat off the map.
+                SpawnSpec { team: 2, at: [150.0, 100.0], facing_yaw_rad: 0.0, radius_m: None },
             ],
             strategic_points: Vec::new(),
             capture_zones: Vec::new(),
@@ -272,6 +274,54 @@ fn river_center_coordinates_on_a_riverless_map_error_instead_of_panicking() {
 
 /// The gentle-approach rule holds on DRY maps too — a cliff at the spawn must not hide
 /// behind the absence of water (it did once: the probe lived inside the water branch).
+/// M4 (`docs/game-modes.md`): a map offers only the formats its zones seat. A 50 m zone holds the
+/// seven-seat formation (its far corner reaches 47.7 m with the jitter) and not the fifteen-seat
+/// one (52.5 m): the same zone certifies one format and refuses the other, naming the seat.
+#[test]
+fn a_map_offers_only_the_formats_its_zones_seat() {
+    let mut blueprint = flat_square();
+    for spawn in &mut blueprint.gameplay.spawns {
+        spawn.radius_m = Some(50.0);
+    }
+    blueprint.gameplay.formats = vec![BattleFormat::SevenVsSeven];
+    let errors = error_messages(&blueprint);
+    assert!(!errors.iter().any(|m| m.starts_with("formats:")), "7v7 fits 50 m: {errors:?}");
+
+    blueprint.gameplay.formats = vec![BattleFormat::FifteenVsFifteen];
+    let errors = error_messages(&blueprint);
+    assert!(
+        errors
+            .iter()
+            .any(|m| m.starts_with("formats: FifteenVsFifteen seat")
+                && m.contains("outside the zone")),
+        "15v15 does not fit 50 m and the report names the seat: {errors:?}"
+    );
+
+    // An empty list means every format, and each is still judged.
+    blueprint.gameplay.formats.clear();
+    assert_eq!(blueprint.gameplay.offered_formats(), BattleFormat::ALL.to_vec());
+    assert!(error_messages(&blueprint).iter().any(|m| m.starts_with("formats:")));
+
+    // A zone that seats fifteen passes both, at the default radius.
+    for spawn in &mut blueprint.gameplay.spawns {
+        spawn.radius_m = None;
+    }
+    let errors = error_messages(&blueprint);
+    assert!(!errors.iter().any(|m| m.starts_with("formats:")), "55 m seats fifteen: {errors:?}");
+}
+
+/// Every shipped map says it offers both formats, and its report certifies every seat of both —
+/// `map_forge::formats` is what the host and the queue read (M4).
+#[test]
+fn every_shipped_map_offers_both_formats_and_seats_them() {
+    for &map in terrain::MapId::SHIPPED {
+        assert_eq!(map_forge::formats(map), BattleFormat::ALL.to_vec(), "{map:?}");
+        let (_, report) = compile(&map_forge::blueprint_for(map));
+        let faults: Vec<_> = report.errors().filter(|e| e.check == "formats").collect();
+        assert!(faults.is_empty(), "{map:?}: {faults:?}");
+    }
+}
+
 #[test]
 fn a_steep_spawn_approach_warns_even_on_a_dry_map() {
     let mut blueprint = flat_square();

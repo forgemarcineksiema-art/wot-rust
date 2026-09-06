@@ -91,11 +91,14 @@ fn rot_square() -> MapBlueprint {
             width_m: 5.0,
         }],
         gameplay: map_forge::blueprint::GameplaySpec {
+            formats: Vec::new(),
             spawns: vec![
-                SpawnSpec { team: 1, at: [60.0, 40.0], facing_yaw_rad: 0.0, radius_m: None },
+                // 42 m from the edge, not 40: the fifteen-seat back row (-38 m and the jitter)
+                // stays on the map for the report's `formats` check; the pair rotates about (150, 150).
+                SpawnSpec { team: 1, at: [60.0, 42.0], facing_yaw_rad: 0.0, radius_m: None },
                 SpawnSpec {
                     team: 2,
-                    at: [240.0, 260.0],
+                    at: [240.0, 258.0],
                     facing_yaw_rad: std::f32::consts::PI,
                     radius_m: None,
                 },

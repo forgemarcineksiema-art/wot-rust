@@ -85,6 +85,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     check_in_bounds(map, &mut report);
     check_cover_overlap(map, &mut report);
     check_spawns(map, &mut report);
+    check_formats(blueprint, map, &mut report);
     check_roads(map, &mut report);
     check_scenery(map, &mut report);
     check_species_mix(blueprint, map, &mut report);
@@ -956,6 +957,66 @@ fn check_spawns(map: &BattlefieldMap, report: &mut MapReport) {
     let mut counts = team_counts.values();
     if counts.next() != counts.next() {
         report.push("spawns", Severity::Error, "teams do not field equally".to_string(), None);
+    }
+}
+
+/// M4 (`docs/game-modes.md`): a map offers only the formats its zones seat. Every seat of every
+/// offered format is judged where the host would deploy it — `BattleFormat::seat_position`, at
+/// the jitter's four corners — inside the zone's radius, on the map, on dry ground and clear of
+/// cover by the widest hull's margin. A map that fails a format does not offer it; it says so
+/// here instead of at the first deployment.
+fn check_formats(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
+    let water = map.water_field();
+    let margin = cover_passability_margin_m();
+    let reach = game_core::BattleFormat::SPAWN_JITTER_M;
+    let corners = [[-reach, -reach], [reach, -reach], [-reach, reach], [reach, reach]];
+    for format in blueprint.gameplay.offered_formats() {
+        for zone in &map.spawn_zones {
+            for seat in 0..format.seats_per_team() {
+                let seat_name = format!(
+                    "{format:?} seat {} of team {}",
+                    char::from(b'A' + seat.min(25) as u8),
+                    zone.team
+                );
+                let mut fault = None;
+                for jitter in corners {
+                    let Some([x, z]) = format.seat_position(
+                        seat,
+                        [zone.center[0], zone.center[2]],
+                        zone.facing_yaw_rad,
+                        jitter,
+                    ) else {
+                        continue;
+                    };
+                    let radius = (x - zone.center[0]).hypot(z - zone.center[2]);
+                    let ground = map.heightmap.sample_height(x, z);
+                    let at = Some([x, ground.unwrap_or(zone.center[1]), z]);
+                    fault = if radius > zone.radius_m {
+                        Some((
+                            format!(
+                                "{seat_name} lands outside the zone ({radius:.1} m of {} m)",
+                                zone.radius_m
+                            ),
+                            at,
+                        ))
+                    } else if ground.is_none() {
+                        Some((format!("{seat_name} lands off the map at ({x:.0}, {z:.0})"), at))
+                    } else if water.depth_at(ground.unwrap_or(0.0), x, z) > 0.0 {
+                        Some((format!("{seat_name} lands in water at ({x:.0}, {z:.0})"), at))
+                    } else if terrain::inside_any_cover(&map.static_cover, x, z, margin) {
+                        Some((format!("{seat_name} lands inside cover at ({x:.0}, {z:.0})"), at))
+                    } else {
+                        None
+                    };
+                    if fault.is_some() {
+                        break;
+                    }
+                }
+                if let Some((message, at)) = fault {
+                    report.push("formats", Severity::Error, message, at);
+                }
+            }
+        }
     }
 }
 
