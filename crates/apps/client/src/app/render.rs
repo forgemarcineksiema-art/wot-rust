@@ -549,6 +549,23 @@ impl ClientApp {
         );
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
+        // H15: the map's memory sees every spotted enemy this frame and forgets wrecks at once.
+        {
+            let player_bit = self.player_team().spotting_bit();
+            let player_team = self.player_team();
+            let spotted = presentation_tanks.iter().filter(|t| {
+                t.team != player_team
+                    && t.hit_points > 0
+                    && t.spotted_by_teams_mask & player_bit != 0
+            });
+            let gone =
+                presentation_tanks.iter().filter(|t| t.team != player_team && t.hit_points == 0);
+            self.ghosts.observe(
+                spotted.map(|t| (t.id, [t.translation[0], t.translation[2]], t.vehicle.class())),
+                gone.map(|t| t.id),
+                frame_dt,
+            );
+        }
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
         // H10/H11: the markers over every spotted hull (the target in full once the reticle
         // below has said which hull it aims at); a mark whose hull left the snapshot dies here.

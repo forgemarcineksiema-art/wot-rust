@@ -69,6 +69,12 @@ pub enum HudElement {
     SixthSenseText,
     /// The visibility budget line (H14).
     BudgetLine,
+    /// One hull's blip on the minimap (H15): the class glyph, by blip index (allies first).
+    MinimapBlip(u8),
+    /// The blip's seat letter, on the sizes that fit it.
+    MinimapSeat(u8),
+    /// One grid letter or number along the map's edge (H15).
+    MinimapGridLabel(u8),
 }
 
 /// The parts of a marker: the target wears them all, a known hull only the bar.
@@ -159,7 +165,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 32] = [
+    pub const ALL: [HudElement; 35] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -194,6 +200,9 @@ impl HudElement {
         HudElement::SixthSenseLamp,
         HudElement::SixthSenseText,
         HudElement::BudgetLine,
+        HudElement::MinimapBlip(0),
+        HudElement::MinimapSeat(0),
+        HudElement::MinimapGridLabel(0),
     ];
 }
 

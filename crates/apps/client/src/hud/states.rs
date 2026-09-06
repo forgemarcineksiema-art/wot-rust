@@ -37,10 +37,12 @@ pub enum HudState {
     TeamListsMixed,
     /// A round switch in flight (H6): the band over the panel, the reload restarted.
     AmmoSwitching,
+    /// The minimap at its large size (H15): the grid's letters, the seats, the circles.
+    MinimapLarge,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 13] = [
+    pub const ALL: [HudState; 14] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -54,6 +56,7 @@ impl HudState {
         HudState::HudEditorOpen,
         HudState::TeamListsMixed,
         HudState::AmmoSwitching,
+        HudState::MinimapLarge,
     ];
 
     /// The golden's name stem.
@@ -72,6 +75,7 @@ impl HudState {
             HudState::HudEditorOpen => "hud_editor_open",
             HudState::TeamListsMixed => "team_lists_mixed",
             HudState::AmmoSwitching => "ammo_switching",
+            HudState::MinimapLarge => "minimap_large",
         }
     }
 
@@ -128,6 +132,11 @@ impl HudState {
             HudState::AmmoSwitching => {
                 model.ammo = Some(super::demo::demo_ammo(1));
                 model.vitals.reload_remaining_s = 5.1;
+            }
+            HudState::MinimapLarge => {
+                if let Some(map) = &mut model.minimap {
+                    map.size = super::minimap::MinimapSize::Large;
+                }
             }
         }
         model

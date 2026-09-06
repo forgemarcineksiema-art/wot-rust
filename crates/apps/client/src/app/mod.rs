@@ -10,6 +10,7 @@ mod fire_fx_tests;
 mod frame_scene;
 mod garage;
 mod garage_render;
+pub(crate) mod ghosts;
 #[cfg(test)]
 mod hit_mark_tests;
 mod ingest;
@@ -436,6 +437,8 @@ pub(crate) struct InputState {
     brake: bool,
     /// N (interface program H8): the hit log shows its newest row only.
     hit_log_collapsed: bool,
+    /// M (interface program H15): the minimap's size, cycling small → standard → large.
+    minimap_size: crate::hud::minimap::MinimapSize,
     /// Cruise control (interface program H5, World of Tanks' R/F): a latched throttle level,
     /// `-2..=3` — three forward steps, two in reverse, zero off. A held W/S overrides it for
     /// the hold; the brake clears it.
@@ -613,6 +616,8 @@ pub(crate) struct ClientApp {
     /// Whether the own mask said „spotted" on the last snapshot (H13): the chime plays on the
     /// rising edge, once per span.
     spotted_before: bool,
+    /// The minimap's memory of enemies seen (H15): ghosts fading over ten seconds.
+    ghosts: ghosts::GhostMemory,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -910,6 +915,7 @@ impl ClientApp {
             target_mark: None,
             hull_under_reticle: None,
             spotted_before: false,
+            ghosts: ghosts::GhostMemory::default(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),

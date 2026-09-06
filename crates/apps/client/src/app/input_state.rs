@@ -61,6 +61,15 @@ impl InputState {
         self.hit_log_collapsed
     }
 
+    /// M: the next minimap size on the cycle.
+    pub(super) fn cycle_minimap(&mut self) {
+        self.minimap_size = self.minimap_size.next();
+    }
+
+    pub(crate) fn minimap_size(&self) -> crate::hud::minimap::MinimapSize {
+        self.minimap_size
+    }
+
     /// Everything the keyboard and wheel can leave latched, dropped at once — the drive keys and
     /// trigger of [`Self::release_driving`] plus the modifier mirror, the fractional wheel carry
     /// and the mouse-look delta. For a focus edge: after this the input is exactly what a fresh
