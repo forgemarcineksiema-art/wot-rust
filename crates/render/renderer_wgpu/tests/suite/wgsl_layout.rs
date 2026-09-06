@@ -1,0 +1,893 @@
+use renderer_api::{FxVertex, VehicleVertex, surface_role};
+use renderer_wgpu::{
+    CameraUniform, GpuContext, build_camera_bind_group_layout, build_shadow_bind_group_layout,
+    build_vehicle_pipeline, encode_camera_uniform, fx_shader_source, scene_shader_source,
+    shadow_shader_source, sky_shader_source, terrain_shader_source, validate_wgsl_shader,
+    vehicle_shader_source,
+};
+
+#[test]
+fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
+    let bytes = encode_camera_uniform(&CameraUniform::identity()).expect("camera uniform encodes");
+
+    assert_eq!(bytes.len(), CameraUniform::wgsl_size());
+    // view_proj (64) + camera_pos + sky ambient + ground ambient + key/fill/rim direction+colour
+    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16)
+    // + ssao_params (vec4, 16): 64 + 144 + 64 + 16 + 16 = 304. Phase-2 atmosphere adds the gradient
+    // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352, plus the
+    // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416, plus time_params
+    // (vec4, 16) — the tick-domain presentation clock shader animation runs on: 416 + 16 = 432.
+    // The shadow cascades add light_view_proj_far (mat4, 64) and cascade_params (vec4, 16):
+    // 432 + 80 = 512. The profile display grade adds grade_params (vec4, 16): 512 + 16 = 528.
+    // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560. The local
+    // fill pools add light_pos_radius + light_rgb_intensity (2 x array<vec4, 6>, 192):
+    // 560 + 192 = 752. The two-layer air + second cloud layer append haze_params +
+    // cloud2_params (2 vec4, 32): 752 + 32 = 784. Dynamic weather appends one vec4: 800.
+    // The meadow's crushers (Jedna Trawa P9) append array<vec4, 6> = 96: 800 + 96 = 896.
+    // The garage hero probe (Hala 3.0 B2) appends its irradiance cube, array<vec4, 6> = 96:
+    // 896 + 96 = 992. The per-scene flags (C1: interior detail normal) append one vec4:
+    // 992 + 16 = 1008.
+    assert_eq!(bytes.len(), 1008);
+    assert_eq!(bytes.len() % 16, 0);
+}
+
+#[test]
+fn scene_shader_is_valid_wgsl_with_tint_inputs() {
+    let report =
+        validate_wgsl_shader("scene", &scene_shader_source()).expect("scene shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+/// Read a `const <name>: f32 = <value>;` straight out of a shader. Parsing the real source
+/// (rather than restating the literal) means these locks fail when the shader moves, which
+/// is the entire point of a CPU↔GPU contract test.
+fn wgsl_const(source: &str, name: &str) -> f32 {
+    let needle = format!("const {name}: f32 = ");
+    let start = source.find(&needle).unwrap_or_else(|| panic!("{name} is missing from the shader"))
+        + needle.len();
+    let rest = &source[start..];
+    let end = rest.find(';').expect("a terminated const");
+    rest[..end].trim().parse().expect("a numeric const")
+}
+
+#[test]
+fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
+    let source = scene_shader_source();
+
+    // The role value is an append-only CPU/GPU protocol, so lock both ends together.
+    assert_eq!(surface_role::GRASS_CARD, 5.0);
+    assert_eq!(surface_role::GRASS_BLADE, 6.0);
+    assert!(source.contains("abs(input.surface - 6.0) < 0.5"));
+
+    // The costume hand-off (Jedna Trawa P4): ONE function decides where grass changes
+    // costume — the near ring takes its value, the far meadow takes the complement, so
+    // stand_near + stand_far ≡ 1 at every place by construction, and the radius is a
+    // world-anchored coastline (noise), never a ring line.
+    assert!(source.contains("fn grass_handoff_stand"));
+    assert!(source.contains("stand = grass_handoff_stand(root.xz, camera.camera_pos.xz);"));
+    assert!(source.contains("(1.0 - grass_handoff_stand(world.xz, camera.camera_pos.xz))"));
+    assert!(source.contains("root + (world.xyz - root) * stand"));
+
+    // The coastline's outermost reach stays inside the shader ring the CPU cache's
+    // anti-streaming lock is written against (scene_build's GRASS_RADIUS_M — restated here
+    // because the renderer sits BELOW scene_build in the layer DAG and cannot import it).
+    const CPU_SHADER_RING_M: f32 = 48.0;
+    let base = wgsl_const(&source, "GRASS_HANDOFF_BASE_M");
+    let spread = wgsl_const(&source, "GRASS_HANDOFF_SPREAD_M");
+    let half_band = wgsl_const(&source, "GRASS_HANDOFF_HALF_BAND_M");
+    assert!(
+        base + spread + half_band < CPU_SHADER_RING_M,
+        "the coastline's farthest reach ({}) must stay inside the {CPU_SHADER_RING_M} m ring \
+         the CPU population is cached for",
+        base + spread + half_band
+    );
+
+    // Zoom-aware bands (D3/P4b): the shader's magnification constants ARE the CPU's, read
+    // from the projection lane the renderer already fills — one number, no camera state
+    // synchronised across the boundary.
+    assert_eq!(
+        wgsl_const(&source, "GRASS_ZOOM_REFERENCE_PROJ_Y"),
+        renderer_api::GRASS_ZOOM_REFERENCE_PROJ_Y
+    );
+    assert_eq!(wgsl_const(&source, "GRASS_ZOOM_BAND_CAP"), renderer_api::GRASS_ZOOM_BAND_CAP);
+    assert!(source.contains("camera.ssao_params.w / GRASS_ZOOM_REFERENCE_PROJ_Y"));
+    // Only the FAR collapse stretches. The near hand-off must not: the ring is a CPU cache
+    // of fixed world radius whose instance count grows with the square of any stretch.
+    assert!(source.contains("meadow_far_stand(d)"));
+    assert!(source.contains("MEADOW_FAR_COLLAPSE_START_M * zoom"));
+    assert!(
+        !source.contains("GRASS_HANDOFF_BASE_M * zoom"),
+        "stretching the near ring would multiply the CPU population, not the view"
+    );
+
+    // Wind displacement is mesh-local, scaled into world metres, and dies with the tuft.
+    // Since Drzewa 3.0 PR11 the scene pass sways through `foliage_wind_offset` (the shared
+    // gust field plus the uv-gated leaf flutter); the invariant is unchanged — the wind
+    // reads the SCALED, faded lane.
+    assert!(source.contains("let model_scale = length(model[1].xyz);"));
+    assert!(source.contains("let scaled_sway = input.sway * model_scale * stand;"));
+    assert!(
+        source.contains("foliage_wind_offset(world.xz, root.xz, scaled_sway"),
+        "the wind reads the SCALED, faded lane — raw sway would turn a small faded tuft \
+         into a long wind-blown needle"
+    );
+
+    // Wind 2.0 (P7): one wind for sky and field, gust FRONTS rather than a global hum, and
+    // a bend that is an arc pinned at the root — the tip drops with the SQUARE of its
+    // deflection (the chord of a bent blade), so grass lies down instead of skating.
+    assert!(
+        source.contains("camera.cloud2_params.z"),
+        "the field is laid by the same heading that drives the sky's cloud sheet"
+    );
+    assert!(source.contains("t * MEADOW_GUST_ALONG * MEADOW_GUST_SPEED"), "gusts advect downwind");
+    assert!(source.contains("deflection * deflection / max(reach * 2.0, 0.02)"));
+    assert!(
+        wgsl_const(&source, "MEADOW_GUST_ACROSS") < wgsl_const(&source, "MEADOW_GUST_ALONG"),
+        "a gust front is STRETCHED across the wind — equal scales would read as blobs"
+    );
+    assert!(
+        wgsl_const(&source, "MEADOW_WIND_BASE") > 0.0,
+        "a calm day still breathes: the field never freezes when no storm front is set"
+    );
+
+    // Grass geometry roles must not fall through to bark or the costlier generic ground path;
+    // the single octave rides the shared fine frame so the cards match the ground's grain.
+    // The band is explicit (5–7): role 8 (dressed stone) is a woody material, not grass.
+    assert!(source.contains("if (role > 4.5 && role < 7.5)"));
+    assert!(
+        source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
+    );
+}
+
+/// Fasada 2.0 (Świat 2.0 PR 3): the DRESSED_STONE role is an append-only CPU/GPU protocol
+/// value, locked at both ends — and the shader's dispatch must reach it (bark stays 4, the
+/// grass shortcut must not swallow it).
+#[test]
+fn dressed_stone_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::DRESSED_STONE, 8.0);
+    // Bark's branch is bounded below it, and stone is the fall-through: ashlar courses of
+    // staggered blocks with per-block tone, for plinths, sills, lintel bands and portals.
+    assert!(source.contains("if (role < 4.5)"), "bark is explicit so stone can exist past it");
+    assert!(source.contains("let srow = floor(world.y / 0.30);"), "stone courses climb the wall");
+    assert!(
+        source.contains("detail_hash(vec2<f32>(scol * 1.7 + 3.0, srow))"),
+        "one tone per block"
+    );
+    // Dressed stone stopped being the fall-through when natural rock was appended past it.
+    assert!(source.contains("if (role < 8.5)"), "ashlar is explicit so rock can exist past it");
+}
+
+/// Skały 1.0 (Świat 2.0 PR 8): the ROCK_FACE role is the append after DRESSED_STONE, locked at
+/// both ends. The two must never share a treatment — role 8 is stone a mason CUT (courses,
+/// joints, one tone per block), role 9 is stone nobody touched.
+#[test]
+fn rock_face_role_is_bound_at_both_ends() {
+    let source = scene_shader_source();
+    assert_eq!(surface_role::ROCK_FACE, 9.0);
+    assert_eq!(surface_role::ROCK_FACE, surface_role::DRESSED_STONE + 1.0, "append-only");
+    // No courses: the ashlar joint machinery must not reach the boulder.
+    assert!(
+        !source.contains("let rrow = floor"),
+        "natural rock has no courses — that is what separates it from role 8"
+    );
+    // Art-direction rule 5: two octaves, never one, and both on the SHARED frames (D26 — the
+    // repo has exactly one noise lattice, and a new hash here would print its own grid).
+    assert!(source.contains("octave_frame_broad(face_frame)"));
+    assert!(source.contains("octave_frame_fine(face_frame)"));
+    assert!(source.contains("octave_frame_broad(top_frame)"));
+    assert!(source.contains("octave_frame_fine(top_frame)"));
+    // The weathering split is the whole read: an upward face is lifted, an undercut is not.
+    assert!(source.contains("(0.90 + 0.16 * up)"), "the sky bleaches what it can reach");
+}
+
+/// Costume C (P5): the ground carries the meadow's darkness, and the curve it takes over on
+/// is the SAME one the scene pass folds the far tufts with — one shared fragment, composed
+/// into both passes, so the collapse cannot drift into a visible horizon.
+#[test]
+fn the_ground_takes_over_the_meadow_where_the_far_tufts_fold() {
+    let scene = scene_shader_source();
+    let terrain = terrain_shader_source();
+
+    // ONE definition, two consumers: the shared fragment declares the curve, and each pass
+    // calls it rather than restating a threshold of its own.
+    for (pass, source) in [("scene", &scene), ("terrain", &terrain)] {
+        assert_eq!(
+            source.matches("fn meadow_far_stand").count(),
+            1,
+            "{pass} composes exactly one copy of the shared meadow fragment"
+        );
+        assert_eq!(source.matches("fn grass_zoom_band_scale").count(), 1);
+    }
+    assert!(
+        terrain.contains("meadow_ground_shade(w.r + w.g, eye_dist)"),
+        "the ground's meadow share is vegetation-weighted and distance-aware"
+    );
+
+    // The shade constants are the CPU's, and they mean what the doctrine says: the ground
+    // carries MORE of the meadow once the tufts in front of it are gone.
+    let standing = wgsl_const(&terrain, "MEADOW_SHADE_STANDING");
+    let collapsed = wgsl_const(&terrain, "MEADOW_SHADE_COLLAPSED");
+    assert_eq!(standing, renderer_api::MEADOW_SHADE_STANDING);
+    assert_eq!(collapsed, renderer_api::MEADOW_SHADE_COLLAPSED);
+    assert!(collapsed > standing, "a folded meadow leaves MORE for the ground to carry");
+
+    // The hand-over itself: bare ground is never touched, and vegetated ground darkens as
+    // the far costume folds — continuously, with no step at the collapse band.
+    assert_eq!(renderer_api::meadow_ground_shade(0.0, 0.0), 1.0, "a road is never shaded");
+    let near = renderer_api::meadow_ground_shade(1.0, 1.0);
+    let far = renderer_api::meadow_ground_shade(1.0, 0.0);
+    assert!(far < near, "the ground darkens as the tufts fold: {near} -> {far}");
+    let midpoint = renderer_api::meadow_ground_shade(1.0, 0.5);
+    assert!(
+        (midpoint - (near + far) * 0.5).abs() < 1.0e-6,
+        "the take-over is linear in the far costume's presence — no step to see"
+    );
+}
+
+/// The tank in the meadow (P9): a hull presses grass flat and shoves it outward, the press
+/// overrules the wind, and an empty crusher array is a bit-exact no-op.
+#[test]
+fn a_hull_presses_the_meadow_flat_and_overrules_the_wind() {
+    let source = scene_shader_source();
+
+    // The shader reads the crusher slots and the press wins over the weather: what is
+    // crushed is bent by the machine, and only the REMAINDER still feels the wind.
+    assert!(source.contains("camera.crusher_pos_radius[i]"));
+    assert!(source.contains("fn meadow_crush_at"));
+    assert!(
+        source.contains("meadow_wind_offset_free(world_xz, root_xz, reach * (1.0 - crush.y), t)"),
+        "the crushed share of a blade must not also sway"
+    );
+    // The same arc as the wind: a flattened blade drops with the square of its deflection
+    // rather than sliding along the ground.
+    assert!(source.contains("let drop = bend * bend / max(reach * 2.0, 0.02);"));
+    // Driving a blade past flat would make it climb out the far side of the tank.
+    assert!(wgsl_const(&source, "MEADOW_CRUSH_SPREAD") <= 1.0);
+
+    // The falloff model itself, CPU-side (the shader mirrors it).
+    let radius = renderer_api::GRASS_CRUSH_RADIUS_M;
+    assert_eq!(renderer_api::grass_crush_strength(0.0, radius), 1.0, "flat under the hull");
+    assert_eq!(renderer_api::grass_crush_strength(radius, radius), 0.0, "free at the rim");
+    assert_eq!(
+        renderer_api::grass_crush_strength(1.0, 0.0),
+        0.0,
+        "a disabled slot presses nothing"
+    );
+    let near = renderer_api::grass_crush_strength(radius * 0.25, radius);
+    let far = renderer_api::grass_crush_strength(radius * 0.75, radius);
+    assert!(near > far, "the press eases outward: {near} vs {far}");
+    assert!(
+        far < 0.1,
+        "the release is quick — no wide skirt of half-bent grass around every tank: {far}"
+    );
+}
+
+/// The magnification factor itself (P4b): every off-game camera lands on exactly 1.0, the
+/// scope ladder stretches the bands, and the cap holds at its narrowest steps.
+#[test]
+fn the_grass_band_magnification_is_one_off_scope_and_capped_on_it() {
+    let proj_y = |fov_degrees: f32| 1.0 / (fov_degrees.to_radians() * 0.5).tan();
+    for battle_fov in [48.0, 55.0, 60.0, 65.0, 75.0] {
+        assert_eq!(
+            renderer_api::grass_zoom_band_scale(proj_y(battle_fov)),
+            1.0,
+            "a normal battle view at {battle_fov}° is not magnified"
+        );
+    }
+    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step. The stretch
+    // was ~3.3x while the reference sat at 55°; the Świat 2.0 lens moved the reference to 48°,
+    // and a narrower normal view makes the SAME scope a smaller relative jump — cot(9°)/2.2461
+    // = 2.81. The scope did not change; what it is measured against did.
+    let entry = renderer_api::grass_zoom_band_scale(proj_y(18.0));
+    assert!((2.6..3.0).contains(&entry), "the entry scope step stretches ~2.8x: {entry}");
+    for narrow in [8.0, 5.0, 3.0] {
+        assert_eq!(
+            renderer_api::grass_zoom_band_scale(proj_y(narrow)),
+            renderer_api::GRASS_ZOOM_BAND_CAP,
+            "the deep steps hold at the cap instead of asking for kilometres of grass"
+        );
+    }
+}
+
+#[test]
+fn terrain_shader_is_valid_wgsl() {
+    let report = validate_wgsl_shader("terrain", &terrain_shader_source())
+        .expect("terrain shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+#[test]
+fn fx_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let source = fx_shader_source();
+    let report = validate_wgsl_shader("fx", &source).expect("fx shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The FX pipeline reuses the scene camera bind group, so its uniform must sit at the same
+    // slot the scene pipeline binds (group 0, binding 0).
+    assert!(report.has_uniform_binding("camera", 0, 0));
+
+    // Teren F3 (slice 1): PHYSICAL media (alpha carries coverage) breathe the world's air
+    // through the ONE shared fog implementation, while pure-additive glow — tracers, fire —
+    // stays unfogged: an emissive read at range is a gameplay promise.
+    assert!(source.contains("apply_fog"), "physical FX must fog through the shared lane");
+    assert!(source.contains("if (color.a > 0.011)"), "additive glow must pass the fog untouched");
+}
+
+#[test]
+fn fx_vertex_is_plain_old_data_matching_the_fx_attribute_layout() {
+    // position (12) + uv (8) + sharpness (4) + premultiplied color (16) = 40 bytes, zero
+    // padding — the WGSL vertex_attr_array in fx_pipeline.rs assumes this exact packing.
+    assert_eq!(core::mem::size_of::<FxVertex>(), 40);
+    let vertex = FxVertex::new([1.0, 2.0, 3.0], [-1.0, 1.0], [0.5, 0.4, 0.3, 0.2]);
+    assert_eq!(vertex.sharpness, 1.0, "plain particles stay soft");
+    let stamped = FxVertex::sharp([0.0; 3], [0.0, 0.0], 6.0, [0.1; 4]);
+    assert_eq!(stamped.sharpness, 6.0);
+    let bytes: &[u8] = bytemuck::bytes_of(&stamped);
+    assert_eq!(bytes.len(), 40);
+}
+
+#[test]
+fn sky_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("sky", &sky_shader_source()).expect("sky shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The gradient-sky pass reuses the scene camera bind group (group 0, binding 0) to unproject
+    // the per-pixel view ray, so its uniform must sit at the same slot the scene pipeline binds.
+    assert!(report.has_uniform_binding("camera", 0, 0));
+}
+
+#[test]
+fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("water", &renderer_wgpu::water_shader_source())
+        .expect("water shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The refraction variant (A6b) is a second fragment entry sampling the opaque grab; it must
+    // coexist with the analytic entry so the discrete tier can pick it without a second shader.
+    assert!(
+        report.entry_points.iter().any(|entry| entry == "fs_refract"),
+        "the refraction entry point must be present"
+    );
+    // The water pass reuses the scene camera bind group - the ripple runs on its time uniform.
+    assert!(report.has_uniform_binding("camera", 0, 0));
+    // The refraction params ride group 1 (the grab texture/sampler share the group); the analytic
+    // entry never touches group 1, so its pipeline layout stays camera-only.
+    assert!(
+        report.has_uniform_binding("refraction", 1, 2),
+        "refraction params must sit at group 1 binding 2"
+    );
+}
+
+#[test]
+fn rain_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("rain", &renderer_wgpu::rain_shader_source())
+        .expect("rain shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // Stateless: the streaks are a pure function of (instance, time, camera) in this uniform.
+    assert!(report.has_uniform_binding("camera", 0, 0));
+}
+
+#[test]
+fn shadow_shader_is_valid_wgsl() {
+    let report =
+        validate_wgsl_shader("shadow", &shadow_shader_source()).expect("shadow shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+}
+
+#[test]
+fn each_near_shadow_pcf_tier_normalizes_its_own_tap_count() {
+    // The two tiers are separate paths now (the reduced one rotates its cross per pixel), so
+    // each carries its own explicit normalizer — the invariant is that BOTH exist: a shared
+    // divisor would over- or under-normalize whichever tier it was not written for.
+    let source = scene_shader_source();
+
+    assert!(source.contains("sum / 9.0"), "the wide 3x3 tier must normalize its nine taps");
+    assert!(source.contains("sum / 4.0"), "the reduced tier must normalize its four taps");
+    // The reduced tier's four taps sit on the per-pixel rotated cross — the fixed sparse
+    // lattice printed a weave into every penumbra (D32), so the rotation is load-bearing.
+    assert!(
+        source.contains("let rot = pcf_rotation(frag.xy);"),
+        "the reduced PCF cross must rotate per pixel"
+    );
+}
+
+#[test]
+fn dynamic_weather_uses_one_seeded_phase_and_separate_puddle_fill() {
+    let scene = scene_shader_source();
+    let terrain = terrain_shader_source();
+    let sky = sky_shader_source();
+    let rain = renderer_wgpu::rain_shader_source();
+
+    for source in [&scene, &terrain, &sky] {
+        assert!(source.contains("camera.weather_params.xy"), "cloud phase must be shared");
+    }
+    for source in [&scene, &terrain] {
+        assert!(source.contains("camera.weather_params.z"), "puddles need standing-water fill");
+        assert!(source.contains("mix(0.80, 0.54"), "fill must expand continuous basins");
+    }
+    assert!(rain.contains("camera.weather_params.w"), "rain needs its seeded time phase");
+}
+
+/// Inny Poziom T6: the meadow is not ploughed. "Teren B1" put a 1.25 m furrow sine on the
+/// terrain's VEGETATION share (grass + straw — every meadow of every map) with a plough
+/// direction hashed per plot at the VERTEX and interpolated across each 5 m triangle. The
+/// owner's screenshots (2026-09-04, Bystra and Prokhorovka) showed the result: horizontal
+/// zigzag waves where a plot ran across the view, long dark converging streaks where it ran
+/// along it, kinks along every triangle edge at a plot border, and all of it strobing the
+/// moment the tank moved. The feature was bought back by cost alone (±0.05 ms) and never
+/// judged on a frame. It is gone, its detail bit is retired, and nothing directional may
+/// ride the per-vertex quilt lane again — a 5 m interpolation can carry a TONE, never an
+/// ANGLE.
+#[test]
+fn the_meadow_is_not_ploughed() {
+    let terrain = terrain_shader_source();
+    // Code only: the comments are allowed to say why the feature is gone.
+    let code: String = terrain
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_lowercase();
+    for forbidden in
+        ["furrow", "plough", "detail_bit(64u)", "furrow_period_m", "5.0265482", "0.39269908"]
+    {
+        assert!(
+            !code.contains(forbidden),
+            "the furrow sine must not return to the terrain pass (found {forbidden:?})"
+        );
+    }
+    // The quilt lane carries exactly two tones (dry lean, lightness drift) — no direction.
+    assert!(
+        terrain.contains("@location(5) quilt: vec2<f32>,"),
+        "the per-vertex quilt lane is two scalars, nothing an interpolation can kink"
+    );
+    assert!(
+        !terrain.contains("@location(6) furrow_dir"),
+        "the furrow direction varying is gone with the feature"
+    );
+    // The shipped mask does not carry the retired bit, and FULL does not either.
+    assert!(!renderer_api::LightingQuality::canonical().shader_detail.has(1 << 6));
+    assert!(!renderer_api::ShaderDetailMask::FULL.has(1 << 6));
+}
+
+#[test]
+fn sky_sun_disc_is_cloud_occluded_and_reads_profile_softness() {
+    let sky = sky_shader_source();
+
+    // The disc must be modulated by the cloud cover at its pixel — purely additive sun energy
+    // burns through a solid overcast lid the moment a profile carries a hot key.
+    assert!(
+        sky.contains("let sun_cover = cloud * camera.cloud_params.z;"),
+        "the sun pass must sample the cloud cover it sits behind"
+    );
+    assert!(sky.contains("disc * (1.0 - sun_cover)"), "the disc must die behind a full lid");
+    // Softness is profile data (haze_params.w), never re-derived from the fog density — that
+    // coupling made the fairness fog knob silently retune the sun's look.
+    assert!(sky.contains("camera.haze_params.w"), "sun softness rides haze_params.w");
+    assert!(
+        !sky.contains("fog_params.x * 700.0"),
+        "the disc's softness must not be derived from the fog density"
+    );
+}
+
+#[test]
+fn sky_cloud_field_is_lattice_decorrelated() {
+    let sky = sky_shader_source();
+
+    // The square-sky artefact had three roots, each locked here. The sin hash collapsed to
+    // flat hard-edged plates once the octave chain pushed its argument past the GPU sin's
+    // accurate range; the sky hash must stay sin-free.
+    assert!(
+        !sky.contains("fract(sin(dot"),
+        "the sky lattice hash must not run its coordinates through sin"
+    );
+    // Axis-aligned octaves all reinforced ONE square lattice, and the dome projection blew a
+    // single base cell up to tens of degrees of sky: the octave chain must rotate.
+    assert!(
+        sky.contains("mat2x2<f32>(1.6, 1.2, -1.2, 1.6)"),
+        "fbm octaves must rotate off the shared lattice"
+    );
+    // The high sheet thresholded RAW fbm — the cleanest cell display in the dome — and the
+    // ridged crease painted closed-curve rings into the open blue between banks.
+    assert!(
+        sky.contains("cloud_fbm(sheet_uv + sheet_warp"),
+        "the high sheet must be warped and rotated, not raw fbm"
+    );
+    assert!(
+        sky.contains("* smoothstep(0.42, 0.62, body)"),
+        "the ridged term must be gated by the bank body"
+    );
+}
+
+#[test]
+fn ground_cloud_shade_scale_matches_the_dome() {
+    // The terrain's wandering cloud shade promises coherence "in motion and scale" with the
+    // dome (scene.wgsl); the dome's base pattern scale and the ground field's world-metres
+    // mapping must carry the SAME factor or the shade stops matching the banks overhead.
+    let sky = sky_shader_source();
+    assert!(sky.contains("* 1.35 * camera.cloud_params.y"), "dome base scale factor");
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        assert!(
+            source.contains("(1.35 / 400.0) * camera.cloud_params.y"),
+            "{label}: ground cloud shade must keep the dome's pattern scale"
+        );
+    }
+}
+
+#[test]
+fn sky_cloud_projections_guard_their_horizon_singularity() {
+    let sky = sky_shader_source();
+
+    // dir.xz / (dir.y + c) blows up to inf at dir.y = -c, and fbm(inf) can return NaN — which
+    // the band's zero does NOT stop (NaN * 0.0 = NaN). Both cloud layers clamp the denominator.
+    assert!(sky.contains("max(dir.y + 0.45,"), "the cumulus projection must clamp its divisor");
+    assert!(sky.contains("max(dir.y + 0.55,"), "the sheet projection must clamp its divisor");
+    assert!(
+        !sky.contains("/ (dir.y + 0.45)") && !sky.contains("/ (dir.y + 0.55)"),
+        "no cloud projection may divide by an unclamped horizon-crossing term"
+    );
+}
+
+#[test]
+fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
+    let report = validate_wgsl_shader("vehicle", &vehicle_shader_source())
+        .expect("vehicle shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The vehicle pipeline binds its camera uniform at group 0, binding 0 (like the scene pass).
+    assert!(report.has_uniform_binding("camera", 0, 0));
+    let source = vehicle_shader_source();
+    for (binding, name) in [
+        ("@group(1) @binding(0)", "var albedo_map"),
+        ("@group(1) @binding(1)", "var normal_map"),
+        ("@group(1) @binding(2)", "var ao_roughness_map"),
+        ("@group(1) @binding(3)", "var cavity_map"),
+        ("@group(1) @binding(4)", "var vehicle_sampler"),
+    ] {
+        assert_binding_declared(&source, binding, name);
+    }
+}
+
+/// The metalness lane is CONSUMED. The synthesis has packed metalness into every texture's blue
+/// channel since the maps existed (track links 0.5, glass a trace) and the shader read only
+/// `.r`/`.g` — a quarter of every upload, dead, and steel that caught the sky exactly like
+/// paint. This pins the read so the lane cannot quietly die again; what the read DOES to the
+/// image is the look goldens' business.
+#[test]
+fn the_metalness_lane_reaches_the_vehicle_shader() {
+    let source = vehicle_shader_source();
+    assert!(
+        source.contains("ao_rough.b"),
+        "vehicle.wgsl no longer reads the metalness lane (ao_rough.b) — the blue channel of          every synthesized texture is dead weight again"
+    );
+}
+
+/// Inny Poziom T6: the SSAO pass judges every tap against the pixel's LOCAL PLANE, not against
+/// the centre depth. The GPU contract (`ssao_coupling::a_flat_field_does_not_occlude_itself`)
+/// proves the result; this lock names the mechanism so a "simplification" cannot put the
+/// centre-depth comparison back and pass the GPU test by luck of a different bias.
+#[test]
+fn ssao_predicts_each_tap_from_the_local_plane() {
+    let ssao = renderer_wgpu::ssao_shader_source();
+    assert!(
+        ssao.contains("var plane = vec2<f32>(dpdx(lin), dpdy(lin));"),
+        "the plane is the linear depth's screen gradient"
+    );
+    assert!(
+        ssao.contains("let expected_lin = lin + dot(plane, vec2<f32>(tap - pix));"),
+        "each tap's expected depth follows the plane to the tap's offset"
+    );
+    assert!(
+        ssao.contains("let closer_by = expected_lin - sample_lin;"),
+        "occlusion is measured against the plane's prediction, never the centre depth"
+    );
+    assert!(
+        !ssao.contains("let closer_by = lin - sample_lin;"),
+        "the centre-depth comparison is the flat-field self-occlusion — it must not return"
+    );
+    // The silhouette guard: a nonsense slope falls back to the flat prediction.
+    assert!(ssao.contains("if (length(plane) > lin * PLANE_EDGE_SHARE)"));
+    // The derivatives sit before the early return — uniform control flow.
+    let plane_at = ssao.find("dpdx(lin)").expect("plane");
+    let early_out = ssao.find("if (strength <= 0.0 || d >= 1.0)").expect("early out");
+    assert!(plane_at < early_out, "derivatives must be taken in uniform control flow");
+}
+
+#[test]
+fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
+    use renderer_wgpu::{rain_shader_source, ssao_shader_source, water_shader_source};
+
+    // Every camera-bound pass gets its Camera struct from camera_common.wgsl — one declaration
+    // per composed source. A count of 0 means the composition dropped the fragment; 2+ means a
+    // duplicated copy crept back into a pass body.
+    for (label, source) in [
+        ("scene", scene_shader_source()),
+        ("vehicle", vehicle_shader_source()),
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+        ("rain", rain_shader_source()),
+        ("shadow", shadow_shader_source()),
+        ("ssao", ssao_shader_source()),
+    ] {
+        assert_eq!(
+            source.matches("struct Camera {").count(),
+            1,
+            "{label}: exactly one shared Camera struct"
+        );
+    }
+
+    // The lit passes share one copy of the lighting model and display transform.
+    for (label, source) in [
+        ("scene", scene_shader_source()),
+        ("vehicle", vehicle_shader_source()),
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+    ] {
+        for function in ["fn tonemap_aces(", "fn display_grade(", "fn aces_curve(", "fn apply_fog("]
+        {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+
+    // Only the geometry passes whose pipeline layout carries the group-2 environment bind group
+    // may declare the shadow/SSAO lookups.
+    for (label, source) in [("scene", scene_shader_source()), ("vehicle", vehicle_shader_source())]
+    {
+        for function in ["fn sun_shadow(", "fn screen_ao("] {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+    for (label, source) in [
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+        ("rain", rain_shader_source()),
+    ] {
+        assert_eq!(
+            source.matches("fn sun_shadow(").count(),
+            0,
+            "{label}: no group-2 shadow bindings in a pass without that bind group"
+        );
+    }
+
+    // The ground grain is ONE implementation (noise_common.wgsl): the terrain pass and the
+    // statics standing on it must never grow a second hash/lattice copy, or their grains
+    // silently drift apart and the ground stops reading as one picture.
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        for function in
+            ["fn value_noise(", "fn value_noise_grad(", "fn ground_grain(", "fn puddle_pool("]
+        {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+}
+
+/// Teren 2.0 (Inny Poziom T3, O1's ground half): the terrain's detail is a baked, tiling,
+/// MIPMAPPED material, not a lattice evaluated per fragment. The lock names the mechanism the
+/// picture depends on: one tap per PRESENT layer through explicit gradients (the taps sit in
+/// non-uniform control flow), a height blend at splat borders, the macro tone tile at two
+/// scales, and no procedural grain octave left in the fragment — the mip chain is the filter,
+/// and a per-fragment footprint fade must not creep back to "help" it.
+#[test]
+fn the_ground_detail_is_a_mipmapped_material() {
+    let terrain = terrain_shader_source();
+    let fragment = terrain.split("fn fs_main").nth(1).expect("terrain fragment");
+
+    // The bindings: a four-layer array, the macro tile, and their own repeat sampler.
+    assert!(terrain.contains("@group(1) @binding(4) var detail_tiles: texture_2d_array<f32>;"));
+    assert!(terrain.contains("@group(1) @binding(5) var macro_tile: texture_2d<f32>;"));
+    assert!(terrain.contains("@group(1) @binding(6) var detail_sampler: sampler;"));
+
+    // One tap per present layer, gradients taken once outside the branch.
+    assert!(
+        terrain
+            .contains("textureSampleGrad(detail_tiles, detail_sampler, tile_uv, layer, ddx, ddy)")
+    );
+    assert!(fragment.contains("let tile_ddx = dpdx(tile_uv);"));
+    assert!(fragment.contains("if (w[i] > 0.01 && detail_bit(2u))"), "absent layers pay no tap");
+    // The height blend at splat borders.
+    assert!(fragment.contains("pow(tiles[i].a + HEIGHT_BLEND_FLOOR, HEIGHT_BLEND_POWER)"));
+    // The macro tone: two taps, the far one rotated off the near one's frame.
+    assert_eq!(fragment.matches("textureSample(macro_tile, detail_sampler,").count(), 2);
+    assert!(fragment.contains("GROUND_MACRO_PERIOD_M * GROUND_MACRO_FAR_RATIO"));
+
+    // No lattice octave in the fragment any more: the grain, the micro crumb and the footprint
+    // fade are gone; the only value_noise left is the strata on steep ground.
+    for gone in ["ground_grain(", "micro_grain(", "_filtered(", "octave_reach(", "footprint"] {
+        assert!(!fragment.contains(gone), "{gone} must not return to the terrain fragment");
+    }
+    assert_eq!(fragment.matches("value_noise(").count(), 1, "only the strata noise remains");
+
+    // The constants mirror the bake.
+    assert_eq!(wgsl_const(&terrain, "GROUND_TILE_PERIOD_M"), renderer_api::GROUND_TILE_PERIOD_M);
+    assert_eq!(wgsl_const(&terrain, "GROUND_MACRO_PERIOD_M"), renderer_api::GROUND_MACRO_PERIOD_M);
+    assert_eq!(
+        wgsl_const(&terrain, "GROUND_MACRO_FAR_RATIO"),
+        renderer_api::GROUND_MACRO_FAR_RATIO
+    );
+
+    // The mip model at the battle lens (48° over 1080 rows, a 3 m eye): the hardware picks
+    // the level whose texel matches the pixel's ground footprint, and a feature is folded to
+    // its mean once that texel passes half its period (Nyquist). The base level (2 cm texels)
+    // is read inside ~8 m, the 0.3 m grain is folded by 30 m and the 2 m swell by 150 m — the
+    // same fade the footprint filter used to hand-roll, for free — and through a 16x scope
+    // the 0.67 m tussocks come back at 100 m by themselves.
+    let texel_m = renderer_api::GROUND_TILE_PERIOD_M / renderer_api::GROUND_TILE_SIZE as f32;
+    let fov = 48.0_f32.to_radians();
+    let level = |d: f32, fov: f32| {
+        (renderer_api::ground_pixel_footprint_m(3.0, d, fov, 1080.0) / texel_m).max(1.0).log2()
+    };
+    let folded_at = |period_m: f32| (period_m / 2.0 / texel_m).log2();
+    assert!(level(8.0, fov) < 1.0, "the base level reads near the eye");
+    assert!(level(30.0, fov) > folded_at(0.3), "the 0.3 m grain is folded by 30 m");
+    assert!(level(150.0, fov) > folded_at(2.0), "the 2 m swell is folded by 150 m");
+    assert!(level(100.0, fov / 16.0) < folded_at(0.67), "a 16x scope reads tussocks at 100 m");
+}
+
+#[test]
+fn ground_grain_is_lattice_decorrelated() {
+    // The ground twin of `sky_cloud_field_is_lattice_decorrelated`. The pixelated-square
+    // ground had the same three roots as the square sky, each locked here:
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        // 1. The world-metre lattices must not hash through sin — fract(sin(dot)) collapses
+        //    into flat hard-edged plates once its argument leaves the GPU sin's accurate
+        //    range, which world.xz * 1.7 does within metres of the origin. The sin hash
+        //    survives ONLY as the small-index corner-tone picker (detail_hash).
+        let noise_body = source
+            .split("fn value_noise")
+            .nth(1)
+            .expect("value_noise present")
+            .split("fn ")
+            .next()
+            .expect("function body");
+        assert!(
+            !noise_body.contains("sin("),
+            "{label}: the value-noise lattice hash must be integer-domain, not sin"
+        );
+        // 2. The detail octaves must ride rotated frames, never the bare world axes —
+        //    axis-aligned octaves all reinforce ONE square lattice.
+        assert!(
+            source.contains("octave_frame_broad(world_xz) * 0.4")
+                && source.contains("octave_frame_fine(world_xz) * 1.7"),
+            "{label}: every ground octave must sample a rotated frame"
+        );
+        // 3. The light-catching bend must be the ANALYTIC gradient. A finite difference
+        //    stepped at over half a lattice cell facets the grain into square plates.
+        assert!(
+            source.contains("fn value_noise_grad("),
+            "{label}: the grain gradient must be analytic"
+        );
+        assert!(
+            !source.contains("let e = 0.35;"),
+            "{label}: the coarse finite-difference step must not return"
+        );
+    }
+}
+
+fn assert_binding_declared(source: &str, binding: &str, name: &str) {
+    let binding_at = source.find(binding).unwrap_or_else(|| panic!("missing {binding}"));
+    let tail = &source[binding_at..];
+    assert!(
+        tail.find(name).is_some_and(|offset| offset < 80),
+        "vehicle shader must bind material resource {binding} {name}"
+    );
+}
+
+#[test]
+fn vehicle_pipeline_builds_on_a_real_device() {
+    let Ok(ctx) = GpuContext::headless() else {
+        eprintln!("skipping vehicle pipeline test: no GPU adapter");
+        return;
+    };
+    // Proves the shader compiles on the GPU and the VehicleVertex/instance layout binds without
+    // validation errors — the pipeline is real, not just WGSL-parsed.
+    let shadow_bgl = build_shadow_bind_group_layout(&ctx.device);
+    let camera_bgl = build_camera_bind_group_layout(&ctx.device);
+    let (_, _, material_bgl) = build_vehicle_pipeline(
+        &ctx.device,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        1,
+        &shadow_bgl,
+        &camera_bgl,
+    );
+    let _ = &material_bgl;
+    assert_eq!(core::mem::size_of::<VehicleVertex>(), 64);
+}
+
+/// Every shader the renderer ships parses and validates as WGSL — ALL of them, not the three
+/// the earlier tests happened to name. The vehicle shader had no such test, so a broken edit
+/// (a literal `$1` left by a script) reached the probe as "uncaptured GPU error: parsing error"
+/// and a frame with no vehicles; here it is a failed test (Q7, diet step 2).
+#[test]
+fn every_shipped_shader_validates() {
+    let shaders: [(&str, String); 10] = [
+        ("fx", renderer_wgpu::fx_shader_source()),
+        ("hud", renderer_wgpu::hud_shader_source().to_string()),
+        ("rain", renderer_wgpu::rain_shader_source()),
+        ("scene", scene_shader_source()),
+        ("shadow", renderer_wgpu::shadow_shader_source()),
+        ("sky", sky_shader_source()),
+        ("ssao", renderer_wgpu::ssao_shader_source()),
+        ("terrain", terrain_shader_source()),
+        ("vehicle", renderer_wgpu::vehicle_shader_source()),
+        ("water", renderer_wgpu::water_shader_source()),
+    ];
+    for (label, source) in &shaders {
+        let report = validate_wgsl_shader(*label, source)
+            .unwrap_or_else(|error| panic!("{label} shader must validate: {error}"));
+        assert!(!report.entry_points.is_empty(), "{label} shader exposes an entry point");
+    }
+}
+
+/// Read a `const <name>: u32 = <value>u;` straight out of a shader, like `wgsl_const` does for
+/// floats: the lock fails when the shader moves, which is the point of a CPU/GPU contract test.
+fn wgsl_u32_const(source: &str, name: &str) -> u32 {
+    let needle = format!("const {name}: u32 = ");
+    let start = source.find(&needle).unwrap_or_else(|| panic!("{name} is missing from the shader"))
+        + needle.len();
+    let rest = &source[start..];
+    let end = rest.find(';').expect("a terminated const");
+    rest[..end].trim().trim_end_matches('u').parse().expect("a u32 const")
+}
+
+/// The HUD style lane is a CPU/GPU protocol (interface program F2): every kind, the mask and
+/// the shift, the tile grid and the tile period are declared on both sides, and this is where
+/// the two declarations are held together. Append-only on both ends.
+#[test]
+fn hud_style_values_are_bound_at_both_ends() {
+    use renderer_api::hud_style;
+    let source = renderer_wgpu::hud_shader_source();
+    assert_eq!(wgsl_u32_const(source, "STYLE_SOLID"), hud_style::SOLID);
+    assert_eq!(wgsl_u32_const(source, "STYLE_GLYPH"), hud_style::GLYPH);
+    assert_eq!(wgsl_u32_const(source, "STYLE_PLATE"), hud_style::PLATE);
+    assert_eq!(wgsl_u32_const(source, "STYLE_SHEET"), hud_style::SHEET);
+    assert_eq!(wgsl_u32_const(source, "STYLE_GLASS"), hud_style::GLASS);
+    assert_eq!(wgsl_u32_const(source, "STYLE_KIND_MASK"), hud_style::KIND_MASK);
+    assert_eq!(wgsl_u32_const(source, "STYLE_TILE_SHIFT"), hud_style::TILE_SHIFT);
+    assert_eq!(wgsl_const(source, "SHEET_TILES_PER_SIDE"), hud_style::SHEET_TILES_PER_SIDE as f32);
+    assert_eq!(wgsl_const(source, "TILE_UNITS"), hud_style::TILE_UNITS);
+    // The shader's seven vertex inputs are the vertex's seven attributes, in lane order.
+    for location in 0..7 {
+        assert!(
+            source.contains(&format!("@location({location})")),
+            "vertex input {location} is missing"
+        );
+    }
+    assert!(source.contains("@interpolate(flat) style: u32"), "an integer lane interpolates flat");
+}
+
+/// H23: the HUD's colours are authored as display values and the pass writes an sRGB
+/// surface — every fragment the HUD shader returns goes through `srgb_to_linear`, or a plate
+/// authored at enamel black comes out grey.
+#[test]
+fn the_hud_shader_hands_back_its_colours_as_authored() {
+    let source = include_str!("../../src/shaders/hud.wgsl");
+    assert!(source.contains("fn srgb_to_linear(c: vec3<f32>) -> vec3<f32>"));
+    let returns = source.matches("return vec4<f32>(").count();
+    let linearised = source.matches("return vec4<f32>(srgb_to_linear(").count();
+    assert!(returns >= 5, "the fragment shader has its five styles: {returns}");
+    assert_eq!(returns, linearised, "every returned colour is linearised for the sRGB surface");
+}
