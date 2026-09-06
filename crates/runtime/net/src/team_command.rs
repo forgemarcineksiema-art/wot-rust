@@ -55,11 +55,39 @@ pub struct TeamCommandLimiter {
     admitted_ticks: VecDeque<u64>,
 }
 
+fn window_ticks(tick_hz: u32) -> u64 {
+    (TEAM_COMMAND_WINDOW_S * tick_hz as f32).round() as u64
+}
+
 impl TeamCommandLimiter {
+    /// How many commands the allowance still admits at `now_tick` (the wheel's counter).
+    pub fn remaining(&self, now_tick: u64, tick_hz: u32) -> usize {
+        let window = window_ticks(tick_hz);
+        let live = self
+            .admitted_ticks
+            .iter()
+            .filter(|tick| now_tick.saturating_sub(**tick) < window)
+            .count();
+        TEAM_COMMANDS_PER_WINDOW.saturating_sub(live)
+    }
+
+    /// Ticks until the next slot frees; zero while one is free (what a refusal says to wait).
+    pub fn wait_ticks(&self, now_tick: u64, tick_hz: u32) -> u64 {
+        if self.remaining(now_tick, tick_hz) > 0 {
+            return 0;
+        }
+        let window = window_ticks(tick_hz);
+        self.admitted_ticks
+            .iter()
+            .map(|tick| (tick + window).saturating_sub(now_tick))
+            .min()
+            .unwrap_or(0)
+    }
+
     /// Admit a command at `now_tick` if fewer than the window's allowance were admitted in the
     /// last `TEAM_COMMAND_WINDOW_S` seconds at `tick_hz`.
     pub fn admit(&mut self, now_tick: u64, tick_hz: u32) -> bool {
-        let window_ticks = (TEAM_COMMAND_WINDOW_S * tick_hz as f32).round() as u64;
+        let window_ticks = window_ticks(tick_hz);
         while self
             .admitted_ticks
             .front()
@@ -87,6 +115,10 @@ mod tests {
             assert!(limiter.admit(i * 10, hz), "command {i} within the allowance");
         }
         assert!(!limiter.admit(50, hz), "the sixth in the same minute is refused");
+        assert_eq!(limiter.remaining(50, hz), 0);
+        assert_eq!(limiter.wait_ticks(50, hz), 60 * hz as u64 - 50, "the oldest frees the slot");
+        assert_eq!(limiter.remaining(60 * hz as u64, hz), 1);
+        assert_eq!(limiter.wait_ticks(60 * hz as u64, hz), 0);
         assert!(!limiter.admit(59 * hz as u64, hz), "still refused just inside the window");
         assert!(limiter.admit(60 * hz as u64, hz), "the oldest has aged out after sixty seconds");
     }

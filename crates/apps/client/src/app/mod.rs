@@ -5,6 +5,7 @@ mod battle_scars;
 mod camera_link;
 #[cfg(test)]
 mod camera_tests;
+mod commands;
 #[cfg(test)]
 mod fire_fx_tests;
 mod frame_scene;
@@ -618,6 +619,15 @@ pub(crate) struct ClientApp {
     spotted_before: bool,
     /// The minimap's memory of enemies seen (H15): ghosts fading over ten seconds.
     ghosts: ghosts::GhostMemory,
+    /// The command wheel (H16): the mouse's travel since Z went down; `None` while closed.
+    command_wheel: Option<[f32; 2]>,
+    /// The client's mirror of the server's command allowance (W-5): a refusal is knocked here
+    /// before the wire; the server's own limiter stays the law for a modded client.
+    command_clock: net::TeamCommandLimiter,
+    /// Seconds since a command was refused; `None` once the knock has faded.
+    command_knock_age_s: Option<f32>,
+    /// Where the sight ray landed this frame (x, z): what a ping points at.
+    aim_point_xz: Option<[f32; 2]>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -916,6 +926,10 @@ impl ClientApp {
             hull_under_reticle: None,
             spotted_before: false,
             ghosts: ghosts::GhostMemory::default(),
+            command_wheel: None,
+            command_clock: net::TeamCommandLimiter::default(),
+            command_knock_age_s: None,
+            aim_point_xz: None,
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),

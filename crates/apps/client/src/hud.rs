@@ -6,6 +6,7 @@ use crate::hud::reticle::ReticleStatus;
 
 pub(crate) mod ammo_panel;
 pub(crate) mod budget;
+pub(crate) mod command_wheel;
 pub(crate) mod damage_log;
 pub(crate) mod damage_panel;
 pub(crate) mod demo;
@@ -21,6 +22,7 @@ pub(crate) mod minimap;
 pub(crate) mod number;
 pub(crate) mod outcome;
 pub(crate) mod pause_menu;
+pub(crate) mod ping_marker;
 pub use ui_kit::primitives;
 pub(crate) mod readouts;
 pub(crate) mod reticle;
@@ -113,6 +115,12 @@ pub struct BattleHudModel {
     pub scope_fade: f32,
     /// The ESC modal when it is up; `None` is a closed menu (`hud/pause_menu.rs`).
     pub pause_menu: Option<pause_menu::PauseMenuModel>,
+    /// The command wheel (H16) while Z is held or a refusal still knocks; `None` otherwise.
+    pub command_wheel: Option<command_wheel::CommandWheelModel>,
+    /// The team's pings in the world (H16); `None` before the battle.
+    pub pings: Option<ping_marker::PingModel>,
+    /// The team's newest word (H16); `None` when none is fresh.
+    pub team_word: Option<ping_marker::TeamWord>,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -146,6 +154,9 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             fire_denied_age_s: None,
             scope_fade: 0.0,
             pause_menu: None,
+            command_wheel: None,
+            pings: None,
+            team_word: None,
         },
         aspect,
     )
@@ -191,6 +202,9 @@ pub(crate) fn test_model(
             0.0
         },
         pause_menu: None,
+        command_wheel: None,
+        pings: None,
+        team_word: None,
     }
 }
 
@@ -324,21 +338,34 @@ pub(crate) fn build_battle_hud_list(
     if let Some(budget) = &model.budget {
         budget::push_budget(&mut list, ui, &theme, budget, &mut order);
     }
-    // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
-    // where the reticle is; the reticle stays on top.
-    if let Some(markers) = &model.markers {
-        let mut below: i16 = -64;
-        marker::push_markers(&mut list, ui, &theme, markers, &mut below);
+    // H16: the team's newest word under the budget line.
+    if let Some(word) = &model.team_word {
+        ping_marker::push_team_word(&mut list, ui, &theme, word, &mut order);
     }
-    // H8: the hit log under the reticle, on the toolkit.
-    damage_log::push_hit_log(
-        &mut list,
-        ui,
-        &theme,
-        &model.damage_log,
-        model.hit_log_collapsed,
-        &mut order,
-    );
+    // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
+    // where the reticle is; the reticle stays on top. The team's pings (H16) ride with them.
+    {
+        let mut below: i16 = -64;
+        if let Some(markers) = &model.markers {
+            marker::push_markers(&mut list, ui, &theme, markers, &mut below);
+        }
+        if let Some(pings) = &model.pings {
+            ping_marker::push_pings(&mut list, ui, &theme, pings, &mut below);
+        }
+    }
+    // H8: the hit log under the reticle, on the toolkit. While the wheel (H16) is open the
+    // ring takes the centre and the log yields it; the log is back on the release.
+    let wheel_open = model.command_wheel.as_ref().is_some_and(|wheel| wheel.open);
+    if !wheel_open {
+        damage_log::push_hit_log(
+            &mut list,
+            ui,
+            &theme,
+            &model.damage_log,
+            model.hit_log_collapsed,
+            &mut order,
+        );
+    }
     {
         let mut v = Vec::new();
         hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
@@ -501,6 +528,10 @@ pub(crate) fn build_battle_hud_list(
         kill_marker::push_kill_confirm(&mut v, age_s, aspect);
         legacy(&mut list, &mut order, HudElement::KillConfirm, v);
     }
+    // H16: the command wheel over the battle, under the modal only.
+    if let Some(wheel) = &model.command_wheel {
+        command_wheel::push_command_wheel(&mut list, ui, &theme, wheel, &mut order);
+    }
     // Last, so the modal sits over every battle marker — including the outcome banner, which a
     // player can be reading when they reach for ESC.
     if let Some(menu) = &model.pause_menu {
@@ -537,6 +568,8 @@ pub fn hud_state_vertices(
     // The staged markers are authored in reference pixels; the frame is whatever size it is.
     model.markers =
         model.markers.map(|markers| markers.scaled_from_reference([width as f32, height as f32]));
+    model.pings =
+        model.pings.map(|pings| pings.scaled_from_reference([width as f32, height as f32]));
     build_battle_hud_list(&model, &ui).emit(&ui, &ui_kit::theme::Theme::standard())
 }
 

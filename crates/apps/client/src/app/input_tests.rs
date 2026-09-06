@@ -774,3 +774,117 @@ fn m_cycles_the_minimap_through_its_three_sizes() {
     app.on_key(PhysicalKey::Code(KeyCode::KeyM), true, false);
     assert_eq!(app.input.minimap_size(), MinimapSize::Small);
 }
+
+/// H16: five words in a minute go through; the sixth is refused by the server's allowance and
+/// knocked on the client — the wheel's mirror says no before the wire, the host says no on it.
+#[test]
+fn a_sixth_command_in_a_minute_is_refused_by_the_server_and_knocked_on_the_client() {
+    let mut app = in_battle();
+    app.pending_audio.clear();
+    let say_attack = |app: &mut ClientApp| {
+        app.on_key(PhysicalKey::Code(KeyCode::KeyZ), true, false);
+        assert!(app.command_wheel.is_some(), "Z opens the wheel");
+        app.input.mouse_dx = 0.0;
+        app.input.mouse_dy = -120.0;
+        app.apply_mouse_look();
+        app.on_key(PhysicalKey::Code(KeyCode::KeyZ), false, false);
+        assert!(app.command_wheel.is_none(), "the release closes it");
+    };
+    let rejected = |app: &ClientApp| {
+        app.pending_audio.iter().filter(|e| matches!(e, audio::AudioEvent::UiReject)).count()
+    };
+    for _ in 0..net::TEAM_COMMANDS_PER_WINDOW {
+        say_attack(&mut app);
+    }
+    assert!(app.command_knock_age_s.is_none() && rejected(&app) == 0, "five go through");
+    say_attack(&mut app);
+    assert!(app.command_knock_age_s.is_some(), "the sixth knocks");
+    assert_eq!(rejected(&app), 1);
+    let wheel = app.command_wheel_model().expect("the knock shows");
+    assert!(!wheel.open && wheel.remaining == 0 && wheel.wait_s.is_some());
+    // The server's own allowance refuses it too, whatever a client says.
+    assert!(!app.session.send_team_command(net::TeamCommand::Help, None, None));
+    app.run_fixed_ticks(1);
+    assert_eq!(app.intel.team_commands().count(), net::TEAM_COMMANDS_PER_WINDOW);
+    assert!(app.intel.team_commands().all(|relay| relay.command == net::TeamCommand::Attack));
+}
+
+/// H16: a teammate's ping lands on the minimap and in the world; an enemy's reaches neither
+/// (the server relays to the team only, and the client reads the roster on its own), and a
+/// stale one has rung out.
+#[test]
+fn a_ping_lands_on_the_minimap_and_in_the_world_for_the_team_only() {
+    let mut app = in_battle();
+    let roster = app.session.roster();
+    let player_team = app.player_team();
+    let ally = roster
+        .iter()
+        .find(|entry| entry.team == player_team && entry.tank_id != app.player_tank)
+        .expect("an ally");
+    let enemy = roster.iter().find(|entry| entry.team != player_team).expect("an enemy");
+    let now = app.server_tick_now();
+    let relay = |from, xz: [f32; 2], tick| net::TeamCommandRelay {
+        from,
+        command: net::TeamCommand::Ping,
+        target: None,
+        map_position: Some(xz),
+        server_tick: tick,
+    };
+    app.intel.ingest(
+        Vec::new(),
+        vec![relay(ally.tank_id, [300.0, 400.0], now), relay(enemy.tank_id, [600.0, 700.0], now)],
+    );
+    let pings = app.team_pings();
+    assert_eq!(pings.len(), 1, "one live ping from the team: {pings:?}");
+    assert_eq!((pings[0].xz, pings[0].seat), ([300.0, 400.0], ally.seat_letter()));
+    // It rings for six seconds and not a second longer.
+    let hz = sim::DEFAULT_SERVER_TICK_HZ as u64;
+    assert_eq!(app.team_pings_at(now + 5 * hz).len(), 1);
+    assert_eq!(app.team_pings_at(now + 7 * hz).len(), 0, "rung out");
+    // On the map…
+    let tanks = app.project_render_tanks(1.0);
+    let map = app.build_minimap(&tanks, [0.0, 1.0]).expect("map");
+    assert_eq!(map.pings.len(), 1);
+    assert_eq!(map.pings[0].xz, [300.0, 400.0]);
+    // …and in the world, when the camera looks at the pinged ground.
+    let ground = app.battlefield.heightmap.sample_height(300.0, 400.0).unwrap_or(0.0);
+    let camera = renderer_api::Camera {
+        eye: [300.0, ground + 40.0, 300.0],
+        target: [300.0, ground, 400.0],
+        vertical_fov_degrees: 60.0,
+    };
+    let view_proj = renderer_api::view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 2000.0);
+    let world = app.ping_model(view_proj, [1920.0, 1080.0]);
+    assert_eq!(world.marks.len(), 1);
+    let mark = &world.marks[0];
+    assert!((mark.screen_px[0] - 960.0).abs() < 2.0, "{mark:?} sits on the centre line");
+    assert!(mark.screen_px[1] > 0.0 && mark.screen_px[1] < 1080.0, "{mark:?} on screen");
+    assert_eq!(mark.seat, ally.seat_letter());
+    // The word strip echoes a teammate's word, never an enemy's.
+    app.intel.ingest(
+        Vec::new(),
+        vec![
+            net::TeamCommandRelay {
+                from: enemy.tank_id,
+                command: net::TeamCommand::Help,
+                target: None,
+                map_position: None,
+                server_tick: now,
+            },
+            net::TeamCommandRelay {
+                from: ally.tank_id,
+                command: net::TeamCommand::Attack,
+                target: Some(enemy.tank_id),
+                map_position: None,
+                server_tick: now,
+            },
+        ],
+    );
+    let word = app.team_word().expect("the ally's word");
+    assert_eq!(word.seat, ally.seat_letter());
+    assert_eq!(word.command, net::TeamCommand::Attack);
+    assert_eq!(
+        word.target.as_deref(),
+        Some(format!("{} \u{b7} {}", enemy.vehicle.short_name(), enemy.seat_letter()).as_str())
+    );
+}

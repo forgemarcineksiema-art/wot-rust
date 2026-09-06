@@ -72,6 +72,8 @@ impl ClientApp {
     /// answer it, which also preserves what ESC always did here: give the mouse back.
     pub(in crate::app) fn open_pause_menu(&mut self) {
         self.pause_menu = Some(super::PauseMenuState::opened());
+        // A wheel open under the menu would say a word on the next Z release: it closes unsaid.
+        self.command_wheel = None;
         // Release the driving keys rather than leaving them latched: the battle does NOT pause,
         // and a hull driving on by itself while its commander reads a menu is exactly the kind of
         // hidden consequence this game refuses. It coasts to a stop, in the open, visibly.
@@ -100,6 +102,14 @@ impl ClientApp {
             // key repeat must not climb the ladder on its own, so the edge alone counts.
             PhysicalKey::Code(KeyCode::KeyR) if pressed => self.input.cruise_up(),
             PhysicalKey::Code(KeyCode::KeyF) if pressed => self.input.cruise_down(),
+            // H16: Z holds the command wheel open; its release says the chosen word.
+            PhysicalKey::Code(KeyCode::KeyZ) => {
+                if pressed {
+                    self.open_command_wheel();
+                } else {
+                    self.release_command_wheel();
+                }
+            }
             // H15: M cycles the minimap through its three sizes.
             PhysicalKey::Code(KeyCode::KeyM) if pressed => self.input.cycle_minimap(),
             // H8: N folds the hit log to its newest row and unfolds it again.
@@ -171,6 +181,7 @@ impl ClientApp {
             self.end_free_look();
         }
         self.end_sniper_hold();
+        self.command_wheel = None;
         self.input.release_all_latches();
         self.garage.end_drag();
         self.set_cursor_captured(focused && !self.garage.is_open() && self.pause_menu.is_none());
@@ -228,7 +239,7 @@ impl ClientApp {
     pub(super) fn mark_target(&mut self) {
         if let Some(hull) = self.hull_under_reticle {
             self.target_mark = Some(hull);
-            self.session.send_team_command(net::TeamCommand::Attack, Some(hull), None);
+            self.say(net::TeamCommand::Attack, Some(hull), None);
         }
     }
 
@@ -356,6 +367,12 @@ impl ClientApp {
         }
         let (dx, dy) = (self.input.mouse_dx, self.input.mouse_dy);
         self.input.clear_mouse_look();
+        // H16: while the wheel is open the mouse picks a sector; the gun holds its lay.
+        if let Some(travel) = self.command_wheel.as_mut() {
+            travel[0] += dx;
+            travel[1] += dy;
+            return;
+        }
         // Mouse-right (dx > 0) must look right; +orbit_yaw points toward world +X = screen
         // left, so negate it. The FOV ratio slows the look exactly as much as zoom magnifies it.
         let scale = self.camera_controller.look_sensitivity_scale();

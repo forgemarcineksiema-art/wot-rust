@@ -486,6 +486,10 @@ impl ClientApp {
             .kill_confirm_age_s
             .map(|age| age + frame_dt)
             .filter(|age| *age < crate::hud::kill_marker::KILL_CONFIRM_TTL_S);
+        self.command_knock_age_s = self
+            .command_knock_age_s
+            .map(|age| age + frame_dt)
+            .filter(|age| *age < crate::hud::command_wheel::KNOCK_TTL_S);
         self.fx.tick(frame_dt);
         // Where every live shell is this frame, remembered for the path it draws (A8).
         let shells =
@@ -644,6 +648,8 @@ impl ClientApp {
         // The marker's colour is EASED toward the matrix's answer: a verdict flipping across a
         // plate edge as the mouse twitches must settle, not strobe.
         let mut reticle = self.hud_reticle(&camera, view_proj, alpha);
+        // Where the sight ray lands this frame is what a ping (H16) points at.
+        self.aim_point_xz = self.aim_world_point(&camera).map(|point| [point.x, point.z]);
         if let Some(reticle) = reticle.as_mut() {
             self.reticle_marker_color = crate::hud::reticle_overlay::ease_marker_color(
                 self.reticle_marker_color,
@@ -708,6 +714,11 @@ impl ClientApp {
                 .pause_menu
                 .as_ref()
                 .map(|menu| crate::hud::pause_menu::PauseMenuModel { hovered: menu.hovered() }),
+            command_wheel: self.command_wheel_model(),
+            pings: Some(
+                self.ping_model(view_proj, [self.viewport.0 as f32, self.viewport.1 as f32]),
+            ),
+            team_word: self.team_word(),
         };
         // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
         // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.

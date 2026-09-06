@@ -75,6 +75,28 @@ pub enum HudElement {
     MinimapSeat(u8),
     /// One grid letter or number along the map's edge (H15).
     MinimapGridLabel(u8),
+    /// The command wheel (H16): a plate and a word per command, and the counter under it.
+    CommandWheel(WheelPart),
+    /// A teammate's ping in the world (H16), by ping index.
+    Ping(PingPart),
+    /// The team's newest word, under the budget line (H16).
+    TeamWord,
+}
+
+/// The parts of the command wheel, by command index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WheelPart {
+    Sector(u8),
+    Label(u8),
+    Counter,
+}
+
+/// The parts of a ping mark, by ping index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PingPart {
+    Disc(u8),
+    Seat(u8),
+    Range(u8),
 }
 
 /// The parts of a marker: the target wears them all, a known hull only the bar.
@@ -165,7 +187,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 35] = [
+    pub const ALL: [HudElement; 38] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -203,6 +225,9 @@ impl HudElement {
         HudElement::MinimapBlip(0),
         HudElement::MinimapSeat(0),
         HudElement::MinimapGridLabel(0),
+        HudElement::CommandWheel(WheelPart::Counter),
+        HudElement::Ping(PingPart::Disc(0)),
+        HudElement::TeamWord,
     ];
 }
 

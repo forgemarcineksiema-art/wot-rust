@@ -39,10 +39,13 @@ pub enum HudState {
     AmmoSwitching,
     /// The minimap at its large size (H15): the grid's letters, the seats, the circles.
     MinimapLarge,
+    /// The command wheel open (H16), a word chosen, a teammate's ping in the world and the
+    /// echo strip.
+    CommandWheelOpen,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 14] = [
+    pub const ALL: [HudState; 15] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -57,6 +60,7 @@ impl HudState {
         HudState::TeamListsMixed,
         HudState::AmmoSwitching,
         HudState::MinimapLarge,
+        HudState::CommandWheelOpen,
     ];
 
     /// The golden's name stem.
@@ -76,6 +80,7 @@ impl HudState {
             HudState::TeamListsMixed => "team_lists_mixed",
             HudState::AmmoSwitching => "ammo_switching",
             HudState::MinimapLarge => "minimap_large",
+            HudState::CommandWheelOpen => "command_wheel_open",
         }
     }
 
@@ -132,6 +137,11 @@ impl HudState {
             HudState::AmmoSwitching => {
                 model.ammo = Some(super::demo::demo_ammo(1));
                 model.vitals.reload_remaining_s = 5.1;
+            }
+            HudState::CommandWheelOpen => {
+                model.command_wheel = Some(super::demo::demo_wheel());
+                model.pings = Some(super::demo::demo_pings());
+                model.team_word = Some(super::demo::demo_team_word());
             }
             HudState::MinimapLarge => {
                 if let Some(map) = &mut model.minimap {
