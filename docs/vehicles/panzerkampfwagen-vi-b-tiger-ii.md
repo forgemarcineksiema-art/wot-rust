@@ -158,3 +158,21 @@ The Soviet 1944 layout sheet (Вестник танковой промышлен
 | Ground clearance | 505 mm | `hull.belly_y 0.50`; `GroundClearance` 0.505 +/-0.02 (Locked) |
 
 The sheet's 2630 mm on the plan and 980 mm at the turret's rear are not yet read with confidence (the inner hull width between the sponsons, and the turret's height above the deck?) — they wait for the traced outlines (K0) before they become anchors.
+
+## Library parts (2026-09-06)
+
+The Tiger II is the second vehicle the part library builds whole (Forge 2.0 K3, after the Tiger I): `crates/foundation/game_core/blueprints/tiger_ii_ausf_b.visual.ron` authors the construction, the turret, the gun, the deck furniture and the fittings; the blueprint keeps every armour number. The recipe (`vehicle_recipes::tiger_ii`) is split into named pieces that stay out when the library builds their class, and none stands on the shipped vehicle — it ships at `Fidelity::Benchmark` with part-aware LODs. What the library builds:
+
+| Class | Part | Source of the shape |
+| --- | --- | --- |
+| Hull tub, upper hull | `slab_tub`, `slab_upper_box` — plate solids on the armour planes; the upper box's sides lean the armour table's 25° from the sponson fold | The slope, honestly (`hull_side (25.0, 1.0)`) |
+| Skirts | `skirt_plate_0/1` on the spaced-armour plane, the whole upper run | Reference anatomy (PR-T2.2) |
+| Turret shell, ring | `turret_shell` — the Henschel prism, walls leaning 10°/21°/20° to the roof, a flat 1.70 m rear plate on the rear armour plane, no bin; `turret_ring_collar` | Recognition features |
+| Mantlet | `gun_mantlet` — the Turmblende, the armour's patch band 1.35..1.66 flattened 2.30 × 0.95 (a 1.38 m band); `mantlet_socket` oval | Reference anatomy (~1.4 m band) |
+| Cupola, hatches, headlight | `cupola_drum` + lid; `driver_hatch`/`radio_hatch` at x ±0.53, z 2.25; `loader_hatch`; the central Bosch light | #235, #236 |
+| Gun barrel, muzzle furniture | `gun_barrel` bore-honest 88 mm, tube radius 0.105; `muzzle_brake` double baffle, 0.36 m | KwK 43 L/71 datasheet |
+| Exhaust | `exhaust_stack_0/1` open, dark-mouthed, vertical off the 30° stern with a top bracket (no late-E shields) | Recognition features (#238) |
+| Periscopes | `periscope_hood` at the deck's front edge | Recognition features |
+| Fenders | `fender_flap_0/1` over the bow wrap only | F3 |
+
+Still owed: the stern plate's own furniture (`SternPlate`), the K0 outlines (the 1944 sheet's scan is too coarse to trace; a cleaner three-view is wanted), and the bow MG ball's seat along the 50° glacis normal (today it revolves about Z like the family's).

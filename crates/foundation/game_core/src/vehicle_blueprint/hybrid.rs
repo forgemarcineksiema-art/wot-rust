@@ -427,6 +427,11 @@ pub struct VisualDetail {
     /// stay in the blueprint; this is only where the horseshoe bends. Appended 2026-09-05.
     #[serde(default)]
     pub welded_turret: Option<WeldedTurretVisual>,
+    /// Which of the German family's deck furniture this vehicle wears when the library builds
+    /// its deck (Forge 2.0 K3, the Tiger II): `None` builds the family's first layout, the
+    /// Tiger I's. Appended 2026-09-06.
+    #[serde(default)]
+    pub german_deck: Option<GermanDeckVisual>,
 }
 
 /// The horseshoe's plan, relative to the blueprint's turret: the flat front plate spans
@@ -447,14 +452,63 @@ pub struct WeldedTurretVisual {
     pub ring_height: f32,
     pub ring_segments: u8,
     pub socket_segments: u8,
+    /// A FLAT rear plate of this half-width ON the rear armour plane (the Henschel turret's)
+    /// instead of the two-facet bustle to the centreline; `bustle` is then unread. Appended
+    /// 2026-09-06.
+    #[serde(default)]
+    pub flat_rear_half_width: Option<f32>,
+    /// The side and rear walls retreat at the roof by the blueprint's own `side_slope_deg` and
+    /// `rear_slope_deg` — the armour's leaned planes — instead of standing vertical on the plan.
+    /// Appended 2026-09-06.
+    #[serde(default)]
+    pub leaned_walls: bool,
+    /// The mantlet socket flattened to an oval `(x, y)` scale — the Turmblende's wide band seat —
+    /// instead of the round collar. Appended 2026-09-06.
+    #[serde(default)]
+    pub socket_scale: Option<(f32, f32)>,
 }
 
 /// Hull constructions the part library builds from a blueprint alone. Append-only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum HullConstruction {
-    /// Welded rolled plates: a tub between the belts, an upper box on the sponson, and the
-    /// bow shelf's wedge when `ArmorShape::hull_bow_shelf` is authored — the German line.
+    /// Welded rolled plates: a tub between the belts, an upper box on the sponson whose sides
+    /// lean the armour table's `hull_side` degrees (vertical on the Tiger I, 25° on the Tiger
+    /// II), and the bow shelf's wedge when `ArmorShape::hull_bow_shelf` is authored — the
+    /// German line.
     WeldedSlab,
+}
+
+/// Which of the German family's deck furniture a welded slab vehicle wears
+/// (`vehicle_build::german_deck_parts`). The defaults are the late Tiger I's layout — the
+/// family's first library deck — so a visual file that authors none keeps the bake it had.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GermanDeckVisual {
+    /// Three-sided armoured shields round the exhaust stacks on a near-vertical stern (the late
+    /// Tiger I); without them the stacks stand open, dark-mouthed, off the leaned stern on a
+    /// top bracket (the Tiger II).
+    pub exhaust_shields: bool,
+    /// Spare links racked across the lower bow plate (the Tiger I carries four; the Tiger II
+    /// hangs its spares on the turret walls — none here).
+    pub spare_links: u8,
+    /// The driver's slot visor on a near-vertical driver's plate (the Tiger I).
+    pub driver_visor: bool,
+    /// The driver's periscope hood riding the glacis line at the deck's front edge (the Tiger
+    /// II, whose 50° glacis has no visor).
+    pub periscope_hood: bool,
+    /// Hinged fender flaps over the stern wrap as well as the bow (the Tiger I's rear mudflaps).
+    pub rear_flaps: bool,
+}
+
+impl Default for GermanDeckVisual {
+    fn default() -> Self {
+        Self {
+            exhaust_shields: true,
+            spare_links: 4,
+            driver_visor: true,
+            periscope_hood: false,
+            rear_flaps: true,
+        }
+    }
 }
 
 /// Every part of a [`VisualDetail`], unwrapped — the view a FULLY-authored consumer stack

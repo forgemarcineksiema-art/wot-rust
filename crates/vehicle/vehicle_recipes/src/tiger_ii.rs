@@ -15,15 +15,45 @@ use vehicle_geometry::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
 };
 
-pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn tiger_ii(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    let pieces = tiger_ii_pieces(hitbox, mounts, super::deck_details::DeckOmit::default());
+    let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
+        revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
+    };
+    assemble(
+        VehicleKind::TigerII,
+        concat(pieces.hull),
+        concat(pieces.turret),
+        concat(pieces.gun),
+        pieces.mounts,
+    )
+}
+
+/// The Tiger II as the pieces its recipe is made of (Forge 2.0 K3, 2026-09-06): the leaned
+/// prism hull, the deck with its bow flap, the hull details (the periscope hood), the skirts,
+/// the Henschel turret with cupola, ring and oval socket, and the gun group. `tiger_ii` is these
+/// concatenated in this order and welded; each piece stays out when the part library builds
+/// its class (`DeckOmit`).
+pub(crate) fn tiger_ii_pieces(
+    _hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+    omit: super::deck_details::DeckOmit,
+) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::TigerII).expect("Tiger II has a blueprint");
-    let hull = shade_hull(
-        blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
-            .append(&super::deck_details::tiger_ii_deck(&bp))
-            .append(&tiger_ii_hull_details(&bp.hull))
-            .append(&super::blueprint_skirts(&bp.hull, &bp.track))
-            .build(),
-    );
+    let mut hull = Vec::with_capacity(4);
+    if !omit.slab {
+        hull.push((
+            "recipe_hull_prism",
+            shade_hull(blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0).build()),
+        ));
+    }
+    if !omit.deck {
+        hull.push(("recipe_hull_deck", shade_hull(super::deck_details::tiger_ii_deck(&bp, omit))));
+        hull.push(("recipe_hull_details", shade_hull(tiger_ii_hull_details(&bp.hull))));
+    }
+    if !omit.skirts {
+        hull.push(("recipe_hull_skirts", shade_hull(super::blueprint_skirts(&bp.hull, &bp.track))));
+    }
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
@@ -70,7 +100,12 @@ pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
         0.95,
     );
 
-    assemble(VehicleKind::TigerII, hull, turret, gun, *mounts)
+    super::RecipePieces {
+        hull,
+        turret: if omit.turret { Vec::new() } else { vec![("recipe_turret", turret)] },
+        gun: if omit.gun { Vec::new() } else { vec![("recipe_gun", gun)] },
+        mounts: *mounts,
+    }
 }
 
 /// The Henschel: a long faceted prism lofted from the turret plan. The mid side walls stand ON

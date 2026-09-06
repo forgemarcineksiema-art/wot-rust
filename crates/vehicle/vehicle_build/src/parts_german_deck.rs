@@ -1,13 +1,14 @@
 //! The German engine deck and the slab's hull details as library parts (Forge 2.0 K3, step 4d):
-//! the deck plate with its two radiator grilles and fan covers, the twin exhaust stacks with
-//! their three-sided late-E shields on the stern, the spare-link rack on the lower bow plate,
-//! the driver's visor and the bow MG ball on the driver's plate, and the hinged fender flaps
-//! over both belt wraps. Every dimension is the blueprint's (the recipe's own sections, lifted
-//! below the seam), so the last two recipe pieces of a welded slab vehicle become parts the
-//! inventory can name — and the vehicle can leave the recipe behind.
+//! the deck plate with its two radiator grilles and fan covers, the twin exhaust stacks — in
+//! their three-sided late-E shields on the Tiger I's stern, or open and dark-mouthed off the
+//! Tiger II's leaned stern on a top bracket — the spare-link rack on the lower bow plate, the
+//! driver's visor or periscope hood, the bow MG ball on the driver's plate, and the hinged
+//! fender flaps over the belt wraps. Every dimension is the blueprint's (the recipe's own
+//! sections, lifted below the seam); which furniture a vehicle wears is its visual file's
+//! (`GermanDeckVisual`), so the German line shares one deck and each vehicle keeps its own read.
 
-use game_core::VehicleBlueprint;
 use game_core::roundness::round_segments;
+use game_core::{GermanDeckVisual, VehicleBlueprint};
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
     Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
@@ -20,13 +21,19 @@ use crate::smoothing::SG_HARD;
 /// The deck and details for `bp`, or `None` when its visual file declares no welded slab
 /// construction (the deck belongs to the slab hull it sits on).
 pub fn german_deck_parts_for_blueprint(bp: &VehicleBlueprint) -> Option<Vec<VehiclePart>> {
-    bp.visual_detail()?.construction?;
-    let guard_top_y = bp.visual_detail()?.fender.map(|f| f.center_y + f.half.y);
-    Some(german_deck_parts(bp, guard_top_y))
+    let visual = bp.visual_detail()?;
+    visual.construction?;
+    let guard_top_y = visual.fender.map(|f| f.center_y + f.half.y);
+    Some(german_deck_parts(bp, guard_top_y, &visual.german_deck.unwrap_or_default()))
 }
 
-/// Deck plate, grilles, stacks and shields, spare links, visor, MG ball, fender flaps.
-pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec<VehiclePart> {
+/// Deck plate, grilles, stacks (shielded or open), spare links, visor or periscope hood, MG
+/// ball, fender flaps — the furniture `deck` selects.
+pub fn german_deck_parts(
+    bp: &VehicleBlueprint,
+    guard_top_y: Option<f32>,
+    deck: &GermanDeckVisual,
+) -> Vec<VehiclePart> {
     let hull = &bp.hull;
     let mut parts = Vec::new();
     let part =
@@ -104,14 +111,27 @@ pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec
         ));
     }
 
-    // --- the stern: twin stacks, each in a three-sided late-E shield --------------------------
-    for (i, x) in [-0.62_f32, 0.62].into_iter().enumerate() {
-        let z = -hull.half_len + 0.12;
+    // --- the stern: twin stacks, each in a three-sided late-E shield on the near-vertical
+    // stern (the Tiger I), or open pipes standing off a leaned stern — vertical, footed on the
+    // plate low down, held at the top by a bracket to the plate that has sloped away beneath
+    // them, with the dark open mouth a pipe has (the Tiger II) ----------------------------------
+    let rear = hull.rear_slope_deg.to_radians().tan();
+    let stern_z = |y: f32| -hull.half_len + (y - hull.sponson_y).abs() * rear;
+    let (stack_x, stack_z, stack_top) = if deck.exhaust_shields {
+        (0.62_f32, -hull.half_len + 0.12, 2.02_f32)
+    } else {
+        (hull.lower_half_width * 0.55, -hull.half_len + 0.10, hull.deck_y + 0.16)
+    };
+    for (i, x) in [-stack_x, stack_x].into_iter().enumerate() {
+        let z = stack_z;
         let stack = MeshBuilder::new()
             .capped_revolve_at(
                 Vec3::new(x, 0.0, z),
                 RevolveSpec {
-                    profile: vec![ProfilePoint::new(0.10, 1.00), ProfilePoint::new(0.10, 2.02)],
+                    profile: vec![
+                        ProfilePoint::new(0.10, 1.00),
+                        ProfilePoint::new(0.10, stack_top),
+                    ],
                     axis: Axis::Y,
                     segments: round_segments(0.10),
                     material: MaterialRole::RolledArmor,
@@ -125,6 +145,49 @@ pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec
             PartLod::Silhouette,
             stack,
         ));
+        if !deck.exhaust_shields {
+            // The dark open mouth — the pipe is a pipe, not a capped rod.
+            parts.push(part(
+                PartKey::indexed("exhaust_mouth", i as u16),
+                MaterialRole::TrackMetal,
+                PartLod::Detail,
+                MeshBuilder::new()
+                    .capped_revolve_at(
+                        Vec3::new(x, 0.0, z),
+                        RevolveSpec {
+                            profile: vec![
+                                ProfilePoint::new(0.06, stack_top + 0.001),
+                                ProfilePoint::new(0.06, stack_top + 0.005),
+                            ],
+                            axis: Axis::Y,
+                            segments: round_segments(0.06),
+                            material: MaterialRole::TrackMetal,
+                            smoothing: SG_HARD,
+                        },
+                    )
+                    .build(),
+            ));
+            // The top bracket from the pipe back to the plate that leaned away under it.
+            let bracket_y = hull.deck_y - 0.06;
+            let plate = stern_z(bracket_y);
+            if plate - z > 0.06 {
+                parts.push(part(
+                    PartKey::indexed("exhaust_bracket", i as u16),
+                    MaterialRole::RolledArmor,
+                    PartLod::Detail,
+                    MeshBuilder::new()
+                        .plate_box(
+                            Vec3::new(x, bracket_y, (plate + z) * 0.5),
+                            Vec3::new(0.05, 0.02, (plate - z) * 0.5),
+                            0.008,
+                            MaterialRole::RolledArmor,
+                            SG_HARD,
+                        )
+                        .build(),
+                ));
+            }
+            continue;
+        }
         let mut shield = MeshBuilder::new().plate_box(
             Vec3::new(x, 1.55, z - 0.16),
             Vec3::new(0.17, 0.55, 0.012),
@@ -151,11 +214,17 @@ pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec
 
     // --- the bow: spare links on the lower plate, the visor and the MG ball on the driver's --
     let glacis = hull.glacis_slope_deg.to_radians().tan();
+    // Where the driver's plate stands at height `y`: above an authored bow shelf, leaning back
+    // from the shelf's top edge; below it, the lower bow plate from the nose line; without a
+    // shelf, the prism folds at the SPONSON step (the slab library's own rule) — seated from
+    // the nose line the Tiger II's MG ball stood 0.48 m inside the hull.
     let plate_z = |y: f32| match bp.armor.hull_bow_shelf {
         Some((top, setback)) if y >= top => hull.half_len - setback - (y - top) * glacis,
-        _ => hull.half_len - (y - hull.belly_y - hull.nose_rise).max(0.0) * glacis,
+        Some(_) => hull.half_len - (y - hull.belly_y - hull.nose_rise).max(0.0) * glacis,
+        None => hull.half_len - (y - hull.sponson_y).max(0.0) * glacis,
     };
-    for i in 0..4u16 {
+    // The Tiger I's rack: four links across the plate, 0.48 m apart from x -0.72.
+    for i in 0..u16::from(deck.spare_links) {
         let x = -0.72 + f32::from(i) * 0.48;
         parts.push(part(
             PartKey::indexed("spare_track", i),
@@ -172,20 +241,41 @@ pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec
                 .build(),
         ));
     }
-    parts.push(part(
-        PartKey::new("driver_visor"),
-        MaterialRole::RolledArmor,
-        PartLod::Detail,
-        MeshBuilder::new()
-            .plate_box(
-                Vec3::new(0.55, 1.62, plate_z(1.62) + 0.02),
-                Vec3::new(0.20, 0.07, 0.05),
-                0.03,
-                MaterialRole::RolledArmor,
-                SG_HARD,
-            )
-            .build(),
-    ));
+    if deck.driver_visor {
+        parts.push(part(
+            PartKey::new("driver_visor"),
+            MaterialRole::RolledArmor,
+            PartLod::Detail,
+            MeshBuilder::new()
+                .plate_box(
+                    Vec3::new(0.55, 1.62, plate_z(1.62) + 0.02),
+                    Vec3::new(0.20, 0.07, 0.05),
+                    0.03,
+                    MaterialRole::RolledArmor,
+                    SG_HARD,
+                )
+                .build(),
+        ));
+    }
+    if deck.periscope_hood {
+        // The driver's periscope hood riding the glacis line at the deck's front edge, just
+        // left of the centre (the Tiger II recipe's own station).
+        let run = (hull.deck_y - hull.sponson_y) * glacis;
+        parts.push(part(
+            PartKey::new("periscope_hood"),
+            MaterialRole::RolledArmor,
+            PartLod::Detail,
+            MeshBuilder::new()
+                .plate_box(
+                    Vec3::new(0.60, hull.deck_y + 0.03, hull.half_len - run - 0.30),
+                    Vec3::new(0.16, 0.06, 0.12),
+                    0.03,
+                    MaterialRole::RolledArmor,
+                    SG_HARD,
+                )
+                .build(),
+        ));
+    }
     parts.push(VehiclePart {
         key: PartKey::new("course_mg_port"),
         submesh: SubmeshKind::Hull,
@@ -220,7 +310,8 @@ pub fn german_deck_parts(bp: &VehicleBlueprint, guard_top_y: Option<f32>) -> Vec
         guard_top_y.unwrap_or_else(|| (track.end_y + wrap_outer + 0.03).max(hull.sponson_y + 0.02));
     let (droop_dz, droop_dy) = (0.45_f32, 0.22_f32);
     let mut index = 0u16;
-    for end_sign in [1.0_f32, -1.0] {
+    let ends: &[f32] = if deck.rear_flaps { &[1.0, -1.0] } else { &[1.0] };
+    for &end_sign in ends {
         let hinge_z = end_sign * (track.end_z + 0.12);
         let mut section = vec![
             Vec2::new(0.0, -0.018),

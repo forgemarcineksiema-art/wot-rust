@@ -508,6 +508,8 @@ pub(crate) struct DeckOmit {
     pub fittings: bool,
     /// The full-length track guards — `FenderVisual`'s folded pressings.
     pub guards: bool,
+    /// The side skirts — the library's plates on the spaced-armour plane.
+    pub skirts: bool,
     /// Where the library's guard shelf tops out, so the recipe's hinged flaps hang from it
     /// rather than from the sponson underside.
     pub guard_top_y: Option<f32>,
@@ -552,11 +554,15 @@ pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMes
     engine_deck_german(b, bp)
 }
 
-pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.21, DeckOmit::default());
-    let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
+    let b = german_bow(MeshBuilder::new(), bp, 0.21, omit);
+    let b = if omit.fittings {
+        b
+    } else {
+        tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14])
+    };
     let b = german_exhaust_stacks(b, bp);
-    let b = german_track_flaps(b, bp, 1.0, None);
+    let b = german_track_flaps(b, bp, 1.0, omit.guard_top_y);
     engine_deck_german(b, bp)
 }
 

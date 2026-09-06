@@ -1,0 +1,108 @@
+// Tiger II Ausf. B (Henschel Serienturm) — authored visual parts (Forge 2.0 K3, 2026-09-06, the
+// second vehicle after the Tiger I to leave its recipe). The part library builds every class
+// from this file and the blueprint: the welded prism hull on the armour planes (the 50° glacis,
+// the 25° leaned upper sides), the German deck without the Tiger I's shields, visor and spare
+// links, the Schürzen on the spaced plane, the Henschel turret with its leaned walls and flat
+// rear plate, the KwK 43 with the Turmblende, the fittings. The bake frame: +Y up, +Z bow,
+// +X port. Dossier: docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md.
+VisualDetailFile(
+    kind: TigerII,
+    detail: VisualDetail(
+        // The 8.8 cm KwK 43 L/71: bore 88 mm -> bore_radius 0.044; tube radius 0.105 = the
+        // gameplay gun's, one truth; double-baffle muzzle brake, no evacuator, external mantlet.
+        // The Turmblende: the Serienturm's wide band on the flat front plate, spanning the
+        // armour's mantlet patch band (mantlet_back_z 1.35 .. front_z 1.66; trunnion_z 1.60 ->
+        // trunnion-relative -0.25 .. +0.06), widest 0.30 = the gameplay mantlet_radius, flattened
+        // 2.30 x 0.95 to the ~1.4 m band the dossier measures (the recipe's Turmblende scale).
+        gun: Some(GunVisual(
+            barrel_radius: 0.105,
+            muzzle_radius: 0.06,
+            bore_radius: 0.044,
+            muzzle_taper: 0.2,
+            barrel_segments: 12,
+            mantlet_profile: (
+                (-0.25, 0.0),
+                (-0.23, 0.22),
+                (-0.17, 0.28),
+                (-0.10, 0.30),
+                (-0.02, 0.30),
+                (0.03, 0.27),
+                (0.055, 0.15),
+                (0.06, 0.0),
+            ),
+            mantlet_segments: 12,
+            mantlet_scale: (2.30, 0.95, 1.0),
+            muzzle_brake: Some(MuzzleBrakeVisual(
+                radius: 0.15,
+                length: 0.36,
+                baffles: 2,
+            )),
+            module_delta_scale: 0.65,
+        )),
+        // The hull is welded plate on the armour planes: the tub between the belts, the upper
+        // box whose sides lean the armour table's 25° (`hull_side`) from the sponson fold — the
+        // same planes the penetration model resolves (the fleet gate proves it).
+        construction: Some(WeldedSlab),
+        // The Henschel Serienturm (the recipe's proportions, lifted into data): a 1.60 m flat
+        // front plate at 10°, cheeks opening to the full beam over 1.00 m, walls converging to
+        // 0.65 m behind the ring, a FLAT 1.70 m rear plate on the rear armour plane at 20°, every
+        // wall leaning its own slope to the roof; no stowage bin (the spares hang on the walls);
+        // the Turmblende's oval socket 2.30 x 0.95. `bustle` is unread under a flat rear.
+        welded_turret: Some(WeldedTurretVisual(
+            cheek_x: 0.80,
+            cheek_setback: 1.00,
+            wall_end_behind_ring: 0.65,
+            bustle: ((0.85, 0.0), (0.85, 0.0)),
+            bin_depth: 0.0,
+            bin_half_width: 0.0,
+            bin_half_height: 0.0,
+            bin_rise: 0.0,
+            ring_height: 0.13,
+            ring_segments: 14,
+            socket_segments: 12,
+            flat_rear_half_width: Some(0.85),
+            leaned_walls: true,
+            socket_scale: Some((2.30, 0.95)),
+        )),
+        // The German deck the Tiger II wears: open stacks with dark mouths standing off the 30°
+        // stern on a top bracket (no late-E shields), no spare links on the bow (they hang on
+        // the turret walls), no slot visor (the driver looks through a periscope hood at the
+        // deck edge), the hinged flap over the bow wrap only.
+        german_deck: Some(GermanDeckVisual(
+            exhaust_shields: false,
+            spare_links: 0,
+            driver_visor: false,
+            periscope_hood: true,
+            rear_flaps: false,
+        )),
+        // The fittings, the recipe's own stations (dossier: two bow roof hatches and the central
+        // Bosch light, #235; the low left cupola, #236).
+        fittings: Some(FittingsVisual(
+            // The commander's lid on the cupola drum (roof 2.75 + 0.32 proud = 3.07; the lid's
+            // coaming stands 2 cm above the drum, to the 3.09 hitbox top = the sheet's 3075 mm
+            // silhouette line), port, rear: the crown flush with the drum's top.
+            cupola_hatch_center: (0.28, 3.04, -0.55),
+            cupola_hatch_radius: 0.30,
+            cupola_hatch_half_height: 0.03,
+            // The two bow hatches on the hull roof, 0.42 m behind the deck's front edge (the
+            // glacis cuts the roof at z 2.67): the driver's, port, the radio operator's,
+            // starboard.
+            driver_hatch_center: (0.53, 1.89, 2.25),
+            driver_hatch_radius: 0.21,
+            driver_hatch_half_height: 0.05,
+            // The loader's hatch on the turret roof, starboard, forward, inside the roof plan the
+            // leaned walls leave (half-width 0.64 at the roof).
+            loader_hatch_center: (-0.40, 2.735, 0.75),
+            loader_hatch_radius: 0.20,
+            loader_hatch_half_height: 0.03,
+            // The central Bosch light at the deck's front edge.
+            headlight_center: (0.0, 1.96, 2.57),
+            headlight_radius: 0.085,
+            headlight_half_height: 0.10,
+            // The bow shackles on the lower hull's shoulders at the nose.
+            tow_hook_center: (0.657, 1.05, 3.615),
+            tow_hook_half: (0.10, 0.08, 0.12),
+            second_bow_hatch_center: Some((-0.53, 1.89, 2.25)),
+        )),
+    ),
+)
