@@ -51,7 +51,7 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// no strip under it (it is solid plate already).
 fn omsh_backing(kin: &RunningGearKinematics, pitch: f32) -> GeometryMesh {
     let half_z = kin.link_half_length();
-    let (window_half_z, reach) = (half_z * 0.36, pitch * 0.56);
+    let (window_half_z, reach) = (half_z * 0.45, pitch * 0.56);
     let joint_half_z = (reach - window_half_z) * 0.5;
     let joint_z = window_half_z + joint_half_z;
     let width = kin.band_half_width * 0.96;
@@ -151,7 +151,7 @@ fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
     let (plate_y, plate_half_y) = (-0.004, 0.026);
     let rail_half_x = 0.0125;
     let bar_half_x = (horn_half_x + 0.012).max(0.030);
-    let window_half_z = half_z * 0.36;
+    let window_half_z = half_z * 0.45;
     let joint_bar_half_z = (half_z - window_half_z) * 0.5;
     let joint_bar_z = window_half_z + joint_bar_half_z;
     let rail_x = plate_half_x - rail_half_x;

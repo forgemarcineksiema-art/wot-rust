@@ -724,12 +724,16 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         "the teeth must still stand visibly proud of the carrier drum, got {}",
         bounds.max.y
     );
+    // K9: on the OMSh belt the teeth pass THROUGH the shoes' windows to the dossier's tip, the
+    // pitch circle + 55 mm; the engagement lock below puts every tooth in a window.
+    let tip = kin.end_radius + 0.02 + 0.055;
     for vertex in sprocket.vertices() {
         let radial =
             (vertex.position.y * vertex.position.y + vertex.position.z * vertex.position.z).sqrt();
         assert!(
-            radial <= kin.end_radius - 0.010 + 1.0e-4,
-            "a tooth must stay under the shoe plates riding the wrap: {:?}",
+            // A tip corner sits half a tip-width off the radial line: 0.15 mm past the tip.
+            radial <= tip + 1.0e-3,
+            "a tooth tips at the dossier's ⌀682 and no further: {:?}",
             vertex.position
         );
     }
@@ -775,10 +779,19 @@ fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
             reach >= eye_r,
             "{kind:?}: the teeth reach {reach:.3} m but the hinge eyes they drive are at              {eye_r:.3} m — this sprocket is not touching the track"
         );
-        assert!(
-            reach <= belt_r - kin.hinge_eye_offset() * 0.30,
-            "{kind:?}: the teeth reach {reach:.3} m, past the eyes and into the shoe plate at              {belt_r:.3} m — a tooth through the shoe is not engagement"
-        );
+        if kin.shoe == game_core::ShoePattern::Omsh {
+            // K9: a pin-engagement tooth passes through the shoe's window to the dossier's tip.
+            assert!(
+                (reach - (belt_r + 0.055)).abs() < 1.0e-3,
+                "{kind:?}: the teeth tip at the pitch circle + 55 mm through the window, got {reach:.3} against {:.3}",
+                belt_r + 0.055
+            );
+        } else {
+            assert!(
+                reach <= belt_r - kin.hinge_eye_offset() * 0.30,
+                "{kind:?}: the teeth reach {reach:.3} m, past the eyes and into the shoe plate at              {belt_r:.3} m — a tooth through the shoe is not engagement"
+            );
+        }
     }
 }
 
@@ -1347,4 +1360,95 @@ fn the_omsh_shoe_has_two_windows_beside_its_horn_and_round_eye_barrels() {
             assert!((d - 0.017).abs() < 1.0e-3, "a barrel vertex off the pin's circle: {d:.4}");
         }
     }
+}
+
+/// K9: THE SPROCKET ENGAGES THE TRACK. On both sides, at two phases of travel, every tooth whose
+/// tip stands in the plate band of a shoe riding the wrap arc stands inside that shoe's WINDOW —
+/// between the centre bar and the edge rail across the width, clear of the joint bars along the
+/// length — and at least two teeth per side are in a window at once. The ring's bolts stand
+/// proud of the ring.
+#[test]
+fn the_t54_sprocket_s_teeth_pass_through_the_shoe_windows_on_both_sides() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let sprocket = sprocket_unit_mesh(&kin);
+    let half_z = (kin.belt_length() / kin.link_count() as f32) * 0.47;
+    let band = kin.band_half_width;
+    let wrap_r = kin.sprocket_radius() + 0.02;
+    let tip_r = wrap_r + 0.055;
+    // The tooth tips: the sprocket's vertices at the tip radius (both rings, two corners each).
+    let tips: Vec<Vec3> = sprocket
+        .vertices()
+        .iter()
+        .map(|v| v.position)
+        .filter(|p| (p.y.hypot(p.z) - tip_r).abs() < 1.0e-3)
+        .collect();
+    assert!(
+        tips.len() >= 2 * 13 * 2,
+        "two rings of thirteen teeth, two tip corners each: {}",
+        tips.len()
+    );
+
+    // The window, in the shoe's frame (the construction's own numbers, restated as the lock).
+    let horn_half = (kin.tyre_gap_half() - 0.0015).min(0.025);
+    let (win_x_in, win_x_out) = ((horn_half + 0.012).max(0.030), band - 0.025);
+    let win_half_z = half_z * 0.45;
+
+    for phase in [0.0_f32, 0.051] {
+        let placements = running_gear_placements(&kin, phase, phase);
+        let links: Vec<Mat4> =
+            placements.iter().filter(|p| p.part == GearPart::Link).map(|p| p.transform).collect();
+        for sprocket_place in placements.iter().filter(|p| p.part == GearPart::Sprocket) {
+            let side = sprocket_place.transform.w_axis.x.signum();
+            let centre = sprocket_place.transform.w_axis.truncate();
+            // Only shoes whose centre rides the wrap arc are engaged; a shoe already on the ramp
+            // (or at the sagged top run's start, 16 mm inside the circle) is a chord off the
+            // circle and the tooth beside it is entering or leaving it.
+            let on_wrap: Vec<&Mat4> = links
+                .iter()
+                .filter(|l| {
+                    l.w_axis.x.signum() == side
+                        && ((l.w_axis.truncate() - centre).length() - wrap_r).abs() < 0.006
+                })
+                .collect();
+            let mut engaged = 0;
+            for tip in &tips {
+                let world = sprocket_place.transform.transform_point3(*tip);
+                for link in &on_wrap {
+                    let local = link.inverse().transform_point3(world);
+                    let in_plate_band = (-0.05..=0.08).contains(&local.y) && local.z.abs() < half_z;
+                    if !in_plate_band {
+                        continue;
+                    }
+                    engaged += 1;
+                    assert!(
+                        local.z.abs() + 0.010 <= win_half_z + 0.002,
+                        "side {side} phase {phase}: a tooth tip at z {:.3} in the shoe's frame is not inside the window (±{win_half_z:.3}) — the tooth is through a joint bar",
+                        local.z
+                    );
+                    assert!(
+                        local.x.abs() > win_x_in - 1.0e-3 && local.x.abs() < win_x_out + 1.0e-3,
+                        "side {side} phase {phase}: a tooth tip at x {:.3} is not between the centre bar ({win_x_in:.3}) and the edge rail ({win_x_out:.3})",
+                        local.x
+                    );
+                }
+            }
+            assert!(engaged >= 4, "side {side} phase {phase}: tip corners in windows: {engaged}");
+        }
+    }
+
+    // The bolts stand proud of the ring they fix.
+    let ring_reach = sprocket
+        .vertices()
+        .iter()
+        .filter(|v| {
+            let r = v.position.y.hypot(v.position.z);
+            (wrap_r - 0.066..=wrap_r - 0.025).contains(&r) && v.material == MaterialRole::TrackMetal
+        })
+        .map(|v| v.position.x.abs())
+        .fold(0.0_f32, f32::max);
+    let ring_face = band - 0.030 - 0.020 + 0.012;
+    assert!(
+        ring_reach >= ring_face + 0.010,
+        "the bolt heads stand proud of the ring's outer face: heads reach {ring_reach:.3}, the face is at {ring_face:.3}"
+    );
 }

@@ -47,7 +47,7 @@ pub use running_gear_arms::{
 };
 pub use running_gear_end_wheels::{
     end_wheel_unit_mesh, idler_crank_unit_mesh, idler_crank_unit_mesh_left, idler_unit_mesh,
-    sprocket_unit_mesh,
+    sprocket_tooth_phase, sprocket_unit_mesh,
 };
 pub use running_gear_geom::track_link_unit_mesh;
 pub use running_gear_place::{
