@@ -110,6 +110,12 @@ pub(crate) enum GarageElement {
     TreeEdge(u8),
     TreeBack,
     TreeBackLabel,
+    /// The inspector's readout under the legend (G11): the plate's line, the verdict's line,
+    /// the SHOOT ME switch.
+    InspectorPlate,
+    InspectorLine(u8),
+    InspectorShootMe,
+    InspectorShootMeLabel,
 }
 
 impl GarageElement {
@@ -131,7 +137,7 @@ impl GarageElement {
 impl GarageElement {
     /// Walked by the tests; the identity rule wants it whole (a data variant once).
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [GarageElement; 95] = [
+    pub const ALL: [GarageElement; 99] = [
         GarageElement::TopBar,
         GarageElement::Nameplate,
         GarageElement::Crew,
@@ -227,6 +233,10 @@ impl GarageElement {
         GarageElement::TreeEdge(0),
         GarageElement::TreeBack,
         GarageElement::TreeBackLabel,
+        GarageElement::InspectorPlate,
+        GarageElement::InspectorLine(0),
+        GarageElement::InspectorShootMe,
+        GarageElement::InspectorShootMeLabel,
     ];
 }
 

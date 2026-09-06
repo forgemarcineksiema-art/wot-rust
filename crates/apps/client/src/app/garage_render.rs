@@ -172,6 +172,12 @@ impl ClientApp {
                 pose.yaw_rad,
                 self.garage.hero_turret_yaw(),
             ));
+            // G11: the question's marker on the plate.
+            if let Some((point, normal, rgb)) = self.garage.inspector_marker(&theme) {
+                fx_vertices.extend(crate::vehicle::armor_overlay::inspector_point_fx_vertices(
+                    point, normal, rgb,
+                ));
+            }
         }
 
         let scene_time_s = self.presented_time_s();

@@ -19,6 +19,7 @@ use super::draft::FitSlot;
 use super::elements::GarageElement as E;
 use super::filter::Chip;
 use super::hints::tooltip_text;
+use super::inspector::{push_inspector_panel, round_word};
 use super::layout::{
     ammo_icon, carousel_overflows, carousel_window, map_pick_label, slot_icon, slot_label,
 };
@@ -200,6 +201,8 @@ pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit
         // G12: the tree's nodes select by absolute roster index; BACK is the GARAGE tab.
         Some(E::TreeNode(i)) => GarageHit::Vehicle(usize::from(i)),
         Some(E::TreeBack) => GarageHit::Tab(GarageTab::Garage),
+        // G11: the inspector's switch.
+        Some(E::InspectorShootMe) => GarageHit::ShootMe,
         Some(E::ModuleSlot(i)) => GarageHit::ModuleCycle(FitSlot::ALL[usize::from(i)], dir),
         Some(E::OptionRow(i)) => match state.option_list() {
             Some(slot) => GarageHit::OptionRow(slot, usize::from(i)),
@@ -255,6 +258,7 @@ pub(super) fn build_screen_list(state: &GarageState, ui: &Ui, hovered: Option<E>
         push_nameplate(&mut list, ui, &theme, state);
         if state.inspector_on() {
             push_legend(&mut list, ui, &theme);
+            push_inspector_panel(&mut list, ui, &theme, state);
         }
         push_crew(&mut list, ui, &theme);
         push_stats(&mut list, ui, &theme, state);
@@ -846,18 +850,7 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             ),
             Payload::Icon { icon: ammo_icon(shell.shell_type), color: theme.text.value },
         );
-        let name = shell.round.map_or_else(
-            || {
-                match shell.shell_type {
-                    game_core::ShellType::ArmorPiercing => "AP",
-                    game_core::ShellType::Apcr => "APCR",
-                    game_core::ShellType::Heat => "HEAT",
-                    game_core::ShellType::HighExplosive => "HE",
-                }
-                .to_string()
-            },
-            |round| round.designation().to_string(),
-        );
+        let name = round_word(shell);
         put(
             list,
             E::AmmoName(index),

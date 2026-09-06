@@ -92,6 +92,12 @@ pub(crate) mod garage {
     pub const CHIP_TIER: &str = "TIER";
     pub const CHIP_ALL: &str = "ALL";
     pub const COMPARE_TAG: &str = "VS";
+    /// The inspector at a point (G11): the question's hint, its words, the switch.
+    pub const INSPECTOR_HINT: &str = "CLICK A PLATE OF THE HULL";
+    pub const INSPECTOR_EFFECTIVE: &str = "EFFECTIVE";
+    pub const INSPECTOR_METRES: &str = "M";
+    pub const INSPECTOR_SHOOT_ME: &str = "SHOOT ME";
+    pub const TIP_SHOOT_ME: &str = "THE LOADED ROUND AGAINST THIS PLATE";
 
     /// Every string of this module, for the coverage lock (`every_ui_string_constant_is_listed_in_all` counts it).
     #[cfg(test)]
@@ -161,6 +167,11 @@ pub(crate) mod garage {
         CHIP_TIER,
         CHIP_ALL,
         COMPARE_TAG,
+        INSPECTOR_HINT,
+        INSPECTOR_EFFECTIVE,
+        INSPECTOR_METRES,
+        INSPECTOR_SHOOT_ME,
+        TIP_SHOOT_ME,
     ];
 }
 

@@ -135,6 +135,7 @@ pub(super) fn tooltip_text(state: &GarageState, element: E) -> Option<String> {
         E::TabSettings => words::TAB_SETTINGS.to_string(),
         E::TreeNode(i) => VehicleKind::PLAYABLE.get(usize::from(i))?.display_name().to_string(),
         E::TreeBack => words::BACK.to_string(),
+        E::InspectorShootMe => words::TIP_SHOOT_ME.to_string(),
         E::ModuleSlot(i) => format!(
             "{}{DOT}{}{DOT}{} {} {}",
             slot_label(FitSlot::ALL[usize::from(i)]),

@@ -125,11 +125,20 @@ impl ClientApp {
     pub(in crate::app) fn garage_primary_release(&mut self) {
         let shift = self.input.shift;
         let released = self.garage.release_cursor();
-        if let Some(slot) = self.garage.end_press() {
-            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
-            self.garage.set_focused_slot(slot);
-            self.garage.open_option_list(slot);
-            self.garage.focus_module(slot);
+        if let Some(hit) = self.garage.end_press() {
+            // G11: under the inspector a click on a plate is the question, not a shop.
+            if self.garage.inspector_on() {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.garage
+                    .set_inspector_point(Some(super::inspector::InspectorPoint::from_hit(&hit)));
+                return;
+            }
+            if let Some(slot) = hit.slot {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.garage.set_focused_slot(slot);
+                self.garage.open_option_list(slot);
+                self.garage.focus_module(slot);
+            }
             return;
         }
         if released.is_none() {
@@ -209,6 +218,8 @@ impl ClientApp {
             GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
             // G10: a tab opens its screen.
             GarageHit::Tab(tab) => self.open_garage_tab(tab),
+            // G11: SHOOT ME answers the question with the loaded round.
+            GarageHit::ShootMe => self.garage.toggle_shoot_me(),
             // The scene's press already took the camera (or the turret) in `garage_primary_press`;
             // in the tree view a press on nothing is a press on nothing.
             GarageHit::Scene => {}
@@ -1231,6 +1242,78 @@ mod tests {
         assert_eq!(app.shell_page(), Some(ShellPage::Battles));
         app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
         assert_eq!(app.shell_page(), Some(ShellPage::Menu(MenuKind::Garage)));
+    }
+
+    /// G11: with the inspector on, a click on a plate is the question — the readout names the
+    /// zone, its steel and the steel at the ray's angle, the marker sits on the plate — and
+    /// SHOOT ME answers it with the loaded round's penetration and the resolver's verdict; a
+    /// new hull or the inspector going off drops the question.
+    #[test]
+    fn a_click_under_the_inspector_asks_the_plate_and_shoot_me_answers_with_the_own_round() {
+        use crate::app::garage::hero_pick::hero_point_where;
+        use crate::app::garage::screen::build_screen_list;
+        use crate::hud::damage_log::zone_name;
+        use game_core::ArmorZone;
+        use ui_kit::draw_list::Payload;
+
+        let text_of = |app: &ClientApp, id: E| -> Option<String> {
+            let ui = app.garage.ui();
+            match build_screen_list(&app.garage, &ui, None).find(id).map(|e| e.payload.clone()) {
+                Some(Payload::Text { text, .. }) => Some(text),
+                _ => None,
+            }
+        };
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::BENCHMARK);
+        app.garage_keyboard(PhysicalKey::Code(KeyCode::KeyI));
+        assert!(app.garage.inspector_on());
+        assert_eq!(
+            text_of(&app, E::InspectorLine(0)).as_deref(),
+            Some(crate::ui_strings::garage::INSPECTOR_HINT)
+        );
+        assert!(text_of(&app, E::InspectorLine(1)).is_none(), "no verdict before SHOOT ME");
+        let glacis = hero_point_where(&mut app.garage, |hit| hit.zone == ArmorZone::UpperGlacis)
+            .expect("the glacis faces the lens");
+        app.garage.set_cursor(glacis);
+        app.garage_click();
+        let point = app.garage.inspector_point().expect("the question");
+        assert_eq!(point.zone, ArmorZone::UpperGlacis);
+        assert_eq!(
+            app.garage.option_list(),
+            None,
+            "under the inspector a click asks, it does not shop"
+        );
+        let first = text_of(&app, E::InspectorLine(0)).expect("the plate's line");
+        assert!(first.starts_with(zone_name(ArmorZone::UpperGlacis)), "{first}");
+        assert!(first.ends_with(crate::ui_strings::garage::INSPECTOR_EFFECTIVE), "{first}");
+        let (marker, _, lamp) =
+            app.garage.inspector_marker(&ui_kit::theme::Theme::standard()).expect("the marker");
+        assert!((marker - point.hit_position).length() < 1.0e-6, "the marker sits on the plate");
+        // SHOOT ME: the loaded round, its penetration at 100 m, the resolver's word.
+        assert!(app.garage.set_cursor_on(E::InspectorShootMe));
+        app.garage_click();
+        assert!(app.garage.shoot_me());
+        let reading = app.garage.inspector_reading(point, &app.garage.own_round());
+        let second = text_of(&app, E::InspectorLine(1)).expect("the verdict's line");
+        assert!(second.starts_with(&reading.round), "{second}");
+        assert!(second.ends_with(reading.verdict_word()), "{second}");
+        assert!(
+            second.contains(&format!("{} ", reading.penetration_mm.round() as i32)),
+            "{second}"
+        );
+        let (_, _, verdict_rgb) =
+            app.garage.inspector_marker(&ui_kit::theme::Theme::standard()).expect("the marker");
+        assert_ne!(verdict_rgb, lamp, "the marker wears the verdict once SHOOT ME answers");
+        // A new hull drops the question; the inspector going off drops it too.
+        app.garage.select_vehicle(VehicleKind::PLAYABLE[1]);
+        assert!(app.garage.inspector_point().is_none());
+        assert!(app.garage.inspector_on());
+        let plate = hero_point_where(&mut app.garage, |hit| hit.slot.is_some()).expect("a plate");
+        app.garage.set_cursor(plate);
+        app.garage_click();
+        assert!(app.garage.inspector_point().is_some());
+        app.garage_keyboard(PhysicalKey::Code(KeyCode::KeyI));
+        assert!(!app.garage.inspector_on() && app.garage.inspector_point().is_none());
     }
 }
 

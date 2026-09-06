@@ -7,6 +7,9 @@ mod elements;
 mod filter;
 mod hero_pick;
 mod hints;
+mod inspector;
+#[cfg(test)]
+mod inspector_tests;
 mod layout;
 mod overlay;
 pub(crate) mod persistence;
@@ -76,9 +79,12 @@ pub(super) struct GarageState {
     /// How far the press travelled: a press that never travels is a click on the hero.
     drag_travel_px: f32,
     /// The module under a press on the hero, until the release decides click or drag.
-    hero_press: Option<FitSlot>,
+    hero_press: Option<hero_pick::HeroHit>,
     /// The turret's traverse on the parked hero (G8), hull-relative; a fresh hull parks at zero.
     hero_turret_yaw: f32,
+    /// The plate the inspector's question sits on (G11), and whether SHOOT ME answers it.
+    inspector_point: Option<inspector::InspectorPoint>,
+    shoot_me: bool,
     /// The carousel's chips (G9), persisted with the save.
     filter: filter::CarouselFilter,
     /// The hull the VEHICLE column is compared against (G3); a session's, never saved.
@@ -154,6 +160,8 @@ impl Default for GarageState {
             drag_travel_px: 0.0,
             hero_press: None,
             hero_turret_yaw: 0.0,
+            inspector_point: None,
+            shoot_me: false,
             filter: filter::CarouselFilter::default(),
             compare: None,
             key_labels: hints::KeyLabels::default(),
@@ -206,7 +214,7 @@ impl GarageState {
 
     /// `I` in the hangar: the armor inspector on or off (I1).
     pub(in crate::app) fn toggle_inspector(&mut self) {
-        self.inspector = !self.inspector;
+        self.set_inspector(!self.inspector);
     }
 
     pub(in crate::app) fn inspector_on(&self) -> bool {
@@ -216,6 +224,10 @@ impl GarageState {
     /// The ARMOUR tab's word (G10): the inspector on or off, said rather than toggled.
     pub(in crate::app) fn set_inspector(&mut self, on: bool) {
         self.inspector = on;
+        // The question goes with the inspector (G11).
+        if !on {
+            self.inspector_point = None;
+        }
     }
 
     /// The tab the garage's own screen is on (G10): GARAGE, TECH TREE or ARMOUR — the shell's
@@ -278,11 +290,13 @@ pub(in crate::app) fn daylight_for_local_clock() -> scene_build::hangar::HangarL
 /// The armor inspector's mm legend alone (Hala v4 R1) — what the review harness hangs over
 /// the inspector golden, so the locked frame carries the ramp's unit exactly the way the
 /// live screen does.
-pub fn garage_inspector_legend(aspect: f32) -> Vec<renderer_api::HudVertex> {
-    let mut state = GarageState::default();
-    state.toggle_inspector();
+pub fn garage_inspector_legend(
+    aspect: f32,
+    point: Option<game_core::ArmorZone>,
+    shoot_me: bool,
+) -> Vec<renderer_api::HudVertex> {
     let ui = ui_kit::ui::Ui::for_aspect(aspect);
-    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    let state = inspector_review_state(&ui, point, shoot_me);
     let mut list = screen::build_screen_list(&state, &ui, None);
     list.retain(|id| {
         matches!(
@@ -292,9 +306,51 @@ pub fn garage_inspector_legend(aspect: f32) -> Vec<renderer_api::HudVertex> {
                 | elements::GarageElement::LegendSwatch(_)
                 | elements::GarageElement::LegendLabel(_)
                 | elements::GarageElement::LegendUnit
+                | elements::GarageElement::InspectorPlate
+                | elements::GarageElement::InspectorLine(_)
+                | elements::GarageElement::InspectorShootMe
+                | elements::GarageElement::InspectorShootMeLabel
         )
     });
     list.emit(&ui, &ui_kit::theme::Theme::standard())
+}
+
+/// The inspector's marker on the plate for the review goldens (G11): the same disc the live
+/// garage draws, at the point the same question would sit on.
+pub fn garage_inspector_marker(
+    zone: game_core::ArmorZone,
+    shoot_me: bool,
+) -> Vec<renderer_api::FxVertex> {
+    let ui = ui_kit::ui::Ui::reference();
+    let state = inspector_review_state(&ui, Some(zone), shoot_me);
+    state.inspector_marker(&ui_kit::theme::Theme::standard()).map_or_else(
+        Vec::new,
+        |(point, normal, rgb)| {
+            crate::vehicle::armor_overlay::inspector_point_fx_vertices(point, normal, rgb)
+        },
+    )
+}
+
+/// The garage the inspector goldens stage: the default hull under the inspector, the
+/// question on a plate of `zone` when one is asked, SHOOT ME as told.
+fn inspector_review_state(
+    ui: &ui_kit::ui::Ui,
+    point: Option<game_core::ArmorZone>,
+    shoot_me: bool,
+) -> GarageState {
+    let mut state = GarageState::default();
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    state.set_inspector(true);
+    if let Some(zone) = point
+        && hero_pick::hero_point_where(&mut state, |hit| hit.zone == zone).is_some()
+        && let Some(hit) = state.hero_hit()
+    {
+        state.set_inspector_point(Some(inspector::InspectorPoint::from_hit(&hit)));
+    }
+    if shoot_me {
+        state.toggle_shoot_me();
+    }
+    state
 }
 
 pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVertex> {
