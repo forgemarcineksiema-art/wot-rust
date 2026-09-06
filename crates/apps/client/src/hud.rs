@@ -462,6 +462,28 @@ pub(crate) fn build_battle_hud_list(
             );
             order += 1;
             if map.size.labelled() {
+                // H23: the seat letter sits on enamel, not on the relief — ink over a plate.
+                let enamel = theme.plates.enamel_black;
+                list.push(
+                    Element::new(
+                        HudElement::MinimapSeatPlate(i),
+                        Rect::new(
+                            center[0] + glyph * 0.45,
+                            center[1] - ui.px(10.0),
+                            ui.px(20.0),
+                            ui.px(20.0),
+                        ),
+                        Payload::Plate {
+                            tile: enamel.tile,
+                            radius_u: 2.0,
+                            bevel_u: 0.0,
+                            color: [enamel.color[0], enamel.color[1], enamel.color[2], 0.82],
+                        },
+                    )
+                    .clipped(Some(map_rect))
+                    .z(order),
+                );
+                order += 1;
                 list.push(
                     Element::new(
                         HudElement::MinimapSeat(i),
@@ -476,7 +498,8 @@ pub(crate) fn build_battle_hud_list(
                             style: ui_kit::font::Style::VALUE_STRONG,
                             size_u: 16.0,
                             align: ui_kit::draw_list::Align::Left,
-                            color,
+                            // The glyph carries the team; the letter is ink on enamel (H23).
+                            color: theme.text.label,
                             digits: ui_kit::draw_list::DigitMode::Proportional,
                         },
                     )
@@ -504,7 +527,7 @@ pub(crate) fn build_battle_hud_list(
                             style: ui_kit::font::Style::VALUE,
                             size_u: 16.0,
                             align: ui_kit::draw_list::Align::Center,
-                            color: theme.text.label_dim,
+                            color: theme.text.label,
                             digits: ui_kit::draw_list::DigitMode::Proportional,
                         },
                     )
@@ -526,7 +549,7 @@ pub(crate) fn build_battle_hud_list(
                             style: ui_kit::font::Style::VALUE,
                             size_u: 16.0,
                             align: ui_kit::draw_list::Align::Left,
-                            color: theme.text.label_dim,
+                            color: theme.text.label,
                             digits: ui_kit::draw_list::DigitMode::Tabular,
                         },
                     )
@@ -610,6 +633,40 @@ pub fn hud_state_vertices(
         model.pings.map(|pings| pings.scaled_from_reference([width as f32, height as f32]));
     build_battle_hud_list(&model, &ui)
         .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette))
+}
+
+/// The draw list one HUD state builds at one size class on a `width` x `height` viewport,
+/// staged exactly as `hud_state_vertices` stages it: what the floors (H23, H24) walk.
+pub fn hud_state_list(
+    state: HudState,
+    size: HudSizeClass,
+    width: u32,
+    height: u32,
+) -> DrawList<HudElement> {
+    let ui = ui_kit::ui::Ui::new(width, height, size.user_scale());
+    let mut model = state.model();
+    model.markers =
+        model.markers.map(|markers| markers.scaled_from_reference([width as f32, height as f32]));
+    model.pings =
+        model.pings.map(|pings| pings.scaled_from_reference([width as f32, height as f32]));
+    build_battle_hud_list(&model, &ui)
+}
+
+/// The battle strings' size floor (H23): no battle text under 16 px at 1080p.
+pub const TEXT_SIZE_FLOOR_U: f32 = 16.0;
+/// The numbers the crew acts on — the hit points, the round counts, the speed, the clock —
+/// sit at 24 px or more.
+pub const ACTED_ON_SIZE_FLOOR_U: f32 = 24.0;
+
+/// Whether an element is one of the numbers the crew acts on (H23).
+pub fn is_acted_on_number(id: HudElement) -> bool {
+    matches!(
+        id,
+        HudElement::DamagePanel(elements::DamagePart::HpNumber)
+            | HudElement::Ammo(elements::AmmoPart::Count(_))
+            | HudElement::Speed(elements::SpeedPart::Number)
+            | HudElement::TopBarClock
+    )
 }
 
 /// The census of one state: vertices per element, in paint order.

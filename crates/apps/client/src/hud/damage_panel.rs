@@ -332,7 +332,7 @@ pub(crate) fn push_damage_panel(
         Payload::Text {
             text: model.hit_points.min(9_999).to_string(),
             style: Style::VALUE_BOLD,
-            size_u: 20.0,
+            size_u: 24.0,
             align: Align::Right,
             color: theme.text.value,
             digits: DigitMode::Tabular,
@@ -422,7 +422,8 @@ pub(crate) fn push_damage_panel(
                     style: Style::LABEL,
                     size_u: TEXT_U,
                     align: Align::Left,
-                    color: red,
+                    // The fuze is a countdown the crew acts on: the lamp, not red on enamel (H23).
+                    color: theme.lamp,
                     digits: DigitMode::Tabular,
                 },
             ));
@@ -439,7 +440,8 @@ pub(crate) fn push_damage_panel(
                 style: Style::LABEL,
                 size_u: TEXT_U,
                 align: Align::Left,
-                color: red,
+                // A state word in the label ink; the red is the lamp plate's (H23).
+                color: theme.text.label,
                 digits: DigitMode::Proportional,
             },
         ));

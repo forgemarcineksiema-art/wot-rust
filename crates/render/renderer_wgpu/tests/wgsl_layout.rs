@@ -878,3 +878,16 @@ fn hud_style_values_are_bound_at_both_ends() {
     }
     assert!(source.contains("@interpolate(flat) style: u32"), "an integer lane interpolates flat");
 }
+
+/// H23: the HUD's colours are authored as display values and the pass writes an sRGB
+/// surface — every fragment the HUD shader returns goes through `srgb_to_linear`, or a plate
+/// authored at enamel black comes out grey.
+#[test]
+fn the_hud_shader_hands_back_its_colours_as_authored() {
+    let source = include_str!("../src/shaders/hud.wgsl");
+    assert!(source.contains("fn srgb_to_linear(c: vec3<f32>) -> vec3<f32>"));
+    let returns = source.matches("return vec4<f32>(").count();
+    let linearised = source.matches("return vec4<f32>(srgb_to_linear(").count();
+    assert!(returns >= 5, "the fragment shader has its five styles: {returns}");
+    assert_eq!(returns, linearised, "every returned colour is linearised for the sRGB surface");
+}

@@ -159,7 +159,7 @@ pub(crate) fn push_kill_feed(
                 Payload::Text {
                     text: row.word().to_string(),
                     style: Style::LABEL,
-                    size_u: 14.0,
+                    size_u: 16.0,
                     align: Align::Right,
                     color: row_faded(theme.text.label_dim, row.age_s),
                     digits: DigitMode::Proportional,
