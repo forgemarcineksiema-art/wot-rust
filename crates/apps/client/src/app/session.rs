@@ -158,6 +158,19 @@ impl BattleSessionKind {
         }
     }
 
+    /// The connection readout (H18): the remote session's own numbers; the local host, which
+    /// has no wire, says LOCAL.
+    pub(super) fn net_readout(&self) -> crate::hud::net_readout::NetReadoutModel {
+        match self {
+            Self::Local(_) => crate::hud::net_readout::NetReadoutModel {
+                local: true,
+                rtt_ms: None,
+                snapshot_age_ms: 0,
+            },
+            Self::Remote(session) => session.net_readout(),
+        }
+    }
+
     pub(super) fn tick_with_player_input(
         &mut self,
         input: ClientInputCommand,
@@ -413,6 +426,16 @@ impl RemoteSession {
     /// The connection at a glance: round trip and how stale the newest state is.
     pub fn net_stats(&self, now_ms: u64) -> (Option<u32>, u64) {
         (self.rtt_ms, now_ms.saturating_sub(self.last_snapshot_ms))
+    }
+
+    /// The same, on the session's own clock, for the HUD (H18).
+    pub fn net_readout(&self) -> crate::hud::net_readout::NetReadoutModel {
+        let (rtt_ms, age_ms) = self.net_stats(self.started.elapsed().as_millis() as u64);
+        crate::hud::net_readout::NetReadoutModel {
+            local: false,
+            rtt_ms,
+            snapshot_age_ms: age_ms.min(u32::MAX as u64) as u32,
+        }
     }
 
     pub fn state(&self) -> &SessionState {

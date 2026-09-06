@@ -35,4 +35,20 @@ impl ClientApp {
         );
         (Some(top_bar), Some(team_lists))
     }
+
+    /// The kill feed (H3): the kills told so far, named off the roster, aged by the newest
+    /// server tick. `None` before the roster lands.
+    pub(super) fn kill_feed_model(&self) -> Option<crate::hud::kill_feed::KillFeedModel> {
+        let roster = self.session.roster();
+        if roster.is_empty() {
+            return None;
+        }
+        Some(crate::hud::kill_feed::KillFeedModel::from_battle(
+            self.intel.kills(),
+            &roster,
+            self.player_team(),
+            self.server_tick_now(),
+            sim::DEFAULT_SERVER_TICK_HZ as f32,
+        ))
+    }
 }

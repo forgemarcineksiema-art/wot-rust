@@ -81,7 +81,7 @@ const ROW_H_U: f32 = 28.0;
 const ROW_GAP_U: f32 = 4.0;
 const EAR_INSET_U: f32 = 12.0;
 /// Below the top bar and the reticle's headroom.
-const EAR_TOP_U: f32 = 96.0;
+pub(crate) const EAR_TOP_U: f32 = 96.0;
 const TEXT_U: f32 = 16.0;
 
 pub(crate) fn push_team_lists(
