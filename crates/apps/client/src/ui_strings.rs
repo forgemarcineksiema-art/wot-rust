@@ -79,8 +79,12 @@ pub(crate) mod battle {
     pub const BATTLE_OVER: &str = "BATTLE OVER";
     /// Kill confirmation line under the reticle.
     pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
-    /// Way-out hint under the battle-outcome banner (G opens the garage; Battle deploys fresh).
-    pub const RETURN_TO_GARAGE_HINT: &str = "G - RETURN TO GARAGE";
+    /// The hand-off under the battle-outcome banner (H20): Enter continues at once, the banner
+    /// hands off by itself after three seconds; G still opens the garage.
+    pub const OUTCOME_CONTINUE_HINT: &str = "ENTER \u{b7} CONTINUE";
+    /// The dead crew's strip (H19): who it rides with, and the keys that step through.
+    pub const SPECTATING: &str = "SPECTATING";
+    pub const SPECTATE_KEYS: &str = "< >";
     /// Header of the ESC modal. Phrased as the question being asked, so neither button has to
     /// repeat the stakes.
     pub const PAUSE_TITLE: &str = "LEAVE BATTLE?";
@@ -175,7 +179,9 @@ pub(crate) mod battle {
         CONNECTION_LOST,
         BATTLE_OVER,
         TARGET_DESTROYED,
-        RETURN_TO_GARAGE_HINT,
+        OUTCOME_CONTINUE_HINT,
+        SPECTATING,
+        SPECTATE_KEYS,
         PAUSE_TITLE,
         PAUSE_EXIT_TO_GARAGE,
         PAUSE_STAY,

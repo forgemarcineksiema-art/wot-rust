@@ -113,6 +113,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
             rtt_ms: Some(48),
             snapshot_age_ms: 32,
         }),
+        dead: None,
     }
 }
 

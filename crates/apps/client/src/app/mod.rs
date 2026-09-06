@@ -39,6 +39,7 @@ mod render_failure;
 mod render_tests;
 mod reticle;
 pub(crate) mod session;
+mod spectate;
 mod vehicle_assets;
 
 use std::collections::HashMap;
@@ -628,6 +629,10 @@ pub(crate) struct ClientApp {
     command_knock_age_s: Option<f32>,
     /// Where the sight ray landed this frame (x, z): what a ping points at.
     aim_point_xz: Option<[f32; 2]>,
+    /// The living ally a dead crew rides (H19); `None` is the own wreck.
+    spectate: Option<TankId>,
+    /// Seconds since the outcome banner came up (H20): the hand-off's clock.
+    outcome_age_s: f32,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -930,6 +935,8 @@ impl ClientApp {
             command_clock: net::TeamCommandLimiter::default(),
             command_knock_age_s: None,
             aim_point_xz: None,
+            spectate: None,
+            outcome_age_s: 0.0,
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),

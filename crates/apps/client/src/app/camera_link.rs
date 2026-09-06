@@ -57,7 +57,11 @@ impl ClientApp {
     /// transition blend and boom smoothing. Only the render path calls this; aiming keeps
     /// reading the unfiltered [`Self::camera_from_tank`].
     pub(super) fn presented_camera_for_player(&mut self, alpha: f32, dt: f32) -> Option<Camera> {
-        let tank = self.interpolated_local_tank(alpha)?;
+        // H19: a dead crew may ride an ally's hull; the rig then follows that hull.
+        let tank = match self.spectated_tank() {
+            Some(ally) => ally,
+            None => self.interpolated_local_tank(alpha)?,
+        };
         let (tank_id, hull_pitch_rad) = (tank.tank_id, tank.hull_pitch_rad);
         let mut subject = self.camera_subject_from_tank(tank);
         // Immersja B1: hand the presented rig the sprung hull's residuals. The DIVE is the

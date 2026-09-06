@@ -512,6 +512,8 @@ impl ClientApp {
         let alpha = self.loop_driver.render_alpha();
         // The death spectate (D9): the kill gets its audience.
         let player_dead = self.tick_death_spectate();
+        self.refresh_spectate(player_dead);
+        self.tick_outcome_hand_off(frame_dt);
         // A landing the predictor absorbed since the last frame slams the camera rig once.
         let landing_impact = self.predictor.take_landing_impact_mps();
         if landing_impact > 0.0 {
@@ -721,13 +723,11 @@ impl ClientApp {
             team_word: self.team_word(),
             kill_feed: self.kill_feed_model(),
             net: Some(self.session.net_readout()),
+            dead: player_dead.then(|| self.dead_model()),
         };
-        // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
-        // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.
-        let spectating = player_dead && self.battle_outcome.is_none();
-        let hud = if spectating {
-            Vec::new()
-        } else {
+        // The death spectate (D9, H19) keeps the intel and drops the gun's instruments — the
+        // draw list does that by name; the world-anchored marks below are the living crew's.
+        let hud = {
             // The draw list (interface program F5): every instrument by name, the world-anchored
             // markers as the last three elements, one emitter. The context is the window's
             // physical viewport at the user's scale (1.0 until settings land, P6).
@@ -735,24 +735,26 @@ impl ClientApp {
             let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
             let theme = ui_kit::theme::Theme::standard();
             let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
-            let after = list.len() as i16;
-            let world = ui_kit::rect::Rect::default();
-            list.push(
-                Element::new(
-                    crate::hud::HudElement::SpotBrackets,
-                    world,
-                    Payload::Legacy(spot_brackets),
-                )
-                .z(after + 1),
-            );
-            list.push(
-                Element::new(
-                    crate::hud::HudElement::HitIndicator,
-                    world,
-                    Payload::Legacy(self.hit_indicator.render_vertices(view_proj, aspect)),
-                )
-                .z(after + 2),
-            );
+            if !player_dead {
+                let after = list.len() as i16;
+                let world = ui_kit::rect::Rect::default();
+                list.push(
+                    Element::new(
+                        crate::hud::HudElement::SpotBrackets,
+                        world,
+                        Payload::Legacy(spot_brackets),
+                    )
+                    .z(after + 1),
+                );
+                list.push(
+                    Element::new(
+                        crate::hud::HudElement::HitIndicator,
+                        world,
+                        Payload::Legacy(self.hit_indicator.render_vertices(view_proj, aspect)),
+                    )
+                    .z(after + 2),
+                );
+            }
             list.emit(&ui, &theme)
         };
         // Reused scratch (recovered after `set_fx` below), so the ~1 MiB FX batch is not

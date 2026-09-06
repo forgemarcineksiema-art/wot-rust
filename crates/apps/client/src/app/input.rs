@@ -93,6 +93,21 @@ impl ClientApp {
         match key {
             PhysicalKey::Code(KeyCode::KeyW | KeyCode::ArrowUp) => self.input.forward = pressed,
             PhysicalKey::Code(KeyCode::KeyS | KeyCode::ArrowDown) => self.input.back = pressed,
+            // H19: a dead crew rides its allies — the arrows step through the living ones.
+            PhysicalKey::Code(KeyCode::ArrowLeft)
+                if pressed && self.camera_controller.death_spectate() =>
+            {
+                self.spectate_step(-1)
+            }
+            PhysicalKey::Code(KeyCode::ArrowRight)
+                if pressed && self.camera_controller.death_spectate() =>
+            {
+                self.spectate_step(1)
+            }
+            // H20: Enter takes the banner's hand-off at once.
+            PhysicalKey::Code(KeyCode::Enter) if pressed && self.battle_outcome.is_some() => {
+                self.hand_off_outcome()
+            }
             PhysicalKey::Code(KeyCode::KeyA | KeyCode::ArrowLeft) => self.input.left = pressed,
             PhysicalKey::Code(KeyCode::KeyD | KeyCode::ArrowRight) => self.input.right = pressed,
             PhysicalKey::Code(KeyCode::ControlLeft | KeyCode::ControlRight) => {

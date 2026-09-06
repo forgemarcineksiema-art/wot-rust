@@ -44,10 +44,12 @@ pub enum HudState {
     CommandWheelOpen,
     /// The kill feed at three rows (H3) and the connection readout with a slow wire (H18).
     KillFeed,
+    /// A dead crew riding an ally (H19): the intel sat back, the strip, the ally's panel.
+    DeadSpectating,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 16] = [
+    pub const ALL: [HudState; 17] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -64,6 +66,7 @@ impl HudState {
         HudState::MinimapLarge,
         HudState::CommandWheelOpen,
         HudState::KillFeed,
+        HudState::DeadSpectating,
     ];
 
     /// The golden's name stem.
@@ -85,6 +88,7 @@ impl HudState {
             HudState::MinimapLarge => "minimap_large",
             HudState::CommandWheelOpen => "command_wheel_open",
             HudState::KillFeed => "kill_feed",
+            HudState::DeadSpectating => "dead_spectating",
         }
     }
 
@@ -141,6 +145,17 @@ impl HudState {
             HudState::AmmoSwitching => {
                 model.ammo = Some(super::demo::demo_ammo(1));
                 model.vitals.reload_remaining_s = 5.1;
+            }
+            HudState::DeadSpectating => {
+                model.kill_feed = Some(super::demo::demo_kill_feed());
+                model.dead = Some(super::spectate::DeadModel {
+                    spectating: Some(super::spectate::SpectateStrip {
+                        name: "T-54 \u{b7} B".to_string(),
+                        index: 1,
+                        count: 3,
+                        panel: super::demo::quiet_damage_panel(),
+                    }),
+                });
             }
             HudState::KillFeed => {
                 model.kill_feed = Some(super::demo::demo_kill_feed());
