@@ -89,12 +89,49 @@ pub(crate) enum GarageElement {
     CompareName,
     StatOther(u8),
     StatDelta(u8),
+    /// The five tabs the bar grew (G10); GARAGE and TECH TREE are above.
+    TabArmour,
+    TabBattles,
+    TabReplays,
+    TabStatistics,
+    TabSettings,
+    /// The tech tree on the list (G12): the panel, the key, a line's head, the nodes by
+    /// absolute roster index, the edge from a node to what follows it, BACK.
+    TreePanel,
+    TreeLinesLabel,
+    TreeTierLabel(u8),
+    TreeLineIcon(u8),
+    TreeLineLabel(u8),
+    TreeNode(u8),
+    TreeNodeIcon(u8),
+    TreeNodeName(u8),
+    TreeNodeTier(u8),
+    TreeNodeNext(u8),
+    TreeEdge(u8),
+    TreeBack,
+    TreeBackLabel,
+}
+
+impl GarageElement {
+    /// A tab's element (G10).
+    pub fn tab(tab: super::types::GarageTab) -> Self {
+        use super::types::GarageTab;
+        match tab {
+            GarageTab::Garage => GarageElement::TabGarage,
+            GarageTab::TechTree => GarageElement::TabTechTree,
+            GarageTab::Armour => GarageElement::TabArmour,
+            GarageTab::Battles => GarageElement::TabBattles,
+            GarageTab::Replays => GarageElement::TabReplays,
+            GarageTab::Statistics => GarageElement::TabStatistics,
+            GarageTab::Settings => GarageElement::TabSettings,
+        }
+    }
 }
 
 impl GarageElement {
     /// Walked by the tests; the identity rule wants it whole (a data variant once).
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [GarageElement; 77] = [
+    pub const ALL: [GarageElement; 95] = [
         GarageElement::TopBar,
         GarageElement::Nameplate,
         GarageElement::Crew,
@@ -172,6 +209,24 @@ impl GarageElement {
         GarageElement::CompareName,
         GarageElement::StatOther(0),
         GarageElement::StatDelta(0),
+        GarageElement::TabArmour,
+        GarageElement::TabBattles,
+        GarageElement::TabReplays,
+        GarageElement::TabStatistics,
+        GarageElement::TabSettings,
+        GarageElement::TreePanel,
+        GarageElement::TreeLinesLabel,
+        GarageElement::TreeTierLabel(0),
+        GarageElement::TreeLineIcon(0),
+        GarageElement::TreeLineLabel(0),
+        GarageElement::TreeNode(0),
+        GarageElement::TreeNodeIcon(0),
+        GarageElement::TreeNodeName(0),
+        GarageElement::TreeNodeTier(0),
+        GarageElement::TreeNodeNext(0),
+        GarageElement::TreeEdge(0),
+        GarageElement::TreeBack,
+        GarageElement::TreeBackLabel,
     ];
 }
 

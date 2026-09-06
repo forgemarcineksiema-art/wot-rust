@@ -9,7 +9,6 @@ mod hero_pick;
 mod hints;
 mod layout;
 mod overlay;
-mod panels;
 pub(crate) mod persistence;
 mod screen;
 mod selection;
@@ -17,6 +16,7 @@ mod silhouette;
 #[cfg(test)]
 mod state_tests;
 mod stats;
+mod tree;
 mod types;
 mod wear;
 
@@ -37,7 +37,7 @@ use glam::Vec3;
 use self::camera::CameraTarget;
 pub(crate) use self::draft::{FitSlot, LoadoutDraft};
 use self::persistence::SavedLoadout;
-pub(super) use self::types::{GarageHit, GarageView};
+pub(super) use self::types::{GarageHit, GarageTab, GarageView};
 use ui_kit::draw_list::DrawList;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -213,6 +213,21 @@ impl GarageState {
         self.inspector
     }
 
+    /// The ARMOUR tab's word (G10): the inspector on or off, said rather than toggled.
+    pub(in crate::app) fn set_inspector(&mut self, on: bool) {
+        self.inspector = on;
+    }
+
+    /// The tab the garage's own screen is on (G10): GARAGE, TECH TREE or ARMOUR — the shell's
+    /// pages cover the screen under their own title.
+    pub(in crate::app) fn active_tab(&self) -> types::GarageTab {
+        match self.view {
+            GarageView::TechTree => types::GarageTab::TechTree,
+            GarageView::Hangar if self.inspector => types::GarageTab::Armour,
+            GarageView::Hangar => types::GarageTab::Garage,
+        }
+    }
+
     pub(in crate::app) fn daylight_override(&self) -> Option<scene_build::hangar::HangarLight> {
         self.daylight_override
     }
@@ -328,6 +343,40 @@ pub fn garage_overlay_compare(
     let ui = ui_kit::ui::Ui::for_aspect(aspect);
     state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
     state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
+}
+
+/// The hangar with the armour inspector on (G10's ARMOUR tab) — the review golden
+/// `garage_armour`: the legend, the tab in the lamp.
+pub fn garage_overlay_armour(aspect: f32) -> Vec<renderer_api::HudVertex> {
+    let mut state = GarageState::default();
+    state.set_inspector(true);
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    state.set_viewport(ui.viewport().w as u32, ui.viewport().h as u32, 1.0);
+    state.overlay_vertices(&ui, &ui_kit::theme::Theme::standard())
+}
+
+/// The hangar with one of the shell's pages over it (G10's BATTLES, REPLAYS, STATISTICS and
+/// SETTINGS tabs), staged the way the HUD's review states stage the same pages — the review
+/// goldens `garage_battles`, `garage_replays`, `garage_statistics`, `garage_settings`.
+pub fn garage_overlay_page(
+    screen: scene_build::review_views::GarageScreen,
+    aspect: f32,
+) -> Vec<renderer_api::HudVertex> {
+    use scene_build::review_views::GarageScreen;
+    let model = match screen {
+        GarageScreen::Battles => crate::hud::shell::demo_battles_screen(),
+        GarageScreen::Replays => crate::hud::shell::demo_replays_screen(),
+        GarageScreen::Statistics => crate::hud::shell::demo_statistics_screen(),
+        _ => crate::hud::shell::demo_settings_screen(),
+    };
+    let ui = ui_kit::ui::Ui::for_aspect(aspect);
+    let theme = ui_kit::theme::Theme::standard();
+    let mut vertices = garage_overlay(false, aspect);
+    let mut list = ui_kit::draw_list::DrawList::new();
+    let mut order: i16 = 0;
+    crate::hud::shell::push_shell(&mut list, &ui, &theme, &model, &mut order);
+    vertices.extend(list.emit(&ui, &theme));
+    vertices
 }
 
 impl GarageState {
@@ -502,10 +551,6 @@ impl GarageState {
 
     pub(super) fn draft(&self) -> &LoadoutDraft {
         &self.draft
-    }
-
-    pub(super) fn cursor_clip(&self) -> [f32; 2] {
-        self.cursor_clip
     }
 
     pub(super) fn rejected_slot(&self) -> Option<FitSlot> {

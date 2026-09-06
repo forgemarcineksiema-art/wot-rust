@@ -313,3 +313,64 @@ fn a_finished_battle_lands_in_the_history_and_opens_from_the_battles_page() {
     assert_eq!(menu.kind, MenuKind::Garage);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// G10: STATISTICS sums the crew's own numbers over every stored battle — the same tally the
+/// results page prints — and counts the outcomes; an empty history is a page that says so;
+/// no row anywhere is an XP; REPLAYS says no viewer exists and names no recording it did not
+/// write.
+#[test]
+fn the_statistics_page_sums_the_stored_battles_and_prints_no_xp() {
+    use crate::hud::shell::StatRow;
+    use crate::ui_strings::battle as words;
+
+    let dir = std::env::temp_dir().join(format!("wot-statistics-page-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut app = in_battle();
+    app.enable_history_persistence(dir.clone());
+    let player_team = app.player_team();
+    let enemies: Vec<game_core::TankId> = app
+        .session
+        .roster()
+        .iter()
+        .filter(|entry| entry.team != player_team)
+        .map(|entry| entry.tank_id)
+        .collect();
+    let super::session::BattleSessionKind::Local(server) = &mut app.session else {
+        panic!("the desktop battle")
+    };
+    for enemy in &enemies {
+        server.knock_out_for_test(*enemy);
+    }
+    app.run_fixed_ticks(3);
+    assert!(app.battle_outcome.is_some());
+    let own = app.ledger.own();
+
+    let mut fresh = ClientApp::new();
+    fresh.enable_history_persistence(dir.clone());
+    fresh.open_garage_tab(super::garage::GarageTab::Statistics);
+    let Some(ShellModel::Statistics(page)) = fresh.shell_model() else { panic!("the page") };
+    let value = |label: &str| -> String {
+        page.rows.iter().find(|row: &&StatRow| row.label == label).expect(label).value.clone()
+    };
+    assert_eq!(value(words::STAT_BATTLES), "1");
+    assert_eq!(value(words::STAT_VICTORIES), "1");
+    assert_eq!(value(words::STAT_DEFEATS), "0");
+    assert_eq!(value(words::STAT_KILLS), own.kills.to_string());
+    assert_eq!(value(words::STAT_DAMAGE_DEALT), own.damage_dealt.to_string());
+    assert_eq!(value(words::STAT_SHOTS), own.shots.to_string());
+    assert!(page.rows.iter().all(|row| !row.label.to_uppercase().contains("XP")), "no XP");
+    // The drawn page carries every row.
+    fresh.stage_shell_hits();
+    assert!(fresh.shell_hovered().is_none());
+    // An empty history says so.
+    let mut cold = ClientApp::new();
+    cold.open_garage_tab(super::garage::GarageTab::Statistics);
+    let Some(ShellModel::Statistics(empty)) = cold.shell_model() else { panic!("the page") };
+    assert!(empty.rows.is_empty());
+    // REPLAYS: honest about the viewer and the recording.
+    cold.open_garage_tab(super::garage::GarageTab::Replays);
+    let Some(ShellModel::Replays(replays)) = cold.shell_model() else { panic!("the page") };
+    assert_eq!(replays.reason, words::REPLAY_REASON);
+    assert_eq!(replays.recording, None, "the desktop session wrote no recording");
+    let _ = std::fs::remove_dir_all(&dir);
+}

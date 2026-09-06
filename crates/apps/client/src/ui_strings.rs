@@ -13,6 +13,16 @@ pub(crate) mod garage {
     pub const TAB_GARAGE: &str = "GARAGE";
     /// Top-bar tab toggling the tech-tree view.
     pub const TAB_TECH_TREE: &str = "TECH TREE";
+    /// The other five tabs (G10).
+    pub const TAB_ARMOUR: &str = "ARMOUR";
+    pub const TAB_BATTLES: &str = "BATTLES";
+    pub const TAB_REPLAYS: &str = "REPLAYS";
+    pub const TAB_STATISTICS: &str = "STATISTICS";
+    pub const TAB_SETTINGS: &str = "SETTINGS";
+    /// The tree's key and its one promise (G12): what follows a hull in its line.
+    pub const TREE_LINE: &str = "LINE";
+    pub const TREE_TIER: &str = "TIER";
+    pub const TREE_NEXT: &str = "NEXT IN LINE";
     /// Left crew panel header.
     pub const CREW: &str = "CREW";
     /// Right stats panel header.
@@ -89,6 +99,14 @@ pub(crate) mod garage {
         BATTLE,
         TAB_GARAGE,
         TAB_TECH_TREE,
+        TAB_ARMOUR,
+        TAB_BATTLES,
+        TAB_REPLAYS,
+        TAB_STATISTICS,
+        TAB_SETTINGS,
+        TREE_LINE,
+        TREE_TIER,
+        TREE_NEXT,
         CREW,
         VEHICLE,
         BACK,
@@ -356,6 +374,16 @@ pub(crate) mod battle {
     pub const MENU_BATTLES: &str = "BATTLES";
     pub const BATTLES_TITLE: &str = "BATTLES";
     pub const NO_BATTLES: &str = "NO BATTLES YET";
+    /// The REPLAYS and STATISTICS pages (G10).
+    pub const REPLAYS_TITLE: &str = "REPLAYS";
+    pub const NO_RECORDING: &str = "NO RECORDING THIS SESSION";
+    pub const STATISTICS_TITLE: &str = "STATISTICS";
+    pub const STAT_BATTLES: &str = "BATTLES";
+    pub const STAT_VICTORIES: &str = "VICTORIES";
+    pub const STAT_DEFEATS: &str = "DEFEATS";
+    pub const STAT_DRAWS: &str = "DRAWS";
+    pub const STAT_HIT_RATE: &str = "HIT RATE";
+    pub const STAT_PEN_RATE: &str = "PENETRATION RATE";
     pub const DMG_UNIT: &str = "DMG";
     pub const FOOTER_OPEN: &str = "OPEN";
     /// The page's arrows and the footer's words.
@@ -534,6 +562,15 @@ pub(crate) mod battle {
         FOOTER_REBIND,
         FOOTER_RESET,
         FOOTER_CONTEXT,
+        REPLAYS_TITLE,
+        NO_RECORDING,
+        STATISTICS_TITLE,
+        STAT_BATTLES,
+        STAT_VICTORIES,
+        STAT_DEFEATS,
+        STAT_DRAWS,
+        STAT_HIT_RATE,
+        STAT_PEN_RATE,
     ];
 }
 

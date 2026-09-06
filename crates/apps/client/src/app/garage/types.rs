@@ -24,10 +24,8 @@ pub(in crate::app) enum GarageHit {
     /// The map row next to the Battle button: cycle the pre-battle map choice by `dir`
     /// (+1 plain click, -1 shift-click — the module-slot convention).
     MapCycle(i8),
-    /// Open the browse-only tech tree view.
-    OpenTechTree,
-    /// Close the tech tree view and return to the hangar.
-    CloseTechTree,
+    /// One of the seven tabs on the bar (G10).
+    Tab(GarageTab),
     /// Empty scene — start orbiting the camera.
     Scene,
     /// BATTLE while the hull is locked in a battle that still runs (G14): a knock, nothing more.
@@ -37,6 +35,44 @@ pub(in crate::app) enum GarageHit {
     Compare(usize),
     /// A filter chip (G9): walk its ring by `dir` (+1 plain click, -1 shift-click).
     Chip(Chip, i8),
+}
+
+/// The seven tabs on the garage's bar (G10), in their order. GARAGE, TECH TREE and ARMOUR are
+/// the garage's own screens; the rest open the shell's pages over the hall.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::app) enum GarageTab {
+    Garage,
+    TechTree,
+    Armour,
+    Battles,
+    Replays,
+    Statistics,
+    Settings,
+}
+
+impl GarageTab {
+    pub const ALL: [GarageTab; 7] = [
+        GarageTab::Garage,
+        GarageTab::TechTree,
+        GarageTab::Armour,
+        GarageTab::Battles,
+        GarageTab::Replays,
+        GarageTab::Statistics,
+        GarageTab::Settings,
+    ];
+
+    pub fn word(self) -> &'static str {
+        use crate::ui_strings::garage as words;
+        match self {
+            GarageTab::Garage => words::TAB_GARAGE,
+            GarageTab::TechTree => words::TAB_TECH_TREE,
+            GarageTab::Armour => words::TAB_ARMOUR,
+            GarageTab::Battles => words::TAB_BATTLES,
+            GarageTab::Replays => words::TAB_REPLAYS,
+            GarageTab::Statistics => words::TAB_STATISTICS,
+            GarageTab::Settings => words::TAB_SETTINGS,
+        }
+    }
 }
 
 /// What a press on the scene took (G8): nothing, the orbit camera, or the hero's turret.

@@ -24,6 +24,8 @@ use super::layout::{
 };
 use super::silhouette::silhouette_rects;
 use super::stats::stat_rows;
+use super::tree::push_tree;
+use super::types::GarageTab;
 use super::{GarageHit, GarageState, GarageView};
 use crate::ui_strings::garage as words;
 
@@ -33,10 +35,11 @@ const BATTLE_SIZE_U: [f32; 2] = [250.0, 58.0];
 const BATTLE_TOP_U: f32 = 22.0;
 const MAP_SIZE_U: [f32; 2] = [300.0, 40.0];
 const MAP_OFFSET_U: [f32; 2] = [340.0, 31.0];
-const TAB_SIZE_U: [f32; 2] = [200.0, 34.0];
-const TAB_TOP_U: f32 = 78.0;
-const TAB_GARAGE_X_U: f32 = -360.0;
-const TAB_TREE_X_U: f32 = 220.0;
+// The seven tabs (G10) in one row under BATTLE, from the legend's right edge.
+const TAB_SIZE_U: [f32; 2] = [150.0, 32.0];
+const TAB_TOP_U: f32 = 82.0;
+const TAB_FIRST_X_U: f32 = -385.0;
+const TAB_PITCH_U: f32 = 165.0;
 // The nameplate under the bar, the repair tag under it, the legend under that.
 const NAME_SIZE_U: [f32; 2] = [640.0, 100.0];
 const NAME_TOP_U: f32 = 132.0;
@@ -186,15 +189,17 @@ pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit
             }
         }
         Some(E::MapRow) => GarageHit::MapCycle(dir as i8),
-        Some(E::TabTechTree) => match state.view() {
-            GarageView::Hangar => GarageHit::OpenTechTree,
-            GarageView::TechTree => GarageHit::CloseTechTree,
-        },
-        // From the hangar GARAGE is already the active view: the click falls through.
-        Some(E::TabGarage) => match state.view() {
-            GarageView::Hangar => GarageHit::Scene,
-            GarageView::TechTree => GarageHit::CloseTechTree,
-        },
+        // G10: the seven tabs.
+        Some(E::TabGarage) => GarageHit::Tab(GarageTab::Garage),
+        Some(E::TabTechTree) => GarageHit::Tab(GarageTab::TechTree),
+        Some(E::TabArmour) => GarageHit::Tab(GarageTab::Armour),
+        Some(E::TabBattles) => GarageHit::Tab(GarageTab::Battles),
+        Some(E::TabReplays) => GarageHit::Tab(GarageTab::Replays),
+        Some(E::TabStatistics) => GarageHit::Tab(GarageTab::Statistics),
+        Some(E::TabSettings) => GarageHit::Tab(GarageTab::Settings),
+        // G12: the tree's nodes select by absolute roster index; BACK is the GARAGE tab.
+        Some(E::TreeNode(i)) => GarageHit::Vehicle(usize::from(i)),
+        Some(E::TreeBack) => GarageHit::Tab(GarageTab::Garage),
         Some(E::ModuleSlot(i)) => GarageHit::ModuleCycle(FitSlot::ALL[usize::from(i)], dir),
         Some(E::OptionRow(i)) => match state.option_list() {
             Some(slot) => GarageHit::OptionRow(slot, usize::from(i)),
@@ -217,10 +222,7 @@ pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit
         Some(E::CarouselArrow(0)) => GarageHit::CarouselScroll(-1),
         Some(E::CarouselArrow(_)) => GarageHit::CarouselScroll(1),
         Some(E::Chip(i)) => GarageHit::Chip(Chip::ALL[usize::from(i)], dir as i8),
-        _ => match state.view() {
-            GarageView::TechTree => super::panels::techtree::hit_test(state),
-            GarageView::Hangar => GarageHit::Scene,
-        },
+        _ => GarageHit::Scene,
     }
 }
 
@@ -228,36 +230,6 @@ pub(super) fn hit_screen(state: &GarageState, ui: &Ui, shift: bool) -> GarageHit
 pub(super) fn build_screen(state: &GarageState, ui: &Ui, theme: &Theme) -> DrawList<E> {
     let hovered = hit_key(state, ui);
     let mut list = build_screen_list(state, ui, hovered);
-    if state.view() == GarageView::TechTree {
-        // The tree stays its legacy self until G12; its nodes and BACK keep the old hover wash.
-        let aspect = ui.aspect();
-        let legacy_z = list.len() as i16;
-        list.push(
-            Element::new(
-                E::TechTree,
-                Rect::default(),
-                Payload::Legacy(super::panels::techtree::draw(state, aspect)),
-            )
-            .z(legacy_z),
-        );
-        if let Some((center, half)) = super::overlay::tree_hover_rect(state) {
-            // The legacy rectangle is clip space (y up); the wash is a flat full bar over it.
-            let viewport = ui.viewport();
-            let rect = Rect::new(
-                (center[0] - half[0] + 1.0) * 0.5 * viewport.w,
-                (1.0 - center[1] - half[1]) * 0.5 * viewport.h,
-                half[0] * viewport.w,
-                half[1] * viewport.h,
-            );
-            let wash = Payload::Bar {
-                frac: 1.0,
-                fill: ui_kit::theme::color::HOVER,
-                back: [0.0, 0.0, 0.0, 0.0],
-            };
-            let z = list.len() as i16;
-            list.push(Element::new(E::Hover, rect, wash).z(z));
-        }
-    }
     // G6: the tooltip of the control the cursor has rested on, over everything.
     if let Some(key) = state.tooltip_key()
         && Some(key) == hovered
@@ -292,6 +264,9 @@ pub(super) fn build_screen_list(state: &GarageState, ui: &Ui, hovered: Option<E>
         if let Some(slot) = state.option_list() {
             push_options(&mut list, ui, &theme, state, slot);
         }
+    }
+    if state.view() == GarageView::TechTree {
+        push_tree(&mut list, ui, &theme, state);
     }
     if let Some(key) = hovered
         && let Some(element) = list.find_mut(key)
@@ -396,22 +371,21 @@ fn push_garage_top_bar(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &G
         ),
     );
 
-    // The tabs: the active one in the lamp; both are the click targets they look like.
-    for (id, x, word, active) in [
-        (E::TabGarage, TAB_GARAGE_X_U, words::TAB_GARAGE, state.view() == GarageView::Hangar),
-        (E::TabTechTree, TAB_TREE_X_U, words::TAB_TECH_TREE, state.view() == GarageView::TechTree),
-    ] {
-        let rect = ui.anchor(Anchor::Top, TAB_SIZE_U, [x, TAB_TOP_U]);
+    // The tabs (G10): seven, the active one in the lamp; each is the click target it looks like.
+    let active = state.active_tab();
+    for (i, tab) in GarageTab::ALL.into_iter().enumerate() {
+        let rect =
+            ui.anchor(Anchor::Top, TAB_SIZE_U, [TAB_FIRST_X_U + i as f32 * TAB_PITCH_U, TAB_TOP_U]);
         put_control(
             list,
-            id,
+            E::tab(tab),
             rect,
             text(
-                word,
+                tab.word(),
                 Style::LABEL,
-                22.0,
+                20.0,
                 Align::Center,
-                if active { theme.lamp } else { theme.text.label },
+                if active == tab { theme.lamp } else { theme.text.label },
                 DigitMode::Proportional,
             ),
             WidgetState::Idle,
@@ -1277,8 +1251,11 @@ mod tests {
         let (mut state, ui) = hangar();
         state.open_option_list(FitSlot::Gun);
         state.toggle_inspector();
-        let list = build_screen_list(&state, &ui, None);
-        for element in list.iter() {
+        let mut lists = vec![build_screen_list(&state, &ui, None)];
+        state.open_tech_tree();
+        lists.push(build_screen_list(&state, &ui, None));
+        state.close_tech_tree();
+        for element in lists.iter().flat_map(|list| list.iter()) {
             if let Payload::Text { size_u, text, .. } = &element.payload {
                 assert!(
                     *size_u >= GARAGE_TEXT_FLOOR_U,
@@ -1287,6 +1264,7 @@ mod tests {
                 );
             }
         }
+        let list = build_screen_list(&state, &ui, None);
         let draft = state.draft();
         for (i, shell) in draft.ammo_options().iter().enumerate() {
             let figures = text_of(&list, E::AmmoFigures(i as u8));
@@ -1322,14 +1300,17 @@ mod tests {
         assert!(!list.iter().any(|e| matches!(&e.payload, Payload::Plate { color, .. } if *color == theme.semantic.commit)));
         assert_eq!(list.find(E::BattleButton).expect("battle").state, WidgetState::Disabled);
         assert_eq!(text_of(&list, E::BattleLabel), format!("{} \u{b7} 1:35", words::IN_BATTLE));
-        // The tree's BACK is plain steel now, never the signal: the plate it is cut from is
-        // named, and the name is not the red.
-        assert_ne!(
-            super::super::panels::techtree::BACK_PLATE,
-            ui_kit::theme::color::SIGNAL,
-            "BACK wore the commit red"
-        );
-        assert_eq!(super::super::panels::techtree::BACK_PLATE, ui_kit::theme::color::SLOT);
+        // The tree: BATTLE on the bar is the one red there too; BACK is plain steel (G7).
+        state.set_locked(None);
+        state.open_tech_tree();
+        let list = build_screen_list(&state, &ui, None);
+        let red: Vec<E> = list
+            .iter()
+            .filter(|e| matches!(&e.payload, Payload::Plate { color, .. } | Payload::Bar { fill: color, .. } | Payload::Text { color, .. } if *color == theme.semantic.commit))
+            .map(|e| e.id)
+            .collect();
+        assert_eq!(red, vec![E::BattleButton]);
+        assert!(list.find(E::TreeBack).is_some());
     }
 
     /// The hit test reads the rectangles the screen draws: every control answers at its
@@ -1351,12 +1332,9 @@ mod tests {
         );
         assert_eq!(hit(&mut state, E::MapRow, false), GarageHit::MapCycle(1));
         assert_eq!(hit(&mut state, E::MapRow, true), GarageHit::MapCycle(-1));
-        assert_eq!(hit(&mut state, E::TabTechTree, false), GarageHit::OpenTechTree);
-        assert_eq!(
-            hit(&mut state, E::TabGarage, false),
-            GarageHit::Scene,
-            "GARAGE is already the view"
-        );
+        for tab in GarageTab::ALL {
+            assert_eq!(hit(&mut state, E::tab(tab), false), GarageHit::Tab(tab), "{tab:?}");
+        }
         assert_eq!(
             hit(&mut state, E::ModuleSlot(1), false),
             GarageHit::ModuleCycle(FitSlot::Gun, 1)
@@ -1382,10 +1360,12 @@ mod tests {
         let list = build_screen(&state, &ui, &Theme::standard());
         assert_eq!(list.find(E::BattleButton).expect("battle").state, WidgetState::Hover);
         assert_eq!(list.find(E::MapRow).expect("map").state, WidgetState::Idle);
-        // The tree: the tabs answer, and the nodes still do.
+        // The tree: the tabs answer, the nodes and BACK too.
         state.open_tech_tree();
-        assert_eq!(hit(&mut state, E::TabGarage, false), GarageHit::CloseTechTree);
-        assert_eq!(hit(&mut state, E::TabTechTree, false), GarageHit::CloseTechTree);
+        assert_eq!(hit(&mut state, E::TabGarage, false), GarageHit::Tab(GarageTab::Garage));
+        assert_eq!(hit(&mut state, E::TabTechTree, false), GarageHit::Tab(GarageTab::TechTree));
+        assert_eq!(hit(&mut state, E::TreeNode(1), false), GarageHit::Vehicle(1));
+        assert_eq!(hit(&mut state, E::TreeBack, false), GarageHit::Tab(GarageTab::Garage));
         assert_eq!(
             hit(&mut state, E::MapRow, false),
             GarageHit::MapCycle(1),
@@ -1440,6 +1420,107 @@ mod tests {
         let strip = list.find(E::LoadoutPlate).expect("strip").rect;
         let stats = list.find(E::StatsPlate).expect("stats").rect;
         assert!(strip.intersect(&stats).is_none(), "the strip and the column do not overlap");
+        // The seven tabs sit on the bar in one row, none over BATTLE, the map row or the legend.
+        let bar = list.find(E::TopBar).expect("bar").rect;
+        let battle = list.find(E::BattleButton).expect("battle").rect;
+        let map = list.find(E::MapRow).expect("map").rect;
+        let legend = list.find(E::HintLine(2)).expect("legend").rect;
+        let mut last_right = 0.0_f32;
+        for tab in GarageTab::ALL {
+            let rect = list.find(E::tab(tab)).expect("tab").rect;
+            assert!(bar.encloses(&rect), "{tab:?} leaves the bar");
+            assert!(rect.x >= last_right, "{tab:?} overlaps its neighbour");
+            for other in [battle, map, legend] {
+                assert!(rect.intersect(&other).is_none(), "{tab:?} sits on another control");
+            }
+            last_right = rect.right();
+        }
+    }
+
+    /// G12: every node of the tree says what it is — the class glyph, the name, the tier — and
+    /// what follows it in its line, with an edge to it, and nothing it cannot know: no XP, no
+    /// research, no locks; the end of a line says nothing. Tiers are the columns, lines the
+    /// rows; the selected hull's node is the focused one; a node selects, BACK is the GARAGE tab.
+    #[test]
+    fn a_tree_node_says_what_it_is_and_what_follows_it_and_nothing_it_cannot_know() {
+        use crate::app::garage::tree::{line_successor, tree_lines};
+        use crate::hud::icons::HudIcon;
+
+        let (mut state, ui) = hangar();
+        state.select_vehicle(VehicleKind::BENCHMARK);
+        state.open_tech_tree();
+        let list = build_screen_list(&state, &ui, None);
+        let panel = list.find(E::TreePanel).expect("panel").rect;
+        assert!(ui.viewport().encloses(&panel));
+        let at = |kind: VehicleKind| {
+            VehicleKind::PLAYABLE.iter().position(|k| *k == kind).expect("playable") as u8
+        };
+        let node_rect = |kind: VehicleKind| list.find(E::TreeNode(at(kind))).expect("node").rect;
+        let mut edges = 0;
+        for kind in VehicleKind::PLAYABLE {
+            let index = at(kind);
+            let node = list.find(E::TreeNode(index)).expect("node");
+            assert!(panel.encloses(&node.rect), "{kind:?} leaves the panel");
+            assert_eq!(text_of(&list, E::TreeNodeName(index)), kind.short_name());
+            assert_eq!(text_of(&list, E::TreeNodeTier(index)), game_core::tier_roman(kind.tier()));
+            let Payload::Icon { icon, .. } =
+                list.find(E::TreeNodeIcon(index)).expect("icon").payload
+            else {
+                panic!("an icon")
+            };
+            assert_eq!(icon, HudIcon::for_class(kind.class()));
+            assert_eq!(node.state == WidgetState::Focused, kind == VehicleKind::BENCHMARK);
+            match line_successor(kind) {
+                Some(next) => {
+                    let word = text_of(&list, E::TreeNodeNext(index));
+                    assert!(
+                        word.starts_with(words::TREE_NEXT) && word.ends_with(next.short_name()),
+                        "{kind:?}: {word}"
+                    );
+                    let edge = list.find(E::TreeEdge(index)).expect("edge").rect;
+                    let to = node_rect(next);
+                    assert!(edge.x >= node.rect.right() - 0.5 && edge.right() <= to.x + 0.5);
+                    assert!((to.y - node.rect.y).abs() < 0.5, "a line is one row");
+                    assert!(to.x > node.rect.right(), "tiers ascend to the right");
+                    edges += 1;
+                }
+                None => {
+                    assert!(
+                        list.find(E::TreeNodeNext(index)).is_none(),
+                        "{kind:?} invents nothing"
+                    );
+                    assert!(list.find(E::TreeEdge(index)).is_none());
+                }
+            }
+        }
+        assert!(edges >= 2, "the roster has lines with edges");
+        for line in tree_lines() {
+            let y = node_rect(line.hulls[0]).y;
+            assert!(line.hulls.iter().all(|k| (node_rect(*k).y - y).abs() < 0.5), "{line:?}");
+        }
+        for a in VehicleKind::PLAYABLE {
+            for b in VehicleKind::PLAYABLE {
+                if a.tier() == b.tier() {
+                    assert!((node_rect(a).x - node_rect(b).x).abs() < 0.5, "a tier is one column");
+                }
+            }
+        }
+        for element in list.iter() {
+            if let Payload::Text { text, .. } = &element.payload {
+                let word = text.to_uppercase();
+                assert!(
+                    !word.contains("XP") && !word.contains("LOCK") && !word.contains("RESEARCH"),
+                    "{:?} says {text:?}",
+                    element.id
+                );
+            }
+        }
+        let tiger = at(VehicleKind::PLAYABLE[1]);
+        assert!(state.set_cursor_on(E::TreeNode(tiger)));
+        assert_eq!(hit_screen(&state, &ui, false), GarageHit::Vehicle(usize::from(tiger)));
+        assert!(state.set_cursor_on(E::TreeBack));
+        assert_eq!(hit_screen(&state, &ui, false), GarageHit::Tab(GarageTab::Garage));
+        assert_eq!(state.active_tab(), GarageTab::TechTree);
     }
 
     /// G6: every clickable control on the screen has its three states — idle, hovered under

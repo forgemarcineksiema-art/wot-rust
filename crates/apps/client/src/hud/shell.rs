@@ -469,6 +469,8 @@ pub enum ShellModel {
     Menu(MenuScreenModel),
     Results(ResultsScreenModel),
     Battles(BattlesScreenModel),
+    Replays(ReplaysScreenModel),
+    Statistics(StatisticsScreenModel),
 }
 
 /// The row a part belongs to.
@@ -547,7 +549,179 @@ pub(crate) fn push_shell(
         ShellModel::Menu(page) => push_menu(list, ui, theme, page, z),
         ShellModel::Results(page) => push_results(list, ui, theme, page, z),
         ShellModel::Battles(page) => push_battles(list, ui, theme, page, z),
+        ShellModel::Replays(page) => push_replays(list, ui, theme, page, z),
+        ShellModel::Statistics(page) => push_statistics(list, ui, theme, page, z),
     }
+}
+
+/// The REPLAYS page (G10, P10's honesty): no viewer exists, and the page says so — and names
+/// the recording the session wrote, when it wrote one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReplaysScreenModel {
+    pub reason: String,
+    pub recording: Option<String>,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
+/// The STATISTICS page (G10): the crew's OWN numbers summed over the stored battles (P5) —
+/// nothing a ledger did not hold, no XP.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StatisticsScreenModel {
+    pub rows: Vec<StatRow>,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
+/// The REPLAYS page: two rows — the viewer that does not exist, with its reason; the
+/// recording on disk, or that there is none.
+fn push_replays(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &ReplaysScreenModel,
+    z: &mut i16,
+) {
+    let (title, row_top, panel) = push_page_frame(list, ui, theme, words::REPLAYS_TITLE, 2, z);
+    let row_rect = |visible: usize| {
+        Rect::new(
+            title.x,
+            row_top + visible as f32 * ui.px(ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(ROW_H_U),
+        )
+    };
+    let viewer = row_rect(0);
+    push_row_plate(
+        list,
+        ui,
+        theme,
+        0,
+        viewer,
+        WidgetState::Disabled,
+        words::REPLAY,
+        theme.text.label,
+        z,
+    );
+    push_value_cell(list, ui, theme, 0, viewer, 6.0, &page.reason, theme.text.label, z);
+    let recording = row_rect(1);
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    push_row_plate(
+        list,
+        ui,
+        theme,
+        1,
+        recording,
+        row_state(false, hovered_row == Some(1)),
+        words::RECORDED_TO,
+        theme.text.label,
+        z,
+    );
+    let note =
+        Rect::new(recording.x + ui.px(200.0), recording.y, recording.w - ui.px(208.0), recording.h);
+    shell_put(
+        list,
+        z,
+        ShellPart::RowNote(1),
+        note,
+        shell_text(
+            page.recording.as_deref().unwrap_or(words::NO_RECORDING),
+            Style::VALUE,
+            16.0,
+            Align::Right,
+            theme.text.value,
+            DigitMode::Proportional,
+        ),
+        WidgetState::Idle,
+    );
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
+}
+
+/// The STATISTICS page: a row per number, label and value; an empty history says so.
+fn push_statistics(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &StatisticsScreenModel,
+    z: &mut i16,
+) {
+    let rows = page.rows.len().clamp(1, KEY_ROWS_VISIBLE);
+    let (title, row_top, panel) =
+        push_page_frame(list, ui, theme, words::STATISTICS_TITLE, rows, z);
+    let row_rect = |visible: usize| {
+        Rect::new(
+            title.x,
+            row_top + visible as f32 * ui.px(ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(ROW_H_U),
+        )
+    };
+    if page.rows.is_empty() {
+        push_row_plate(
+            list,
+            ui,
+            theme,
+            0,
+            row_rect(0),
+            WidgetState::Disabled,
+            words::NO_BATTLES,
+            theme.text.label,
+            z,
+        );
+    }
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    for (i, stat) in page.rows.iter().take(KEY_ROWS_VISIBLE).enumerate() {
+        let index = i as u8;
+        let rect = row_rect(i);
+        push_row_plate(
+            list,
+            ui,
+            theme,
+            index,
+            rect,
+            row_state(false, hovered_row == Some(index)),
+            &stat.label,
+            theme.text.label,
+            z,
+        );
+        push_value_cell(list, ui, theme, index, rect, 6.0, &stat.value, theme.text.value, z);
+    }
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
+}
+
+/// The REPLAYS page as the golden stages it: no viewer, a recording named.
+pub(crate) fn demo_replays_screen() -> ShellModel {
+    ShellModel::Replays(ReplaysScreenModel {
+        reason: words::REPLAY_REASON.to_string(),
+        recording: Some("C:/wot/records/2026-09-06_prokhorovka.wotrec".to_string()),
+        hovered: None,
+        footer: crate::app::shell::shell_footer(&crate::app::keybinds::KeyBindings::default()),
+    })
+}
+
+/// The STATISTICS page as the golden stages it: a week of battles summed.
+pub(crate) fn demo_statistics_screen() -> ShellModel {
+    let stat =
+        |label: &str, value: &str| StatRow { label: label.to_string(), value: value.to_string() };
+    ShellModel::Statistics(StatisticsScreenModel {
+        rows: vec![
+            stat(words::STAT_BATTLES, "6"),
+            stat(words::STAT_VICTORIES, "3"),
+            stat(words::STAT_DEFEATS, "2"),
+            stat(words::STAT_DRAWS, "1"),
+            stat(words::STAT_SHOTS, "142"),
+            stat(words::STAT_HITS, "97"),
+            stat(words::STAT_HIT_RATE, "68 %"),
+            stat(words::STAT_PENETRATIONS, "61"),
+            stat(words::STAT_PEN_RATE, "63 %"),
+            stat(words::STAT_DAMAGE_DEALT, "8 460"),
+            stat(words::STAT_DAMAGE_TAKEN, "6 110"),
+            stat(words::STAT_KILLS, "11"),
+            stat(words::STAT_SPOTTED, "23"),
+        ],
+        hovered: None,
+        footer: crate::app::shell::shell_footer(&crate::app::keybinds::KeyBindings::default()),
+    })
 }
 
 /// The BATTLES page: one row per stored battle, newest first; the selected one is lit;

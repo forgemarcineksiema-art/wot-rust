@@ -128,16 +128,31 @@ pub enum GarageScreen {
     OptionList,
     /// The VEHICLE column compared against a second hull (G3), over the hangar screen.
     Compare,
+    /// The ARMOUR tab (G10): the hangar with the inspector on, its legend up.
+    Armour,
+    /// The BATTLES tab (G10): the history page over the hangar.
+    Battles,
+    /// The REPLAYS tab (G10): no viewer, the recording named, over the hangar.
+    Replays,
+    /// The STATISTICS tab (G10): the crew's own numbers summed, over the hangar.
+    Statistics,
+    /// The SETTINGS tab (G10): the settings page over the hangar.
+    Settings,
 }
 
 impl GarageScreen {
     /// Every screen, so the review set and its coverage lock cannot disagree about the list.
-    pub const ALL: [GarageScreen; 5] = [
+    pub const ALL: [GarageScreen; 10] = [
         GarageScreen::Room,
         GarageScreen::Hangar,
         GarageScreen::TechTree,
         GarageScreen::OptionList,
         GarageScreen::Compare,
+        GarageScreen::Armour,
+        GarageScreen::Battles,
+        GarageScreen::Replays,
+        GarageScreen::Statistics,
+        GarageScreen::Settings,
     ];
 
     /// The golden's name for this screen.
@@ -148,6 +163,11 @@ impl GarageScreen {
             GarageScreen::TechTree => "garage_tech_tree",
             GarageScreen::OptionList => "garage_option_list",
             GarageScreen::Compare => "garage_compare",
+            GarageScreen::Armour => "garage_armour",
+            GarageScreen::Battles => "garage_battles",
+            GarageScreen::Replays => "garage_replays",
+            GarageScreen::Statistics => "garage_statistics",
+            GarageScreen::Settings => "garage_settings",
         }
     }
 }
@@ -216,7 +236,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         // instrument panel and answer to their own locks.
         subject_box: (screen == GarageScreen::Room).then_some(hero_subject_box()),
         close_up: false,
-        inspector: false,
+        // The ARMOUR screen is the hangar with the inspector on (G10): its volumes too.
+        inspector: screen == GarageScreen::Armour,
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views
