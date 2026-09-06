@@ -73,6 +73,17 @@ that every member depends on (`workspace_hack.workspace = true`, first line of e
 `cargo tree` for the eight invocations the gates and the player use and requires one graph. A new
 dependency or feature fails that test in twenty seconds, not as a mysterious rebuild.
 
+One test binary per crate (2026-09-06). Every `tests/*.rs` file is its own program linked against
+the whole dependency tree; the workspace had 314 of them — per heavy crate ~180 CPU-seconds of
+linking on every gate, and clippy `--all-targets` fronting 372 targets. Each crate's integration
+tests now live in `tests/suite/main.rs` as one module per former file (`tests/common` stays where
+it was, reached by `#[path]`); sim's test build after a one-file touch fell from 84 s to 6 s. A new
+integration test is a file under `tests/suite/` plus one `mod` line in `main.rs`, never a loose
+`tests/foo.rs`. The goldens (`look_goldens`, `studio_goldens`, `protocol_snapshots`) keep their
+own binaries because a re-record must not share a process with a value test of the same file. The
+lock is `quality/tests/suite/test_binaries.rs`: at most one auto-discovered target per crate
+besides that allowlist.
+
 `cargo check --workspace --all-targets` is deliberately NOT a separate gate: clippy
 `--all-targets` already runs the full compiler front-end over every target, so a second
 check would be redundant work (the script says so). The benchmark compile

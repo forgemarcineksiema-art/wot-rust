@@ -1,0 +1,495 @@
+//! Locks destructible static cover (protocol v21): HE brings structures down, a hull flattens a
+//! hedgerow it drives through, and — the honesty payoff — the shell trace and spotting LOS follow
+//! the state, so a shot passes (and a target is seen) exactly where cover was cleared.
+
+use std::f32::consts::PI;
+
+use game_core::{TankId, TankSpec, TeamId};
+use glam::Vec3;
+use sim::{CoverPhase, FixedTimestep, SimulationState, TankCommand};
+
+#[allow(unused_imports)]
+use super::common;
+use common::flat_field;
+use terrain::{HeightMap, StaticCoverKind, StaticCoverObject};
+
+const HE_SLOT: u8 = 2;
+
+fn cover(id: &str, kind: StaticCoverKind, center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
+    StaticCoverObject { id: id.into(), name: id.into(), kind, center, half_extents_m: half }
+}
+
+fn fire_once(
+    state: &mut SimulationState,
+    shooter: TankId,
+    terrain: &HeightMap,
+    cover: &[StaticCoverObject],
+) {
+    let step = FixedTimestep::from_hz(60);
+    state.apply_commands_on_battlefield(
+        &[(shooter, TankCommand { fire: true, ..TankCommand::idle() })],
+        step,
+        terrain,
+        cover,
+    );
+    for _ in 0..40 {
+        if state.shells().is_empty() {
+            break;
+        }
+        state.apply_commands_on_battlefield(&[], step, terrain, cover);
+    }
+}
+
+#[test]
+fn a_high_explosive_round_brings_a_building_down() {
+    let terrain = flat_field();
+    let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5])];
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let _target =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.selected_ammo = HE_SLOT; // HE fells structures
+        shooter.ammo_counts[HE_SLOT as usize] = 5; // guarantee HE rounds on hand
+    }
+    // Cover states are lazily sized on the first battlefield tick, so `full` is the kind's max.
+    let full = StaticCoverKind::FarmBuilding.max_health().unwrap();
+
+    fire_once(&mut state, shooter, &terrain, &barn);
+
+    let after = state.cover_states()[0];
+    assert!(after.health < full, "the HE round chipped the building: {} < {full}", after.health);
+    // 600 hp barn, 300 per HE hit: one round leaves it standing but wounded.
+    assert_eq!(after.phase, CoverPhase::Intact, "one HE round does not yet collapse a barn");
+}
+
+#[test]
+fn a_hull_driving_through_a_hedgerow_flattens_it_and_takes_a_nick() {
+    let terrain = flat_field();
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 1.0, 20.0], [10.0, 1.0, 0.6])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 10.0));
+    let full_hp = state.tank(tank).expect("tank").hit_points;
+    let step = FixedTimestep::from_hz(60);
+    for _ in 0..300 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &hedge,
+        );
+    }
+
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "the hull flattened the hedge");
+    let tank = state.tank(tank).expect("tank");
+    assert!(tank.hit_points < full_hp, "bulldozing is not free — the hull took a nick");
+    assert!(tank.position.z > 20.0, "and the hull drove on THROUGH where the hedge stood");
+}
+
+/// The negative case the crush test needs, per the engineering rule on contact approximations:
+/// a hull that drives cleanly PAST a hedgerow must leave it standing.
+///
+/// The reach used to be a circle of `half_length + approach` (4.0 m for a T-54) around the hull's
+/// CENTRE, tested per axis — so a full-speed pass 0.65 m clear of the hedge's face flattened it
+/// from the flank, without the hull ever touching it. And because one `TreeLine` box is a whole
+/// run of hedgerow (tens of metres on the shipping maps), a single clean pass deleted the entire
+/// run: the loudest possible way to break "collision boxes ARE the visual footprint".
+#[test]
+fn a_hull_driving_cleanly_past_a_hedgerow_leaves_it_standing() {
+    let terrain = flat_field();
+    // The hedge spans z = 19.4..20.6; the hull drives along +x centred on z = 23.0, so its flank
+    // (half_width 1.75 -> z = 21.25) clears the hedge's face by 0.65 m for the whole pass.
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 1.0, 20.0], [10.0, 1.0, 0.6])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank_with_yaw(
+        TeamId(1),
+        TankSpec::t54_1951(),
+        Vec3::new(-20.0, 0.0, 23.0),
+        std::f32::consts::FRAC_PI_2,
+    );
+    let full_hp = state.tank(tank).expect("tank").hit_points;
+    let step = FixedTimestep::from_hz(60);
+    for _ in 0..300 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &hedge,
+        );
+    }
+
+    let tank = state.tank(tank).expect("tank");
+    assert!(tank.position.x > 10.0, "the hull must actually have driven the length of the hedge");
+    assert!(
+        (tank.position.z - 23.0).abs() < 0.5,
+        "...and stayed in its lane, got z {}",
+        tank.position.z
+    );
+    assert_eq!(
+        state.cover_states()[0].phase,
+        CoverPhase::Intact,
+        "a pass with 0.65 m of clearance flattens nothing"
+    );
+    assert_eq!(tank.hit_points, full_hp, "and costs the hull nothing");
+}
+
+#[test]
+fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
+    let terrain = flat_field();
+    // Staged inside the red-line margin (the border clamp would shift a hull spawned at the
+    // origin and change the 55 m firing solution): a hedge straddling the shot line at
+    // z = 37, blocking a duel between z = 10 and z = 65.
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [10.0, 1.5, 37.0], [6.0, 1.5, 0.6])];
+
+    // First: with the hedge intact, the shot is absorbed short of the target.
+    let mut blocked = SimulationState::new();
+    let shooter = blocked.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
+    let _target = blocked.spawn_tank_with_yaw(
+        TeamId(2),
+        TankSpec::t54_1951(),
+        Vec3::new(10.0, 0.0, 65.0),
+        PI,
+    );
+    blocked.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
+    blocked.tank_mut(shooter).unwrap().spec.gun.dispersion_mrad = 0.0;
+    fire_once(&mut blocked, shooter, &terrain, &hedge);
+    assert!(blocked.damage_events().is_empty(), "the intact hedge absorbs the shell");
+
+    // Now crush the hedge with a hull, then fire the same shot: it flies clean to the target.
+    let mut open = SimulationState::new();
+    let shooter = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
+    let target =
+        open.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 65.0), PI);
+    let crusher = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 30.0));
+    open.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
+    open.tank_mut(shooter).unwrap().spec.gun.dispersion_mrad = 0.0;
+    let step = FixedTimestep::from_hz(60);
+    for _ in 0..240 {
+        open.apply_commands_on_battlefield(
+            &[(crusher, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &hedge,
+        );
+        if open.cover_states()[0].phase == CoverPhase::Gone {
+            break;
+        }
+    }
+    // Move the crusher clear of the shot line, then fire.
+    for _ in 0..240 {
+        open.apply_commands_on_battlefield(
+            &[(crusher, TankCommand::drive(1.0, 1.0))],
+            step,
+            &terrain,
+            &hedge,
+        );
+    }
+    fire_once(&mut open, shooter, &terrain, &hedge);
+    let hit = open.damage_events().iter().any(|event| event.target == target);
+    assert!(hit, "with the hedge gone the shell reaches the enemy");
+}
+
+#[test]
+fn spotting_opens_once_the_hedge_between_is_shot_away() {
+    let terrain = flat_field();
+    // A tall hedge wall between an observer and an enemy, blocking the sight line.
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 2.0, 30.0], [12.0, 2.5, 0.8])];
+
+    let mut state = SimulationState::new();
+    let observer = state.spawn_tank(TeamId(1), TankSpec::t54_1951().clone(), Vec3::ZERO);
+    let enemy =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 60.0), PI);
+    {
+        let observer = state.tank_mut(observer).expect("observer");
+        observer.aim_dispersion_mrad = 0.0;
+        observer.spec.gun.dispersion_mrad = 0.0;
+        observer.selected_ammo = HE_SLOT;
+    }
+    let team1_bit = TeamId(1).spotting_bit();
+
+    // With the hedge up, the enemy is hidden.
+    let step = FixedTimestep::from_hz(60);
+    state.apply_commands_on_battlefield(&[], step, &terrain, &hedge);
+    assert_eq!(
+        state.tank(enemy).unwrap().spotted_mask & team1_bit,
+        0,
+        "the hedge hides the enemy behind it"
+    );
+
+    // Shoot the hedge away, then the sight line clears and the enemy lights up.
+    fire_once(&mut state, observer, &terrain, &hedge);
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "one HE round clears the hedge");
+    for _ in 0..4 {
+        state.apply_commands_on_battlefield(&[], step, &terrain, &hedge);
+    }
+    assert_ne!(
+        state.tank(enemy).unwrap().spotted_mask & team1_bit,
+        0,
+        "with the hedge gone the enemy is spotted"
+    );
+}
+
+/// Fizyczny Świat P8 (protocol v32): the shell that chips a wall also WOUNDS it — a replicated
+/// scar on the struck face, so every client (and a late joiner) dresses the same wall alike.
+#[test]
+fn an_absorbed_shell_leaves_a_replicated_wound_on_the_struck_face() {
+    let terrain = flat_field();
+    let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5])];
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let _target =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.selected_ammo = HE_SLOT;
+        shooter.ammo_counts[HE_SLOT as usize] = 5;
+    }
+    fire_once(&mut state, shooter, &terrain, &barn);
+
+    assert_eq!(state.cover_scars().len(), 1, "one absorbed shell, one wound");
+    let scar = state.cover_scars()[0];
+    assert_eq!(scar.cover, 0);
+    assert_eq!(scar.kind, terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE);
+    assert_eq!(scar.face, 3, "fired from -Z, the wound sits on the -Z face");
+    assert!(scar.radius_m() > 0.25, "an HE bite is decimetres wide: {}", scar.radius_m());
+}
+
+/// The per-cover cap: a wall shelled forever remembers its freshest eight wounds.
+#[test]
+fn a_wall_remembers_at_most_eight_wounds_and_recycles_the_oldest() {
+    let barn = cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5]);
+    let mut ledger = Vec::new();
+    for index in 0..12 {
+        let impact = game_core::ShellImpact {
+            owner: Some(game_core::TankId(1)),
+            position: glam::Vec3::new(-3.0 + index as f32 * 0.5, 1.5, 25.5),
+            surface: game_core::ImpactSurface::Cover,
+            shell_type: game_core::ShellType::ArmorPiercing,
+            direction: glam::Vec3::Z,
+            caliber_mm: 100.0,
+            ..Default::default()
+        };
+        sim::record_cover_scar(&mut ledger, 0, &barn, &impact);
+    }
+    assert_eq!(ledger.len(), terrain::MAX_COVER_SCARS_PER_COVER);
+    // The freshest strike (furthest right) survived; the first (furthest left) weathered away.
+    assert!(ledger.iter().all(|scar| scar.u_q != ledger_first_u()), "oldest recycled");
+}
+
+fn ledger_first_u() -> u8 {
+    // The u of the very first strike above (x = -3.0 on an 8 m face): (-3/4+1)/2*255 = 32.
+    32
+}
+
+/// Fizyczny Świat P10: a wooden fence is MATTER, not an invisible wall — a hull at speed
+/// drives straight through it (the crush mechanism the hedgerow already uses), and a single
+/// shell sweeps the span away without leaving a blocking mound.
+#[test]
+fn a_hull_drives_through_a_wooden_fence_and_a_shell_sweeps_it() {
+    let terrain = flat_field();
+    let fence =
+        [cover("fence", StaticCoverKind::WoodenFence, [0.0, 0.65, 20.0], [8.0, 0.65, 0.25])];
+
+    // The drive-through.
+    let mut state = SimulationState::new();
+    let driver = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let step = FixedTimestep::from_hz(60);
+    let full_ahead = TankCommand { throttle: 1.0, ..TankCommand::idle() };
+    for _ in 0..600 {
+        state.apply_commands_on_battlefield(&[(driver, full_ahead)], step, &terrain, &fence);
+    }
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "the fence is flattened");
+    let tank = state.tanks().iter().find(|tank| tank.id == driver).expect("driver");
+    assert!(tank.position.z > 20.5, "and the hull kept going: z {}", tank.position.z);
+
+    // The shell sweep: one AP round clears the span to GONE — a fence leaves no rubble mound.
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = -0.05; // a fence is waist-high: nose the gun down onto it
+    }
+    fire_once(&mut state, shooter, &terrain, &fence);
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "one round sweeps the span");
+}
+
+/// The payoff, end to end: a hull drives OVER a collapsed building.
+///
+/// Rubble used to be an infinitely tall prism for movement — `footprint_blocked_by_cover` reads
+/// no height at all — so a flattened block walled a tank exactly as the standing block had.
+/// "Destruction opens the map" was true for fire and for sight and false for manoeuvre, which is
+/// half the reason to bring a building down in a 7v7. The mound is now ground: it leaves the
+/// movement slice entirely and reaches the drive through the support envelope instead.
+#[test]
+fn a_hull_drives_over_a_collapsed_building() {
+    let terrain = flat_field();
+    // A born ruin (the `"ruin"` id rule) opens the battle already collapsed — no shelling needed.
+    let ruin =
+        [cover("barn_ruin", StaticCoverKind::FarmBuilding, [0.0, 3.0, 25.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let step = FixedTimestep::from_hz(60);
+    let mut peak_y = f32::MIN;
+    for _ in 0..400 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &ruin,
+        );
+        peak_y = peak_y.max(state.tank(tank).expect("tank").position.y);
+    }
+
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Rubble, "the ruin is born collapsed");
+    let ended = state.tank(tank).expect("tank").position;
+    assert!(ended.z > 31.0, "the hull must get past where the building stood, got z {}", ended.z);
+    assert!(peak_y > 2.0, "and it must ride OVER the pile, not around it — peaked at y {peak_y}");
+}
+
+/// ...and the half that must NOT change while that happens: the mound still eats a shell. This is
+/// the regression the movement/sight split exists to prevent — drop rubble from the wrong slice
+/// and rounds sail through a building that is visibly still there.
+#[test]
+fn a_shell_still_dies_in_the_rubble_a_hull_can_drive_over() {
+    let terrain = flat_field();
+    let ruin =
+        [cover("barn_ruin", StaticCoverKind::FarmBuilding, [0.0, 3.0, 27.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let _target =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 60.0), PI);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = -0.02; // flat, into the pile
+    }
+
+    fire_once(&mut state, shooter, &terrain, &ruin);
+
+    assert!(
+        state.damage_events().is_empty(),
+        "the mound must absorb the round short of the target"
+    );
+    assert!(
+        state
+            .shell_impacts()
+            .iter()
+            .any(|impact| impact.surface == game_core::ImpactSurface::Cover),
+        "and it must report where the round died, on the cover it died on"
+    );
+}
+
+/// The negative case that guards the whole change: a STANDING building is still a wall. Rubble
+/// left the movement slice; intact masonry did not, so it blocks in plan at any height and there
+/// is no way to end up parked on a roof.
+#[test]
+fn a_hull_cannot_climb_a_building_that_is_still_standing() {
+    let terrain = flat_field();
+    let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 3.0, 25.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let step = FixedTimestep::from_hz(60);
+    let mut peak_y = f32::MIN;
+    for _ in 0..400 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &barn,
+        );
+        peak_y = peak_y.max(state.tank(tank).expect("tank").position.y);
+    }
+
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Intact);
+    let ended = state.tank(tank).expect("tank").position;
+    assert!(ended.z < 19.0, "the standing barn must stop the hull short, got z {}", ended.z);
+    assert!(peak_y < 0.05, "and nothing may lift it onto the roof — peaked at y {peak_y}");
+}
+
+/// Inny Poziom Z2: cover damage is one function of the shell, not two constants. Walk every
+/// stock round the fleet fires: a bigger bursting charge never needs MORE high-explosive shells
+/// to fell the barn, a bigger muzzle energy never needs MORE kinetic shells, the fleet's biggest
+/// and smallest genuinely differ, and the D-10's own rounds keep the shipped balance (two OF-412
+/// or eight BR-412 for a 600 hp barn) — the anchor the function was fitted to.
+#[test]
+fn the_bigger_gun_fells_the_barn_in_fewer_shots() {
+    use game_core::ShellType;
+
+    let barn_hp = StaticCoverKind::FarmBuilding.max_health().expect("a barn has hit points") as f32;
+    let shots = |damage: u32| (barn_hp / damage.max(1) as f32).ceil() as u32;
+
+    // (gun, the scaling quantity, damage) per round.
+    let mut high_explosive: Vec<(String, f32, u32)> = Vec::new();
+    let mut kinetic: Vec<(String, f32, u32)> = Vec::new();
+    for spec in game_core::known_tank_specs() {
+        for shell in spec.gun.ammo_options() {
+            let damage = sim::cover_damage_hp(&shell);
+            match shell.shell_type {
+                ShellType::HighExplosive => {
+                    high_explosive.push((spec.gun.name.clone(), shell.filler_kg, damage));
+                }
+                ShellType::ArmorPiercing => kinetic.push((
+                    spec.gun.name.clone(),
+                    shell.impact_energy_kj(shell.muzzle_velocity_mps),
+                    damage,
+                )),
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        high_explosive.len() >= 6 && kinetic.len() >= 6,
+        "the fleet walk found {} HE and {} AP rounds",
+        high_explosive.len(),
+        kinetic.len()
+    );
+
+    for (label, rounds) in [("high explosive", &mut high_explosive), ("kinetic", &mut kinetic)] {
+        rounds.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for pair in rounds.windows(2) {
+            assert!(
+                shots(pair[1].2) <= shots(pair[0].2),
+                "{label}: {} ({:.2}) needs {} shots but the smaller {} ({:.2}) needs {}",
+                pair[1].0,
+                pair[1].1,
+                shots(pair[1].2),
+                pair[0].0,
+                pair[0].1,
+                shots(pair[0].2)
+            );
+        }
+        let (smallest, biggest) = (rounds.first().unwrap(), rounds.last().unwrap());
+        assert!(
+            shots(biggest.2) < shots(smallest.2),
+            "{label}: the fleet's biggest ({}) and smallest ({}) round fell the barn in the same \
+             {} shots — the function tells nobody apart",
+            biggest.0,
+            smallest.0,
+            shots(smallest.2)
+        );
+    }
+
+    let d10 = TankSpec::t54_1951().gun;
+    let of412 = d10.he_shell.expect("the D-10 authors its HE round");
+    assert_eq!(sim::cover_damage_hp(&of412), 300, "OF-412 is the anchor: two rounds for a barn");
+    assert_eq!(
+        sim::cover_damage_hp(&d10.shell),
+        80,
+        "BR-412 is the anchor: eight rounds for a barn"
+    );
+}
