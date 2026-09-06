@@ -1,7 +1,8 @@
 BlueprintFile(
     kind: IS3,
     hull: HullShape(
-        half_len: 3.385,
+        // 6900 mm hull (ru.wikipedia; victorymuseum) — the 6.77 this carried is the IS-2's 6770 mm (K3 data, 2026-09-06).
+        half_len: 3.45,
         half_width: 1.55,
         belly_y: 0.46,
         deck_y: 1.62,
@@ -13,8 +14,10 @@ BlueprintFile(
         sponson_y: 0.9,
         skirt: None,
         hitbox_half_width: 1.575,
-        hitbox_half_height: 1.27,
-        hitbox_half_length: 3.44,
+        // The 2.44 roof plus the flush hatches' rims and the commander's periscope hood (2.52 top).
+        hitbox_half_height: 1.30,
+        // The 6.90 hull plus the fender tin ahead of the pike (K3 data, 2026-09-06).
+        hitbox_half_length: 3.50,
         hitbox_center_y: 1.22,
         hitbox_turret_min_y: 0.4,
     ),
@@ -35,7 +38,8 @@ BlueprintFile(
         segments: 14,
         wheel_stations: None,
         return_rollers: 3,
-        roller_radius: 0.11,
+        // Three 385 mm rubberized return rollers a side (four sources; was a 220 mm guess).
+        roller_radius: 0.1925,
         overlap_inner_dx: 0.0,
         wheel_half_width: 0.14,
         link_half_width: 0.26,
@@ -50,7 +54,8 @@ BlueprintFile(
         ring_radius: 0.9,
         base_radius: 1.15,
         roof_radius: 0.35,
-        roof_y: 2.39,
+        // 2440-2450 mm to the dome's roof — the IS-3 carries no cupola, so the roof IS the apex (three sources).
+        roof_y: 2.44,
         front_slope_deg: 55.0,
         side_slope_deg: 45.0,
         rear_slope_deg: 30.0,
@@ -66,7 +71,8 @@ BlueprintFile(
     gun: GunShape(
         trunnion_y: 1.93,
         trunnion_z: 1.05,
-        muzzle_z: 6.46,
+        // 9850 mm overall gun forward (ru.wikipedia; wikireading) over the 6.90 hull.
+        muzzle_z: 6.40,
         barrel_radius: 0.105,
         evacuator: None,
         muzzle_brake: Some(0.155),

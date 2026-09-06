@@ -223,7 +223,7 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    for (kind, at_least) in [(VehicleKind::IS3, 9), (VehicleKind::Centurion, 9)] {
+    for (kind, at_least) in [(VehicleKind::IS3, 20), (VehicleKind::Centurion, 9)] {
         let report = InventoryReport::new(&authoritative_description(kind).unwrap());
         assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
         assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());
