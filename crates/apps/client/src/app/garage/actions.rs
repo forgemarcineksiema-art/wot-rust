@@ -103,17 +103,11 @@ impl ClientApp {
     /// on the scene starts a drag (the camera, or the turret from a turret plate — G8); an open
     /// option list is modal and a press beside its rows closes it, swallowing the release. The
     /// controls themselves act on the RELEASE — `garage_primary_release` — the way every
-    /// desktop has behaved for forty years. The tree keeps its legacy nodes until G12, so in
-    /// that view the press still acts.
+    /// desktop has behaved for forty years.
     pub(in crate::app) fn garage_primary_press(&mut self) {
         let shift = self.input.shift;
         let hit = self.garage.hit_test(shift);
         self.garage.press_cursor();
-        if self.garage.view() == super::GarageView::TechTree {
-            self.garage.cancel_press();
-            self.garage_act(hit, shift);
-            return;
-        }
         if self.garage.option_list().is_some() {
             if !matches!(hit, GarageHit::OptionRow(..)) {
                 self.garage.close_option_list();
@@ -138,7 +132,7 @@ impl ClientApp {
             self.garage.focus_module(slot);
             return;
         }
-        if released.is_none() || self.garage.view() == super::GarageView::TechTree {
+        if released.is_none() {
             return;
         }
         let hit = self.garage.hit_test(shift);
@@ -213,11 +207,41 @@ impl ClientApp {
             // G14: the hull is still in a battle — the button says so; a click is a knock.
             GarageHit::Locked => self.queue_audio(audio::AudioEvent::UiReject),
             GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
-            GarageHit::OpenTechTree => self.garage.open_tech_tree(),
-            GarageHit::CloseTechTree => self.garage.close_tech_tree(),
+            // G10: a tab opens its screen.
+            GarageHit::Tab(tab) => self.open_garage_tab(tab),
             // The scene's press already took the camera (or the turret) in `garage_primary_press`;
             // in the tree view a press on nothing is a press on nothing.
             GarageHit::Scene => {}
+        }
+    }
+
+    /// A tab on the garage's bar (G10): GARAGE and TECH TREE are the garage's own views,
+    /// ARMOUR the hangar with the inspector on; BATTLES, REPLAYS, STATISTICS and SETTINGS open
+    /// the shell's pages over the hall — Esc on those returns to the hall.
+    pub(in crate::app) fn open_garage_tab(&mut self, tab: super::GarageTab) {
+        use super::GarageTab;
+        match tab {
+            GarageTab::Garage => {
+                self.garage.close_tech_tree();
+                self.garage.set_inspector(false);
+            }
+            GarageTab::TechTree => self.garage.open_tech_tree(),
+            GarageTab::Armour => {
+                self.garage.close_tech_tree();
+                self.garage.set_inspector(true);
+            }
+            GarageTab::Battles => {
+                self.open_shell_page_from_tab(crate::app::shell::ShellPage::Battles)
+            }
+            GarageTab::Replays => {
+                self.open_shell_page_from_tab(crate::app::shell::ShellPage::Replays)
+            }
+            GarageTab::Statistics => {
+                self.open_shell_page_from_tab(crate::app::shell::ShellPage::Statistics)
+            }
+            GarageTab::Settings => {
+                self.open_shell_page_from_tab(crate::app::shell::ShellPage::Settings)
+            }
         }
     }
 
@@ -628,13 +652,14 @@ mod tests {
     #[test]
     fn selecting_vehicle_from_tech_tree_returns_to_hangar() {
         use super::super::GarageView;
-        use crate::app::garage::layout::tree_node_center;
 
         let mut app = ClientApp::new();
         app.garage.open_tech_tree();
         assert_eq!(app.garage.view(), GarageView::TechTree);
 
-        app.garage.set_cursor(tree_node_center(VehicleKind::TigerI));
+        let tiger =
+            VehicleKind::PLAYABLE.iter().position(|k| *k == VehicleKind::TigerI).expect("playable");
+        assert!(app.garage.set_cursor_on(E::TreeNode(tiger as u8)));
         app.garage_click();
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
@@ -1030,11 +1055,10 @@ mod tests {
     #[test]
     fn close_button_in_tech_tree_returns_to_hangar() {
         use super::super::GarageView;
-        use crate::app::garage::layout::TREE_CLOSE_CENTER;
 
         let mut app = ClientApp::new();
         app.garage.open_tech_tree();
-        app.garage.set_cursor(TREE_CLOSE_CENTER);
+        assert!(app.garage.set_cursor_on(E::TreeBack));
         app.garage_click();
         assert_eq!(app.garage.view(), GarageView::Hangar);
     }
@@ -1161,6 +1185,52 @@ mod tests {
         // A fresh hull parks straight.
         app.garage.select_vehicle(VehicleKind::PLAYABLE[1]);
         assert_eq!(app.garage.hero_turret_yaw(), 0.0);
+    }
+
+    /// G10: the seven tabs — GARAGE and TECH TREE the garage's own views, ARMOUR the hangar
+    /// with the inspector on, BATTLES / REPLAYS / STATISTICS / SETTINGS the shell's pages over
+    /// the hall — and Esc on a page a tab opened returns to the hall with no menu between; a
+    /// page the menu opened still goes back to the menu (P8).
+    #[test]
+    fn every_tab_opens_its_screen_and_escape_returns_to_the_hall() {
+        use super::super::GarageView;
+        use super::super::types::GarageTab;
+        use crate::app::shell::ShellPage;
+        use crate::hud::shell::{MenuItem, MenuKind};
+
+        let mut app = ClientApp::new();
+        let click_tab = |app: &mut ClientApp, tab: GarageTab| {
+            assert!(app.garage.set_cursor_on(E::tab(tab)), "{tab:?} is on the bar");
+            app.garage_click();
+        };
+        click_tab(&mut app, GarageTab::TechTree);
+        assert_eq!(app.garage.view(), GarageView::TechTree);
+        assert_eq!(app.garage.active_tab(), GarageTab::TechTree);
+        click_tab(&mut app, GarageTab::Armour);
+        assert_eq!(app.garage.view(), GarageView::Hangar);
+        assert!(app.garage.inspector_on(), "ARMOUR is the hangar with the inspector on");
+        assert_eq!(app.garage.active_tab(), GarageTab::Armour);
+        click_tab(&mut app, GarageTab::Garage);
+        assert!(!app.garage.inspector_on());
+        assert_eq!(app.garage.active_tab(), GarageTab::Garage);
+        for (tab, page) in [
+            (GarageTab::Battles, ShellPage::Battles),
+            (GarageTab::Replays, ShellPage::Replays),
+            (GarageTab::Statistics, ShellPage::Statistics),
+            (GarageTab::Settings, ShellPage::Settings),
+        ] {
+            click_tab(&mut app, tab);
+            assert_eq!(app.shell_page(), Some(page), "{tab:?} opens its page");
+            app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+            assert!(!app.shell_open(), "{tab:?}: Esc returns to the hall, no menu between");
+            assert!(app.garage.is_open());
+        }
+        // The menu's own pages keep their way back: to the menu.
+        app.open_menu(MenuKind::Garage);
+        app.click_menu_item(MenuItem::Battles);
+        assert_eq!(app.shell_page(), Some(ShellPage::Battles));
+        app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+        assert_eq!(app.shell_page(), Some(ShellPage::Menu(MenuKind::Garage)));
     }
 }
 

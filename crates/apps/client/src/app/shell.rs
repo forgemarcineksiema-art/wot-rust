@@ -21,6 +21,7 @@ use crate::hud::shell::{
     MenuKind, MenuScreenModel, ResultsTab, SettingsRow, SettingsScreenModel, SettingsView,
     ShellModel, shell_row_index,
 };
+use crate::hud::shell::{ReplaysScreenModel, StatRow, StatisticsScreenModel};
 use crate::ui_strings::battle as words;
 
 /// Which page is up.
@@ -39,6 +40,10 @@ pub(crate) enum ShellPage {
     },
     /// The battle history (P4), newest first.
     Battles,
+    /// The replays (G10, P10's honesty): no viewer, the recording named.
+    Replays,
+    /// The crew's own numbers over the stored battles (G10).
+    Statistics,
 }
 
 /// A battle read back from the history for the results page (P4).
@@ -62,6 +67,8 @@ pub(crate) struct ShellState {
     hits: Vec<(ShellPart, Rect)>,
     /// The stored battle the results page shows (P4), when it is not the one just fought.
     stored: Option<Box<StoredBattle>>,
+    /// Opened from a garage tab (G10): Esc returns to the hall, not to a menu.
+    from_tab: bool,
 }
 
 impl ShellState {
@@ -73,6 +80,7 @@ impl ShellState {
             listening: None,
             hovered: None,
             hits: Vec::new(),
+            from_tab: false,
             stored: None,
         }
     }
@@ -244,6 +252,20 @@ impl ClientApp {
         self.open_shell_page(ShellPage::Battles);
     }
 
+    /// A garage tab (G10): the page over the hall, and Esc returns to the hall.
+    pub(in crate::app) fn open_shell_page_from_tab(&mut self, page: ShellPage) {
+        self.open_shell_page(page);
+        if let Some(shell) = &mut self.shell {
+            shell.from_tab = true;
+        }
+    }
+
+    /// The page up, for the locks.
+    #[cfg(test)]
+    pub(in crate::app) fn shell_page(&self) -> Option<ShellPage> {
+        self.shell.as_ref().map(|shell| shell.page)
+    }
+
     /// OPEN on a stored battle: the results page over its ledger.
     fn open_stored_results(&mut self) {
         let Some(shell) = &self.shell else { return };
@@ -312,6 +334,69 @@ impl ClientApp {
             hovered: shell.hovered,
             footer: battles_footer(&self.keybinds),
         }
+    }
+
+    /// The REPLAYS page (G10): no viewer exists (P10), and the recording the session wrote.
+    fn replays_model(&self, shell: &ShellState) -> ReplaysScreenModel {
+        ReplaysScreenModel {
+            reason: words::REPLAY_REASON.to_string(),
+            recording: self.session.recording_path(),
+            hovered: shell.hovered,
+            footer: shell_footer(&self.keybinds),
+        }
+    }
+
+    /// The STATISTICS page (G10): the crew's own numbers summed over every stored battle —
+    /// the same tally the results page prints, the outcomes counted off the index; no XP,
+    /// because there is none.
+    fn statistics_model(&self, shell: &ShellState) -> StatisticsScreenModel {
+        let stat = |label: &str, value: String| StatRow { label: label.to_string(), value };
+        let rows = match self.history.as_ref() {
+            Some(history) if !history.entries().is_empty() => {
+                let mut tally = super::ledger::OwnTally::default();
+                let (mut victories, mut defeats, mut draws) = (0u32, 0u32, 0u32);
+                for (index, entry) in history.entries().iter().enumerate() {
+                    match super::history::outcome_from_slug(&entry.outcome) {
+                        crate::hud::BattleHudOutcome::Victory => victories += 1,
+                        crate::hud::BattleHudOutcome::Defeat => defeats += 1,
+                        crate::hud::BattleHudOutcome::Draw => draws += 1,
+                        _ => {}
+                    }
+                    if let Some(record) = history.read(index) {
+                        let own = record.ledger().own();
+                        tally.shots += own.shots;
+                        tally.hits += own.hits;
+                        tally.penetrations += own.penetrations;
+                        tally.damage_dealt += own.damage_dealt;
+                        tally.damage_taken += own.damage_taken;
+                        tally.kills += own.kills;
+                        tally.spotted_spans += own.spotted_spans;
+                    }
+                }
+                let rate = |part: u32, whole: u32| {
+                    (part * 100 + whole / 2)
+                        .checked_div(whole)
+                        .map_or_else(|| "-".to_string(), |percent| format!("{percent} %"))
+                };
+                vec![
+                    stat(words::STAT_BATTLES, history.entries().len().to_string()),
+                    stat(words::STAT_VICTORIES, victories.to_string()),
+                    stat(words::STAT_DEFEATS, defeats.to_string()),
+                    stat(words::STAT_DRAWS, draws.to_string()),
+                    stat(words::STAT_SHOTS, tally.shots.to_string()),
+                    stat(words::STAT_HITS, tally.hits.to_string()),
+                    stat(words::STAT_HIT_RATE, rate(tally.hits, tally.shots)),
+                    stat(words::STAT_PENETRATIONS, tally.penetrations.to_string()),
+                    stat(words::STAT_PEN_RATE, rate(tally.penetrations, tally.hits)),
+                    stat(words::STAT_DAMAGE_DEALT, tally.damage_dealt.to_string()),
+                    stat(words::STAT_DAMAGE_TAKEN, tally.damage_taken.to_string()),
+                    stat(words::STAT_KILLS, tally.kills.to_string()),
+                    stat(words::STAT_SPOTTED, tally.spotted_spans.to_string()),
+                ]
+            }
+            _ => Vec::new(),
+        };
+        StatisticsScreenModel { rows, hovered: shell.hovered, footer: shell_footer(&self.keybinds) }
     }
 
     /// The results' window one row along, never past the last full window.
@@ -482,7 +567,11 @@ impl ClientApp {
 
     /// Esc on a page: back to the menu it came from.
     pub(in crate::app) fn close_shell(&mut self) {
-        if self.shell.take().is_some() {
+        if let Some(shell) = self.shell.take() {
+            // G10: a page a tab opened goes back to the hall it was opened over.
+            if shell.from_tab {
+                return;
+            }
             let kind = self.menu_kind_here();
             self.shell = Some(ShellState::open(ShellPage::Menu(kind)));
         }
@@ -556,6 +645,8 @@ impl ClientApp {
                 }
             },
             ShellPage::Battles => ShellModel::Battles(self.battles_model(shell)),
+            ShellPage::Replays => ShellModel::Replays(self.replays_model(shell)),
+            ShellPage::Statistics => ShellModel::Statistics(self.statistics_model(shell)),
         })
     }
 
@@ -599,6 +690,12 @@ impl ClientApp {
                     Action::MenuAccept if rows > 0 => self.open_stored_results(),
                     Action::MenuBack => self.close_shell(),
                     _ => {}
+                }
+            }
+            // G10: pages for reading — Esc is their one key.
+            ShellPage::Replays | ShellPage::Statistics => {
+                if action == Action::MenuBack {
+                    self.close_shell();
                 }
             }
             ShellPage::Results { .. } => match action {
@@ -735,6 +832,8 @@ impl ClientApp {
                 (0, ShellPart::RowInc(_)) => self.step_results_tab(1),
                 _ => {}
             },
+            // G10: nothing on these pages answers a click.
+            ShellPage::Replays | ShellPage::Statistics => {}
             ShellPage::Settings => {
                 if let Some(shell) = &mut self.shell {
                     shell.selected = row as usize;

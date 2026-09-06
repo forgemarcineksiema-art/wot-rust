@@ -505,6 +505,14 @@ pub fn render_hangar_review_views(
             scene_build::review_views::GarageScreen::Compare => {
                 crate::garage_overlay_compare(0, 1, aspect)
             }
+            // G10: the ARMOUR tab, and the four pages over the hangar.
+            scene_build::review_views::GarageScreen::Armour => crate::garage_overlay_armour(aspect),
+            scene_build::review_views::GarageScreen::Battles
+            | scene_build::review_views::GarageScreen::Replays
+            | scene_build::review_views::GarageScreen::Statistics
+            | scene_build::review_views::GarageScreen::Settings => {
+                crate::garage_overlay_page(view.screen, aspect)
+            }
         };
         renderer.set_hud(&ctx, &hud);
 

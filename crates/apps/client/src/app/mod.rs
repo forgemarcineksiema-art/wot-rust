@@ -67,7 +67,8 @@ use winit::window::Window;
 use crate::aim::DesiredAim;
 use crate::app::garage::GarageState;
 pub use crate::app::garage::{
-    garage_inspector_legend, garage_overlay, garage_overlay_compare, garage_overlay_option_list,
+    garage_inspector_legend, garage_overlay, garage_overlay_armour, garage_overlay_compare,
+    garage_overlay_option_list, garage_overlay_page,
 };
 use crate::fx::FxSystem;
 use crate::hit_indicator::HitIndicator;

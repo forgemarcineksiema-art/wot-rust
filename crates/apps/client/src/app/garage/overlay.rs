@@ -1,6 +1,5 @@
 //! The garage overlay's seams: the screen as vertices, and the cursor as a hit — both off the
-//! one draw list `screen.rs` builds (interface program G1). The tree view still carries its
-//! legacy vertices and their hover wash until G12.
+//! one draw list `screen.rs` builds (interface program G1, G12: the tree included).
 
 use renderer_api::HudVertex;
 #[cfg(test)]
@@ -10,8 +9,7 @@ use ui_kit::ui::Ui;
 
 #[cfg(test)]
 use super::elements::GarageElement;
-use super::layout::{TREE_CLOSE_CENTER, TREE_CLOSE_HALF, in_rect};
-use super::{GarageHit, GarageState, GarageView, panels, screen};
+use super::{GarageHit, GarageState, screen};
 
 impl GarageState {
     /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
@@ -39,59 +37,32 @@ pub(super) fn hit_test(state: &GarageState, shift: bool) -> GarageHit {
     screen::hit_screen(state, &state.ui(), shift)
 }
 
-/// The tree's legacy hover: a node or BACK under the cursor, in clip space.
-pub(super) fn tree_hover_rect(state: &GarageState) -> Option<([f32; 2], [f32; 2])> {
-    if state.view() != GarageView::TechTree {
-        return None;
-    }
-    let p = state.cursor_clip();
-    if in_rect(p, TREE_CLOSE_CENTER, TREE_CLOSE_HALF) {
-        return Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF));
-    }
-    match panels::techtree::hit_test(state) {
-        GarageHit::Vehicle(index) => panels::techtree::node_rect_for_index(index),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game_core::VehicleKind;
     use ui_kit::draw_list::Payload;
 
-    /// The tree view carries its legacy vertices verbatim on one element and lights a hovered
-    /// node with the old wash; the hangar carries no legacy element at all.
+    /// G12: no garage screen carries a legacy element any more — the hangar and the tree are
+    /// the toolkit's, and the tree's nodes are elements of their own.
     #[test]
-    fn the_tree_rides_its_legacy_element_and_the_hangar_none() {
+    fn no_garage_screen_carries_a_legacy_element() {
         let mut state = GarageState::default();
         state.open();
         let ui = state.ui();
         let theme = Theme::standard();
-        let hangar = build_list(&state, &ui, &theme);
-        assert!(
-            hangar.iter().all(|e| !matches!(e.payload, Payload::Legacy(_))),
-            "the hangar is the toolkit's"
-        );
-        state.open_tech_tree();
-        let tree = build_list(&state, &ui, &theme);
-        assert!(tree.find(GarageElement::TechTree).is_some());
-        assert!(tree.find(GarageElement::Hover).is_none(), "nothing hovered");
-        state.set_cursor(super::super::layout::tree_node_center(VehicleKind::TigerI));
-        let tree = build_list(&state, &ui, &theme);
-        assert!(tree.find(GarageElement::Hover).is_some(), "the node under the cursor is lit");
-        assert_eq!(
-            hit_test(&state, false),
-            GarageHit::Vehicle(
-                VehicleKind::PLAYABLE
-                    .iter()
-                    .position(|k| *k == VehicleKind::TigerI)
-                    .expect("playable")
-            )
-        );
-        state.set_cursor(TREE_CLOSE_CENTER);
-        assert_eq!(hit_test(&state, false), GarageHit::CloseTechTree);
-        assert_eq!(tree_hover_rect(&state), Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF)));
+        for tree in [false, true] {
+            if tree {
+                state.open_tech_tree();
+            }
+            let list = build_list(&state, &ui, &theme);
+            assert!(
+                list.iter().all(|e| !matches!(e.payload, Payload::Legacy(_))),
+                "the screen is the toolkit's"
+            );
+            assert!(list.find(GarageElement::TechTree).is_none());
+            assert!(list.find(GarageElement::Hover).is_none());
+            assert_eq!(list.find(GarageElement::TreeNode(0)).is_some(), tree);
+        }
     }
 
     /// The vertices are the list's emission — nothing is drawn beside the list.

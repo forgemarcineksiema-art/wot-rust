@@ -1,6 +1,6 @@
-//! What the garage still lays out in clip space: the tech tree (until G12), the map row's
-//! words, the slots' words and icons, and the carousel's window arithmetic. Everything the
-//! hangar screen draws is laid out in `u` by `screen.rs`.
+//! The garage's words and window arithmetic: the map row's words, the slots' words and icons,
+//! and the carousel's window. Everything the garage draws is laid out in `u` by `screen.rs`
+//! and `tree.rs`.
 
 use super::draft::FitSlot;
 
@@ -40,9 +40,6 @@ pub(super) fn carousel_window(count: usize, scroll: usize) -> std::ops::Range<us
     start..start + CAR_VISIBLE
 }
 
-/// The garage's rects are the HUD's rects — one hit test for every clip-space surface left.
-pub(super) use crate::hud::primitives::in_rect;
-
 /// The header label for a fitting slot, shown atop its option list.
 pub(super) fn slot_label(slot: FitSlot) -> &'static str {
     match slot {
@@ -74,62 +71,6 @@ pub(super) fn ammo_icon(shell_type: game_core::ShellType) -> crate::hud::icons::
     crate::hud::icons::HudIcon::for_shell(shell_type)
 }
 
-// Tech tree: nation groups, line columns, tier rows (higher tier higher). Only PLAYABLE
-// vehicles get a node — no reserved empty bands, no ghost predecessors.
-pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, 0.30];
-pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.82, 0.36];
-pub(super) const TREE_CLOSE_CENTER: [f32; 2] = [0.86, 0.80];
-pub(super) const TREE_CLOSE_HALF: [f32; 2] = [0.06, 0.04];
-const TREE_COL_LEFT: f32 = -0.70;
-const TREE_COL_RIGHT: f32 = 0.72;
-const TREE_TIER_TOP: f32 = 0.40;
-const TREE_TIER_PITCH: f32 = 0.155;
-const TREE_NODE_HALF_Y: f32 = 0.052;
-const TREE_HIGHEST_TIER: u8 = 9;
-pub(super) const TREE_NATION_LABEL_Y: f32 = 0.58;
-pub(super) const TREE_LINE_LABEL_Y: f32 = 0.515;
-
-/// Occupied (nation, class) columns, nation-major then class-major. Empty lines are skipped.
-pub(super) fn tree_columns() -> Vec<(game_core::Nation, game_core::VehicleClass)> {
-    let mut cols = Vec::new();
-    for nation in game_core::Nation::ALL {
-        for class in game_core::VehicleClass::ALL {
-            if game_core::VehicleKind::PLAYABLE
-                .iter()
-                .any(|kind| kind.nation() == nation && kind.class() == class)
-            {
-                cols.push((nation, class));
-            }
-        }
-    }
-    cols
-}
-
-pub(super) fn tree_tier_y(tier: u8) -> f32 {
-    TREE_TIER_TOP - f32::from(TREE_HIGHEST_TIER.saturating_sub(tier)) * TREE_TIER_PITCH
-}
-
-pub(super) fn tree_col_x(col: usize) -> f32 {
-    let n = tree_columns().len().max(1) as f32;
-    let pitch = (TREE_COL_RIGHT - TREE_COL_LEFT) / n;
-    TREE_COL_LEFT + pitch * (col as f32 + 0.5)
-}
-
-pub(super) fn tree_node_half() -> [f32; 2] {
-    let n = tree_columns().len().max(1) as f32;
-    let pitch = (TREE_COL_RIGHT - TREE_COL_LEFT) / n;
-    [(pitch * 0.40).min(0.10), TREE_NODE_HALF_Y]
-}
-
-pub(super) fn tree_node_center(kind: game_core::VehicleKind) -> [f32; 2] {
-    let cols = tree_columns();
-    let col = cols
-        .iter()
-        .position(|&(nation, class)| nation == kind.nation() && class == kind.class())
-        .expect("playable vehicle owns a tree column");
-    [tree_col_x(col), tree_tier_y(kind.tier())]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,26 +93,5 @@ mod tests {
         let max_scroll = count - CAR_VISIBLE;
         assert_eq!(clamp_carousel_scroll(count, 999), max_scroll);
         assert_eq!(carousel_window(count, 999), max_scroll..count);
-    }
-
-    #[test]
-    fn every_tree_node_of_the_live_fleet_stays_inside_the_panel() {
-        let half = tree_node_half();
-        for kind in game_core::VehicleKind::PLAYABLE {
-            let center = tree_node_center(kind);
-            assert!(
-                center[0] - half[0] >= TREE_PANEL_CENTER[0] - TREE_PANEL_HALF[0],
-                "{kind:?} leaks off the panel's left edge"
-            );
-            assert!(
-                center[0] + half[0] <= TREE_PANEL_CENTER[0] + TREE_PANEL_HALF[0],
-                "{kind:?} leaks off the panel's right edge"
-            );
-        }
-        let cols = tree_columns();
-        if cols.len() >= 2 {
-            let gap = tree_col_x(1) - tree_col_x(0);
-            assert!(gap >= 2.0 * half[0] + 0.01, "line columns overlap");
-        }
     }
 }

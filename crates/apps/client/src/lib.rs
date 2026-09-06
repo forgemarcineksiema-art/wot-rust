@@ -16,7 +16,8 @@ mod vehicle;
 
 pub use app::run;
 pub use app::{
-    garage_inspector_legend, garage_overlay, garage_overlay_compare, garage_overlay_option_list,
+    garage_inspector_legend, garage_overlay, garage_overlay_armour, garage_overlay_compare,
+    garage_overlay_option_list, garage_overlay_page,
 };
 pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,

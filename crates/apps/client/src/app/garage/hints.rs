@@ -6,6 +6,7 @@
 use crate::app::keybinds::{Action, KeyBindings};
 use crate::app::shell::first_key_label;
 use crate::ui_strings::garage as words;
+use game_core::VehicleKind;
 
 use super::GarageState;
 use super::draft::FitSlot;
@@ -126,7 +127,14 @@ pub(super) fn tooltip_text(state: &GarageState, element: E) -> Option<String> {
             format!("{}{DOT}{}{DOT}{}", words::TIP_MAP, k.map, words::TIP_SHIFT_BACK)
         }
         E::TabTechTree => format!("{}{DOT}{}", words::TAB_TECH_TREE, k.tree),
+        E::TabArmour => format!("{}{DOT}{}", words::TAB_ARMOUR, k.inspector),
         E::TabGarage => words::TAB_GARAGE.to_string(),
+        E::TabBattles => words::TAB_BATTLES.to_string(),
+        E::TabReplays => words::TAB_REPLAYS.to_string(),
+        E::TabStatistics => words::TAB_STATISTICS.to_string(),
+        E::TabSettings => words::TAB_SETTINGS.to_string(),
+        E::TreeNode(i) => VehicleKind::PLAYABLE.get(usize::from(i))?.display_name().to_string(),
+        E::TreeBack => words::BACK.to_string(),
         E::ModuleSlot(i) => format!(
             "{}{DOT}{}{DOT}{} {} {}",
             slot_label(FitSlot::ALL[usize::from(i)]),
