@@ -5,9 +5,14 @@
 use glam::{Vec2, Vec3};
 
 use crate::running_gear::RunningGearKinematics;
-use crate::{Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, SmoothingGroup};
+use crate::{
+    Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
+    SmoothingGroup,
+};
 
 const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
+/// The hinge-eye barrels: one smooth group, so a round barrel shades round.
+const SG_BARREL: SmoothingGroup = SmoothingGroup(7);
 
 /// One shoe link, centred at the origin: a short box spanning the belt width (X) whose cross
 /// section lies in the Z/Y plane, so a rotation about X aligns it with the belt tangent.
@@ -30,14 +35,29 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     // part of the instanced link, live sag, terrain travel, and a thrown track all affect the same
     // geometry instead of revealing an immovable ghost band underneath.
     let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
+    let backing = match kin.shoe {
+        // The OMSh shoe is a frame with windows (K12): its backing keeps the job at the JOINTS,
+        // where the neighbours overlap, and under the centre bar — not across the openings.
+        game_core::ShoePattern::Omsh => omsh_backing(kin, pitch),
+        _ => {
+            box_prism(Vec3::new(0.0, -0.038, 0.0), kin.band_half_width * 0.96, 0.012, pitch * 0.56)
+        }
+    };
+    MeshBuilder::new().append(&backing).append(&shoe).build()
+}
+
+/// The OMSh frame's backing: one strip across each joint, reaching past the shoe's end to
+/// overlap the neighbour as the full slab did — the windows stay open, and the centre bar needs
+/// no strip under it (it is solid plate already).
+fn omsh_backing(kin: &RunningGearKinematics, pitch: f32) -> GeometryMesh {
+    let half_z = kin.link_half_length();
+    let (window_half_z, reach) = (half_z * 0.36, pitch * 0.56);
+    let joint_half_z = (reach - window_half_z) * 0.5;
+    let joint_z = window_half_z + joint_half_z;
+    let width = kin.band_half_width * 0.96;
     MeshBuilder::new()
-        .append(&box_prism(
-            Vec3::new(0.0, -0.038, 0.0),
-            kin.band_half_width * 0.96,
-            0.012,
-            pitch * 0.56,
-        ))
-        .append(&shoe)
+        .append(&box_prism(Vec3::new(0.0, -0.038, -joint_z), width, 0.012, joint_half_z))
+        .append(&box_prism(Vec3::new(0.0, -0.038, joint_z), width, 0.012, joint_half_z))
         .build()
 }
 
@@ -91,16 +111,25 @@ fn distant_link(kin: &RunningGearKinematics) -> GeometryMesh {
 ///   the horn and pushes on the eye barrel. From the side these read as the knuckle line running
 ///   the length of the belt.
 /// - **No pin heads.** The pin is ⌀20-22 x 520 mm and floats; its ends sit about 30 mm inboard of
-///   the belt edges, so nothing of it shows from outside. The eye bars stop short accordingly.
+///   the belt edges, so nothing of it shows from outside. The eye barrels stop short accordingly:
+///   their end caps ARE the pin's ends.
 /// - **Ribbed ground face.** Stiffening ribs raised in September 1949 — not chevrons, not smooth.
+/// - **Two windows** (K12, 2026-09-06). The plate is a cast FRAME, not a slab: a centre bar
+///   carrying the horn, an edge rail either side, and the joint bars at both ends — leaving one
+///   closed window beside the horn on each side, the opening a sprocket tooth passes through
+///   (K9). Before this the shoe was one solid box and the sprocket's teeth stopped under it.
+/// - **Round eye barrels.** The цевка is a barrel: a revolve under the roundness law, not the
+///   18 mm flat bar it was.
 fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
+    use game_core::roundness::round_segments;
     let half_z = kin.link_half_length();
     // The shoe plate spans the full belt band, so its outer face sits AT the blueprint's
     // `outer_x` — the documented "width over tracks".
     let plate_half_x = kin.band_half_width;
-    // The horn fits the slot between the twin tyres with clearance to either side. A wheel with
-    // no gap (the German dish) gets no horn from this generator — it does not have one.
-    let horn_half_x = kin.tyre_gap_half() * 0.72;
+    // The horn is the dossier's 50 mm wide, and never wider than the slot between the twin
+    // tyres leaves it clearance. A wheel with no gap (the German dish) gets no horn from this
+    // generator — it does not have one.
+    let horn_half_x = (kin.tyre_gap_half() - 0.0015).min(0.025);
     // How deep the slot between the tyres actually is: from the tread the belt rides on down to
     // the steel seat the tyres are pressed onto. The horn is sized from THAT, with a little
     // clearance, so it is swallowed by the slot instead of bottoming out on the wheel — by
@@ -113,27 +142,58 @@ fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
     // short of the belt edges because the pin does.
     let eye_inset = 0.030_f32.min(plate_half_x * 0.12);
     let eye_half_x = (plate_half_x - eye_inset).max(plate_half_x * 0.5);
+    let eye_r = 0.017;
+    let eye_segments = round_segments(eye_r);
 
+    // THE FRAME. Five bars on the plate's own plane (y -0.030 .. 0.022): the centre bar under
+    // the horn, an edge rail either side, the joint bars at both ends. Between them, beside the
+    // horn, the two windows — true openings, nothing behind them.
+    let (plate_y, plate_half_y) = (-0.004, 0.026);
+    let rail_half_x = 0.0125;
+    let bar_half_x = (horn_half_x + 0.012).max(0.030);
+    let window_half_z = half_z * 0.36;
+    let joint_bar_half_z = (half_z - window_half_z) * 0.5;
+    let joint_bar_z = window_half_z + joint_bar_half_z;
+    let rail_x = plate_half_x - rail_half_x;
     let mut builder = MeshBuilder::new()
-        .append(&box_prism(Vec3::new(0.0, -0.004, 0.0), plate_half_x, 0.026, half_z))
-        // The two hinge-eye barrels — the belt's knuckle line, and the surface the drive
-        // sprocket actually bears on.
+        .append(&box_prism(Vec3::new(0.0, plate_y, 0.0), bar_half_x, plate_half_y, window_half_z))
         .append(&box_prism(
-            Vec3::new(0.0, -0.044, -half_z * 0.90),
-            eye_half_x,
-            0.017,
-            half_z * 0.14,
+            Vec3::new(-rail_x, plate_y, 0.0),
+            rail_half_x,
+            plate_half_y,
+            window_half_z,
         ))
-        .append(&box_prism(Vec3::new(0.0, -0.044, half_z * 0.90), eye_half_x, 0.017, half_z * 0.14))
-        // Stiffening ribs across the ground face.
         .append(&box_prism(
-            Vec3::new(0.0, 0.026, -half_z * 0.44),
+            Vec3::new(rail_x, plate_y, 0.0),
+            rail_half_x,
+            plate_half_y,
+            window_half_z,
+        ))
+        .append(&box_prism(
+            Vec3::new(0.0, plate_y, -joint_bar_z),
+            plate_half_x,
+            plate_half_y,
+            joint_bar_half_z,
+        ))
+        .append(&box_prism(
+            Vec3::new(0.0, plate_y, joint_bar_z),
+            plate_half_x,
+            plate_half_y,
+            joint_bar_half_z,
+        ))
+        // The two hinge-eye barrels — the belt's knuckle line, and the surface the drive
+        // sprocket actually bears on. Round, capped: the caps are where the pin ends.
+        .append(&eye_barrel(-half_z * 0.90, eye_half_x, eye_r, eye_segments))
+        .append(&eye_barrel(half_z * 0.90, eye_half_x, eye_r, eye_segments))
+        // Stiffening ribs across the ground face, over the joint bars.
+        .append(&box_prism(
+            Vec3::new(0.0, 0.026, -half_z * 0.56),
             plate_half_x * 0.92,
             0.006,
             half_z * 0.11,
         ))
         .append(&box_prism(
-            Vec3::new(0.0, 0.026, half_z * 0.44),
+            Vec3::new(0.0, 0.026, half_z * 0.56),
             plate_half_x * 0.92,
             0.006,
             half_z * 0.11,
@@ -147,6 +207,23 @@ fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
         ));
     }
     builder.build()
+}
+
+/// One hinge-eye barrel of an OMSh shoe: a capped cylinder along the pin's axis at the joint
+/// line `z`, standing proud of the backing on the wheel side, `half_x` long because the pin is.
+fn eye_barrel(z: f32, half_x: f32, r: f32, segments: usize) -> GeometryMesh {
+    MeshBuilder::new()
+        .capped_revolve_at(
+            Vec3::new(0.0, -0.044, z),
+            RevolveSpec {
+                profile: vec![ProfilePoint::new(r, -half_x), ProfilePoint::new(r, half_x)],
+                axis: Axis::X,
+                segments,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_BARREL,
+            },
+        )
+        .build()
 }
 
 /// German Kgs 63/725 double-pin shoe (Tiger I/II, Jagdtiger, Panther II), as the STT 1944
