@@ -55,25 +55,19 @@ fn every_shipped_vehicle_stays_inside_its_cost_envelope() {
     }
 }
 
-/// The seam this file exists for: the fleet must actually contain both envelopes.
-///
-/// If every vehicle resolved to the same envelope, the routing above would be untested scaffolding
-/// and the gate would silently become "the procedural table, applied to everything" — which is the
-/// state that let the hybrid's vertex count go unmeasured in the first place.
+/// Since K3 closed (2026-09-06) every vehicle is the library's and pays the class envelope; the
+/// procedural envelope stays in the routing for the next vehicle to join as a sketch — and this
+/// lock says which side of the seam the fleet is on, so a vehicle silently falling back to its
+/// recipe would be caught here as well as in `seam_lock`.
 #[test]
-fn the_fleet_exercises_both_cost_envelopes() {
-    let envelopes: Vec<CostEnvelope> =
-        VehicleKind::PLAYABLE.into_iter().map(|k| shipped_cost_ceiling(k).envelope).collect();
-
-    assert!(
-        envelopes.contains(&CostEnvelope::HybridClass),
-        "no vehicle routes to the hybrid envelope — the benchmark vehicle stopped being hybrid, \
-         or the seam broke"
-    );
-    assert!(
-        envelopes.contains(&CostEnvelope::ProceduralFleet),
-        "no vehicle routes to the procedural envelope"
-    );
+fn the_whole_fleet_pays_the_class_envelope() {
+    for kind in VehicleKind::PLAYABLE {
+        assert_eq!(
+            shipped_cost_ceiling(kind).envelope,
+            CostEnvelope::HybridClass,
+            "{kind:?} routes to the class envelope: the library builds it"
+        );
+    }
 }
 
 /// The two envelopes must stay far apart, in the direction that makes them two envelopes.
@@ -83,15 +77,15 @@ fn the_fleet_exercises_both_cost_envelopes() {
 #[test]
 fn the_hybrid_envelope_is_the_generous_one() {
     let hybrid = shipped_cost_ceiling(VehicleKind::T54_1951);
-    let procedural = shipped_cost_ceiling(VehicleKind::Centurion);
-
     assert_eq!(hybrid.envelope, CostEnvelope::HybridClass, "the T-54 is the hybrid benchmark");
-    assert_eq!(procedural.envelope, CostEnvelope::ProceduralFleet);
+    // No vehicle routes to the procedural envelope any more; its constants are the recipe
+    // fleet's budgets, and the class envelope must still stand far above them.
+    let procedural_tris = vehicle_recipes::VEHICLE_BUDGETS.vehicle_tri.1;
+    let procedural_verts = vehicle_recipes::VEHICLE_BUDGETS.vehicle_vert_max;
     assert!(
-        hybrid.tri_max > procedural.tri_max * 4,
-        "the hybrid carries multiples more geometry by design: {} vs {}",
-        hybrid.tri_max,
-        procedural.tri_max
+        hybrid.tri_max > procedural_tris * 4,
+        "the hybrid carries multiples more geometry by design: {} vs {procedural_tris}",
+        hybrid.tri_max
     );
-    assert!(hybrid.vert_max > procedural.vert_max, "and more vertices with it");
+    assert!(hybrid.vert_max > procedural_verts, "and more vertices with it");
 }

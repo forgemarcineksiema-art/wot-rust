@@ -54,14 +54,48 @@ fn the_benchmark_carries_its_whole_dossier_and_nothing_unnamed() {
     assert!(!report.carried.contains(&PartClass::RecipeSketch));
 }
 
+/// No vehicle is a recipe sketch any more (K3 closed 2026-09-06): every roster vehicle carries
+/// library parts and none carries the `RecipeSketch` class. The next vehicle to join is a sketch
+/// until its parts land — this lock names it then.
 #[test]
-fn a_sketch_carries_exactly_the_recipe_class() {
+fn no_vehicle_is_a_sketch_any_more() {
+    for kind in VehicleKind::PLAYABLE {
+        let report = InventoryReport::new(&authoritative_description(kind).unwrap());
+        assert!(!report.is_sketch(), "{kind:?}: no recipe piece stands on the shipped vehicle");
+        assert!(report.carried.len() >= 9, "{kind:?}: {} classes carried", report.carried.len());
+    }
+}
+
+/// The Centurion is the last (K3, 2026-09-06): 15 of its 22 classes — the slab hull, the Mk 3
+/// dome with its cupola, loader's hatch and bustle bin, the clean 20-pounder and its mantlet,
+/// the bazooka plates, the engine panel and grille, the exhaust cowls, the driver's roof hatch,
+/// the fender boxes, the lamp, the hooks. Owed: the stern plate's furniture, the coax, the
+/// periscopes, the fenders themselves, the suspension hardware, the spare links.
+#[test]
+fn the_centurion_carries_fifteen_of_its_twenty_two() {
     let report = InventoryReport::new(&authoritative_description(VehicleKind::Centurion).unwrap());
     assert!(!report.locked);
-    assert!(report.is_sketch());
-    assert_eq!(report.carried.len(), 1, "a wrapped recipe is one class: {:?}", report.carried);
-    assert_eq!(report.missing, report.expected, "so every listed class is debt");
-    assert!(report.dossier_pending.is_none(), "the Centurion's dossier lists its parts");
+    for class in [
+        PartClass::HullTub,
+        PartClass::UpperHull,
+        PartClass::TurretShell,
+        PartClass::TurretRing,
+        PartClass::TurretStowage,
+        PartClass::Cupola,
+        PartClass::Hatches,
+        PartClass::Mantlet,
+        PartClass::GunBarrel,
+        PartClass::EngineDeck,
+        PartClass::DeckGrille,
+        PartClass::Exhaust,
+        PartClass::FenderStowage,
+        PartClass::Headlights,
+        PartClass::Skirts,
+        PartClass::TowHooks,
+    ] {
+        assert!(report.carried.contains(&class), "{class:?} is the library's");
+    }
+    println!("{}", report.summary_line());
 }
 
 /// The IS-3 is the sixth (K3, 2026-09-06): 14 of its 20 classes — the pike hull, the flattened
@@ -254,14 +288,15 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
     println!("{}", report.summary_line());
 }
 
+/// Every dossier's part list is read into its inventory: nine rows at the least (the fleet's
+/// smallest list), every one citing its dossier section.
 #[test]
-fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
-    // The last sketch on the roster; the list shrank one vehicle at a time through K3.
-    let (kind, at_least) = (VehicleKind::Centurion, 22);
-    let report = InventoryReport::new(&authoritative_description(kind).unwrap());
-    assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
-    assert!(report.expected.len() >= at_least, "{kind:?}: {}", report.expected.len());
-    assert_eq!(report.missing, report.expected, "{kind:?} is a sketch: every row is debt");
+fn every_dossier_s_part_list_is_read_into_its_inventory() {
+    for kind in VehicleKind::PLAYABLE {
+        let report = InventoryReport::new(&authoritative_description(kind).unwrap());
+        assert!(report.dossier_pending.is_none(), "{kind:?} lists its parts");
+        assert!(report.expected.len() >= 9, "{kind:?}: {}", report.expected.len());
+    }
 }
 
 /// The T-34-85 was the one vehicle whose dossier read `Needs dossier` (the inventory said

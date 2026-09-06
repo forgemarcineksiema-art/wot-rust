@@ -6,8 +6,8 @@
 use game_core::{VehicleBlueprint, VehicleKind};
 use glam::Vec3;
 use vehicle_build::{
-    PartShape, VehiclePart, cast_dome_parts_for_blueprint, fitting_parts_for_blueprint,
-    slab_hull_parts_for_blueprint, soviet_deck_parts_for_blueprint,
+    PartShape, VehiclePart, british_deck_parts_for_blueprint, cast_dome_parts_for_blueprint,
+    fitting_parts_for_blueprint, slab_hull_parts_for_blueprint, soviet_deck_parts_for_blueprint,
 };
 
 fn t34_85() -> VehicleBlueprint {
@@ -164,5 +164,43 @@ fn the_is3_dome_and_deck_wear_the_heavy_s_furniture() {
         let (min, max) = extent(drum);
         assert!(max.z < 0.0, "a drum along the REAR shelf: {}", max.z);
         assert!(max.x.abs().max(min.x.abs()) <= bp.hull.hitbox_half_width + 1.0e-3);
+    }
+}
+
+/// The Centurion's Mk 3 dome closes its plan with the bustle bin ON the rear armour plane, wears
+/// the British cupola, and its deck carries the cowls, the rectangular roof hatch and the fender
+/// boxes over the belts.
+#[test]
+fn the_centurion_dome_and_deck_wear_the_british_furniture() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::Centurion).expect("blueprint-born");
+    let dome = cast_dome_parts_for_blueprint(&bp).expect("the Centurion authors its dome");
+    let keys: Vec<&str> = dome.iter().map(|p| p.key.name).collect();
+    assert!(
+        keys.contains(&"cupola_drum")
+            && keys.contains(&"turret_bin")
+            && keys.contains(&"roof_hatch")
+    );
+    let (min, _) = extent(dome.iter().find(|p| p.key.name == "turret_bin").unwrap());
+    let plan_rear = bp.turret.ring_z - bp.turret.plan_half_length;
+    assert!(
+        (min.z - (plan_rear + 0.01)).abs() < 1.0e-2,
+        "the bin's back at the plan's rear: {}",
+        min.z
+    );
+    let deck = british_deck_parts_for_blueprint(&bp).expect("the Centurion authors its deck");
+    let keys: Vec<&str> = deck.iter().map(|p| p.key.name).collect();
+    assert_eq!(keys.iter().filter(|k| **k == "exhaust_cowl").count(), 2);
+    assert_eq!(keys.iter().filter(|k| **k == "stowage_bin").count(), 4, "two boxes a side");
+    assert!(keys.contains(&"driver_roof_hatch") && keys.contains(&"engine_deck_panel"));
+    // The hatch lies on the roof, starboard, ahead of the ring.
+    let (min, max) = extent(deck.iter().find(|p| p.key.name == "driver_roof_hatch").unwrap());
+    assert!(max.x < 0.0, "starboard: {}", max.x);
+    assert!((min.y - bp.hull.deck_y).abs() < 0.03, "on the roof: {}", min.y);
+    assert!(min.z > bp.turret.ring_z + bp.turret.ring_radius, "ahead of the ring: {}", min.z);
+    // The boxes sit on the fender line over the belts, never past the belt's outer face.
+    for bin in deck.iter().filter(|p| p.key.name == "stowage_bin") {
+        let (min, max) = extent(bin);
+        assert!(max.x.abs().max(min.x.abs()) <= bp.track.outer_x + 1.0e-3);
+        assert!(min.y >= bp.hull.sponson_y, "over the sponson line: {}", min.y);
     }
 }

@@ -28,10 +28,10 @@ mod t54_hybrid_turret;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
-    BoxVisual, BustleBinVisual, CanvasCoverVisual, CasemateVisual, CastDomeVisual, CastRoofKind,
-    CompleteVisual, FenderVisual, GermanDeckVisual, GunVisual, HullConstruction, HullPlatesVisual,
-    HullVisual, LoftStation, MuzzleBrakeVisual, ShoeRackVisual, SovietDeckVisual, TurretLoftVisual,
-    TurretVisual, VisualDetail, WeldedTurretVisual,
+    BoxVisual, BritishDeckVisual, BustleBinVisual, CanvasCoverVisual, CasemateVisual,
+    CastDomeVisual, CastRoofKind, CompleteVisual, FenderVisual, GermanDeckVisual, GunVisual,
+    HullConstruction, HullPlatesVisual, HullVisual, LoftStation, MuzzleBrakeVisual, ShoeRackVisual,
+    SovietDeckVisual, TurretLoftVisual, TurretVisual, VisualDetail, WeldedTurretVisual,
 };
 pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
 pub use source::{BlueprintFile, VisualDetailFile, parse_blueprint, parse_visual_detail};

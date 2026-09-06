@@ -128,9 +128,25 @@ fn the_is3_describes_as_library_parts_alone() {
 }
 
 #[test]
-fn an_unsplit_recipe_still_wraps_its_three_submeshes() {
+fn the_centurion_describes_as_library_parts_alone() {
     let description = describe(VehicleKind::Centurion).expect("describes");
+    let recipe: Vec<&str> = description
+        .parts
+        .iter()
+        .filter(|p| p.generator == GeneratorKind::Recipe)
+        .map(|p| p.key.name)
+        .collect();
+    assert!(recipe.is_empty(), "K3 Centurion: the library owns every part: {recipe:?}");
     let names: Vec<&str> = description.parts.iter().map(|p| p.key.name).collect();
-    assert_eq!(names, vec!["recipe_hull", "recipe_turret", "recipe_gun"]);
-    assert_eq!(description.post_merge, PostMerge::None, "the wrapped submeshes are already welded");
+    for key in [
+        "turret_bin",
+        "cupola_drum",
+        "exhaust_cowl",
+        "driver_roof_hatch",
+        "stowage_bin",
+        "skirt_plate",
+    ] {
+        assert!(names.iter().any(|n| n.starts_with(key)), "{key} is built: {names:?}");
+    }
+    assert_eq!(description.post_merge, PostMerge::WeldAndSmooth, "welded after the merge");
 }

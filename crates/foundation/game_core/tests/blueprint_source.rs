@@ -143,8 +143,9 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
 /// and deliberately NOT the complete view); the Tiger II (Forge 2.0 K3, 2026-09-06) authors
 /// the library-complete set — construction, welded turret, gun — from
 /// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree, the Panther II the same
-/// from `panther_ii.visual.ron`, and the Jagdtiger its casemate set (construction, casemate,
-/// gun) from `jagdtiger.visual.ron`; everyone else carries nothing yet.
+/// from `panther_ii.visual.ron`, the Jagdtiger its casemate set (construction, casemate, gun)
+/// from `jagdtiger.visual.ron`, and the Soviet and British cast-dome vehicles their dome set;
+/// the final branch stands for the next vehicle to join the roster.
 #[test]
 fn the_visual_slot_roster_is_a_deliberate_decision() {
     let mut walked = 0;
@@ -208,6 +209,19 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
             let fittings = detail.fittings.expect("the fittings");
             assert!(fittings.no_cupola_hatch, "no cupola on the IS-3");
             assert!(fittings.tow_hook_center.z < 0.0, "the hooks are at the stern: no bow hooks");
+        } else if kind == VehicleKind::Centurion {
+            let detail = blueprint.visual_detail().expect("the Centurion authors visual parts");
+            assert!(detail.is_library_complete(), "construction + cast dome + gun");
+            let dome = detail.cast_dome.expect("the Mk 3 casting");
+            assert_eq!(dome.roof, game_core::CastRoofKind::Centurion);
+            assert!(dome.bustle_bin.is_some(), "the bustle bin closes the plan");
+            let deck = detail.british_deck.expect("the British deck");
+            assert!(
+                deck.exhaust_cowls
+                    && deck.driver_roof_hatch.is_some()
+                    && deck.fender_boxes.is_some()
+            );
+            assert!(detail.gun.map(|g| g.muzzle_brake.is_none()).unwrap_or(false), "a clean tube");
             assert!(
                 blueprint.complete_visual().is_none(),
                 "the library-complete set is not the benchmark's full tree"

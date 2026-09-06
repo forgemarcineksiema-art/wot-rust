@@ -447,6 +447,23 @@ pub struct VisualDetail {
     /// IS fender line and drums — when the library builds it. Appended 2026-09-06.
     #[serde(default)]
     pub soviet_deck: Option<SovietDeckVisual>,
+    /// The British deck's furniture — the engine panel and grille, the exhaust cowls, the
+    /// driver's rectangular roof hatch, the fender boxes — when the library builds it. Appended
+    /// 2026-09-06.
+    #[serde(default)]
+    pub british_deck: Option<BritishDeckVisual>,
+}
+
+/// Which of the British deck's furniture a vehicle wears (`vehicle_build::british_deck_parts`).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BritishDeckVisual {
+    /// Low armoured exhaust cowls on the rear deck flanks (the Meteor's read).
+    pub exhaust_cowls: bool,
+    /// The driver's rectangular split hatch on the roof: `(x, z behind the deck's front edge,
+    /// half_x, half_z)`.
+    pub driver_roof_hatch: Option<(f32, f32, f32, f32)>,
+    /// Stowage boxes over the belts on the fender line, front and rear: `(half_y, half_z)`.
+    pub fender_boxes: Option<(f32, f32)>,
 }
 
 /// What stands on a cast dome (`vehicle_build::cast_dome_parts`): the dome is the blueprint's

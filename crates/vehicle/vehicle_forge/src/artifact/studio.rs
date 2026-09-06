@@ -12,7 +12,7 @@ use std::path::Path;
 
 use game_core::{VehicleBlueprint, VehicleKind, lint};
 use vehicle_geometry::{BakedVehicle, OPEN_OR_CLOSED_MESH, SubmeshKind};
-use vehicle_recipes::{VEHICLE_BUDGETS, golden_bake_hash};
+use vehicle_recipes::{VEHICLE_BUDGETS, golden_bake_hash, shipped_bake_hash};
 
 use crate::mesh_source::shipped_fidelity;
 use crate::{ReferencePack, authoritative_baked_vehicle};
@@ -339,24 +339,26 @@ fn build_report(
     // Golden hash status.
     let hash = baked.deterministic_hash();
     let _ = writeln!(md, "\n## Determinism\n");
-    match (source, golden_bake_hash(kind)) {
-        (Fidelity::Benchmark, _) => {
+    // Every vehicle has a golden row in `vehicle_recipes/goldens/bake_hashes.txt`: the recipe's
+    // for a sketch, the shipped bake's for a library-built vehicle (K3 closed 2026-09-06: the
+    // whole roster is the library's, each pinned by its shipped row).
+    let (golden, which) = match source {
+        Fidelity::Benchmark => (shipped_bake_hash(kind), "shipped (library) golden"),
+        Fidelity::Sketch => (golden_bake_hash(kind), "recipe golden"),
+    };
+    match golden {
+        Some(golden) if golden == hash => {
+            let _ = writeln!(md, "- bake hash `{hash}` MATCHES the recorded golden ({which}).");
+        }
+        Some(golden) => {
             let _ = writeln!(
                 md,
-                "- production bake hash `{hash}` (hybrid source; procedural fleet golden does not apply)."
+                "- bake hash `{hash}` DIFFERS from golden `{golden}` ({which}) — the geometry \
+                 changed. If intentional, re-record with `cargo run -p tools -- bless --vehicle {}`.",
+                kind.slug()
             );
         }
-        (Fidelity::Sketch, Some(golden)) if golden == hash => {
-            let _ = writeln!(md, "- bake hash `{hash}` MATCHES the recorded golden.");
-        }
-        (Fidelity::Sketch, Some(golden)) => {
-            let _ = writeln!(
-                md,
-                "- bake hash `{hash}` DIFFERS from golden `{golden}` — the geometry changed. \
-                 If intentional, re-record in `vehicle_recipes/src/budgets.rs`."
-            );
-        }
-        (Fidelity::Sketch, None) => {
+        None => {
             let _ = writeln!(md, "- bake hash `{hash}` (no golden recorded for this kind).");
         }
     }
