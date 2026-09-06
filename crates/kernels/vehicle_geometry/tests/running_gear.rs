@@ -1215,3 +1215,88 @@ fn the_is3_return_rollers_stand_over_the_wheel_gaps() {
         );
     }
 }
+
+/// Whether a ray from `origin` along `dir` meets any triangle of `mesh` (Möller–Trumbore, any
+/// direction — the road-wheel tests' helper fires down the axle only).
+fn ray_meets_mesh(mesh: &GeometryMesh, origin: Vec3, dir: Vec3) -> bool {
+    let v = mesh.vertices();
+    mesh.indices().chunks_exact(3).any(|t| {
+        let (a, b, c) =
+            (v[t[0] as usize].position, v[t[1] as usize].position, v[t[2] as usize].position);
+        let (e1, e2) = (b - a, c - a);
+        let p = dir.cross(e2);
+        let det = e1.dot(p);
+        if det.abs() < 1.0e-9 {
+            return false;
+        }
+        let inv = 1.0 / det;
+        let s = origin - a;
+        let u = s.dot(p) * inv;
+        if !(0.0..=1.0).contains(&u) {
+            return false;
+        }
+        let q = s.cross(e1);
+        let w = dir.dot(q) * inv;
+        if w < 0.0 || u + w > 1.0 {
+            return false;
+        }
+        e2.dot(q) * inv > 0.0
+    })
+}
+
+/// K12: THE OMSh SHOE IS A FRAME. Beside the 50 mm horn, on each side, a closed window — a ray
+/// through the plate meets nothing there, while the centre bar, the edge rails and the joint
+/// bars are metal. And the hinge eyes are BARRELS: every vertex of the eye below the plate sits
+/// on a circle of the pin's radius about the joint line, at the roundness law's eight points.
+#[test]
+fn the_omsh_shoe_has_two_windows_beside_its_horn_and_round_eye_barrels() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let mesh = track_link_unit_mesh(&kin);
+    let half_z = (kin.belt_length() / kin.link_count() as f32) * 0.47;
+    let band = kin.band_half_width;
+    let through = |x: f32, z: f32| ray_meets_mesh(&mesh, Vec3::new(x, -1.0, z), Vec3::Y);
+
+    // The horn: the dossier's 50 mm, measured where only the horn reaches.
+    let horn_half = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.y < -0.075)
+        .map(|v| v.position.x.abs())
+        .fold(0.0_f32, f32::max);
+    assert!((0.024..=0.0265).contains(&horn_half), "a 50 mm horn: half {horn_half:.4}");
+
+    // The windows: open across a run of at least 100 mm beside the horn, on both sides, at the
+    // shoe's mid-length; metal at the centre bar, the rails and the joint bars.
+    for side in [-1.0_f32, 1.0] {
+        let open = (0..40)
+            .map(|i| side * (0.04 + 0.005 * i as f32))
+            .filter(|&x| x.abs() < band - 0.02 && !through(x, 0.0))
+            .count();
+        assert!(
+            open >= 20,
+            "side {side}: the window is an opening at least 100 mm wide: {open} samples open"
+        );
+        assert!(through(side * (band - 0.006), 0.0), "side {side}: the edge rail is metal");
+        assert!(through(side * 0.12, half_z * 0.85), "side {side}: the joint bar is metal");
+    }
+    assert!(through(0.0, 0.0), "the centre bar under the horn is metal");
+
+    // The eye barrels: round about the joint line, eight points of the roundness law.
+    for joint in [-half_z * 0.90, half_z * 0.90] {
+        let on_barrel: Vec<_> = mesh
+            .vertices()
+            .iter()
+            // Below the barrel's axis by more than a cap centre: the ring's lower points.
+            .filter(|v| (v.position.z - joint).abs() < 0.020 && v.position.y < -0.050)
+            .collect();
+        assert!(
+            on_barrel.len() >= 6,
+            "the barrel at {joint:.3} is a ring of points: {}",
+            on_barrel.len()
+        );
+        for v in on_barrel {
+            let d = (v.position.y + 0.044).hypot(v.position.z - joint);
+            assert!((d - 0.017).abs() < 1.0e-3, "a barrel vertex off the pin's circle: {d:.4}");
+        }
+    }
+}

@@ -69,19 +69,21 @@ pub struct GearBudgets {
     pub instances_max: usize,
 }
 
-/// Re-measured 2026-08-08 (`cargo test -p vehicle_forge --test fleet_draw_cost -- --nocapture`).
-/// Every row had grown since it was written and nothing said so, because the ceiling still held:
+/// Re-measured 2026-09-06 (`cargo test -p vehicle_forge --test fleet_draw_cost -- --nocapture`),
+/// the day K11 punched the T-54's wheels (+11.1k) and K12 made the OMSh shoe a frame with round
+/// eye barrels (+20.2k over 180 links — the T-54 and the IS-3 wear it). The ceiling was raised
+/// for THAT, item by item with these numbers, from 52,500 — where the German line now sits:
 ///
-/// | vehicle | near | far | saved | was (2026-07-29) |
+/// | vehicle | near | far | saved | was (2026-08-08) |
 /// |---|---:|---:|---:|---|
-/// | T-54 | 39,632 | 15,776 | 60% | 38,568 / 15,092 |
-/// | IS-3 | 39,632 | 16,528 | 58% | 38,448 / 15,448 |
-/// | Tiger I | 38,736 | 16,592 | 57% | — |
-/// | Jagdtiger | 28,936 | 14,076 | 51% | 26,392 / 13,788 |
-/// | Tiger II | 28,712 | 14,012 | 51% | — |
-/// | Centurion | 24,816 | 11,464 | 54% | — |
-/// | Panther II | 24,120 | 11,492 | 52% | — |
-/// | T-34-85 | 23,088 | 10,368 | 55% | 19,800 / 9,420 |
+/// | T-54 | 70,896 | 15,968 | 77% | 39,632 / 15,776 |
+/// | IS-3 | 59,248 | 16,528 | 72% | 39,632 / 16,528 |
+/// | Tiger I | 52,336 | 17,040 | 67% | 38,736 / 16,592 |
+/// | Tiger II | 51,976 | 17,276 | 67% | 28,712 / 14,012 |
+/// | Jagdtiger | 51,976 | 17,276 | 67% | 28,936 / 14,076 |
+/// | Panther II | 46,680 | 14,820 | 68% | 24,120 / 11,492 |
+/// | Centurion | 38,384 | 15,560 | 59% | 24,816 / 11,464 |
+/// | T-34-85 | 29,264 | 12,480 | 57% | 23,088 / 10,368 |
 ///
 /// **A withdrawn claim.** This block used to say PR-22 would remove "11,520 triangles per tank
 /// currently buried inside the link's backing slab and rendering nothing". Checked
@@ -130,7 +132,7 @@ pub struct GearBudgets {
 /// headroom; the far tier keeps `distant_link` and the disc, so the fleet-wide cost is unchanged.
 /// The owner's directive (2026-09-05): every vehicle's tracks at the top bar.
 pub const GEAR_BUDGETS: GearBudgets =
-    GearBudgets { near_tri_max: 52_500, far_tri_max: 18_500, instances_max: 260 };
+    GearBudgets { near_tri_max: 72_500, far_tri_max: 18_500, instances_max: 260 };
 
 /// The distance tier must remove at least this share of the gear's triangles, or it is not
 /// earning the second mesh set it costs to keep.
