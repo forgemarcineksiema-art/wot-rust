@@ -76,12 +76,13 @@ pub use track::{
     track_traction_fraction,
 };
 pub use vehicle_blueprint::{
-    ArmorShape, BlueprintFile, BoxVisual, CanvasCoverVisual, CasemateVisual, CompleteVisual,
-    DetailVisual, FenderVisual, FittingsVisual, GermanDeckVisual, GlacisPort, GunShape, GunVisual,
-    HullConstruction, HullPlatesVisual, HullShape, HullVisual, LoftStation, MuzzleBrakeVisual,
-    ShoePattern, ShoeRackVisual, SkirtShape, SuspensionKind, TrackShape, TurretForm,
-    TurretLoftVisual, TurretShape, TurretVisual, VehicleBlueprint, VisualDetail, VisualDetailFile,
-    WeldedTurretVisual, WheelFace, lint, parse_blueprint, parse_visual_detail,
+    ArmorShape, BlueprintFile, BoxVisual, BustleBinVisual, CanvasCoverVisual, CasemateVisual,
+    CastDomeVisual, CastRoofKind, CompleteVisual, DetailVisual, FenderVisual, FittingsVisual,
+    GermanDeckVisual, GlacisPort, GunShape, GunVisual, HullConstruction, HullPlatesVisual,
+    HullShape, HullVisual, LoftStation, MuzzleBrakeVisual, ShoePattern, ShoeRackVisual, SkirtShape,
+    SovietDeckVisual, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
+    TurretVisual, VehicleBlueprint, VisualDetail, VisualDetailFile, WeldedTurretVisual, WheelFace,
+    lint, parse_blueprint, parse_visual_detail,
 };
 pub use vehicle_kind::{Nation, VehicleClass, VehicleKind, tier_roman};
 pub use vehicles::known_tank_specs;

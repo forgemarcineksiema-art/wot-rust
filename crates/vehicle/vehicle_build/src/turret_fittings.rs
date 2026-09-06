@@ -129,7 +129,19 @@ pub fn add_soviet_slit_cupola(
     base_y: f32,
     radius: f32,
 ) -> MeshBuilder {
-    let drum_h = 0.17;
+    add_soviet_slit_cupola_tall(builder, x, z, base_y, radius, 0.17)
+}
+
+/// The slit cupola with its drum `drum_h` tall — the library builds it to a vehicle's authored
+/// cupola height (the T-34-85's crown 0.30 over the roof); the recipe's 0.17 m drum stays.
+pub fn add_soviet_slit_cupola_tall(
+    builder: MeshBuilder,
+    x: f32,
+    z: f32,
+    base_y: f32,
+    radius: f32,
+    drum_h: f32,
+) -> MeshBuilder {
     let origin = Vec3::new(x, 0.0, z);
     // Drum and split-lid cap in ONE revolve — the seam bar and hinge lugs carry the "split" read.
     let mut b = builder.capped_revolve_at(

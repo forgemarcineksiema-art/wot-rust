@@ -15,6 +15,7 @@ mod inventory;
 mod manifest;
 mod part;
 mod parts_casemate;
+mod parts_cast_dome;
 mod parts_fittings;
 mod parts_german_deck;
 mod parts_gun;
@@ -22,6 +23,7 @@ mod parts_hull;
 mod parts_plates;
 mod parts_skirts;
 mod parts_slab_hull;
+mod parts_soviet_deck;
 mod parts_welded_turret;
 pub mod smoothing;
 mod surface_bake;
@@ -52,6 +54,7 @@ pub use manifest::{
 };
 pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTolerance};
 pub use parts_casemate::{casemate_parts, casemate_parts_for_blueprint};
+pub use parts_cast_dome::{cast_dome_parts, cast_dome_parts_for_blueprint};
 pub use parts_fittings::{
     exhaust_housing, fender_brackets, flap_ribs, periscope, periscope_guards, periscope_prism,
 };
@@ -63,6 +66,7 @@ pub use parts_hull::{
 pub use parts_plates::{hull_plate_seams, transmission_covers};
 pub use parts_skirts::{skirt_parts, skirt_parts_for_blueprint};
 pub use parts_slab_hull::{slab_hull_parts, slab_hull_parts_for_blueprint};
+pub use parts_soviet_deck::{soviet_deck_parts, soviet_deck_parts_for_blueprint};
 pub use parts_welded_turret::{welded_turret_parts, welded_turret_parts_for_blueprint};
 pub use surface_bake::{NamedCavity, SurfaceBake, t54_surface_bake};
 pub use t54::{

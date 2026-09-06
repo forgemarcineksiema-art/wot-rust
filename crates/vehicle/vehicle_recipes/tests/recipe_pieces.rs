@@ -86,6 +86,24 @@ fn the_jagdtiger_describes_as_library_parts_alone() {
 }
 
 #[test]
+fn the_t34_85_describes_as_library_parts_alone() {
+    let description = describe(VehicleKind::T34_85).expect("describes");
+    let recipe: Vec<&str> = description
+        .parts
+        .iter()
+        .filter(|p| p.generator == GeneratorKind::Recipe)
+        .map(|p| p.key.name)
+        .collect();
+    assert!(recipe.is_empty(), "K3 T-34-85: the library owns every part: {recipe:?}");
+    let names: Vec<&str> = description.parts.iter().map(|p| p.key.name).collect();
+    for key in
+        ["slab_upper_box", "turret_shell", "cupola_drum", "glacis_hatch", "engine_deck_louvre"]
+    {
+        assert!(names.iter().any(|n| n.starts_with(key)), "{key} is built: {names:?}");
+    }
+}
+
+#[test]
 fn an_unsplit_recipe_still_wraps_its_three_submeshes() {
     let description = describe(VehicleKind::IS3).expect("describes");
     let names: Vec<&str> = description.parts.iter().map(|p| p.key.name).collect();

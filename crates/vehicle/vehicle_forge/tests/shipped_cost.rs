@@ -83,7 +83,7 @@ fn the_fleet_exercises_both_cost_envelopes() {
 #[test]
 fn the_hybrid_envelope_is_the_generous_one() {
     let hybrid = shipped_cost_ceiling(VehicleKind::T54_1951);
-    let procedural = shipped_cost_ceiling(VehicleKind::T34_85);
+    let procedural = shipped_cost_ceiling(VehicleKind::IS3);
 
     assert_eq!(hybrid.envelope, CostEnvelope::HybridClass, "the T-54 is the hybrid benchmark");
     assert_eq!(procedural.envelope, CostEnvelope::ProceduralFleet);

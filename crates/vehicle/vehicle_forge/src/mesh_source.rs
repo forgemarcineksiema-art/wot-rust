@@ -64,7 +64,7 @@ mod tests {
     /// goldens in `seam_lock`.)
     #[test]
     fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        for kind in [VehicleKind::T34_85, VehicleKind::IS3, VehicleKind::Centurion] {
+        for kind in [VehicleKind::IS3, VehicleKind::Centurion] {
             let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
             let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
             assert_eq!(

@@ -81,6 +81,9 @@ BlueprintFile(
         cupola_x: 0.32,
         cupola_z: -0.05,
         cupola_radius: 0.28,
+        // The slit cupola's crown 0.30 above the roof: the 2.72 m apex the dossier documents
+        // (K3 parts, 2026-09-06).
+        cupola_height: Some(0.30),
         plan_half_width: 1.10,
         plan_half_length: 1.32,
         mantlet_radius: 0.28,
