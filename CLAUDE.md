@@ -68,3 +68,5 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
 - Killed cargo builds can corrupt incremental state (LNK2019 anon symbols) —
   `cargo clean -p <crate>` fixes it.
 - clippy requires `#[cfg(test)]` modules LAST in a file (`items_after_test_module`).
+- The linker is `rust-lld` via `.cargo/config.toml` (locked by `quality`); a fresh clone's
+  first build is cold either way, ~30 min on the MX330 laptop.

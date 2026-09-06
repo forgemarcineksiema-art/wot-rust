@@ -84,6 +84,14 @@ own binaries because a re-record must not share a process with a value test of t
 lock is `quality/tests/suite/test_binaries.rs`: at most one auto-discovered target per crate
 besides that allowlist.
 
+The linker (2026-09-06, step 2 of the same program): `.cargo/config.toml` at the workspace root
+switches the msvc target to `rust-lld.exe` (ships with the toolchain; `linker-flavor=lld-link`).
+Measured with the touch protocol (one file touched, then the build), link.exe → lld:
+the client test build 25 s → 12–13 s, the client dev build 11 s → 10 s, the release client build 56 s → 49–50 s, sim tests 5 s → 5 s (run-to-run spread on this laptop is ~10 %; the first lld series, taken right after a 31-minute cold rebuild, read 63 s on release — heat, not the linker). The config applies to every cargo invocation on the machine — gates,
+`cargo run`, probes — so the linker never differs between the gate and the game.
+`quality/tests/suite/linker_config.rs` locks it. A changed linker changes no computed number:
+the replay pins and the bake-hash goldens passed unchanged through the switch.
+
 `cargo check --workspace --all-targets` is deliberately NOT a separate gate: clippy
 `--all-targets` already runs the full compiler front-end over every target, so a second
 check would be redundant work (the script says so). The benchmark compile
