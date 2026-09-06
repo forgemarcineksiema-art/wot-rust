@@ -102,7 +102,7 @@ const CLAIMS: &[Claim] = &[
     // The interface program (2026-09-05) opens with "what the repository ships, measured";
     // the three numbers below are the ones a reader would quote back, so they are pinned.
     Claim {
-        doc: "docs/interface-program.md",
+        doc: "docs/interface-policy.md",
         anchor: "**Today's wire: v",
         source: "crates/runtime/net/src/lib.rs",
         owner: Owner::NumberAfter("pub const PROTOCOL_VERSION: u16 = "),

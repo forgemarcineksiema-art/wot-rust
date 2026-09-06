@@ -128,11 +128,12 @@ frame lane and the interface lane in parallel). Its decisions include the sprung
 hull, gravity at 9.81, the rewritten dispersion creed above, instanced grammar-built buildings,
 a scattering-LUT sky and per-vehicle fording depth.
 
-**The interface has its own program since 2026-09-05**: [interface-program.md](interface-program.md)
-— the owner's verdict that the HUD, the garage and the product shell are rebuilt from a design
-("steel, enamel and instrument glass", a World of Tanks layout with our own elements), not
-repaired; it absorbs the second pass's U lane, V3, L1 and L2, in four waves (foundation, battle
-HUD, shell, garage).
+**The interface has its own policy since 2026-09-06**: [interface-policy.md](interface-policy.md)
+— the look ("steel, enamel and instrument glass"), a World of Tanks layout with our own elements,
+the key map, the wire it stands on and the locks. It graduated from
+[interface-program.md](interface-program.md), the owner's 2026-09-05 verdict that the HUD, the
+garage and the product shell are rebuilt from a design, not repaired; that program absorbed the
+second pass's U lane, V3, L1 and L2 and closed its register in four waves the next day.
 
 **The release ladder approved 2026-08-04** lives in git history
 (`git show 83b261d:docs/product-program.md`), not a file in the tree.
