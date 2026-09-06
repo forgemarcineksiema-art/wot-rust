@@ -90,10 +90,12 @@ pub enum Action {
     MenuRight,
     MenuAccept,
     MenuBack,
+    /// The keybinds page's RESET (P8).
+    MenuReset,
 }
 
 impl Action {
-    pub const ALL: [Action; 51] = [
+    pub const ALL: [Action; 52] = [
         Action::ToggleFullscreen,
         Action::CyclePalette,
         Action::Forward,
@@ -145,6 +147,7 @@ impl Action {
         Action::MenuRight,
         Action::MenuAccept,
         Action::MenuBack,
+        Action::MenuReset,
     ];
 
     pub fn context(self) -> Context {
@@ -194,9 +197,13 @@ impl Action {
             | A::EditorReset
             | A::EditorDone
             | A::EditorModifier => Context::HudEditor,
-            A::MenuUp | A::MenuDown | A::MenuLeft | A::MenuRight | A::MenuAccept | A::MenuBack => {
-                Context::Shell
-            }
+            A::MenuUp
+            | A::MenuDown
+            | A::MenuLeft
+            | A::MenuRight
+            | A::MenuAccept
+            | A::MenuBack
+            | A::MenuReset => Context::Shell,
         }
     }
 
@@ -254,6 +261,7 @@ impl Action {
             A::MenuRight => "menu_right",
             A::MenuAccept => "menu_accept",
             A::MenuBack => "menu_back",
+            A::MenuReset => "menu_reset",
         }
     }
 
@@ -318,6 +326,26 @@ impl Action {
             A::MenuRight => &[K::ArrowRight, K::KeyD],
             A::MenuAccept => &[K::Enter],
             A::MenuBack => &[K::Escape],
+            A::MenuReset => &[K::KeyR],
+        }
+    }
+
+    /// The action as the pages print it (P8): the slug's words, upper-case.
+    pub fn name(self) -> String {
+        self.slug().replace('_', " ").to_uppercase()
+    }
+}
+
+impl Context {
+    /// The context as the pages print it (P8).
+    pub fn word(self) -> &'static str {
+        use crate::ui_strings::battle as words;
+        match self {
+            Context::Global => words::CONTEXT_GLOBAL,
+            Context::Battle => words::CONTEXT_BATTLE,
+            Context::Garage => words::CONTEXT_GARAGE,
+            Context::HudEditor => words::CONTEXT_HUD_EDITOR,
+            Context::Shell => words::CONTEXT_SHELL,
         }
     }
 }
@@ -429,6 +457,11 @@ pub fn key_name(key: KeyCode) -> String {
 
 pub fn key_from_name(name: &str) -> Option<KeyCode> {
     BINDABLE.iter().copied().find(|key| key_name(*key) == name)
+}
+
+/// Whether the page may bind a key: the file's alphabet, nothing else.
+pub fn is_bindable(key: KeyCode) -> bool {
+    BINDABLE.contains(&key)
 }
 
 /// A key as the interface prints it (P6): `KeyW` → `W`, `Digit1` → `1`, `ArrowUp` → `UP`,
@@ -631,9 +664,19 @@ impl super::ClientApp {
         &self.keybinds
     }
 
-    /// Bind and write: the rebinding screen's one verb (the screen lands with P6).
+    /// Bind and write: the keybinds page's one verb (P8).
     pub(crate) fn rebind(&mut self, action: Action, key: KeyCode) {
         self.keybinds.bind(action, key);
+        self.persist_keybinds();
+    }
+
+    /// Back to the default and write: the page's R.
+    pub(crate) fn reset_binding(&mut self, action: Action) {
+        self.keybinds.reset(action);
+        self.persist_keybinds();
+    }
+
+    fn persist_keybinds(&self) {
         if let Some(path) = &self.keybinds_path {
             store_keybinds(path, &self.keybinds);
         }
@@ -746,5 +789,18 @@ mod tests {
         assert_eq!(key_label(KeyCode::F11), "F11");
         assert_eq!(key_label(KeyCode::Enter), "ENTER");
         assert_eq!(key_name(KeyCode::ArrowUp), "ArrowUp", "the file keeps the long name");
+    }
+
+    /// P8: an action's printed name is its slug's words; the page binds only the file's
+    /// alphabet.
+    #[test]
+    fn an_action_prints_its_name_and_only_the_alphabet_binds() {
+        assert_eq!(Action::CruiseUp.name(), "CRUISE UP");
+        assert_eq!(Action::Fire.name(), "FIRE");
+        assert!(is_bindable(KeyCode::KeyW) && is_bindable(KeyCode::Escape));
+        assert!(!is_bindable(KeyCode::Power));
+        for context in Context::ALL {
+            assert!(!context.word().is_empty());
+        }
     }
 }

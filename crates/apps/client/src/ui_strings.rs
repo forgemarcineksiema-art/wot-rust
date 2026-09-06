@@ -203,6 +203,21 @@ pub(crate) mod battle {
     pub const WORD_DEUTERANOPIA: &str = "DEUTERANOPIA";
     pub const WORD_PROTANOPIA: &str = "PROTANOPIA";
     pub const WORD_TRITANOPIA: &str = "TRITANOPIA";
+    /// The escape menu's KEY BINDINGS and the page (P8).
+    pub const PAUSE_KEYBINDS: &str = "KEY BINDINGS";
+    pub const KEYBINDS_TITLE: &str = "KEY BINDINGS";
+    pub const SET_CONTEXT: &str = "CONTEXT";
+    pub const CONTEXT_GLOBAL: &str = "WINDOW";
+    pub const CONTEXT_BATTLE: &str = "BATTLE";
+    pub const CONTEXT_GARAGE: &str = "GARAGE";
+    pub const CONTEXT_HUD_EDITOR: &str = "HUD EDITOR";
+    pub const CONTEXT_SHELL: &str = "MENUS";
+    /// A row listening for its next key, and the note beside a row whose key another shares.
+    pub const LISTENING: &str = "PRESS A KEY";
+    pub const SHARED_WITH: &str = "SHARED WITH";
+    pub const FOOTER_REBIND: &str = "REBIND";
+    pub const FOOTER_RESET: &str = "RESET";
+    pub const FOOTER_CONTEXT: &str = "CONTEXT";
     /// The page's arrows and the footer's words.
     pub const ARROW_DEC: &str = "<";
     pub const ARROW_INC: &str = ">";
@@ -328,6 +343,19 @@ pub(crate) mod battle {
         FOOTER_SELECT,
         FOOTER_CHANGE,
         FOOTER_BACK,
+        PAUSE_KEYBINDS,
+        KEYBINDS_TITLE,
+        SET_CONTEXT,
+        CONTEXT_GLOBAL,
+        CONTEXT_BATTLE,
+        CONTEXT_GARAGE,
+        CONTEXT_HUD_EDITOR,
+        CONTEXT_SHELL,
+        LISTENING,
+        SHARED_WITH,
+        FOOTER_REBIND,
+        FOOTER_RESET,
+        FOOTER_CONTEXT,
     ];
 }
 

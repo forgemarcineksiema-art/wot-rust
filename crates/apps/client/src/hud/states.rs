@@ -54,10 +54,13 @@ pub enum HudState {
     PresetFull,
     /// The settings page (P6): the shell over the battle, a row selected, an arrow hovered.
     ShellSettings,
+    /// The key bindings page (P8): the battle's keys, FIRE bound to W and shared with
+    /// FORWARD, both rows saying so.
+    ShellKeybindsConflict,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 21] = [
+    pub const ALL: [HudState; 22] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -79,6 +82,7 @@ impl HudState {
         HudState::PresetMinimal,
         HudState::PresetFull,
         HudState::ShellSettings,
+        HudState::ShellKeybindsConflict,
     ];
 
     /// The golden's name stem.
@@ -105,6 +109,7 @@ impl HudState {
             HudState::PresetMinimal => "preset_minimal",
             HudState::PresetFull => "preset_full",
             HudState::ShellSettings => "shell_settings",
+            HudState::ShellKeybindsConflict => "shell_keybinds_conflict",
         }
     }
 
@@ -207,6 +212,9 @@ impl HudState {
                 model.team_word = Some(super::demo::demo_team_word());
             }
             HudState::ShellSettings => model.shell = Some(super::shell::demo_settings_screen()),
+            HudState::ShellKeybindsConflict => {
+                model.shell = Some(super::shell::demo_keybinds_screen());
+            }
             HudState::MinimapLarge => {
                 if let Some(map) = &mut model.minimap {
                     map.size = super::minimap::MinimapSize::Large;

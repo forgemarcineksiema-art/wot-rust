@@ -28,6 +28,14 @@ impl ClientApp {
         if repeat {
             return;
         }
+        // P8: a row listening for its key takes every press — the window's keys included, or
+        // F11 could never be bound.
+        if self.shell_listening().is_some() {
+            if pressed {
+                self.shell_take_key(key);
+            }
+            return;
+        }
         // The window's keys (P7: `Context::Global`) work in the garage, in the battle and over
         // the ESC modal alike, and nothing underneath sees them.
         match self.keybinds.action(Context::Global, key) {
@@ -507,6 +515,10 @@ impl ClientApp {
             Some(crate::hud::pause_menu::PauseMenuButton::Settings) => {
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
                 self.open_settings_page();
+            }
+            Some(crate::hud::pause_menu::PauseMenuButton::Keybinds) => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.open_keybinds_page();
             }
             None => {}
         }
