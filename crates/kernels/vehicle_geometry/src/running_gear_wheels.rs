@@ -80,10 +80,51 @@ fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
     let mut builder = MeshBuilder::new()
         // Full-width steel rim ring seated under the tyre, at the OUTBOARD end of the dish.
         .append(&steel_ring(r * 0.64, kin.tyre_seat_radius(), body_half, seg))
-        // The mid band, part-way down the dish.
-        .append(&dished_ring(r * 0.44, r * 0.52, dish * 0.45, plate_half, inner_seg))
         // The hub collar, deepest inboard — and the ring the two discs are bolted through.
-        .append(&dished_ring(r * 0.24, r * 0.34, dish, plate_half, inner_seg))
+        .append(&dished_ring(r * 0.24, r * 0.34, dish, plate_half, inner_seg));
+    // THE STAMPING, PUNCHED (K11, 2026-09-06). Between the collar and the rim the disc is one
+    // sheet part-way down the dish, lightened by two rings of ROUND holes — twelve small ones
+    // (⌀47 mm) near the collar, twelve large ones (⌀58 mm) under the rim, the dossier's
+    // "12 large + 12 small lightening holes" — each a through-opening with a round rim (the
+    // roundness law sets its segments) and the pressed ribs standing between them. Until now
+    // the "holes" were the gaps between straight ribs across two thin bands. The sheet is two
+    // annuli that meet at 0.49 r on shared vertices with no wall between them. At the distance
+    // tier the sheet keeps its plain mid band: a 50 mm hole is sub-pixel at the switch range.
+    if kin.detail == crate::GearDetail::Near {
+        let ribs = kin.wheel_spokes.max(3);
+        // Holes sit half a rib pitch off the ribs, so every rib runs between two holes.
+        let offset = std::f32::consts::PI / ribs as f32;
+        builder = builder
+            .append(&punched_sheet(&PunchedSheet {
+                x: dish * 0.45,
+                half_t: plate_half,
+                r_in: r * 0.34,
+                r_out: r * 0.49,
+                holes: ribs,
+                hole_r: r * 0.058,
+                hole_ring_r: r * 0.415,
+                first_angle: offset,
+                wall_in: true,
+                wall_out: false,
+            }))
+            .append(&punched_sheet(&PunchedSheet {
+                x: dish * 0.45,
+                half_t: plate_half,
+                r_in: r * 0.49,
+                r_out: r * 0.66,
+                holes: ribs,
+                hole_r: r * 0.072,
+                hole_ring_r: r * 0.572,
+                first_angle: offset,
+                wall_in: false,
+                wall_out: true,
+            }));
+    } else {
+        // The mid band, part-way down the dish.
+        builder =
+            builder.append(&dished_ring(r * 0.44, r * 0.52, dish * 0.45, plate_half, inner_seg));
+    }
+    builder = builder
         // Proud central hub cap: the steel hub the discs are pressed onto.
         .append(&wheel_disc_at(
             dish * 0.6,
@@ -123,6 +164,158 @@ fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
 /// Bolts holding a twin-disc road wheel together. Ten on a T-54: the discs are bolted to each
 /// other and pressed onto a steel hub (dossier, "Part construction").
 const HUB_BOLTS: usize = 10;
+
+/// A flat stamped annulus on the axle plane `x`, punched with `holes` round holes.
+struct PunchedSheet {
+    /// Axle-plane offset of the sheet's mid-plane.
+    x: f32,
+    /// Half the sheet's thickness.
+    half_t: f32,
+    /// Inner and outer radii of the annulus.
+    r_in: f32,
+    r_out: f32,
+    /// Holes around the ring, one per equal angular sector; the first at `first_angle`.
+    holes: usize,
+    hole_r: f32,
+    hole_ring_r: f32,
+    first_angle: f32,
+    /// Whether the inner / outer arc gets a wall. A sheet that continues into another sheet at
+    /// that radius shares its vertices with it and draws no wall there (a wall on both would
+    /// put four triangles on one edge).
+    wall_in: bool,
+    wall_out: bool,
+}
+
+/// The sheet of a stamped road-wheel disc: a flat annulus punched with round holes, every hole a
+/// true through-opening. Per sector the face between the hole's rim and the sector's boundary
+/// (outer arc, radial cut, inner arc, radial cut) is bridged by triangles walked by angle around
+/// the hole's centre — the sector is star-shaped from it while the hole clears the cuts. The
+/// radial cuts are shared vertices between neighbouring sectors, the arcs are the roundness
+/// law's own two chords per 30° (r(1 - cos 7.5°) is under the tolerance out to the rim), and
+/// only the arcs and the hole rims carry walls. Winding: the front face (+x) runs counter-
+/// clockwise seen from +x, the back face the reverse, every wall against the edge it shares.
+fn punched_sheet(spec: &PunchedSheet) -> GeometryMesh {
+    use game_core::roundness::round_segments;
+    let PunchedSheet {
+        x,
+        half_t,
+        r_in,
+        r_out,
+        holes,
+        hole_r,
+        hole_ring_r,
+        first_angle,
+        wall_in,
+        wall_out,
+    } = *spec;
+    let rim_n = round_segments(hole_r);
+    let arc_n = 2usize;
+    let sector = std::f32::consts::TAU / holes as f32;
+    // The wheel's angular convention: radial(a) = (sin a, cos a) in (y, z), so `a` runs
+    // CLOCKWISE seen from +x. Counter-clockwise is `a` decreasing.
+    let radial = |a: f32, r: f32| Vec2::new(a.sin() * r, a.cos() * r);
+    let at = |p: Vec2, dx: f32| Vec3::new(x + dx, p.x, p.y);
+    let material = MaterialRole::TrackMetal;
+    let mut builder = MeshBuilder::new();
+    for i in 0..holes {
+        let theta = first_angle + i as f32 * sector;
+        let a0 = theta - sector * 0.5;
+        let centre = radial(theta, hole_ring_r);
+        // One angle list per arc, shared with the neighbours: the cut at a1 of this sector is
+        // the cut at a0 of the next, and the same expression yields the same float.
+        let arc_angles: Vec<f32> =
+            (0..=arc_n).map(|k| a0 + sector * (k as f32 / arc_n as f32)).collect();
+        // The rim, counter-clockwise seen from +x (angle decreasing), its first point on the
+        // hole's own radial line toward the hub — so the ring is symmetric about the rib line
+        // and no chord happens to run straight at an arc's midpoint (a sliver the audit counts).
+        let rim: Vec<Vec2> = (0..rim_n)
+            .map(|k| {
+                let phi = theta + std::f32::consts::PI
+                    - (k as f32 / rim_n as f32) * std::f32::consts::TAU;
+                centre + Vec2::new(phi.sin() * hole_r, phi.cos() * hole_r)
+            })
+            .collect();
+        // The sector boundary, counter-clockwise: the outer arc a1 → a0, down the cut at a0,
+        // the inner arc a0 → a1, up the cut at a1. The cuts carry their end points only.
+        let mut boundary: Vec<Vec2> = Vec::with_capacity(2 * arc_n + 2);
+        for &a in arc_angles.iter().rev() {
+            boundary.push(radial(a, r_out));
+        }
+        for &a in arc_angles.iter() {
+            boundary.push(radial(a, r_in));
+        }
+        // Both loops ordered by angle around the hole's centre.
+        let angle_of = |p: Vec2| (p - centre).to_angle();
+        let rotate_to_min = |list: &mut Vec<Vec2>| {
+            let start = (0..list.len())
+                .min_by(|&a, &b| angle_of(list[a]).total_cmp(&angle_of(list[b])))
+                .unwrap_or(0);
+            list.rotate_left(start);
+        };
+        let mut rim = rim;
+        rotate_to_min(&mut rim);
+        rotate_to_min(&mut boundary);
+        let (m, b) = (rim.len(), boundary.len());
+        let (mut ri, mut bi) = (0usize, 0usize);
+        let next_angle = |list: &[Vec2], idx: usize| {
+            if idx + 1 < list.len() { angle_of(list[idx + 1]) } else { f32::INFINITY }
+        };
+        let mut face = |p: Vec2, q: Vec2, s: Vec2| {
+            builder.push_tri([at(p, half_t), at(q, half_t), at(s, half_t)], material, SG_WHEEL);
+            builder.push_tri([at(q, -half_t), at(p, -half_t), at(s, -half_t)], material, SG_WHEEL);
+        };
+        // Bridge: advance whichever loop's next point comes first by angle. A rim step runs the
+        // rim edge backwards against the outer point, a boundary step runs the boundary edge
+        // forwards against the inner point — both counter-clockwise around the hole's centre.
+        while ri + 1 < m || bi + 1 < b {
+            let take_rim =
+                bi + 1 >= b || (ri + 1 < m && next_angle(&rim, ri) <= next_angle(&boundary, bi));
+            if take_rim {
+                face(rim[ri + 1], rim[ri], boundary[bi]);
+                ri += 1;
+            } else {
+                face(boundary[bi], boundary[bi + 1], rim[ri]);
+                bi += 1;
+            }
+        }
+        // Close the ring across the wrap.
+        face(rim[0], rim[m - 1], boundary[b - 1]);
+        face(boundary[b - 1], boundary[0], rim[0]);
+        // The hole's wall, facing INTO the hole: its top edge runs p → q where the face's rim
+        // edge runs q → p.
+        for k in 0..m {
+            let (p, q) = (rim[k], rim[(k + 1) % m]);
+            builder.push_quad(
+                [at(p, half_t), at(q, half_t), at(q, -half_t), at(p, -half_t)],
+                material,
+                SG_WHEEL,
+            );
+        }
+        // The arc walls: the face runs the outer arc a1 → a0 and the inner a0 → a1, so each
+        // wall's top edge runs the other way.
+        if wall_out {
+            for k in 0..arc_n {
+                let (p, q) = (radial(arc_angles[k], r_out), radial(arc_angles[k + 1], r_out));
+                builder.push_quad(
+                    [at(p, half_t), at(q, half_t), at(q, -half_t), at(p, -half_t)],
+                    material,
+                    SG_WHEEL,
+                );
+            }
+        }
+        if wall_in {
+            for k in 0..arc_n {
+                let (p, q) = (radial(arc_angles[k + 1], r_in), radial(arc_angles[k], r_in));
+                builder.push_quad(
+                    [at(p, half_t), at(q, half_t), at(q, -half_t), at(p, -half_t)],
+                    material,
+                    SG_WHEEL,
+                );
+            }
+        }
+    }
+    builder.build()
+}
 
 /// One hub bolt head, standing proud of the collar it fastens.
 fn hub_bolt(center: Vec3) -> GeometryMesh {
