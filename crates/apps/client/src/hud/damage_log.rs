@@ -439,9 +439,9 @@ mod tests {
         tracked.armor_zone = ArmorZone::RightTrack;
         let mut once = DamageLog::default();
         once.ingest(&[tracked], TankId(1), &[]);
-        let line = text_of(&build(&once.visible(), false), 0);
-        assert_eq!(line.matches("RIGHT TRACK").count(), 1, "{line}");
-        assert!(line.starts_with("\u{ab} TRACKED"), "{line}");
+        let tracked_line = text_of(&build(&once.visible(), false), 0);
+        assert_eq!(tracked_line.matches("RIGHT TRACK").count(), 1, "{tracked_line}");
+        assert!(tracked_line.starts_with("\u{ab} TRACKED"), "{tracked_line}");
         assert!(line.ends_with("IS-3"), "{line}");
         // A ram that did nothing earns none.
         let mut nothing = shot(2, 1, false, 0);
