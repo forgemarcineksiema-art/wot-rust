@@ -7,9 +7,19 @@ use renderer_api::HudVertex;
 
 use super::primitives::push_arc;
 
-/// Incoming-hit arc red: penetrating hits at full saturation, bounces dimmer. Unique bytes
-/// (HUD tests tag features by exact vertex-color equality).
-pub(crate) const HIT_DIRECTION_COLOR: [f32; 4] = [0.92, 0.24, 0.18, 0.90];
+/// The hit's tones (H12): one voice per hit — the arc and the word in the same tone, off the
+/// theme's semantic block so every palette carries them. A shell that went THROUGH us wears
+/// the low-health red; a plate that HELD wears the damaged-module amber: bad and less bad,
+/// in the colours the crew already reads on its own panel.
+pub(crate) fn pen_tone(palette: ui_kit::theme::Palette) -> [f32; 4] {
+    let c = ui_kit::theme::Theme::standard().with_palette(palette).semantic.hp_ramp[2];
+    [c[0], c[1], c[2], 0.90]
+}
+
+pub(crate) fn held_tone(palette: ui_kit::theme::Palette) -> [f32; 4] {
+    let c = ui_kit::theme::Theme::standard().with_palette(palette).semantic.module[1];
+    [c[0], c[1], c[2], 0.90]
+}
 
 pub(crate) const HIT_DIRECTION_TTL_S: f32 = 1.4;
 /// Fixed screen radius of the bearing ring: outside the reload arc and any realistic dispersion
@@ -19,12 +29,10 @@ pub(crate) const HIT_ARC_RADIUS: f32 = 0.30;
 /// Angular width of one bearing arc.
 const HIT_ARC_SWEEP_RAD: f32 = 0.55;
 
-/// The verdict beside the arc (Inny Poziom S5): the plate HELD, in amber, with the millimetres
-/// that held it — effective armour against the shell's penetration — or PEN, in the arc's
-/// red, with the millimetres that did not. The exactly-once damage lane carries both numbers
-/// for every strike on the player, bounce or not; this is where they are said.
-pub(crate) const HIT_HELD_COLOR: [f32; 4] = [0.98, 0.84, 0.36, 0.90];
-pub(crate) const HIT_PEN_COLOR: [f32; 4] = [0.95, 0.30, 0.22, 0.90];
+/// The verdict beside the arc (Inny Poziom S5): the plate HELD, with the millimetres that
+/// held it — effective armour against the shell's penetration — or PEN, with the millimetres
+/// that did not. The exactly-once damage lane carries both numbers for every strike on the
+/// player, bounce or not; this is where they are said, in the arc's own tone.
 /// Text size of the verdict line, and how far outside the ring it sits.
 const HIT_VERDICT_SIZE: f32 = 0.030;
 const HIT_VERDICT_OFFSET: f32 = 0.045;
@@ -132,14 +140,20 @@ impl IncomingHitFeed {
     }
 }
 
-pub(crate) fn push_hit_direction(vertices: &mut Vec<HudVertex>, hits: &[IncomingHit], aspect: f32) {
+pub(crate) fn push_hit_direction(
+    vertices: &mut Vec<HudVertex>,
+    hits: &[IncomingHit],
+    aspect: f32,
+    palette: ui_kit::theme::Palette,
+) {
     for hit in hits {
         let fade = ((HIT_DIRECTION_TTL_S - hit.age_s) / HIT_DIRECTION_TTL_S).clamp(0.0, 1.0);
         if fade <= 0.0 {
             continue;
         }
-        let mut color = HIT_DIRECTION_COLOR;
-        color[3] *= fade * if hit.penetrated { 1.0 } else { 0.55 };
+        let verdict = if hit.penetrated { pen_tone(palette) } else { held_tone(palette) };
+        let mut color = verdict;
+        color[3] *= fade * if hit.penetrated { 1.0 } else { 0.7 };
         // Screen angle: bearing 0 (dead ahead) sits at 12 o'clock; positive bearing (attacker to
         // the right) rotates the arc clockwise.
         let center_angle = std::f32::consts::FRAC_PI_2 - hit.bearing_rad;
@@ -153,10 +167,9 @@ pub(crate) fn push_hit_direction(vertices: &mut Vec<HudVertex>, hits: &[Incoming
             aspect,
             color,
         );
-        // The verdict beside the arc (S5): just outside the ring at the same bearing, HELD in
-        // amber with the millimetres that held, PEN in red with the millimetres that did not.
-        let (label, verdict) =
-            if hit.penetrated { ("PEN", HIT_PEN_COLOR) } else { ("HELD", HIT_HELD_COLOR) };
+        // The verdict beside the arc (S5): just outside the ring at the same bearing, HELD with
+        // the millimetres that held, PEN with the millimetres that did not — the arc's tone.
+        let label = if hit.penetrated { "PEN" } else { "HELD" };
         let mut verdict_color = verdict;
         verdict_color[3] *= fade;
         let text = format!("{label} {:.0}/{:.0}", hit.effective_armor_mm, hit.shell_penetration_mm);
@@ -169,6 +182,37 @@ pub(crate) fn push_hit_direction(vertices: &mut Vec<HudVertex>, hits: &[Incoming
 
 #[cfg(test)]
 mod tests {
+    /// H12: the arc and the word wear one tone, off the theme, and the tone follows the
+    /// palette — a deuteranope's HELD is not the standard amber.
+    #[test]
+    fn the_arc_and_its_verdict_speak_in_one_tone_that_follows_the_palette() {
+        use ui_kit::theme::Palette;
+        let tanks = [tank_at(1, 0.0, 0.0), tank_at(2, 0.0, 50.0)];
+        let pen = DamageEvent {
+            penetrated: true,
+            effective_armor_mm: 122.0,
+            shell_penetration_mm: 150.0,
+            ..hit_on_player(2)
+        };
+        let mut feed = IncomingHitFeed::default();
+        feed.ingest(&[pen], TankId(1), &tanks);
+        let hits = feed.screen_hits([0.0, 1.0]);
+        for palette in Palette::ALL {
+            let mut v = Vec::new();
+            push_hit_direction(&mut v, &hits, 16.0 / 9.0, palette);
+            let tone = pen_tone(palette);
+            let arc =
+                v.iter().filter(|vert| vert.uv[0] < 0.0 && vert.color[..3] == tone[..3]).count();
+            let word =
+                v.iter().filter(|vert| vert.uv[0] >= 0.0 && vert.color[..3] == tone[..3]).count();
+            assert!(
+                arc > 0 && word > 0,
+                "{palette:?}: the arc ({arc}) and the word ({word}) in one tone"
+            );
+        }
+        assert_ne!(held_tone(Palette::Standard), held_tone(Palette::Deuteranopia));
+    }
+
     use game_core::{DamageEvent, TankId, TeamId, VehicleKind};
     use glam::Vec3;
 
@@ -247,10 +291,12 @@ mod tests {
             shell_penetration_mm: 0.0,
         }];
         let mut v = Vec::new();
-        push_hit_direction(&mut v, &hits, 16.0 / 9.0);
+        push_hit_direction(&mut v, &hits, 16.0 / 9.0, ui_kit::theme::Palette::Standard);
 
-        let arc: Vec<_> =
-            v.iter().filter(|vert| vert.color[..3] == HIT_DIRECTION_COLOR[..3]).collect();
+        let arc: Vec<_> = v
+            .iter()
+            .filter(|vert| vert.color[..3] == pen_tone(ui_kit::theme::Palette::Standard)[..3])
+            .collect();
         assert!(!arc.is_empty(), "a fresh hit draws its bearing arc");
         assert!(
             arc.iter().all(|vert| vert.position[0] > 0.0 && vert.position[1].abs() < 0.12),
@@ -275,8 +321,8 @@ mod tests {
             shell_penetration_mm: 0.0,
         }];
         let (mut v_fresh, mut v_old) = (Vec::new(), Vec::new());
-        push_hit_direction(&mut v_fresh, &fresh, 16.0 / 9.0);
-        push_hit_direction(&mut v_old, &old, 16.0 / 9.0);
+        push_hit_direction(&mut v_fresh, &fresh, 16.0 / 9.0, ui_kit::theme::Palette::Standard);
+        push_hit_direction(&mut v_old, &old, 16.0 / 9.0, ui_kit::theme::Palette::Standard);
         let alpha = |v: &[renderer_api::HudVertex]| v.first().map(|vert| vert.color[3]).unwrap();
         assert!(alpha(&v_old) < alpha(&v_fresh), "arcs fade as they age");
 
@@ -307,9 +353,15 @@ mod tests {
         assert!(!hits[0].penetrated);
         assert_eq!((hits[0].effective_armor_mm, hits[0].shell_penetration_mm), (162.0, 150.0));
         let mut v = Vec::new();
-        push_hit_direction(&mut v, &hits, 16.0 / 9.0);
-        assert!(v.iter().any(|vert| vert.color == HIT_HELD_COLOR), "HELD is drawn in amber");
-        assert!(!v.iter().any(|vert| vert.color == HIT_PEN_COLOR), "no PEN on a bounce");
+        push_hit_direction(&mut v, &hits, 16.0 / 9.0, ui_kit::theme::Palette::Standard);
+        assert!(
+            v.iter().any(|vert| vert.color == held_tone(ui_kit::theme::Palette::Standard)),
+            "HELD is drawn in amber"
+        );
+        assert!(
+            !v.iter().any(|vert| vert.color == pen_tone(ui_kit::theme::Palette::Standard)),
+            "no PEN on a bounce"
+        );
 
         let pen = DamageEvent {
             penetrated: true,
@@ -321,8 +373,14 @@ mod tests {
         feed.ingest(&[pen], TankId(1), &tanks);
         let hits = feed.screen_hits([0.0, 1.0]);
         let mut v = Vec::new();
-        push_hit_direction(&mut v, &hits, 16.0 / 9.0);
-        assert!(v.iter().any(|vert| vert.color == HIT_PEN_COLOR), "PEN is drawn in red");
-        assert!(!v.iter().any(|vert| vert.color == HIT_HELD_COLOR), "no HELD on a pen");
+        push_hit_direction(&mut v, &hits, 16.0 / 9.0, ui_kit::theme::Palette::Standard);
+        assert!(
+            v.iter().any(|vert| vert.color == pen_tone(ui_kit::theme::Palette::Standard)),
+            "PEN is drawn in red"
+        );
+        assert!(
+            !v.iter().any(|vert| vert.color == held_tone(ui_kit::theme::Palette::Standard)),
+            "no HELD on a pen"
+        );
     }
 }

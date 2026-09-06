@@ -434,7 +434,7 @@ pub(crate) fn build_battle_hud_list(
     }
     {
         let mut v = Vec::new();
-        hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect);
+        hit_direction::push_hit_direction(&mut v, &model.incoming_hits, aspect, model.palette);
         legacy(&mut list, &mut order, HudElement::HitDirection, v);
     }
     // H5/H6: the speed instrument and the ammunition panel, on the new toolkit.
