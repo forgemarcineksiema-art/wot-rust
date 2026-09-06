@@ -135,3 +135,36 @@ fn a_path_is_read_the_way_a_register_cell_writes_it() {
     assert_eq!(paths_in("the `crates/ui/ui_kit/src/` tree"), ["crates/ui/ui_kit/src/"]);
     assert!(paths_in("nothing here").is_empty());
 }
+
+/// H24: the only full-screen scrim the battle HUD knows is the escape menu's. A quad with
+/// clip half-extents `[1.0, 1.0]` covers the whole viewport; outside `pause_menu.rs` nothing
+/// in `hud/` may push one — a popup in battle is a rule broken, not a feature.
+#[test]
+fn nothing_modal_appears_in_battle_but_the_escape_menu() {
+    let root = workspace_root();
+    let hud = root.join("crates/apps/client/src/hud");
+    let mut offenders = Vec::new();
+    for entry in fs::read_dir(&hud).expect("hud dir").flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|ext| ext != "rs") {
+            continue;
+        }
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        if name == "pause_menu.rs" || name.ends_with("tests.rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let code = source.split("#[cfg(test)]").next().unwrap_or("");
+        for (line_number, line) in code.lines().enumerate() {
+            if line.contains("push_quad(") && line.contains("[1.0, 1.0]") {
+                offenders.push(format!("hud/{name}:{}: a full-screen quad", line_number + 1));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "nothing modal appears in battle but the escape menu:{}  {}",
+        '\n',
+        offenders.join("\n  ")
+    );
+}

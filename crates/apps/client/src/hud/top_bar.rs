@@ -81,7 +81,8 @@ impl TopBarModel {
 const BAR_SIZE_U: [f32; 2] = [560.0, 48.0];
 const BAR_TOP_U: f32 = 8.0;
 const CLOCK_SLOT_W_U: f32 = 132.0;
-/// The last minute warms the clock to the amber of a damaged module: the closing squeeze.
+/// The last minute warms the clock to the lamp: the closing squeeze, in the one glow the
+/// theme has — and at three to one on the glass, where the amber read 2.96 (H23).
 const CLOSING_S: u32 = 60;
 
 pub(crate) fn push_top_bar(
@@ -119,7 +120,7 @@ pub(crate) fn push_top_bar(
     let enamel = theme.plates.enamel_black;
     if let Some(remaining_s) = clock_remaining_s {
         let total = remaining_s.max(0.0).ceil() as u32;
-        let color = if total <= CLOSING_S { theme.semantic.module[1] } else { theme.text.value };
+        let color = if total <= CLOSING_S { theme.lamp } else { theme.text.value };
         push(Element::new(
             HudElement::TopBarClock,
             clock,
@@ -286,7 +287,7 @@ mod tests {
         assert!(timed.find(HudElement::TopBarClockGlass).is_some(), "the clock sits under glass");
         match &build(Some(42.0)).find(HudElement::TopBarClock).expect("clock").payload {
             Payload::Text { color, .. } => {
-                assert_eq!(*color, theme.semantic.module[1], "the last minute warms")
+                assert_eq!(*color, theme.lamp, "the last minute warms")
             }
             other => panic!("{other:?}"),
         }

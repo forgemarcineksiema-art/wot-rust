@@ -63,7 +63,7 @@ pub(crate) fn push_net_readout(
             Payload::Text {
                 text: model.line(),
                 style: Style::VALUE,
-                size_u: 14.0,
+                size_u: 16.0,
                 align: Align::Right,
                 color: if model.alert() {
                     theme.semantic.verdict.no_pen

@@ -115,7 +115,7 @@ pub(crate) fn push_spectate(
             Payload::Text {
                 text: words::SPECTATE_KEYS.to_string(),
                 style: Style::VALUE,
-                size_u: 14.0,
+                size_u: 16.0,
                 align: Align::Right,
                 color: theme.text.label_dim,
                 digits: DigitMode::Proportional,

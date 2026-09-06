@@ -132,7 +132,8 @@ fn push_row(
             tile: enamel.tile,
             radius_u: 2.0,
             bevel_u: 0.0,
-            color: [enamel.color[0], enamel.color[1], enamel.color[2], 0.62],
+            // Enamel at 0.88: the ink on the row reads at three to one over any sky (H23).
+            color: [enamel.color[0], enamel.color[1], enamel.color[2], 0.88],
         },
     ));
     if row.is_player {

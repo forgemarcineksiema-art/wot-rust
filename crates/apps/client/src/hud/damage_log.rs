@@ -310,7 +310,8 @@ pub(crate) fn push_hit_log(
                 tile: enamel.tile,
                 radius_u: 2.0,
                 bevel_u: 0.0,
-                color: [enamel.color[0], enamel.color[1], enamel.color[2], 0.55 * alpha],
+                // Enamel at 0.80: the row's ink reads at three to one over a lit hull (H23).
+                color: [enamel.color[0], enamel.color[1], enamel.color[2], 0.80 * alpha],
             },
         ));
         let tone = theme.semantic.floating[entry.family()];

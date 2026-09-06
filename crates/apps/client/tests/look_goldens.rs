@@ -1052,6 +1052,97 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
 /// golden of the frame it sits on by at least the footprint floor — the one measurement that
 /// catches a HUD which failed to build, upload, or bind its atlas — and none of them blows out
 /// to white, which is what a lamp glow gone wrong would do. Always-on, over the committed PNGs.
+/// H23: every battle readout on a plate reads at three to one, MEASURED on the golden — the
+/// ink of each text element against the mean of the frame's pixels on the plate around it
+/// (the plate under the text, whatever the scene behind it did), in the frame the game draws.
+#[test]
+fn every_battle_readout_sits_on_glass_at_three_to_one() {
+    use ui_kit::draw_list::Payload;
+    const FLOOR: f32 = 3.0;
+    let mut checked = 0usize;
+    let mut offenders: Vec<String> = Vec::new();
+    for view in client::hud_review_views() {
+        let pixels = read_png(&hud_golden_path(&view.name));
+        let list = client::hud_state_list(view.state, view.size, WIDTH, HEIGHT);
+        let elements: Vec<_> = list.iter().collect();
+        for text in &elements {
+            let Payload::Text { color, text: word, .. } = &text.payload else { continue };
+            // What is dimmed by design — a dead or withheld row (the emitter dims a disabled
+            // element), a dim token, a unit tag — is not a readout the crew acts on; the floor
+            // is for the ink at full light.
+            if text.state == ui_kit::draw_list::WidgetState::Disabled
+                || color[3] <= 0.85
+                || word.trim().is_empty()
+            {
+                continue;
+            }
+            // The plate the text sits on: the largest plate or glass whose rectangle holds it.
+            let plate = elements
+                .iter()
+                .filter(|e| {
+                    matches!(e.payload, Payload::Plate { .. } | Payload::Glass { .. })
+                        && e.rect.encloses(&text.rect)
+                        && e.rect.w * e.rect.h > text.rect.w * text.rect.h * 1.2
+                })
+                .max_by(|a, b| (a.rect.w * a.rect.h).total_cmp(&(b.rect.w * b.rect.h)));
+            let Some(plate) = plate else { continue };
+            // The frame's pixels on the plate in a ring around the text — never the text's own
+            // ink, never the far side of the plate.
+            let (mut sum, mut n) = ([0.0f32; 3], 0usize);
+            let ring = text.rect.inset(-6.0);
+            let (px0, py0) = (
+                ring.x.max(plate.rect.x).max(0.0) as usize,
+                ring.y.max(plate.rect.y).max(0.0) as usize,
+            );
+            let (px1, py1) = (
+                ring.right().min(plate.rect.right()).min(WIDTH as f32) as usize,
+                ring.bottom().min(plate.rect.bottom()).min(HEIGHT as f32) as usize,
+            );
+            for y in py0..py1 {
+                for x in px0..px1 {
+                    if text.rect.contains([x as f32 + 0.5, y as f32 + 0.5]) {
+                        continue;
+                    }
+                    let at = (y * WIDTH as usize + x) * 4;
+                    for c in 0..3 {
+                        sum[c] += pixels[at + c] as f32 / 255.0;
+                    }
+                    n += 1;
+                }
+            }
+            if n < 16 {
+                continue;
+            }
+            let ground = [sum[0] / n as f32, sum[1] / n as f32, sum[2] / n as f32, 1.0];
+            // The ink as drawn: its own alpha over the ground.
+            let ink = [
+                ground[0] + (color[0] - ground[0]) * color[3],
+                ground[1] + (color[1] - ground[1]) * color[3],
+                ground[2] + (color[2] - ground[2]) * color[3],
+                1.0,
+            ];
+            let ratio = ui_kit::theme::contrast_ratio(ink, ground);
+            if ratio < FLOOR {
+                offenders.push(format!(
+                    "{}: {:?} „{word}\" reads {ratio:.2}:1 on its plate",
+                    view.name, text.id
+                ));
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 100, "the floor walked {checked} readouts — the instrument is blind");
+    assert!(
+        offenders.is_empty(),
+        "readouts under the {FLOOR}:1 floor:
+  {}",
+        offenders.join(
+            "
+  "
+        )
+    );
+}
+
 #[test]
 fn every_hud_frame_carries_the_interface_and_none_blows_out() {
     const HUD_UI_FOOTPRINT_FLOOR: f32 = 0.02;

@@ -33,7 +33,8 @@ pub use ui_kit::sheet::hud_material_sheet;
 // when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
 // empty, so the ten forwarding names here had no caller left in the workspace.
 pub use hud::{
-    HudReviewView, HudSizeClass, HudState, hud_review_views, hud_state_census, hud_state_vertices,
+    ACTED_ON_SIZE_FLOOR_U, HudReviewView, HudSizeClass, HudState, TEXT_SIZE_FLOOR_U,
+    hud_review_views, hud_state_census, hud_state_list, hud_state_vertices, is_acted_on_number,
 };
 pub use look_harness::{
     BattlefieldStage, HUD_REVIEW_MAP, HUD_REVIEW_SNIPER_VIEW, HUD_REVIEW_THIRD_PERSON_VIEW,

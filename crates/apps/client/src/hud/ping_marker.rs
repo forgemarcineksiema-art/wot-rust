@@ -129,7 +129,7 @@ pub(crate) fn push_pings(
                 Payload::Text {
                     text: format!("{} {}", mark.distance_m, words::DISTANCE_UNIT),
                     style: Style::VALUE,
-                    size_u: 14.0,
+                    size_u: 16.0,
                     align: Align::Center,
                     color: faded(theme.text.label_dim, mark.age_s, PING_TTL_S),
                     digits: DigitMode::Tabular,

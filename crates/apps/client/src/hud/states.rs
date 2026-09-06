@@ -218,6 +218,56 @@ impl HudSizeClass {
 
 #[cfg(test)]
 mod tests {
+    /// H23: „two seconds to read" as a floor — over every state at every size class, no
+    /// battle string is set under 16 u, and every number the crew acts on sits at 24 u or
+    /// more. A size in `u` is a pixel at 1080p, so the floor holds at the user's scale too.
+    #[test]
+    fn no_battle_string_renders_below_the_size_floor() {
+        use ui_kit::draw_list::Payload;
+        for state in HudState::ALL {
+            for size in super::HudSizeClass::ALL {
+                let list = crate::hud::hud_state_list(state, size, 1920, 1080);
+                for element in list.iter() {
+                    let Payload::Text { size_u, text, .. } = &element.payload else { continue };
+                    assert!(
+                        *size_u >= crate::hud::TEXT_SIZE_FLOOR_U,
+                        "{state:?} {size:?}: {:?} sets „{text}\" at {size_u} u, under the floor",
+                        element.id
+                    );
+                    if crate::hud::is_acted_on_number(element.id) {
+                        assert!(
+                            *size_u >= crate::hud::ACTED_ON_SIZE_FLOOR_U,
+                            "{state:?} {size:?}: {:?} is acted on and sits at {size_u} u",
+                            element.id
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// H24: nothing modal appears in battle but the escape menu — over every state, no
+    /// element of the toolkit covers more than a fifth of the viewport, and the only
+    /// full-screen scrim the HUD knows is the pause menu's (a source rule in `quality`).
+    #[test]
+    fn nothing_modal_appears_in_battle_but_the_escape_menu() {
+        for state in HudState::ALL {
+            for size in super::HudSizeClass::ALL {
+                let list = crate::hud::hud_state_list(state, size, 1920, 1080);
+                let viewport = 1920.0 * 1080.0;
+                for element in list.iter() {
+                    let area = element.rect.w * element.rect.h;
+                    assert!(
+                        area <= viewport * 0.20,
+                        "{state:?} {size:?}: {:?} covers {:.0}% of the screen — a modal in battle",
+                        element.id,
+                        area / viewport * 100.0
+                    );
+                }
+            }
+        }
+    }
+
     use super::*;
 
     #[test]

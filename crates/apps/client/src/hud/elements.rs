@@ -75,6 +75,8 @@ pub enum HudElement {
     MinimapSeat(u8),
     /// One grid letter or number along the map's edge (H15).
     MinimapGridLabel(u8),
+    /// The enamel backing under a blip's seat letter (H23): ink over a plate, not over relief.
+    MinimapSeatPlate(u8),
     /// The command wheel (H16): a plate and a word per command, and the counter under it.
     CommandWheel(WheelPart),
     /// A teammate's ping in the world (H16), by ping index.
@@ -209,7 +211,7 @@ impl HudElement {
     /// Walked by the tests and by the census probe (F8/F9); the identity rule wants it whole.
     /// The row elements (`TeamRow`) are keyed by seat and part; one representative is listed.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [HudElement; 41] = [
+    pub const ALL: [HudElement; 42] = [
         HudElement::ScopeSurround,
         HudElement::Reticle,
         HudElement::ReadyRing,
@@ -247,6 +249,7 @@ impl HudElement {
         HudElement::MinimapBlip(0),
         HudElement::MinimapSeat(0),
         HudElement::MinimapGridLabel(0),
+        HudElement::MinimapSeatPlate(0),
         HudElement::CommandWheel(WheelPart::Counter),
         HudElement::Ping(PingPart::Disc(0)),
         HudElement::TeamWord,

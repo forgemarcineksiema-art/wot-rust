@@ -69,6 +69,17 @@ fn vs_main(input: VsIn) -> VsOut {
     return out;
 }
 
+// The interface's colours are authored as DISPLAY values (what the theme names is what the
+// eye gets) and the pass writes an sRGB surface, which encodes what it is given as linear
+// light: every colour is linearised here so the surface's encode hands it back as authored.
+// Without this a plate authored at 0.07 (enamel black) came out at 0.29 — grey (H23's
+// contrast floor found it).
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let lo = c / 12.92;
+    let hi = pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4));
+    return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+
 // Signed distance to a box of half-extents `half` with rounded corners of `radius`, centred at
 // the origin: negative inside, zero on the edge, positive outside.
 fn rounded_box(p: vec2<f32>, half: vec2<f32>, radius: f32) -> f32 {
@@ -104,17 +115,17 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // A negative uv.x is the solid sentinel and fills at full coverage whatever the style says.
     // textureSampleLevel keeps every sample in uniform-safe control flow under the branches.
     if (kind == STYLE_SOLID || input.uv.x < 0.0) {
-        return vec4<f32>(input.color.rgb, input.color.a);
+        return vec4<f32>(srgb_to_linear(input.color.rgb), input.color.a);
     }
     if (kind == STYLE_GLYPH) {
         // One half of the field is the outline; `params.x` biases the weight (positive: bolder).
         let edge = 0.5 - input.params.x;
         let alpha = smoothstep(edge - field_aa, edge + field_aa, field);
-        return vec4<f32>(input.color.rgb, input.color.a * alpha);
+        return vec4<f32>(srgb_to_linear(input.color.rgb), input.color.a * alpha);
     }
     if (kind == STYLE_SHEET) {
         let sample = textureSampleLevel(sheet_tex, sheet_samp, input.uv, 0.0);
-        return vec4<f32>(input.color.rgb * sample.rgb, input.color.a * sample.a);
+        return vec4<f32>(srgb_to_linear(input.color.rgb * sample.rgb), input.color.a * sample.a);
     }
 
     // PLATE and GLASS: the rounded box in the element's own units, anti-aliased over one unit of
@@ -127,7 +138,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         let t = fract(diagonal + input.params.y);
         let band = smoothstep(0.30, 0.48, t) * (1.0 - smoothstep(0.52, 0.70, t));
         let rgb = mix(input.color.rgb, vec3<f32>(1.0, 1.0, 1.0), band * GLASS_BAND_STRENGTH);
-        return vec4<f32>(rgb, input.color.a * coverage);
+        return vec4<f32>(srgb_to_linear(rgb), input.color.a * coverage);
     }
 
     // PLATE: the tile modulates the plate's own colour; the bevel band is lit by its outward
@@ -141,5 +152,5 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let lit = dot(normal, BEVEL_LIGHT_DIR) * sign(input.params.y);
     let shade = 1.0 + edge * lit * BEVEL_STRENGTH;
     let albedo = clamp(input.color.rgb * modulation * shade, vec3<f32>(0.0), vec3<f32>(1.0));
-    return vec4<f32>(albedo, input.color.a * coverage);
+    return vec4<f32>(srgb_to_linear(albedo), input.color.a * coverage);
 }

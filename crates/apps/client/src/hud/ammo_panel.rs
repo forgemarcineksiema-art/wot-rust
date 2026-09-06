@@ -198,7 +198,7 @@ pub(crate) fn push_ammo_panel(
             Payload::Text {
                 text: slot.count.min(999).to_string(),
                 style: Style::VALUE_BOLD,
-                size_u: 22.0,
+                size_u: 24.0,
                 align: Align::Right,
                 color: dim(if empty { theme.semantic.module[2] } else { theme.text.value }),
                 digits: DigitMode::Tabular,
