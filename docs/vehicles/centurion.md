@@ -173,3 +173,7 @@ machine gun. No public-domain drawing exists; the ST 7-193 "Tank Identification 
 candidate for `output/refs/centurion_mk3/`
 ([core.ac.uk](https://core.ac.uk/download/pdf/188098891.pdf)); the-blueprints.com is commercial and
 excluded.
+
+## Library parts (2026-09-06)
+
+The Centurion is the last vehicle of the fleet to leave its recipe: `crates/foundation/game_core/blueprints/centurion_mk3.visual.ron` authors the construction (`WeldedSlab`, vertical sides), the cast Mk 3 dome's roof (the British cupola, the loader's hatch) and its bustle bin (`BustleBinVisual`: 0.44 up, 0.16 in, 1.50 × 0.44 × 0.30), the clean 20-pounder, the British deck (`BritishDeckVisual`: the flat engine panel and mesh grille, the twin exhaust cowls, the driver's rectangular split hatch on the roof right, the fender boxes over the belts) and the fittings (the port lamp on the front box, the bow hooks). The bazooka plates are the skirt class's. The recipe (`vehicle_recipes::centurion`) is split into named pieces that stay out when the library builds their class; none stands on the shipped vehicle, which ships at `Fidelity::Benchmark`. With it every vehicle of the roster is the library's — a new vehicle joins as a sketch. Owed: the stern plate's furniture, the coaxial Besa, the periscopes, the fenders themselves, the Horstmann hardware, the spare links.

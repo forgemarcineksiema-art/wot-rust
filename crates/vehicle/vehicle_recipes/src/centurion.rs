@@ -11,16 +11,45 @@ use super::soviet::{CastRoof, soviet_cast_turret_for};
 use super::{
     GunPlan, SG_HARD, assemble, blueprint_prism_hull, blueprint_skirts, gun_group, shade_hull,
 };
-use vehicle_geometry::{BakedVehicle, MaterialRole, MeshBuilder};
+use vehicle_geometry::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
-pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn centurion(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    let pieces = centurion_pieces(hitbox, mounts, super::deck_details::DeckOmit::default());
+    let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
+        revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
+    };
+    assemble(
+        VehicleKind::Centurion,
+        concat(pieces.hull),
+        concat(pieces.turret),
+        concat(pieces.gun),
+        pieces.mounts,
+    )
+}
+
+/// The Centurion as the pieces its recipe is made of (Forge 2.0 K3, 2026-09-06): the prism
+/// hull, the British deck, the bazooka plates, the Mk 3 dome with its bustle bin, and the gun
+/// group. `centurion` is these concatenated in this order and welded; each piece stays out when
+/// the part library builds its class (`DeckOmit`).
+pub(crate) fn centurion_pieces(
+    _hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+    omit: super::deck_details::DeckOmit,
+) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::Centurion).expect("Centurion has a blueprint");
-    let hull = shade_hull(
-        blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
-            .append(&super::deck_details::centurion_deck(&bp))
-            .append(&blueprint_skirts(&bp.hull, &bp.track))
-            .build(),
-    );
+    let mut hull = Vec::with_capacity(3);
+    if !omit.slab {
+        hull.push((
+            "recipe_hull_prism",
+            shade_hull(blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0).build()),
+        ));
+    }
+    if !omit.deck {
+        hull.push(("recipe_hull_deck", shade_hull(super::deck_details::centurion_deck(&bp, omit))));
+    }
+    if !omit.skirts {
+        hull.push(("recipe_hull_skirts", shade_hull(blueprint_skirts(&bp.hull, &bp.track))));
+    }
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
@@ -50,5 +79,10 @@ pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
         },
     );
 
-    assemble(VehicleKind::Centurion, hull, turret, gun, *mounts)
+    super::RecipePieces {
+        hull,
+        turret: if omit.turret { Vec::new() } else { vec![("recipe_turret", turret)] },
+        gun: if omit.gun { Vec::new() } else { vec![("recipe_gun", gun)] },
+        mounts: *mounts,
+    }
 }

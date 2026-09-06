@@ -57,7 +57,8 @@ fn hybrid_t54_report_uses_its_production_contract() {
     let report = bundle.report_md();
 
     assert!(report.contains("hybrid production mesh"));
-    assert!(report.contains("hybrid source; procedural fleet golden does not apply"));
+    // The benchmark's determinism line pins its SHIPPED golden row, like every vehicle's.
+    assert!(report.contains("MATCHES the recorded golden (shipped (library) golden)"));
     assert!(!report.contains("DIFFERS from golden"));
     assert!(!report.contains("OUT OF BUDGET"));
 }

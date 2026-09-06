@@ -14,6 +14,7 @@ mod description;
 mod inventory;
 mod manifest;
 mod part;
+mod parts_british_deck;
 mod parts_casemate;
 mod parts_cast_dome;
 mod parts_fittings;
@@ -54,6 +55,7 @@ pub use manifest::{
     GameplayRole, PartManifestEntry, PartManifestError, part_manifest, validate_manifest,
 };
 pub use part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart, VisualTolerance};
+pub use parts_british_deck::{british_deck_parts, british_deck_parts_for_blueprint};
 pub use parts_casemate::{casemate_parts, casemate_parts_for_blueprint};
 pub use parts_cast_dome::{cast_dome_parts, cast_dome_parts_for_blueprint};
 pub use parts_fittings::{

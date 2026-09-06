@@ -127,6 +127,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
     let casemate = blueprint.as_ref().and_then(vehicle_build::casemate_parts_for_blueprint);
     let cast_dome = blueprint.as_ref().and_then(vehicle_build::cast_dome_parts_for_blueprint);
     let soviet_deck = blueprint.as_ref().and_then(vehicle_build::soviet_deck_parts_for_blueprint);
+    let british_deck = blueprint.as_ref().and_then(vehicle_build::british_deck_parts_for_blueprint);
     let deck = blueprint.as_ref().and_then(vehicle_build::german_deck_parts_for_blueprint);
     let fittings = blueprint.as_ref().and_then(vehicle_build::fitting_parts_for_blueprint);
     let fenders = blueprint.as_ref().and_then(vehicle_build::fender_parts_for_blueprint);
@@ -135,7 +136,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
         slab: slab.is_some(),
         gun: gun.is_some(),
         turret: turret.is_some() || casemate.is_some() || cast_dome.is_some(),
-        deck: deck.is_some() || soviet_deck.is_some(),
+        deck: deck.is_some() || soviet_deck.is_some() || british_deck.is_some(),
         fittings: fittings.is_some(),
         guards: fenders.is_some(),
         skirts: skirts.is_some(),
@@ -152,6 +153,7 @@ pub fn describe(kind: VehicleKind) -> Option<VehicleDescription> {
             description.parts.extend(casemate.unwrap_or_default());
             description.parts.extend(cast_dome.unwrap_or_default());
             description.parts.extend(soviet_deck.unwrap_or_default());
+            description.parts.extend(british_deck.unwrap_or_default());
             description.parts.extend(deck.unwrap_or_default());
             description.parts.extend(fittings.unwrap_or_default());
             description.parts.extend(fenders.unwrap_or_default());
@@ -202,6 +204,9 @@ fn recipe_pieces(
         VehicleKind::Jagdtiger => Some(jagdtiger::jagdtiger_pieces(hitbox, mounts, omit)),
         VehicleKind::T34_85 => Some(t34_85::t34_85_pieces(hitbox, mounts, omit)),
         VehicleKind::IS3 => Some(is3::is3_pieces(hitbox, mounts, omit)),
+        VehicleKind::Centurion => Some(centurion::centurion_pieces(hitbox, mounts, omit)),
+        // The next vehicle to join the roster describes as three wrapped submeshes until its
+        // recipe is split.
         _ => None,
     }
 }

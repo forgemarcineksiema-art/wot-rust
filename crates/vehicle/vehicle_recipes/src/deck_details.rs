@@ -831,20 +831,23 @@ pub(crate) fn t54_family_deck(bp: &VehicleBlueprint) -> GeometryMesh {
 
 /// Centurion Mk 3: driver's hatch on the roof RIGHT; headlights deliberately ABSENT until
 /// the fender boxes that carry them exist (dossier F3) — absent beats cloned-wrong.
-pub(crate) fn centurion_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+pub(crate) fn centurion_deck(bp: &VehicleBlueprint, omit: DeckOmit) -> GeometryMesh {
     let edge = deck_front_edge(bp);
     let hatch_z = edge - 0.40;
     let mut b = MeshBuilder::new();
-    if !turret_covers(bp, hatch_z, 0.30) {
-        b = rect_hatch(
-            b,
-            Vec3::new(-bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
-            0.26,
-            0.28,
-            1.0,
-        );
+    // The hatch and the hooks are the library's when the fittings are authored.
+    if !omit.fittings {
+        if !turret_covers(bp, hatch_z, 0.30) {
+            b = rect_hatch(
+                b,
+                Vec3::new(-bp.hull.lower_half_width * 0.45, bp.hull.deck_y + 0.002, hatch_z),
+                0.26,
+                0.28,
+                1.0,
+            );
+        }
+        b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     }
-    b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     b = british_exhaust_cowls(b, bp);
     engine_deck_british(b, bp)
 }

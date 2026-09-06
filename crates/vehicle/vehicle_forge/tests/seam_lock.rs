@@ -87,24 +87,16 @@ fn the_reduced_tiers_are_the_reductions_each_path_ran_before() {
 }
 
 #[test]
-fn exactly_seven_vehicles_are_at_the_benchmark_fidelity_today() {
+fn every_vehicle_is_at_the_benchmark_fidelity_today() {
     let benchmarks: Vec<VehicleKind> = VehicleKind::PLAYABLE
         .into_iter()
         .filter(|kind| shipped_fidelity(*kind) == Fidelity::Benchmark)
         .collect();
     assert_eq!(
         benchmarks,
-        vec![
-            VehicleKind::T54_1951,
-            VehicleKind::TigerI,
-            VehicleKind::TigerII,
-            VehicleKind::Jagdtiger,
-            VehicleKind::PantherII,
-            VehicleKind::IS3,
-            VehicleKind::T34_85
-        ],
-        "K3 moves this list, one vehicle at a time (the Tiger I joined 2026-09-06, step 4e; the \
-         Tiger II, the Panther II, the Jagdtiger, the T-34-85 and the IS-3 the same day)"
+        VehicleKind::PLAYABLE.to_vec(),
+        "K3 moved this list one vehicle at a time and closed it 2026-09-06 with the Centurion: \
+         a new vehicle joins as a sketch and this lock names it until its parts land"
     );
 }
 

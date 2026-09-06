@@ -59,19 +59,20 @@ mod tests {
         assert_eq!(shipped_fidelity(VehicleKind::T54_1951), Fidelity::Benchmark);
     }
 
-    /// Every vehicle with no library part yet passes straight through to the procedural mesh,
-    /// byte for byte. (The German line is the library's since K3 and is pinned by its own
-    /// goldens in `seam_lock`.)
+    /// No vehicle passes straight through to the procedural mesh any more: the whole roster is
+    /// the library's since K3 closed (2026-09-06), each pinned by its own golden in `seam_lock`.
+    /// The pass-through path stays for the next vehicle to join — this is its lock, inverted.
     #[test]
-    fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        let kind = VehicleKind::Centurion;
-        let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
-        let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
-        assert_eq!(
-            seam.deterministic_hash(),
-            procedural.deterministic_hash(),
-            "{kind:?} must pass through the seam unchanged"
-        );
-        assert_eq!(shipped_fidelity(kind), Fidelity::Sketch);
+    fn every_vehicle_is_the_library_s_now() {
+        for kind in VehicleKind::PLAYABLE {
+            let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
+            let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
+            assert_ne!(
+                seam.deterministic_hash(),
+                procedural.deterministic_hash(),
+                "{kind:?}: the shipped bake is the library's, not the recipe's"
+            );
+            assert_eq!(shipped_fidelity(kind), Fidelity::Benchmark);
+        }
     }
 }
