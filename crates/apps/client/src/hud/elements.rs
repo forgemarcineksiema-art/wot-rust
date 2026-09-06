@@ -30,8 +30,6 @@ pub enum HudElement {
     KillConfirm,
     /// The escape modal.
     PauseMenu,
-    /// World-anchored enemy health bars.
-    EnemyBars,
     /// The spotted-enemy corner brackets (A9).
     SpotBrackets,
     /// Floating damage numbers and outcome words at the hit point.
@@ -64,6 +62,19 @@ pub enum HudElement {
     Ammo(AmmoPart),
     /// One part of one hit-log row (H8), newest first.
     HitLog(HitLogPart),
+    /// One part of one world-anchored marker (H10), by marker index.
+    Marker(MarkerPart),
+}
+
+/// The parts of a marker: the target wears them all, a known hull only the bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MarkerPart {
+    Plate(u8),
+    Class(u8),
+    Name(u8),
+    Bar(u8),
+    Number(u8),
+    Distance(u8),
 }
 
 /// The parts of a hit-log row, by row index.
@@ -155,7 +166,6 @@ impl HudElement {
         HudElement::Outcome,
         HudElement::KillConfirm,
         HudElement::PauseMenu,
-        HudElement::EnemyBars,
         HudElement::SpotBrackets,
         HudElement::HitIndicator,
         HudElement::TopBar,
@@ -175,6 +185,7 @@ impl HudElement {
         HudElement::Speed(SpeedPart::Plate),
         HudElement::Ammo(AmmoPart::SwitchingBand),
         HudElement::HitLog(HitLogPart::Row(0)),
+        HudElement::Marker(MarkerPart::Bar(0)),
     ];
 }
 

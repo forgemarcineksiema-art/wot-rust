@@ -709,3 +709,30 @@ fn n_folds_the_hit_log_on_the_edge_only() {
     app.on_key(PhysicalKey::Code(KeyCode::KeyN), true, false);
     assert!(!app.input.hit_log_collapsed());
 }
+
+/// H11: T marks the hull under the reticle and the mark follows that hull; when the hull leaves
+/// the snapshot the mark dies; and the gun never moves by it — a mark is a word, not a lay.
+#[test]
+fn a_target_mark_follows_the_hull_and_dies_with_its_visibility_and_never_moves_the_gun() {
+    use game_core::TankId;
+    let mut app = in_battle();
+    assert_eq!(app.target_mark, None);
+    // Nothing under the reticle: T changes nothing.
+    app.hull_under_reticle = None;
+    app.on_key(PhysicalKey::Code(KeyCode::KeyT), true, false);
+    assert_eq!(app.target_mark, None);
+    // A hull under the reticle: T marks it; the gun and the drive are untouched.
+    app.hull_under_reticle = Some(TankId(9));
+    let yaw_before = app.predictor.turret_yaw();
+    let throttle_before = app.input.throttle();
+    app.on_key(PhysicalKey::Code(KeyCode::KeyT), true, false);
+    assert_eq!(app.target_mark, Some(TankId(9)));
+    assert_eq!(app.predictor.turret_yaw(), yaw_before, "a mark never lays the gun");
+    assert_eq!(app.input.throttle(), throttle_before);
+    // The mark follows the hull while it is seen …
+    app.refresh_target_mark([TankId(3), TankId(9)].into_iter());
+    assert_eq!(app.target_mark, Some(TankId(9)));
+    // … and dies the frame the hull is gone from the snapshot.
+    app.refresh_target_mark([TankId(3)].into_iter());
+    assert_eq!(app.target_mark, None);
+}

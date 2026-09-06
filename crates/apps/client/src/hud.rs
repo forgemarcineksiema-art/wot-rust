@@ -12,10 +12,10 @@ pub(crate) mod demo_strip;
 pub(crate) mod elements;
 pub use ui_kit::font;
 pub(crate) mod health;
-pub(crate) mod health_bar;
 pub(crate) mod hit_direction;
 pub(crate) use ui_kit::icons;
 pub(crate) mod kill_marker;
+pub(crate) mod marker;
 pub(crate) mod minimap;
 pub(crate) mod number;
 pub(crate) mod outcome;
@@ -38,7 +38,6 @@ pub use ui_kit::theme;
 pub(crate) mod track_feedback;
 
 pub(crate) use elements::HudElement;
-pub(crate) use health::health_color;
 pub(crate) use outcome::BattleHudOutcome;
 #[cfg(test)]
 pub(crate) use outcome::OUTCOME_VICTORY_COLOR;
@@ -92,6 +91,8 @@ pub struct BattleHudModel {
     pub top_bar: Option<top_bar::TopBarModel>,
     /// The team lists (H2); `None` before the roster lands.
     pub team_lists: Option<team_list::TeamListsModel>,
+    /// The world-anchored markers (H10): every spotted enemy, the target in full.
+    pub markers: Option<marker::MarkerModel>,
     /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
@@ -131,6 +132,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             battle_clock_remaining_s: None,
             top_bar: None,
             team_lists: None,
+            markers: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
             fire_denied_age_s: None,
@@ -168,6 +170,7 @@ pub(crate) fn test_model(
         battle_clock_remaining_s: None,
         top_bar: None,
         team_lists: None,
+        markers: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -306,6 +309,12 @@ pub(crate) fn build_battle_hud_list(
     if let Some(lists) = &model.team_lists {
         team_list::push_team_lists(&mut list, ui, &theme, lists, &mut order);
     }
+    // H10: the markers ride under everything drawn so far — they are world-anchored and may sit
+    // where the reticle is; the reticle stays on top.
+    if let Some(markers) = &model.markers {
+        let mut below: i16 = -64;
+        marker::push_markers(&mut list, ui, &theme, markers, &mut below);
+    }
     // H8: the hit log under the reticle, on the toolkit.
     damage_log::push_hit_log(
         &mut list,
@@ -412,7 +421,11 @@ pub fn hud_state_vertices(
     height: u32,
 ) -> Vec<HudVertex> {
     let ui = ui_kit::ui::Ui::new(width, height, size.user_scale());
-    build_battle_hud_list(&state.model(), &ui).emit(&ui, &ui_kit::theme::Theme::standard())
+    let mut model = state.model();
+    // The staged markers are authored in reference pixels; the frame is whatever size it is.
+    model.markers =
+        model.markers.map(|markers| markers.scaled_from_reference([width as f32, height as f32]));
+    build_battle_hud_list(&model, &ui).emit(&ui, &ui_kit::theme::Theme::standard())
 }
 
 /// The census of one state: vertices per element, in paint order.

@@ -102,7 +102,7 @@ pub fn spot_bracket_for_hull(
 /// The screen-space box of the hull's hitbox: its eight corners, posed by the hull yaw,
 /// projected; `None` when any corner is behind the camera (a hull the frustum has cut is
 /// left to the eye rather than bracketed by a guess).
-fn projected_hitbox(
+pub(crate) fn projected_hitbox(
     translation: [f32; 3],
     hull_yaw_rad: f32,
     vehicle: VehicleKind,

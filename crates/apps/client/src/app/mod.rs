@@ -605,6 +605,11 @@ pub(crate) struct ClientApp {
     armor_breaches: engine::ArmorBreachStore,
     /// The field's kills and the team's relayed commands (protocol v51), off the reliable lane.
     intel: battle_intel::BattleIntel,
+    /// The hull the crew marked with T (H11): the full marker's owner. Cleared the frame the hull
+    /// leaves the snapshot — unspotted or dead. Never moves the gun.
+    target_mark: Option<TankId>,
+    /// The spotted hull whose projected box holds the reticle's aim this frame, for T.
+    hull_under_reticle: Option<TankId>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -899,6 +904,8 @@ impl ClientApp {
             fps_estimate: 0.0,
             armor_breaches: engine::ArmorBreachStore::default(),
             intel: battle_intel::BattleIntel::default(),
+            target_mark: None,
+            hull_under_reticle: None,
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),

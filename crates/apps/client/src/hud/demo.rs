@@ -88,6 +88,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
             team_hit_points_max: [7_450, 7_210],
         }),
         team_lists: Some(demo_team_lists()),
+        markers: Some(demo_markers()),
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
         fire_denied_age_s: None,
@@ -224,6 +225,41 @@ pub(crate) fn demo_hit_log() -> Vec<DamageLogEntry> {
             ..base
         },
     ]
+}
+
+/// The staged markers (H10): the marked target under the reticle's headroom, a second hull known
+/// but not spoken to, off to the right.
+pub(crate) fn demo_markers() -> super::marker::MarkerModel {
+    use super::marker::{HullMarker, MarkerModel};
+    let others: Vec<VehicleKind> = VehicleKind::PLAYABLE
+        .iter()
+        .copied()
+        .filter(|kind| *kind != VehicleKind::BENCHMARK)
+        .collect();
+    MarkerModel {
+        hulls: vec![
+            HullMarker {
+                id: game_core::TankId(9),
+                rect_px: ui_kit::rect::Rect::new(900.0, 470.0, 120.0, 64.0),
+                vehicle: others.first().copied().unwrap_or(VehicleKind::BENCHMARK),
+                seat: 'B',
+                hit_points: 640,
+                max_hit_points: 1_000,
+                distance_m: 214,
+                is_target: true,
+            },
+            HullMarker {
+                id: game_core::TankId(11),
+                rect_px: ui_kit::rect::Rect::new(1_290.0, 372.0, 70.0, 36.0),
+                vehicle: others.get(1).copied().unwrap_or(VehicleKind::BENCHMARK),
+                seat: 'E',
+                hit_points: 1_180,
+                max_hit_points: 1_500,
+                distance_m: 468,
+                is_target: false,
+            },
+        ],
+    }
 }
 
 /// The staged ammunition: the benchmark's three rounds, the server's selection in slot 0 and
