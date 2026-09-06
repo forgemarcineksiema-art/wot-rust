@@ -1,7 +1,9 @@
 //! The welded slab hull as library plates (Forge 2.0 K3, step 4a): three convex solids built
 //! straight from the blueprint — the tub between the belts, the upper box behind the driver's
-//! plate, and the bow shelf's wedge ahead of it when the armour authors one — every face ON the
-//! plane the armour volumes bake, so a slab vehicle needs no recipe for its hull. The sections
+//! plate (its sides leaning the armour table's `hull_side` degrees from the sponson fold: the
+//! Tiger I's vertical slab, the Tiger II's 25°), and the bow shelf's wedge ahead of it when the
+//! armour authors one — every face ON the plane the armour volumes bake, so a slab vehicle
+//! needs no recipe for its hull. The sections
 //! are the recipe's own (`tiger_slab_hull`), lifted into the library so the German line shares
 //! them; the fleet gate proves the plates lie on their planes.
 
@@ -55,9 +57,11 @@ pub fn slab_hull_parts(bp: &VehicleBlueprint) -> Vec<VehiclePart> {
         Vec2::new(plate_z(hull.deck_y), hull.deck_y),
         Vec2::new(-hull.half_len + (hull.deck_y - step) * rear, hull.deck_y),
     ];
+    let upright = side_planes(hull.lower_half_width, step, 0.0);
+    let leaned = side_planes(hull.half_width, step, bp.armor.hull_side.0);
     let mut parts = vec![
-        plate_part("slab_tub", prism_solid(&tub, hull.lower_half_width)),
-        plate_part("slab_upper_box", prism_solid(&upper, hull.half_width)),
+        plate_part("slab_tub", prism_solid(&tub, upright)),
+        plate_part("slab_upper_box", prism_solid(&upper, leaned)),
     ];
     if let Some((top, setback)) = shelf {
         let wedge = vec![
@@ -65,9 +69,18 @@ pub fn slab_hull_parts(bp: &VehicleBlueprint) -> Vec<VehiclePart> {
             Vec2::new(plate_z(step), step),
             Vec2::new(hull.half_len - setback, top),
         ];
-        parts.push(plate_part("slab_bow_shelf", prism_solid(&wedge, hull.half_width)));
+        parts.push(plate_part("slab_bow_shelf", prism_solid(&wedge, leaned)));
     }
     parts
+}
+
+/// The two side planes of a plate box: through `half_x` at the fold height `fold_y`, leaning
+/// inward above it by `lean_deg` — the armour table's `hull_side` degrees, so the upper walls
+/// stand on the plane the side armour bakes. 0° is the vertical pair at `±half_x`.
+fn side_planes(half_x: f32, fold_y: f32, lean_deg: f32) -> [Plane; 2] {
+    let (sin, cos) = lean_deg.to_radians().sin_cos();
+    let offset = half_x * cos + fold_y * sin;
+    [Plane::new(Vec3::new(cos, sin, 0.0), offset), Plane::new(Vec3::new(-cos, sin, 0.0), offset)]
 }
 
 fn plate_part(key: &'static str, solid: ConvexSolid) -> VehiclePart {
@@ -82,12 +95,12 @@ fn plate_part(key: &'static str, solid: ConvexSolid) -> VehiclePart {
     }
 }
 
-/// A convex prism from a convex section in the (z, y) plane, extruded `half_x` both ways: one
-/// plane per section edge (outward normal) plus the two side planes. The section may be listed
-/// in either winding; the centroid decides which way each edge normal faces.
-fn prism_solid(section: &[Vec2], half_x: f32) -> ConvexSolid {
+/// A convex prism from a convex section in the (z, y) plane between two side planes: one plane
+/// per section edge (outward normal) plus the pair. The section may be listed in either
+/// winding; the centroid decides which way each edge normal faces.
+fn prism_solid(section: &[Vec2], sides: [Plane; 2]) -> ConvexSolid {
     let centroid = section.iter().fold(Vec2::ZERO, |sum, p| sum + *p) / section.len() as f32;
-    let mut planes = vec![Plane::new(Vec3::X, half_x), Plane::new(Vec3::NEG_X, half_x)];
+    let mut planes = sides.to_vec();
     for i in 0..section.len() {
         let a = section[i];
         let b = section[(i + 1) % section.len()];

@@ -1,6 +1,7 @@
 // Tiger II Ausf. B (Henschel Serienturm) — the part classes the dossier lists (docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md), one row per class with the
-// section that names it. TARGET: the vehicle is a recipe sketch today; every row is debt until
-// the part library builds it (Forge 2.0 K3). Nothing the dossier does not name is listed.
+// section that names it. Since 2026-09-06 (Forge 2.0 K3) the part library builds the vehicle
+// whole from `tiger_ii_ausf_b.visual.ron`; the stern plate's furniture is the row still owed.
+// Nothing the dossier does not name is listed.
 (
     vehicle: "tiger_ii_ausf_b",
     dossier: Complete,

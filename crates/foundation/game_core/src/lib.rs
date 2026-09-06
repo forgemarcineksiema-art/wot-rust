@@ -77,9 +77,9 @@ pub use track::{
 };
 pub use vehicle_blueprint::{
     ArmorShape, BlueprintFile, BoxVisual, CanvasCoverVisual, CompleteVisual, DetailVisual,
-    FenderVisual, FittingsVisual, GlacisPort, GunShape, GunVisual, HullConstruction,
-    HullPlatesVisual, HullShape, HullVisual, LoftStation, MuzzleBrakeVisual, ShoePattern,
-    SkirtShape, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
+    FenderVisual, FittingsVisual, GermanDeckVisual, GlacisPort, GunShape, GunVisual,
+    HullConstruction, HullPlatesVisual, HullShape, HullVisual, LoftStation, MuzzleBrakeVisual,
+    ShoePattern, SkirtShape, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
     TurretVisual, VehicleBlueprint, VisualDetail, VisualDetailFile, WeldedTurretVisual, WheelFace,
     lint, parse_blueprint, parse_visual_detail,
 };

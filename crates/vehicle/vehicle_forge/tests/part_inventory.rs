@@ -56,12 +56,44 @@ fn the_benchmark_carries_its_whole_dossier_and_nothing_unnamed() {
 
 #[test]
 fn a_sketch_carries_exactly_the_recipe_class() {
-    let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerII).unwrap());
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::Jagdtiger).unwrap());
     assert!(!report.locked);
     assert!(report.is_sketch());
     assert_eq!(report.carried.len(), 1, "a wrapped recipe is one class: {:?}", report.carried);
     assert_eq!(report.missing, report.expected, "so every listed class is debt");
-    assert!(report.dossier_pending.is_none(), "the Tiger II's dossier lists its parts");
+    assert!(report.dossier_pending.is_none(), "the Jagdtiger's dossier lists its parts");
+}
+
+/// The Tiger II is the second vehicle the library builds whole (K3, 2026-09-06): 14 of its 15
+/// classes carried — the leaned prism hull, the Schürzen, the bow flaps, the Henschel turret,
+/// the Turmblende, the KwK 43, the fittings, the open stacks, the periscope hood. The stern
+/// plate's own furniture is the debt left.
+#[test]
+fn the_tiger_ii_carries_its_dossier_but_the_stern_plate() {
+    let report = InventoryReport::new(&authoritative_description(VehicleKind::TigerII).unwrap());
+    assert!(!report.locked);
+    assert!(!report.is_sketch(), "no recipe piece stands on the shipped Tiger II");
+    for class in [
+        PartClass::HullTub,
+        PartClass::UpperHull,
+        PartClass::Skirts,
+        PartClass::Fenders,
+        PartClass::TurretShell,
+        PartClass::TurretRing,
+        PartClass::Mantlet,
+        PartClass::Cupola,
+        PartClass::Hatches,
+        PartClass::Headlights,
+        PartClass::GunBarrel,
+        PartClass::MuzzleFurniture,
+        PartClass::Exhaust,
+        PartClass::Periscopes,
+    ] {
+        assert!(report.carried.contains(&class), "{class:?} is the library's");
+        assert!(!report.missing.contains(&class));
+    }
+    assert_eq!(report.missing, [PartClass::SternPlate].into_iter().collect());
+    println!("{}", report.summary_line());
 }
 
 /// The Tiger I is the first MIXED sketch (K3-2b): its recipe pieces still stand, and the
@@ -105,7 +137,6 @@ fn the_tiger_carries_its_library_fittings_over_the_recipe() {
 #[test]
 fn every_dossier_with_a_part_list_is_read_into_its_inventory() {
     for (kind, at_least) in [
-        (VehicleKind::TigerII, 15),
         (VehicleKind::PantherII, 11),
         (VehicleKind::Jagdtiger, 10),
         (VehicleKind::IS3, 9),

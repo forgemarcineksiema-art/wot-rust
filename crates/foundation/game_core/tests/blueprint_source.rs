@@ -140,7 +140,10 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
 /// never a side effect. The benchmark's generated tree is complete; Tiger I authors its GUN
 /// GROUP from `tiger_i_ausf_e.visual.ron` (F5.iii — the first file-authored part in the
 /// fleet: the KwK 36 with its double-baffle brake and the Walzenblende body, no canvas,
-/// and deliberately NOT the complete view); everyone else carries nothing yet.
+/// and deliberately NOT the complete view); the Tiger II (Forge 2.0 K3, 2026-09-06) authors
+/// the library-complete set — construction, welded turret, gun — from
+/// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree; everyone else carries
+/// nothing yet.
 #[test]
 fn the_visual_slot_roster_is_a_deliberate_decision() {
     let mut walked = 0;
@@ -162,6 +165,16 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
             assert!(
                 blueprint.complete_visual().is_none(),
                 "a gun group alone must not claim the complete truth-aligned view"
+            );
+        } else if kind == VehicleKind::TigerII {
+            let detail = blueprint.visual_detail().expect("Tiger II authors visual parts");
+            assert!(detail.is_library_complete(), "construction + welded turret + gun");
+            let turret = detail.welded_turret.expect("the Henschel turret");
+            assert!(turret.leaned_walls && turret.flat_rear_half_width.is_some());
+            assert!(turret.bin_depth <= 0.0, "no Rommelkiste on the Henschel");
+            assert!(
+                blueprint.complete_visual().is_none(),
+                "the library-complete set is not the benchmark's full tree"
             );
         } else {
             assert!(
