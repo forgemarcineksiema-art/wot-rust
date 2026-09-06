@@ -67,6 +67,9 @@ impl ClientApp {
             crate::hud::sixth_sense::lit(tank.spotted_by_teams_mask, enemy_bit)
         });
         self.sixth_sense_edge(lit_now);
+        // P3: the record takes the snapshot's words and the own mask's edge.
+        self.ledger.ingest_snapshot(&snapshot, self.player_tank);
+        self.ledger.spotted(snapshot.server_tick, lit_now);
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         self.track_feedback.ingest(&snapshot.damage_events, self.player_tank);

@@ -1058,3 +1058,51 @@ fn the_hud_editor_drags_an_instrument_and_saves_on_close() {
     assert_eq!(load_layout(&path), Some(crate::hud::layout::HudLayout::default()));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// P3: the ledger fills from the battle's own words — a snapshot's stamped damage once, the
+/// own shots once, the kills once, the spotted edge as spans, the end on its edge — and a
+/// fresh deploy starts a fresh record.
+#[test]
+fn the_ledger_fills_from_the_wire_once_and_starts_fresh_with_the_battle() {
+    use game_core::{BattleEventId, DamageCause, DamageEvent, ShellId, ShotFired};
+    let mut app = in_battle();
+    let me = app.player_tank;
+    let mut snapshot = app.render_state.latest_snapshot().expect("snapshot").clone();
+    snapshot.server_tick += 1;
+    // The filter withholds unspotted enemies from the snapshot; the ledger records a word about
+    // any hull, so the target is simply another one.
+    let other = snapshot.tanks.iter().find(|t| t.tank_id != me).expect("another hull").tank_id;
+    let word = DamageEvent {
+        source: me,
+        target: other,
+        damage_hp: 120,
+        penetrated: true,
+        event_id: BattleEventId(4_001),
+        occurred_tick: snapshot.server_tick,
+        shell_id: Some(ShellId(9)),
+        cause: DamageCause::Shell,
+        ..Default::default()
+    };
+    snapshot.damage_events = vec![word, word];
+    snapshot.shots_fired = vec![ShotFired { shooter: me, shell_id: ShellId(9) }];
+    for tank in &mut snapshot.tanks {
+        if tank.tank_id == me {
+            tank.spotted_by_teams_mask |= app.enemy_team().spotting_bit();
+        }
+    }
+    app.accept_and_sync(snapshot.clone());
+    app.accept_and_sync(snapshot.clone());
+    let own = app.ledger.own();
+    assert_eq!((own.hits, own.damage_dealt, own.shots), (1, 120, 1), "once: {own:?}");
+    assert_eq!(app.ledger.spotted_spans().len(), 1, "the own mask's edge opened a span");
+    assert!(app.ledger.spotted_spans()[0].to_tick.is_none(), "still spotted");
+    assert!(app.ledger.ended().is_none());
+    app.battle_outcome = None;
+    app.confirm_garage_selection();
+    assert_eq!(
+        app.ledger.own(),
+        crate::app::ledger::OwnTally::default(),
+        "a fresh deploy, a fresh record"
+    );
+    assert_eq!(app.ledger.player(), app.player_tank);
+}

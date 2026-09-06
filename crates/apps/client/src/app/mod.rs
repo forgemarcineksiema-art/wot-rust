@@ -20,6 +20,7 @@ mod input;
 mod input_state;
 #[cfg(test)]
 mod input_tests;
+pub(crate) mod ledger;
 mod lifecycle;
 mod live_cover;
 #[cfg(test)]
@@ -612,6 +613,8 @@ pub(crate) struct ClientApp {
     armor_breaches: engine::ArmorBreachStore,
     /// The field's kills and the team's relayed commands (protocol v51), off the reliable lane.
     intel: battle_intel::BattleIntel,
+    /// The battle's record (P3): the wire's words accumulated, the results screen's source.
+    ledger: ledger::BattleLedger,
     /// The hull the crew marked with T (H11): the full marker's owner. Cleared the frame the hull
     /// leaves the snapshot — unspotted or dead. Never moves the gun.
     target_mark: Option<TankId>,
@@ -940,6 +943,7 @@ impl ClientApp {
             fps_estimate: 0.0,
             armor_breaches: engine::ArmorBreachStore::default(),
             intel: battle_intel::BattleIntel::default(),
+            ledger: ledger::BattleLedger::default(),
             target_mark: None,
             hull_under_reticle: None,
             spotted_before: false,
