@@ -38,6 +38,9 @@ BlueprintFile(
         segments: 14,
         wheel_stations: None,
         return_rollers: 3,
+        // Over the gaps between road wheels 1-2, 3-4 and 5-6 (the side photographs; spread
+        // evenly, a 385 mm roller sank 0.137 m into wheel 4 — the deep gate, 2026-09-06).
+        roller_stations: Some([-1.84, 0.0, 1.84]),
         // Three 385 mm rubberized return rollers a side (four sources; was a 220 mm guess).
         roller_radius: 0.1925,
         overlap_inner_dx: 0.0,

@@ -163,14 +163,18 @@ impl RunningGearKinematics {
         // Provisional: the belt path below reads only the loop's GEOMETRY, never the link count,
         // so the count can be settled once the kinematics exist.
         let link_count = 1;
-        // Return rollers spread evenly along the middle of the wheel run, clear of the end
-        // wraps; the roller TOP carries the belt's top run, so the axle sits one radius below.
-        let roller_zs: Vec<f32> = (0..track.return_rollers)
-            .map(|index| {
-                let t = (index as f32 + 0.5) / track.return_rollers as f32;
-                cz - half_run * 0.72 + (half_run * 1.44) * t
-            })
-            .collect();
+        // Return rollers where the blueprint puts them, else spread evenly along the middle of
+        // the wheel run, clear of the end wraps; the roller TOP carries the belt's top run, so
+        // the axle sits one radius below.
+        let roller_zs: Vec<f32> = match track.roller_stations {
+            Some(stations) => stations.to_vec(),
+            None => (0..track.return_rollers)
+                .map(|index| {
+                    let t = (index as f32 + 0.5) / track.return_rollers as f32;
+                    cz - half_run * 0.72 + (half_run * 1.44) * t
+                })
+                .collect(),
+        };
         let mut kinematics = Self {
             center_x: track.center_x,
             cy,
