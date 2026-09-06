@@ -562,6 +562,9 @@ fn t54_fenders_are_asymmetric_the_way_the_references_are() {
             .iter()
             .filter(|part| part.key.name == name)
             .filter(|part| matches!(part.shape, vehicle_build::PartShape::Plates(_)))
+            // The boxes are instances 0..8; the straps and brackets that hold them down (K14)
+            // are plates under the same name at 128 and up.
+            .filter(|part| part.key.instance < 8)
             .filter(|part| {
                 part.mesh().bounds().is_some_and(|b| (b.min.x + b.max.x) * 0.5 * side > 0.0)
             })

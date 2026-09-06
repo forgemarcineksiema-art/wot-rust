@@ -15,7 +15,7 @@
         (class: TransmissionCovers, source: "Reference anatomy: whole upper rear plate unbolts for the transmission pull"),
         (class: FinalDrives, source: "Part construction: sprocket rings on the final drive, 40 bolts"),
         (class: Fenders, source: "Form rules 6: fender asymmetry; Reference anatomy: fender shelf 1.35 m"),
-        (class: FenderStowage, source: "Form rules 6: right fender two flat fuel tanks + stowage, left three bins"),
+        (class: FenderStowage, source: "Form rules 6: right fender two flat fuel tanks + stowage, left three bins; Part construction: each strapped over the top and bracketed to the shelf (K14)"),
         (class: SplashBoard, source: "Reference anatomy: the splash board on the glacis"),
         (class: TurretShell, source: "Form rules 1: full hemispherical cast dome, no undercut, no bustle"),
         (class: TurretRing, source: "Reference anatomy: turret ring 1.825 m in the clear"),
