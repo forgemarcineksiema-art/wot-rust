@@ -626,13 +626,14 @@ mod tests {
 
     use super::*;
 
-    /// A full 7v7 (14 tanks) of the instance-heaviest playable vehicle must fit the renderer's
-    /// vehicle instance buffer. When it does not, `set_vehicle_render_frame` truncates tanks off
-    /// the frame — and before it truncated, the whole oversized upload was silently dropped,
-    /// freezing every vehicle on screen the moment enough tanks were spotted. This locks the
-    /// budget against roster growth and running-gear detail growth alike.
+    /// The largest format's full roster (thirty tanks, `docs/game-modes.md` M5) of the
+    /// instance-heaviest playable vehicle must fit the renderer's vehicle instance buffer. When
+    /// it does not, `set_vehicle_render_frame` truncates tanks off the frame — and before it
+    /// truncated, the whole oversized upload was silently dropped, freezing every vehicle on
+    /// screen the moment enough tanks were spotted. This locks the budget against roster
+    /// growth, running-gear detail growth and a larger format alike.
     #[test]
-    fn worst_case_7v7_battle_fits_the_vehicle_instance_budget() {
+    fn worst_case_battle_of_the_largest_format_fits_the_vehicle_instance_budget() {
         let per_tank_worst = VehicleKind::PLAYABLE
             .iter()
             .map(|&kind| {
@@ -654,25 +655,47 @@ mod tests {
         // Bands on the field plus the 14-link remnant that may hang over each thrown sprocket.
         let ribbons = crate::vehicle::track_ribbon::MAX_TRACK_RIBBONS
             * (crate::vehicle::track_ribbon::MAX_RIBBON_LINKS + 14);
-        let battle_worst = 14 * per_tank_worst + ribbons;
+        let tanks = game_core::BattleFormat::LARGEST.total_seats();
+        let battle_worst = tanks * per_tank_worst + ribbons;
         assert!(
             battle_worst <= renderer_wgpu::vehicle_instance_budget(),
-            "a 14-tank battle can submit {battle_worst} vehicle instances but the renderer budget \
-             holds {}; grow VEHICLE_INSTANCE_CAPACITY before shipping this roster/gear detail",
+            "a {tanks}-tank battle can submit {battle_worst} vehicle instances but the renderer \
+             budget holds {}; grow VEHICLE_INSTANCE_CAPACITY before shipping this roster/gear \
+             detail",
             renderer_wgpu::vehicle_instance_budget(),
         );
     }
 
     #[test]
-    fn worst_case_7v7_battle_fits_the_grouped_aperture_budget() {
+    fn worst_case_battle_of_the_largest_format_fits_the_grouped_aperture_budget() {
         let per_tank = game_core::MAX_ARMOR_BREACHES
             * game_core::MAX_BREACH_FRAGMENTS_PER_GROUP
             * game_core::MAX_APERTURE_LOBES;
-        let battle_worst = 14 * per_tank;
+        let tanks = game_core::BattleFormat::LARGEST.total_seats();
+        let battle_worst = tanks * per_tank;
         assert!(
             battle_worst <= renderer_wgpu::armor_damage_aperture_budget(),
-            "grouped damage can submit {battle_worst} contours but the renderer holds only {}",
+            "grouped damage of {tanks} tanks can submit {battle_worst} contours but the renderer \
+             holds only {}",
             renderer_wgpu::armor_damage_aperture_budget(),
+        );
+    }
+
+    /// Every damaged armour frame on screen needs a header: hull, turret and mantlet of every
+    /// tank of the largest format at once is the worst case the buffer must seat.
+    #[test]
+    fn every_damaged_frame_of_the_largest_format_has_a_header() {
+        let frames = [
+            game_core::ArmorFrame::Hull,
+            game_core::ArmorFrame::Turret,
+            game_core::ArmorFrame::Mantlet,
+        ]
+        .len();
+        let battle_worst = game_core::BattleFormat::LARGEST.total_seats() * frames;
+        assert!(
+            battle_worst <= renderer_wgpu::armor_damage_header_budget(),
+            "{battle_worst} damaged frames can be on screen but the renderer seats only {} headers",
+            renderer_wgpu::armor_damage_header_budget(),
         );
     }
 

@@ -31,8 +31,8 @@ pub use team_command::{
 ///
 /// `TankSnapshot::armor_breaches` was a whole `ArmorBreachSet` re-sent for every tank in every
 /// snapshot, so a battle's wire cost grew monotonically with the shooting and never came back
-/// down. Measured on a full 7v7 at the sim's own `MAX_ARMOR_BREACHES`: 31 695 B, which is 28 of
-/// the transport's 28 fragments — and the reachable case (one shot owning both an ingress and an
+/// down. Measured on a full 7v7 at the sim's own `MAX_ARMOR_BREACHES`: 31 695 B, which was 28 of
+/// the transport's then 28 fragments — and the reachable case (one shot owning both an ingress and an
 /// egress fragment) is 87 471 B, 2.7x a message the transport can carry at all. Past the ceiling
 /// the host's send fails and that crew simply stops receiving the world.
 ///

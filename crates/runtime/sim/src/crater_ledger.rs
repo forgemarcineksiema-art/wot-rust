@@ -21,12 +21,14 @@ use terrain::{CRATER_KIND_HIGH_EXPLOSIVE, CraterRecord};
 /// the field never reads as shelled: not because craters are expensive, but because nobody ever
 /// put the three numbers on the same page.
 ///
-/// 256 puts the ground on a par with the tanks standing on it. It costs 1 280 B of a snapshot
-/// that measures 3 591 B against a 8 050 B standing ceiling (a quarter of the transport message),
-/// and the overlay query is bucketed — a sample's cost depends on the craters NEAR it, never on
-/// how many exist. It is also exactly the ceiling of the overlay's `u16` bucket index with room
-/// to spare, which the assertion below states rather than leaves to be discovered.
-pub const MAX_CRATERS: usize = 256;
+/// 384 puts the ground on a par with the tanks standing on it at the LARGEST format (thirty
+/// tanks × 24 armour scars = 720; the ground gets at least half — `docs/game-modes.md` M5, the
+/// owner's ruling that every budget sized for 14 tanks rises to 30; it was 256 for fourteen).
+/// It costs 1 920 B of a snapshot measured against a quarter of the transport message, and the
+/// overlay query is bucketed — a sample's cost depends on the craters NEAR it, never on how many
+/// exist. It sits far under the overlay's `u16` bucket index, which the assertion below states
+/// rather than leaves to be discovered.
+pub const MAX_CRATERS: usize = 384;
 
 /// The overlay files each crater under a `u16` index (`terrain::CraterField`). Raising the cap
 /// past what that can address would not fail — it would file craters under the wrong index and

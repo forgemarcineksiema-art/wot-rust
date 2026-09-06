@@ -33,7 +33,7 @@ const MAP: terrain::MapId = terrain::MapId::ProkhorovkaHill252_2;
 /// `sim::MAX_CRATERS`, named here rather than imported so this probe does not pull the whole
 /// server crate in for one integer. The rungs below walk up to it because a long battle sits on
 /// it rather than approaching it.
-const LEDGER_CAP: usize = 256;
+const LEDGER_CAP: usize = 384;
 
 pub(crate) fn run() {
     let pristine = map_forge::battlefield(MAP);

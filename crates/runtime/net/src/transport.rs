@@ -12,8 +12,14 @@ use std::net::{SocketAddr, UdpSocket};
 
 /// Practical safe payload per datagram: conservative Ethernet MTU minus IP/UDP/our header.
 pub const MAX_DATAGRAM_PAYLOAD: usize = 1_150;
-/// One message may span at most this many fragments (a hair under 32 KiB of frame bytes).
-pub const MAX_FRAGMENTS: usize = 28;
+/// One message may span at most this many fragments: 46 000 B of frame. It was 28 (a hair
+/// under 32 KiB), sized when a battle was fourteen tanks; `docs/game-modes.md` M5 (the owner,
+/// 2026-09-06: every budget sized for 14 rises to the largest format) re-bases it so a saturated
+/// thirty-tank snapshot keeps the snapshot budget's quarter of the message. The datagram header
+/// carries index and count as bytes, so the wire format is unchanged. A raised line changes
+/// what FITS, not the loss arithmetic — a lost fragment still kills its snapshot — which is why
+/// the payload diet (delta snapshots, netcode register row 9) stays M5's optimisation.
+pub const MAX_FRAGMENTS: usize = 40;
 /// Reassembly keeps at most this many in-flight messages per peer; older sequences are dropped.
 const REASSEMBLY_WINDOW: usize = 8;
 

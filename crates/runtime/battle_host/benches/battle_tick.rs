@@ -1,9 +1,12 @@
-//! The benchmark the FPS complaints were missing: one authoritative tick of a REAL 7v7 —
-//! 14 tanks on the full battlefield, 13 bot brains, spotting, shells, ramming, snapshots.
+//! The benchmark the FPS complaints were missing: one authoritative tick of a REAL battle —
+//! 14 tanks on the full battlefield, 13 bot brains, spotting, shells, ramming, snapshots — and,
+//! since `docs/game-modes.md` M5, the same window at the largest format (30 tanks, 29 brains).
 //! The old `sim` bench stepped one tank on a flat void and measured none of the hot paths.
 //! Run with `cargo bench -p server` and compare before/after any tick-path change.
 
-use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
+use battle_host::{
+    BattleFormat, BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig,
+};
 use criterion::{Criterion, criterion_group, criterion_main};
 use net::ClientInputCommand;
 use sim::TankCommand;
@@ -12,16 +15,24 @@ fn battle_tick(criterion: &mut Criterion) {
     // Two windows of the same battle. The EARLY window (300 ticks in) is the route-heavy phase:
     // 13 bots driving long legs at the river, water probes and first contacts — the costs a
     // combat-locked window underplays. The LATE window (1800 ticks) is live 14-tank combat.
-    bench_warmed_window(criterion, "random_7v7_tick_early", 300);
-    bench_warmed_window(criterion, "random_7v7_tick", 1800);
+    bench_warmed_window(criterion, "random_7v7_tick_early", BattleFormat::SevenVsSeven, 300);
+    bench_warmed_window(criterion, "random_7v7_tick", BattleFormat::SevenVsSeven, 1800);
+    // The largest format: pair-wise target choice and the per-viewer filter both grow ~4.8x
+    // in pairs; this row is the number M5 records against the tick.
+    bench_warmed_window(criterion, "random_15v15_tick", BattleFormat::FifteenVsFifteen, 1800);
 }
 
-fn bench_warmed_window(criterion: &mut Criterion, name: &str, warm_ticks: u64) {
+fn bench_warmed_window(
+    criterion: &mut Criterion,
+    name: &str,
+    format: BattleFormat,
+    warm_ticks: u64,
+) {
     criterion.bench_function(name, |bencher| {
         let config =
-            RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::T54_1951);
-        let mut warmed =
-            LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config);
+            RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::T54_1951)
+                .with_format(format);
+        let mut warmed = LocalAuthoritativeServer::new_random(ServerTickConfig::default(), config);
         let player_tank = warmed.player_tank();
         let drive = |client_tick: u64| ClientInputCommand {
             client_tick,
