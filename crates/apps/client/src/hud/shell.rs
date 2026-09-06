@@ -1,9 +1,10 @@
-//! The shell's pages as draw lists (interface program P6): the settings page — one brushed
-//! plate, a row per setting, the value under glass between its two arrows, a bar where the
-//! value sits on a range, the footer naming the keys from the table (P7). Drawn INSTEAD of
-//! the battle's instruments while it is open: a page the player opened to read, over a scrim,
-//! the battle still moving behind it. The escape menu is the way in and the way out (P8 adds
-//! the garage's).
+//! The shell's pages as draw lists (interface program P6, P8): the settings page — one
+//! brushed plate, a row per setting, the value under glass between its two arrows, a bar
+//! where the value sits on a range — and the key bindings page — one context at a time, an
+//! action per row with its keys under glass, a row that LISTENS, a shared key named on both
+//! rows; the footer of each names the keys from the table (P7). Drawn INSTEAD of the battle's
+//! instruments while open: a page the player opened to read, over a scrim, the battle still
+//! moving behind it. The escape menu is the way in and the way out.
 
 use ui_kit::draw_list::{Align, DigitMode, DrawList, Element, Payload, WidgetState};
 use ui_kit::font::Style;
@@ -13,6 +14,7 @@ use ui_kit::ui::{Anchor, Ui};
 
 use super::elements::{HudElement, ShellPart};
 use super::layout::Preset;
+use crate::app::keybinds::{Action, Context};
 use crate::app::settings::{SENSITIVITY_RANGE, SENSITIVITY_STEPS, UI_SCALE_RANGE};
 use crate::ui_strings::battle as words;
 
@@ -27,6 +29,9 @@ const FOOTER_GAP_U: f32 = 12.0;
 const FOOTER_H_U: f32 = 26.0;
 const VALUE_W_U: f32 = 220.0;
 const ARROW_W_U: f32 = 30.0;
+/// The key bindings page: the note's width and the rows on one plate (the rest scroll).
+const NOTE_W_U: f32 = 210.0;
+pub const KEY_ROWS_VISIBLE: usize = 14;
 /// The scrim under the page: the battle sat back, never hidden.
 const SCRIM: [f32; 4] = [0.02, 0.025, 0.03, 0.62];
 
@@ -214,10 +219,37 @@ pub struct SettingsScreenModel {
     pub footer: String,
 }
 
+/// One action on the key bindings page (P8).
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeyRow {
+    pub action: Action,
+    pub name: String,
+    /// The keys, labelled, `/`-joined.
+    pub keys: String,
+    /// The other action of this context sharing a key, by name.
+    pub conflict: Option<String>,
+    pub listening: bool,
+    /// Not the default.
+    pub changed: bool,
+}
+
+/// The key bindings page as the HUD draws it: one context, its actions, a window of
+/// `KEY_ROWS_VISIBLE` rows from `first_visible`; row 0 is the context row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeybindsScreenModel {
+    pub context: Context,
+    pub rows: Vec<KeyRow>,
+    pub selected: usize,
+    pub first_visible: usize,
+    pub hovered: Option<ShellPart>,
+    pub footer: String,
+}
+
 /// The shell page over the battle, if one is open.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShellModel {
     Settings(SettingsScreenModel),
+    Keybinds(KeybindsScreenModel),
 }
 
 /// The row a part belongs to.
@@ -229,12 +261,14 @@ pub fn shell_row_index(part: ShellPart) -> Option<u8> {
         | ShellPart::RowValue(i)
         | ShellPart::RowBar(i)
         | ShellPart::RowDec(i)
-        | ShellPart::RowInc(i) => Some(i),
+        | ShellPart::RowInc(i)
+        | ShellPart::RowNote(i) => Some(i),
         ShellPart::Scrim
         | ShellPart::Panel
         | ShellPart::Title
         | ShellPart::Rule
-        | ShellPart::Footer => None,
+        | ShellPart::Footer
+        | ShellPart::ScrollBar => None,
     }
 }
 
@@ -289,22 +323,25 @@ pub(crate) fn push_shell(
     );
     match model {
         ShellModel::Settings(page) => push_settings(list, ui, theme, page, z),
+        ShellModel::Keybinds(page) => push_keybinds(list, ui, theme, page, z),
     }
 }
 
-fn push_settings(
+/// The plate, the title and the rule every page shares: the rows' left edge, their width,
+/// the first row's top, and the plate itself.
+fn push_page_frame(
     list: &mut DrawList<HudElement>,
     ui: &Ui,
     theme: &Theme,
-    page: &SettingsScreenModel,
+    title_word: &str,
+    rows: usize,
     z: &mut i16,
-) {
-    let rows = page.view.rows();
+) -> (Rect, f32, Rect) {
     let panel_h = PAD_U
         + TITLE_H_U
         + 3.0
         + RULE_GAP_U
-        + rows.len() as f32 * (ROW_H_U + ROW_GAP_U)
+        + rows as f32 * (ROW_H_U + ROW_GAP_U)
         + FOOTER_GAP_U
         + FOOTER_H_U
         + PAD_U;
@@ -327,7 +364,7 @@ fn push_settings(
         ShellPart::Title,
         title,
         shell_text(
-            words::SETTINGS_TITLE,
+            title_word,
             Style::BANNER,
             28.0,
             Align::Left,
@@ -347,85 +384,332 @@ fn push_settings(
         Payload::Bar { frac: 0.0, fill: dim, back: dim },
         WidgetState::Idle,
     );
+    (title, rule.bottom() + ui.px(RULE_GAP_U), panel)
+}
+
+fn push_footer(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    panel: Rect,
+    title: Rect,
+    footer: &str,
+    z: &mut i16,
+) {
+    let pad = ui.px(PAD_U);
+    let rect =
+        Rect::new(title.x, panel.bottom() - pad - ui.px(FOOTER_H_U), title.w, ui.px(FOOTER_H_U));
+    shell_put(
+        list,
+        z,
+        ShellPart::Footer,
+        rect,
+        shell_text(footer, Style::LABEL, 16.0, Align::Center, theme.lamp, DigitMode::Proportional),
+        WidgetState::Idle,
+    );
+}
+
+/// A row's plate and label; the row's rectangle comes back for the value cell.
+#[allow(clippy::too_many_arguments)]
+fn push_row_plate(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    index: u8,
+    rect: Rect,
+    state: WidgetState,
+    label: &str,
+    ink: [f32; 4],
+    z: &mut i16,
+) {
     let painted = theme.plates.steel_painted;
+    shell_put(
+        list,
+        z,
+        ShellPart::RowPlate(index),
+        rect,
+        Payload::Plate { tile: painted.tile, radius_u: 2.0, bevel_u: 1.0, color: painted.color },
+        state,
+    );
+    shell_put(
+        list,
+        z,
+        ShellPart::RowLabel(index),
+        rect.inset(ui.px(8.0)),
+        shell_text(label, Style::LABEL, 18.0, Align::Left, ink, DigitMode::Proportional),
+        WidgetState::Idle,
+    );
+}
+
+/// A value cell under glass at the row's right, `right_inset_u` in from the edge.
+#[allow(clippy::too_many_arguments)]
+fn push_value_cell(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    index: u8,
+    rect: Rect,
+    right_inset_u: f32,
+    value: &str,
+    ink: [f32; 4],
+    z: &mut i16,
+) -> Rect {
     let glass = theme.plates.glass;
-    let row_top = rule.bottom() + ui.px(RULE_GAP_U);
+    let cell = Rect::new(
+        rect.right() - ui.px(right_inset_u + VALUE_W_U),
+        rect.y + ui.px(3.0),
+        ui.px(VALUE_W_U),
+        rect.h - ui.px(6.0),
+    );
+    shell_put(
+        list,
+        z,
+        ShellPart::RowGlass(index),
+        cell,
+        Payload::Glass { radius_u: 1.0, phase: 0.3, color: glass.color },
+        WidgetState::Idle,
+    );
+    shell_put(
+        list,
+        z,
+        ShellPart::RowValue(index),
+        cell,
+        shell_text(value, Style::VALUE, 18.0, Align::Center, ink, DigitMode::Tabular),
+        WidgetState::Idle,
+    );
+    cell
+}
+
+/// The arrows either side of a value cell.
+#[allow(clippy::too_many_arguments)]
+fn push_arrows(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    index: u8,
+    cell: Rect,
+    row: Rect,
+    hovered: Option<ShellPart>,
+    stuck: (bool, bool),
+    z: &mut i16,
+) {
+    let arrow_state = |part: ShellPart, stuck: bool| {
+        if stuck {
+            WidgetState::Disabled
+        } else if hovered == Some(part) {
+            WidgetState::Hover
+        } else {
+            WidgetState::Idle
+        }
+    };
+    let dec = Rect::new(cell.x - ui.px(ARROW_W_U), row.y, ui.px(ARROW_W_U), row.h);
+    let inc = Rect::new(cell.right(), row.y, ui.px(ARROW_W_U), row.h);
+    shell_put(
+        list,
+        z,
+        ShellPart::RowDec(index),
+        dec,
+        shell_text(
+            words::ARROW_DEC,
+            Style::LABEL,
+            18.0,
+            Align::Center,
+            theme.text.label,
+            DigitMode::Proportional,
+        ),
+        arrow_state(ShellPart::RowDec(index), stuck.0),
+    );
+    shell_put(
+        list,
+        z,
+        ShellPart::RowInc(index),
+        inc,
+        shell_text(
+            words::ARROW_INC,
+            Style::LABEL,
+            18.0,
+            Align::Center,
+            theme.text.label,
+            DigitMode::Proportional,
+        ),
+        arrow_state(ShellPart::RowInc(index), stuck.1),
+    );
+}
+
+fn row_state(selected: bool, hovered: bool) -> WidgetState {
+    if selected {
+        WidgetState::Focused
+    } else if hovered {
+        WidgetState::Hover
+    } else {
+        WidgetState::Idle
+    }
+}
+
+fn push_keybinds(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &KeybindsScreenModel,
+    z: &mut i16,
+) {
+    let (title, row_top, panel) =
+        push_page_frame(list, ui, theme, words::KEYBINDS_TITLE, 1 + KEY_ROWS_VISIBLE, z);
+    let row_rect = |visible: usize| {
+        Rect::new(
+            title.x,
+            row_top + visible as f32 * ui.px(ROW_H_U + ROW_GAP_U),
+            title.w,
+            ui.px(ROW_H_U),
+        )
+    };
+    let hovered_row = page.hovered.and_then(shell_row_index);
+    // Row 0: the context, stepped by its arrows.
+    let context_rect = row_rect(0);
+    let selected = page.selected == 0;
+    push_row_plate(
+        list,
+        ui,
+        theme,
+        0,
+        context_rect,
+        row_state(selected, hovered_row == Some(0)),
+        words::SET_CONTEXT,
+        if selected { theme.lamp } else { theme.text.label },
+        z,
+    );
+    let cell = push_value_cell(
+        list,
+        ui,
+        theme,
+        0,
+        context_rect,
+        6.0 + ARROW_W_U,
+        page.context.word(),
+        theme.text.value,
+        z,
+    );
+    push_arrows(list, ui, theme, 0, cell, context_rect, page.hovered, (false, false), z);
+    // The actions: a window of rows.
+    for (visible, row) in
+        page.rows.iter().skip(page.first_visible).take(KEY_ROWS_VISIBLE).enumerate()
+    {
+        let index = (visible + 1) as u8;
+        let rect = row_rect(visible + 1);
+        let selected = page.selected == page.first_visible + visible + 1;
+        let ink = if selected {
+            theme.lamp
+        } else if row.changed {
+            theme.text.value
+        } else {
+            theme.text.label
+        };
+        push_row_plate(
+            list,
+            ui,
+            theme,
+            index,
+            rect,
+            row_state(selected || row.listening, hovered_row == Some(index)),
+            &row.name,
+            ink,
+            z,
+        );
+        let (value, value_ink) = if row.listening {
+            (words::LISTENING, theme.lamp)
+        } else {
+            (row.keys.as_str(), theme.text.value)
+        };
+        push_value_cell(list, ui, theme, index, rect, 6.0 + NOTE_W_U, value, value_ink, z);
+        if let Some(other) = &row.conflict {
+            let note =
+                Rect::new(rect.right() - ui.px(NOTE_W_U), rect.y, ui.px(NOTE_W_U - 8.0), rect.h);
+            shell_put(
+                list,
+                z,
+                ShellPart::RowNote(index),
+                note,
+                shell_text(
+                    &format!("{} {other}", words::SHARED_WITH),
+                    Style::LABEL,
+                    16.0,
+                    Align::Right,
+                    theme.lamp,
+                    DigitMode::Proportional,
+                ),
+                WidgetState::Idle,
+            );
+        }
+    }
+    // The thumb: where the window sits on the whole list.
+    if page.rows.len() > KEY_ROWS_VISIBLE {
+        let track_top = row_rect(1).y;
+        let track_h = row_rect(KEY_ROWS_VISIBLE).bottom() - track_top;
+        let total = page.rows.len() as f32;
+        let thumb_h = track_h * KEY_ROWS_VISIBLE as f32 / total;
+        let thumb_y = track_top + track_h * page.first_visible as f32 / total;
+        let thumb =
+            Rect::new(panel.right() - ui.px(PAD_U * 0.5 + 2.0), thumb_y, ui.px(4.0), thumb_h);
+        shell_put(
+            list,
+            z,
+            ShellPart::ScrollBar,
+            thumb,
+            Payload::Bar { frac: 0.0, fill: theme.lamp, back: theme.lamp },
+            WidgetState::Idle,
+        );
+    }
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
+}
+
+fn push_settings(
+    list: &mut DrawList<HudElement>,
+    ui: &Ui,
+    theme: &Theme,
+    page: &SettingsScreenModel,
+    z: &mut i16,
+) {
+    let rows = page.view.rows();
+    let (title, row_top, panel) =
+        push_page_frame(list, ui, theme, words::SETTINGS_TITLE, rows.len(), z);
+    let dim = theme.text.label_dim;
     let hovered_row = page.hovered.and_then(shell_row_index);
     for (i, row) in rows.iter().enumerate() {
         let index = i as u8;
         let rect = Rect::new(
             title.x,
             row_top + i as f32 * ui.px(ROW_H_U + ROW_GAP_U),
-            inner_w,
+            title.w,
             ui.px(ROW_H_U),
         );
         let selected = i == page.selected;
-        let state = if selected {
-            WidgetState::Focused
-        } else if hovered_row == Some(index) {
-            WidgetState::Hover
-        } else {
-            WidgetState::Idle
-        };
-        shell_put(
+        push_row_plate(
             list,
-            z,
-            ShellPart::RowPlate(index),
+            ui,
+            theme,
+            index,
             rect,
-            Payload::Plate {
-                tile: painted.tile,
-                radius_u: 2.0,
-                bevel_u: 1.0,
-                color: painted.color,
-            },
-            state,
-        );
-        let ink = if selected { theme.lamp } else { theme.text.label };
-        shell_put(
-            list,
+            row_state(selected, hovered_row == Some(index)),
+            &row.label,
+            if selected { theme.lamp } else { theme.text.label },
             z,
-            ShellPart::RowLabel(index),
-            rect.inset(ui.px(8.0)),
-            shell_text(&row.label, Style::LABEL, 18.0, Align::Left, ink, DigitMode::Proportional),
-            WidgetState::Idle,
         );
-        let inc =
-            Rect::new(rect.right() - ui.px(6.0 + ARROW_W_U), rect.y, ui.px(ARROW_W_U), rect.h);
-        let value = Rect::new(
-            inc.x - ui.px(VALUE_W_U),
-            rect.y + ui.px(3.0),
-            ui.px(VALUE_W_U),
-            rect.h - ui.px(6.0),
-        );
-        let dec = Rect::new(value.x - ui.px(ARROW_W_U), rect.y, ui.px(ARROW_W_U), rect.h);
-        shell_put(
+        let cell = push_value_cell(
             list,
+            ui,
+            theme,
+            index,
+            rect,
+            6.0 + ARROW_W_U,
+            &row.value,
+            theme.text.value,
             z,
-            ShellPart::RowGlass(index),
-            value,
-            Payload::Glass { radius_u: 1.0, phase: 0.3, color: glass.color },
-            WidgetState::Idle,
-        );
-        shell_put(
-            list,
-            z,
-            ShellPart::RowValue(index),
-            value,
-            shell_text(
-                &row.value,
-                Style::VALUE,
-                18.0,
-                Align::Center,
-                theme.text.value,
-                DigitMode::Tabular,
-            ),
-            WidgetState::Idle,
         );
         if let Some(frac) = row.frac {
             let bar = Rect::new(
-                value.x + ui.px(12.0),
-                value.bottom() - ui.px(5.0),
-                value.w - ui.px(24.0),
+                cell.x + ui.px(12.0),
+                cell.bottom() - ui.px(5.0),
+                cell.w - ui.px(24.0),
                 ui.px(3.0),
             );
             shell_put(
@@ -437,63 +721,9 @@ fn push_settings(
                 WidgetState::Idle,
             );
         }
-        let arrow_state = |part: ShellPart, stuck: bool| {
-            if stuck {
-                WidgetState::Disabled
-            } else if page.hovered == Some(part) {
-                WidgetState::Hover
-            } else {
-                WidgetState::Idle
-            }
-        };
-        shell_put(
-            list,
-            z,
-            ShellPart::RowDec(index),
-            dec,
-            shell_text(
-                words::ARROW_DEC,
-                Style::LABEL,
-                18.0,
-                Align::Center,
-                theme.text.label,
-                DigitMode::Proportional,
-            ),
-            arrow_state(ShellPart::RowDec(index), row.at_min),
-        );
-        shell_put(
-            list,
-            z,
-            ShellPart::RowInc(index),
-            inc,
-            shell_text(
-                words::ARROW_INC,
-                Style::LABEL,
-                18.0,
-                Align::Center,
-                theme.text.label,
-                DigitMode::Proportional,
-            ),
-            arrow_state(ShellPart::RowInc(index), row.at_max),
-        );
+        push_arrows(list, ui, theme, index, cell, rect, page.hovered, (row.at_min, row.at_max), z);
     }
-    let footer =
-        Rect::new(title.x, panel.bottom() - pad - ui.px(FOOTER_H_U), inner_w, ui.px(FOOTER_H_U));
-    shell_put(
-        list,
-        z,
-        ShellPart::Footer,
-        footer,
-        shell_text(
-            &page.footer,
-            Style::LABEL,
-            16.0,
-            Align::Center,
-            theme.lamp,
-            DigitMode::Proportional,
-        ),
-        WidgetState::Idle,
-    );
+    push_footer(list, ui, theme, panel, title, &page.footer, z);
 }
 
 /// The page as the golden stages it: the defaults, the volume row selected, its arrow under
@@ -515,6 +745,27 @@ pub(crate) fn demo_settings_screen() -> ShellModel {
         hovered: Some(ShellPart::RowInc(1)),
         footer: crate::app::shell::shell_footer(&crate::app::keybinds::KeyBindings::default()),
     })
+}
+
+/// The key bindings page as the golden stages it: the battle's keys, FIRE bound to W and so
+/// shared with FORWARD — both rows say so — FIRE selected.
+pub(crate) fn demo_keybinds_screen() -> ShellModel {
+    use winit::keyboard::KeyCode;
+    let mut keys = crate::app::keybinds::KeyBindings::default();
+    keys.bind(Action::Fire, KeyCode::KeyW);
+    let fire = Action::ALL
+        .into_iter()
+        .filter(|action| action.context() == Context::Battle)
+        .position(|action| action == Action::Fire)
+        .expect("FIRE is the battle's");
+    ShellModel::Keybinds(crate::app::shell::keybinds_page_model(
+        &keys,
+        Context::Battle,
+        fire + 1,
+        0,
+        None,
+        None,
+    ))
 }
 
 #[cfg(test)]
@@ -563,7 +814,7 @@ mod tests {
         assert!(list.find(HudElement::Shell(ShellPart::RowBar(1))).is_some(), "a range has a bar");
         assert!(list.find(HudElement::Shell(ShellPart::RowBar(0))).is_none(), "a word has none");
         // The end of a range disables the arrow that has nowhere to go.
-        let ShellModel::Settings(mut page) = demo_settings_screen();
+        let ShellModel::Settings(mut page) = demo_settings_screen() else { panic!("settings") };
         page.view.master_gain = 1.0;
         page.view.sensitivity[0] = SENSITIVITY_RANGE[0];
         model.shell = Some(ShellModel::Settings(page));
@@ -574,5 +825,59 @@ mod tests {
         // Every sensitivity row reads its own step, once.
         let steps: Vec<usize> = SettingsRow::ALL.iter().filter_map(|row| row.zoom_step()).collect();
         assert_eq!(steps, (0..SENSITIVITY_STEPS).collect::<Vec<_>>());
+    }
+
+    /// P8: the key bindings page prints the context row and a window of the context's
+    /// actions with their keys, names a shared key on both rows, lights the selected row,
+    /// shows a thumb when the list is longer than the plate, and a listening row says so.
+    #[test]
+    fn the_keybinds_page_prints_a_context_and_names_a_shared_key_on_both_rows() {
+        let ui = Ui::reference();
+        let mut model = demo::demo_model(false);
+        model.shell = Some(demo_keybinds_screen());
+        let list = build_battle_hud_list(&model, &ui);
+        let text_of = |list: &DrawList<HudElement>, part: ShellPart| match &list
+            .find(HudElement::Shell(part))
+            .expect("part")
+            .payload
+        {
+            Payload::Text { text, .. } => text.clone(),
+            other => panic!("{part:?} is not text: {other:?}"),
+        };
+        assert_eq!(text_of(&list, ShellPart::RowLabel(0)), words::SET_CONTEXT);
+        assert_eq!(text_of(&list, ShellPart::RowValue(0)), words::CONTEXT_BATTLE);
+        assert_eq!(text_of(&list, ShellPart::RowLabel(1)), "FORWARD");
+        assert_eq!(text_of(&list, ShellPart::RowValue(1)), "W / UP");
+        assert_eq!(text_of(&list, ShellPart::RowNote(1)), format!("{} FIRE", words::SHARED_WITH));
+        let fire = (1..=KEY_ROWS_VISIBLE as u8)
+            .find(|i| text_of(&list, ShellPart::RowLabel(*i)) == "FIRE")
+            .expect("FIRE on the plate");
+        assert_eq!(text_of(&list, ShellPart::RowValue(fire)), "W");
+        assert_eq!(
+            text_of(&list, ShellPart::RowNote(fire)),
+            format!("{} FORWARD", words::SHARED_WITH)
+        );
+        assert_eq!(
+            list.find(HudElement::Shell(ShellPart::RowPlate(fire))).expect("plate").state,
+            WidgetState::Focused
+        );
+        assert!(
+            list.find(HudElement::Shell(ShellPart::RowNote(2))).is_none(),
+            "BACK shares nothing"
+        );
+        assert!(
+            list.find(HudElement::Shell(ShellPart::ScrollBar)).is_some(),
+            "the battle's list scrolls"
+        );
+        assert!(
+            list.find(HudElement::Shell(ShellPart::RowLabel(KEY_ROWS_VISIBLE as u8 + 1))).is_none(),
+            "no row past the window"
+        );
+        // A listening row says so, in the lamp.
+        let ShellModel::Keybinds(mut page) = demo_keybinds_screen() else { panic!("keybinds") };
+        page.rows[0].listening = true;
+        model.shell = Some(ShellModel::Keybinds(page));
+        let list = build_battle_hud_list(&model, &ui);
+        assert_eq!(text_of(&list, ShellPart::RowValue(1)), words::LISTENING);
     }
 }

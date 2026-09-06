@@ -16,19 +16,20 @@ use super::{font, push_panel, push_quad, theme};
 /// Full-screen wash that pushes the battle back so the modal reads as modal.
 const SCRIM_COLOR: [f32; 4] = [0.02, 0.025, 0.03, 0.55];
 const PANEL_CENTER: [f32; 2] = [0.0, 0.0];
-const PANEL_HALF: [f32; 2] = [0.30, 0.285];
+const PANEL_HALF: [f32; 2] = [0.30, 0.32];
 const TITLE_HEIGHT: f32 = 0.045;
-const TITLE_TOP_Y: f32 = 0.233;
+const TITLE_TOP_Y: f32 = 0.262;
 /// Rule under the title, in the garage's panel idiom.
-const RULE_Y: f32 = 0.163;
+const RULE_Y: f32 = 0.247;
 const RULE_HALF_X: f32 = 0.255;
 
 pub(crate) const BUTTON_HALF: [f32; 2] = [0.235, 0.042];
 /// The way into the HUD editor (H21), over the two answers.
-pub(crate) const SETTINGS_CENTER: [f32; 2] = [0.0, 0.103];
+pub(crate) const SETTINGS_CENTER: [f32; 2] = [0.0, 0.19];
+pub(crate) const KEYBINDS_CENTER: [f32; 2] = [0.0, 0.095];
 pub(crate) const EDITOR_CENTER: [f32; 2] = [0.0, 0.0];
-pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.103];
-pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.206];
+pub(crate) const EXIT_CENTER: [f32; 2] = [0.0, -0.095];
+pub(crate) const STAY_CENTER: [f32; 2] = [0.0, -0.19];
 const BUTTON_LABEL_HEIGHT: f32 = 0.036;
 
 /// Which button the cursor is over. The menu is only ever two choices, so an enum beats an index.
@@ -42,6 +43,8 @@ pub enum PauseMenuButton {
     HudEditor,
     /// Open the settings page over the battle (P6).
     Settings,
+    /// Open the key bindings page over the battle (P8).
+    Keybinds,
 }
 
 /// What the battle HUD needs to draw the menu. `None` on [`super::BattleHudModel`] means the
@@ -57,6 +60,9 @@ pub struct PauseMenuModel {
 pub(crate) fn button_at(point: [f32; 2]) -> Option<PauseMenuButton> {
     if in_rect(point, SETTINGS_CENTER, BUTTON_HALF) {
         return Some(PauseMenuButton::Settings);
+    }
+    if in_rect(point, KEYBINDS_CENTER, BUTTON_HALF) {
+        return Some(PauseMenuButton::Keybinds);
     }
     if in_rect(point, EDITOR_CENTER, BUTTON_HALF) {
         return Some(PauseMenuButton::HudEditor);
@@ -110,6 +116,14 @@ pub(crate) fn push_pause_menu(vertices: &mut Vec<HudVertex>, model: &PauseMenuMo
         theme::color::SLOT,
         crate::ui_strings::battle::PAUSE_SETTINGS,
         model.hovered == Some(PauseMenuButton::Settings),
+        aspect,
+    );
+    push_button(
+        vertices,
+        KEYBINDS_CENTER,
+        theme::color::SLOT,
+        crate::ui_strings::battle::PAUSE_KEYBINDS,
+        model.hovered == Some(PauseMenuButton::Keybinds),
         aspect,
     );
     push_button(
@@ -171,6 +185,7 @@ mod tests {
     #[test]
     fn the_hit_test_answers_the_rects_the_menu_draws() {
         assert_eq!(button_at(SETTINGS_CENTER), Some(PauseMenuButton::Settings));
+        assert_eq!(button_at(KEYBINDS_CENTER), Some(PauseMenuButton::Keybinds));
         assert_eq!(button_at(EDITOR_CENTER), Some(PauseMenuButton::HudEditor));
         assert_eq!(button_at(EXIT_CENTER), Some(PauseMenuButton::ExitToGarage));
         assert_eq!(button_at(STAY_CENTER), Some(PauseMenuButton::Stay));
@@ -184,7 +199,7 @@ mod tests {
     /// it lost, and the player would blame the click, not the layout.
     #[test]
     fn the_buttons_do_not_overlap() {
-        let centres = [SETTINGS_CENTER, EDITOR_CENTER, EXIT_CENTER, STAY_CENTER];
+        let centres = [SETTINGS_CENTER, KEYBINDS_CENTER, EDITOR_CENTER, EXIT_CENTER, STAY_CENTER];
         for pair in centres.windows(2) {
             let gap = (pair[0][1] - pair[1][1]).abs();
             assert!(

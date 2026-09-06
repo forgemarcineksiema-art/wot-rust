@@ -118,6 +118,10 @@ pub enum ShellPart {
     RowDec(u8),
     RowInc(u8),
     Footer,
+    /// A note beside a row (P8): the action a key is shared with.
+    RowNote(u8),
+    /// The scroll thumb of a page longer than its plate (P8).
+    ScrollBar,
 }
 
 /// The parts of the spectate strip.
