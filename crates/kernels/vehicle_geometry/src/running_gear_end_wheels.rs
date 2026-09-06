@@ -228,11 +228,25 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments_for(16);
     let r = kin.sprocket_radius();
     let half_w = kin.wheel_half_width;
-    let tooth_half = 0.028;
-    let ring_x = (kin.band_half_width - tooth_half).max(0.02);
     let wrap_r = crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
+    // PIN ENGAGEMENT (K9, 2026-09-06) for the OMSh wearers. The shoe is a frame with a window
+    // beside its horn; the tooth passes THROUGH that window to the dossier's tip — the pitch
+    // circle + 55 mm (⌀682 over the tips on the T-54) — and bears on the hinge-eye barrel
+    // beside it. So the tooth is a slender pin-engagement tooth centred where the barrels end
+    // (30 mm inboard of the belt edge), rooted in the dossier's ring: an annulus 120 mm DEEP
+    // (ID 442) bolted to the disc's flange, its bolts proud of it. Everyone else keeps the
+    // capped tooth under the shoe plate — a plate shoe has no window to pass through.
+    let pin_engagement = kin.shoe == game_core::ShoePattern::Omsh;
+    let tooth_half = if pin_engagement { 0.020 } else { 0.028 };
+    let ring_x = if pin_engagement {
+        kin.band_half_width - 0.030 - tooth_half
+    } else {
+        (kin.band_half_width - tooth_half).max(0.02)
+    };
     // Out to the hinge-eye barrel and no further: engagement, without cutting the shoe plate.
-    let tooth_outer_r = wrap_r - kin.hinge_eye_offset() * 0.90;
+    let tooth_outer_r =
+        if pin_engagement { wrap_r + 0.055 } else { wrap_r - kin.hinge_eye_offset() * 0.90 };
+    let tooth_phase = sprocket_tooth_phase(kin);
     let pitch = (kin.belt_length() / kin.link_count().max(1) as f32).max(0.05);
     // The count is not a style choice: a tooth must meet a link, so it is the number of link
     // pitches around the wrap circle. (On the T-54 that resolves to 14 rather than the
@@ -270,23 +284,44 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
             }
         }
         hub
+    } else if pin_engagement {
+        // The disc's flange reaches under the ring's bolt circle, its face meeting the ring's
+        // inner face — a ring is bolted to a flange, not hung beside one.
+        MeshBuilder::new()
+            .append(&wheel_disc_at(
+                0.0,
+                wrap_r - 0.036,
+                ring_x - 0.012,
+                seg,
+                MaterialRole::TrackMetal,
+            ))
+            .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal))
     } else {
         MeshBuilder::new()
             .append(&wheel_disc_at(0.0, r * 0.70, ring_x, seg, MaterialRole::TrackMetal))
             .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal))
     };
+    let (ring_in, ring_out, ring_half) = if pin_engagement {
+        (wrap_r - 0.065, wrap_r - 0.026, 0.012)
+    } else {
+        (r * 0.68, r * 0.84, 0.022)
+    };
+    let (root_half, tip_half) = if pin_engagement { (0.020, 0.010) } else { (0.048, 0.022) };
+    let tooth_root_r = if pin_engagement { ring_out } else { r * 0.72 };
     for side in [-1.0_f32, 1.0] {
         let center_x = side * ring_x;
         // The carrier ring: an annulus the teeth root into, not a coin.
-        builder = builder.append(&steel_rim(center_x, r * 0.68, r * 0.84, 0.022, seg));
+        builder = builder.append(&steel_rim(center_x, ring_in, ring_out, ring_half, seg));
         for i in 0..teeth {
-            let angle = (i as f32 / teeth as f32) * std::f32::consts::TAU;
+            let angle = tooth_phase + (i as f32 / teeth as f32) * std::f32::consts::TAU;
             builder = builder.append(&sprocket_tooth(
                 center_x,
                 angle,
-                r * 0.72,
+                tooth_root_r,
                 tooth_outer_r,
                 tooth_half,
+                root_half,
+                tip_half,
             ));
         }
         // The bolt circle that holds the removable ring on: TWENTY per ring, because the
@@ -300,17 +335,60 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         // inner edge (0.68) and outboard of the disc that ended at 0.62: a bolt circle fixing
         // nothing, in mid-air, which is the "dominant visual feature of the disc" the dossier
         // describes.
+        // On a pin-engagement ring the bolt circle sits on the annulus, between two teeth,
+        // and the head stands PROUD of the ring's outer face — a fastener shows a face outside
+        // what it fastens (K9's rule), where before all forty sat inside the ring's metal.
+        let (bolt_r, bolt_x) = if pin_engagement {
+            (wrap_r - 0.046, center_x + side * (ring_half + 0.002))
+        } else {
+            (r * 0.76, center_x + side * 0.008)
+        };
         for i in 0..(if kin.detail == crate::GearDetail::Near { RING_BOLTS } else { 0 }) {
-            let angle = (i as f32 / RING_BOLTS as f32) * std::f32::consts::TAU;
+            let angle = tooth_phase
+                + ((i as f32 + 0.5) / RING_BOLTS as f32)
+                    * std::f32::consts::TAU
+                    * if pin_engagement { 1.0 } else { 0.0 }
+                + (i as f32 / RING_BOLTS as f32)
+                    * std::f32::consts::TAU
+                    * if pin_engagement { 0.0 } else { 1.0 };
             let (sin, cos) = angle.sin_cos();
-            builder = builder.append(&ring_bolt(Vec3::new(
-                center_x + side * 0.008,
-                sin * r * 0.76,
-                cos * r * 0.76,
-            )));
+            builder = builder.append(&ring_bolt(Vec3::new(bolt_x, sin * bolt_r, cos * bolt_r)));
         }
     }
     builder.build()
+}
+
+/// Where tooth 0 stands so that the teeth meet the shoes' windows: the angle (about the
+/// sprocket's axle, in the unit mesh's frame — `atan2(z, y)`, the same frame `sprocket_tooth`
+/// draws in) of the link centred nearest the wrap's outermost point at phase 0, reduced to one
+/// tooth pitch. Links advance along the belt by the phase and the sprocket turns by phase over
+/// the wrap radius, so the relation is fixed once; the LEFT sprocket is the same mesh turned
+/// through Y, which mirrors the angle, and its placement adds twice this phase to undo it.
+/// A plate shoe has no window to meet: everyone but the OMSh wearers returns 0 (byte-exact).
+pub fn sprocket_tooth_phase(kin: &RunningGearKinematics) -> f32 {
+    if kin.shoe != game_core::ShoePattern::Omsh {
+        return 0.0;
+    }
+    let path = crate::running_gear_belt::BeltPath::new(kin);
+    let (length, count) = (path.length(), kin.link_count().max(1));
+    let wrap_r = crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
+    let pitch = (kin.belt_length() / count as f32).max(0.05);
+    let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0);
+    let tooth_pitch = std::f32::consts::TAU / teeth;
+    let (cz, cy) = (if kin.drive_front { kin.end_front_cz } else { -kin.end_cz }, kin.end_cy);
+    // The wrap's outermost point: astern of a rear sprocket, ahead of a front one.
+    let far = if kin.drive_front { cz + wrap_r } else { cz - wrap_r };
+    let mut best: Option<(f32, f32)> = None;
+    for i in 0..count {
+        let sample = path.sample((i as f32 / count as f32) * length);
+        let (dy, dz) = (sample.y - cy, sample.z - cz);
+        let on_wrap = (dy.hypot(dz) - wrap_r).abs() < 0.02;
+        let d = (sample.z - far).abs();
+        if on_wrap && best.is_none_or(|(bd, _)| d < bd) {
+            best = Some((d, dz.atan2(dy)));
+        }
+    }
+    best.map(|(_, a)| a.rem_euclid(tooth_pitch)).unwrap_or(0.0)
 }
 
 /// Bolts per toothed ring. The T-54's drive wheel carries 40 bolts and 40 nuts across its two
@@ -340,21 +418,25 @@ fn ring_bolt(center: Vec3) -> GeometryMesh {
         .build()
 }
 
+/// One tooth: a trapezoid from the ring's outer edge (`inner_r`, `root_half` wide either side)
+/// to the tip (`outer_r`, `tip_half`), `half_width` deep along the axle.
 fn sprocket_tooth(
     center_x: f32,
     angle: f32,
     inner_r: f32,
     outer_r: f32,
     half_width: f32,
+    root_half: f32,
+    tip_half: f32,
 ) -> GeometryMesh {
     let (sin, cos) = angle.sin_cos();
     let radial = Vec2::new(sin, cos);
     let tangent = Vec2::new(cos, -sin);
     let section = vec![
-        radial * inner_r - tangent * 0.048,
-        radial * inner_r + tangent * 0.048,
-        radial * outer_r + tangent * 0.022,
-        radial * outer_r - tangent * 0.022,
+        radial * inner_r - tangent * root_half,
+        radial * inner_r + tangent * root_half,
+        radial * outer_r + tangent * tip_half,
+        radial * outer_r - tangent * tip_half,
     ];
     MeshBuilder::new()
         .extrude(

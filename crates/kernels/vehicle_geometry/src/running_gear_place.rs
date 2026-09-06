@@ -216,7 +216,15 @@ fn place_side(
     } else {
         (-kin.end_cz, front_sign * kin.end_front_cz)
     };
-    let sprocket_spin = phase / crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius());
+    // The left sprocket is the unit mesh turned through Y, which mirrors the tooth angle; adding
+    // twice the tooth phase to its spin puts its teeth back on the links (`sprocket_tooth_phase`).
+    let left_phase = if side_sign < 0.0 {
+        2.0 * crate::running_gear_end_wheels::sprocket_tooth_phase(kin)
+    } else {
+        0.0
+    };
+    let sprocket_spin =
+        phase / crate::running_gear_belt::wrap_radius_of(kin.sprocket_radius()) + left_phase;
     let idler_spin = phase / crate::running_gear_belt::wrap_radius_of(kin.idler_radius());
     for (part, z, spin) in
         [(GearPart::Sprocket, sprocket_z, sprocket_spin), (GearPart::Idler, idler_z, idler_spin)]
