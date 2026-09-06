@@ -23,16 +23,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let center_x = 340.0_f32;
     let center_z = 300.0_f32;
     let spacing = 10.0_f32;
-    let palette = [
-        [0.34, 0.42, 0.30],
-        [0.30, 0.38, 0.46],
-        [0.46, 0.40, 0.26],
-        [0.44, 0.30, 0.28],
-        [0.32, 0.36, 0.40],
-        [0.40, 0.34, 0.44],
-        [0.28, 0.44, 0.40],
-        [0.42, 0.44, 0.28],
-    ];
+    // Each vehicle in its nation's paint (K24): the line-up is the fleet's contact sheet, the
+    // same coats the garage and the battle show — not a private pastel per slot.
 
     let mut catalog = VehicleMeshCatalog::default();
     let mut render_objects = Vec::new();
@@ -73,7 +65,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
         };
-        render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, palette[index]));
+        render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, kind.paint()));
     }
 
     let base = battlefield.heightmap.sample_height(center_x, center_z).unwrap_or(0.0);

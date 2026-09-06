@@ -41,14 +41,17 @@ const TURNTABLE_RADIUS_M: f32 = 5.2;
 
 // Workshop palette: warm cast concrete, lime-washed lower walls, painted gunmetal above. The
 // upper band and roof fall into SHADOW, not void — a step darker, never near-black.
-const CONCRETE: [f32; 3] = [0.30, 0.29, 0.28];
+// Darkened 2026-09-07 (K24-1, art-direction D33 decided): with the hero in its nation's coat
+// instead of the pale showroom tint, the hall's floor and walls must fall back so the tank still
+// leads its frame (`HERO_OVER_ROOM` 1.5×) — poured concrete, not a lit studio cyc.
+const CONCRETE: [f32; 3] = [0.18, 0.175, 0.165];
 /// C2: the lower wall bands are WHITEWASHED — lime over the sheet, the working hall's oldest
 /// coat, and it reads as OLD lime: years of shop dust in it, not a fresh remont. The first
 /// candidate ([0.54, 0.535, 0.51]) measured the hero at 1.68x over the room against the 2.0x
 /// floor — the fresh white competed with the subject, and the lock held; this tone puts the
 /// room median back under the hero's shoulder. The reflection lock reads this as "what a
 /// vertical surface sees across the bay".
-const WHITEWASH_WALL: [f32; 3] = [0.38, 0.375, 0.355];
+const WHITEWASH_WALL: [f32; 3] = [0.25, 0.245, 0.23];
 /// C2 palette: rust on worn machined steel — drain grates, handled link plates. A warm dead
 /// tone, deliberately short of the extinguishers' saturated red (their lock stands).
 const RUST: [f32; 3] = [0.295, 0.195, 0.14];
@@ -79,7 +82,7 @@ const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
 // openings with glass and the day behind them — T4 scope; until then the wall over the gate
 // is honestly a wall, and daylight enters through the skylights only.
 // Floor dressing: expansion joints, the worn drive lane in from the gate, and its track wear.
-const FLOOR_JOINT: [f32; 3] = [0.235, 0.23, 0.225];
+const FLOOR_JOINT: [f32; 3] = [0.17, 0.165, 0.16];
 const DRIVE_LANE: [f32; 3] = [0.272, 0.265, 0.256];
 const TRACK_WEAR: [f32; 3] = [0.24, 0.234, 0.226];
 // Turntable dressing: the pit rim it sits in, its radial plate seams, the centre hub.

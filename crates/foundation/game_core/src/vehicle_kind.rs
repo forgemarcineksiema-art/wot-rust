@@ -36,6 +36,32 @@ impl Nation {
             Nation::Britain => [0.52, 0.46, 0.34],
         }
     }
+
+    /// THE PAINT (K24, 2026-09-07): the base coat every vehicle of this nation wears, in the
+    /// garage, in battle and in the review views. `docs/vehicle-presentation-bible.md` is the
+    /// authority on the values; this is where the code reads them.
+    ///
+    /// Tint space, not surface albedo: the vehicle shader multiplies it into the armour's grey
+    /// albedo (~0.44), so a 0.40 here is ~0.18 on the plate. Two floors on every value: luma
+    /// ≥ 0.36 (the shader reads a tint under ~0.30 luma as a burnt wreck, and full dirt drags a
+    /// paint 60 % toward mud at 0.29), and the three coats distinct from each other at a glance
+    /// — the art policy's „czołg na 400 m musi być do zobaczenia".
+    ///
+    /// Until K24 every hull carried a TEAM tint (green for us, red-brown for them); the team is
+    /// now the HUD's read (markers, team list, minimap), never a repaint of the tank.
+    pub const fn paint(self) -> [f32; 3] {
+        match self {
+            // 4BO protective green: the olive-khaki of every Soviet vehicle from 1938 on.
+            // Khaki-olive, not apple green: the hangar's light lifts any coat, so the chroma
+            // stays low and the hue leans yellow (the garage hero read as a toy in the first cut).
+            Nation::Ussr => [0.36, 0.40, 0.25],
+            // Dunkelgelb RAL 7028: the 1943–45 factory base coat (the Tigers, the Jagdtiger,
+            // the Panther II as a 1945 paper vehicle).
+            Nation::Germany => [0.62, 0.55, 0.34],
+            // Deep bronze green: the post-war British base (the Centurion Mk 3, 1948–52).
+            Nation::Britain => [0.25, 0.42, 0.36],
+        }
+    }
 }
 
 /// Combat role — the tech-tree *line* inside a nation. One nation carries at most one line per
@@ -244,6 +270,11 @@ impl VehicleKind {
         }
     }
 
+    /// The paint this vehicle wears: its nation's base coat (K24).
+    pub fn paint(self) -> [f32; 3] {
+        self.nation().paint()
+    }
+
     /// The historical origin nation of this vehicle — used by the garage carousel and tech tree.
     pub fn nation(self) -> Nation {
         match self {
@@ -447,6 +478,35 @@ mod tests {
         assert_eq!(VehicleKind::IS3.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::Centurion.nation(), Nation::Britain);
         assert_eq!(VehicleKind::T34_85.nation(), Nation::Ussr);
+    }
+
+    /// K24: three base coats a player tells apart at a glance, none dark enough for the shader
+    /// to read as a burnt wreck (luma ≥ 0.36 keeps a fully muddied hull above the 0.30 knee).
+    #[test]
+    fn nation_paints_are_distinct_and_never_read_as_burnt() {
+        let luma = |c: [f32; 3]| 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        for nation in Nation::ALL {
+            let paint = nation.paint();
+            assert!(
+                luma(paint) >= 0.36,
+                "{nation:?}: paint luma {:.3} would read as charred",
+                luma(paint)
+            );
+            assert!(
+                paint.iter().all(|c| (0.05..=0.95).contains(c)),
+                "{nation:?}: a paint, not a light"
+            );
+        }
+        for (i, a) in Nation::ALL.iter().enumerate() {
+            for b in &Nation::ALL[i + 1..] {
+                let (pa, pb) = (a.paint(), b.paint());
+                let dist: f32 = (0..3).map(|k| (pa[k] - pb[k]).powi(2)).sum::<f32>().sqrt();
+                assert!(dist >= 0.10, "{a:?} and {b:?} wear the same paint ({dist:.3})");
+            }
+        }
+        for kind in VehicleKind::ALL {
+            assert_eq!(kind.paint(), kind.nation().paint());
+        }
     }
 
     #[test]

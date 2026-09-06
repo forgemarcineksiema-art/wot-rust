@@ -73,8 +73,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     for tank in &snapshot.tanks {
-        let color = if tank.tank_id == player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
-        append_tank_mesh(&mut vertices, &mut indices, tank, color);
+        // Its nation's paint (K24): friend or foe is the HUD marker's read, not the hull's.
+        append_tank_mesh(&mut vertices, &mut indices, tank, tank.vehicle.paint());
     }
 
     let ctx = GpuContext::headless()?;

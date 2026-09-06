@@ -145,16 +145,8 @@ fn lineup_objects(
     view: &ViewSpec,
     battlefield: &terrain::BattlefieldMap,
 ) -> Vec<renderer_api::RenderObject> {
-    let palette = [
-        [0.34, 0.42, 0.30],
-        [0.30, 0.38, 0.46],
-        [0.46, 0.40, 0.26],
-        [0.44, 0.30, 0.28],
-        [0.32, 0.36, 0.40],
-        [0.40, 0.34, 0.44],
-        [0.28, 0.44, 0.40],
-        [0.42, 0.44, 0.28],
-    ];
+    // Each vehicle in its nation's paint (K24): the line-up is the fleet's contact sheet, the
+    // same coats the garage and the battle show — not a private pastel per slot.
 
     let mut render_objects = Vec::new();
     let roster = VehicleKind::PLAYABLE;
@@ -194,7 +186,7 @@ fn lineup_objects(
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
         };
-        render_objects.append(&mut tank_render_objects(catalog, &snapshot, palette[index]));
+        render_objects.append(&mut tank_render_objects(catalog, &snapshot, kind.paint()));
     }
     render_objects
 }
