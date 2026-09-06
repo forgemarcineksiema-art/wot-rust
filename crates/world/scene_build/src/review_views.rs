@@ -98,6 +98,9 @@ pub struct HangarReviewView {
     /// The armor inspector overlay (I1): the client renders the vehicle's gameplay armor
     /// volumes as translucent zone-colored FX faces over the hero. One view locks it.
     pub inspector: bool,
+    /// G11: the plate the inspector's question sits on, and whether SHOOT ME answers it.
+    pub inspector_point: Option<game_core::ArmorZone>,
+    pub shoot_me: bool,
     /// Which garage screen this view locks (see [`GarageScreen`]).
     pub screen: GarageScreen,
 }
@@ -238,6 +241,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         close_up: false,
         // The ARMOUR screen is the hangar with the inspector on (G10): its volumes too.
         inspector: screen == GarageScreen::Armour,
+        inspector_point: None,
+        shoot_me: false,
         screen,
     };
     // The room, then every screen drawn over it. Same framing, same light, same hero: the views
@@ -269,6 +274,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         subject_box: Some([0.06, 0.06, 0.94, 0.94]),
         close_up: true,
         inspector: false,
+        inspector_point: None,
+        shoot_me: false,
         screen: GarageScreen::Room,
     });
     for (name, kind) in [
@@ -291,6 +298,8 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             subject_box: Some(heavy_subject_box(kind)),
             close_up: false,
             inspector: false,
+            inspector_point: None,
+            shoot_me: false,
             screen: GarageScreen::Room,
         });
     }
@@ -316,8 +325,35 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         subject_box: None,
         close_up: false,
         inspector: true,
+        inspector_point: None,
+        shoot_me: false,
         screen: GarageScreen::Room,
     });
+    // G11: the inspector at a point — the question on the upper glacis with its readout, and
+    // the same question answered by SHOOT ME (the marker in the verdict's colour).
+    for (name, shoot_me) in [("garage_inspector_point", false), ("garage_inspector_shoot_me", true)]
+    {
+        views.push(HangarReviewView {
+            name: name.to_string(),
+            eye: crate::hangar::hero_orbit_eye().to_array(),
+            target: crate::hangar::hangar_camera_pivot().to_array(),
+            lighting: SceneLighting::garage_hero(),
+            background: crate::hangar::INTERIOR_BACKGROUND,
+            vehicle: ReviewVehicle {
+                kind: VehicleKind::T54_1951,
+                position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
+                yaw_rad: crate::hangar::HERO_PARK_YAW,
+                turret_yaw_rad: 0.0,
+                hull_color: VehicleKind::T54_1951.paint(),
+            },
+            subject_box: None,
+            close_up: false,
+            inspector: true,
+            inspector_point: Some(game_core::ArmorZone::UpperGlacis),
+            shoot_me,
+            screen: GarageScreen::Room,
+        });
+    }
     views
 }
 

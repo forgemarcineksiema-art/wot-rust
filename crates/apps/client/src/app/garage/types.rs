@@ -26,6 +26,8 @@ pub(in crate::app) enum GarageHit {
     MapCycle(i8),
     /// One of the seven tabs on the bar (G10).
     Tab(GarageTab),
+    /// The inspector's SHOOT ME switch (G11).
+    ShootMe,
     /// Empty scene — start orbiting the camera.
     Scene,
     /// BATTLE while the hull is locked in a battle that still runs (G14): a knock, nothing more.

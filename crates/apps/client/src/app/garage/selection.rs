@@ -37,6 +37,7 @@ impl GarageState {
             // G8: a new hull parks its turret straight; G3: the hull on the turntable compares
             // to nothing.
             self.hero_turret_yaw = 0.0;
+            self.inspector_point = None;
             if self.compare == Some(self.selected_vehicle()) {
                 self.compare = None;
             }

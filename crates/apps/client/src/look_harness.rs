@@ -488,7 +488,7 @@ pub fn render_hangar_review_views(
             // The inspector view carries the legend the live screen shows with the overlay
             // (R1) — the locked frame explains its own color ramp.
             scene_build::review_views::GarageScreen::Room if view.inspector => {
-                crate::garage_inspector_legend(aspect)
+                crate::garage_inspector_legend(aspect, view.inspector_point, view.shoot_me)
             }
             scene_build::review_views::GarageScreen::Room => Vec::new(),
             scene_build::review_views::GarageScreen::Hangar => crate::garage_overlay(false, aspect),
@@ -544,6 +544,10 @@ pub fn render_hangar_review_views(
                 view.vehicle.yaw_rad,
                 view.vehicle.turret_yaw_rad,
             ));
+            // G11: the question's marker, where the same click would put it.
+            if let Some(zone) = view.inspector_point {
+                fx.extend(crate::garage_inspector_marker(zone, view.shoot_me));
+            }
             renderer.set_fx(&ctx, &fx);
         } else {
             renderer.set_fx(&ctx, &hangar_shaft_fx_vertices());

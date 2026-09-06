@@ -82,6 +82,25 @@ pub fn armor_inspector_fx_vertices(
     out
 }
 
+/// The inspector's marker (G11): a disc on the plate at the point the click asked about,
+/// lifted a hand's width off the steel so it reads over the volume, in `rgb` — the lamp for a
+/// question, the verdict's colour once SHOOT ME answers.
+pub fn inspector_point_fx_vertices(point: Vec3, normal: Vec3, rgb: [f32; 3]) -> Vec<FxVertex> {
+    const MARKER_RADIUS_M: f32 = 0.14;
+    const MARKER_LIFT_M: f32 = 0.06;
+    const MARKER_ALPHA: f32 = 0.85;
+    let normal = normal.try_normalize().unwrap_or(Vec3::Y);
+    let disc = disc_polygon(point + normal * MARKER_LIFT_M, normal, MARKER_RADIUS_M);
+    let mut out = Vec::new();
+    fan_triangles(
+        &mut out,
+        &disc,
+        &|p| p,
+        [rgb[0] * MARKER_ALPHA, rgb[1] * MARKER_ALPHA, rgb[2] * MARKER_ALPHA, MARKER_ALPHA],
+    );
+    out
+}
+
 /// The plate's metal for a zone, in millimetres — the same `ArmorProfile::plate` the sim
 /// resolves against.
 fn plate_mm(profile: &ArmorProfile, zone: ArmorZone) -> f32 {

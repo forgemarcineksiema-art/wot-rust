@@ -6,7 +6,7 @@
 //! the plate belongs to.
 
 use game_core::math::{HullPose, wrap_angle};
-use game_core::{ArmorZone, TankId};
+use game_core::{ArmorFacing, ArmorZone, TankId};
 use glam::{Mat4, Vec3, Vec4};
 use renderer_api::{CameraProjectionPolicy, view_projection_matrix};
 use sim::{SegmentImpact, ShellTraceWorld, TraceTank, segment_impact};
@@ -16,13 +16,21 @@ use super::draft::FitSlot;
 use super::types::Drag;
 
 /// What the cursor's ray met on the hero.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct HeroHit {
     pub zone: ArmorZone,
     /// The loadout slot the struck plate belongs to, as the eye reads it.
     pub slot: Option<FitSlot>,
     /// Whether the plate rides the turret: a drag there turns it.
     pub turret: bool,
+    /// The trace's own record of the plate (G11): what the inspector asks the resolver with.
+    pub facing: ArmorFacing,
+    pub hit_position: Vec3,
+    pub plate_normal: Vec3,
+    pub impact_angle_degrees: f32,
+    pub thickness_scale: f32,
+    /// The ray's direction at the plate.
+    pub direction: Vec3,
 }
 
 /// Radians of turret per pixel of drag.
@@ -115,9 +123,25 @@ impl GarageState {
             water: terrain::WaterView::DRY,
         };
         match segment_impact(origin, origin + direction * RAY_LENGTH_M, direction, &world)? {
-            SegmentImpact::Tank { zone, .. } => {
-                Some(HeroHit { zone, slot: slot_of_zone(zone), turret: is_turret_zone(zone) })
-            }
+            SegmentImpact::Tank {
+                zone,
+                facing,
+                impact_angle_degrees,
+                hit_position,
+                plate_normal,
+                thickness_scale,
+                ..
+            } => Some(HeroHit {
+                zone,
+                slot: slot_of_zone(zone),
+                turret: is_turret_zone(zone),
+                facing,
+                hit_position,
+                plate_normal,
+                impact_angle_degrees,
+                thickness_scale,
+                direction,
+            }),
             _ => None,
         }
     }
@@ -135,9 +159,12 @@ impl GarageState {
         self.hero_press = None;
         self.idle_seconds = 0.0;
         self.drag = match self.hero_hit() {
-            Some(hit) if hit.turret => Drag::Turret,
+            Some(hit) if hit.turret => {
+                self.hero_press = Some(hit);
+                Drag::Turret
+            }
             Some(hit) => {
-                self.hero_press = hit.slot;
+                self.hero_press = Some(hit);
                 Drag::Camera
             }
             None => Drag::Camera,
@@ -145,8 +172,8 @@ impl GarageState {
     }
 
     /// The press is over: whatever drag it started ends, and if it never travelled and began
-    /// on a module's plate, that module is the click.
-    pub(super) fn end_press(&mut self) -> Option<FitSlot> {
+    /// on the hero, the plate it began on is the click.
+    pub(super) fn end_press(&mut self) -> Option<HeroHit> {
         let click = self.hero_press.take().filter(|_| self.drag_travel_px < CLICK_TRAVEL_PX);
         self.drag = Drag::None;
         click
@@ -158,9 +185,9 @@ impl GarageState {
     }
 }
 
-/// Scan the frame for a cursor position whose hero hit satisfies `pick` (the locks' way to
-/// find a plate); the cursor is left there, raw — the caller feeds it through `set_cursor`.
-#[cfg(test)]
+/// Scan the frame for a cursor position whose hero hit satisfies `pick` — the locks' way to
+/// find a plate, and the review goldens' (G11); the cursor is left there, raw — the caller
+/// feeds it through `set_cursor`.
 pub(super) fn hero_point_where(
     state: &mut GarageState,
     pick: impl Fn(HeroHit) -> bool,
