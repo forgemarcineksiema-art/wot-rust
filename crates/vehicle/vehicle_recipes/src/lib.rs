@@ -192,6 +192,7 @@ fn recipe_pieces(
     match kind {
         VehicleKind::TigerI => Some(tiger_i::tiger_i_pieces(hitbox, mounts, omit)),
         VehicleKind::TigerII => Some(tiger_ii::tiger_ii_pieces(hitbox, mounts, omit)),
+        VehicleKind::PantherII => Some(panther_ii::panther_ii_pieces(hitbox, mounts, omit)),
         _ => None,
     }
 }

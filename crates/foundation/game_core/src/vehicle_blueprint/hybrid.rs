@@ -481,7 +481,7 @@ pub enum HullConstruction {
 /// Which of the German family's deck furniture a welded slab vehicle wears
 /// (`vehicle_build::german_deck_parts`). The defaults are the late Tiger I's layout — the
 /// family's first library deck — so a visual file that authors none keeps the bake it had.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GermanDeckVisual {
     /// Three-sided armoured shields round the exhaust stacks on a near-vertical stern (the late
     /// Tiger I); without them the stacks stand open, dark-mouthed, off the leaned stern on a
@@ -497,6 +497,18 @@ pub struct GermanDeckVisual {
     pub periscope_hood: bool,
     /// Hinged fender flaps over the stern wrap as well as the bow (the Tiger I's rear mudflaps).
     pub rear_flaps: bool,
+    /// The driver's TWIN periscope hoods at the roof's front edge, left, each with its glass
+    /// (the Panther). Appended 2026-09-06.
+    #[serde(default)]
+    pub twin_periscopes: bool,
+    /// The CURVED fender sweep over the front sprockets — three chained slanted segments — in
+    /// place of the family's single drooping flap (the Panther). Appended 2026-09-06.
+    #[serde(default)]
+    pub curved_sweep: bool,
+    /// Where the bow MG ball sits on the driver's plate, `(x, y)`; `None` is the Tiger's station
+    /// (x -0.62, y 1.58). Appended 2026-09-06.
+    #[serde(default)]
+    pub mg_ball: Option<(f32, f32)>,
 }
 
 impl Default for GermanDeckVisual {
@@ -507,6 +519,9 @@ impl Default for GermanDeckVisual {
             driver_visor: true,
             periscope_hood: false,
             rear_flaps: true,
+            twin_periscopes: false,
+            curved_sweep: false,
+            mg_ball: None,
         }
     }
 }

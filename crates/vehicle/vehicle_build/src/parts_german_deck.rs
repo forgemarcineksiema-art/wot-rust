@@ -12,7 +12,7 @@ use game_core::{GermanDeckVisual, VehicleBlueprint};
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
     Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
-    SubmeshKind,
+    SmoothingGroup, SubmeshKind,
 };
 
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
@@ -276,6 +276,8 @@ pub fn german_deck_parts(
                 .build(),
         ));
     }
+    // The bow MG ball at its station on the driver's plate (the Tiger's by default).
+    let (ball_x, ball_y) = deck.mg_ball.unwrap_or((-0.62, 1.58));
     parts.push(VehiclePart {
         key: PartKey::new("course_mg_port"),
         submesh: SubmeshKind::Hull,
@@ -284,11 +286,11 @@ pub fn german_deck_parts(
         shape: PartShape::Mesh(
             MeshBuilder::new()
                 .capped_revolve_at(
-                    Vec3::new(-0.62, 1.58, 0.0),
+                    Vec3::new(ball_x, ball_y, 0.0),
                     RevolveSpec {
                         profile: vec![
-                            ProfilePoint::new(0.13, plate_z(1.58) - 0.04),
-                            ProfilePoint::new(0.09, plate_z(1.58) + 0.09),
+                            ProfilePoint::new(0.13, plate_z(ball_y) - 0.04),
+                            ProfilePoint::new(0.09, plate_z(ball_y) + 0.09),
                         ],
                         axis: Axis::Z,
                         segments: round_segments(0.13),
@@ -302,10 +304,79 @@ pub fn german_deck_parts(
         generator: GeneratorKind::Revolve,
     });
 
-    // --- the fender flaps over both wraps -------------------------------------------------------
+    if deck.twin_periscopes {
+        // The driver's twin periscope hoods at the roof's front edge, left — each a raked head
+        // with its GLASS lying in the raked face (the Panther's read), as plate solids.
+        let edge = hull.half_len - (hull.deck_y - hull.sponson_y) * glacis;
+        for (i, x) in [0.72_f32, 0.46].into_iter().enumerate() {
+            let center = Vec3::new(x, hull.deck_y + 0.035, edge - 0.10);
+            let half = Vec3::new(0.055, 0.035, 0.055);
+            for (k, (material, solid)) in [
+                (MaterialRole::RolledArmor, crate::periscope(center, half)),
+                (MaterialRole::Glass, crate::periscope_prism(center, half)),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                parts.push(VehiclePart {
+                    key: PartKey::indexed("periscope_hood", (i * 2 + k) as u16),
+                    submesh: SubmeshKind::Hull,
+                    material,
+                    smoothing: SmoothingGroup::hard_edges(),
+                    shape: PartShape::Plates(solid),
+                    lod: PartLod::Detail,
+                    generator: GeneratorKind::Solid,
+                });
+            }
+        }
+    }
+
+    // --- the fender flaps over the wraps, or the Panther's curved sweep over the bow wrap -------
     let track = &bp.track;
     let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
     let wrap_outer = track.end_radius + 0.02 + 0.055;
+    if deck.curved_sweep {
+        // Three chained slanted segments per side approximating the Panther's quarter-round
+        // mudguard: the chain rides ABOVE the wrap circle's top and only drops once past the
+        // circle's front edge (the recipe's clearance math, lifted below the seam).
+        let crown_y = (track.end_y + wrap_outer + 0.03).max(hull.sponson_y + 0.04);
+        let front = track.end_z + wrap_outer;
+        let sweep = [
+            (track.end_z - 0.10, crown_y, front + 0.02, crown_y - 0.02),
+            (front + 0.02, crown_y - 0.02, front + 0.26, crown_y - 0.20),
+            (front + 0.26, crown_y - 0.20, front + 0.38, crown_y - 0.46),
+        ];
+        let mut index = 0u16;
+        for sign in [-1.0_f32, 1.0] {
+            for &(z0, y0, z1, y1) in &sweep {
+                let mid_z = (z0 + z1) * 0.5;
+                parts.push(part(
+                    PartKey::indexed("fender_sweep", index),
+                    MaterialRole::RolledArmor,
+                    PartLod::Detail,
+                    MeshBuilder::new()
+                        .extrude(
+                            Vec3::new(sign * track.center_x, 0.0, mid_z),
+                            ExtrudeSpec {
+                                section: vec![
+                                    Vec2::new(z0 - mid_z, y0 - 0.020),
+                                    Vec2::new(z1 - mid_z, y1 - 0.020),
+                                    Vec2::new(z1 - mid_z, y1),
+                                    Vec2::new(z0 - mid_z, y0),
+                                ],
+                                axis: Axis::X,
+                                half_depth: band_half * 0.96,
+                                material: MaterialRole::RolledArmor,
+                                smoothing: SG_HARD,
+                            },
+                        )
+                        .build(),
+                ));
+                index += 1;
+            }
+        }
+        return parts;
+    }
     let hinge_y =
         guard_top_y.unwrap_or_else(|| (track.end_y + wrap_outer + 0.03).max(hull.sponson_y + 0.02));
     let (droop_dz, droop_dy) = (0.45_f32, 0.22_f32);

@@ -1,7 +1,8 @@
 //! The Panther II: blueprint-born, the last German off the legacy path. The wedge is the
 //! character — the fleet's steepest German glacis (55°) and 29° leaned sides lofted on the
-//! armor volume planes, the deliberately NARROW Schmalturm with its cone Saukopf mantlet and
-//! hard-converging cheeks, and seven overlapped steel wheels of the Tiger II school.
+//! armor volume planes, the Panther Ausf. G turret of the Fort Benning specimen with its
+//! splayed cheeks and the curved G-Blende, and seven overlapped steel wheels of the Tiger II
+//! school.
 
 use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind};
 use glam::{Vec2, Vec3};
@@ -14,14 +15,44 @@ use vehicle_geometry::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
 };
 
-pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn panther_ii(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    let pieces = panther_ii_pieces(hitbox, mounts, super::deck_details::DeckOmit::default());
+    let concat = |pieces: Vec<(&'static str, GeometryMesh)>| {
+        revolve::merge(&pieces.into_iter().map(|(_, mesh)| mesh).collect::<Vec<_>>())
+    };
+    assemble(
+        VehicleKind::PantherII,
+        concat(pieces.hull),
+        concat(pieces.turret),
+        concat(pieces.gun),
+        pieces.mounts,
+    )
+}
+
+/// The Panther II as the pieces its recipe is made of (Forge 2.0 K3, 2026-09-06): the leaned
+/// prism hull, the deck with the Panther's bow, the hull details, the G turret with cupola, ring
+/// and oval socket, and the gun group. `panther_ii` is these concatenated in this order and
+/// welded; each piece stays out when the part library builds its class (`DeckOmit`).
+pub(crate) fn panther_ii_pieces(
+    _hitbox: &HitboxProfile,
+    mounts: &MountFrames,
+    omit: super::deck_details::DeckOmit,
+) -> super::RecipePieces {
     let bp = super::active_blueprint(VehicleKind::PantherII).expect("Panther II has a blueprint");
-    let hull = shade_hull(
-        blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
-            .append(&super::deck_details::panther_ii_deck(&bp))
-            .append(&panther_hull_details(&bp.hull))
-            .build(),
-    );
+    let mut hull = Vec::with_capacity(3);
+    if !omit.slab {
+        hull.push((
+            "recipe_hull_prism",
+            shade_hull(blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0).build()),
+        ));
+    }
+    if !omit.deck {
+        hull.push((
+            "recipe_hull_deck",
+            shade_hull(super::deck_details::panther_ii_deck(&bp, omit)),
+        ));
+        hull.push(("recipe_hull_details", shade_hull(panther_hull_details(&bp.hull))));
+    }
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
@@ -67,7 +98,12 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
         1.10,
     );
 
-    assemble(VehicleKind::PantherII, hull, turret, gun, *mounts)
+    super::RecipePieces {
+        hull,
+        turret: if omit.turret { Vec::new() } else { vec![("recipe_turret", turret)] },
+        gun: if omit.gun { Vec::new() } else { vec![("recipe_gun", gun)] },
+        mounts: *mounts,
+    }
 }
 
 /// The Panther Ausf. G turret (dossier PII.1, Fort Benning specimen): a NARROW leaned front

@@ -52,6 +52,23 @@ fn the_tiger_ii_describes_as_library_parts_alone() {
 }
 
 #[test]
+fn the_panther_ii_describes_as_library_parts_alone() {
+    let description = describe(VehicleKind::PantherII).expect("describes");
+    let recipe: Vec<&str> = description
+        .parts
+        .iter()
+        .filter(|p| p.generator == GeneratorKind::Recipe)
+        .map(|p| p.key.name)
+        .collect();
+    assert!(recipe.is_empty(), "K3 Panther II: the library owns every part: {recipe:?}");
+    let names: Vec<&str> = description.parts.iter().map(|p| p.key.name).collect();
+    for key in ["slab_upper_box", "turret_shell", "gun_barrel", "fender_sweep", "periscope_hood"] {
+        assert!(names.iter().any(|n| n.starts_with(key)), "{key} is built: {names:?}");
+    }
+    assert!(!names.contains(&"fender_flap"), "the Panther sweeps, it does not flap");
+}
+
+#[test]
 fn an_unsplit_recipe_still_wraps_its_three_submeshes() {
     let description = describe(VehicleKind::Jagdtiger).expect("describes");
     let names: Vec<&str> = description.parts.iter().map(|p| p.key.name).collect();

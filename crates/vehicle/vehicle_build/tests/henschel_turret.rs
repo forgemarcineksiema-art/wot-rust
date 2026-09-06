@@ -1,7 +1,8 @@
-//! The Tiger II as library parts (Forge 2.0 K3, 2026-09-06): the Henschel turret's leaned walls
-//! and flat rear plate, the deck furniture the Tiger II wears and the Tiger I does not, the
-//! Schürzen on the spaced plane, and the leaned upper hull sides — each lock names what would
-//! silently turn the King Tiger back into a Tiger I wearing a longer gun.
+//! The Tiger II and the Panther II as library parts (Forge 2.0 K3, 2026-09-06): the leaned
+//! welded turrets (the Henschel's flat rear plate, the G turret's splayed cheeks), the deck
+//! furniture each wears and the Tiger I does not, the Schürzen on the spaced plane, and the
+//! leaned upper hull sides — each lock names what would silently turn a vehicle back into a
+//! Tiger I wearing a different gun.
 
 use game_core::{VehicleBlueprint, VehicleKind};
 use glam::Vec3;
@@ -181,4 +182,65 @@ fn the_bow_mg_ball_is_seated_on_the_glacis_plane() {
             "{kind:?}: the ball pokes through the plate at z {plate_z:.3}: {min:?}..{max:?}"
         );
     }
+}
+
+/// The G turret: the cheeks splay from the 1.20 m front plate to the full beam, the rear plate
+/// leans 20° and the side wall's end stays BEHIND its retreat at the roof (a reflex corner
+/// otherwise), no bin; the Tiger II's wall end does not move for it.
+#[test]
+fn the_g_turret_splays_and_keeps_its_wall_end_behind_the_leaned_rear() {
+    let bp = blueprint(VehicleKind::PantherII);
+    let parts = welded_turret_parts_for_blueprint(&bp).expect("the Panther II authors its turret");
+    assert!(!parts.iter().any(|p| p.key.name == "turret_bin"), "no bin on the G turret");
+    let PartShape::Mesh(mesh) = &part(&parts, "turret_shell").shape else { panic!("a shell") };
+    let t = &bp.turret;
+    let roof: Vec<glam::Vec2> = mesh
+        .vertices()
+        .iter()
+        .filter(|v| (v.position.y - t.roof_y).abs() < 1.0e-3 && v.position.x > 0.0)
+        .map(|v| glam::Vec2::new(v.position.x, v.position.z))
+        .collect();
+    let rear_roof = roof.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+    let rear_in = (t.roof_y - t.ring_y) * t.rear_slope_deg.to_radians().tan();
+    assert!((rear_roof - (t.ring_z - t.plan_half_length + rear_in)).abs() < 1.0e-3);
+    // Every roof point with the full (leaned) beam lies ahead of the rear plate by at least 5 cm.
+    let side_roof = t.plan_half_width - (t.roof_y - t.ring_y) * t.side_slope_deg.to_radians().tan();
+    for p in roof.iter().filter(|p| (p.x - side_roof).abs() < 1.0e-3) {
+        assert!(p.y >= rear_roof + 0.05 - 1.0e-3, "wall end {p:?} behind the rear {rear_roof}");
+    }
+    // The front plate is the narrow one: the cheeks splay rearward.
+    let front = roof.iter().map(|p| p.y).fold(f32::NEG_INFINITY, f32::max);
+    let front_x =
+        roof.iter().filter(|p| (p.y - front).abs() < 1.0e-3).map(|p| p.x).fold(0.0, f32::max);
+    assert!(front_x < side_roof - 0.02, "a narrow front plate: {front_x} vs {side_roof}");
+}
+
+#[test]
+fn the_panther_ii_deck_wears_the_panther_s_bow() {
+    let bp = blueprint(VehicleKind::PantherII);
+    let parts = german_deck_parts_for_blueprint(&bp).expect("the Panther II's deck");
+    let keys: Vec<&str> = parts.iter().map(|p| p.key.name).collect();
+    assert_eq!(keys.iter().filter(|k| **k == "periscope_hood").count(), 4, "two hoods, two panes");
+    assert_eq!(keys.iter().filter(|k| **k == "fender_sweep").count(), 6, "three segments a side");
+    assert!(!keys.contains(&"fender_flap"), "the Panther sweeps");
+    for absent in ["driver_visor", "exhaust_shield", "spare_track"] {
+        assert!(!keys.contains(&absent), "{absent} is not the Panther's");
+    }
+    // The Kugelblende at its authored station, poking through the 55° glacis.
+    let (min, max) = mesh_bounds(part(&parts, "course_mg_port"));
+    let y = (min.y + max.y) * 0.5;
+    assert!((y - 1.42).abs() < 0.02 && ((min.x + max.x) * 0.5 + 0.60).abs() < 0.02);
+    let plate_z =
+        bp.hull.half_len - (y - bp.hull.sponson_y) * bp.hull.glacis_slope_deg.to_radians().tan();
+    assert!(
+        max.z > plate_z + 0.05 && min.z < plate_z,
+        "the ball sits in the plate at {plate_z:.3}"
+    );
+    // The sweep drops well below the sponson line ahead of the sprocket.
+    let lowest = parts
+        .iter()
+        .filter(|p| p.key.name == "fender_sweep")
+        .map(|p| mesh_bounds(p).0.y)
+        .fold(f32::INFINITY, f32::min);
+    assert!(lowest < bp.hull.sponson_y - 0.25, "the sweep drops over the wrap: {lowest}");
 }

@@ -142,8 +142,8 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
 /// fleet: the KwK 36 with its double-baffle brake and the Walzenblende body, no canvas,
 /// and deliberately NOT the complete view); the Tiger II (Forge 2.0 K3, 2026-09-06) authors
 /// the library-complete set — construction, welded turret, gun — from
-/// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree; everyone else carries
-/// nothing yet.
+/// `tiger_ii_ausf_b.visual.ron` without the benchmark's full tree, and the Panther II the same
+/// from `panther_ii.visual.ron`; everyone else carries nothing yet.
 #[test]
 fn the_visual_slot_roster_is_a_deliberate_decision() {
     let mut walked = 0;
@@ -166,12 +166,14 @@ fn the_visual_slot_roster_is_a_deliberate_decision() {
                 blueprint.complete_visual().is_none(),
                 "a gun group alone must not claim the complete truth-aligned view"
             );
-        } else if kind == VehicleKind::TigerII {
-            let detail = blueprint.visual_detail().expect("Tiger II authors visual parts");
+        } else if matches!(kind, VehicleKind::TigerII | VehicleKind::PantherII) {
+            let detail = blueprint.visual_detail().expect("the vehicle authors visual parts");
             assert!(detail.is_library_complete(), "construction + welded turret + gun");
-            let turret = detail.welded_turret.expect("the Henschel turret");
+            let turret = detail.welded_turret.expect("a leaned welded turret");
             assert!(turret.leaned_walls && turret.flat_rear_half_width.is_some());
-            assert!(turret.bin_depth <= 0.0, "no Rommelkiste on the Henschel");
+            assert!(turret.bin_depth <= 0.0, "no stowage bin on the Henschel or the G turret");
+            let deck = detail.german_deck.expect("the deck's furniture is chosen");
+            assert!(!deck.exhaust_shields, "open stacks on the leaned German sterns");
             assert!(
                 blueprint.complete_visual().is_none(),
                 "the library-complete set is not the benchmark's full tree"
