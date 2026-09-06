@@ -18,6 +18,7 @@ fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {
     let mut port_b = hub.port("10.0.0.3:5000".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(21),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -128,6 +129,7 @@ fn a_sixth_command_in_a_minute_is_refused_by_the_server() {
     let mut port_a = hub.port("10.0.1.2:5000".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(21),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -210,6 +212,7 @@ fn a_silent_client_ages_out_and_the_battle_keeps_running() {
     let mut port_a = hub.port("10.0.0.2:5000".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(9),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -246,6 +249,7 @@ fn a_late_joiner_claims_a_freed_seat_and_converges_immediately() {
     let mut port_a = hub.port("10.0.0.2:5000".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(77),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -342,6 +346,7 @@ fn invalid_input_neither_acks_the_seat_nor_keeps_it_alive() {
     let mut server_port = hub.port(server_addr);
     let mut attacker_port = hub.port("10.0.0.2:5000".parse().expect("addr"));
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(91),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -424,6 +429,7 @@ fn the_flow_survives_heavy_seeded_loss() {
     let mut port_a = hub.port("10.0.0.2:5000".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(5),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -458,6 +464,7 @@ fn unestablished_sources_neither_start_the_battle_nor_overrun_the_table() {
     let mut server_port = hub.port(server_addr);
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(7),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -504,6 +511,7 @@ fn the_lobby_seats_each_crew_in_its_garage_pick() {
     let mut port_b = hub.port("10.0.0.3:5100".parse().expect("addr"));
 
     let battle = RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(21),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),
@@ -592,6 +600,7 @@ fn seats_go_out_in_hello_order_not_table_order() {
             .map(|address| hub.port(address.parse().expect("addr")))
             .collect();
         let battle = RandomBattleConfig {
+            format: game_core::BattleFormat::SevenVsSeven,
             seed: BattleSeed::fixed(21),
             player_vehicle: game_core::VehicleKind::T54_1951,
             map: terrain::MapId::default(),

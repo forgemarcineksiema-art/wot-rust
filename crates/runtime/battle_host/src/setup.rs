@@ -3,12 +3,13 @@ use glam::Vec3;
 use sim::SimulationState;
 use terrain::{BattlefieldMap, MapId, SpawnZone};
 
-use crate::battle::{BattleMode, BattleSeed, RandomBattleConfig, SEATS_PER_TEAM};
+use crate::battle::{BattleFormat, BattleMode, BattleSeed, RandomBattleConfig};
 use crate::bots::BotRoster;
 use crate::match_info::pick_weather;
 
 pub(crate) struct BattleSetup {
     pub mode: BattleMode,
+    pub format: Option<BattleFormat>,
     pub sim: SimulationState,
     pub map_id: MapId,
     pub battlefield: BattlefieldMap,
@@ -40,6 +41,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
 
     BattleSetup {
         mode: BattleMode::PracticeDuel,
+        format: None,
         sim,
         map_id,
         battlefield,
@@ -50,8 +52,8 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     }
 }
 
-pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
-    random_7v7_setup_for_humans(config, &[None]).0
+pub(crate) fn random_battle_setup(config: RandomBattleConfig) -> BattleSetup {
+    random_battle_setup_for_humans(config, &[None]).0
 }
 
 /// The dedicated server's variant (N2): reserve the first `humans` team-one slots for connected
@@ -61,7 +63,7 @@ pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
 /// `human_vehicles[slot]` is that crew's wish; `None` falls back to the host's
 /// `player_vehicle` for slot 0 (the historical single-human contract, bit-for-bit) and to
 /// the benchmark for later seats — a predictable hull, never a random bot draw.
-pub(crate) fn random_7v7_setup_for_humans(
+pub(crate) fn random_battle_setup_for_humans(
     config: RandomBattleConfig,
     human_vehicles: &[Option<game_core::VehicleKind>],
 ) -> (BattleSetup, Vec<TankId>) {
@@ -76,9 +78,9 @@ pub(crate) fn random_7v7_setup_for_humans(
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);
 
-    let humans = human_vehicles.len().clamp(1, SEATS_PER_TEAM);
+    let humans = human_vehicles.len().clamp(1, config.format.seats_per_team());
     let mut human_tanks = Vec::with_capacity(humans);
-    for slot in 0..SEATS_PER_TEAM {
+    for slot in 0..config.format.seats_per_team() {
         let vehicle = if slot < humans {
             match human_vehicles.get(slot).copied().flatten() {
                 Some(pick) => pick,
@@ -88,7 +90,7 @@ pub(crate) fn random_7v7_setup_for_humans(
         } else {
             random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle)
         };
-        let id = random_battle_spawn(&mut sim, &battlefield, team_one, slot, vehicle, config.seed);
+        let id = random_battle_spawn(&mut sim, &battlefield, team_one, slot, vehicle, config);
         if slot < humans {
             human_tanks.push(id);
         } else {
@@ -102,7 +104,11 @@ pub(crate) fn random_7v7_setup_for_humans(
 
     (
         BattleSetup {
-            mode: BattleMode::Random7v7,
+            mode: match config.format {
+                BattleFormat::SevenVsSeven => BattleMode::Random7v7,
+                BattleFormat::FifteenVsFifteen => BattleMode::Random15v15,
+            },
+            format: Some(config.format),
             sim,
             map_id: config.map,
             battlefield,
@@ -123,10 +129,10 @@ fn random_battle_spawn_enemy_team(
     bot_ids: &mut Vec<TankId>,
 ) -> TankId {
     let mut target_tank = TankId(0);
-    for slot in 0..SEATS_PER_TEAM {
+    for slot in 0..config.format.seats_per_team() {
         let vehicle =
             random_battle_bot_vehicle(config.seed, 30 + slot as u64, config.player_vehicle);
-        let id = random_battle_spawn(sim, map, zone, slot, vehicle, config.seed);
+        let id = random_battle_spawn(sim, map, zone, slot, vehicle, config);
         if slot == 0 {
             target_tank = id;
         }
@@ -157,9 +163,9 @@ fn random_battle_spawn(
     zone: &SpawnZone,
     slot: usize,
     vehicle: VehicleKind,
-    seed: BattleSeed,
+    config: RandomBattleConfig,
 ) -> TankId {
-    let position = random_battle_spawn_position(map, zone, slot, seed);
+    let position = random_battle_spawn_position(map, zone, slot, config);
     sim.spawn_tank_with_yaw(TeamId(zone.team), vehicle.spec(), position, zone.facing_yaw_rad)
 }
 
@@ -167,18 +173,10 @@ fn random_battle_spawn_position(
     map: &BattlefieldMap,
     zone: &SpawnZone,
     slot: usize,
-    seed: BattleSeed,
+    config: RandomBattleConfig,
 ) -> Vec3 {
-    const OFFSETS: [(f32, f32); 7] = [
-        (0.0, -8.0),
-        (-22.0, -22.0),
-        (0.0, -22.0),
-        (22.0, -22.0),
-        (-22.0, -40.0),
-        (0.0, -40.0),
-        (22.0, -40.0),
-    ];
-    let (local_x, local_z) = OFFSETS[slot % OFFSETS.len()];
+    let [local_x, local_z] = config.format.spawn_offset(slot).expect("seat in battle format");
+    let seed = config.seed;
     let jitter_x = (seed.random_battle_unit(100 + slot as u64) - 0.5) * 3.0;
     let jitter_z = (seed.random_battle_unit(200 + slot as u64) - 0.5) * 3.0;
     let yaw = zone.facing_yaw_rad;

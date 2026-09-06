@@ -16,7 +16,9 @@ move), and the app-to-app allowlist is empty.
 `foundation` (rank 0):
 
 - `game_core`: pure gameplay data — tanks, vehicle blueprints, modules, guns, shells, armor
-  zones/volumes, damage, shared math (including `GRAVITY_MPS2` and the shell integrator).
+  zones/volumes, damage, battle formats (seat count, clock and spawn formation), shared math
+  (including `GRAVITY_MPS2` and the shell integrator). `BattleFormat` belongs here so map
+  authoring, the host and the interface consume the same format without depending upward.
 - `terrain`: heightmap sampling, terrain chunk data, and the runtime map truth types
   (`BattlefieldMap`, `WaterBody`, cover/scenery/road data) plus the shared grounding helpers.
 

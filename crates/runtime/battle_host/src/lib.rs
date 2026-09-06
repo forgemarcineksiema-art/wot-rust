@@ -16,7 +16,7 @@ mod spotting_log;
 pub mod stats;
 
 pub use battle::{
-    BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
+    BattleFormat, BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
     RandomBattleConfig, SEATS_PER_TEAM,
 };
 pub use local::{AuthoritativeTick, LocalAuthoritativeServer};

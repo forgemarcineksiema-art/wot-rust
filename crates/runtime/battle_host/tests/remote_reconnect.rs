@@ -9,6 +9,7 @@ const NEW_SESSION: u64 = 0xAAAA_BBBB_CCCC_DDDD;
 
 fn battle() -> RandomBattleConfig {
     RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(117),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: terrain::MapId::default(),

@@ -10,6 +10,7 @@ use super::*;
 
 fn contract_battle() -> RandomBattleConfig {
     RandomBattleConfig {
+        format: game_core::BattleFormat::SevenVsSeven,
         seed: BattleSeed::fixed(51),
         player_vehicle: game_core::VehicleKind::T54_1951,
         map: MapId::default(),
@@ -668,6 +669,7 @@ fn adopting_a_map_rebuilds_the_ground_rule() {
     app.session = BattleSessionKind::Local(Box::new(LocalAuthoritativeServer::new_random_7v7(
         ServerTickConfig::default(),
         RandomBattleConfig {
+            format: game_core::BattleFormat::SevenVsSeven,
             seed: BattleSeed::fixed(7),
             player_vehicle: game_core::VehicleKind::T54_1951,
             map: next,

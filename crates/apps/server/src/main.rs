@@ -222,6 +222,7 @@ fn main() -> anyhow::Result<()> {
     'rotation: while should_host_another_battle(battles_done, config.max_battles) {
         let now_ms = started.elapsed().as_millis() as u64;
         let battle = RandomBattleConfig {
+            format: game_core::BattleFormat::SevenVsSeven,
             seed: battle_seed(config.seed, battles_done),
             player_vehicle: game_core::VehicleKind::BENCHMARK,
             map,

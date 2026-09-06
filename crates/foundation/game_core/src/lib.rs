@@ -2,6 +2,7 @@ mod ammo;
 mod ammo_catalog;
 mod armor;
 mod armor_breach;
+mod battle_format;
 mod contact_footprint;
 mod crew;
 mod crew_vitals;
@@ -43,6 +44,7 @@ pub use armor_breach::{
     ArmorMaterial, ArmorScar, ArmorSurfaceId, BreachContour, BreachFace, MAX_APERTURE_LOBES,
     MAX_ARMOR_BREACHES, MAX_ARMOR_SCARS, MAX_BREACH_FRAGMENTS_PER_GROUP,
 };
+pub use battle_format::{BattleFormat, SEVEN_VS_SEVEN_SEATS, SEVEN_VS_SEVEN_TIME_LIMIT_S};
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use crew_vitals::{

@@ -1,9 +1,10 @@
 # Game modes — two modes, two formats, and the queue that fills them
 
-**Status: the owner's decision of 2026-09-06, recorded; the queue DESIGNED and, the same
-evening, DECIDED — the owner: "Akceptuję twoje propozycje (R1–R10)"; nothing built, and nothing
-is to be built until the owner's word ("jeszcze pracy z kodem nie rozpoczynaj … jedynie praca
-nad dokumentami").** This document is a chapter of the game's design in the sense of
+**Status: the owner's decision of 2026-09-06, recorded; the queue's rules R1–R10 accepted the
+same evening; M2 (the format as data) LANDED — begun by GPT-6 Astra in the `wot-codex` worktree
+(`codex/battle-formats`, never gated), finished, gated and merged by Claude after the owner's
+"kontynuuj tą pracę" (2026-09-06, which lifted the documents-only pause for lane M); M3–M9
+open.** This document is a chapter of the game's design in the sense of
 `docs/game-design.md`: it adds rows 22 and 23 to that file's reconciliation table (the text of §2
 and §3.4 says "7v7" and "7 minut"; the table wins) and it is where the modes, the formats and the
 matchmaking are decided. The rules R1–R10 were written as proposals on 2026-09-06 and accepted the
@@ -63,21 +64,24 @@ different seat count.
 The numbers a reader would quote back are pinned to their source by the `quality` gate
 (`crates/tooling/quality/tests/roadmap_claims.rs`); a moved number fails the gate, not the reader.
 
-- **seats per team today: 7** — `battle_host::SEATS_PER_TEAM`, named by this document's PR
-  (it was the literal `7` in three places of `setup.rs` and the lobby's threshold). Humans sit on
-  **team one only** (`random_7v7_setup_for_humans` reserves the first `humans` team-one slots;
+- **seats per team today: 7** in the default format; **15** in `FifteenVsFifteen`.
+  `game_core::BattleFormat` owns the count, clock and spawn formation; `RandomBattleConfig`
+  carries it through setup and the lobby. `battle_host::SEATS_PER_TEAM` is a compatibility
+  alias for the seven-seat default. Humans sit on
+  **team one only** (`random_battle_setup_for_humans` reserves the first `humans` team-one slots;
   team two is all bots): the dedicated host of today hosts co-op against bots, never humans
   against humans. That is the largest single gap between "multiplayer" as the code has it and
   PvP as Part I means it (row M6).
 - **The lobby** (`crates/runtime/battle_host/src/remote.rs`, `crates/apps/server/src/main.rs`):
-  one process, one battle; starts when seven established crews are seated or the deadline passes
+  one process, one battle; starts when the format's one-team capacity is seated or the deadline passes
   (`--lobby-wait-s`, default 30 s), every empty seat a bot; an empty lobby never starts; the next
   lobby opens when the battle ends. **lobby table cap today: 32** tracked addresses (the flood cap
   of N0) — sized "well above the seven seats plus reconnect churn"; thirty seated crews plus their
   reconnects press against it.
-- **battle time limit today: 600** s, one value for the random battle
-  (`RANDOM_BATTLE_TIME_LIMIT_S`, "ten minutes fits the 7v7 scale"). The design document's 7 minutes
-  (§3.4, Załącznik A) is the DESIGN; the code has the safety net. Per-format clocks are M2's data.
+- **battle time limit today: 420** s for 7v7, **900** s for 15v15, owned by
+  `BattleFormat::time_limit_s()`. `RANDOM_BATTLE_TIME_LIMIT_S` is the compatibility alias
+  for 7v7; the live host reads the selected format. The existing `StartBattle` word carries
+  its authoritative deadline to each remote crew without a protocol change.
 - **matchmaking spread today: ±1** tier (`VehicleKind::MATCHMAKING_SPREAD`,
   `matchmaking_pool`): the bots deploy from the human's tier ±1 (a bracket too thin to field two
   designs falls back to the whole park). There is no rating, no identity (a player is a
@@ -155,8 +159,8 @@ battle with a few strangers in it, and it says so.
 
 | Piece | Today | Owed |
 |---|---|---|
-| The format through the host | a literal, named (`SEATS_PER_TEAM`) | R1 — M2 |
-| The AI battle | the local 7v7 with bots on both sides | the seat count — M2, the garage entry — M3 |
+| The format through the host | `BattleFormat` through setup, local authority and lobby (M2) | thirty-hull release measurements — M5 |
+| The AI battle | `new_ai_battle`: one human, 29 bots, 900 s; no socket (M2) | the garage entry — M3 |
 | Humans on both sides of a dedicated host | team one only | M6 |
 | The queue screen | none (`WOT_CONNECT`, a loud refusal) | the interface program's P lane (M7 names the row) |
 | The matchmaker (pure) | the lobby's "first seven, then bots" | the crate — M7 |
@@ -238,7 +242,7 @@ decision here, a register row where a register exists, and a lock in the row tha
 | ID | Row | Evidence | Closes when |
 |---|---|---|---|
 | ~~M1~~ | ~~The seat count is a literal in four places~~ — **CLOSED (2026-09-06)** with this document: `SEATS_PER_TEAM` named and exported, `setup.rs` and the lobby threshold count from it | `crates/runtime/battle_host/src/battle.rs` | the four claims of `roadmap_claims.rs` on this document; every existing 7v7 lock unchanged |
-| M2 | **The format is data** (R1, R8, finding 2): `BattleFormat` through `RandomBattleConfig`, the setup, the local host, the lobby (`LOBBY_FULL_PLAYERS` from the format), the clock per format (420 s / 900 s); the five-column spawn grid; `BattleMode` grows `AiBattle` | `crates/runtime/battle_host/src/battle.rs`, `setup.rs`, `local.rs`, `remote.rs` | `a_15v15_setup_spawns_thirty_tanks_with_the_player_on_team_one`; `the_7v7_format_is_todays_battle_byte_for_byte` (the replay fixtures and the five map soaks untouched); `every_seat_of_every_format_lands_inside_its_zone`; `the_7v7_clock_is_seven_minutes_and_the_15v15_clock_fifteen` |
+| ~~M2~~ | ~~**The format is data**~~ — **CLOSED (2026-09-06)**, begun by GPT-6 Astra, finished by Claude (R1, R8, finding 2): `game_core::BattleFormat` (seats, clock, spawn formation; append-only) through `RandomBattleConfig.format`, the setup, the local host (`new_random`, `new_ai_battle`, `new_random_for_humans`), the lobby's threshold and `StartBattle`'s clock from the format; the clocks 420 s / 900 s; the five-column grid for fifteen; `BattleMode` grows `Random15v15` and `AiBattle`; the 7v7 deployment byte-identical on all five maps | `crates/foundation/game_core/src/battle_format.rs`, `crates/runtime/battle_host/src/battle.rs`, `setup.rs`, `local.rs`, `remote.rs` | `a_15v15_setup_spawns_thirty_tanks_with_the_player_on_team_one`; `the_7v7_format_is_todays_battle_byte_for_byte` (the replay fixtures and the five map soaks untouched); `every_seat_of_every_format_lands_inside_its_zone`; `the_7v7_clock_is_seven_minutes_and_the_15v15_clock_fifteen` |
 | M3 | **The AI battle on the button**: the garage's BATTLE entry becomes BATTLE (online, the format switch 7v7 · 15v15, disabled with the reason until M7) and AI BATTLE (offline 15v15, today's local path); the results screen says which mode it was | `crates/apps/client/src/app/garage/actions.rs`, `crates/apps/client/src/app/mod.rs` | `the_ai_battle_is_fifteen_against_fifteen_and_needs_no_socket`; the garage golden (the G lane draws it) |
 | M4 | **The 15-seat spawn gate per map**: the `map_forge` report row, the blueprint's format list (`formats: [SevenVsSeven, FifteenVsFifteen]`), the five maps re-reported | `crates/world/map_forge/src/report.rs`, `crates/world/map_forge/blueprints/*.map.ron` | `a_map_offers_only_the_formats_its_zones_seat`; the goldens re-blessed deliberately |
 | M5 | **The budgets re-based, and the optimisation** (Part IV 1–3, finding 3; the owner: every budget sized for 14 tanks is raised to the largest format): the table of every 14-based number — the transport's line, the vehicle instance and aperture buffers, the lobby's table cap, the `14` in every worst-case lock — re-based to thirty with a measurement each; the wire's payload optimised (delta snapshots / a smaller per-tank payload, netcode row 9) until a 30-tank snapshot rides five fragments again; the `perf_capture` 15v15 row and the `battle_tick` row at 30 on the MX330 — a map that fails is optimised until it passes | `crates/runtime/net/tests/snapshot_budget.rs`, `crates/apps/client/src/vehicle/render_frame.rs`, `crates/apps/client/examples/probe/perf_capture.rs` | `a_full_snapshot_of_the_largest_format_fits_its_budget`; every budget lock names the largest format; the recorded measurement per map, with the date |
@@ -253,8 +257,9 @@ every map or on some — and the optimisation until every map does), M6 first am
 rows (before M7 and before any online test), M7 with N4, M8 after N5, M9 when the reconnect
 budget has met a real drop. The netcode program's waves interleave: nothing in lane M waits for
 N3 (lag compensation), M7 cannot land before N4's discovery, and row 9's delta snapshots are
-M5's optimisation, done before the format meets its first humans (finding 3). None of it starts
-before the owner's word: documents only (2026-09-06).
+M5's optimisation, done before the format meets its first humans (finding 3). The documents-only
+pause of 2026-09-06 was lifted the same day, when the owner handed Astra's unfinished M2 to Claude
+("kontynuuj tą pracę"); M3 onward starts on the owner's word as before.
 
 **Locks that already exist and change meaning.** Every `7v7` in a test name is a format's name,
 not a fact about the game; when M2 lands, the format is the fixture's parameter and the names stay

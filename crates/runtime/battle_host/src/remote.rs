@@ -1,4 +1,4 @@
-//! The dedicated battle host (N2): one process, one transport, up to seven human crews and bots
+//! The dedicated battle host (N2): one process, one transport, one format's human seats and bots
 //! for every empty seat. The lobby waits for players or a deadline, the battle runs the same
 //! `LocalAuthoritativeServer` core the desktop game uses, and every snapshot leaves the building
 //! ALREADY filtered per viewer — the anti-wallhack cut happens here, before the wire, unioning
@@ -17,8 +17,8 @@ use crate::remote_events::{RemoteEventQueue, RemoteEventQueueError};
 use crate::remote_input::RemoteInputQueue;
 use crate::{LocalAuthoritativeServer, RandomBattleConfig, SEATS_PER_TEAM, ServerTickConfig};
 
-/// How many humans the lobby wants before starting early: one team's seats (humans sit on
-/// team one until M6 of `docs/game-modes.md` seats them on both sides).
+/// Legacy seven-seat default. The live lobby reads `battle.format.seats_per_team()`;
+/// humans still sit on team one until M6 seats them on both sides.
 pub const LOBBY_FULL_PLAYERS: usize = SEATS_PER_TEAM;
 /// A joined client that stays silent this long (ms) is dropped.
 const CLIENT_TIMEOUT_MS: u64 = 10_000;
@@ -363,7 +363,7 @@ impl RemoteBattleServer {
                     let lobby = ProtocolMessage::LobbyState {
                         session_id: client.session_id,
                         players: players as u8,
-                        needed: LOBBY_FULL_PLAYERS as u8,
+                        needed: self.battle.format.seats_per_team() as u8,
                         countdown_ticks: countdown_ms / 50,
                     };
                     let _ = client.endpoint.send(transport, &lobby);
@@ -371,7 +371,7 @@ impl RemoteBattleServer {
                 if players == 0 {
                     return; // an empty lobby never starts; the deadline restarts on first join
                 }
-                if players >= LOBBY_FULL_PLAYERS || now_ms >= deadline {
+                if players >= self.battle.format.seats_per_team() || now_ms >= deadline {
                     self.start_battle(transport);
                 }
             }
@@ -615,13 +615,13 @@ impl RemoteBattleServer {
         established.sort_by_key(|(seq, _, _)| *seq);
         let seats: Vec<(std::net::SocketAddr, Option<game_core::VehicleKind>)> = established
             .into_iter()
-            .take(LOBBY_FULL_PLAYERS)
+            .take(self.battle.format.seats_per_team())
             .map(|(_, address, wish)| (address, wish))
             .collect();
         let wishes: Vec<Option<game_core::VehicleKind>> =
             seats.iter().map(|(_, wish)| *wish).collect();
         let (core, human_tanks) =
-            LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, &wishes);
+            LocalAuthoritativeServer::new_random_for_humans(self.config, self.battle, &wishes);
         let server_tick = core.authoritative_tick();
         let time_limit_tick = core.time_limit_tick();
         let roster = core.roster();
@@ -724,6 +724,7 @@ mod lifecycle_tests {
     fn ended_battle_finishes_after_the_full_repeat_window() {
         let config = ServerTickConfig::default();
         let battle = RandomBattleConfig {
+            format: game_core::BattleFormat::SevenVsSeven,
             seed: crate::BattleSeed::fixed(0xE0_D0),
             player_vehicle: game_core::VehicleKind::T54_1951,
             map: terrain::MapId::default(),
