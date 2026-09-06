@@ -114,6 +114,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
             snapshot_age_ms: 32,
         }),
         dead: None,
+        palette: ui_kit::theme::Palette::Standard,
     }
 }
 

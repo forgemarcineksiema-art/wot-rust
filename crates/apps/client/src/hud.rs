@@ -131,6 +131,8 @@ pub struct BattleHudModel {
     /// The dead crew's HUD (H19): `Some` once the own hull is a wreck — the intel sits back,
     /// the gun's instruments go, an ally's panel may come off the wire.
     pub dead: Option<spectate::DeadModel>,
+    /// The semantic palette the HUD wears (H22): the player's setting.
+    pub palette: ui_kit::theme::Palette,
 }
 
 /// Build the 2D HUD overlay from the vitals alone (the reticle and the readouts; the hit
@@ -170,6 +172,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             kill_feed: None,
             net: None,
             dead: None,
+            palette: ui_kit::theme::Palette::Standard,
         },
         aspect,
     )
@@ -221,6 +224,7 @@ pub(crate) fn test_model(
         kill_feed: None,
         net: None,
         dead: None,
+        palette: ui_kit::theme::Palette::Standard,
     }
 }
 
@@ -265,7 +269,7 @@ pub(crate) fn build_battle_hud_list(
     ui: &ui_kit::ui::Ui,
 ) -> DrawList<HudElement> {
     let aspect = ui.aspect();
-    let theme = ui_kit::theme::Theme::standard();
+    let theme = ui_kit::theme::Theme::standard().with_palette(model.palette);
     let mut list = DrawList::new();
     let mut order: i16 = 0;
     fn legacy(
@@ -579,7 +583,8 @@ pub(crate) fn build_battle_hud_list(
 /// old builder (`the_draw_list_emits_the_legacy_hud_byte_for_byte`).
 pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
     let ui = ui_kit::ui::Ui::for_aspect(aspect);
-    build_battle_hud_list(model, &ui).emit(&ui, &ui_kit::theme::Theme::standard())
+    build_battle_hud_list(model, &ui)
+        .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette))
 }
 
 #[cfg(test)]
@@ -603,7 +608,8 @@ pub fn hud_state_vertices(
         model.markers.map(|markers| markers.scaled_from_reference([width as f32, height as f32]));
     model.pings =
         model.pings.map(|pings| pings.scaled_from_reference([width as f32, height as f32]));
-    build_battle_hud_list(&model, &ui).emit(&ui, &ui_kit::theme::Theme::standard())
+    build_battle_hud_list(&model, &ui)
+        .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette))
 }
 
 /// The census of one state: vertices per element, in paint order.

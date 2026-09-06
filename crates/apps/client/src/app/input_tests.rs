@@ -972,3 +972,28 @@ fn the_outcome_banner_hands_off_on_enter_or_after_three_seconds() {
     app.on_key(PhysicalKey::Code(KeyCode::Enter), true, false);
     assert!(app.garage.is_open(), "Enter takes the hand-off at once");
 }
+
+/// H22: F9 rings through the palettes (until P6's screen), and the battle HUD wears the one
+/// chosen — the same model emits different bytes under a different palette.
+#[test]
+fn f9_cycles_the_palette_and_the_hud_wears_it() {
+    use ui_kit::theme::Palette;
+    let mut app = in_battle();
+    assert_eq!(app.palette(), Palette::Standard);
+    app.on_key(PhysicalKey::Code(KeyCode::F9), true, false);
+    assert_eq!(app.palette(), Palette::Deuteranopia);
+    app.on_key(PhysicalKey::Code(KeyCode::F9), true, true);
+    assert_eq!(app.palette(), Palette::Deuteranopia, "a repeat is not a press");
+    for _ in 0..Palette::ALL.len() - 1 {
+        app.on_key(PhysicalKey::Code(KeyCode::F9), true, false);
+    }
+    assert_eq!(app.palette(), Palette::Standard, "the ring closes");
+    let ui = ui_kit::ui::Ui::reference();
+    let mut model = crate::hud::demo::demo_model(false);
+    let standard = crate::hud::build_battle_hud_list(&model, &ui)
+        .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette));
+    model.palette = Palette::Deuteranopia;
+    let deuteranopia = crate::hud::build_battle_hud_list(&model, &ui)
+        .emit(&ui, &ui_kit::theme::Theme::standard().with_palette(model.palette));
+    assert_ne!(standard, deuteranopia, "the HUD wears the palette");
+}

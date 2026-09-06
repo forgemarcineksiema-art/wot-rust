@@ -46,10 +46,12 @@ pub enum HudState {
     KillFeed,
     /// A dead crew riding an ally (H19): the intel sat back, the strip, the ally's panel.
     DeadSpectating,
+    /// The deuteranopia palette (H22): every semantic pair apart by luminance and the blue axis.
+    PaletteDeuteranopia,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 17] = [
+    pub const ALL: [HudState; 18] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -67,6 +69,7 @@ impl HudState {
         HudState::CommandWheelOpen,
         HudState::KillFeed,
         HudState::DeadSpectating,
+        HudState::PaletteDeuteranopia,
     ];
 
     /// The golden's name stem.
@@ -89,6 +92,7 @@ impl HudState {
             HudState::CommandWheelOpen => "command_wheel_open",
             HudState::KillFeed => "kill_feed",
             HudState::DeadSpectating => "dead_spectating",
+            HudState::PaletteDeuteranopia => "palette_deuteranopia",
         }
     }
 
@@ -145,6 +149,11 @@ impl HudState {
             HudState::AmmoSwitching => {
                 model.ammo = Some(super::demo::demo_ammo(1));
                 model.vitals.reload_remaining_s = 5.1;
+            }
+            HudState::PaletteDeuteranopia => {
+                model.palette = ui_kit::theme::Palette::Deuteranopia;
+                model.sixth_sense_lit = true;
+                model.kill_feed = Some(super::demo::demo_kill_feed());
             }
             HudState::DeadSpectating => {
                 model.kill_feed = Some(super::demo::demo_kill_feed());

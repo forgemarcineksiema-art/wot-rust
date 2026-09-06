@@ -39,6 +39,7 @@ mod render_failure;
 mod render_tests;
 mod reticle;
 pub(crate) mod session;
+mod settings;
 mod spectate;
 mod vehicle_assets;
 
@@ -633,6 +634,10 @@ pub(crate) struct ClientApp {
     spectate: Option<TankId>,
     /// Seconds since the outcome banner came up (H20): the hand-off's clock.
     outcome_age_s: f32,
+    /// The player's settings (H22): the palette today, P6's list tomorrow.
+    settings: settings::Settings,
+    /// Where they persist; `None` keeps tests and offscreen renders off the disk.
+    settings_path: Option<std::path::PathBuf>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
@@ -937,6 +942,8 @@ impl ClientApp {
             aim_point_xz: None,
             spectate: None,
             outcome_age_s: 0.0,
+            settings: settings::Settings::default(),
+            settings_path: None,
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),
@@ -981,6 +988,7 @@ pub fn run() -> anyhow::Result<()> {
     scene_build::hangar::prewarm();
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
+    app.enable_settings_persistence(settings::settings_path());
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

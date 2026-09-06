@@ -6,8 +6,8 @@ use crate::hud::push_quad;
 /// The outcome families' tones (interface program H9): the theme's quiet floating tokens —
 /// penetration, held (a bounce, near or not), ricochet, shatter. One muted tone each, never
 /// the shell's colour, never neon (Inny Poziom S7; the owner's „nie natrętnie").
-fn family_tone(index: usize) -> [f32; 4] {
-    ui_kit::theme::Theme::standard().semantic.floating[index]
+fn family_tone(index: usize, palette: ui_kit::theme::Palette) -> [f32; 4] {
+    ui_kit::theme::Theme::standard().with_palette(palette).semantic.floating[index]
 }
 /// The near-penetration's own heat: between the bounce's yellow and the ricochet's red — the
 /// "same spot again" cue, still a glyph and nothing more (no mm duel).
@@ -26,17 +26,17 @@ pub(super) struct MarkerOutcome {
     pub shattered: bool,
 }
 
-pub(super) fn color_for(outcome: MarkerOutcome) -> [f32; 4] {
+pub(super) fn color_for(outcome: MarkerOutcome, palette: ui_kit::theme::Palette) -> [f32; 4] {
     if outcome.pen {
-        family_tone(0)
+        family_tone(0, palette)
     } else if outcome.shattered {
-        family_tone(3)
+        family_tone(3, palette)
     } else if outcome.ric {
-        family_tone(2)
+        family_tone(2, palette)
     } else {
         // A held shell, near penetration or not: the same family, the same tone — the near
         // miss is the reticle's story (its verdict), not a colour of its own on the number.
-        family_tone(1)
+        family_tone(1, palette)
     }
 }
 
@@ -46,11 +46,12 @@ pub(super) fn push_marker(
     outcome: MarkerOutcome,
     a: f32,
     asp: f32,
+    palette: ui_kit::theme::Palette,
 ) {
     let h: [f32; 2] = [0.005 / asp, 0.005];
     // One quiet tone per family (H9): the number and its glyph agree, and the near miss is the
     // reticle's story (its verdict), not a colour of its own here.
-    let tint = color_for(outcome);
+    let tint = color_for(outcome, palette);
     if outcome.pen {
         push_quad(verts, c, h, fade(tint, a));
     } else if outcome.shattered {

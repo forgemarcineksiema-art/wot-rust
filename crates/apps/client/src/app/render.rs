@@ -724,6 +724,7 @@ impl ClientApp {
             kill_feed: self.kill_feed_model(),
             net: Some(self.session.net_readout()),
             dead: player_dead.then(|| self.dead_model()),
+            palette: self.palette(),
         };
         // The death spectate (D9, H19) keeps the intel and drops the gun's instruments — the
         // draw list does that by name; the world-anchored marks below are the living crew's.
@@ -733,7 +734,7 @@ impl ClientApp {
             // physical viewport at the user's scale (1.0 until settings land, P6).
             use ui_kit::draw_list::{Element, Payload};
             let ui = ui_kit::ui::Ui::new(self.viewport.0, self.viewport.1, 1.0);
-            let theme = ui_kit::theme::Theme::standard();
+            let theme = ui_kit::theme::Theme::standard().with_palette(self.palette());
             let mut list = crate::hud::build_battle_hud_list(&hud_model, &ui);
             if !player_dead {
                 let after = list.len() as i16;
@@ -750,7 +751,11 @@ impl ClientApp {
                     Element::new(
                         crate::hud::HudElement::HitIndicator,
                         world,
-                        Payload::Legacy(self.hit_indicator.render_vertices(view_proj, aspect)),
+                        Payload::Legacy(self.hit_indicator.render_vertices(
+                            view_proj,
+                            aspect,
+                            self.palette(),
+                        )),
                     )
                     .z(after + 2),
                 );
