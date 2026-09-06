@@ -42,6 +42,28 @@ fn register_rows(doc: &str) -> Vec<(String, Vec<String>)> {
         .collect()
 }
 
+/// Every register ID, open or closed: a closed row keeps its ID struck through (`~~P1~~`) —
+/// IDs are never renumbered and rows never deleted — so the uniqueness and the four-wave
+/// shape are judged over the whole register, not over what is still open.
+fn register_ids(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if !line.starts_with('|') {
+                return None;
+            }
+            let id = line.trim_matches('|').split('|').next()?.trim().trim_matches('~').to_string();
+            let mut chars = id.chars();
+            let wave = chars.next()?;
+            let digits: String = chars.collect();
+            let is_row = WAVES.contains(&wave)
+                && !digits.is_empty()
+                && digits.chars().all(|c| c.is_ascii_digit());
+            is_row.then_some(id)
+        })
+        .collect()
+}
+
 /// Every repo-relative path a cell names: a `crates/…`, `docs/…` or `assets/…` token, cut at
 /// the first character that cannot be part of a path, with a trailing `:line-line` removed.
 fn paths_in(cell: &str) -> Vec<String> {
@@ -106,7 +128,7 @@ fn every_register_id_in_the_interface_program_is_unique() {
 
     let mut seen = HashSet::new();
     let mut duplicates = Vec::new();
-    for (id, _) in register_rows(&doc) {
+    for id in register_ids(&doc) {
         if !seen.insert(id.clone()) {
             duplicates.push(id);
         }

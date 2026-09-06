@@ -339,6 +339,7 @@ impl ClientApp {
         self.player_tank = self.session.player_tank();
         // P3: a battle's record starts with the battle, in the crew's own seat.
         self.ledger = crate::app::ledger::BattleLedger::new(self.player_tank);
+        self.results_shown = false;
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;

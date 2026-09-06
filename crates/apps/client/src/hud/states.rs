@@ -57,10 +57,16 @@ pub enum HudState {
     /// The key bindings page (P8): the battle's keys, FIRE bound to W and shared with
     /// FORWARD, both rows saying so.
     ShellKeybindsConflict,
+    /// The results page's SUMMARY (P1, P10): the numbers, the REPLAY disabled with its reason.
+    ShellResultsSummary,
+    /// The results page's TIMELINE (P2): a fight, row by row, every row off the wire.
+    ShellResultsTimeline,
+    /// The BATTLES page (P4): the history newest first, the newest selected.
+    ShellBattleLog,
 }
 
 impl HudState {
-    pub const ALL: [HudState; 22] = [
+    pub const ALL: [HudState; 25] = [
         HudState::ThirdPersonIdle,
         HudState::SniperAimingHull,
         HudState::Reloading,
@@ -83,6 +89,9 @@ impl HudState {
         HudState::PresetFull,
         HudState::ShellSettings,
         HudState::ShellKeybindsConflict,
+        HudState::ShellResultsSummary,
+        HudState::ShellResultsTimeline,
+        HudState::ShellBattleLog,
     ];
 
     /// The golden's name stem.
@@ -110,6 +119,9 @@ impl HudState {
             HudState::PresetFull => "preset_full",
             HudState::ShellSettings => "shell_settings",
             HudState::ShellKeybindsConflict => "shell_keybinds_conflict",
+            HudState::ShellResultsSummary => "shell_results_summary",
+            HudState::ShellResultsTimeline => "shell_results_timeline",
+            HudState::ShellBattleLog => "shell_battle_log",
         }
     }
 
@@ -214,6 +226,15 @@ impl HudState {
             HudState::ShellKeybindsConflict => {
                 model.shell = Some(super::shell::demo_keybinds_screen());
             }
+            HudState::ShellResultsSummary => {
+                model.shell =
+                    Some(super::shell::demo_results_screen(super::shell::ResultsTab::Summary));
+            }
+            HudState::ShellResultsTimeline => {
+                model.shell =
+                    Some(super::shell::demo_results_screen(super::shell::ResultsTab::Timeline));
+            }
+            HudState::ShellBattleLog => model.shell = Some(super::shell::demo_battles_screen()),
             HudState::MinimapLarge => {
                 if let Some(map) = &mut model.minimap {
                     map.size = super::minimap::MinimapSize::Large;

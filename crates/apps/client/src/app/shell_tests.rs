@@ -8,7 +8,7 @@ use super::input_tests::in_battle;
 use super::keybinds::{Action, Context, KeyBindings};
 use super::shell::shell_footer;
 use crate::hud::elements::{HudElement, ShellPart};
-use crate::hud::shell::{MenuItem, MenuKind, SettingsRow, ShellModel};
+use crate::hud::shell::{MenuItem, MenuKind, ResultsTab, SettingsRow, ShellModel};
 
 fn key(code: KeyCode) -> PhysicalKey {
     PhysicalKey::Code(code)
@@ -189,6 +189,23 @@ fn escape_always_offers_a_way_out() {
                 app
             }),
         ),
+        (
+            "results page",
+            Box::new(|| {
+                let mut app = in_battle();
+                app.battle_outcome = Some(crate::hud::BattleHudOutcome::Victory);
+                app.open_results_page();
+                app
+            }),
+        ),
+        (
+            "battles page",
+            Box::new(|| {
+                let mut app = ClientApp::new();
+                app.open_battles_page();
+                app
+            }),
+        ),
     ];
     for (name, start) in starts {
         let mut app = start();
@@ -226,4 +243,73 @@ fn the_garage_menu_opens_its_pages_and_quit_asks_the_loop_to_leave() {
     assert!(!app.cursor_captured);
     app.click_menu_item(MenuItem::Stay);
     assert!(!app.shell_open() && app.cursor_captured, "STAY: the mouse is the gun again");
+}
+
+/// P4 + P5: a battle ends and is written once — the loop's outcome edge writes it, more ticks
+/// write nothing more; BATTLES on the cold garage's menu lists it newest first; OPEN shows the
+/// results page over the stored ledger (the same words: the hull, the outcome, the numbers);
+/// ENTER there goes back to the history; ESC is the garage's menu.
+#[test]
+fn a_finished_battle_lands_in_the_history_and_opens_from_the_battles_page() {
+    let dir = std::env::temp_dir().join(format!("wot-battles-page-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut app = in_battle();
+    app.enable_history_persistence(dir.clone());
+    assert!(app.history().expect("on").entries().is_empty());
+    // The battle ends on the local host: every enemy knocked out; the next tick is the edge.
+    let player = app.session.player_tank();
+    let player_team = app.player_team();
+    let enemies: Vec<game_core::TankId> = app
+        .session
+        .roster()
+        .iter()
+        .filter(|entry| entry.team != player_team)
+        .map(|entry| entry.tank_id)
+        .collect();
+    assert!(!enemies.is_empty());
+    let super::session::BattleSessionKind::Local(server) = &mut app.session else {
+        panic!("the desktop battle")
+    };
+    for enemy in &enemies {
+        server.knock_out_for_test(*enemy);
+    }
+    app.run_fixed_ticks(3);
+    assert!(app.battle_outcome.is_some(), "the board decided");
+    assert_eq!(app.history().expect("on").entries().len(), 1, "written once at the end");
+    app.run_fixed_ticks(30);
+    assert_eq!(app.history().expect("on").entries().len(), 1, "and never again");
+    let entry = app.history().expect("on").entries()[0].clone();
+    assert_eq!(entry.outcome, "victory");
+    assert_eq!(entry.map, app.session.map_id().slug());
+    // A fresh app in a cold garage: the history is there; BATTLES lists it; OPEN reads it.
+    let mut fresh = ClientApp::new();
+    fresh.enable_history_persistence(dir.clone());
+    fresh.on_key(key(KeyCode::Escape), true, false);
+    fresh.click_menu_item(MenuItem::Battles);
+    let Some(ShellModel::Battles(page)) = fresh.shell_model() else { panic!("the history") };
+    assert_eq!(page.rows.len(), 1);
+    assert_eq!(page.rows[0].outcome, crate::ui_strings::battle::VICTORY);
+    assert_eq!(page.rows[0].map, entry.map);
+    fresh.on_battle_keyboard(key(KeyCode::Enter), true);
+    let Some(ShellModel::Results(results)) = fresh.shell_model() else {
+        panic!("the stored results")
+    };
+    assert_eq!(results.tab, ResultsTab::Summary);
+    assert_eq!(results.outcome, crate::hud::BattleHudOutcome::Victory);
+    assert!(
+        results.hull.contains(" \u{b7} ")
+            && !results.hull.contains(crate::ui_strings::battle::TL_UNSEEN),
+        "the crew's own hull off the stored roster: {}",
+        results.hull
+    );
+    assert!(results.replay.recording.is_none());
+    assert!(results.team.iter().any(|row| row.player), "the crew is on its own roster");
+    assert_eq!(app.ledger.player(), player);
+    // ENTER: back to the history; ESC: the garage's menu.
+    fresh.on_battle_keyboard(key(KeyCode::Enter), true);
+    assert!(matches!(fresh.shell_model(), Some(ShellModel::Battles(_))));
+    fresh.on_battle_keyboard(key(KeyCode::Escape), true);
+    let Some(ShellModel::Menu(menu)) = fresh.shell_model() else { panic!("the garage's menu") };
+    assert_eq!(menu.kind, MenuKind::Garage);
+    let _ = std::fs::remove_dir_all(&dir);
 }

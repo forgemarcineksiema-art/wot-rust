@@ -221,6 +221,45 @@ pub(crate) mod battle {
     pub const FOOTER_REBIND: &str = "REBIND";
     pub const FOOTER_RESET: &str = "RESET";
     pub const FOOTER_CONTEXT: &str = "CONTEXT";
+    /// The results page (P1, P2, P10): its title, its tabs, its numbers, its timeline words.
+    pub const RESULTS_TITLE: &str = "RESULTS";
+    pub const TAB_WORD: &str = "TAB";
+    pub const TAB_SUMMARY: &str = "SUMMARY";
+    pub const TAB_TIMELINE: &str = "TIMELINE";
+    pub const TAB_TEAM: &str = "TEAM";
+    pub const STAT_SHOTS: &str = "SHOTS";
+    pub const STAT_HITS: &str = "HITS";
+    pub const STAT_PENETRATIONS: &str = "PENETRATIONS";
+    pub const STAT_DAMAGE_DEALT: &str = "DAMAGE DEALT";
+    pub const STAT_DAMAGE_TAKEN: &str = "DAMAGE TAKEN";
+    pub const STAT_KILLS: &str = "KILLS";
+    pub const STAT_SPOTTED: &str = "TIMES SPOTTED";
+    pub const STAT_SEEN_BY: &str = "SEEN BY";
+    pub const STAT_DURATION: &str = "DURATION";
+    pub const REPLAY: &str = "REPLAY";
+    /// P10: why the button is disabled — no viewer exists until L3.
+    pub const REPLAY_REASON: &str = "NO VIEWER YET";
+    pub const RECORDED_TO: &str = "RECORDED TO";
+    pub const FOOTER_CONTINUE: &str = "CONTINUE";
+    pub const FOOTER_SCROLL: &str = "SCROLL";
+    pub const TL_SHOT: &str = "SHOT";
+    pub const TL_NO_HIT: &str = "NO HIT SEEN";
+    pub const TL_TAKEN: &str = "TAKEN";
+    pub const TL_DESTROYED: &str = "DESTROYED";
+    pub const TL_HULL_LOST: &str = "HULL LOST";
+    pub const TL_SEEN_BY: &str = "SEEN BY";
+    pub const TL_UNSEEN: &str = "UNSEEN";
+    pub const TL_BY: &str = "BY";
+    pub const WORD_ALIVE: &str = "ALIVE";
+    pub const WORD_BOT: &str = "BOT";
+    pub const WORD_HUMAN: &str = "HUMAN";
+    pub const WORD_YOU: &str = "YOU";
+    /// The battle history (P4, P5): the garage menu's entry, the page, its words.
+    pub const MENU_BATTLES: &str = "BATTLES";
+    pub const BATTLES_TITLE: &str = "BATTLES";
+    pub const NO_BATTLES: &str = "NO BATTLES YET";
+    pub const DMG_UNIT: &str = "DMG";
+    pub const FOOTER_OPEN: &str = "OPEN";
     /// The page's arrows and the footer's words.
     pub const ARROW_DEC: &str = "<";
     pub const ARROW_INC: &str = ">";
@@ -348,6 +387,42 @@ pub(crate) mod battle {
         FOOTER_SELECT,
         FOOTER_CHANGE,
         FOOTER_BACK,
+        MENU_BATTLES,
+        BATTLES_TITLE,
+        NO_BATTLES,
+        DMG_UNIT,
+        FOOTER_OPEN,
+        RESULTS_TITLE,
+        TAB_WORD,
+        TAB_SUMMARY,
+        TAB_TIMELINE,
+        TAB_TEAM,
+        STAT_SHOTS,
+        STAT_HITS,
+        STAT_PENETRATIONS,
+        STAT_DAMAGE_DEALT,
+        STAT_DAMAGE_TAKEN,
+        STAT_KILLS,
+        STAT_SPOTTED,
+        STAT_SEEN_BY,
+        STAT_DURATION,
+        REPLAY,
+        REPLAY_REASON,
+        RECORDED_TO,
+        FOOTER_CONTINUE,
+        FOOTER_SCROLL,
+        TL_SHOT,
+        TL_NO_HIT,
+        TL_TAKEN,
+        TL_DESTROYED,
+        TL_HULL_LOST,
+        TL_SEEN_BY,
+        TL_UNSEEN,
+        TL_BY,
+        WORD_ALIVE,
+        WORD_BOT,
+        WORD_HUMAN,
+        WORD_YOU,
         PAUSE_KEYBINDS,
         KEYBINDS_TITLE,
         SET_CONTEXT,

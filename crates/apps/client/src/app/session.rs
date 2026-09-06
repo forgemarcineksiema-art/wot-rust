@@ -242,6 +242,14 @@ impl BattleSessionKind {
         }
     }
 
+    /// The recording's path (P10), when the session writes one; the local battle writes none.
+    pub(super) fn recording_path(&self) -> Option<String> {
+        match self {
+            Self::Local(_) => None,
+            Self::Remote(session) => session.recording_path.clone(),
+        }
+    }
+
     /// The crew's spotting log (protocol v52, W-7): every enemy that saw its hull, from how
     /// far, from when to when — empty until the battle is over, on either host.
     pub(super) fn spotting_log(&self) -> Vec<net::SpottingRecord> {
@@ -359,6 +367,8 @@ pub struct RemoteSession {
     outcome: Option<battle_host::BattleOutcome>,
     /// The crew's spotting log (v52, W-7), off the end word; empty until it lands.
     spotting_log: Vec<net::SpottingRecord>,
+    /// Where `WOT_RECORD` writes the frames, when it is set (P10 names it beside REPLAY).
+    recording_path: Option<String>,
     inputs: RemoteInputHistory,
     combat_events: RemoteCombatEventInbox,
     pending_combat_events: Vec<net::CombatEvent>,
@@ -419,6 +429,7 @@ impl RemoteSession {
             delivery_ready: false,
             terminal_reason: None,
             spotting_log: Vec::new(),
+            recording_path: std::env::var("WOT_RECORD").ok(),
             redial_attempts: 0,
             next_redial_ms: None,
             seat_started_ms: None,

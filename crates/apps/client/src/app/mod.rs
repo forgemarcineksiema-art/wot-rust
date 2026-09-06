@@ -12,6 +12,7 @@ mod frame_scene;
 pub(crate) mod garage;
 mod garage_render;
 pub(crate) mod ghosts;
+pub(crate) mod history;
 #[cfg(test)]
 mod hit_mark_tests;
 mod hud_editor;
@@ -40,6 +41,7 @@ mod render;
 mod render_failure;
 #[cfg(test)]
 mod render_tests;
+pub(crate) mod results;
 mod reticle;
 pub(crate) mod session;
 pub(crate) mod settings;
@@ -636,6 +638,11 @@ pub(crate) struct ClientApp {
     hud_editor: Option<hud_editor::HudEditorState>,
     /// The shell page over the battle (P6): the settings page while it is open.
     shell: Option<shell::ShellState>,
+    /// P1: the results page has been shown for this battle — the hand-off goes to the garage
+    /// after that.
+    results_shown: bool,
+    /// The battle history on disk (P5); `None` until the real startup turns it on.
+    history: Option<history::BattleHistory>,
     /// The last built HUD's frame per instrument: what the editor hit-tests against.
     hud_frames: Vec<(crate::hud::layout::Instrument, ui_kit::rect::Rect)>,
     /// Set whenever `minimap_static` changes (H0): the next frame composes the material sheet
@@ -950,6 +957,8 @@ impl ClientApp {
             layout_path: None,
             hud_editor: None,
             shell: None,
+            results_shown: false,
+            history: None,
             hud_frames: Vec::new(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
@@ -998,6 +1007,7 @@ pub fn run() -> anyhow::Result<()> {
     app.enable_settings_persistence(settings::settings_path());
     app.enable_layout_persistence(ClientApp::default_layout_path());
     app.enable_keybinds_persistence(keybinds::keybinds_path());
+    app.enable_history_persistence(history::history_dir());
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }
