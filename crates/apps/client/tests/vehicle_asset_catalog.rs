@@ -9,21 +9,23 @@ use vehicle_geometry::{RunningGearKinematics, SubmeshKind};
 /// lever dampers at the blueprint's damped stations).
 fn t54_object_count() -> usize {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
-    3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2 + kin.damper_stations.len() * 2
+    // Hull/turret/gun; wheels and arms both sides; sprocket, idler and the idler's tension
+    // crank (K12: its own part) per side; the links; the dampers.
+    3 + kin.wheel_zs.len() * 2 * 2 + 6 + kin.link_count() * 2 + kin.damper_stations.len() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus nine unit gear meshes (road
-/// wheel, swing arm, its mirrored LEFT arm, damper and ITS mirror, sprocket, idler, track link,
-/// return roller) at EACH of the two detail tiers.
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus eleven unit gear meshes (road
+/// wheel, swing arm, its mirrored LEFT arm, damper and ITS mirror, sprocket, idler, the idler's
+/// tension crank and ITS mirror, track link, return roller) at EACH of the two detail tiers.
 ///
-/// The second set is what the distance tier costs, and it is worth stating plainly: nine extra
-/// unit meshes per vehicle kind, resident for the battle, in exchange for 47-61% of the gear's
-/// triangles on every tank past 60 m. The gear is the largest body of geometry a vehicle has
-/// (38.6k triangles on a T-54, more than twice its whole static bake), so the trade is not
-/// close. Two of the nine are mirrored left-hand geometry (arm, damper): those parts cannot be
-/// turned to face the other flank, so each mirror is real geometry — resident meshes,
-/// zero more instances or drawn triangles.
-const BLUEPRINT_MESH_COUNT: usize = 3 + 9 * 2;
+/// The second set is what the distance tier costs, and it is worth stating plainly: eleven
+/// extra unit meshes per vehicle kind, resident for the battle, in exchange for 57-77% of the
+/// gear's triangles on every tank past 60 m. The gear is the largest body of geometry a vehicle
+/// has (70.9k triangles on a T-54 since K11/K12, more than twice its whole static bake), so the
+/// trade is not close. Three of the eleven are mirrored left-hand geometry (arm, damper, crank):
+/// those parts cannot be turned to face the other flank, so each mirror is real geometry —
+/// resident meshes, zero more instances or drawn triangles.
+const BLUEPRINT_MESH_COUNT: usize = 3 + 11 * 2;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
