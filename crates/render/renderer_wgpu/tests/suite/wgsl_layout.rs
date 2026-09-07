@@ -54,6 +54,22 @@ fn wgsl_const(source: &str, name: &str) -> f32 {
     rest[..end].trim().parse().expect("a numeric const")
 }
 
+/// B7: the paved street's own material. The ground shader reads the surface lane (location
+/// 10, flat across a triangle) and draws granite setts where it says SETTS — the role value
+/// an append-only CPU/GPU protocol, locked at both ends.
+#[test]
+fn the_paved_street_wears_setts_in_the_terrain_shader() {
+    let source = terrain_shader_source();
+    assert_eq!(surface_role::SETTS, 16.0);
+    assert!(source.contains("@location(10) surface: f32"));
+    assert!(source.contains("@interpolate(flat) surface: f32"));
+    assert!(source.contains("fn setts_shade"));
+    assert!(source.contains("input.surface > 15.5 && input.surface < 16.5"));
+    assert!((wgsl_const(&source, "SETTS_STONE_M") - 0.14).abs() < 1e-6, "0.14 m stones");
+    assert!(wgsl_const(&source, "SETTS_JOINT_M") <= 0.02, "a narrow joint");
+    validate_wgsl_shader("terrain", &source).expect("the terrain shader validates with the lane");
+}
+
 #[test]
 fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     let source = scene_shader_source();

@@ -212,7 +212,7 @@ Inherited: Z4 (the register replaces the roadmap's DONE); Z7 (shells ricochet of
 
 ### T — terrain
 
-Inherited: T1 (the grid — DECIDED: 2.5 m map-wide with chunk LOD and geomorphing, gated by the map-swap and frame measurements; the far chunks morph to 5 m/10 m, the morph is zero inside ~150–200 m so eye = ground where shots land), T2 (erosion in the editor), T4 (cliffs triplanar), T5 (road edges and kerbs — extended to the city kerb/pavement and a setts tile: the paved street routes to the rock lane and wears the cliff's crack tile).
+Inherited: T1 (the grid — DECIDED: 2.5 m map-wide with chunk LOD and geomorphing, gated by the map-swap and frame measurements; the far chunks morph to 5 m/10 m, the morph is zero inside ~150–200 m so eye = ground where shots land), T2 (erosion in the editor), T4 (cliffs triplanar), T5 (road edges and kerbs — its city half CLOSED as B7 on 2026-09-07: kerb, pavement and setts; the country road's edge still open).
 
 | ID | Defect | Evidence | Closes when |
 |---|---|---|---|
@@ -273,7 +273,7 @@ Inherited: ~~B1 (eaves and ridges)~~, ~~B2 (ground connection)~~ (its dirt apron
 
 | ID | Defect | Evidence | Closes when |
 |---|---|---|---|
-| B7 | **No kerb, no pavement, no setts.** The city street routes to the rock lane and wears the cliff's crack tile; the road dissolves into grass without an edge (VR-04) | `terrain/src/ground.rs:217-222`, `renderer_api/src/ground_detail.rs:68-72`; `ostrogorsk_canyon.png` | T5 scoped to the city: kerb + pavement strip on the instanced path, a setts detail tile; lock: `a_paved_road_wears_setts_not_cliff_cracks` |
+| ~~B7~~ | ~~**No kerb, no pavement, no setts.**~~ **CLOSED (2026-09-07, `feat/b7-kerb-pavement-setts`).** SETTS: `surface_role::SETTS` (16, appended) rides the ground vertex's surface lane wherever a `Cobble` road's paint is more than half; the terrain shader reads the lane (location 10, flat) and draws granite setts there — 0.14 m stones in a lattice turned 30° off the axes, one tone per stone, a 12 mm dark joint — in the road's own tone, over the rock lane's crack tile (`setts_shade`). KERB AND PAVEMENT: `street_kerb_runs` — a granite kerb (0.25 × 0.15 m) and a flagstone strip (1.5 × 0.10 m) on both edges of every paved road, runs ≤ 8 m following the ground, breaking at the junctions, baked into the statics by bucket (the row asked for the instanced path; the bake is one draw cheaper and a street never moves); under the belly line by a const assertion. Locks: `a_paved_road_wears_setts_not_cliff_cracks` (scene_build), `the_paved_street_wears_setts_in_the_terrain_shader` (renderer_wgpu); the Ostrogorsk goldens re-recorded. OWED: the kerb's mitre at a bend and the dropped kerb at a gateway; a setts tile in the splat's own bake for the far field | `renderer_api/src/scene.rs`, `renderer_wgpu/src/shaders/terrain.wgsl`, `scene_build/src/battlefield.rs` | done |
 
 ### D — the picture (the register's home moved here from `docs/art-direction-program.md`)
 
@@ -309,7 +309,7 @@ Inherited U1–U11 stay with that program. New, from the graphics review verifie
 
 ### K, P, C, Q, N, H, R, F, O, A, L, M — inherited, unchanged
 
-K0, K3–K6, K9, K11–K19, K21–K23 (K10 CLOSED with J7; K24 CLOSED: `Nation::paint` merged as #780/#781 — one RGB per nation; the materials are K6), P1–P3, C1–C4, Q1 (its terrain half = T9), Q2, Q4, Q7, N1–N8, N9 (the owner's WSL), N11, H1–H6, R2, R3 (R1 amended above, R4 decided), F8–F11, O1, O2 (every D34–D45 PR rewrites the lock it names), A2, L1–L3, M5b/M7b/M8 (`docs/game-modes.md`). Full text in the second pass.
+K0, K3–K6, K9, K11–K19, K21–K23 (K10 CLOSED with J7; K24 CLOSED: `Nation::paint` merged as #780/#781 — one RGB per nation; the materials are K6), P1–P3, C1–C4, Q1 (CLOSED 2026-09-07: its terrain half = T9, the cover half = PR-04's dirty buckets), Q2, Q4, Q7, N1–N8, N9 (the owner's WSL), N11, H1–H6, R2, R3 (R1 amended above, R4 decided), F8–F11, O1, O2 (every D34–D45 PR rewrites the lock it names), A2, L1–L3, M5b/M7b/M8 (`docs/game-modes.md`). Full text in the second pass.
 
 ## 4. Lying and blind locks (rewritten in the PR that closes their row)
 

@@ -153,6 +153,11 @@ pub mod surface_role {
     /// joints staggered by half a brick every row, one tone per brick, a lighter lime
     /// mortar in the joints. The other cladding a kit wall wears beside [`PLASTER`]. Appended.
     pub const BRICK: f32 = 15.0;
+    /// Granite setts (B7, the paved street): the ground pipeline's own material for a
+    /// `RoadSurface::Cobble` road — 0.14 m stones in a lattice turned off the axes, one tone
+    /// per stone, dark sand joints — where the splat's rock lane used to lend the street the
+    /// cliff's crack tile. Carried in the ground vertex's surface lane. Appended.
+    pub const SETTS: f32 = 16.0;
 }
 
 impl SceneVertex {

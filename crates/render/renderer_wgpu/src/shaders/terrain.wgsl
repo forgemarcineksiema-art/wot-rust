@@ -70,6 +70,8 @@ struct VsIn {
     @location(2) color: vec3<f32>,
     @location(3) tint_weight: f32,
     @location(9) gloss: f32,
+    // B7: the surface lane — SETTS (16) on a paved street, 0 everywhere else.
+    @location(10) surface: f32,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
@@ -92,7 +94,28 @@ struct VsOut {
     // triangle), and it printed the owner's zigzag waves on every meadow of every map — see
     // the register's T6. Worked land comes back as a material, not as a sine.
     @location(5) quilt: vec2<f32>,
+    // B7: the surface lane, flat — a street's stones do not blend into the verge's grass.
+    @location(6) @interpolate(flat) surface: f32,
 };
+
+// B7, the paved street's own material: granite setts, 0.14 m stones in a lattice turned 30°
+// off the world axes (a street runs any way), one tone per stone, a dark sand joint of 12 mm.
+// World-anchored like every course the scene shader lays, so the stones sit still under a
+// moving eye and repeat with the lattice, never with a tile.
+const SETTS_STONE_M: f32 = 0.14;
+const SETTS_JOINT_M: f32 = 0.012;
+
+fn setts_shade(p: vec2<f32>) -> f32 {
+    let c = cos(0.5236);
+    let s = sin(0.5236);
+    let q = vec2<f32>(p.x * c - p.y * s, p.x * s + p.y * c) / SETTS_STONE_M;
+    let cell = floor(q);
+    let f = fract(q);
+    let edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * SETTS_STONE_M;
+    let joint = 1.0 - smoothstep(0.0, SETTS_JOINT_M, edge);
+    let tone = 0.84 + detail_hash(cell * 1.7 + vec2<f32>(3.0, 7.0)) * 0.28;
+    return mix(tone, 0.58, joint);
+}
 
 // Ziemia 2.0, pasmo makro: worked land is FIELDS, not one lawn. A low-frequency noise pair
 // names a ~50-100 m plot, every plot holds its own tone (lusher, drier, lighter, darker) and
@@ -138,6 +161,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.gloss = input.gloss;
     out.vertex_dominance = input.tint_weight;
     out.quilt = field_quilt(world.xz);
+    out.surface = input.surface;
     return out;
 }
 
@@ -275,6 +299,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     albedo = albedo * meadow_ground_shade(w.r + w.g, eye_dist);
     // The submerged riverbed: the baked depth tint wins by the vertex lane.
     albedo = mix(albedo, input.color, clamp(input.vertex_dominance, 0.0, 1.0));
+    // B7: the paved street is SETTS — the road's own tone under the stones' lattice — not
+    // the rock lane's crack tile.
+    if (input.surface > 15.5 && input.surface < 16.5) {
+        // The lattice fades to the flat stone tone with distance (rule 5: a 0.14 m period
+        // seen from sixty metres is a moiré, not a street); the tone stays.
+        let stones = mix(setts_shade(input.world_pos.xz), 0.92, smoothstep(25.0, 70.0, eye_dist));
+        albedo = mix(albedo, input.color * stones, 0.92);
+    }
     albedo = albedo * mix(1.0, 0.62, wet);
 
     let shadow =
