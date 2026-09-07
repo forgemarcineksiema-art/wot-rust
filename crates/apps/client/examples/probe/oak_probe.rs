@@ -25,6 +25,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         position: [tx, ground(tx, tz), tz],
         yaw_rad: 0.6,
         scale: 1.0,
+        seed: 0,
     }];
 
     let ((ground_v, ground_i), (statics_v, statics_i)) =

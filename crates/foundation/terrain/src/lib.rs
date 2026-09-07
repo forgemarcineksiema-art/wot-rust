@@ -61,7 +61,7 @@ pub use rubble::{
     RUBBLE_PROPERTIES, RUBBLE_REPOSE_GRADE, RubbleMound, ground_with_rubble, rubble_height_at,
 };
 pub use scenery::{
-    ScatterRegion, SceneryInstance, SceneryKind, covers_containing, inside_any_cover,
+    ScatterRegion, SceneryInstance, SceneryKind, covers_containing, inside_any_cover, pair_seed_at,
     position_unit, scatter_mirrored,
 };
 pub use sculpt::{band_mask, lerp, polyline_distance, smoothstep01};

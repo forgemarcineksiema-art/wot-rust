@@ -947,6 +947,7 @@ mod tests {
             position: [0.0, 0.0, 0.0],
             yaw_rad: 0.3,
             scale: 1.0,
+            seed: 0,
         }];
         let cover = vec![terrain::StaticCoverObject {
             id: "oak_bole".into(),
@@ -1162,24 +1163,28 @@ mod tests {
                 position: [100.0, 5.0, 100.0],
                 yaw_rad: 0.4,
                 scale: 1.0,
+                seed: 0,
             },
             SceneryInstance {
                 kind: SceneryKind::Rock,
                 position: [110.0, 5.0, 100.0],
                 yaw_rad: 0.0,
                 scale: 1.0,
+                seed: 0,
             },
             SceneryInstance {
                 kind: SceneryKind::Poplar,
                 position: [104.0, 5.0, 100.0],
                 yaw_rad: 0.0,
                 scale: 1.1,
+                seed: 0,
             },
             SceneryInstance {
                 kind: SceneryKind::Bush,
                 position: [106.0, 5.0, 100.0],
                 yaw_rad: 0.0,
                 scale: 1.0,
+                seed: 0,
             },
         ];
         let mut state = TreeLodState::default();
@@ -1356,6 +1361,7 @@ mod tests {
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         }];
         let variant = instance_variant(&scenery[0]);
         let far = MID_MAX_M + IMPOSTOR_FADE_HALF_M + 50.0;
@@ -1455,6 +1461,7 @@ mod tests {
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         }];
         let variant = instance_variant(&scenery[0]);
         let mut state = TreeLodState::default();
@@ -1498,6 +1505,7 @@ mod tests {
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         }];
         let cover = vec![terrain::StaticCoverObject {
             id: "test-line".to_string(),
@@ -1530,6 +1538,7 @@ mod tests {
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         }];
         let variant = instance_variant(&scenery[0]);
         let mut state = TreeLodState::default();
@@ -1588,6 +1597,7 @@ mod tests {
             position: [100.0, 5.0, 100.0],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         }];
         let variant = instance_variant(&scenery[0]);
         let mut state = TreeLodState::default();

@@ -774,6 +774,7 @@ mod tests {
             position: [500.0, ground(500.0, 500.0), 500.0],
             yaw_rad: 0.6,
             scale: 1.0,
+            seed: 0,
         }];
         let ((ground_v, ground_i), (statics_v, statics_i)) =
             crate::battlefield_ground_and_statics_meshes(&battlefield, &[]);

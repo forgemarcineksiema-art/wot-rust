@@ -84,6 +84,22 @@ fn a_wall_taller_than_the_step_still_holds_the_hull_at_its_face() {
     assert!(peak_y < 0.05, "nothing lifts a hull over a wall it cannot step, got {peak_y}");
 }
 
+/// A crag is in the same model (X5): from the street the two-metre granite is the wall it
+/// looks like; from a support within its step of the crest — a hull carried up rubble beside
+/// it — it is a shelf the hull steps onto, by the one rule, to both readers.
+#[test]
+fn a_crag_is_a_wall_from_the_street_and_a_shelf_from_a_support_within_its_step() {
+    let crag = solid(StaticCoverKind::Crag, 2.0, 2.0);
+    let crags = std::slice::from_ref(&crag);
+    let hull = TankFootprint::from_plan(HullPlan::for_vehicle(VehicleKind::T54_1951));
+    let street = Vec3::new(60.0, 0.0, 55.0);
+    let raised = Vec3::new(60.0, 2.0 - hull.step_m + 0.01, 55.0);
+    assert!(footprint_blocked_by_cover(street, 0.0, hull, crags), "granite from the street");
+    assert!(step_solids_near(crags, street, hull, 5.0).is_empty());
+    assert!(!footprint_blocked_by_cover(raised, 0.0, hull, crags), "a shelf from up the pile");
+    assert_eq!(step_solids_near(crags, raised, hull, 5.0).len(), 1);
+}
+
 /// The step is measured from the CURRENT support, and the two readers agree: a wall the SAT
 /// blocks from the street is one it lets the plan onto from half a metre up — and the gather
 /// hands that same wall to the support envelope from there, and not from the street.

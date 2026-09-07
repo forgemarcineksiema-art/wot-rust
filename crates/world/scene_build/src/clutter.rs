@@ -231,9 +231,12 @@ fn push_rock(
     form: world_forge::rock::RockForm,
 ) {
     let base = Vec3::from_array(instance.position);
-    let seed =
-        instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
-    let rock = world_forge::rock::bake_rock(form, seed);
+    // The one seed the map compiler's `Boulder` box bakes with too (X5): the box is the bounds
+    // of THIS stone.
+    let rock = world_forge::rock::bake_rock(
+        form,
+        world_forge::rock::rock_seed(instance.position, instance.seed),
+    );
     let rotation = Mat3::from_rotation_y(instance.yaw_rad);
     let start = vertices.len() as u32;
     for vertex in rock.body.vertices() {
@@ -282,7 +285,7 @@ mod tests {
     use super::*;
 
     fn erratic(position: [f32; 3], scale: f32) -> SceneryInstance {
-        SceneryInstance { kind: SceneryKind::Rock, position, yaw_rad: 0.7, scale }
+        SceneryInstance { kind: SceneryKind::Rock, position, yaw_rad: 0.7, scale, seed: 0 }
     }
 
     fn bake(instance: &SceneryInstance, stone: StoneTone) -> (Vec<SceneVertex>, Vec<u32>) {
@@ -293,7 +296,8 @@ mod tests {
     }
 
     /// The number the honesty rule stands on is a MEASUREMENT of the fleet, not a constant
-    /// somebody typed twice. A vehicle with a lower belly moves the rule, and this fails first.
+    /// somebody typed twice. A vehicle with a lower belly moves the rule, and this fails first —
+    /// and the map compiler's boxes (X5) read the same measurement (`game_core::fleet_belly_line_m`).
     #[test]
     fn the_belly_line_is_the_fleet_measurement() {
         let lowest = VehicleKind::ALL
@@ -302,6 +306,7 @@ mod tests {
             .map(|blueprint| blueprint.hull.belly_y)
             .fold(f32::INFINITY, f32::min);
         assert!(lowest.is_finite(), "the fleet has at least one blueprint");
+        assert_eq!(lowest, game_core::fleet_belly_line_m(), "one measurement, read from one place");
         assert!(
             (lowest - BELLY_LINE_M).abs() < 1.0e-6,
             "the fleet's lowest belly is now {lowest} m, not {BELLY_LINE_M} m — the honesty \
@@ -370,6 +375,7 @@ mod tests {
             position: [12.0, 2.0, 8.0],
             yaw_rad: 1.1,
             scale: 1.0,
+            seed: 0,
         };
         let mut vertices = Vec::new();
         let mut indices = Vec::new();

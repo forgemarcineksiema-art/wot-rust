@@ -216,7 +216,13 @@ not history):
    The rule: **a SOLID scenery object stays under the belly line; only LOOSE dressing may go
    above it.** A hull drives through grass, brush and a spilled rubble heap and nothing lies;
    it cannot drive through a metre of granite, so a boulder that tall is not scenery — it is
-   a cover box, and above the climb line it is one that blocks movement too.
+   a cover box, and above the climb line it is one that blocks movement too. Since X5
+   (2026-09-07) the compiler keeps this rule itself: every scattered `Rock` over the belly line
+   (`game_core::fleet_belly_line_m`, the one measurement) earns a `StaticCoverKind::Boulder`
+   box that is the bounds of the very stone the picture bakes (one seed, `rock_seed`), and a
+   scattered stone's mirror twin is the same stone at the mirrored yaw so the box has its twin
+   (`SceneryInstance.seed`, `SceneryKind::twins_as_a_solid`). Within the step the stone is
+   ground; taller it is a wall; a shell stops in it; the eye stops at it.
 
    This is the honest-blockers rule with its second half written down. The eye half still
    stands (anything that *reads* as cover must be a cover box); the belly half is what caught

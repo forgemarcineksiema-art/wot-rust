@@ -1092,11 +1092,14 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
     // the one that mattered).
     // Likewise a TREE inside a `TreeLine` box is hosted, not grown through: the box exists to
     // contain it (Świat 2.0 PR 5 raised every line to tower over the oaks standing in it).
+    // And a `Boulder` box (X5) is the bounds of a stone the scatter placed: the stone stands in
+    // its own box by construction, and a bush at its foot is dressing under the eye's stone.
     for instance in &map.scenery {
         let [x, _, z] = instance.position;
         let is_tree = TREE_KINDS.contains(&instance.kind);
         if map.static_cover.iter().any(|c| {
             c.kind != StaticCoverKind::TreeTrunk
+                && c.kind != StaticCoverKind::Boulder
                 && !(is_tree && c.kind == StaticCoverKind::TreeLine)
                 && terrain::CoverBox::of(c).contains_xz(x, z, -1.0e-6)
         }) {

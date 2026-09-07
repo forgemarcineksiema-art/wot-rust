@@ -85,6 +85,7 @@ pub fn backdrop_tree_instances(battlefield: &BattlefieldMap) -> Vec<SceneryInsta
             position: [x, ground, z],
             yaw_rad: backdrop_hash(&mut seed) * std::f32::consts::TAU,
             scale: RING_SCALE_MIN + backdrop_hash(&mut seed) * (RING_SCALE_MAX - RING_SCALE_MIN),
+            seed: 0,
         });
     }
     instances

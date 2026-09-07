@@ -110,6 +110,18 @@ const ERRATIC_BASE_CUT: f32 = 0.34;
 /// field stone actually shows.
 const ERRATIC_SINK_M: f32 = 0.09;
 
+/// The seed a placed stone bakes with: the PAIR's seed when the scatter gave it one (so a
+/// mirrored pair is the same stone, and its cover boxes are mirror twins — the one program's
+/// X5), else its position bits (a hand-placed stone, as before). The picture (`scene_build`'s
+/// clutter) and the map compiler (the `Boulder` box) both bake through this, so the box is the
+/// bounds of the mesh the eye sees.
+pub fn rock_seed(position: [f32; 3], pair_seed: u64) -> u64 {
+    if pair_seed != 0 {
+        return pair_seed;
+    }
+    position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32)
+}
+
 /// Bake one stone. `seed` picks the individual — the same form never repeats within a scatter,
 /// yet every bake of the same seed is identical.
 pub fn bake_rock(form: RockForm, seed: u64) -> BakedRock {

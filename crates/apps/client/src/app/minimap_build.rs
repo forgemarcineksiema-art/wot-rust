@@ -60,9 +60,12 @@ pub(crate) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> Mi
     let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
     let (relief, water) = sample_relief(&battlefield.heightmap, extent_m, battlefield.water_view());
     let roads = battlefield.roads.iter().map(|road| road.points.clone()).collect();
+    // A field stone's box (X5) is not a landmark: the minimap shows the buildings, walls and
+    // trees a crew steers by, and a scatter of knee-high stones would only fog it.
     let cover = battlefield
         .static_cover
         .iter()
+        .filter(|c| c.kind != terrain::StaticCoverKind::Boulder)
         .map(|c| MinimapBox {
             center_xz: [c.center[0], c.center[2]],
             half_xz: [c.half_extents_m[0], c.half_extents_m[2]],

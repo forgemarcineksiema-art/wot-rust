@@ -42,6 +42,13 @@ pub enum SceneryKind {
 }
 
 impl SceneryKind {
+    /// Whether an instance of this kind earns a cover box the size of its own body (X5: a
+    /// stone over the belly line). Such a pair must be mirror twins — the same individual at
+    /// the mirrored yaw — because the map report holds every cover box to its twin.
+    pub fn twins_as_a_solid(self) -> bool {
+        self == SceneryKind::Rock
+    }
+
     /// Every dressing object a map may place. Append-only: the compiled map blueprints store these.
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
@@ -89,6 +96,12 @@ pub struct SceneryInstance {
     pub yaw_rad: f32,
     /// Uniform scale around 1.0 (0.8–1.3 keeps a scatter from reading as clones).
     pub scale: f32,
+    /// The individual a scattered plant bakes as, SHARED by a mirrored pair (the one program's
+    /// X5): a stone that earns a cover box must be the same stone on both sides, or the map is
+    /// unfair by a boulder. Zero for a hand-placed instance, which bakes from its position as it
+    /// always did (`serde(default)`, so every fixture reads as before).
+    #[serde(default)]
+    pub seed: u64,
 }
 
 /// Deterministic splitmix64 — the same generator the FX pool trusts, no dependency needed.
@@ -136,6 +149,7 @@ pub fn scatter_mirrored(
     pairs: usize,
     region: ScatterRegion,
     twin: &dyn Fn(f32, f32) -> [f32; 2],
+    twin_yaw: &dyn Fn(f32) -> f32,
     heightmap: &HeightMap,
     exclude: &dyn Fn(f32, f32) -> bool,
     out: &mut Vec<SceneryInstance>,
@@ -159,19 +173,41 @@ pub fn scatter_mirrored(
         let Some(twin_ground) = heightmap.sample_height(twin_x, twin_z) else {
             continue;
         };
-        out.push(SceneryInstance { kind, position: [x, ground, z], yaw_rad: yaw, scale });
+        let pair_seed = pair_seed_at(x, z);
+        out.push(SceneryInstance {
+            kind,
+            position: [x, ground, z],
+            yaw_rad: yaw,
+            scale,
+            seed: pair_seed,
+        });
         // The twin is its own plant, not a reflection (Immersja A2.1): it keeps the pair's
         // SCALE (an Oak's trunk becomes a cover box scaled by the instance — fairness
         // demands identical twins) but grows its own yaw from its own position, so the
-        // mirrored halves stop reading as one forest stamped twice.
+        // mirrored halves stop reading as one forest stamped twice. A STONE is the exception
+        // (X5): it earns a cover box the size of its own bounds, and a box must have its
+        // mirror twin — so a stone's twin is the same stone (the pair's seed) at the mirrored
+        // yaw, and the two boxes are one box mirrored.
+        let twin_yaw_rad = if kind.twins_as_a_solid() {
+            twin_yaw(yaw)
+        } else {
+            position_unit(twin_x, twin_z, 0x0A17) * std::f32::consts::TAU
+        };
         out.push(SceneryInstance {
             kind,
             position: [twin_x, twin_ground, twin_z],
-            yaw_rad: position_unit(twin_x, twin_z, 0x0A17) * std::f32::consts::TAU,
+            yaw_rad: twin_yaw_rad,
             scale,
+            seed: pair_seed,
         });
         placed += 1;
     }
+}
+
+/// The seed a mirrored pair shares, from the ORIGINAL's position bits (never zero: zero means
+/// "no pair", the hand-placed case).
+pub fn pair_seed_at(x: f32, z: f32) -> u64 {
+    (x.to_bits() as u64 ^ ((z.to_bits() as u64) << 32)) | 1
 }
 
 /// True when `(x, z)` lands inside any cover footprint inflated by `margin_m` — trees do not

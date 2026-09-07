@@ -26,6 +26,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         position: [x, ground(x, z), z],
         yaw_rad: 0.6,
         scale: 1.0,
+        seed: 0,
     };
     battlefield.scenery = vec![
         // Front row: the battlefield oak (instanced LOD) — the tree that carries a trunk box.

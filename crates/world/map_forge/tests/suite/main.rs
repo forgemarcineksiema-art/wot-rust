@@ -21,6 +21,7 @@ mod prokhorovka_dressing;
 mod prokhorovka_field;
 mod prokhorovka_hull_down;
 mod report_contracts;
+mod rock_boxes;
 mod rot180_symmetry;
 mod scenery_variety;
 mod scratch;

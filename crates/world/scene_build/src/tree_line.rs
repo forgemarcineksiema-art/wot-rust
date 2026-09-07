@@ -345,7 +345,7 @@ pub fn tree_line_stations(
             .or_else(|| fitted.iter().max_by(|a, b| a.6.total_cmp(&b.6)));
         if let Some((kind, variant, seed, scale, tip_m, reach_m, _)) = chosen.copied() {
             stations.push(TreeLineStation {
-                instance: SceneryInstance { kind, position, yaw_rad, scale },
+                instance: SceneryInstance { kind, position, yaw_rad, scale, seed: 0 },
                 variant,
                 seed,
                 tip_m,

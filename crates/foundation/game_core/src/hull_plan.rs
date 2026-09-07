@@ -51,6 +51,18 @@ pub const STEP_CLEARANCE_M: f32 = 0.10;
 /// The step of a vehicle with no authored running gear (no playable vehicle today).
 pub const FALLBACK_STEP_M: f32 = 0.6;
 
+/// The BELLY LINE: the fleet's lowest ground clearance, metres — the honesty threshold for solid
+/// scenery (`docs/map-forge-policy.md` rule 8): a solid that stands taller than this is something
+/// a hull cannot drive through, so it is cover and it is boxed (the one program's X5). Measured
+/// off the blueprints every time, never typed: a lower-slung vehicle moves the rule.
+pub fn fleet_belly_line_m() -> f32 {
+    VehicleKind::ALL
+        .iter()
+        .filter_map(|kind| VehicleBlueprint::for_vehicle(*kind))
+        .map(|blueprint| blueprint.hull.belly_y)
+        .fold(f32::INFINITY, f32::min)
+}
+
 impl HullPlan {
     /// The plan a vehicle drives as, taken from the same blueprint the mesh is built from — so
     /// there is no second number to keep in step with the first. Vehicles without a blueprint
