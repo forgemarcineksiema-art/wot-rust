@@ -60,6 +60,25 @@ impl SceneryKind {
         SceneryKind::FloraPine,
         SceneryKind::FloraBush,
     ];
+
+    /// What this dressing WOULD do when hit or driven into (Z11): scenery never blocks and
+    /// never dies today, but the class names the choreography it takes the day it does — a
+    /// tree or a lamppost goes down with a direction, a bush flattens, a boulder and a debris
+    /// pile never change.
+    pub fn destruction_class(self) -> crate::DestructionClass {
+        match self {
+            SceneryKind::Oak
+            | SceneryKind::Poplar
+            | SceneryKind::Willow
+            | SceneryKind::FruitTree
+            | SceneryKind::Pine
+            | SceneryKind::Lamppost
+            | SceneryKind::FloraTree
+            | SceneryKind::FloraPine => crate::DestructionClass::Topple,
+            SceneryKind::Bush | SceneryKind::FloraBush => crate::DestructionClass::Crush,
+            SceneryKind::Rock | SceneryKind::DebrisHeap => crate::DestructionClass::Immovable,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -16,13 +16,14 @@ mod sculpt;
 mod water;
 
 pub use battlefield::{
-    BattlefieldMap, CaptureZone, MapFeature, MapFeatureKind, RUBBLE_LIP_M, RUIN_SILL_M, Road,
-    RoadSurface, SEGMENT_BYTES, SEGMENT_DAMAGED, SEGMENT_RUBBLE, SEGMENT_RUIN, SEGMENT_SLOTS,
-    SEGMENT_WHOLE, SEGMENTS_ALL_RUBBLE, SEGMENTS_PER_FACADE, SegmentStates, SpawnZone,
-    StaticCoverKind, StaticCoverObject, StrategicPoint, StrategicRole, WallMaterial,
-    born_cover_phase_byte, facade_run_m, facade_segments, fall_heading_byte, fall_heading_rad,
-    initial_cover_phase_bytes, opened_building_boxes, segment_at, segment_state, segments_opened,
-    set_segment_state, wall_material,
+    BREACH_MOMENTUM_KG_MPS, BREACH_SPEED_CAP_MPS, BREACH_SPEED_FLOOR_MPS, BattlefieldMap,
+    CRUSH_SPEED_MPS, CaptureZone, DestructionClass, MapFeature, MapFeatureKind, RUBBLE_LIP_M,
+    RUIN_SILL_M, Road, RoadSurface, SEGMENT_BYTES, SEGMENT_DAMAGED, SEGMENT_RUBBLE, SEGMENT_RUIN,
+    SEGMENT_SLOTS, SEGMENT_WHOLE, SEGMENTS_ALL_RUBBLE, SEGMENTS_PER_FACADE, SegmentStates,
+    SpawnZone, StaticCoverKind, StaticCoverObject, StrategicPoint, StrategicRole,
+    TOPPLE_BOLE_SPEED_MPS, WallMaterial, born_cover_phase_byte, facade_run_m, facade_segments,
+    fall_heading_byte, fall_heading_rad, initial_cover_phase_bytes, opened_building_boxes,
+    segment_at, segment_state, segments_opened, set_segment_state, wall_material,
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
