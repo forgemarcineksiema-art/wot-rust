@@ -27,3 +27,4 @@ mod scenery_variety;
 mod scratch;
 mod standing_water;
 mod stroke_ops;
+mod tree_trunk_boxes;

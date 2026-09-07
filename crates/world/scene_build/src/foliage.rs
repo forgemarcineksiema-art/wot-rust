@@ -36,8 +36,10 @@ pub(crate) fn tree_species(kind: SceneryKind) -> Option<world_forge::tree::TreeS
 /// The seed a statics-baked tree grows from: the instance's position bits, so a scatter never
 /// repeats a tree yet every scene bake is identical. The ladder's `instance_seed` is the same
 /// rule; tree-line stations name a fill variant instead (`authored::variant_seed`).
-pub(crate) fn statics_tree_seed(position: [f32; 3]) -> u64 {
-    position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32)
+pub(crate) fn statics_tree_seed(instance: &SceneryInstance) -> u64 {
+    // ONE rule for every route (X10): the map compiler's trunk box reads the same seed, so
+    // the bole it boxes is the bole the ladder draws.
+    world_forge::tree::authored::instance_tree_seed(instance.position)
 }
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
@@ -389,7 +391,7 @@ mod baked_tree_tests {
                 &mut vertices,
                 &mut indices,
                 instance,
-                statics_tree_seed(instance.position),
+                statics_tree_seed(instance),
             );
             (vertices, indices)
         };

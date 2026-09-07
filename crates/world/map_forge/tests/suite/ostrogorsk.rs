@@ -112,13 +112,19 @@ fn the_gameplay_layer_mirrors() {
 /// The dense core (urban-map PR-12): the city carries a real box count inside the proven
 /// bench envelope, its masonry speaks the urban kinds, and the born-ruin pairs are present
 /// — punched into the street fabric, mirrored, and named for the birth rule.
+///
+/// The envelope was raised 160 → 180 with a measurement (the one program's X10, 2026-09-07):
+/// every authored tree earns a trunk box now and Ostrogorsk's 62 put the city at 177. The sim
+/// bench (`combat_hot_path`, 128 ticks of a 14-tank battle) ran the 150-box grid in 17.2 ms and
+/// a 180-box grid (`urban_180`) in 15.6 ms on the dev box — the box count is inside the run's
+/// noise, which is what the broadphase prefilters were built to make true.
 #[test]
 fn the_core_is_dense_masonry_with_born_ruins_inside_the_envelope() {
     let map = map();
     let total = map.static_cover.len();
     assert!(
-        (90..=160).contains(&total),
-        "the dense core targets the proven bench envelope (urban_150), got {total} boxes"
+        (90..=180).contains(&total),
+        "the dense core targets the proven bench envelope (urban_180), got {total} boxes"
     );
     let city_blocks = map
         .static_cover
