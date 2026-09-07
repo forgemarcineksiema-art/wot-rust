@@ -205,8 +205,12 @@ impl TankControllerSettings {
             min_force_speed_mps: 2.2,
             rolling_resist_mps2: ROLLING_RESIST_MPS2,
             drag_quadratic,
-            // Tracks brake hard, but not "granite wall" hard: ~0.5 g reads as tonnes digging in.
-            brake_deceleration_mps2: 4.8,
+            // The brake demand: exactly the track grip cap on grass (0.6 x g = 7.2 m/s^2, ~0.6 g),
+            // so on firm ground the tracks brake as hard as they drive — a T-54 from 50 km/h stands
+            // in ~1.8 s over ~12 m — and softer ground caps it lower through the same grip term
+            // (`forces.rs`, the one program's J2). The old 4.8 stopped the same hull in 2.5 s over
+            // 17 m, which the owner read as "trudno szybko wychamować".
+            brake_deceleration_mps2: 7.2,
             turn_rate_rad_s: spec.turn_rate_rad_s,
             ground_probe_length_m: 3.0,
             idle_drag_mps2: 1.3,

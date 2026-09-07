@@ -18,8 +18,11 @@ The custom tank controller derives its settings from `TankSpec`. The power-to-we
 acceleration, the spec speed caps set forward and reverse targets, and the spec turn rate is the
 *steady-state* yaw rate the angular ramp converges to (heavier hulls spool up slower). Steering is
 two-track style and decoupled from the throttle, so a hull can pivot in place under neutral steer.
-Braking is explicit through the input command `brake`; it is not hidden inside render delta time or
-camera input.
+Braking is explicit through the input command `brake`, and an opposing throttle on a rolling hull
+is the same brake (S stops a forward hull before it reverses it — the WoT habit, the one
+program's J1); either demand is capped at the track grip `mu * g * traction * cos(theta)`
+(J2), so soft ground brakes as badly as it drives. Nothing about braking hides inside render
+delta time or camera input.
 
 This is intentionally a controlled tank-battle movement model, not a full track simulation (no
 per-track terramechanics and no sprung suspension in the authoritative state). The goal is weighty,
@@ -148,7 +151,8 @@ turns a parked hull in place — only the linear drift is locked.
 Changing direction is not free. Track brakes hold a *starting* hull — creep against the commanded
 direction, the gravity rollback the hold above is for — but established momentum is a different
 thing: a hull already rolling bleeds its speed through the force model before it can reverse.
-Tapping S at 8 m/s does not erase 8 m/s in one tick; it commits the crew to a deceleration. The
+Tapping S at 8 m/s does not erase 8 m/s in one tick; it commits the crew to a grip-limited
+braking (7.2 m/s² on grass: a T-54 from 50 km/h stands in ~1.8 s over ~12 m). The
 consequence reaches past feel: anything that plans around stopping must read a braking DISTANCE
 rather than assume an instant reversal. The bots' deep-water escape is the worked example — see
 `server/src/bot_routes.rs` and the `server/tests/bot_water.rs` soak, which is the test that

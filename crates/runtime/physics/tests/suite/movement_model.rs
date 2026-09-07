@@ -616,3 +616,115 @@ fn grass_is_bit_identical_to_the_model_before_ground_material() {
     }
     assert_eq!(with_material, without);
 }
+
+/// J1: the WoT habit — S while rolling forward BRAKES. From top speed a T-54 under full opposing
+/// throttle stands in under two seconds and never reverses before it has stopped.
+#[test]
+fn opposing_throttle_brakes_a_rolling_hull_to_a_stop_before_it_reverses() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let reverse = TankControlInput { throttle: -1.0, steer: 0.0, brake: 0.0 };
+    let contact = TerrainContact::flat(0.0);
+    let dt = 1.0 / 60.0;
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, settings.max_forward_speed_mps),
+        ..TankKinematicState::default()
+    };
+    let mut stopped_at = None;
+    for tick in 1..=(4 * 60) {
+        step_custom_tank_controller_on_contact(&mut state, reverse, &settings, contact, dt);
+        if state.forward_speed() <= 0.0 {
+            stopped_at = Some(tick);
+            break;
+        }
+    }
+    let tick = stopped_at.expect("held S stops a hull from top speed within four seconds");
+    let seconds = tick as f32 * dt;
+    assert!(seconds < 1.9, "a T-54 from 50 km/h must stand in under 1.9 s, took {seconds:.2} s");
+    assert!(
+        state.position.z < 13.0,
+        "...and inside 13 m, not the old 22 m: {:.1} m",
+        state.position.z
+    );
+    assert!(state.forward_speed() > -0.2, "the stop passes near zero, no snap across it");
+}
+
+/// J1: the pedal and the opposing throttle are ONE brake — the same deceleration, so a driver who
+/// stops on S and one who stops on Ctrl stand in the same place.
+#[test]
+fn the_pedal_and_the_opposing_throttle_brake_identically() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let contact = TerrainContact::flat(0.0);
+    let dt = 1.0 / 60.0;
+    let start = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 10.0),
+        ..TankKinematicState::default()
+    };
+    let mut on_pedal = start;
+    let mut on_throttle = start;
+    for _ in 0..30 {
+        step_custom_tank_controller_on_contact(
+            &mut on_pedal,
+            TankControlInput { throttle: 0.0, steer: 0.0, brake: 1.0 },
+            &settings,
+            contact,
+            dt,
+        );
+        step_custom_tank_controller_on_contact(
+            &mut on_throttle,
+            TankControlInput { throttle: -1.0, steer: 0.0, brake: 0.0 },
+            &settings,
+            contact,
+            dt,
+        );
+    }
+    assert!(
+        on_pedal.forward_speed() < 7.0,
+        "half a second of brake bites: {}",
+        on_pedal.forward_speed()
+    );
+    assert!(
+        (on_pedal.forward_speed() - on_throttle.forward_speed()).abs() < 1.0e-4,
+        "S and Ctrl must be the same brake: {} vs {}",
+        on_pedal.forward_speed(),
+        on_throttle.forward_speed()
+    );
+}
+
+/// J2: the brake is what the ground gives. On a riverbed's quarter traction the demand is capped
+/// at the track grip (0.6 x g x 0.25 = 1.8 m/s^2) — a hull brakes as badly as it drives there.
+#[test]
+fn the_brake_is_capped_by_the_ground_s_grip() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let brake = TankControlInput { throttle: 0.0, steer: 0.0, brake: 1.0 };
+    let dt = 1.0 / 60.0;
+    let slick = TerrainContact { traction: 0.25, ..TerrainContact::flat(0.0) };
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
+    step_custom_tank_controller_on_contact(&mut state, brake, &settings, slick, dt);
+    let lost = 8.0 - state.forward_speed();
+    let grip_cap = 0.6 * game_core::math::GRAVITY_MPS2 * 0.25;
+    // Rolling resistance and drag add a little on top of the brake itself.
+    assert!(
+        lost < (grip_cap + 1.0) * dt,
+        "on quarter traction the brake may not exceed the grip cap: lost {lost} m/s in a tick"
+    );
+    assert!(lost > 0.5 * grip_cap * dt, "...but it still brakes: lost {lost} m/s");
+
+    let mut firm = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
+    step_custom_tank_controller_on_contact(
+        &mut firm,
+        brake,
+        &settings,
+        TerrainContact::flat(0.0),
+        dt,
+    );
+    assert!(
+        8.0 - firm.forward_speed() > 2.0 * lost,
+        "firm ground brakes at least twice as hard as the riverbed"
+    );
+}
