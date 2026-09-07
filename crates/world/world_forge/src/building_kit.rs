@@ -46,6 +46,11 @@ const STOREY_FLEX: f32 = 0.15;
 const MAX_KNEE_M: f32 = 1.4;
 /// The least filler a facade keeps at each corner before its first pierced bay.
 const CORNER_FILLER_M: f32 = 0.30;
+/// A dormer's front: width and height.
+const DORMER_WIDTH_M: f32 = 1.0;
+const DORMER_HEIGHT_M: f32 = 1.1;
+/// The footing course under the plinth (B2): its height and reach past the plinth face.
+const FOOTING_HEIGHT_M: f32 = 0.12;
 
 /// The two dwelling families the kit dresses (the landmarks — church, windmill, factory —
 /// stay on the authored bake).
@@ -225,6 +230,20 @@ pub enum KitPart {
     RidgeCap,
     /// A chimney stack: 0.6 × 0.6, unit height; SCALED to (1, height, 1).
     Chimney,
+    /// B1: the corner of a hipped slope — a right triangle from the ridge end down to the
+    /// eave corner, in the slope frame (unit run, rise `tan(pitch)`, unit along `z` toward
+    /// `+z` for `right`, `−z` otherwise); SCALED uniformly to (depth, depth, depth).
+    RoofSlopeCorner { pitch: Pitch, right: bool },
+    /// B1: a hip end — the triangular slope over a gable facade, apex at the ridge end;
+    /// SCALED uniformly to (depth, depth, depth).
+    HipEnd { pitch: Pitch },
+    /// B1: a dormer on a slope, at unit scale: a vertical front with a window at `x = 0`,
+    /// its flat roof and cheeks running back to meet the slope at the pitch.
+    Dormer { pitch: Pitch },
+    /// B1: a downpipe at a corner, unit height; SCALED to (1, height, 1).
+    Downpipe,
+    /// B2: the footing course under the plinth, unit along `z`; SCALED to (1, 1, run).
+    Footing,
 }
 
 impl KitPart {
@@ -251,6 +270,18 @@ impl KitPart {
         }
         parts.push(KitPart::RidgeCap);
         parts.push(KitPart::Chimney);
+        for pitch in Pitch::ALL {
+            parts.push(KitPart::RoofSlopeCorner { pitch, right: false });
+            parts.push(KitPart::RoofSlopeCorner { pitch, right: true });
+        }
+        for pitch in Pitch::ALL {
+            parts.push(KitPart::HipEnd { pitch });
+        }
+        for pitch in Pitch::ALL {
+            parts.push(KitPart::Dormer { pitch });
+        }
+        parts.push(KitPart::Downpipe);
+        parts.push(KitPart::Footing);
         parts
     }
 
@@ -268,8 +299,18 @@ impl KitPart {
             | KitPart::ShopBay { .. }
             | KitPart::PortalBay
             | KitPart::GableEnd { .. } => TintLane::Wall,
-            KitPart::RoofSlope { .. } | KitPart::RidgeCap => TintLane::Roof,
-            KitPart::Plinth | KitPart::Eave | KitPart::Chimney => TintLane::Absolute,
+            KitPart::RoofSlope { .. }
+            | KitPart::RidgeCap
+            | KitPart::RoofSlopeCorner { .. }
+            | KitPart::HipEnd { .. } => TintLane::Roof,
+            // The dormer's front is wall; its roof takes the roof tone through its own
+            // instance, so the whole part rides the wall lane (the small roof reads as trim).
+            KitPart::Dormer { .. } => TintLane::Wall,
+            KitPart::Plinth
+            | KitPart::Eave
+            | KitPart::Chimney
+            | KitPart::Downpipe
+            | KitPart::Footing => TintLane::Absolute,
         }
     }
 
@@ -395,6 +436,108 @@ impl KitPart {
                     &mut i,
                     Vec3::new(0.0, 0.5, 0.0),
                     Vec3::new(0.30, 0.5, 0.30),
+                    WorldMaterial::PlinthStone,
+                );
+            }
+            KitPart::RoofSlopeCorner { pitch, right } => {
+                let rise = pitch.tan();
+                let s = if right { 1.0 } else { -1.0 };
+                // A triangle as a degenerate quad: the ridge end, the eave under it, the eave
+                // corner (twice).
+                let corners = [
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, -rise, 0.0),
+                    Vec3::new(1.0, -rise, s),
+                    Vec3::new(1.0, -rise, s),
+                ];
+                let normal = Vec3::new(rise, 1.0, 0.0).normalize();
+                push_face(&mut v, &mut i, corners, normal, WorldMaterial::Roof);
+            }
+            KitPart::HipEnd { pitch } => {
+                let rise = pitch.tan();
+                let corners = [
+                    Vec3::new(1.0, -rise, -1.0),
+                    Vec3::new(1.0, -rise, 1.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                ];
+                let normal = Vec3::new(rise, 1.0, 0.0).normalize();
+                push_face(&mut v, &mut i, corners, normal, WorldMaterial::Roof);
+            }
+            KitPart::Dormer { pitch } => {
+                // The front stands on the slope at the origin and faces outward (+X); the body
+                // runs back (−X) until its flat roof meets the slope.
+                let back = DORMER_HEIGHT_M / pitch.tan();
+                let hw = DORMER_WIDTH_M * 0.5;
+                push_box(
+                    &mut v,
+                    &mut i,
+                    Vec3::new(-0.08, DORMER_HEIGHT_M * 0.5, 0.0),
+                    Vec3::new(0.08, DORMER_HEIGHT_M * 0.5, hw),
+                    WorldMaterial::Wall,
+                );
+                // The window in the front: a pane recessed behind a small opening's frame.
+                push_face(
+                    &mut v,
+                    &mut i,
+                    [
+                        Vec3::new(0.03, 0.25, -0.28),
+                        Vec3::new(0.03, 0.25, 0.28),
+                        Vec3::new(0.03, 0.85, 0.28),
+                        Vec3::new(0.03, 0.85, -0.28),
+                    ],
+                    Vec3::X,
+                    WorldMaterial::WindowGlass,
+                );
+                for corner in [(-0.31, 0.0), (0.31, 0.0)] {
+                    push_box(
+                        &mut v,
+                        &mut i,
+                        Vec3::new(0.02, 0.55, corner.0),
+                        Vec3::new(0.03, 0.32, 0.03),
+                        WorldMaterial::Timber,
+                    );
+                }
+                // The cheeks: right triangles from the front back to the slope.
+                for side in [-1.0, 1.0] {
+                    let z = side * hw;
+                    let corners = [
+                        Vec3::new(0.0, 0.0, z),
+                        Vec3::new(0.0, DORMER_HEIGHT_M, z),
+                        Vec3::new(-back, DORMER_HEIGHT_M, z),
+                        Vec3::new(-back, DORMER_HEIGHT_M, z),
+                    ];
+                    push_face(&mut v, &mut i, corners, Vec3::Z * side, WorldMaterial::Wall);
+                }
+                // The flat roof, a hair proud of the cheeks.
+                push_face(
+                    &mut v,
+                    &mut i,
+                    [
+                        Vec3::new(-back, DORMER_HEIGHT_M + 0.02, -hw - 0.04),
+                        Vec3::new(0.06, DORMER_HEIGHT_M + 0.02, -hw - 0.04),
+                        Vec3::new(0.06, DORMER_HEIGHT_M + 0.02, hw + 0.04),
+                        Vec3::new(-back, DORMER_HEIGHT_M + 0.02, hw + 0.04),
+                    ],
+                    Vec3::Y,
+                    WorldMaterial::Roof,
+                );
+            }
+            KitPart::Downpipe => {
+                push_box(
+                    &mut v,
+                    &mut i,
+                    Vec3::new(0.08, 0.5, 0.0),
+                    Vec3::new(0.06, 0.5, 0.06),
+                    WorldMaterial::Timber,
+                );
+            }
+            KitPart::Footing => {
+                push_box(
+                    &mut v,
+                    &mut i,
+                    Vec3::new(0.01, 0.06, 0.0),
+                    Vec3::new(0.11, 0.06, 0.5),
                     WorldMaterial::PlinthStone,
                 );
             }
@@ -554,12 +697,26 @@ fn pierced_bay(v: &mut Vec<vehicle_geometry::GeometryVertex>, i: &mut Vec<u32>, 
     }
 }
 
+/// The roof's massing (B1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RoofForm {
+    /// Two slopes between two gable walls.
+    Gable,
+    /// Four slopes: the gable ends are hipped, the ridge shortened by the depth at each end.
+    Hip,
+    /// A near-square box: four hips to one apex.
+    Pyramid,
+}
+
 /// The building's signature — the axes the variety locks read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Signature {
     pub family: KitFamily,
     pub storeys: u8,
     pub pitch: Pitch,
+    pub roof: RoofForm,
+    /// Dormers per main slope.
+    pub dormers: u8,
     /// The ridge runs across the box's long axis (a near-square box's coin).
     pub ridge_across: bool,
     pub width: BayWidth,
@@ -737,10 +894,35 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
         _ => GroundKind::Dwelling,
     };
     let age = (rng.next() % 3) as u8;
+    // The roof's massing (B1): a barn keeps its gable; a near-square box may take a pyramid;
+    // otherwise the seed hips four in ten roofs when the ridge has room to shorten.
+    let square = (half.x - half.z).abs() <= 0.05 * depth;
+    let roof = if style == BuildingStyle::Barn {
+        RoofForm::Gable
+    } else if square && rng.unit() < 0.5 {
+        RoofForm::Pyramid
+    } else if ridge_run - 2.0 * depth >= 1.0 && rng.unit() < 0.4 {
+        RoofForm::Hip
+    } else {
+        RoofForm::Gable
+    };
+    // Dormers (B1): an attic under a pitch steep enough to stand in, with room on the slope.
+    let dormer_back = DORMER_HEIGHT_M / fit.pitch.tan();
+    let dormers = if fit.pitch.degrees() >= 36.0
+        && depth - 0.3 >= dormer_back + 0.4
+        && roof != RoofForm::Pyramid
+        && style != BuildingStyle::Barn
+    {
+        (rng.next() % 3) as u8
+    } else {
+        0
+    };
     let signature = Signature {
         family,
         storeys: fit.storeys,
         pitch: fit.pitch,
+        roof,
+        dormers,
         ridge_across,
         width,
         ground,
@@ -760,7 +942,14 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
     for (index, facade) in faces.iter().enumerate() {
         let run = facade.half_run * 2.0;
         let is_gable = if ridge_along_x { index < 2 } else { index >= 2 };
-        // The plinth along every facade.
+        // The footing course (B2) and the plinth along every facade.
+        placements.push(facade.place(
+            half,
+            KitPart::Footing,
+            0.0,
+            0.0,
+            Vec3::new(1.0, FOOTING_HEIGHT_M / 0.12, run + 0.24),
+        ));
         placements.push(facade.place(half, KitPart::Plinth, 0.0, 0.0, Vec3::new(1.0, plinth, run)));
         // Bays per storey.
         let pierced = if style == BuildingStyle::Barn {
@@ -828,7 +1017,7 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
                 Vec3::new(1.0, fit.storey_m / family.storey_m(), 1.0),
             ));
         }
-        if is_gable {
+        if is_gable && roof == RoofForm::Gable {
             let span = facade.half_run * 2.0;
             placements.push(facade.place(
                 half,
@@ -838,6 +1027,8 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
                 Vec3::new(1.0, span, span),
             ));
         } else {
+            // An eave on every facade the roof runs down to: the eaves facades of a gable,
+            // all four of a hip or a pyramid.
             placements.push(facade.place(
                 half,
                 KitPart::Eave,
@@ -846,50 +1037,131 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
                 Vec3::new(1.0, 1.0, run),
             ));
         }
+        // Downpipes (B1) at the corners of the eaves facades of a dwelling.
+        if !is_gable && style != BuildingStyle::Barn {
+            for end in [-1.0, 1.0] {
+                placements.push(facade.place(
+                    half,
+                    KitPart::Downpipe,
+                    end * (facade.half_run - 0.3),
+                    plinth,
+                    Vec3::new(1.0, (eaves_m - plinth).max(0.5), 1.0),
+                ));
+            }
+        }
     }
-    // The roof: two slopes from the ridge line down to each eaves facade, the cap, a chimney.
+    // The roof (B1): the form decides the slopes. A gable runs two rectangular slopes the
+    // full ridge; a hip shortens the ridge by the depth at each end, runs the rectangles over
+    // the shortened ridge with a corner triangle at each end, and closes the gable facades
+    // with hip ends; a pyramid is four hip ends to one apex.
     let ridge_dir = if ridge_along_x { Vec3::X } else { Vec3::Z };
     let ridge_y = ridge_m - half.y;
+    let ridge_eff = match roof {
+        RoofForm::Gable => ridge_run,
+        RoofForm::Hip => ridge_run - 2.0 * depth,
+        RoofForm::Pyramid => 0.0,
+    };
+    let dormer_seed = rng.next();
     for (index, facade) in faces.iter().enumerate() {
         let is_eaves = if ridge_along_x { index >= 2 } else { index < 2 };
-        if !is_eaves {
-            continue;
+        if is_eaves && ridge_eff > 0.01 {
+            placements.push(Placement {
+                part: KitPart::RoofSlope { pitch: fit.pitch },
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::new(depth, depth, ridge_eff),
+                    facade.rotation,
+                    Vec3::Y * ridge_y,
+                ),
+                tint: TintLane::Roof,
+            });
+            // Dormers along this slope, spaced over the ridge's run.
+            for d in 0..dormers {
+                let t = (f64::from(d) + 0.5) / f64::from(dormers) - 0.5;
+                let along = (ridge_eff - 1.4) * t as f32
+                    + ((dormer_seed >> (index * 8 + d as usize * 2)) % 3) as f32 * 0.15
+                    - 0.15;
+                let run_out = dormer_back + 0.2;
+                let origin = Vec3::Y * (ridge_y - run_out * fit.pitch.tan())
+                    + facade.outward * run_out
+                    + facade.along * along;
+                placements.push(Placement {
+                    part: KitPart::Dormer { pitch: fit.pitch },
+                    transform: Mat4::from_scale_rotation_translation(
+                        Vec3::ONE,
+                        facade.rotation,
+                        origin,
+                    ),
+                    tint: TintLane::Wall,
+                });
+            }
         }
+        if is_eaves && roof == RoofForm::Hip {
+            for end in [-1.0, 1.0] {
+                let end_point = ridge_dir * (end * ridge_eff * 0.5);
+                let right = facade.along.dot(ridge_dir) * end > 0.0;
+                placements.push(Placement {
+                    part: KitPart::RoofSlopeCorner { pitch: fit.pitch, right },
+                    transform: Mat4::from_scale_rotation_translation(
+                        Vec3::splat(depth),
+                        facade.rotation,
+                        Vec3::Y * ridge_y + end_point,
+                    ),
+                    tint: TintLane::Roof,
+                });
+            }
+        }
+        let hipped_here = match roof {
+            RoofForm::Gable => false,
+            RoofForm::Hip => !is_eaves,
+            RoofForm::Pyramid => true,
+        };
+        if hipped_here {
+            let toward = facade.outward.dot(ridge_dir);
+            let end_point = ridge_dir * (toward.signum() * ridge_eff * 0.5);
+            placements.push(Placement {
+                part: KitPart::HipEnd { pitch: fit.pitch },
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::splat(facade.half_run.min(depth)),
+                    facade.rotation,
+                    Vec3::Y * ridge_y + end_point,
+                ),
+                tint: TintLane::Roof,
+            });
+        }
+    }
+    if ridge_eff > 0.01 {
+        let ridge_rotation = if ridge_along_x {
+            Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+        } else {
+            Quat::IDENTITY
+        };
         placements.push(Placement {
-            part: KitPart::RoofSlope { pitch: fit.pitch },
+            part: KitPart::RidgeCap,
             transform: Mat4::from_scale_rotation_translation(
-                Vec3::new(depth, depth, ridge_run),
-                facade.rotation,
+                Vec3::new(1.0, 1.0, ridge_eff),
+                ridge_rotation,
                 Vec3::Y * ridge_y,
             ),
             tint: TintLane::Roof,
         });
     }
-    let ridge_rotation = if ridge_along_x {
-        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
-    } else {
-        Quat::IDENTITY
-    };
-    placements.push(Placement {
-        part: KitPart::RidgeCap,
-        transform: Mat4::from_scale_rotation_translation(
-            Vec3::new(1.0, 1.0, ridge_run),
-            ridge_rotation,
-            Vec3::Y * ridge_y,
-        ),
-        tint: TintLane::Roof,
-    });
+    // The chimney: a stack straddling one slope just off the ridge, its foot 0.9 m under the
+    // ridge line (inside the roof) and its head at most 0.6 m over it — never over the box
+    // top, which on a knee-walled fit IS the ridge, so the head sits at the ridge then and
+    // the stack still shows above the slope it stands in.
     let chimney_top = (ridge_m + 0.6).min(height);
-    let chimney_base = ridge_m - 0.5;
-    if chimney_top - chimney_base >= 0.7 && ridge_run > 4.0 {
+    let chimney_base = ridge_m - 0.9;
+    if chimney_top - chimney_base >= 0.7 && ridge_eff > 4.0 {
         let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
-        let along = side * (ridge_run * 0.5 - 1.2) * rng.unit().max(0.3);
+        let along = side * (ridge_eff * 0.5 - 1.2) * rng.unit().max(0.3);
+        let off_ridge = if rng.unit() < 0.5 { -0.45 } else { 0.45 };
+        let across = if ridge_along_x { Vec3::Z } else { Vec3::X };
         placements.push(Placement {
             part: KitPart::Chimney,
             transform: Mat4::from_scale_rotation_translation(
                 Vec3::new(1.0, chimney_top - chimney_base, 1.0),
                 Quat::IDENTITY,
-                ridge_dir * along + Vec3::Y * (chimney_base - half.y),
+                ridge_dir * along + across * off_ridge + Vec3::Y * (chimney_base - half.y),
             ),
             tint: TintLane::Absolute,
         });
@@ -949,9 +1221,14 @@ mod tests {
             for vertex in mesh.vertices() {
                 let p = vertex.position;
                 match part {
-                    KitPart::RoofSlope { .. } => {
+                    KitPart::RoofSlope { .. }
+                    | KitPart::RoofSlopeCorner { .. }
+                    | KitPart::HipEnd { .. } => {
                         assert!((0.0..=1.0).contains(&p.x), "{part:?} {p}")
                     }
+                    KitPart::Dormer { .. } => assert!(p.x <= 0.07 && p.x >= -8.0, "{part:?} {p}"),
+                    KitPart::Downpipe => assert!(p.x <= 0.15 && p.x >= 0.0, "{part:?} {p}"),
+                    KitPart::Footing => assert!(p.x <= 0.13, "{part:?} {p}"),
                     KitPart::Eave => {
                         assert!(p.x <= SCENERY_REACH_M + 1e-4 && p.x >= -0.05, "{part:?} {p}")
                     }
@@ -1036,6 +1313,32 @@ mod tests {
         };
         // The gable facades are the same on both boxes; the two long facades double.
         assert!(count(Vec3::new(12.0, 3.6, 4.0)) >= count(Vec3::new(6.0, 3.6, 4.0)) + 4);
+    }
+
+    /// B1: the silhouette is not flush-cut. Over sixty seeds on one tenement box the roofs
+    /// take more than one form, dormers appear, every dwelling wears eaves and downpipes,
+    /// and a chimney stands on most; B2: every dwelling stands on a footing course.
+    #[test]
+    fn roofs_take_more_than_one_form_and_every_dwelling_wears_eaves_and_a_footing() {
+        let half = Vec3::new(8.0, 5.5, 5.5);
+        let mut forms = std::collections::HashSet::new();
+        let (mut dormers, mut chimneys) = (0, 0);
+        for seed in 0..60 {
+            let plan = plan_building(BuildingStyle::Tenement, seed, half).expect("plan");
+            forms.insert(plan.signature.roof);
+            let has = |part: fn(&KitPart) -> bool| plan.placements.iter().any(|p| part(&p.part));
+            assert!(has(|p| matches!(p, KitPart::Eave)), "eaves on every dwelling");
+            assert!(has(|p| matches!(p, KitPart::Footing)), "a footing under every dwelling");
+            assert!(has(|p| matches!(p, KitPart::Downpipe)), "downpipes on every dwelling");
+            dormers += usize::from(has(|p| matches!(p, KitPart::Dormer { .. })));
+            chimneys += usize::from(has(|p| matches!(p, KitPart::Chimney)));
+            if plan.signature.roof == RoofForm::Hip {
+                assert!(has(|p| matches!(p, KitPart::HipEnd { .. })), "a hip closes its ends");
+                assert!(!has(|p| matches!(p, KitPart::GableEnd { .. })), "a hip has no gable wall");
+            }
+        }
+        assert!(forms.len() >= 2, "roof forms {forms:?}");
+        assert!(dormers >= 10 && chimneys >= 30, "dormers {dormers} chimneys {chimneys}");
     }
 
     /// The landmarks stay on the authored bake.
