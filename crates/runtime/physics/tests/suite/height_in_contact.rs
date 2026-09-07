@@ -8,8 +8,9 @@
 use game_core::{ContactFootprint, HullPlan, TankSpec, VehicleKind};
 use glam::Vec3;
 use physics::{
-    ContactBody, ContactCache, HeightBand, TankFootprint, TankObstacle, footprint_blocked_by_cover,
-    footprint_penetration_m, resolve_contacts, resolve_cover_collision, support_height,
+    ContactBody, ContactCache, GroundLayers, HeightBand, TankFootprint, TankObstacle,
+    footprint_blocked_by_cover, footprint_penetration_m, resolve_contacts, resolve_cover_collision,
+    support_height,
 };
 use terrain::{HeightMap, RubbleMound, StaticCoverKind, StaticCoverObject};
 
@@ -29,22 +30,25 @@ fn solid(center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
 }
 
 /// The row's lock: a hull three metres above a one-metre wall passes; the same hull on the
-/// ground does not. The boundary is the wall's TOP: a support at the top is over it.
+/// ground does not. The boundary is the wall's TOP less the running gear's step (X4): a support
+/// from which the top is within the step is over it — the hull climbs, it does not collide.
 #[test]
 fn a_hull_three_metres_above_a_one_metre_wall_passes_and_one_on_the_ground_does_not() {
     let wall = solid([50.0, 0.5, 50.0], [6.0, 0.5, 0.5]);
     let walls = std::slice::from_ref(&wall);
     let hull = t54();
     let at = |y: f32| Vec3::new(50.0, y, 50.0);
+    let climbs_from = 1.0 - hull.step_m;
+    assert!(climbs_from > 0.1, "the fixture needs a wall taller than the step");
 
     assert!(footprint_blocked_by_cover(at(0.0), 0.0, hull, walls), "on the ground the wall blocks");
     assert!(
-        footprint_blocked_by_cover(at(0.99), 0.0, hull, walls),
-        "a hand under the top still blocks"
+        footprint_blocked_by_cover(at(climbs_from - 0.01), 0.0, hull, walls),
+        "a hand under the step still blocks"
     );
     assert!(
-        !footprint_blocked_by_cover(at(1.0), 0.0, hull, walls),
-        "a support AT the top is over it"
+        !footprint_blocked_by_cover(at(climbs_from), 0.0, hull, walls),
+        "a support the top is within a step of is over it"
     );
     assert!(!footprint_blocked_by_cover(at(3.0), 0.0, hull, walls), "three metres up passes");
 
@@ -99,9 +103,14 @@ fn a_hull_on_a_mound_does_not_shove_the_hull_below() {
     let spec = TankSpec::t54_1951();
     let running_gear = ContactFootprint::for_vehicle(VehicleKind::T54_1951);
     let on_the_pile = Vec3::new(60.0, 0.0, 60.0);
-    let carried_to =
-        support_height(&map, on_the_pile, 0.0, &running_gear, std::slice::from_ref(&house))
-            .expect("the mound carries the hull");
+    let carried_to = support_height(
+        &map,
+        on_the_pile,
+        0.0,
+        &running_gear,
+        GroundLayers::rubble(std::slice::from_ref(&house)),
+    )
+    .expect("the mound carries the hull");
     let hull = TankFootprint::from_plan(spec.hull_plan());
     assert!(
         carried_to > hull.height_m,

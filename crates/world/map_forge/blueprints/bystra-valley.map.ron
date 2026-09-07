@@ -307,19 +307,22 @@ MapBlueprint(
             // Immersja A4.1: 6 -> 15 m — a working mill tower, not a dovecote.
             half_extents_m: (3.2, 7.5, 3.2),
         ),
+        // The low tier (X4, 2026-09-07): 0.6 m of parapet, under the fleet's shortest step
+        // (IS-3 0.68 m) - every hull crosses it with a tilt and a speed loss; a shell still
+        // stops in it. Was 1.1 m of RailCover, a wall to the sky.
         Cover(
             id: "bridge_parapet_south",
             name: "stone bridge parapet",
-            kind: RailCover,
+            kind: LowWall,
             at: (RiverCenterAt(500.0), Fixed(493.8)),
-            half_extents_m: (26.0, 0.55, 0.5),
+            half_extents_m: (26.0, 0.30, 0.5),
         ),
         Cover(
             id: "bridge_parapet_north",
             name: "stone bridge parapet",
-            kind: RailCover,
+            kind: LowWall,
             at: (RiverCenterAt(500.0), Fixed(506.2)),
-            half_extents_m: (26.0, 0.55, 0.5),
+            half_extents_m: (26.0, 0.30, 0.5),
         ),
         Cover(
             id: "field_hedgerow_south",

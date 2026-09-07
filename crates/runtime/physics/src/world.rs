@@ -6,6 +6,7 @@ use crate::collision::{TankWorldObstacles, default_tank_footprint};
 use crate::contact::{TerrainContact, sample_tank_terrain_contact};
 use crate::controller_settings::TankControllerSettings;
 use crate::cover::{footprint_blocked_by_cover, resolve_cover_collision_with_velocity};
+use crate::ground::{GroundLayers, StepSolids, step_solids_near};
 use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
     TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
@@ -124,11 +125,12 @@ pub fn advance_tank_on_world(
     dt_seconds: f32,
 ) -> TankStepContact {
     let previous = state.position;
+    let steps = steps_under(state.position, settings, obstacles);
+    let layers = GroundLayers { rubble: obstacles.rubble, steps: steps.as_slice() };
     let ride_height = |position: Vec3, yaw_rad: f32| -> Option<f32> {
         let heightmap = heightmap?;
         if let Some(footprint) = footprint
-            && let Some(height) =
-                support_height(heightmap, position, yaw_rad, footprint, obstacles.rubble)
+            && let Some(height) = support_height(heightmap, position, yaw_rad, footprint, layers)
         {
             return Some(height);
         }
@@ -141,7 +143,7 @@ pub fn advance_tank_on_world(
                 state.position,
                 state.yaw_rad,
                 settings.ground_probe_length_m,
-                obstacles.rubble,
+                layers,
                 obstacles.ground,
             )
         })
@@ -239,18 +241,23 @@ pub fn settle_tank_on_world(
     // hull (the kinematic follow) or lets it fly and later catches it (see `vertical`). A
     // grounded hull then rotates toward the support plane's attitude; an airborne hull keeps
     // the attitude it left the ground with.
+    // The low solids under the hull where it now stands (X4): gathered from the support it
+    // arrived with, so the same parapet the SAT just let the plan onto is the one the envelope
+    // carries it up.
+    let steps = steps_under(state.position, settings, obstacles);
+    let layers = GroundLayers { rubble: obstacles.rubble, steps: steps.as_slice() };
     if let Some(heightmap) = heightmap
         && let Some(next_contact) = sample_tank_terrain_contact(
             heightmap,
             state.position,
             state.yaw_rad,
             settings.ground_probe_length_m,
-            obstacles.rubble,
+            layers,
             obstacles.ground,
         )
     {
         let support = footprint.and_then(|footprint| {
-            sample_support(heightmap, state.position, state.yaw_rad, footprint, obstacles.rubble)
+            sample_support(heightmap, state.position, state.yaw_rad, footprint, layers)
         });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
@@ -295,4 +302,19 @@ pub fn settle_tank_on_world(
         dt_seconds,
     );
     GroundStep { drive_velocity, ..GroundStep::resting() }
+}
+
+/// The low solids within the hull's reach that are steps from its current support (X4): the
+/// reach covers the probe cross and the running gear's stations, a metre spare.
+fn steps_under(
+    position: Vec3,
+    settings: &TankControllerSettings,
+    obstacles: TankWorldObstacles<'_>,
+) -> StepSolids {
+    if obstacles.cover.is_empty() {
+        return StepSolids::NONE;
+    }
+    let footprint = obstacles.tank_footprint;
+    let reach_m = footprint.half_length_m.max(settings.ground_probe_length_m) + 1.0;
+    step_solids_near(obstacles.cover, position, footprint, reach_m)
 }

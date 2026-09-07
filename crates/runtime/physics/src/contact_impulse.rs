@@ -510,7 +510,12 @@ mod tests {
             velocity,
             yaw_rad,
             yaw_rate_rad_s: 0.0,
-            footprint: TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4 },
+            footprint: TankFootprint {
+                half_width_m: 1.75,
+                half_length_m: 3.2,
+                height_m: 2.4,
+                step_m: 0.8,
+            },
             mass_kg,
             movable: true,
         }

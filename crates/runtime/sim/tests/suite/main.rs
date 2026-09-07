@@ -36,6 +36,7 @@ mod hulls_touch;
 mod impact_normal;
 mod landing_damage;
 mod landing_roll;
+mod low_tier_fleet;
 mod module_damage;
 mod observer_cap;
 mod orliny_watchtower;

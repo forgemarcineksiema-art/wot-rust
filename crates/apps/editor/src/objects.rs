@@ -27,6 +27,9 @@ pub enum PaletteEntry {
     CityBlock,
     /// A breachable brick garden/compound wall run (`StaticCoverKind::StoneWall`).
     StoneWallRun,
+    /// A knee-high parapet run (`StaticCoverKind::LowWall`, X4): the low tier every running
+    /// gear steps over with a tilt and a speed loss; a shell stops in it.
+    ParapetRun,
     // Bare cover.
     FenceRun,
     TreeLine,
@@ -43,7 +46,7 @@ pub enum PaletteEntry {
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 17] = [
+    pub const CYCLE: [PaletteEntry; 18] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
@@ -51,6 +54,7 @@ impl PaletteEntry {
         PaletteEntry::Windmill,
         PaletteEntry::CityBlock,
         PaletteEntry::StoneWallRun,
+        PaletteEntry::ParapetRun,
         PaletteEntry::FenceRun,
         PaletteEntry::TreeLine,
         PaletteEntry::Wreck,
@@ -72,6 +76,7 @@ impl PaletteEntry {
             PaletteEntry::Windmill => "windmill",
             PaletteEntry::CityBlock => "city block",
             PaletteEntry::StoneWallRun => "stone wall",
+            PaletteEntry::ParapetRun => "parapet",
             PaletteEntry::FenceRun => "fence run",
             PaletteEntry::TreeLine => "tree line",
             PaletteEntry::Wreck => "wreck",
@@ -97,6 +102,7 @@ impl PaletteEntry {
             PaletteEntry::Windmill => Some((StaticCoverKind::FarmBuilding, [4.0, 6.0, 4.0])),
             PaletteEntry::CityBlock => Some((StaticCoverKind::CityBuilding, [9.0, 5.5, 5.0])),
             PaletteEntry::StoneWallRun => Some((StaticCoverKind::StoneWall, [0.4, 1.1, 7.0])),
+            PaletteEntry::ParapetRun => Some((StaticCoverKind::LowWall, [0.4, 0.3, 6.0])),
             PaletteEntry::FenceRun => Some((StaticCoverKind::WoodenFence, [0.25, 0.65, 6.0])),
             PaletteEntry::TreeLine => Some((StaticCoverKind::TreeLine, [2.5, 3.5, 14.0])),
             PaletteEntry::Wreck => Some((StaticCoverKind::Wreck, [3.4, 1.4, 1.6])),

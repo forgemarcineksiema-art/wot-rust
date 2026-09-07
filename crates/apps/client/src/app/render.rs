@@ -619,6 +619,7 @@ impl ClientApp {
             crate::GroundTruth {
                 heightmap: Some(&self.battlefield.heightmap),
                 rubble: self.live_cover.rubble(),
+                cover: self.live_cover.movement(),
             },
             self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick),
             Some(camera.eye),

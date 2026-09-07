@@ -8,6 +8,10 @@ pub(crate) const TANK_COLLISION_RADIUS_M: f32 = 1.6;
 /// enough (the T-54's shell volume tops out at 2.53 m). Callers with a vehicle read the vehicle's own.
 pub(crate) const DEFAULT_TANK_HEIGHT_M: f32 = 2.4;
 
+/// The step of the radius-only default footprint: the documented vertical obstacle of a medium
+/// tank. Callers with a vehicle read the vehicle's own (`HullPlan::step_m`).
+pub(crate) const DEFAULT_TANK_STEP_M: f32 = 0.8;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TankFootprint {
     pub half_width_m: f32,
@@ -16,6 +20,10 @@ pub struct TankFootprint {
     /// [`game_core::HullPlan::height_m`]). With the hull's height under it this is the band the
     /// hull occupies in contact (X3).
     pub height_m: f32,
+    /// The tallest solid the running gear steps onto, over the support (X4, see
+    /// [`game_core::HullPlan::step_m`]): a solid whose top is under `support + step_m` is ground,
+    /// not a wall, to the SAT and to the support envelope alike.
+    pub step_m: f32,
 }
 
 impl TankFootprint {
@@ -26,6 +34,7 @@ impl TankFootprint {
             half_width_m: plan.half_width_m.max(0.01),
             half_length_m: plan.half_length_m.max(0.01),
             height_m: plan.height_m.max(0.01),
+            step_m: plan.step_m.max(0.0),
         }
     }
 
@@ -68,6 +77,19 @@ impl TankObstacle {
     /// A hull: it stands on its support at `center.y` and reaches `footprint.height_m` above it.
     pub fn new(center: Vec3, yaw_rad: f32, footprint: TankFootprint) -> Self {
         let band = HeightBand { bottom_m: center.y, top_m: center.y + footprint.height_m };
+        Self { center, yaw_rad, footprint, band }
+    }
+
+    /// A hull as the COVER test sees it (X4): its band starts a step above its support, so a
+    /// standing solid whose top is within the step is under the tracks — ground the support
+    /// envelope carries the hull onto ([`crate::is_step_for`], the same predicate) — and only a
+    /// taller solid meets the plan. Hull-to-hull contact keeps [`Self::new`]'s full band: a hull
+    /// does not step onto another hull.
+    pub fn climbing(center: Vec3, yaw_rad: f32, footprint: TankFootprint) -> Self {
+        let band = HeightBand {
+            bottom_m: center.y + footprint.step_m,
+            top_m: center.y + footprint.height_m,
+        };
         Self { center, yaw_rad, footprint, band }
     }
 
@@ -136,6 +158,7 @@ pub fn default_tank_footprint() -> TankFootprint {
         half_width_m: TANK_COLLISION_RADIUS_M,
         half_length_m: TANK_COLLISION_RADIUS_M,
         height_m: DEFAULT_TANK_HEIGHT_M,
+        step_m: DEFAULT_TANK_STEP_M,
     }
 }
 
@@ -404,7 +427,7 @@ mod contact_tests {
         TankObstacle::new(
             Vec3::new(x, 0.0, z),
             yaw_rad,
-            TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4 },
+            TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4, step_m: 0.8 },
         )
     }
 

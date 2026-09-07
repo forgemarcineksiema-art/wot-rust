@@ -300,7 +300,7 @@ fn climbs(settings: &TankControllerSettings, scales: GroundScales, grade: f32) -
             state.position,
             state.yaw_rad,
             settings.ground_probe_length_m,
-            &[],
+            physics::GroundLayers::NONE,
             None,
         ) else {
             // Off the ramp's far end: it climbed further than the ramp is long, which is a yes.

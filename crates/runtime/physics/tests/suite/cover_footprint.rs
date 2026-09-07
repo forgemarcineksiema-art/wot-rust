@@ -48,8 +48,14 @@ fn drive_into_wall(footprint: TankFootprint) -> (f32, f32) {
 #[test]
 fn hull_front_never_interpenetrates_cover_head_on() {
     for (name, footprint) in [
-        ("T-54", TankFootprint { half_width_m: 1.75, half_length_m: 3.15, height_m: 2.53 }),
-        ("Jagdtiger", TankFootprint { half_width_m: 2.00, half_length_m: 4.10, height_m: 2.95 }),
+        (
+            "T-54",
+            TankFootprint { half_width_m: 1.75, half_length_m: 3.15, height_m: 2.53, step_m: 0.8 },
+        ),
+        (
+            "Jagdtiger",
+            TankFootprint { half_width_m: 2.00, half_length_m: 4.10, height_m: 2.95, step_m: 0.8 },
+        ),
     ] {
         let (center_z, wall_face_z) = drive_into_wall(footprint);
         let hull_front_z = center_z + footprint.half_length_m;
@@ -72,7 +78,7 @@ fn wide_hull_is_blocked_where_the_old_point_radius_let_it_pass() {
     let previous = Vec3::new(0.0, 0.0, 10.0);
     let attempted = Vec3::new(0.0, 0.0, 11.0);
 
-    let wide = TankFootprint { half_width_m: 2.0, half_length_m: 4.1, height_m: 2.95 };
+    let wide = TankFootprint { half_width_m: 2.0, half_length_m: 4.1, height_m: 2.95, step_m: 0.8 };
     let resolved = resolve_cover_collision(previous, attempted, 0.0, wide, &cover);
     assert!(
         (resolved.z - previous.z).abs() < 1.0e-6,
@@ -82,7 +88,8 @@ fn wide_hull_is_blocked_where_the_old_point_radius_let_it_pass() {
 
     // The same move with a hull narrow enough to clear the corner must stay unblocked, proving
     // the block above comes from the real footprint and not from an inflated test.
-    let narrow = TankFootprint { half_width_m: 1.6, half_length_m: 4.1, height_m: 2.95 };
+    let narrow =
+        TankFootprint { half_width_m: 1.6, half_length_m: 4.1, height_m: 2.95, step_m: 0.8 };
     let resolved = resolve_cover_collision(previous, attempted, 0.0, narrow, &cover);
     assert_eq!(resolved, attempted, "a narrow hull clears the corner");
 }
@@ -92,7 +99,8 @@ fn near_miss_along_a_wall_is_never_blocked() {
     // Driving parallel to a wall with 0.3 m of real clearance must keep the full move: the
     // footprint must be the hull, not the hull plus an invisible margin.
     let cover = vec![cover_box([4.05, 1.0, 30.0], [2.0, 2.0, 10.0])];
-    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53 };
+    let footprint =
+        TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53, step_m: 0.8 };
 
     let mut position = Vec3::new(0.0, 0.0, 10.0);
     for _ in 0..100 {

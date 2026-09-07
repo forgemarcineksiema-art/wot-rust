@@ -175,10 +175,22 @@ below its TOP (X3, 2026-09-07): contact is the XZ separating-axis test AND an ov
 bands — a hull's from its support height up its shell volume's top (`HullPlan::height_m`), a
 standing solid's from the ground it is planted in up to its top (`TankObstacle::grounded_solid`:
 the forge grounds a box by its centre, so its bottom face is no evidence of air under it). A hull
-whose support is at or over a solid's top passes it — that is how a low solid becomes a step (X4);
-a hull carried up a mound does not shove the hull below, whose band it no longer meets. Nothing
-ends up on a roof: a building's top is where the support envelope never reaches. This is the
-Honest Steel rule "rubble is terrain".
+carried up a mound does not shove the hull below, whose band it no longer meets. Nothing ends up on
+a roof: a building's top is where the support envelope never reaches. This is the Honest Steel rule
+"rubble is terrain".
+
+Low solids are ground (X4, 2026-09-07). The running gear has a STEP — `HullPlan::step_m`, the
+belt's top run less a hand of clearance: the T-54's 0.8 m is the dossier's vertical obstacle, the
+fleet spans 0.68–0.81 m — and ONE rule (`physics::is_step_for`) says a solid whose top is no higher
+than the hull's current support plus its step is ground, not a wall. Two readers take it: the SAT
+(`TankObstacle::climbing` — the hull's band for cover starts a step above its support, so the solid
+does not block) and the support envelope (`physics::GroundLayers`: terrain, rubble, and the tops of
+the low solids the hull is over, gathered per tick by `step_solids_near` — the same surface every
+station and every probe reads). So a parapet is crossed like a mound: the rigid beam rises onto it,
+the hull tilts, the probe cross pays the slope, and a wall taller than the step holds the hull at
+its face as before. Measured from the CURRENT support: a hull already up a mound steps onto a wall
+it could not have climbed from the street. The content half is `StaticCoverKind::LowWall`, the tier
+authored under the fleet's shortest step (`sim` locks every shipped one).
 
 A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
 hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every

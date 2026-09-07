@@ -36,7 +36,20 @@ pub struct HullPlan {
     /// three metres up a mound is not level with the hull below, and does not collide as if it
     /// were.
     pub height_m: f32,
+    /// The tallest solid the running gear steps onto, metres over the support (the one
+    /// program's X4): the belt's top run ([`crate::vehicle_blueprint::TrackShape::top_y`]) less
+    /// [`STEP_CLEARANCE_M`]. The T-54's comes out at the dossier's ~0.8 m vertical obstacle; the
+    /// fleet spans 0.68 (IS-3) to 0.81 m. A solid no taller than this over the CURRENT support
+    /// is ground the hull climbs; a taller one is a wall.
+    pub step_m: f32,
 }
+
+/// What the belt's top run keeps above the tallest thing the gear will climb: the sprocket's
+/// bite and the glacis' lower edge want the crest a hand under the belt line.
+pub const STEP_CLEARANCE_M: f32 = 0.10;
+
+/// The step of a vehicle with no authored running gear (no playable vehicle today).
+pub const FALLBACK_STEP_M: f32 = 0.6;
 
 impl HullPlan {
     /// The plan a vehicle drives as, taken from the same blueprint the mesh is built from — so
@@ -48,6 +61,7 @@ impl HullPlan {
                 half_width_m: blueprint.track.outer_x,
                 half_length_m: blueprint.hull.half_len,
                 height_m: Self::from_hitbox(&HitboxProfile::for_vehicle(kind)).height_m,
+                step_m: (blueprint.track.top_y - STEP_CLEARANCE_M).max(0.2),
             },
             None => Self::from_hitbox(&HitboxProfile::for_vehicle(kind)),
         }
@@ -60,6 +74,7 @@ impl HullPlan {
             half_width_m: hitbox.half_width_m,
             half_length_m: hitbox.half_length_m,
             height_m: hitbox.center_y_m + hitbox.half_height_m,
+            step_m: FALLBACK_STEP_M,
         }
     }
 }
@@ -96,6 +111,31 @@ mod tests {
                 plan.height_m
             );
         }
+    }
+
+    /// The step is the running gear's, and the benchmark's is the dossier's number: every playable
+    /// hull steps between 0.6 and 0.9 m, and the T-54 within a hand of the documented 0.8 m
+    /// vertical obstacle (`docs/contact-and-tracks-program.md`, P2.2). A step from the blueprint
+    /// rather than from a table: the belt line moves, the step moves with it.
+    #[test]
+    fn every_hull_steps_as_high_as_its_belt_line_allows() {
+        for kind in VehicleKind::PLAYABLE {
+            let plan = HullPlan::for_vehicle(kind);
+            let blueprint =
+                VehicleBlueprint::for_vehicle(kind).expect("playable vehicles author one");
+            assert!(
+                (plan.step_m - (blueprint.track.top_y - STEP_CLEARANCE_M)).abs() < 1.0e-6,
+                "{kind:?} steps {} m against a belt line of {} m",
+                plan.step_m,
+                blueprint.track.top_y
+            );
+            assert!((0.6..0.9).contains(&plan.step_m), "{kind:?} steps {} m", plan.step_m);
+        }
+        let benchmark = HullPlan::for_vehicle(VehicleKind::T54_1951).step_m;
+        assert!(
+            (benchmark - 0.8).abs() <= 0.05,
+            "the T-54 steps {benchmark} m, the dossier says ~0.8"
+        );
     }
 
     /// How much air the split takes out from between two hulls parked side by side, per vehicle.

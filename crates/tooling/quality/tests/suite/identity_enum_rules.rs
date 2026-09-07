@@ -247,6 +247,9 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
             // teren W3b (2026-08-26): the Orliny col landmark - a Svan-style watchtower
             // whose felled stump lands in the hull-down band by its rubble fraction.
             "StoneTower",
+            // The one program's X4 (2026-09-07): the low tier - a knee-high masonry solid
+            // no taller than the fleet's step, so every running gear climbs it.
+            "LowWall",
         ],
     ),
     (

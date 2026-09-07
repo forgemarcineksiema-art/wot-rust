@@ -1050,6 +1050,9 @@ fn append_cover_box(
         StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
         StaticCoverKind::Crag => append_crag(vertices, indices, cover, center, half),
         StaticCoverKind::StoneTower => append_stone_tower(vertices, indices, center, half),
+        // The low tier (X4) is masonry a hull steps over: the stone wall's coursing and coping,
+        // knee high, inside the box a shell stops in.
+        StaticCoverKind::LowWall => append_stone_wall(vertices, indices, center, half),
     }
 }
 

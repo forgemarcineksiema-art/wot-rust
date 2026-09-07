@@ -148,7 +148,11 @@
     // Re-blessed 2026-09-04 (no pine — the owner: "the pine is out entirely"): Orliny's 44
     // pines are 20 oaks and 24 poplars, Mazurski's 28 are 16 oaks and 12 poplars; the
     // horizon mixes follow. The Pine variant stays as identity and draws nothing.
-    ("bystra_valley", "4fc9100378b2efb5"),
+    // Re-blessed 2026-09-07 (the one program's X4, Bystra only): the Kamienna bridge
+    // parapets are the first of the LOW TIER - `LowWall`, 0.6 m (was 1.1 m of RailCover) -
+    // a step every running gear in the fleet crosses with a tilt and a speed loss, and a
+    // solid a shell still stops in. The hash moves with the kind and the half height.
+    ("bystra_valley", "6665663a944906a9"),
     ("orliny_pereval", "3b2d10972dcc4f2d"),
     ("ostrogorsk", "50d7d111f20d508b"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two

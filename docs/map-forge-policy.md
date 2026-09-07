@@ -205,8 +205,13 @@ not history):
    - the **belly line** — the fleet's lowest ground clearance, **0.40 m** (the T-34-85, not
      the benchmark T-54's 0.425). Derived in `scene_build::clutter::BELLY_LINE_M` and locked
      by `the_belly_line_is_the_fleet_measurement`, so a lower-slung vehicle moves the rule.
-   - the **climb line** — ~0.80 m, the documented vertical obstacle for these tanks
-     (`docs/contact-and-tracks-program.md`).
+   - the **climb line** — the running gear's STEP, `game_core::HullPlan::step_m` (the belt's
+     top run less a clearance; the T-54 0.805 m = the documented vertical obstacle, the fleet
+     0.68–0.81 m). Since X4 (2026-09-07) it is a rule the physics reads, not a note: a solid
+     whose top is within the step of a hull's support is ground the support envelope carries
+     the hull onto. The LOW TIER, `StaticCoverKind::LowWall`, is authored under the fleet's
+     shortest step so every hull crosses it (`sim` locks every shipped one — the Kamienna
+     bridge parapets at 0.6 m are the first); a taller solid is a wall in its band.
 
    The rule: **a SOLID scenery object stays under the belly line; only LOOSE dressing may go
    above it.** A hull drives through grass, brush and a spilled rubble heap and nothing lies;

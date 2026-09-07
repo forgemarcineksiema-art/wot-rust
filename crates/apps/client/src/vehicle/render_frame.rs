@@ -87,10 +87,13 @@ pub fn split_pbr_vehicle_render_frame(
 pub struct GroundTruth<'a> {
     pub heightmap: Option<&'a HeightMap>,
     pub rubble: &'a [terrain::RubbleMound],
+    /// The standing cover the hull moves against: the low solids within a hull's step are
+    /// ground its wheels stand on (X4), read through the same gather the physics uses.
+    pub cover: &'a [terrain::StaticCoverObject],
 }
 
 impl GroundTruth<'static> {
-    pub const NONE: Self = Self { heightmap: None, rubble: &[] };
+    pub const NONE: Self = Self { heightmap: None, rubble: &[], cover: &[] };
 }
 
 /// As [`split_pbr_vehicle_render_frame`], with the local heightmap so each tank's road wheels can
@@ -303,12 +306,15 @@ fn wheel_travel(tank: &PresentationTank, ground: GroundTruth<'_>) -> (Vec<f32>, 
         return (Vec::new(), Vec::new());
     };
     let footprint = game_core::ContactFootprint::for_vehicle(tank.vehicle);
+    let position = Vec3::from_array(tank.translation);
+    let hull = physics::TankFootprint::from_plan(game_core::HullPlan::for_vehicle(tank.vehicle));
+    let steps = physics::step_solids_near(ground.cover, position, hull, hull.half_length_m + 1.0);
     let ground = physics::station_ground(
         map,
-        Vec3::from_array(tank.translation),
+        position,
         tank.hull_yaw_rad,
         &footprint,
-        ground.rubble,
+        physics::GroundLayers { rubble: ground.rubble, steps: steps.as_slice() },
     );
     let mut left = vec![0.0; kin.wheel_zs.len()];
     let mut right = vec![0.0; kin.wheel_zs.len()];
@@ -800,8 +806,10 @@ mod tests {
                 gun_recoil_m: 0.0,
             };
 
-            let (left, right) =
-                wheel_travel(&tank, GroundTruth { heightmap: Some(&terrain), rubble: &[] });
+            let (left, right) = wheel_travel(
+                &tank,
+                GroundTruth { heightmap: Some(&terrain), rubble: &[], cover: &[] },
+            );
 
             assert_eq!(left.len(), 9, "{vehicle:?} must sample every road-wheel station");
             assert_eq!(right.len(), 9, "{vehicle:?} must sample every road-wheel station");
