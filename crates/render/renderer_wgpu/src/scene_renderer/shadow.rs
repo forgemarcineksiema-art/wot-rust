@@ -369,8 +369,11 @@ impl ShadowResources {
     /// The packed `shadow_params` the shaders read: texel UV step, depth bias, strength, normal
     /// offset. The offset is derived from the FRAME's near box — it is a world distance scaled to
     /// the texel footprint, so a narrowed box must shrink it or a tight scene peter-pans.
-    pub fn shader_params(&self, near: SunShadowParams) -> [f32; 4] {
-        [near.texel_uv_size(), self.depth_bias, self.strength, near.texel_world_size() * 1.5]
+    pub fn shader_params(&self, near: SunShadowParams, look_strength: f32) -> [f32; 4] {
+        // `strength` is the enable switch (1 or 0); the LOOK decides how dark a cast shadow is
+        // (D36: a lead lid casts a shade, a clear evening a cut).
+        let strength = self.strength * look_strength.clamp(0.0, 1.0);
+        [near.texel_uv_size(), self.depth_bias, strength, near.texel_world_size() * 1.5]
     }
 
     /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,

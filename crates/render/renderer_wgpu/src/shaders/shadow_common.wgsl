@@ -53,6 +53,10 @@ fn cloud_shadow(world: vec3<f32>) -> f32 {
         return 1.0;
     }
     let drift = camera.time_params.x * camera.cloud_params.w;
+    // 1.35/400 is the dome's own projection at an implied 400 m cloud base: the shade a player
+    // stands in belongs to the bank they see overhead (`ground_cloud_shade_scale_matches_the_dome`).
+    // D36 tried 2.5x finer blobs and the dome lock refused them; the shade's visibility is its
+    // DEPTH (a look's `cloud_shadow_strength`), not a finer pattern.
     let base_uv = world.xz * (1.35 / 400.0) * camera.cloud_params.y
         + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
     let coverage = textureSampleLevel(

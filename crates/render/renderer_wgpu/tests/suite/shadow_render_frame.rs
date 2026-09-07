@@ -314,6 +314,11 @@ fn the_pcf_kernel_is_centred_on_the_fragment() {
         )
         .expect("renderer");
         let mut lighting = SceneLighting::battlefield_default();
+        // The subject is the PCF kernel's weave, measured as the luma DROP between the lit and
+        // the shadowed frame. Cloud shade multiplies the whole drop wherever a bank lies over
+        // the field (D36 deepened it to 0.6), quantising the penumbra into fewer luma steps and
+        // counting as plateau what is a cloud — so the fixture measures under an open sky.
+        lighting.cloud_shadow_strength = 0.0;
         lighting.key_direction = [sign * 1.0, 0.35, 0.0];
         // The indirect rig is mirrored too. It never touches the shadow the test reads (that is
         // differenced away), but leaving it fixed would tilt the darkening weights across the
