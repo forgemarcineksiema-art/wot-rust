@@ -348,6 +348,9 @@ mod tests {
                 roofs.len() >= 3 && storeys.len() >= 2,
                 "{map:?}: roofs {roofs:?} storeys {storeys:?}"
             );
+            // B1: the roofs' MASSING varies too — a street of gables is a street of one roof.
+            let forms: std::collections::HashSet<_> = grid.iter().map(|(_, _, s)| s.roof).collect();
+            assert!(forms.len() >= 2, "{map:?}: roof forms {forms:?}");
         }
     }
 
