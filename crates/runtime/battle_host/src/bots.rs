@@ -474,6 +474,7 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
 /// acquisition (no engagement at all) rides its own short stagger: before first contact every
 /// cache is empty, so the moment a spotting recompute lit up both teams, all 13 bots used to
 /// fire their full raycast sweeps on that very tick — the recompute's own most expensive tick.
+#[expect(clippy::too_many_arguments)]
 fn bot_current_target<'a>(
     agent: &mut BotAgent,
     tick: u64,
