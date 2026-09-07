@@ -612,6 +612,7 @@ pub(crate) mod test_support {
             submerged_s: 0.0,
             repair: sim::CrewRepair::default(),
             turret_detached: false,
+            turret_rest: None,
             armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,

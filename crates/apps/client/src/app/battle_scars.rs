@@ -270,19 +270,42 @@ mod tests {
             snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
         target.hit_points = 0;
         let target_id = target.tank_id;
+        let rest = [target.position[0] + 3.0, target.position[1] + 0.45, target.position[2] - 2.0];
         snapshot.detached_turrets.push(target_id);
+        // Z13: the authority says where it landed — its low solid stands there.
+        snapshot.turret_rests.push(net::TurretRest { tank: target_id, position: rest });
+        let standing = app.live_cover.blocking().len();
         app.accept_and_sync(snapshot);
 
         assert!(
             app.turret_popoffs.contains_key(&target_id),
             "a decapitated wreck starts a flying-turret animation"
         );
+        let solid = app
+            .live_cover
+            .blocking()
+            .iter()
+            .find(|object| object.id.starts_with("turret#"))
+            .expect("the landed turret is a low solid in the blocking list");
+        assert_eq!(solid.center, rest);
+        assert_eq!(app.live_cover.blocking().len(), standing + 1);
+        assert_eq!(app.live_cover.camera_obstacles().len(), app.live_cover.blocking().len());
+        assert!(
+            !app.live_cover.movement().iter().any(|object| object.id.starts_with("turret#")),
+            "the hull's list never carries it"
+        );
 
-        // The arc advances and then settles instead of falling forever.
+        // The arc advances and then settles instead of falling forever — ON the solid.
         for _ in 0..400 {
             app.tick_battle_scars(0.05);
         }
         assert!(app.turret_popoffs[&target_id].settled(), "the flung turret lands and rests");
+        let landed = app.turret_popoffs[&target_id].turret_transform().w_axis;
+        assert!(
+            glam::Vec3::new(landed.x, landed.y, landed.z).distance(glam::Vec3::from_array(rest))
+                < 1e-3,
+            "the casting came down where the solid stands: {landed} vs {rest:?}"
+        );
     }
 
     #[test]

@@ -67,6 +67,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
         cover_states: vec![1],
         cover_falls: vec![64],
         cover_segments: vec![0b1000_0010, 0, 0, 0, 0],
+        turret_rests: vec![net::TurretRest { tank: TankId(2), position: [4.5, 0.45, 57.0] }],
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
@@ -103,6 +104,11 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
     assert_eq!(terrain::segment_state(&packed, 0, 0), terrain::SEGMENT_RUIN);
     assert_eq!(terrain::segment_state(&packed, 0, 3), terrain::SEGMENT_RUIN);
     assert_eq!(terrain::segment_state(&packed, 0, 1), terrain::SEGMENT_WHOLE);
+    // Z13: the landed turret's rest rides the snapshot too.
+    assert_eq!(
+        round.turret_rests,
+        vec![net::TurretRest { tank: TankId(2), position: [4.5, 0.45, 57.0] }]
+    );
     assert!(
         (terrain::fall_heading_rad(round.cover_falls[0]) - std::f32::consts::FRAC_PI_2).abs()
             < 1e-5

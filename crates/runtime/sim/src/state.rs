@@ -269,7 +269,8 @@ impl SimulationState {
         // Borrow the memo (taken out so it can be read beside the mutable tank/spotting fields, then
         // returned) instead of re-cloning the whole cover slice on every spotting refresh.
         let mut live_cover = std::mem::take(&mut self.live_cover_cache);
-        live_cover.refresh(cover, &self.cover_states);
+        let turret_rests = crate::cover_damage::turret_rests_of(&self.tanks);
+        live_cover.refresh_with_turrets(cover, &self.cover_states, &turret_rests);
         crate::spotting::apply_spotted_masks_with_hold(
             self.tick,
             &mut self.tanks,
@@ -289,7 +290,8 @@ impl SimulationState {
         if self.cover_states.len() != cover.len() {
             self.cover_states = crate::cover_damage::initial_cover_states(cover);
         }
-        self.live_cover_cache.refresh(cover, &self.cover_states);
+        let turret_rests = crate::cover_damage::turret_rests_of(&self.tanks);
+        self.live_cover_cache.refresh_with_turrets(cover, &self.cover_states, &turret_rests);
     }
 
     /// The memoized sight/shell cover from the last [`Self::refresh_live_cover`] (or tick). Shared
@@ -434,7 +436,8 @@ impl SimulationState {
         // holds all three views: what stops a HULL, what stops a SHELL/sight line (they agree but
         // for rubble), and — the third — what a hull STANDS ON, a collapsed building as debris.
         let mut live_cover = std::mem::take(&mut self.live_cover_cache);
-        live_cover.refresh(cover, &self.cover_states);
+        let turret_rests = crate::cover_damage::turret_rests_of(&self.tanks);
+        live_cover.refresh_with_turrets(cover, &self.cover_states, &turret_rests);
         let rubble = live_cover.rubble();
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
@@ -617,6 +620,20 @@ impl SimulationState {
                 heightmap,
                 live_cover.sight(),
             );
+        }
+        // Z13: a turret blown off this tick lands SOMEWHERE — the same somewhere on every
+        // client (`game_core::turret_launch`, deterministic in the id and the ring), and the
+        // authority's low solid from then on: what the shell stops in, the eye stops at.
+        for tank in &mut self.tanks {
+            if tank.turret_detached && tank.turret_rest.is_none() {
+                let ring = tank.position
+                    + tank.hull_pose().basis() * tank.spec.mounts.turret_ring.translation;
+                let ground = heightmap
+                    .and_then(|map| map.sample_height(ring.x, ring.z))
+                    .unwrap_or(tank.position.y);
+                tank.turret_rest =
+                    Some(game_core::turret_launch(tank.id, ring, ground).rest.to_array());
+            }
         }
         // Shells absorbed by cover this tick bring it down: an HE round to rubble/clear, a kinetic
         // round chips it. The impact already carries where it died and what died there.

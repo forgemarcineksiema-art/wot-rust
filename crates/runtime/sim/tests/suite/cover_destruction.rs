@@ -155,6 +155,43 @@ fn a_t54_at_speed_breaches_a_stone_wall_and_pays_but_at_a_crawl_it_stops() {
     assert_eq!(tank.hit_points, full_hp, "and paid nothing");
 }
 
+/// Z13: a wreck that lost its turret puts the casting SOMEWHERE — computed once, the tick it
+/// flew, and from then on the authority's sight list carries a low solid at that rest: the
+/// shell stops in it, the eye stops at it; the movement list never carries it.
+#[test]
+fn a_decapitated_wreck_lands_its_turret_and_the_authority_blocks_on_it() {
+    let terrain = flat_field();
+    let mut state = SimulationState::new();
+    let wreck = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(30.0, 0.0, 30.0));
+    let step = FixedTimestep::from_hz(60);
+    state.apply_commands_on_terrain(&[], step, &terrain);
+    assert_eq!(state.tank(wreck).expect("wreck").turret_rest, None, "the turret is on");
+    {
+        let tank = state.tank_mut(wreck).expect("wreck");
+        tank.hit_points = 0;
+        tank.turret_detached = true;
+    }
+    state.apply_commands_on_terrain(&[], step, &terrain);
+    let rest =
+        state.tank(wreck).expect("wreck").turret_rest.expect("the turret came down somewhere");
+    let ground = terrain.sample_height(rest[0], rest[2]).expect("on the map");
+    assert!((rest[1] - ground - game_core::TURRET_REST_CLEARANCE_M).abs() < 1e-3, "on the ground");
+    assert!(
+        Vec3::from_array(rest).distance(Vec3::new(30.0, rest[1], 30.0)) > 1.0,
+        "thrown clear of the ring"
+    );
+    state.refresh_live_cover(&[]);
+    let solid = state
+        .cached_sight_cover()
+        .iter()
+        .find(|object| object.id.starts_with("turret#"))
+        .expect("the authority's sight list carries the landed turret");
+    assert_eq!(solid.center, rest);
+    assert_eq!(solid.half_extents_m, game_core::TURRET_REST_HALF_M);
+    state.apply_commands_on_terrain(&[], step, &terrain);
+    assert_eq!(state.tank(wreck).expect("wreck").turret_rest, Some(rest), "computed once");
+}
+
 /// The negative case the crush test needs, per the engineering rule on contact approximations:
 /// a hull that drives cleanly PAST a hedgerow must leave it standing.
 ///

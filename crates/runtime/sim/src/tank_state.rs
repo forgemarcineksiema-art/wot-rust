@@ -105,6 +105,11 @@ pub struct TankState {
     /// `serde(default)` keeps pre-v20 fixtures loading with the turret attached.
     #[serde(default)]
     pub turret_detached: bool,
+    /// Z13: where the blown-off turret came to REST — computed once, the tick it flew, from
+    /// the id and the ring (`game_core::turret_launch`), replicated, and a low solid for the
+    /// shell and the eye from then on. `None` while the turret is on.
+    #[serde(default)]
+    pub turret_rest: Option<[f32; 3]>,
     /// Permanent, replay-stable armor perforations owned by this individual T-54.
     #[serde(default)]
     pub armor_breaches: ArmorBreachSet,

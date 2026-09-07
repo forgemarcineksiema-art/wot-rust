@@ -143,6 +143,7 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
         cover_states: vec![0_u8; 160],
         cover_falls: Vec::new(),
         cover_segments: Vec::new(),
+        turret_rests: Vec::new(),
         craters: (0..sim::MAX_CRATERS)
             .map(|i| terrain::CraterRecord::from_world(i as f32 * 7.0, 300.0, 2.4, 0.6, 0))
             .collect(),

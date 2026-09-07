@@ -265,6 +265,8 @@ impl<'a> LiveCover<'a> {
 pub struct CoverCache {
     phases: Vec<CoverPhase>,
     segments: Vec<terrain::SegmentStates>,
+    /// Z13: the landed turrets the sight list carries as low solids.
+    turrets: Vec<[f32; 3]>,
     sight: Vec<StaticCoverObject>,
     movement: Option<Vec<StaticCoverObject>>,
     rubble: Vec<RubbleMound>,
@@ -286,21 +288,30 @@ impl CoverCache {
     /// of a few bytes per object, so the steady state (no cover changed this tick) is a walk
     /// over ~1 KB instead of ~150 heap clones. `movement` is materialised only when a mound
     /// exists, exactly like [`LiveCover`].
-    pub fn refresh(&mut self, cover: &[StaticCoverObject], states: &[CoverState]) {
+    /// With the landed turrets (Z13): each rest is a low solid in the SIGHT
+    /// list — the shell stops in it, the eye stops at it — and never in the movement list
+    /// (a hull crosses it; X4's model tilts it). Rebuilds when a rest appears or moves.
+    pub fn refresh_with_turrets(
+        &mut self,
+        cover: &[StaticCoverObject],
+        states: &[CoverState],
+        turret_rests: &[[f32; 3]],
+    ) {
         let unchanged = self.phases.len() == states.len()
             && self.phases.iter().zip(states).all(|(phase, state)| *phase == state.phase)
-            && self.segments.iter().zip(states).all(|(seg, state)| *seg == state.segments);
+            && self.segments.iter().zip(states).all(|(seg, state)| *seg == state.segments)
+            && self.turrets == turret_rests;
         if unchanged {
             return;
         }
-        self.sight = live_cover_for_sight_and_shells(cover, states).into_owned();
-        self.movement = states
-            .iter()
-            .any(|state| state.phase == CoverPhase::Rubble)
-            .then(|| live_cover_for_movement(cover, states).into_owned());
+        self.sight = sight_cover_with_turrets(cover, states, turret_rests);
+        self.movement = (states.iter().any(|state| state.phase == CoverPhase::Rubble)
+            || !turret_rests.is_empty())
+        .then(|| live_cover_for_movement(cover, states).into_owned());
         self.rubble = rubble_mounds(cover, states);
         self.phases = states.iter().map(|state| state.phase).collect();
         self.segments = states.iter().map(|state| state.segments).collect();
+        self.turrets = turret_rests.to_vec();
     }
 
     /// What stops a shell and hides a hull.
@@ -352,15 +363,46 @@ pub fn sight_cover_for_phase_bytes(
     live_cover_for_sight_and_shells(cover, &states_from_phase_bytes(phase_bytes)).into_owned()
 }
 
-/// [`sight_cover_for_phase_bytes`] with the wall segments (Z9): a standing building with an
-/// opening resolves to its hollow of slabs, exactly as the authority resolves it.
+/// [`sight_cover_for_phase_bytes`] with the wall segments (Z9) and the landed turrets (Z13):
+/// a standing building with an opening resolves to its hollow of slabs and every landed
+/// turret to its low solid, exactly as the authority resolves them.
 pub fn sight_cover_for_wire(
     cover: &[StaticCoverObject],
     phase_bytes: &[u8],
     segment_bytes: &[u8],
+    turret_rests: &[[f32; 3]],
 ) -> Vec<StaticCoverObject> {
-    live_cover_for_sight_and_shells(cover, &states_from_wire(phase_bytes, segment_bytes))
-        .into_owned()
+    sight_cover_with_turrets(cover, &states_from_wire(phase_bytes, segment_bytes), turret_rests)
+}
+
+/// The sight list with the landed turrets appended (Z13).
+fn sight_cover_with_turrets(
+    cover: &[StaticCoverObject],
+    states: &[CoverState],
+    turret_rests: &[[f32; 3]],
+) -> Vec<StaticCoverObject> {
+    let mut sight = live_cover_for_sight_and_shells(cover, states).into_owned();
+    sight
+        .extend(turret_rests.iter().enumerate().map(|(index, &rest)| turret_rest_box(index, rest)));
+    sight
+}
+
+/// Z13: a landed turret as the low solid the shell and the eye meet — steel on the ground,
+/// `game_core::TURRET_REST_HALF_M` about its rest, never damaged (`cover_index_at` walks the
+/// authored cover and never finds it).
+pub fn turret_rest_box(index: usize, rest: [f32; 3]) -> StaticCoverObject {
+    StaticCoverObject {
+        id: format!("turret#{index}"),
+        name: "a landed turret".to_string(),
+        kind: terrain::StaticCoverKind::Wreck,
+        center: rest,
+        half_extents_m: game_core::TURRET_REST_HALF_M,
+    }
+}
+
+/// Where every blown-off turret on the field has come to rest (Z13).
+pub fn turret_rests_of(tanks: &[crate::TankState]) -> Vec<[f32; 3]> {
+    tanks.iter().filter_map(|tank| tank.turret_rest).collect()
 }
 
 /// ...and into the movement geometry, which is what the client predictor must drive against if
@@ -794,6 +836,41 @@ mod tests {
         assert_eq!(strike_segment(&mut states, &cover, 0, hit, ap_57.shell_type, 0.02, hp), None);
     }
 
+    /// Z13: a landed turret is a low solid. The eye (and so the shell, which reads the same
+    /// list) stops in it below its top and clears it above; the hull's movement list never
+    /// carries it (a hull crosses it — X4's model tilts it); it comes and goes with the rests.
+    #[test]
+    fn the_eye_and_the_shell_stop_in_a_landed_turret_and_a_hull_does_not() {
+        use crate::spotting::line_of_sight;
+        let cover =
+            vec![object("barn", StaticCoverKind::FarmBuilding, [0.0, 2.0, 40.0], [6.0, 2.0, 4.0])];
+        let states = cover_states_for(&cover);
+        let rest = [10.0, 0.45, 0.0];
+        let mut cache = CoverCache::default();
+        cache.refresh_with_turrets(&cover, &states, &[rest]);
+        assert_eq!(cache.sight().len(), 2, "the barn and the landed turret");
+        assert_eq!(cache.movement().len(), 1, "the hull's list carries only the barn");
+        let low = |x: f32| Vec3::new(x, 0.6, 0.0);
+        assert!(!line_of_sight(None, cache.sight(), low(20.0), low(0.0)), "the eye stops in it");
+        assert!(line_of_sight(
+            None,
+            cache.sight(),
+            Vec3::new(20.0, 1.5, 0.0),
+            Vec3::new(0.0, 1.5, 0.0)
+        ));
+        assert!(
+            line_of_sight(None, cache.movement(), low(20.0), low(0.0)),
+            "movement never blocks on it"
+        );
+        cache.refresh_with_turrets(&cover, &states, &[]);
+        assert_eq!(cache.sight().len(), 1, "no rest, no solid");
+        assert_eq!(
+            sight_cover_for_wire(&cover, &[0], &[], &[rest]).len(),
+            2,
+            "the client resolves the same solid from the replicated rest"
+        );
+    }
+
     /// Z9: an opening is honest. A brick house with one ruined street segment lets the eye
     /// (and so the shell) through that segment into the hollow, and the far wall still stops
     /// it; at the sill's height the eye is blocked; ruin the facing segment of the far wall
@@ -836,10 +913,10 @@ mod tests {
             "the hull never enters"
         );
         let mut cache = CoverCache::default();
-        cache.refresh(&cover, &states);
+        cache.refresh_with_turrets(&cover, &states, &[]);
         assert!(cache.sight().len() > 1, "the memo resolves the segments too");
         terrain::set_segment_state(&mut states[0].segments, 1, 0, terrain::SEGMENT_RUBBLE);
-        cache.refresh(&cover, &states);
+        cache.refresh_with_turrets(&cover, &states, &[]);
         assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &states).as_ref());
     }
 
@@ -1014,7 +1091,7 @@ mod tests {
         let mut cache = CoverCache::default();
 
         // Intact: the memo equals a fresh resolution, and with no rubble yet movement borrows sight.
-        cache.refresh(&cover, &states);
+        cache.refresh_with_turrets(&cover, &states, &[]);
         assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &states).as_ref());
         assert_eq!(cache.movement(), live_cover_for_movement(&cover, &states).as_ref());
         assert_eq!(cache.rubble(), rubble_mounds(&cover, &states).as_slice());
@@ -1028,7 +1105,7 @@ mod tests {
         assert_eq!(changed[0].phase, CoverPhase::Rubble);
         assert_eq!(changed[1].phase, CoverPhase::Gone);
 
-        cache.refresh(&cover, &changed);
+        cache.refresh_with_turrets(&cover, &changed, &[]);
         assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &changed).as_ref());
         assert_eq!(cache.movement(), live_cover_for_movement(&cover, &changed).as_ref());
         assert_eq!(cache.rubble(), rubble_mounds(&cover, &changed).as_slice());
@@ -1036,7 +1113,7 @@ mod tests {
         assert_ne!(cache.movement(), cache.sight(), "movement and sight part ways over rubble");
 
         // Refreshing again with the SAME phases keeps the same answer (the steady-state borrow path).
-        cache.refresh(&cover, &changed);
+        cache.refresh_with_turrets(&cover, &changed, &[]);
         assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &changed).as_ref());
     }
 }

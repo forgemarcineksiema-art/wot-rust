@@ -11,6 +11,8 @@ pub(super) struct LiveCoverCache {
     phase_bytes: Vec<u8>,
     /// Z9: the packed wall segments, `terrain::SEGMENT_BYTES` per object (empty: all whole).
     segment_bytes: Vec<u8>,
+    /// Z13: where the blown-off turrets rest — low solids in `blocking`, never in `movement`.
+    turret_rests: Vec<[f32; 3]>,
     blocking: Vec<StaticCoverObject>,
     movement: Vec<StaticCoverObject>,
     rubble: Vec<terrain::RubbleMound>,
@@ -21,36 +23,42 @@ pub(super) struct LiveCoverCache {
 impl LiveCoverCache {
     pub(super) fn from_born_phases(authored: &[StaticCoverObject]) -> Self {
         let phases = terrain::initial_cover_phase_bytes(authored);
-        Self::build(authored, phases, Vec::new(), false)
+        Self::build(authored, phases, Vec::new(), Vec::new(), false)
     }
 
     /// Reject incomplete arrays so startup keeps the authored born phases until a complete
     /// snapshot arrives. A late join with a complete snapshot starts directly from its live world.
-    /// The segments (Z9) may be absent — an older host — and then read as every wall whole.
+    /// The segments (Z9) may be absent — an older host — and then read as every wall whole; the
+    /// turret rests (Z13) are however many the host has landed.
     pub(super) fn from_replicated(
         authored: &[StaticCoverObject],
         phase_bytes: &[u8],
         segment_bytes: &[u8],
+        turret_rests: &[[f32; 3]],
     ) -> Option<Self> {
         let complete = segment_bytes.len() == authored.len() * terrain::SEGMENT_BYTES;
         let segments = if complete { segment_bytes.to_vec() } else { Vec::new() };
-        (phase_bytes.len() == authored.len())
-            .then(|| Self::build(authored, phase_bytes.to_vec(), segments, true))
+        (phase_bytes.len() == authored.len()).then(|| {
+            Self::build(authored, phase_bytes.to_vec(), segments, turret_rests.to_vec(), true)
+        })
     }
 
     fn build(
         authored: &[StaticCoverObject],
         phase_bytes: Vec<u8>,
         segment_bytes: Vec<u8>,
+        turret_rests: Vec<[f32; 3]>,
         replicated: bool,
     ) -> Self {
-        let blocking = sim::sight_cover_for_wire(authored, &phase_bytes, &segment_bytes);
+        let blocking =
+            sim::sight_cover_for_wire(authored, &phase_bytes, &segment_bytes, &turret_rests);
         let movement = sim::movement_cover_for_phase_bytes(authored, &phase_bytes);
         let rubble = sim::rubble_mounds_for_phase_bytes(authored, &phase_bytes);
         let camera_obstacles = blocking.iter().map(CameraObstacle::from_static_cover).collect();
         Self {
             phase_bytes,
             segment_bytes,
+            turret_rests,
             blocking,
             movement,
             rubble,
@@ -67,6 +75,11 @@ impl LiveCoverCache {
     /// host never sent them.
     pub(super) fn segment_bytes(&self) -> &[u8] {
         &self.segment_bytes
+    }
+
+    /// Where the blown-off turrets rest (Z13).
+    pub(super) fn turret_rests(&self) -> &[[f32; 3]] {
+        &self.turret_rests
     }
 
     /// What stops a shell and hides a hull: a collapsed building is still the mound it slumped
@@ -95,4 +108,9 @@ impl LiveCoverCache {
     pub(super) fn is_replicated(&self) -> bool {
         self.replicated
     }
+}
+
+/// The rests a snapshot carries (Z13), as the resolver takes them.
+pub(super) fn rests_from_wire(rests: &[net::TurretRest]) -> Vec<[f32; 3]> {
+    rests.iter().map(|rest| rest.position).collect()
 }

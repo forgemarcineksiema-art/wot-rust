@@ -428,6 +428,7 @@ fn snapshot_for_vehicle(
         cover_states: Vec::new(),
         cover_falls: Vec::new(),
         cover_segments: Vec::new(),
+        turret_rests: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
@@ -471,6 +472,7 @@ fn a_cover_collapse_rebuilds_the_statics_off_the_render_thread() {
     app.live_cover = super::live_cover::LiveCoverCache::from_replicated(
         &app.battlefield.static_cover,
         &phases,
+        &[],
         &[],
     )
     .expect("one complete phase per authored object");

@@ -157,6 +157,7 @@ fn snapshot_with_aim(
         cover_states: Vec::new(),
         cover_falls: Vec::new(),
         cover_segments: Vec::new(),
+        turret_rests: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),

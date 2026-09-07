@@ -41,13 +41,14 @@ fn the_7v7_format_is_todays_battle_byte_for_byte() {
         // itself stays: seeds, spawn zones and facing yaws are untouched by J4), and again the
         // same day for wire v54 (Z8: one fall-heading byte per cover object rides the
         // snapshot; the deployment is untouched) and v55 (Z9: five bytes of wall segments
-        // per cover object; the deployment is untouched).
+        // per cover object; the deployment is untouched) and v56 (Z13: the landed turrets'
+        // rests ride the snapshot, none at deployment; the deployment is untouched).
         let expected: u64 = match map {
-            terrain::MapId::ProkhorovkaHill252_2 => 0x6cc18ff34ac6c61b,
-            terrain::MapId::BystraValley => 0xe751443104d90bfc,
-            terrain::MapId::OrlinyPereval => 0x17fd8879b8a723c3,
-            terrain::MapId::Ostrogorsk => 0x7e568fa8124a8aa9,
-            terrain::MapId::MazurskiPrzesmyk => 0x7e4304cb10fb1085,
+            terrain::MapId::ProkhorovkaHill252_2 => 0xad7b23af091e227b,
+            terrain::MapId::BystraValley => 0xed6baadd9557c2fc,
+            terrain::MapId::OrlinyPereval => 0x2252eb4cc7dd93a3,
+            terrain::MapId::Ostrogorsk => 0x1335e5fb47ab34c9,
+            terrain::MapId::MazurskiPrzesmyk => 0x848ac35b9c76d625,
             _ => panic!("record a baseline for a newly shipped map"),
         };
         if hash != expected {

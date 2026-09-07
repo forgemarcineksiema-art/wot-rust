@@ -401,6 +401,7 @@ impl ClientApp {
             &battlefield.static_cover,
             &opening.cover_states,
             &opening.cover_segments,
+            &live_cover::rests_from_wire(&opening.turret_rests),
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         self.minimap_static = minimap;
@@ -856,6 +857,7 @@ impl ClientApp {
             &battlefield.static_cover,
             &opening_snapshot.cover_states,
             &opening_snapshot.cover_segments,
+            &live_cover::rests_from_wire(&opening_snapshot.turret_rests),
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
@@ -913,6 +915,7 @@ impl ClientApp {
         let opening_snapshot = local_server.latest_snapshot_for_player();
         let opening_cover_phases = opening_snapshot.cover_states.clone();
         let opening_cover_segments = opening_snapshot.cover_segments.clone();
+        let opening_turret_rests = live_cover::rests_from_wire(&opening_snapshot.turret_rests);
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(opening_snapshot);
         let player_spec = render_state
@@ -927,6 +930,7 @@ impl ClientApp {
             &battlefield.static_cover,
             &opening_cover_phases,
             &opening_cover_segments,
+            &opening_turret_rests,
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         let mut predictor = LocalPredictor::new(&player_spec);
