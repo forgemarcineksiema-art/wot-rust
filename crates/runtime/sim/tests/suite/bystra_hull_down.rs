@@ -101,7 +101,7 @@ fn a_felled_kamienica_opens_the_turret_line_and_keeps_the_hull_line() {
         "the intact kamienica must block the cross-market line"
     );
 
-    damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+    damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
     assert_eq!(states[index].phase, CoverPhase::Rubble);
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
     assert!(

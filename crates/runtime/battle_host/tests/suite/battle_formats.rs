@@ -23,6 +23,7 @@ fn the_7v7_clock_is_seven_minutes_and_the_15v15_clock_fifteen() {
 
 #[test]
 fn the_7v7_format_is_todays_battle_byte_for_byte() {
+    let mut moved = Vec::new();
     for &map in terrain::MapId::SHIPPED {
         let server = LocalAuthoritativeServer::new_random_7v7(
             ServerTickConfig::new(60, 20),
@@ -37,17 +38,30 @@ fn the_7v7_format_is_todays_battle_byte_for_byte() {
         // Recorded from master 12bf9f48 before adding formats, seed 42, Tiger II; re-recorded
         // 2026-09-07 for wire v53 (the one program's J4: two f32 fields per tank ride the
         // snapshot — the hash is of the BYTES, so a wire bump moves it while the deployment
-        // itself stays: seeds, spawn zones and facing yaws are untouched by J4).
+        // itself stays: seeds, spawn zones and facing yaws are untouched by J4), and again the
+        // same day for wire v54 (Z8: one fall-heading byte per cover object rides the
+        // snapshot; the deployment is untouched).
         let expected: u64 = match map {
-            terrain::MapId::ProkhorovkaHill252_2 => 0x184e8a9ee8c61923,
-            terrain::MapId::BystraValley => 0xc1d12533298eba21,
-            terrain::MapId::OrlinyPereval => 0xd92b3e1dcd33f63c,
-            terrain::MapId::Ostrogorsk => 0x1fa4e80dc1605e3b,
-            terrain::MapId::MazurskiPrzesmyk => 0x6616a2693b5367c5,
+            terrain::MapId::ProkhorovkaHill252_2 => 0x9a234e6556d17e5d,
+            terrain::MapId::BystraValley => 0xf41c967b3a35d7d9,
+            terrain::MapId::OrlinyPereval => 0x097cdb6c02cee220,
+            terrain::MapId::Ostrogorsk => 0x1f47227e3d2ff6ea,
+            terrain::MapId::MazurskiPrzesmyk => 0xcc87b55bd4fb7f15,
             _ => panic!("record a baseline for a newly shipped map"),
         };
-        assert_eq!(hash, expected, "{map:?}: existing 7v7 deployment moved");
+        if hash != expected {
+            moved.push(format!("{map:?}: 0x{hash:016x}, recorded 0x{expected:016x}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "existing 7v7 deployments moved:
+{}",
+        moved.join(
+            "
+"
+        )
+    );
 }
 
 #[test]

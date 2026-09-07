@@ -39,6 +39,18 @@ const SETTLE_RANGE: (usize, usize) = (10, 120);
 const HAZE_PER_M2: f32 = 0.25;
 const HAZE_RANGE: (usize, usize) = (4, 40);
 
+/// Z8: a felled tree's crown lands about here down the heading — most of a mature bole's
+/// clear trunk (the fx's guess; the bake knows the exact log).
+const CROWN_REACH_M: f32 = 8.0;
+/// The earth the roots throw as the trunk leans.
+const ROOT_HEAVE_COUNT: usize = 8;
+/// Leaf litter per square metre of crown as it lands, and its clamp.
+const LITTER_PER_M2: f32 = 0.9;
+const LITTER_RANGE: (usize, usize) = (8, 60);
+/// The foliage's own tones — a tree does not fall in masonry dust.
+const FOLIAGE: [f32; 3] = [0.36, 0.38, 0.20];
+const EARTH: [f32; 3] = [0.34, 0.28, 0.20];
+
 const MASONRY: [f32; 3] = [0.52, 0.50, 0.46];
 const MASONRY_DARK: [f32; 3] = [0.30, 0.27, 0.24];
 const SETTLE_TONE: [f32; 3] = [0.56, 0.53, 0.48];
@@ -47,6 +59,8 @@ const SETTLE_TONE: [f32; 3] = [0.56, 0.53, 0.48];
 pub(crate) enum StagedKind {
     Settle,
     Haze,
+    /// Z8: a felled tree's crown meets the ground.
+    CrownLanding,
 }
 
 /// A beat of the sequence waiting on the FX clock.
@@ -83,6 +97,77 @@ impl FxSystem {
         });
     }
 
+    /// Z8: a tree going down. The roots heave a little earth NOW; when the crown lands —
+    /// `TOPPLE_DURATION_S` later, `CROWN_REACH_M` down the heading — a low, wide burst of
+    /// leaf litter and dust in the foliage's own tones, not masonry's. `crown_radius_m`
+    /// sizes the landing.
+    pub fn tree_topple(&mut self, foot: Vec3, heading_rad: f32, crown_radius_m: f32) {
+        self.root_heave(foot);
+        let along = Vec3::new(heading_rad.cos(), 0.0, heading_rad.sin());
+        self.staged.push(StagedEmission {
+            due_s: self.stage_clock_s + scene_build::tree_lod::TOPPLE_DURATION_S,
+            kind: StagedKind::CrownLanding,
+            center: foot + along * CROWN_REACH_M,
+            half: Vec3::new(crown_radius_m, 0.4, crown_radius_m),
+        });
+    }
+
+    /// The earth the roots throw as the trunk leans: a handful of dark puffs at the foot.
+    fn root_heave(&mut self, foot: Vec3) {
+        for _ in 0..ROOT_HEAVE_COUNT {
+            let dx = self.rand_signed() * 0.8;
+            let dz = self.rand_signed() * 0.8;
+            let speed = 0.6 + self.rand_unit() * 0.8;
+            let ttl = 1.0 + self.rand_unit() * 0.6;
+            let alpha = 0.5;
+            self.spawn(Particle {
+                position: foot + Vec3::new(dx, 0.2, dz),
+                velocity_mps: Vec3::new(dx, 0.0, dz).normalize_or_zero() * speed + Vec3::Y * 0.8,
+                gravity_factor: 0.3,
+                drag_per_s: 1.2,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.6,
+                size_end_m: 1.8,
+                color_begin: [EARTH[0] * alpha, EARTH[1] * alpha, EARTH[2] * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+                seat: None,
+            });
+        }
+    }
+
+    /// The crown meets the ground: leaf litter and dust rolling out low and wide.
+    fn crown_landing(&mut self, center: Vec3, half: Vec3) {
+        let area = std::f32::consts::PI * half.x * half.z;
+        let count = scaled(area, LITTER_PER_M2, LITTER_RANGE);
+        for _ in 0..count {
+            let dx = self.rand_signed() * half.x;
+            let dz = self.rand_signed() * half.z;
+            let outward =
+                Vec3::new(dx / half.x.max(0.1), 0.0, dz / half.z.max(0.1)).normalize_or_zero();
+            let speed = 1.0 + self.rand_unit() * 2.0;
+            let lift = 0.3 + self.rand_unit() * 0.6;
+            let height = 0.3 + self.rand_unit() * half.y;
+            let ttl = 1.0 + self.rand_unit() * 0.9;
+            let alpha = 0.45;
+            self.spawn(Particle {
+                position: center + Vec3::new(dx, height, dz),
+                velocity_mps: outward * speed + Vec3::Y * lift,
+                gravity_factor: 0.25,
+                drag_per_s: 1.4,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.8,
+                size_end_m: 2.6,
+                color_begin: [FOLIAGE[0] * alpha, FOLIAGE[1] * alpha, FOLIAGE[2] * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+                seat: None,
+            });
+        }
+    }
+
     /// Advance the FX clock and fire every beat that has come due.
     pub(crate) fn fire_staged(&mut self, dt: f32) {
         self.stage_clock_s += dt;
@@ -94,6 +179,7 @@ impl FxSystem {
             match beat.kind {
                 StagedKind::Settle => self.settle_wave(beat.center, beat.half),
                 StagedKind::Haze => self.hanging_haze(beat.center, beat.half),
+                StagedKind::CrownLanding => self.crown_landing(beat.center, beat.half),
             }
         }
     }

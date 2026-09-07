@@ -2,7 +2,32 @@
 //! FX, scars, the camera shudder, the kill confirmation, the render buffer and the predictor.
 //! Split from `prediction.rs` for the reviewability budget.
 
-use super::ClientApp;
+use super::{ActiveTopple, ClientApp};
+
+/// The phases the DRESSING draws (Z8): the live phases, except that a tree still going down
+/// keeps standing in the bake and on the ladder until its choreography ends. The sim's boxes
+/// are already cleared; only the picture lags, a second and a half.
+pub(crate) fn dressing_phases_of(live_phases: &[u8], topples: &[ActiveTopple]) -> Vec<u8> {
+    let mut phases = live_phases.to_vec();
+    for topple in topples {
+        if let Some(phase) = phases.get_mut(topple.cover) {
+            *phase = 0;
+        }
+    }
+    phases
+}
+
+/// The falls in progress, for the ladder: progress 0..1 over `TOPPLE_DURATION_S`.
+pub(crate) fn topples_now_of(topples: &[ActiveTopple]) -> Vec<scene_build::tree_lod::TreeTopple> {
+    topples
+        .iter()
+        .map(|topple| scene_build::tree_lod::TreeTopple {
+            cover: topple.cover,
+            heading_rad: topple.heading_rad,
+            progress: topple.age_s / scene_build::tree_lod::TOPPLE_DURATION_S,
+        })
+        .collect()
+}
 
 impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
@@ -404,6 +429,11 @@ impl ClientApp {
     fn sync_cover_destruction(&mut self, snapshot: &net::Snapshot) {
         // Fresh wounds on the walls (protocol v32) re-dress the statics even when no phase
         // stepped — the same rebuild the collapse takes, just with scars in the bake.
+        // The fall headings (protocol v54, Z8) ride beside the phases; an incomplete array
+        // (an older host) leaves every trunk lying toward +X.
+        if snapshot.cover_falls.len() == self.battlefield.static_cover.len() {
+            self.cover_falls.clone_from(&snapshot.cover_falls);
+        }
         if snapshot.cover_scars != self.cover_scar_list {
             self.cover_scar_list = snapshot.cover_scars.clone();
             self.scene_cover_dirty = true;
@@ -435,7 +465,31 @@ impl ClientApp {
                     // box — curtain and chunks now, the settle wave, the haze — and the audio
                     // hit sized the same way. One burst at the centre was eleven particles for
                     // an 18 m tenement.
-                    self.fx.cover_collapse(center, half);
+                    let is_tree = matches!(
+                        object.kind,
+                        terrain::StaticCoverKind::TreeLine | terrain::StaticCoverKind::TreeTrunk
+                    );
+                    if is_tree && phase == 2 {
+                        // Z8: a tree does not vanish under masonry dust — it goes DOWN, along
+                        // the heading the authority recorded, over `TOPPLE_DURATION_S`; the
+                        // wreckage bake waits for it (`dressing_phase_bytes`).
+                        let heading_rad = terrain::fall_heading_rad(
+                            self.cover_falls.get(index).copied().unwrap_or(0),
+                        );
+                        self.tree_topples.retain(|topple| topple.cover != index);
+                        self.tree_topples.push(super::ActiveTopple {
+                            cover: index,
+                            heading_rad,
+                            age_s: 0.0,
+                        });
+                        self.fx.tree_topple(
+                            center - glam::Vec3::Y * half.y,
+                            heading_rad,
+                            half.x.min(half.z).max(1.5),
+                        );
+                    } else {
+                        self.fx.cover_collapse(center, half);
+                    }
                     self.queue_audio(audio::AudioEvent::CoverCollapse {
                         position: center,
                         footprint_m2: 4.0 * half.x * half.z,
@@ -447,6 +501,34 @@ impl ClientApp {
         // One replacement publishes phases, blocking boxes, and camera obstacles together.
         self.live_cover = next_live_cover;
         self.scene_cover_dirty = true;
+    }
+
+    /// The phases the DRESSING draws (Z8): the live phases, except that a tree still going
+    /// down keeps standing in the bake and on the ladder until its choreography ends. The
+    /// sim's boxes are already cleared; only the picture lags, a second and a half.
+    pub(crate) fn dressing_phase_bytes(&self) -> Vec<u8> {
+        dressing_phases_of(self.live_cover.phase_bytes(), &self.tree_topples)
+    }
+
+    /// The falls in progress, for the ladder: progress 0..1 over `TOPPLE_DURATION_S`.
+    #[cfg(test)]
+    pub(crate) fn tree_topples_now(&self) -> Vec<scene_build::tree_lod::TreeTopple> {
+        topples_now_of(&self.tree_topples)
+    }
+
+    /// Age the falls; one that has lain down leaves the list and hands its box to the bake.
+    pub(crate) fn tick_tree_topples(&mut self, dt: f32) {
+        if self.tree_topples.is_empty() {
+            return;
+        }
+        for topple in &mut self.tree_topples {
+            topple.age_s += dt;
+        }
+        let before = self.tree_topples.len();
+        self.tree_topples.retain(|topple| topple.age_s < scene_build::tree_lod::TOPPLE_DURATION_S);
+        if self.tree_topples.len() != before {
+            self.scene_cover_dirty = true;
+        }
     }
 
     /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets

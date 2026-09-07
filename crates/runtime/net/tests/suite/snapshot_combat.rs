@@ -65,6 +65,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
         }],
         detached_turrets: vec![TankId(2)],
         cover_states: vec![1],
+        cover_falls: vec![64],
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
@@ -93,6 +94,12 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
     assert_eq!(round.tanks[0].team, TeamId(1));
     assert_eq!(round.shell_impacts.len(), 1);
     assert_eq!(round.shell_impacts[0].surface, game_core::ImpactSurface::Cover);
+    // Z8: the fall heading rides beside the phase, index-aligned — a quarter turn here.
+    assert_eq!(round.cover_falls, vec![64]);
+    assert!(
+        (terrain::fall_heading_rad(round.cover_falls[0]) - std::f32::consts::FRAC_PI_2).abs()
+            < 1e-5
+    );
 }
 
 #[test]

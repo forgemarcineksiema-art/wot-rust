@@ -473,18 +473,85 @@ pub fn tree_lod_meshes() -> Vec<(MeshHandle, MeshAsset)> {
 }
 
 /// Mirrors the statics bake's rule (`battlefield::scenery_stands_in_cleared_cover`): phase 2 is
-/// "gone", and dressing inside a gone box goes with it.
-fn stands_in_cleared_cover(
+/// "gone", and dressing inside a gone box goes with it. The cleared cover box a scenery
+/// instance stands in, if any.
+fn cleared_cover_index(
     instance: &SceneryInstance,
     cover: &[terrain::StaticCoverObject],
     cover_states: &[u8],
-) -> bool {
+) -> Option<usize> {
     let p = instance.position;
-    cover.iter().enumerate().any(|(index, object)| {
+    cover.iter().enumerate().position(|(index, object)| {
         cover_states.get(index).copied().unwrap_or(0) == 2
             && (p[0] - object.center[0]).abs() <= object.half_extents_m[0]
             && (p[2] - object.center[2]).abs() <= object.half_extents_m[2]
     })
+}
+
+/// A tree line or a bole going DOWN this frame (the one program's Z8): its cover index, the
+/// heading it falls along (the authority's fall byte) and how far through the choreography
+/// it is (0 standing, 1 on the ground). While one is in progress the trees in that box draw
+/// tilted about their foot instead of vanishing; at 1 they leave the frame and the bake's
+/// stump-and-trunk state is what stands there.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TreeTopple {
+    pub cover: usize,
+    pub heading_rad: f32,
+    pub progress: f32,
+}
+
+/// How long a felled tree takes to lie down.
+pub const TOPPLE_DURATION_S: f32 = 1.5;
+/// Where the trunk rests: five degrees short of flat — the crown's mass keeps it off the
+/// ground until the bake's log takes over.
+pub const TOPPLE_REST_RAD: f32 = 1.484;
+
+/// The tilt at `progress` of the fall: a tree starts slowly and gathers speed the way a
+/// pendulum released from upright does, so the angle grows faster than linearly.
+pub fn topple_angle(progress: f32) -> f32 {
+    TOPPLE_REST_RAD * progress.clamp(0.0, 1.0).powf(1.7)
+}
+
+/// The rotation that tilts an upright tree toward `heading_rad` (from +X toward +Z) by the
+/// angle the fall has reached: about the horizontal axis perpendicular to the heading.
+pub fn topple_rotation(heading_rad: f32, progress: f32) -> Quat {
+    let axis = Vec3::new(heading_rad.sin(), 0.0, -heading_rad.cos());
+    Quat::from_axis_angle(axis, topple_angle(progress))
+}
+
+/// Where the crown of a tree `height_m` tall standing at `foot` is at `progress` of its fall.
+pub fn topple_crown_point(foot: Vec3, height_m: f32, heading_rad: f32, progress: f32) -> Vec3 {
+    foot + topple_rotation(heading_rad, progress) * (Vec3::Y * height_m)
+}
+
+/// A fall in progress on one tree: `(heading_rad, progress)`; `None` — standing.
+type Tilt = Option<(f32, f32)>;
+
+/// Where and how one ladder tree stands this frame.
+#[derive(Debug, Clone, Copy)]
+struct TreePose {
+    scale: f32,
+    yaw_rad: f32,
+    position: Vec3,
+    tilt: Tilt,
+}
+
+/// How a tree draws this frame given the cleared boxes and the falls in progress:
+/// `None` — its box is cleared and the fall is over, the bake holds its wreckage; `Some(None)`
+/// — standing; `Some(Some((heading, progress)))` — going down right now.
+fn standing_or_toppling(
+    instance: &SceneryInstance,
+    cover: &[terrain::StaticCoverObject],
+    cover_states: &[u8],
+    topples: &[TreeTopple],
+) -> Option<Tilt> {
+    match cleared_cover_index(instance, cover, cover_states) {
+        None => Some(None),
+        Some(index) => topples
+            .iter()
+            .find(|topple| topple.cover == index && topple.progress < 1.0)
+            .map(|topple| Some((topple.heading_rad, topple.progress))),
+    }
 }
 
 /// Which rung each tree drew last frame, in scenery order. Owned by the caller (the app) so
@@ -619,6 +686,18 @@ pub fn tree_frame_objects_with_backdrop(
     eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
+    tree_frame_objects_with_topples(battlefield, cover_states, &[], eye, state)
+}
+
+/// [`tree_frame_objects_with_backdrop`] with the falls in progress (Z8): the trees of a
+/// toppling box draw tilted about their foot instead of vanishing.
+pub fn tree_frame_objects_with_topples(
+    battlefield: &terrain::BattlefieldMap,
+    cover_states: &[u8],
+    topples: &[TreeTopple],
+    eye: TreeEye,
+    state: &mut TreeLodState,
+) -> Vec<RenderObject> {
     if state.ring.as_ref().is_none_or(|(id, _)| *id != battlefield.id) {
         state.ring =
             Some((battlefield.id.clone(), crate::backdrop::backdrop_tree_instances(battlefield)));
@@ -631,12 +710,20 @@ pub fn tree_frame_objects_with_backdrop(
     let mut all: Vec<SceneryInstance> = Vec::with_capacity(battlefield.scenery.len() + ring.len());
     all.extend_from_slice(&battlefield.scenery);
     all.extend_from_slice(ring);
-    let mut objects = tree_frame_objects(&all, &battlefield.static_cover, cover_states, eye, state);
+    let mut objects = tree_frame_objects_toppling(
+        &all,
+        &battlefield.static_cover,
+        cover_states,
+        topples,
+        eye,
+        state,
+    );
     push_tree_line_stations(
         &mut objects,
         &state.lines.as_ref().expect("built above").1,
         &battlefield.static_cover,
         cover_states,
+        topples,
         eye,
     );
     // B3: the dwellings, as instances of the building kit — the same dressing pass, so the
@@ -665,30 +752,45 @@ pub fn tree_frame_objects(
     eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
-    let trees: Vec<(&SceneryInstance, TreeSpecies)> = scenery
+    tree_frame_objects_toppling(scenery, cover, cover_states, &[], eye, state)
+}
+
+/// [`tree_frame_objects`] with the falls in progress (Z8).
+pub fn tree_frame_objects_toppling(
+    scenery: &[SceneryInstance],
+    cover: &[terrain::StaticCoverObject],
+    cover_states: &[u8],
+    topples: &[TreeTopple],
+    eye: TreeEye,
+    state: &mut TreeLodState,
+) -> Vec<RenderObject> {
+    let trees: Vec<(&SceneryInstance, TreeSpecies, Tilt)> = scenery
         .iter()
         .filter_map(|instance| ladder_species(instance.kind).map(|species| (instance, species)))
-        .filter(|(instance, _)| !stands_in_cleared_cover(instance, cover, cover_states))
+        .filter_map(|(instance, species)| {
+            standing_or_toppling(instance, cover, cover_states, topples)
+                .map(|tilt| (instance, species, tilt))
+        })
         .collect();
     if state.levels.len() != trees.len() {
         state.levels = vec![None; trees.len()];
         state.scales = trees
             .iter()
-            .map(|(instance, species)| hosted_scale(instance, *species, cover))
+            .map(|(instance, species, _)| hosted_scale(instance, *species, cover))
             .collect();
     }
     let mut objects = Vec::with_capacity(trees.len());
-    for (index, (instance, species)) in trees.iter().enumerate() {
+    for (index, (instance, species, tilt)) in trees.iter().enumerate() {
         let scale = state.scales[index];
-        if let Some(lod) = push_ladder_tree(
-            &mut objects,
-            *species,
-            instance_variant(instance),
+        let pose = TreePose {
             scale,
-            instance.yaw_rad,
-            Vec3::from_array(instance.position),
-            eye,
-        ) {
+            yaw_rad: instance.yaw_rad,
+            position: Vec3::from_array(instance.position),
+            tilt: *tilt,
+        };
+        if let Some(lod) =
+            push_ladder_tree(&mut objects, *species, instance_variant(instance), pose, eye)
+        {
             state.levels[index] = Some(lod);
         }
     }
@@ -701,11 +803,10 @@ fn push_ladder_tree(
     objects: &mut Vec<RenderObject>,
     species: TreeSpecies,
     variant: u32,
-    scale: f32,
-    yaw_rad: f32,
-    position: Vec3,
+    pose: TreePose,
     eye: TreeEye,
 ) -> Option<TreeLod> {
+    let TreePose { scale, yaw_rad, position, tilt } = pose;
     let base = position;
     if !eye.sees(base, TREE_CULL_RADIUS_M * scale.max(1.0)) {
         return None;
@@ -713,9 +814,12 @@ fn push_ladder_tree(
     let eye_xz = Vec3::new(eye.position.x, 0.0, eye.position.z);
     let distance = (Vec3::new(base.x, 0.0, base.z) - eye_xz).length() / eye.magnification;
     let (lod, fading) = rungs_at(distance);
+    // Z8: a tree going down tilts about its foot toward the heading it falls along.
+    let lean =
+        tilt.map_or(Quat::IDENTITY, |(heading, progress)| topple_rotation(heading, progress));
     let transform = Mat4::from_scale_rotation_translation(
         Vec3::splat(scale),
-        Quat::from_rotation_y(yaw_rad),
+        lean * Quat::from_rotation_y(yaw_rad),
         base - Vec3::Y * TRUNK_SINK_M,
     );
     let local = Quat::from_rotation_y(-yaw_rad) * (eye.position - base);
@@ -764,24 +868,26 @@ fn push_tree_line_stations(
     stations: &[crate::tree_line::TreeLineLadderInstance],
     cover: &[terrain::StaticCoverObject],
     cover_states: &[u8],
+    topples: &[TreeTopple],
     eye: TreeEye,
 ) {
     for station in stations {
-        if stands_in_cleared_cover(&station.instance, cover, cover_states) {
-            continue;
-        }
-        let Some(lod) = push_ladder_tree(
-            objects,
-            station.species,
-            station.variant,
-            station.instance.scale,
-            station.instance.yaw_rad,
-            Vec3::from_array(station.instance.position),
-            eye,
-        ) else {
+        let Some(tilt) = standing_or_toppling(&station.instance, cover, cover_states, topples)
+        else {
             continue;
         };
-        if lod == TreeLod::Impostor {
+        let pose = TreePose {
+            scale: station.instance.scale,
+            yaw_rad: station.instance.yaw_rad,
+            position: Vec3::from_array(station.instance.position),
+            tilt,
+        };
+        let Some(lod) = push_ladder_tree(objects, station.species, station.variant, pose, eye)
+        else {
+            continue;
+        };
+        // The crown hull is an upright mass; a tree going down draws without it.
+        if lod == TreeLod::Impostor || tilt.is_some() {
             continue;
         }
         let Some(hull) = station.hull else {
@@ -806,6 +912,68 @@ fn push_tree_line_stations(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Z8, the fall lies along the heading: at the end of the choreography the crown of a
+    /// toppled tree is on the ground within a metre of the heading line, downstream of its
+    /// foot, and half-way it is still up in the air; and once the fall is over the frame
+    /// draws no tree there — the state after the fall is the bake's (stump and trunk), not a
+    /// tilted crown hanging over its own wreckage. While it falls the box is already cleared
+    /// for the sim and the tree draws tilted; standing, it draws upright.
+    #[test]
+    fn a_toppled_tree_lays_its_crown_down_along_the_heading_and_then_leaves_the_frame() {
+        let foot = Vec3::new(10.0, 2.0, -5.0);
+        let height = 14.0;
+        for heading in [0.0f32, 1.1, 2.6, -2.0, 4.5] {
+            let crown = topple_crown_point(foot, height, heading, 1.0);
+            let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+            let flat = Vec3::new(crown.x - foot.x, 0.0, crown.z - foot.z);
+            let downstream = flat.dot(along);
+            let lateral = (flat - along * downstream).length();
+            assert!(downstream > height * 0.9, "the crown went down the heading: {downstream}");
+            assert!(lateral < 1.0, "within a metre of the heading line: {lateral}");
+            assert!(crown.y - foot.y < height * 0.1, "on the ground: {}", crown.y - foot.y);
+            let mid = topple_crown_point(foot, height, heading, 0.5);
+            assert!(mid.y > foot.y + height * 0.5, "half-way it is still in the air");
+            assert!(mid.dot(along) > foot.dot(along), "and already leaning the right way");
+        }
+
+        let scenery = vec![SceneryInstance {
+            kind: terrain::SceneryKind::Oak,
+            position: [0.0, 0.0, 0.0],
+            yaw_rad: 0.3,
+            scale: 1.0,
+        }];
+        let cover = vec![terrain::StaticCoverObject {
+            id: "oak_bole".into(),
+            name: "the oak".into(),
+            kind: terrain::StaticCoverKind::TreeTrunk,
+            center: [0.0, 0.75, 0.0],
+            half_extents_m: [0.5, 0.75, 0.5],
+        }];
+        let eye = TreeEye::at(Vec3::new(0.0, 2.0, 25.0));
+        let up_axis = |objects: &[RenderObject]| {
+            let column = objects[0].transform[1];
+            Vec3::new(column[0], column[1], column[2]).normalize()
+        };
+        let mut state = TreeLodState::default();
+        let standing = tree_frame_objects_toppling(&scenery, &cover, &[0], &[], eye, &mut state);
+        assert!(!standing.is_empty(), "a standing oak draws");
+        assert!(up_axis(&standing).y > 0.999, "upright");
+
+        let topple = TreeTopple { cover: 0, heading_rad: 1.0, progress: 0.5 };
+        let mut state = TreeLodState::default();
+        let falling =
+            tree_frame_objects_toppling(&scenery, &cover, &[2], &[topple], eye, &mut state);
+        assert!(!falling.is_empty(), "a falling oak still draws — tilted");
+        let up = up_axis(&falling);
+        assert!(up.y < 0.95 && up.y > 0.2, "half-way through the fall: {up}");
+        assert!(up.x * 1.0f32.cos() + up.z * 1.0f32.sin() > 0.2, "leaning along the heading");
+
+        let over = TreeTopple { progress: 1.0, ..topple };
+        let mut state = TreeLodState::default();
+        let fallen = tree_frame_objects_toppling(&scenery, &cover, &[2], &[over], eye, &mut state);
+        assert!(fallen.is_empty(), "the fall is over: the bake's stump and trunk stand there");
+    }
 
     /// The bands, and the hysteresis that keeps a tree from flickering on a boundary: a hull
     /// idling at 55 m must not swap meshes every frame.

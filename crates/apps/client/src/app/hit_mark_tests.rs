@@ -181,6 +181,7 @@ fn snapshot_at(tank_id: TankId, server_tick: u64) -> Snapshot {
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
+        cover_falls: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),

@@ -54,12 +54,22 @@ pub struct CoverState {
     /// Remaining structural health; `u32::MAX` for indestructible objects.
     pub health: u32,
     pub phase: CoverPhase,
+    /// Which way it went down (Z8): `terrain::fall_heading_byte` of the crusher's heading or
+    /// the shell's flight, written the tick the object leaves `Intact`. Only a felled TREE
+    /// reads it (the trunk lies along it); masonry drops where it stands. `serde(default)`
+    /// keeps older fixtures loading with every trunk at +X.
+    #[serde(default)]
+    pub fall: u8,
 }
 
 impl CoverState {
     /// A fresh, whole object, healthed from its kind (indestructible kinds get `u32::MAX`).
     pub fn fresh(object: &StaticCoverObject) -> Self {
-        Self { health: object.kind.max_health().unwrap_or(u32::MAX), phase: CoverPhase::Intact }
+        Self {
+            health: object.kind.max_health().unwrap_or(u32::MAX),
+            phase: CoverPhase::Intact,
+            fall: 0,
+        }
     }
 }
 
@@ -78,7 +88,7 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
         .iter()
         .map(|object| match terrain::born_cover_phase_byte(object) {
             0 => CoverState::fresh(object),
-            byte => CoverState { health: 0, phase: CoverPhase::from_wire(byte) },
+            byte => CoverState { health: 0, phase: CoverPhase::from_wire(byte), fall: 0 },
         })
         .collect()
 }
@@ -276,7 +286,7 @@ impl CoverCache {
 fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {
     phase_bytes
         .iter()
-        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte) })
+        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte), fall: 0 })
         .collect()
 }
 
@@ -326,9 +336,16 @@ pub fn cover_index_at(
 }
 
 /// Apply `hp` of damage to cover object `index`. Indestructible or already-destroyed objects are
-/// untouched. On reaching zero health the object collapses: a building to rubble, foliage to gone.
+/// untouched. On reaching zero health the object collapses: a building to rubble, foliage to gone
+/// — along `heading_rad`, the shell's flight, which is the way a felled tree lies (Z8).
 /// Deterministic; no RNG.
-pub fn damage_cover(states: &mut [CoverState], cover: &[StaticCoverObject], index: usize, hp: u32) {
+pub fn damage_cover(
+    states: &mut [CoverState],
+    cover: &[StaticCoverObject],
+    index: usize,
+    hp: u32,
+    heading_rad: f32,
+) {
     let (Some(state), Some(object)) = (states.get_mut(index), cover.get(index)) else {
         return;
     };
@@ -339,12 +356,19 @@ pub fn damage_cover(states: &mut [CoverState], cover: &[StaticCoverObject], inde
     if state.health == 0 {
         state.phase =
             if object.kind.leaves_rubble() { CoverPhase::Rubble } else { CoverPhase::Gone };
+        state.fall = terrain::fall_heading_byte(heading_rad);
     }
 }
 
 /// Flatten a crushable cover object under a hull that drove into it: it goes straight to Gone
 /// (a hedgerow does not become rubble). Returns `true` if it crushed something this call.
-pub fn crush_cover(states: &mut [CoverState], object: &StaticCoverObject, index: usize) -> bool {
+/// `heading_rad` is the hull's heading — the way the flattened tree goes down (Z8).
+pub fn crush_cover(
+    states: &mut [CoverState],
+    object: &StaticCoverObject,
+    index: usize,
+    heading_rad: f32,
+) -> bool {
     if !object.kind.is_crushable() {
         return false;
     }
@@ -356,6 +380,7 @@ pub fn crush_cover(states: &mut [CoverState], object: &StaticCoverObject, index:
     }
     state.health = 0;
     state.phase = CoverPhase::Gone;
+    state.fall = terrain::fall_heading_byte(heading_rad);
     true
 }
 
@@ -442,7 +467,7 @@ mod tests {
         let cover =
             vec![object("barn", StaticCoverKind::FarmBuilding, [0.0, 3.0, 0.0], [5.0, 3.0, 4.0])];
         let mut states = cover_states_for(&cover);
-        damage_cover(&mut states, &cover, 0, 10_000);
+        damage_cover(&mut states, &cover, 0, 10_000, 0.0);
         assert_eq!(states[0].phase, CoverPhase::Rubble);
 
         let live = live_cover_for_sight_and_shells(&cover, &states);
@@ -458,7 +483,7 @@ mod tests {
         let cover =
             vec![object("hedge", StaticCoverKind::TreeLine, [0.0, 2.0, 0.0], [10.0, 2.0, 1.0])];
         let mut states = cover_states_for(&cover);
-        damage_cover(&mut states, &cover, 0, 10_000);
+        damage_cover(&mut states, &cover, 0, 10_000, 0.0);
         assert_eq!(states[0].phase, CoverPhase::Gone);
         assert!(
             live_cover_for_sight_and_shells(&cover, &states).is_empty(),
@@ -476,15 +501,15 @@ mod tests {
             object("crag", StaticCoverKind::Crag, [20.0, 2.0, 0.0], [2.0, 2.0, 2.0]),
         ];
         let mut states = cover_states_for(&cover);
-        damage_cover(&mut states, &cover, 0, u32::MAX);
-        damage_cover(&mut states, &cover, 2, u32::MAX);
+        damage_cover(&mut states, &cover, 0, u32::MAX, 0.0);
+        damage_cover(&mut states, &cover, 2, u32::MAX, 0.0);
         assert_eq!(states[0].phase, CoverPhase::Intact, "a rail embankment is earth");
         assert_eq!(states[2].phase, CoverPhase::Intact, "a crag is the hill");
 
         let full = StaticCoverKind::Wreck.max_health().expect("a wreck has hit points");
-        damage_cover(&mut states, &cover, 1, full / 2);
+        damage_cover(&mut states, &cover, 1, full / 2, 0.0);
         assert_eq!(states[1].phase, CoverPhase::Intact, "half its health: still a hulk");
-        damage_cover(&mut states, &cover, 1, full / 2);
+        damage_cover(&mut states, &cover, 1, full / 2, 0.0);
         assert_eq!(states[1].phase, CoverPhase::Rubble, "shelled down to its hull line");
         let live = live_cover_for_sight_and_shells(&cover, &states);
         let mound = live.iter().find(|object| object.id == "hulk").expect("the mound still blocks");
@@ -502,10 +527,37 @@ mod tests {
             object("barn", StaticCoverKind::FarmBuilding, [40.0, 2.0, 0.0], [5.0, 2.0, 4.0]),
         ];
         let mut states = cover_states_for(&cover);
-        assert!(crush_cover(&mut states, &cover[0], 0), "the hedge is crushed");
-        assert!(!crush_cover(&mut states, &cover[1], 1), "the barn is not crushable");
+        assert!(crush_cover(&mut states, &cover[0], 0, 0.0), "the hedge is crushed");
+        assert!(!crush_cover(&mut states, &cover[1], 1, 0.0), "the barn is not crushable");
         assert_eq!(states[0].phase, CoverPhase::Gone);
         assert_eq!(states[1].phase, CoverPhase::Intact);
+    }
+
+    /// Z8: the fall has a direction. A hull crushing a hedge lays it down along its own
+    /// heading; a shell felling a bole lays it down along its flight; the byte survives the
+    /// wire's 256 steps to within a degree and a half. Masonry keeps the byte at rest — it
+    /// drops where it stands and nothing reads it.
+    #[test]
+    fn a_felled_tree_remembers_which_way_it_fell() {
+        let cover = vec![
+            object("hedge", StaticCoverKind::TreeLine, [0.0, 1.0, 0.0], [8.0, 1.0, 0.5]),
+            object("oak", StaticCoverKind::TreeTrunk, [20.0, 0.75, 0.0], [0.5, 0.75, 0.5]),
+            object("barn", StaticCoverKind::FarmBuilding, [40.0, 2.0, 0.0], [5.0, 2.0, 4.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        let north_east = 0.75f32;
+        assert!(crush_cover(&mut states, &cover[0], 0, north_east), "the hedge is crushed");
+        damage_cover(&mut states, &cover, 1, u32::MAX, -2.0);
+        damage_cover(&mut states, &cover, 2, u32::MAX, 1.0);
+        let degree = std::f32::consts::PI / 180.0;
+        let hedge = terrain::fall_heading_rad(states[0].fall);
+        assert!((hedge - north_east).abs() < 1.5 * degree, "the hedge fell {hedge}");
+        let oak = terrain::fall_heading_rad(states[1].fall);
+        let shot = (-2.0f32).rem_euclid(std::f32::consts::TAU);
+        assert!((oak - shot).abs() < 1.5 * degree, "the oak fell {oak}, the shot flew {shot}");
+        assert_eq!(states[2].phase, CoverPhase::Rubble);
+        assert_eq!(states[2].fall, terrain::fall_heading_byte(1.0), "written once, read by no one");
+        assert_eq!(cover_states_for(&cover)[0].fall, 0, "a standing tree has no fall");
     }
 
     /// Urban-map doctrine decision 2, as tests: a CityBuilding soaks 1500 HP and collapses
@@ -519,12 +571,12 @@ mod tests {
         ];
         let mut states = cover_states_for(&cover);
 
-        damage_cover(&mut states, &cover, 0, 1499);
+        damage_cover(&mut states, &cover, 0, 1499, 0.0);
         assert_eq!(states[0].phase, CoverPhase::Intact, "1499 HP does not fell masonry");
-        damage_cover(&mut states, &cover, 0, 1);
+        damage_cover(&mut states, &cover, 0, 1, 0.0);
         assert_eq!(states[0].phase, CoverPhase::Rubble, "the block collapses at 1500");
 
-        damage_cover(&mut states, &cover, 1, 150);
+        damage_cover(&mut states, &cover, 1, 150, 0.0);
         assert_eq!(states[1].phase, CoverPhase::Gone, "a breached wall leaves no mound");
 
         let live = live_cover_for_sight_and_shells(&cover, &states);
@@ -544,9 +596,9 @@ mod tests {
             object("tenement", StaticCoverKind::CityBuilding, [30.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
         ];
         let mut states = cover_states_for(&cover);
-        assert!(crush_cover(&mut states, &cover[0], 0), "the wall crushes under the hull");
+        assert!(crush_cover(&mut states, &cover[0], 0, 0.0), "the wall crushes under the hull");
         assert_eq!(states[0].phase, CoverPhase::Gone);
-        assert!(!crush_cover(&mut states, &cover[1], 1), "masonry blocks do not crush");
+        assert!(!crush_cover(&mut states, &cover[1], 1, 0.0), "masonry blocks do not crush");
     }
 
     /// The recorded no-protocol-bump proof (urban-map doctrine decision 1): cover phases ride
@@ -559,8 +611,8 @@ mod tests {
             object("yard_wall", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
         ];
         let mut states = cover_states_for(&cover);
-        damage_cover(&mut states, &cover, 0, u32::MAX);
-        damage_cover(&mut states, &cover, 1, u32::MAX);
+        damage_cover(&mut states, &cover, 0, u32::MAX, 0.0);
+        damage_cover(&mut states, &cover, 1, u32::MAX, 0.0);
         let bytes: Vec<u8> = states.iter().map(|state| state.phase.to_wire()).collect();
         assert_eq!(bytes, vec![1, 2], "Rubble/Gone use the same bytes every kind uses");
         let decoded: Vec<CoverPhase> =
@@ -576,9 +628,9 @@ mod tests {
             object("gone", StaticCoverKind::StoneWall, [60.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
         ];
         let states = [
-            CoverState { health: 1500, phase: CoverPhase::Intact },
-            CoverState { health: 0, phase: CoverPhase::Rubble },
-            CoverState { health: 0, phase: CoverPhase::Gone },
+            CoverState { health: 1500, phase: CoverPhase::Intact, fall: 0 },
+            CoverState { health: 0, phase: CoverPhase::Rubble, fall: 0 },
+            CoverState { health: 0, phase: CoverPhase::Gone, fall: 0 },
         ];
 
         let from_bytes = sight_cover_for_phase_bytes(&cover, &[0, 1, 2]);
@@ -644,7 +696,7 @@ mod tests {
             "an untouched battlefield resolves once"
         );
         // A StoneWall breaches clean to Gone: absent for both, still no disagreement.
-        damage_cover(&mut states, &cover, 1, u32::MAX);
+        damage_cover(&mut states, &cover, 1, u32::MAX, 0.0);
         assert_eq!(
             live_cover_for_movement(&cover, &states),
             live_cover_for_sight_and_shells(&cover, &states),
@@ -688,8 +740,8 @@ mod tests {
         // Bring the barn down (Rubble) and clear the hedge (Gone), then refresh: the memo must
         // follow the new phases — a stale cache would keep blocking with cover the battle has lost.
         let mut changed = states.clone();
-        damage_cover(&mut changed, &cover, 0, 10_000);
-        damage_cover(&mut changed, &cover, 1, 10_000);
+        damage_cover(&mut changed, &cover, 0, 10_000, 0.0);
+        damage_cover(&mut changed, &cover, 1, 10_000, 0.0);
         assert_eq!(changed[0].phase, CoverPhase::Rubble);
         assert_eq!(changed[1].phase, CoverPhase::Gone);
 
