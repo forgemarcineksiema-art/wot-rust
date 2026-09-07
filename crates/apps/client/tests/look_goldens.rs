@@ -533,7 +533,8 @@ fn the_lower_hull_is_darker_and_warmer_than_the_deck_on_the_record() {
 #[test]
 fn the_hull_wears_the_same_paint_in_the_hangar_and_on_the_field() {
     const FIELD_TURRET_ROOF: [f32; 4] = [0.46, 0.62, 0.54, 0.66];
-    const HANGAR_TURRET_ROOF: [f32; 4] = [0.45, 0.38, 0.55, 0.44];
+    // Re-authored at D45 (the hero pivot leads the hull; the turret sits left of centre now).
+    const HANGAR_TURRET_ROOF: [f32; 4] = [0.39, 0.37, 0.48, 0.42];
     const PAINT_CHROMA_BAND: f32 = 0.30;
     const PAINT_CHROMA_TARGET: f32 = 0.15;
     const PAINT_LUMA_RATIO_CEILING: f32 = 1.8;
@@ -719,7 +720,12 @@ fn recorded_goldens_hold_the_value_structure() {
     // The frame now measures 2.3% bright, so the floor rises TO the 2% target: the garage's
     // bright plane is no longer a debt, and it cannot fall back into being one. The reflection
     // correction and the hall's materials are what carried it there — 1.0% -> 1.5% -> 2.3%.
-    const GARAGE_BRIGHT_FLOOR: f32 = 0.02;
+    // D45 (2026-09-07): the hero pivot moved to the silhouette's middle and the frame with it —
+    // the bay gate's panes measure 1.64 % on the hero, 1.59 % on the Tiger II and 1.46 % on
+    // the Jagdtiger (the heavies' longer booms hold less gate). The floor records the worst;
+    // the 2 % target stays, and the gap is a debt on the record again, not a closed row
+    // quietly reopened.
+    const GARAGE_BRIGHT_FLOOR: f32 = 0.014;
     const GARAGE_BRIGHT_TARGET: f32 = 0.02;
     // The dark share barely moved (89.9% -> 90.0%), for the same reason. It does not clear the
     // 75% the outdoor frames answer to, so its ceiling is recorded as a debt rather than asserted
@@ -1097,11 +1103,15 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
     // a readability bar. Recorded: p50 0.086 / dark 92.9% / form 0.0047.
     SubjectBounds {
         view: "garage_susp_close",
-        median_floor: 0.078,
+        // 0.078 -> 0.066 at D45 (2026-09-07): the turntable stepped back from 0.34 to 0.22
+        // and the running gear's close-up sits over the disc. Measured: 0.072, ~8 % slack.
+        median_floor: 0.066,
         dark_ceiling: 0.95,
         // 0.0042 -> 0.0037 at D40/D42 (2026-09-07), the same reason as the Jagdtiger's: the
         // filtered mip chain took the texel noise out of "form". Measured clean: 0.0040.
-        form_floor: 0.0037,
+        // -> 0.0033 at D45: the turntable under the running gear stepped back 0.34 -> 0.22 and
+        // the crop's disc share carries less step. Measured: 0.0036, the same ~8 % slack.
+        form_floor: 0.0033,
     },
 ];
 
@@ -1233,7 +1243,11 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
     // unchanged at 0.300 — and blessed the battlefield only, so the change surfaced at the next
     // bless, the interface program's F1. The floor follows the measurement; whether the hall
     // should darken again is the light lane's row (art-direction D33), not this bless's call.
-    const HERO_OVER_ROOM: f32 = 1.5;
+    // Re-derived to 1.45 on 2026-09-07 (measured 1.49, D45): the hero pivot moved to the
+    // silhouette's middle so the muzzle clears the stats plate, and the reframed hall shows
+    // more of its lit floor and gate — the room's median rose 0.119 → 0.121 with the hero at
+    // 0.180. The framing is the row's decision; the floor follows the measurement.
+    const HERO_OVER_ROOM: f32 = 1.45;
     let hero = measured.get("garage_hero").expect("the garage frames its hero");
     let room = frame_stats(&read_png(&golden_path("garage_hero")));
     assert!(
