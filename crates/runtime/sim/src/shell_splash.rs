@@ -40,6 +40,7 @@ fn running_gear_point(burst_local: Vec3, half: Vec3) -> Vec3 {
 /// explosive radius takes attenuated blast damage. The directly-struck tank already took the
 /// surface-burst damage from the armor test and is skipped; allies are protected exactly like
 /// direct fire, but the owner's own HE can absolutely hurt the owner.
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn burst_he_splash(
     shell: &ShellState,
     burst_point: Vec3,

@@ -225,6 +225,7 @@ fn ground_ricochet_normal(
     (incidence <= GROUND_RICOCHET_MAX_DEG).then_some(normal)
 }
 
+#[expect(clippy::too_many_arguments)]
 fn step_unhit_shell(
     shells: &mut Vec<ShellState>,
     tanks: &mut [TankState],
