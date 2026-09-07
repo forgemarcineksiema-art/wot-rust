@@ -13,6 +13,7 @@ mod terrain_material;
 mod texture;
 mod vehicle;
 mod vehicle_asset;
+mod vehicle_lobes;
 
 use game_core::TankId;
 /// Re-exported so renderer backends can key per-vehicle frame state (e.g. which tanks press
@@ -51,6 +52,9 @@ pub use vehicle::{
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
     VehicleTextureMap,
+};
+pub use vehicle_lobes::{
+    ExteriorRole, ROUGHNESS_LANE_SPAN, environment_energy, specular_amplitude, surface_roughness,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

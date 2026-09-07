@@ -892,3 +892,22 @@ fn the_hud_shader_hands_back_its_colours_as_authored() {
     assert!(returns >= 5, "the fragment shader has its five styles: {returns}");
     assert_eq!(returns, linearised, "every returned colour is linearised for the sRGB surface");
 }
+
+/// D39: the vehicle shader's roughness ladder and lane span are the numbers
+/// `renderer_api::vehicle_lobes` reasons about — one formula, two homes, locked.
+#[test]
+fn the_vehicle_shader_carries_the_cpu_mirrors_roughness_ladder() {
+    let source = vehicle_shader_source();
+    let span =
+        format!("const ROUGHNESS_LANE_SPAN: f32 = {:.2};", renderer_api::ROUGHNESS_LANE_SPAN);
+    assert!(source.contains(&span), "vehicle.wgsl must declare {span}");
+    assert!(
+        source.contains("(role_roughness + (ao_rough.g - 0.5) * ROUGHNESS_LANE_SPAN)"),
+        "the lane must ADD to the role, not multiply it"
+    );
+    for role in renderer_api::ExteriorRole::ALL {
+        let line = format!("m.roughness = {:.2};", role.roughness());
+        assert!(source.contains(&line), "vehicle.wgsl must carry {role:?} at {line}");
+    }
+    assert!(source.contains("pow(1.0 - roughness, 3.0) * 0.6"), "the cube-of-smoothness lobe");
+}
