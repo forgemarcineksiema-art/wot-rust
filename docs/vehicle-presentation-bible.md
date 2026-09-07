@@ -12,7 +12,18 @@ table (`renderer_wgpu/src/shaders/vehicle.wgsl`) is the only place a role's albe
 live; the nation's paint (`game_core::Nation::paint`) is the only tint the armour takes; the
 running gear, the barrel, rubber, canvas, glass and timber keep their absolute materials. A
 vehicle looks the same in the hangar and on the field because both paths read the same two
-things.
+things — and since D42 (2026-09-07) a lock measures it instead of this sentence asserting it:
+`the_hull_wears_the_same_paint_in_the_hangar_and_on_the_field` (`client/tests/look_goldens.rs`)
+crops the T-54's turret roof from the hangar hero frame and from the evening contact frame and
+holds their mean saturation within `PAINT_CHROMA_BAND` and their median luminance within
+`PAINT_LUMA_RATIO_CEILING` of each other. The rigs differ on purpose and the numbers are the
+code's, not this file's: the hangar (`SceneLighting::garage_hero`) lights with ambient
+(0.26, 0.255, 0.248), a key of (0.78, 0.71, 0.58) and grades at exposure 1.10, black point 0.02,
+saturation 1.12; the evening (`prokhorovka_golden_evening`) with ambient (0.09, 0.10, 0.16), an
+amber key of (1.72, 1.24, 0.72) at 20°, and grades at exposure 1.40, black point 0.035,
+saturation 1.10. The light may differ; the paint may not. Measured before D42: the field's
+turret read saturation 0.89 against the hangar's 0.53 — the evening's grade saturation of 1.25
+on top of the amber key pushed the paint's blue to 0.04; it is 1.10 now.
 
 ## 1. Nation paint (landed 2026-09-07, K24-1)
 

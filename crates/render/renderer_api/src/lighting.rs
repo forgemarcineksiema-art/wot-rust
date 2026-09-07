@@ -494,7 +494,11 @@ impl SceneLighting {
             // (shadows still 2.7:1 long), 1.3x stronger, and the look is exposed half a
             // stop up, so the field lands in the mid band on the honest measurement while a
             // sunlit wall stays under 0.7 and the sun-side haze stays under unit energy.
-            ambient_rgb: [0.10, 0.10, 0.13],
+            // D42: the sky ambient is the SKY's blue at the same luminance — the deck of a tank
+            // sees the whole dome, and with (0.10, 0.10, 0.13) an olive roof under the amber
+            // key had no blue left at all (0.04 linear, saturation 0.89 against 0.53 in the
+            // hangar). The key's share on level ground stays >= 0.6.
+            ambient_rgb: [0.09, 0.10, 0.16],
             ground_ambient_rgb: [0.12, 0.09, 0.06],
             // Low in the west: 20° above the horizon — long shadows, real raking.
             key_direction: [-0.92, 0.35, 0.20],
@@ -513,7 +517,11 @@ impl SceneLighting {
             fog_height_falloff: 0.008,
             exposure: 1.4,
             black_point: 0.035,
-            saturation: 1.25,
+            // D42: 1.25 -> 1.10. Measured on the record, the T-54's turret under this look read
+            // (0.31, 0.24, 0.04) linear — saturation 0.89 against 0.53 in the hangar, the same
+            // olive as two paints. The amber key already carries the evening's chroma; the grade
+            // must not push the paint's blue to zero on top of it.
+            saturation: 1.10,
             contrast: 1.15,
             cloud_coverage_bias: 0.02,
             cloud_scale: 1.0,
