@@ -1,4 +1,10 @@
-//! Presentation-only sprung-hull attitude: the hull pitches and rolls with the terrain and with
+//! Presentation-side hull attitude: the replicated sprung hull (G7) presented AS IT IS, plus the
+//! fire and hit KICKS as a decaying offset on top (the one program's J8 — the drawn barrel is the
+//! barrel the shell leaves; a second spring here used to lag it ~1.1 s behind the authoritative
+//! hull). The heave spring below stays: the sim's height is still a snap (G7b), so the settle
+//! over a step is presented here.
+//!
+//! Historically: the hull pitches and rolls with the terrain and with
 //! its own motion (nose dive under braking, squat under acceleration, lean in turns), filtered
 //! through a spring-damper so bumps produce the tank's signature single visible re-settle.
 //!
@@ -84,6 +90,10 @@ pub struct HullAttitude {
     pub accel_long_mps2: f32,
     /// Filtered lateral (centripetal) acceleration — drives the dynamic roll.
     accel_lat_mps2: f32,
+    /// The kick (fire/hit impulse) offsets riding on the replicated attitude, and their spring
+    /// velocities: the only spring the pitch and roll still carry (J8).
+    kick_pitch_rad: f32,
+    kick_roll_rad: f32,
     pitch_vel: f32,
     roll_vel: f32,
     smoothed_y: f32,
@@ -149,30 +159,29 @@ impl HullAttitude {
         self.accel_long_mps2 = spring_to(self.accel_long_mps2, accel_long, ACCEL_SMOOTH_PER_S * dt);
         self.accel_lat_mps2 = spring_to(self.accel_lat_mps2, accel_lat, ACCEL_SMOOTH_PER_S * dt);
 
-        // Targets: the replicated attitude alone. Since Inny Poziom G7 the wire carries a SPRUNG
-        // hull — brake dive, launch squat and the turn's lean are authoritative and already in
-        // `terrain_pitch_rad` / `terrain_roll_rad` — so this spring adds no dive of its own (it
-        // used to, and the picture dived twice). It stays a 20 Hz smoother and the carrier of
-        // the fire and hit impulses; the smoothed accelerations still feed the track-tension cue.
-        let pitch_target = sample.terrain_pitch_rad;
-        let roll_target = sample.terrain_roll_rad;
-
+        // J8: the replicated attitude is presented as it is — the wire's sprung hull IS the settle
+        // (G7); a second spring here only lagged the drawn barrel behind the one the shell leaves.
+        // What this spring still owns is the KICK: the fire and hit impulses ride a decaying offset
+        // on top of the replicated pose, on the law the impulses were tuned on (a wounded
+        // suspension wallows through the same scaled ω/ζ).
         spring_step(
-            &mut self.pitch_rad,
+            &mut self.kick_pitch_rad,
             &mut self.pitch_vel,
-            pitch_target,
+            0.0,
             attitude_omega,
             attitude_zeta,
             dt,
         );
         spring_step(
-            &mut self.roll_rad,
+            &mut self.kick_roll_rad,
             &mut self.roll_vel,
-            roll_target,
+            0.0,
             attitude_omega,
             attitude_zeta,
             dt,
         );
+        self.pitch_rad = sample.terrain_pitch_rad + self.kick_pitch_rad;
+        self.roll_rad = sample.terrain_roll_rad + self.kick_roll_rad;
 
         // Heave: the replicated hull height snaps to the terrain sample; the sprung hull follows
         // it through the same kind of spring, so a step in the heightmap becomes a settle, not a
@@ -361,32 +370,19 @@ mod tests {
     /// fast-forward — so a one-second stall does not snap the hull straight to its target.
     #[test]
     fn a_monster_hitch_is_capped_at_the_stall_clamp() {
-        let sample = AttitudeSample { terrain_pitch_rad: 0.2, terrain_roll_rad: 0.0 };
+        // The attitude is a pass-through since J8; the HEAVE spring is the one the stall clamp
+        // still guards (the sim's height is a snap, G7b, so its settle is presented here).
+        let level = AttitudeSample::default();
         let mut hitched = HullAttitude::default();
         let mut capped = HullAttitude::default();
-        hitched.step(
-            [0.0, 0.0, 0.0],
-            TankMotion::default(),
-            AttitudeSample::default(),
-            1.0,
-            1.0 / 60.0,
-        );
-        capped.step(
-            [0.0, 0.0, 0.0],
-            TankMotion::default(),
-            AttitudeSample::default(),
-            1.0,
-            1.0 / 60.0,
-        );
+        hitched.step([0.0, 1.0, 0.0], TankMotion::default(), level, 1.0, 1.0 / 60.0);
+        capped.step([0.0, 1.0, 0.0], TankMotion::default(), level, 1.0, 1.0 / 60.0);
 
-        hitched.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, 1.0);
-        capped.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, MAX_FRAME_S);
+        hitched.step([0.0, 1.05, 0.0], TankMotion::default(), level, 1.0, 1.0);
+        capped.step([0.0, 1.05, 0.0], TankMotion::default(), level, 1.0, MAX_FRAME_S);
 
-        assert!((hitched.pitch_rad - capped.pitch_rad).abs() < 1.0e-6, "a 1 s hitch must clamp");
-        assert!(
-            hitched.pitch_rad < sample.terrain_pitch_rad,
-            "and not snap to target in one frame"
-        );
+        assert!((hitched.heave_m - capped.heave_m).abs() < 1.0e-6, "a 1 s hitch must clamp");
+        assert!(hitched.heave_m.abs() > 1.0e-3, "and not snap onto the step in one frame");
     }
 
     #[test]
@@ -427,6 +423,33 @@ mod tests {
             "wounded {} must lag below healthy {}",
             wounded.heave_m,
             healthy.heave_m
+        );
+    }
+    /// J8: the presented attitude IS the replicated attitude, to the bit, whenever no kick is in
+    /// flight — and a kick decays back onto it without moving the rest.
+    #[test]
+    fn the_presented_attitude_is_the_replicated_one_and_a_kick_decays_back_onto_it() {
+        let dt = 1.0 / 60.0;
+        let mut att = HullAttitude::default();
+        let slope = AttitudeSample { terrain_pitch_rad: 0.123, terrain_roll_rad: -0.045 };
+        att.step([0.0, 0.0, 0.0], TankMotion::default(), AttitudeSample::default(), 1.0, dt);
+        att.step([0.0, 0.0, 0.0], TankMotion::default(), slope, 1.0, dt);
+        assert_eq!(
+            att.pitch_rad.to_bits(),
+            slope.terrain_pitch_rad.to_bits(),
+            "no lag: a pass-through"
+        );
+        assert_eq!(att.roll_rad.to_bits(), slope.terrain_roll_rad.to_bits());
+        att.fire_impulse(0.0, 1.0);
+        att.step([0.0, 0.0, 0.0], TankMotion::default(), slope, 1.0, dt);
+        assert!((att.pitch_rad - slope.terrain_pitch_rad).abs() > 1.0e-3, "the shot rocks it");
+        for _ in 0..240 {
+            att.step([0.0, 0.0, 0.0], TankMotion::default(), slope, 1.0, dt);
+        }
+        assert!(
+            (att.pitch_rad - slope.terrain_pitch_rad).abs() < 1.0e-4,
+            "...and the kick decays back onto the replicated pose: {}",
+            att.pitch_rad
         );
     }
 }
