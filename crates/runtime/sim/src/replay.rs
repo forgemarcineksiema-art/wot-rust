@@ -11,6 +11,10 @@ pub struct Replay {
     pub spawn: ReplaySpawn,
     pub frames: Vec<ReplayFrame>,
     pub expected: ReplayExpected,
+    /// S16: the battle's dispersion salt, so a replay draws the shots the battle drew. Older
+    /// recordings carry none and replay under zero — the draw they were recorded with.
+    #[serde(default)]
+    pub dispersion_salt: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -47,6 +51,7 @@ impl ReplayReport {
 
 pub fn run_replay(replay: &Replay) -> ReplayReport {
     let mut state = SimulationState::new();
+    state.set_dispersion_salt(replay.dispersion_salt);
     state.spawn_tank(
         TeamId(replay.spawn.team),
         TankSpec::medium_test_tank(),

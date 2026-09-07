@@ -92,6 +92,33 @@ fn firing_applies_shot_bloom_and_uses_deterministic_dispersion() {
     assert!(velocity.x.abs() > 1.0e-5, "dispersion should perturb shot yaw deterministically");
 }
 
+/// S16: the same (tick, id, shot) draws differently under two battle salts, identically under
+/// one — and a zero salt is the draw every recorded replay was made with, so the fixtures in
+/// `replay_regression.rs` stay bit-exact without a re-pin.
+#[test]
+fn the_dispersion_draw_is_salted_per_battle_and_a_zero_salt_is_the_old_draw() {
+    let shot = |salt: u64| {
+        let mut state = SimulationState::new();
+        state.set_dispersion_salt(salt);
+        let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+        let step = FixedTimestep::from_hz(60);
+        for _ in 0..20 {
+            state.apply_commands(&[(tank, TankCommand::drive(1.0, 0.0))], step);
+        }
+        state.apply_commands(&[(tank, fire_command())], step);
+        state.shells().first().expect("shell").velocity_mps.normalize()
+    };
+    let unsalted = shot(0);
+    assert_eq!(unsalted, shot(0), "one salt, one draw");
+    let salted = shot(0x5A17_D15F);
+    assert_eq!(salted, shot(0x5A17_D15F));
+    assert!(
+        (salted - unsalted).length() > 1.0e-5,
+        "two salts, two draws: {salted:?} vs {unsalted:?}"
+    );
+    assert_eq!(SimulationState::new().dispersion_salt(), 0, "a fresh state draws the old way");
+}
+
 #[test]
 fn damaged_gun_raises_minimum_dispersion_but_destroyed_gun_still_cannot_fire() {
     let mut state = SimulationState::new();

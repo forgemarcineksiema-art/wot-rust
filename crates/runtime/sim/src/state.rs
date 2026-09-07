@@ -43,6 +43,13 @@ pub struct SimulationState {
     /// Last-fresh-sight memory behind the spotted hold (see `spotting::SpottingMemory`).
     #[serde(default)]
     spotting_memory: crate::spotting::SpottingMemory,
+    /// S16: the battle's dispersion salt, folded into every shot's draw. The draw used to be
+    /// (tick, id, shot) alone — a modified client could click on a lucky tick. The server
+    /// picks it per battle from the battle seed and it rides the replay header; a client
+    /// never needs it (the server draws every shot). `serde(default)` = 0 keeps every older
+    /// fixture and replay bit-exact.
+    #[serde(default)]
+    dispersion_salt: u64,
     /// The battle map's global water table, installed once at setup (like the heightmap, it
     /// never changes mid-battle). Drives wading drag, drowning, and shell splashes.
     /// `serde(default)` keeps pre-water fixtures loading dry.
@@ -153,6 +160,7 @@ impl SimulationState {
             shots_fired: Vec::new(),
             armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
+            dispersion_salt: 0,
             water: None,
             standing_water: Vec::new(),
             ground: None,
@@ -210,6 +218,16 @@ impl SimulationState {
     /// the bots' water escape has to know what it is braking over.
     pub fn ground(&self) -> Option<&terrain::GroundClassifier> {
         self.ground.as_ref()
+    }
+
+    /// S16: install the battle's dispersion salt (the server's, from the battle seed). Call
+    /// once at setup; a replay carries its own in the header.
+    pub fn set_dispersion_salt(&mut self, salt: u64) {
+        self.dispersion_salt = salt;
+    }
+
+    pub fn dispersion_salt(&self) -> u64 {
+        self.dispersion_salt
     }
 
     pub fn tick(&self) -> u64 {
@@ -462,7 +480,7 @@ impl SimulationState {
             let tank = &mut self.tanks[index];
             if tank.fire_buffered && tank.reload_remaining_s <= 0.0 {
                 tank.fire_buffered = false;
-                if let Some(shell) = try_fire_shell(tank, self.tick) {
+                if let Some(shell) = try_fire_shell(tank, self.tick, self.dispersion_salt) {
                     self.shots_fired
                         .push(game_core::ShotFired { shooter: shell.owner, shell_id: shell.id });
                     self.shells.push(shell);
@@ -571,7 +589,7 @@ impl SimulationState {
                 tank.fire_buffered = false;
             }
             if command.fire {
-                if let Some(shell) = try_fire_shell(tank, self.tick) {
+                if let Some(shell) = try_fire_shell(tank, self.tick, self.dispersion_salt) {
                     self.shots_fired
                         .push(game_core::ShotFired { shooter: shell.owner, shell_id: shell.id });
                     self.shells.push(shell);

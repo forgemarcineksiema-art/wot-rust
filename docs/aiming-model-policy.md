@@ -134,6 +134,12 @@ center-biased shot offset when spawning a shell. Snapshots replicate the current
 dispersion so the client can draw the aiming circle without inventing combat
 truth locally.
 
+The draw is salted per battle (S16, 2026-09-08): the server folds a salt from
+the battle seed into every shot's `(tick, id, shot)` draw, so a modified client
+cannot click on a lucky tick; the salt rides the replay header and a zero salt
+is the draw every older recording was made with. The practice duel runs unsalted
+(it is the client's deterministic test bed).
+
 The offset has a floor: the radial draw is clamped to at least 0.15 before it
 is squared (`crates/runtime/sim/src/aim_dispersion.rs:92`, applied at `:65`),
 so no shot ever lands dead centre — the minimum offset is 2.25% of the current
