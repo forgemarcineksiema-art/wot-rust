@@ -12,9 +12,9 @@ pub use facet::{ArmorFacet, ArmorFacetProfile};
 pub use impact::{TracedImpact, belt_index, resolve_traced_impact, struck_flank};
 pub(crate) use resolve::resolve_penetration_at_distance_on_facet;
 pub use resolve::{
-    PenetrationResult, resolve_penetration, resolve_penetration_at_distance,
-    resolve_penetration_through_open_channel, resolve_penetration_through_screens,
-    resolve_penetration_through_track,
+    HE_SURFACE_ALPHA_SHARE, HE_SURFACE_HP_PER_MM, PenetrationResult, he_surface_damage_hp,
+    resolve_penetration, resolve_penetration_at_distance, resolve_penetration_through_open_channel,
+    resolve_penetration_through_screens, resolve_penetration_through_track,
 };
 pub use vehicle_volumes::{VehicleArmorVolumes, vehicle_armor_volumes};
 pub use volumes::{

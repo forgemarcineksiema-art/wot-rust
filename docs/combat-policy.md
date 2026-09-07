@@ -239,8 +239,12 @@ inner face: a deterministic three-ray cone around the inward plate normal, start
 face, whose first contact — crew station or module — takes the fragment. At most ONE crewman is
 wounded per spalling shell, module scratches ride the one-wound-per-slot rule at half the
 post-penetration spall rate, and the hull pool is NEVER touched. A true ricochet never spalls
-(the energy skids away), and HE keeps its own non-penetration identity instead (the 18% surface
-chip plus splash). HE surface hits emit non-penetrating damage and can throw tracks.
+(the energy skids away), and HE keeps its own non-penetration identity instead: the surface
+burst plus splash. Since S15 (2026-09-07, GDD §3.1 "damage as a function of thickness at the
+point") the surface burst is `game_core::he_surface_damage_hp` = `max(0, 0.5·alpha − 1.3·LOS
+at the point)` — an OF-412 puts 157 HP into a 45 mm side, 20 HP into a 150 mm glacis and
+nothing into 166 mm and up; the flat 18 % chip is gone. HE surface hits emit non-penetrating
+damage (possibly zero, still an event) and can throw tracks.
 
 A kinetic AP/APCR perforation no longer destroys the projectile automatically. The struck LOS
 steel is removed from its penetration budget, velocity falls with the square root of the remaining

@@ -112,13 +112,14 @@ fn one_spalling_shell_wounds_at_most_one_crewman() {
 #[test]
 fn a_high_explosive_slap_does_not_spall() {
     // Same penetration deficit as the AP near-penetration — but HE's non-penetration identity is
-    // the 18% surface chip plus splash, not back-face fragments.
+    // the surface burst (S15: half the alpha less the steel under it — nothing through this
+    // much turret flank) plus splash, not back-face fragments.
     let (state, target) =
         tower_flank_shot(ShellSpec::high_explosive(100.0, 900.0, 125.0, 320, 1.6), 0.26);
     let event = state.damage_events().last().expect("the shot resolved");
     assert!(!event.penetrated);
     assert_eq!(event.crew_hits_mask, 0, "HE spalls nobody; its chip damage is its identity");
-    assert!(event.damage_hp > 0, "the surface chip is unchanged by the spall feature");
+    assert!(event.damage_hp <= 320 / 2, "the surface burst is the S15 law, not fragments");
     let tank = state.tank(target).expect("target");
     assert_eq!(tank.crew.state(CrewRole::Gunner), CrewMemberState::Active);
 }
