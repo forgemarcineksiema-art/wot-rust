@@ -9,6 +9,8 @@ use crate::CameraObstacle;
 /// a mound still hides and still stops shells, but it is masonry a hull can climb, not a wall.
 pub(super) struct LiveCoverCache {
     phase_bytes: Vec<u8>,
+    /// Z9: the packed wall segments, `terrain::SEGMENT_BYTES` per object (empty: all whole).
+    segment_bytes: Vec<u8>,
     blocking: Vec<StaticCoverObject>,
     movement: Vec<StaticCoverObject>,
     rubble: Vec<terrain::RubbleMound>,
@@ -19,29 +21,52 @@ pub(super) struct LiveCoverCache {
 impl LiveCoverCache {
     pub(super) fn from_born_phases(authored: &[StaticCoverObject]) -> Self {
         let phases = terrain::initial_cover_phase_bytes(authored);
-        Self::build(authored, phases, false)
+        Self::build(authored, phases, Vec::new(), false)
     }
 
     /// Reject incomplete arrays so startup keeps the authored born phases until a complete
     /// snapshot arrives. A late join with a complete snapshot starts directly from its live world.
+    /// The segments (Z9) may be absent — an older host — and then read as every wall whole.
     pub(super) fn from_replicated(
         authored: &[StaticCoverObject],
         phase_bytes: &[u8],
+        segment_bytes: &[u8],
     ) -> Option<Self> {
+        let complete = segment_bytes.len() == authored.len() * terrain::SEGMENT_BYTES;
+        let segments = if complete { segment_bytes.to_vec() } else { Vec::new() };
         (phase_bytes.len() == authored.len())
-            .then(|| Self::build(authored, phase_bytes.to_vec(), true))
+            .then(|| Self::build(authored, phase_bytes.to_vec(), segments, true))
     }
 
-    fn build(authored: &[StaticCoverObject], phase_bytes: Vec<u8>, replicated: bool) -> Self {
-        let blocking = sim::sight_cover_for_phase_bytes(authored, &phase_bytes);
+    fn build(
+        authored: &[StaticCoverObject],
+        phase_bytes: Vec<u8>,
+        segment_bytes: Vec<u8>,
+        replicated: bool,
+    ) -> Self {
+        let blocking = sim::sight_cover_for_wire(authored, &phase_bytes, &segment_bytes);
         let movement = sim::movement_cover_for_phase_bytes(authored, &phase_bytes);
         let rubble = sim::rubble_mounds_for_phase_bytes(authored, &phase_bytes);
         let camera_obstacles = blocking.iter().map(CameraObstacle::from_static_cover).collect();
-        Self { phase_bytes, blocking, movement, rubble, camera_obstacles, replicated }
+        Self {
+            phase_bytes,
+            segment_bytes,
+            blocking,
+            movement,
+            rubble,
+            camera_obstacles,
+            replicated,
+        }
     }
 
     pub(super) fn phase_bytes(&self) -> &[u8] {
         &self.phase_bytes
+    }
+
+    /// The packed wall segments (Z9), `terrain::SEGMENT_BYTES` per object; empty when the
+    /// host never sent them.
+    pub(super) fn segment_bytes(&self) -> &[u8] {
+        &self.segment_bytes
     }
 
     /// What stops a shell and hides a hull: a collapsed building is still the mound it slumped

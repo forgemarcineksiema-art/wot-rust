@@ -172,7 +172,12 @@ pub use team_command::{
 /// object, the way a felled tree went down, so the client's topple and the wreckage bake lie
 /// along the crusher's heading or the shell's flight everywhere. An append with
 /// `serde(default)`; the fixtures were re-pinned as v54.
-pub const PROTOCOL_VERSION: u16 = 54;
+///
+/// v55 (the one program, Z9): `Snapshot.cover_segments` — the wall segments' states, two bits
+/// each, five bytes per cover object, so every client resolves the hollow of slabs a breached
+/// building blocks with exactly as the authority does. An append with `serde(default)`; the
+/// fixtures were re-pinned as v55.
+pub const PROTOCOL_VERSION: u16 = 55;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -448,6 +453,12 @@ pub struct Snapshot {
     /// fixtures loading with every trunk lying toward +X.
     #[serde(default)]
     pub cover_falls: Vec<u8>,
+    /// The wall segments' states (protocol v55, the one program's Z9): `terrain::SEGMENT_BYTES`
+    /// per static-cover object, two bits per segment (whole / damaged / ruin / rubble), so a
+    /// client resolves the same hollow of slabs the authority shoots and sees through.
+    /// Index-aligned with `cover_states`; `serde(default)` reads as every segment whole.
+    #[serde(default)]
+    pub cover_segments: Vec<u8>,
     /// The battle's crater ledger (protocol v31), quantized and re-sent whole every snapshot so
     /// a late joiner converges on the same deformed ground. `serde(default)` keeps pre-v31
     /// fixtures loading with virgin terrain.
@@ -527,6 +538,7 @@ impl From<&SimulationState> for Snapshot {
                 .collect(),
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
             cover_falls: state.cover_states().iter().map(|state| state.fall).collect(),
+            cover_segments: state.cover_states().iter().flat_map(|state| state.segments).collect(),
             craters: state.craters().to_vec(),
             cover_scars: state.cover_scars().to_vec(),
             team_hit_points: team_hit_points(state.tanks()),

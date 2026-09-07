@@ -438,6 +438,50 @@ mod tests {
         assert_eq!(app.dressing_phase_bytes()[tree], 2, "the bake sees the cleared box now");
     }
 
+    /// Z9: a wall segment opens with no phase stepping. The snapshot's segment bytes alone
+    /// split the building's blocking into its hollow of slabs (the camera obstacles with it),
+    /// leave movement the whole box, remember the bytes, and ask for the opening's bake — with
+    /// no collapse dust, the scar burst at impact was the shell's own.
+    #[test]
+    fn a_breached_segment_arrives_alone_and_splits_the_blocking_and_asks_for_a_rebake() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+        let authored = app.battlefield.static_cover.clone();
+        let building = authored
+            .iter()
+            .position(|cover| terrain::wall_material(cover).is_some())
+            .expect("the battle map has a building");
+        let segment_len = authored.len() * terrain::SEGMENT_BYTES;
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; authored.len()];
+        snapshot.cover_segments = vec![0u8; segment_len];
+        app.fx = crate::fx::FxSystem::default();
+        app.accept_and_sync(snapshot);
+        app.scene_cover_dirty = false;
+        let standing = app.live_cover.blocking().len();
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; authored.len()];
+        snapshot.cover_segments = vec![0u8; segment_len];
+        let mut packed = [0u8; terrain::SEGMENT_BYTES];
+        terrain::set_segment_state(&mut packed, 0, 0, terrain::SEGMENT_RUIN);
+        snapshot.cover_segments[building * terrain::SEGMENT_BYTES] = packed[0];
+        app.accept_and_sync(snapshot);
+
+        assert!(app.scene_cover_dirty, "the opening asks for a bake");
+        assert_eq!(app.fx.live_particles(), 0, "no collapse dust for an opening");
+        assert_eq!(app.live_cover.phase_bytes()[building], 0, "the box stands");
+        assert_eq!(app.live_cover.segment_bytes()[building * terrain::SEGMENT_BYTES], packed[0]);
+        assert!(app.live_cover.blocking().len() > standing, "a hollow of slabs blocks now");
+        assert_eq!(app.live_cover.camera_obstacles().len(), app.live_cover.blocking().len());
+        assert_eq!(app.live_cover.movement().len(), authored.len(), "the hull never enters");
+        assert_eq!(app.battlefield.static_cover, authored);
+    }
+
     #[test]
     fn a_collapsing_cover_object_bursts_dust_and_flags_a_scene_rebuild() {
         let mut app = ClientApp::new();

@@ -235,6 +235,169 @@ pub fn fall_heading_rad(byte: u8) -> f32 {
     f32::from(byte) / 256.0 * std::f32::consts::TAU
 }
 
+/// The material of a building's walls (the one program's Z9, §13.4): what a shell has to get
+/// through, in the same thickness table a spaced screen uses. The KIND names it; a landmark's
+/// id refines it (a church or a tower is stone though its box is a city block's).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WallMaterial {
+    Timber,
+    Brick,
+    Stone,
+}
+
+impl WallMaterial {
+    /// The wall's thickness — the slab a sight line or a shell meets once a segment is open.
+    pub fn thickness_m(self) -> f32 {
+        match self {
+            WallMaterial::Timber => 0.25,
+            WallMaterial::Brick => 0.45,
+            WallMaterial::Stone => 0.90,
+        }
+    }
+
+    /// One wall segment's structural budget, scored against a shell's cover damage
+    /// (`sim::cover_damage_hp`): two 57 mm HE rounds open a timber segment, one 152 mm; a
+    /// brick segment takes five of the small ones; stone yields only to the large charge.
+    pub fn segment_health(self) -> u32 {
+        match self {
+            WallMaterial::Timber => 200,
+            WallMaterial::Brick => 500,
+            WallMaterial::Stone => 900,
+        }
+    }
+}
+
+/// The wall material of a building box, `None` for everything that is not a building.
+pub fn wall_material(object: &StaticCoverObject) -> Option<WallMaterial> {
+    match object.kind {
+        StaticCoverKind::FarmBuilding => Some(WallMaterial::Timber),
+        StaticCoverKind::CityBuilding => {
+            Some(if object.id.contains("church") || object.id.contains("tower") {
+                WallMaterial::Stone
+            } else {
+                WallMaterial::Brick
+            })
+        }
+        StaticCoverKind::StoneTower => Some(WallMaterial::Stone),
+        _ => None,
+    }
+}
+
+/// Wall SEGMENTS (Z9, §13.4 „zniszczenie per segment ściany, nie per budynek"): each facade of
+/// a building is cut into runs of about `SEGMENT_RUN_M` (B5's ruin cuts the same 3–5), at most
+/// `SEGMENTS_PER_FACADE`, and each segment carries its own state in two bits of the packed
+/// `SEGMENT_BYTES`: 0 whole, 1 damaged, 2 ruin (an opening from the sill up), 3 rubble (a lip
+/// at the foot). Facades count as `CoverScar.face` does — 0 +X, 1 -X, 2 +Z, 3 -Z — and run
+/// along +Z for the X faces and +X for the Z faces, the way the scar's `u` counts.
+pub const SEGMENT_RUN_M: f32 = 4.0;
+pub const SEGMENTS_PER_FACADE: usize = 5;
+/// Segment slots per building: four facades of `SEGMENTS_PER_FACADE`.
+pub const SEGMENT_SLOTS: usize = 4 * SEGMENTS_PER_FACADE;
+/// Two bits per slot, packed.
+pub const SEGMENT_BYTES: usize = SEGMENT_SLOTS.div_ceil(4);
+pub const SEGMENT_WHOLE: u8 = 0;
+pub const SEGMENT_DAMAGED: u8 = 1;
+pub const SEGMENT_RUIN: u8 = 2;
+pub const SEGMENT_RUBBLE: u8 = 3;
+/// The sill an opening keeps standing, and the lip a rubble segment keeps.
+pub const RUIN_SILL_M: f32 = 0.6;
+pub const RUBBLE_LIP_M: f32 = 0.3;
+
+/// One building's segment states, packed.
+pub type SegmentStates = [u8; SEGMENT_BYTES];
+
+/// Every segment of a building that has come down.
+pub const SEGMENTS_ALL_RUBBLE: SegmentStates = [0xFF; SEGMENT_BYTES];
+
+/// The run of one facade of a box.
+pub fn facade_run_m(object: &StaticCoverObject, facade: usize) -> f32 {
+    if facade < 2 { 2.0 * object.half_extents_m[2] } else { 2.0 * object.half_extents_m[0] }
+}
+
+/// How many segments a facade of `run_m` is cut into.
+pub fn facade_segments(run_m: f32) -> usize {
+    ((run_m / SEGMENT_RUN_M).round().max(1.0) as usize).min(SEGMENTS_PER_FACADE)
+}
+
+/// Which segment of a facade of `run_m` a point `u` (−1..1 along the run, as `CoverScar.u_q`
+/// counts it) falls in.
+pub fn segment_at(run_m: f32, u: f32) -> usize {
+    let n = facade_segments(run_m);
+    (((u + 1.0) * 0.5).clamp(0.0, 0.999_9) * n as f32) as usize
+}
+
+pub fn segment_state(packed: &SegmentStates, facade: usize, segment: usize) -> u8 {
+    let bit = (facade * SEGMENTS_PER_FACADE + segment) * 2;
+    (packed[bit / 8] >> (bit % 8)) & 3
+}
+
+pub fn set_segment_state(packed: &mut SegmentStates, facade: usize, segment: usize, state: u8) {
+    let bit = (facade * SEGMENTS_PER_FACADE + segment) * 2;
+    packed[bit / 8] = (packed[bit / 8] & !(3 << (bit % 8))) | ((state & 3) << (bit % 8));
+}
+
+/// Whether any segment is OPEN (ruin or rubble): the box is no longer one solid to the eye.
+pub fn segments_opened(packed: &SegmentStates) -> bool {
+    (0..4).any(|facade| {
+        (0..SEGMENTS_PER_FACADE)
+            .any(|segment| segment_state(packed, facade, segment) >= SEGMENT_RUIN)
+    })
+}
+
+/// The slabs a building with an opening blocks with (Z9): a hollow of four walls, each
+/// segment its own box of the material's thickness — full height while whole or damaged, the
+/// sill's height where ruined, the lip's where rubble — under one roof slab. What the eye and
+/// the shell meet is the wall that is there; a line through two openings sees clean through.
+/// The hull never enters (§13.4): movement keeps the whole box.
+pub fn opened_building_boxes(
+    object: &StaticCoverObject,
+    packed: &SegmentStates,
+) -> Vec<StaticCoverObject> {
+    let Some(material) = wall_material(object) else {
+        return vec![object.clone()];
+    };
+    let t = material.thickness_m();
+    let c = object.center;
+    let h = object.half_extents_m;
+    let floor = c[1] - h[1];
+    let top = c[1] + h[1];
+    let mut boxes = Vec::with_capacity(SEGMENT_SLOTS + 1);
+    let slab = |id: String, center: [f32; 3], half: [f32; 3]| StaticCoverObject {
+        id,
+        name: object.name.clone(),
+        kind: object.kind,
+        center,
+        half_extents_m: half,
+    };
+    boxes.push(slab(
+        format!("{}#roof", object.id),
+        [c[0], top - t * 0.5, c[2]],
+        [h[0], t * 0.5, h[2]],
+    ));
+    for facade in 0..4 {
+        let run = facade_run_m(object, facade);
+        let n = facade_segments(run);
+        let seg = run / n as f32;
+        for s in 0..n {
+            let height = match segment_state(packed, facade, s) {
+                SEGMENT_RUIN => RUIN_SILL_M,
+                SEGMENT_RUBBLE => RUBBLE_LIP_M,
+                _ => top - floor,
+            };
+            let along = -run * 0.5 + seg * (s as f32 + 0.5);
+            let y = floor + height * 0.5;
+            let (center, half) = match facade {
+                0 => ([c[0] + h[0] - t * 0.5, y, c[2] + along], [t * 0.5, height * 0.5, seg * 0.5]),
+                1 => ([c[0] - h[0] + t * 0.5, y, c[2] + along], [t * 0.5, height * 0.5, seg * 0.5]),
+                2 => ([c[0] + along, y, c[2] + h[2] - t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
+                _ => ([c[0] + along, y, c[2] - h[2] + t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
+            };
+            boxes.push(slab(format!("{}#f{facade}s{s}", object.id), center, half));
+        }
+    }
+    boxes
+}
+
 /// What a road is paved with — picks the painted tone and finish on the terrain mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoadSurface {
@@ -352,6 +515,66 @@ impl BattlefieldMap {
 #[cfg(test)]
 mod born_phase_tests {
     use super::*;
+
+    /// Z9: two bits per segment, a facade cut into ~4 m runs, and an opened building is a
+    /// hollow of slabs — every slab inside the authored box, the ruined one sill-high, the
+    /// rubble one lip-high, the whole ones the full height, one roof over them all.
+    #[test]
+    fn wall_segments_pack_two_bits_and_an_opened_building_is_a_hollow_of_slabs() {
+        let mut packed = [0u8; SEGMENT_BYTES];
+        set_segment_state(&mut packed, 0, 0, SEGMENT_DAMAGED);
+        assert!(!segments_opened(&packed), "damage is not an opening");
+        set_segment_state(&mut packed, 2, 1, SEGMENT_RUIN);
+        set_segment_state(&mut packed, 3, 2, SEGMENT_RUBBLE);
+        assert_eq!(segment_state(&packed, 0, 0), SEGMENT_DAMAGED);
+        assert_eq!(segment_state(&packed, 2, 1), SEGMENT_RUIN);
+        assert_eq!(segment_state(&packed, 3, 2), SEGMENT_RUBBLE);
+        assert_eq!(segment_state(&packed, 2, 0), SEGMENT_WHOLE);
+        assert_eq!(segment_state(&packed, 1, 3), SEGMENT_WHOLE);
+        assert!(segments_opened(&packed));
+        assert!(segments_opened(&SEGMENTS_ALL_RUBBLE));
+
+        assert_eq!(facade_segments(8.0), 2);
+        assert_eq!(facade_segments(12.0), 3);
+        assert_eq!(facade_segments(2.0), 1);
+        assert_eq!(facade_segments(40.0), SEGMENTS_PER_FACADE);
+        assert_eq!(segment_at(12.0, -0.9), 0);
+        assert_eq!(segment_at(12.0, 0.1), 1);
+        assert_eq!(segment_at(12.0, 0.9), 2);
+        assert_eq!(segment_at(12.0, 1.0), 2, "the far end stays in the last segment");
+
+        let barn = StaticCoverObject {
+            id: "barn".into(),
+            name: "barn".into(),
+            kind: StaticCoverKind::FarmBuilding,
+            center: [10.0, 2.0, -5.0],
+            half_extents_m: [6.0, 2.0, 4.0],
+        };
+        assert_eq!(wall_material(&barn), Some(WallMaterial::Timber));
+        let slabs = opened_building_boxes(&barn, &packed);
+        // +X and -X run 8 m: 2 segments each; +Z and -Z run 12 m: 3 each; one roof.
+        assert_eq!(slabs.len(), 1 + 2 + 2 + 3 + 3);
+        for slab in &slabs {
+            for axis in 0..3 {
+                let reach =
+                    (slab.center[axis] - barn.center[axis]).abs() + slab.half_extents_m[axis];
+                assert!(reach <= barn.half_extents_m[axis] + 1e-4, "{} inside the box", slab.id);
+            }
+        }
+        let by_id = |id: &str| slabs.iter().find(|s| s.id == format!("barn#{id}")).expect(id);
+        assert_eq!(by_id("f0s0").half_extents_m[1], 2.0, "a whole segment is the full wall");
+        assert_eq!(by_id("f2s1").half_extents_m[1] * 2.0, RUIN_SILL_M, "a ruin keeps its sill");
+        assert!((by_id("f2s1").center[1] - RUIN_SILL_M * 0.5).abs() < 1e-5);
+        assert_eq!(by_id("f3s2").half_extents_m[1] * 2.0, RUBBLE_LIP_M, "rubble keeps a lip");
+        assert_eq!(by_id("f0s0").half_extents_m[0] * 2.0, WallMaterial::Timber.thickness_m());
+        assert_eq!(by_id("roof").half_extents_m[0], 6.0);
+        let stone = StaticCoverObject {
+            id: "ostrogorsk_church".into(),
+            kind: StaticCoverKind::CityBuilding,
+            ..barn.clone()
+        };
+        assert_eq!(wall_material(&stone), Some(WallMaterial::Stone), "a church is stone");
+    }
 
     fn object(id: &str, kind: StaticCoverKind) -> StaticCoverObject {
         StaticCoverObject {

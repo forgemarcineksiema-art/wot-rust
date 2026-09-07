@@ -36,9 +36,11 @@ pub use clock::{
 pub use combat::{FIRE_BUFFER_S, verdict_for_traced_impact};
 pub use command::TankCommand;
 pub use cover_damage::{
-    CoverPhase, CoverState, LiveCover, cover_states_for, damage_cover, initial_cover_states,
-    live_cover_for_movement, live_cover_for_sight_and_shells, movement_cover_for_phase_bytes,
-    record_cover_scar, rubble_mounds, rubble_mounds_for_phase_bytes, sight_cover_for_phase_bytes,
+    CoverPhase, CoverState, LARGE_HE_FILLER_KG, LiveCover, cover_states_for, damage_cover,
+    initial_cover_states, live_cover_for_movement, live_cover_for_sight_and_shells,
+    movement_cover_for_phase_bytes, record_cover_scar, rubble_mounds,
+    rubble_mounds_for_phase_bytes, segment_damage, sight_cover_for_phase_bytes,
+    sight_cover_for_wire, strike_segment, struck_face,
 };
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};

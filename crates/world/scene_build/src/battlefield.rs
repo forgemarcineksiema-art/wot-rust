@@ -196,6 +196,36 @@ pub fn battlefield_statics_bucket_mesh_with_falls(
     cover_scars: &[terrain::CoverScar],
     bucket: usize,
 ) -> SceneMeshData {
+    let dressing = CoverDressing { phases: cover_states, falls: cover_falls, segments: &[] };
+    battlefield_statics_bucket_mesh_dressed(battlefield, dressing, cover_scars, bucket)
+}
+
+/// Everything replicated that dresses the statics: the phase byte per object, the fall
+/// heading per object (Z8) and the packed wall segments per object (Z9). Empty slices read
+/// as "unknown" — the hashed lie, every segment whole.
+#[derive(Debug, Clone, Copy)]
+pub struct CoverDressing<'a> {
+    pub phases: &'a [u8],
+    pub falls: &'a [u8],
+    pub segments: &'a [u8],
+}
+
+/// The packed segment states of cover object `index`, when the wire carried them.
+pub fn segment_states_of(segments: &[u8], index: usize) -> Option<terrain::SegmentStates> {
+    let at = index * terrain::SEGMENT_BYTES;
+    segments.get(at..at + terrain::SEGMENT_BYTES)?.try_into().ok()
+}
+
+/// [`battlefield_statics_bucket_mesh_with_falls`] with the whole dressing (Z9): a standing
+/// building's ruined or rubble wall segments bake as the openings they are.
+pub fn battlefield_statics_bucket_mesh_dressed(
+    battlefield: &BattlefieldMap,
+    dressing: CoverDressing<'_>,
+    cover_scars: &[terrain::CoverScar],
+    bucket: usize,
+) -> SceneMeshData {
+    let CoverDressing { phases: cover_states, falls: cover_falls, segments: cover_segments } =
+        dressing;
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     if bucket == STATICS_BACKDROP_BUCKET {
@@ -221,6 +251,13 @@ pub fn battlefield_statics_bucket_mesh_with_falls(
                 // cascade, which is the cost F7b exists to end.
                 for scar in cover_scars.iter().filter(|scar| scar.cover as usize == index) {
                     append_cover_scar(&mut vertices, &mut indices, cover, scar);
+                }
+                // Z9: the openings — every ruined or rubble wall segment reads as the hole
+                // the eye and the shell already pass through.
+                if let Some(packed) = segment_states_of(cover_segments, index)
+                    && terrain::segments_opened(&packed)
+                {
+                    append_wall_openings(&mut vertices, &mut indices, cover, &packed);
                 }
             }
             1 => append_rubble_mound(&mut vertices, &mut indices, cover),
@@ -436,6 +473,70 @@ pub fn felled_log_lie(
 
 /// The gap between a stump and the butt of the trunk that fell off it.
 const FELLED_LOG_FOOT_GAP_M: f32 = 0.4;
+
+/// Z9: the OPENINGS of a standing building. A ruined segment is a hole from its sill to the
+/// eaves; a rubble segment a hole from its lip up, with the lip itself — the wall's thickness
+/// of fallen course — standing at the foot. Drawn a hand proud of the facade plane in the
+/// interior's dark, over the wall the box or the kit still draws there, so the picture says
+/// what the slabs (`terrain::opened_building_boxes`) already do. Z9b carves the wall itself.
+fn append_wall_openings(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+    packed: &terrain::SegmentStates,
+) {
+    const INTERIOR: [f32; 3] = [0.035, 0.030, 0.028];
+    const PROUD_M: f32 = 0.03;
+    let Some(material) = terrain::wall_material(cover) else {
+        return;
+    };
+    let thickness = material.thickness_m();
+    let (wall, _, _) = building_palette(&cover.id);
+    let lip_tone = [wall[0] * 0.8, wall[1] * 0.8, wall[2] * 0.8];
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let floor = center.y - half.y;
+    let top = center.y + half.y;
+    for facade in 0..4 {
+        let run = terrain::facade_run_m(cover, facade);
+        let n = terrain::facade_segments(run);
+        let seg = run / n as f32;
+        for s in 0..n {
+            let state = terrain::segment_state(packed, facade, s);
+            if state < terrain::SEGMENT_RUIN {
+                continue;
+            }
+            let sill = if state == terrain::SEGMENT_RUIN {
+                terrain::RUIN_SILL_M
+            } else {
+                terrain::RUBBLE_LIP_M
+            };
+            let along = -run * 0.5 + seg * (s as f32 + 0.5);
+            let (outward, along_axis) = match facade {
+                0 => (Vec3::X, Vec3::Z),
+                1 => (-Vec3::X, Vec3::Z),
+                2 => (Vec3::Z, Vec3::X),
+                _ => (-Vec3::Z, Vec3::X),
+            };
+            let plane = if facade < 2 { half.x } else { half.z };
+            let hole_half = Vec3::new(0.0, (top - floor - sill) * 0.5, 0.0)
+                + along_axis * (seg * 0.5 - 0.05)
+                + outward.abs() * (PROUD_M * 0.5);
+            let hole_center = center + outward * (plane + PROUD_M * 0.5) + along_axis * along
+                - Vec3::Y * (center.y - (floor + sill + (top - floor - sill) * 0.5));
+            push_surfaced_box(vertices, indices, hole_center, hole_half, INTERIOR, 0.0);
+            if state == terrain::SEGMENT_RUBBLE {
+                let lip_half = Vec3::new(0.0, sill * 0.5, 0.0)
+                    + along_axis * (seg * 0.5)
+                    + outward.abs() * (thickness * 0.5);
+                let lip_center =
+                    center + outward * (plane - thickness * 0.5 + PROUD_M) + along_axis * along
+                        - Vec3::Y * (center.y - (floor + sill * 0.5));
+                push_surfaced_box(vertices, indices, lip_center, lip_half, lip_tone, 0.02);
+            }
+        }
+    }
+}
 
 /// Map a scenery kind to the procedural species that sizes its stump. Retired Flora* kinds
 /// fall through to Oak (they are never authored; the arm keeps the match total).
@@ -2393,6 +2494,55 @@ mod tests {
         let collapsed_clean = battlefield_statics_mesh(&map, &states);
         let collapsed_scarred = battlefield_statics_mesh_with_scars(&map, &states, &[he_bite]);
         assert_eq!(collapsed_clean.0.len(), collapsed_scarred.0.len());
+    }
+
+    /// Z9: a ruined wall segment bakes as an opening on its facade — the interior's dark
+    /// between the sill and the eaves, within the segment's run, proud of the plane the slabs
+    /// resolve on — and a whole building bakes byte for byte as before (the frames stand).
+    #[test]
+    fn a_ruined_segment_bakes_an_opening_on_its_facade() {
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let index = map
+            .static_cover
+            .iter()
+            .position(|cover| terrain::wall_material(cover).is_some())
+            .expect("prokhorovka has a building");
+        let cover = &map.static_cover[index];
+        let bucket = statics_bucket_of_position(&map, cover.center[0], cover.center[2]);
+        let phases = vec![0u8; map.static_cover.len()];
+        let mut segments = vec![0u8; map.static_cover.len() * terrain::SEGMENT_BYTES];
+        let whole = battlefield_statics_bucket_mesh_dressed(
+            &map,
+            CoverDressing { phases: &phases, falls: &[], segments: &segments },
+            &[],
+            bucket,
+        );
+        assert_eq!(whole, battlefield_statics_bucket_mesh(&map, &phases, &[], bucket));
+        let mut packed = [0u8; terrain::SEGMENT_BYTES];
+        terrain::set_segment_state(&mut packed, 0, 0, terrain::SEGMENT_RUIN);
+        segments[index * terrain::SEGMENT_BYTES..(index + 1) * terrain::SEGMENT_BYTES]
+            .copy_from_slice(&packed);
+        let opened = battlefield_statics_bucket_mesh_dressed(
+            &map,
+            CoverDressing { phases: &phases, falls: &[], segments: &segments },
+            &[],
+            bucket,
+        );
+        assert!(opened.0.len() > whole.0.len(), "the opening is baked into the bucket");
+        let (mut added, mut added_indices) = (Vec::new(), Vec::new());
+        append_wall_openings(&mut added, &mut added_indices, cover, &packed);
+        assert_eq!(opened.0.len() - whole.0.len(), added.len(), "and it is exactly the opening");
+        let plane_x = cover.center[0] + cover.half_extents_m[0];
+        let floor = cover.center[1] - cover.half_extents_m[1];
+        let run = terrain::facade_run_m(cover, 0);
+        let seg = run / terrain::facade_segments(run) as f32;
+        for vertex in &added {
+            assert!(vertex.position[0] >= plane_x - 1e-3, "on or proud of the +X facade");
+            assert!(vertex.position[0] <= plane_x + 0.05);
+            assert!(vertex.position[1] >= floor + terrain::RUIN_SILL_M - 1e-3, "above the sill");
+            let z = vertex.position[2] - (cover.center[2] - run * 0.5);
+            assert!(z >= -1e-3 && z <= seg + 1e-3, "within the first segment's run");
+        }
     }
 
     /// Z8, the state after the fall equals the bake: a trunk felled along a heading lies

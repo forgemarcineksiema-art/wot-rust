@@ -66,6 +66,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
         detached_turrets: vec![TankId(2)],
         cover_states: vec![1],
         cover_falls: vec![64],
+        cover_segments: vec![0b1000_0010, 0, 0, 0, 0],
         craters: Vec::new(),
         cover_scars: Vec::new(),
         shots_fired: Vec::new(),
@@ -96,6 +97,12 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
     assert_eq!(round.shell_impacts[0].surface, game_core::ImpactSurface::Cover);
     // Z8: the fall heading rides beside the phase, index-aligned — a quarter turn here.
     assert_eq!(round.cover_falls, vec![64]);
+    // Z9: the wall segments ride beside them — five bytes per object, two bits a segment.
+    assert_eq!(round.cover_segments.len(), terrain::SEGMENT_BYTES);
+    let packed: terrain::SegmentStates = round.cover_segments[..].try_into().expect("five bytes");
+    assert_eq!(terrain::segment_state(&packed, 0, 0), terrain::SEGMENT_RUIN);
+    assert_eq!(terrain::segment_state(&packed, 0, 3), terrain::SEGMENT_RUIN);
+    assert_eq!(terrain::segment_state(&packed, 0, 1), terrain::SEGMENT_WHOLE);
     assert!(
         (terrain::fall_heading_rad(round.cover_falls[0]) - std::f32::consts::FRAC_PI_2).abs()
             < 1e-5

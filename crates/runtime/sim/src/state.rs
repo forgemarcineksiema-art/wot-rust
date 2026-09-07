@@ -622,7 +622,7 @@ impl SimulationState {
             ) {
                 // The impact record is wire data and names the round only by type; the
                 // shooter's gun carries the round itself, and the damage is the round's (Z2).
-                let damage = impact
+                let round = impact
                     .owner
                     .and_then(|owner| self.tanks.iter().find(|tank| tank.id == owner))
                     .and_then(|shooter| {
@@ -632,9 +632,21 @@ impl SimulationState {
                             .ammo_options()
                             .into_iter()
                             .find(|shell| shell.shell_type == impact.shell_type)
-                    })
+                    });
+                let damage = round
                     .map(|shell| cover_damage_hp(&shell))
                     .unwrap_or_else(|| legacy_cover_damage_hp(impact.shell_type));
+                // Z9: the wall SEGMENT under the shell takes the round by its material —
+                // before the whole box's ledger, so a felled box zeroes every segment after.
+                crate::cover_damage::strike_segment(
+                    &mut self.cover_states,
+                    cover,
+                    index,
+                    impact.position.to_array(),
+                    impact.shell_type,
+                    round.map_or(0.0, |shell| shell.filler_kg),
+                    damage,
+                );
                 // Z8: which way the shell lays a tree down — its flight at death, or, for an
                 // old record without one, the line from the shooter to where it died.
                 let flight = if impact.direction.length_squared() > 1.0e-6 {
