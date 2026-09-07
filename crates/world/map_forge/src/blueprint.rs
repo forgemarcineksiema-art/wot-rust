@@ -508,6 +508,13 @@ pub enum ObjectSpec {
         row_offsets_m: Vec<f32>,
         wide_half_m: [f32; 3],
         narrow_half_m: [f32; 3],
+        /// B6: the share of houses that carry an ANNEX — a smaller, lower box behind the
+        /// house (away from the axis), sharing its rear face and shifted toward one end, so
+        /// the footprint is an L. Seeded from the canonical cell like everything else in
+        /// the grid; both mirror twins carry it. Data, not a heuristic: 0 keeps a grid of
+        /// detached rectangles.
+        #[serde(default)]
+        annex_share: f32,
     },
 }
 

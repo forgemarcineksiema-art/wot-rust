@@ -1509,6 +1509,11 @@ fn append_building(
 pub(crate) fn derived_building_style(id: &str, half: Vec3) -> world_forge::building::BuildingStyle {
     use world_forge::building::BuildingStyle;
     let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
+    if id.contains("annex") {
+        // B6: an annex is a dwelling's outbuilding — never a tenement or a barn, whatever
+        // its box's proportions: a low one is a cottage-built wing, a tall one a townhouse's.
+        return if half.y >= 2.9 { BuildingStyle::Townhouse } else { BuildingStyle::Cottage };
+    }
     if id.contains("church") {
         BuildingStyle::Church
     } else if id.contains("windmill") {

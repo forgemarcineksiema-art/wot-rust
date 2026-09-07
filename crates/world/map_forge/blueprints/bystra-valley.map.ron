@@ -437,6 +437,9 @@ MapBlueprint(
             ],
             wide_half_m: (6.5, 3.6, 4.0),
             narrow_half_m: (5.5, 3.0, 4.8),
+            // B6: half the houses grow an annex behind them — a small-town street is a row
+            // of L-shapes and yards, not of detached rectangles.
+            annex_share: 0.5,
         ),
         Cover(
             id: "kamienica_a_south",

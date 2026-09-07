@@ -52,13 +52,15 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
         "the street canyon must carry the eye down its own axis"
     );
 
-    // Collapse every standing block on the z=468 row line between the two positions.
+    // Collapse every standing block the cross-block line (x 250, z 450..486) runs through:
+    // the z=468 row — and, since B6, the annex an L-shaped tenement keeps behind it, which
+    // stands in that line too and is a box of its own (its own HP, its own mound).
     let mut collapsed = 0;
     for (index, cover) in map.static_cover.iter().enumerate() {
-        if (cover.center[2] - 468.0).abs() < 6.0
-            && (200.0..=300.0).contains(&cover.center[0])
-            && cover.kind == terrain::StaticCoverKind::CityBuilding
-        {
+        let crosses_line = (cover.center[0] - 250.0).abs() <= cover.half_extents_m[0]
+            && cover.center[2] + cover.half_extents_m[2] >= 450.0
+            && cover.center[2] - cover.half_extents_m[2] <= 486.0;
+        if crosses_line && cover.kind == terrain::StaticCoverKind::CityBuilding {
             damage_cover(&mut states, &map.static_cover, index, u32::MAX);
             assert_eq!(states[index].phase, CoverPhase::Rubble, "{} collapses", cover.id);
             collapsed += 1;
@@ -83,7 +85,7 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
     // And the mound still stops a hull: it is present in the live slice, lower but real.
     let mound = live_after
         .iter()
-        .find(|c| (c.center[2] - 468.0).abs() < 6.0 && (200.0..=300.0).contains(&c.center[0]))
+        .find(|c| (c.center[2] - 468.0).abs() < 6.0 && (c.center[0] - 250.0).abs() <= 8.0)
         .expect("the mound remains a blocking box");
     assert!(mound.half_extents_m[1] > 0.5, "the mound still stops a hull");
     assert!(mound.half_extents_m[1] < 1.5, "but it stays under the sightline");
