@@ -257,6 +257,9 @@ pub enum KitPart {
     Downpipe,
     /// B2: the footing course under the plinth, unit along `z`; SCALED to (1, 1, run).
     Footing,
+    /// B5: a floor slab left standing in a ruin — a unit cube about its origin; SCALED to
+    /// (half-span, thickness, half-span) in the box frame.
+    Slab,
 }
 
 impl KitPart {
@@ -295,6 +298,7 @@ impl KitPart {
         }
         parts.push(KitPart::Downpipe);
         parts.push(KitPart::Footing);
+        parts.push(KitPart::Slab);
         parts
     }
 
@@ -323,7 +327,8 @@ impl KitPart {
             | KitPart::Eave
             | KitPart::Chimney
             | KitPart::Downpipe
-            | KitPart::Footing => TintLane::Absolute,
+            | KitPart::Footing
+            | KitPart::Slab => TintLane::Absolute,
         }
     }
 
@@ -553,6 +558,9 @@ impl KitPart {
                     Vec3::new(0.11, 0.06, 0.5),
                     WorldMaterial::PlinthStone,
                 );
+            }
+            KitPart::Slab => {
+                push_box(&mut v, &mut i, Vec3::ZERO, Vec3::splat(0.5), WorldMaterial::PlinthStone);
             }
         }
         GeometryMesh::new(v, i)
@@ -1256,6 +1264,114 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
     Some(BuildingPlan { signature, placements, ridge_m })
 }
 
+/// The ruin of a dwelling (B5): what stands after the collapse, under the sim's rubble
+/// height. Two ADJACENT facades keep standing wall — their run cut into segments whose
+/// broken tops vary, the two segments meeting at the kept corner the tallest — the other
+/// two keep stubs, every facade its footing and plinth, and a floor slab hangs in the corner
+/// at half the ceiling. Everything stays under `ceiling_m` (the mound's top: what a shell
+/// stops against) and inside the box. The heap inside is the static bake's mound.
+pub fn plan_ruin(
+    style: BuildingStyle,
+    seed: u64,
+    half: Vec3,
+    ceiling_m: f32,
+) -> Option<Vec<Placement>> {
+    kit_family(style)?;
+    let plinth = KitFamily::style_plinth_m(style).min(ceiling_m * 0.5);
+    let mut rng = Rng(seed ^ 0x7275_696e_5f62_3521);
+    let faces = facades(half);
+    // The kept corner: the two facades that share it.
+    let corner = (rng.next() % 4) as usize;
+    let kept: [usize; 2] = match corner {
+        0 => [0, 2],
+        1 => [0, 3],
+        2 => [1, 2],
+        _ => [1, 3],
+    };
+    let mut placements = Vec::new();
+    for (index, facade) in faces.iter().enumerate() {
+        let run = facade.half_run * 2.0;
+        placements.push(facade.place(
+            half,
+            KitPart::Footing,
+            0.0,
+            0.0,
+            Vec3::new(1.0, FOOTING_HEIGHT_M / 0.12, run + 0.24),
+        ));
+        placements.push(facade.place(half, KitPart::Plinth, 0.0, 0.0, Vec3::new(1.0, plinth, run)));
+        let standing = kept.contains(&index);
+        // The corner end of a kept facade: the end that touches the other kept facade.
+        let corner_sign = if standing {
+            let other = if kept[0] == index { kept[1] } else { kept[0] };
+            faces[other].outward.dot(facade.along).signum()
+        } else {
+            0.0
+        };
+        let segments = 3 + (rng.next() % 3) as usize;
+        let mut cursor = -facade.half_run;
+        for segment in 0..segments {
+            let remaining = facade.half_run - cursor;
+            let len = if segment + 1 == segments {
+                remaining
+            } else {
+                (remaining / (segments - segment) as f32) * (0.6 + rng.unit() * 0.8)
+            }
+            .min(remaining)
+            .max(0.2);
+            let mid = cursor + len * 0.5;
+            let room = (ceiling_m - plinth).max(0.1);
+            let share = if standing {
+                let at_corner = (mid * corner_sign) > facade.half_run - len;
+                if at_corner { 0.85 + rng.unit() * 0.15 } else { 0.35 + rng.unit() * 0.65 }
+            } else {
+                0.08 + rng.unit() * 0.27
+            };
+            let height = (room * share).max(0.15);
+            placements.push(facade.place(
+                half,
+                KitPart::WallBay,
+                mid,
+                plinth,
+                Vec3::new(1.0, height, len),
+            ));
+            cursor += len;
+            if cursor >= facade.half_run - 1e-3 {
+                break;
+            }
+        }
+    }
+    // The floor slab in the kept corner, at half the ceiling.
+    let a = faces[kept[0]].outward;
+    let b = faces[kept[1]].outward;
+    let span = Vec3::new(half.x * 0.55, 0.0, half.z * 0.55);
+    let centre = a * (half.x.abs() * a.x.abs() + half.z * a.z.abs()) * 0.5
+        + b * (half.x * b.x.abs() + half.z * b.z.abs()) * 0.5;
+    let slab_y = ceiling_m * 0.5 - half.y;
+    placements.push(Placement {
+        part: KitPart::Slab,
+        transform: Mat4::from_scale_rotation_translation(
+            Vec3::new(span.x * 2.0 - 0.3, 0.16, span.z * 2.0 - 0.3),
+            Quat::IDENTITY,
+            Vec3::new(centre.x * 0.85, slab_y, centre.z * 0.85),
+        ),
+        tint: TintLane::Absolute,
+    });
+    Some(placements)
+}
+
+/// The farthest any vertex of a placement list reaches past the box, per axis.
+pub fn placements_reach_past_box(placements: &[Placement], half: Vec3) -> Vec3 {
+    let mut reach = Vec3::ZERO;
+    for placement in placements {
+        let mesh = placement.part.mesh();
+        for vertex in mesh.vertices() {
+            let p = placement.transform.transform_point3(vertex.position);
+            reach = reach.max((p.abs() - half).max(Vec3::ZERO));
+        }
+    }
+    reach
+}
+
 /// The farthest any vertex of the plan reaches past the box, per axis (0 when inside) — the
 /// honesty number: at most [`SCENERY_REACH_M`] horizontally (the eave and the plinth), never
 /// above the top or under the floor.
@@ -1316,6 +1432,7 @@ mod tests {
                     KitPart::Dormer { .. } => assert!(p.x <= 0.07 && p.x >= -8.0, "{part:?} {p}"),
                     KitPart::Downpipe => assert!(p.x <= 0.15 && p.x >= 0.0, "{part:?} {p}"),
                     KitPart::Footing => assert!(p.x <= 0.13, "{part:?} {p}"),
+                    KitPart::Slab => assert!(p.abs().max_element() <= 0.5 + 1e-4, "{part:?} {p}"),
                     KitPart::Eave => {
                         assert!(p.x <= SCENERY_REACH_M + 1e-4 && p.x >= -0.05, "{part:?} {p}")
                     }
@@ -1449,6 +1566,60 @@ mod tests {
             })
             .collect();
         assert_eq!(claddings.len(), 2, "{claddings:?}");
+    }
+
+    /// B5: a ruin has FORM — two adjacent facades still stand (their tallest segment at
+    /// least four fifths of the ceiling), the other two are stubs, a floor slab hangs in the
+    /// kept corner, and nothing rises over the ceiling or leaves the box.
+    #[test]
+    fn a_ruin_keeps_two_wall_planes_and_a_floor_under_its_ceiling() {
+        for (style, half) in boxes() {
+            let ceiling = half.y * 2.0 * 0.4;
+            for seed in 0..5 {
+                let ruin = plan_ruin(style, seed, half, ceiling).expect("a kit ruin");
+                assert_eq!(
+                    ruin,
+                    plan_ruin(style, seed, half, ceiling).expect("again"),
+                    "deterministic"
+                );
+                let reach = placements_reach_past_box(&ruin, half);
+                assert!(
+                    reach.x <= SCENERY_REACH_M + 1e-3 && reach.z <= SCENERY_REACH_M + 1e-3,
+                    "{style:?}: {reach}"
+                );
+                let top = ruin
+                    .iter()
+                    .flat_map(|p| {
+                        let mesh = p.part.mesh();
+                        mesh.vertices()
+                            .iter()
+                            .map(|v| p.transform.transform_point3(v.position).y + half.y)
+                            .collect::<Vec<_>>()
+                    })
+                    .fold(f32::MIN, f32::max);
+                assert!(
+                    top <= ceiling + 1e-3,
+                    "{style:?}: the ruin rises to {top} over its ceiling {ceiling}"
+                );
+                let mut tall_facades = std::collections::HashSet::new();
+                for p in &ruin {
+                    if p.part == KitPart::WallBay {
+                        let (scale, rotation, _) = p.transform.to_scale_rotation_translation();
+                        if scale.y
+                            >= (ceiling - KitFamily::style_plinth_m(style).min(ceiling * 0.5)) * 0.8
+                        {
+                            tall_facades
+                                .insert((rotation.to_axis_angle().1 * 100.0).round() as i32);
+                        }
+                    }
+                }
+                assert!(
+                    tall_facades.len() >= 2,
+                    "{style:?} seed {seed}: standing facades {tall_facades:?}"
+                );
+                assert!(ruin.iter().any(|p| p.part == KitPart::Slab), "{style:?}: a floor slab");
+            }
+        }
     }
 
     /// The landmarks stay on the authored bake.

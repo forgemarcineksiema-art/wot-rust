@@ -15,7 +15,9 @@
 use glam::{Mat4, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject, SceneVertex};
 use world_forge::WorldMaterial;
-use world_forge::building_kit::{BuildingPlan, Cladding, KitPart, TintLane, plan_building};
+use world_forge::building_kit::{
+    BuildingPlan, Cladding, KitPart, Placement, TintLane, plan_building, plan_ruin,
+};
 
 /// The base of the kit's mesh-handle block. Below the tree ladder's block and the shadowless
 /// base: a house must cast a shadow.
@@ -169,6 +171,8 @@ pub struct PlacedBuilding {
     pub radius: f32,
     pub plan: BuildingPlan,
     pub objects: Vec<RenderObject>,
+    /// B5: the ruin's objects, drawn in phase 1 over the static bake's mound.
+    pub ruin_objects: Vec<RenderObject>,
 }
 
 /// The per-map cache of placed buildings.
@@ -229,29 +233,33 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
             };
             let age = plan.signature.age_tint();
             let wall = [wall[0] * age, wall[1] * age, wall[2] * age];
-            let objects = plan
-                .placements
-                .iter()
-                .map(|placement| RenderObject {
-                    tank_id: None,
-                    mesh: kit_mesh_handle(placement.part, plan.signature.cladding),
-                    material: MaterialHandle(0),
-                    transform: (Mat4::from_translation(center) * placement.transform)
-                        .to_cols_array_2d(),
-                    tint: match placement.tint {
-                        TintLane::Wall => wall,
-                        TintLane::Roof => roof,
-                        TintLane::Absolute => [1.0, 1.0, 1.0],
-                    },
-                    dither: [0.0, 1.0],
-                })
-                .collect();
+            let to_object = |placement: &Placement| RenderObject {
+                tank_id: None,
+                mesh: kit_mesh_handle(placement.part, plan.signature.cladding),
+                material: MaterialHandle(0),
+                transform: (Mat4::from_translation(center) * placement.transform)
+                    .to_cols_array_2d(),
+                tint: match placement.tint {
+                    TintLane::Wall => wall,
+                    TintLane::Roof => roof,
+                    TintLane::Absolute => [1.0, 1.0, 1.0],
+                },
+                dither: [0.0, 1.0],
+            };
+            let objects = plan.placements.iter().map(to_object).collect();
+            // B5: the ruin, under the sim's rubble height for this kind of box.
+            let ceiling = half.y * 2.0 * cover.kind.rubble_height_frac();
+            let style = crate::battlefield::derived_building_style(&cover.id, half);
+            let ruin_objects = plan_ruin(style, cover_seed(&cover.id), half, ceiling)
+                .map(|placements| placements.iter().map(to_object).collect())
+                .unwrap_or_default();
             Some(PlacedBuilding {
                 cover: index,
                 center,
                 radius: half.length() + world_forge::building_kit::SCENERY_REACH_M,
                 plan,
                 objects,
+                ruin_objects,
             })
         })
         .collect()
@@ -268,13 +276,15 @@ pub fn building_frame_objects(
 ) -> Vec<RenderObject> {
     let mut objects = Vec::new();
     for building in cache.placed(battlefield) {
-        if cover_states.get(building.cover).copied().unwrap_or(0) != 0 {
-            continue;
-        }
         if !eye.sees(building.center, building.radius) {
             continue;
         }
-        objects.extend_from_slice(&building.objects);
+        match cover_states.get(building.cover).copied().unwrap_or(0) {
+            0 => objects.extend_from_slice(&building.objects),
+            // B5: the ruin with form over the bake's mound.
+            1 => objects.extend_from_slice(&building.ruin_objects),
+            _ => {}
+        }
     }
     objects
 }
@@ -471,5 +481,28 @@ mod tests {
             &mut cache,
         );
         assert!(kit_object_count(&fewer) < count, "a collapsed house leaves the frame");
+        // ...and its ruin (B5) takes its place, under the mound's top and inside the box.
+        let placed = cache.placed(&battlefield);
+        let building = &placed[0];
+        assert!(!building.ruin_objects.is_empty(), "the ruin stands");
+        let meshes: std::collections::HashMap<MeshHandle, MeshAsset> =
+            kit_meshes().into_iter().collect();
+        let cover = &battlefield.static_cover[building.cover];
+        let half = Vec3::from_array(cover.half_extents_m);
+        let ceiling = half.y * 2.0 * cover.kind.rubble_height_frac();
+        for object in &building.ruin_objects {
+            let transform = Mat4::from_cols_array_2d(&object.transform);
+            for vertex in meshes[&object.mesh].vertices() {
+                let p =
+                    transform.transform_point3(Vec3::from_array(vertex.position)) - building.center;
+                assert!(
+                    p.y + half.y <= ceiling + 1e-3,
+                    "{}: the ruin rises over the mound",
+                    cover.id
+                );
+                let over = (p.abs() - half).max(Vec3::ZERO);
+                assert!(over.x <= 0.41 && over.z <= 0.41, "{}: the ruin leaves its box", cover.id);
+            }
+        }
     }
 }
