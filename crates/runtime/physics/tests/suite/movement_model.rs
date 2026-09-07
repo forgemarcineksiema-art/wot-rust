@@ -760,3 +760,88 @@ fn a_steer_release_overshoots_the_heading_by_at_most_two_degrees() {
     );
     assert!(state.yaw_rate_rad_s.abs() < 1.0e-3, "...and the rotation has stopped");
 }
+
+/// J6: the launch climbs through the gears — the thrust is a torque curve read through the box,
+/// so a full-throttle launch shows every shift as a beat (a drop and a recovery), never a
+/// continuous 1/v grind, and no single tick jolts harder than the track grip.
+#[test]
+fn a_full_throttle_launch_shifts_through_every_gear_without_a_jolt() {
+    let spec = TankSpec::t54_1951();
+    let settings = TankControllerSettings::from_spec(&spec);
+    let contact = TerrainContact::flat(0.0);
+    let dt = 1.0 / 60.0;
+    let full = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let mut state = TankKinematicState::default();
+    let mut previous_accel = None::<f32>;
+    let mut previous_speed = 0.0;
+    let mut shifts = 0;
+    let mut last_gear = physics::engine_state(&settings, 0.0).gear;
+    for tick in 0..(20 * 60) {
+        step_custom_tank_controller_on_contact(&mut state, full, &settings, contact, dt);
+        let speed = state.forward_speed();
+        let accel = (speed - previous_speed) / dt;
+        let gear = physics::engine_state(&settings, speed).gear;
+        if gear != last_gear {
+            shifts += 1;
+            last_gear = gear;
+        }
+        if let Some(prev) = previous_accel
+            && tick > 1
+        {
+            assert!(
+                (accel - prev).abs() <= 4.0,
+                "tick {tick}: the thrust jumped {prev:.2} -> {accel:.2} m/s^2 in one tick"
+            );
+        }
+        previous_accel = Some(accel);
+        previous_speed = speed;
+    }
+    assert_eq!(
+        shifts,
+        spec.gearbox.gear_count() - 1,
+        "a launch to top speed goes through every ratio once"
+    );
+    assert!(
+        (state.forward_speed() - settings.max_forward_speed_mps).abs() < 0.5,
+        "and the top-speed equilibrium did not move with the box: {}",
+        state.forward_speed()
+    );
+}
+
+/// J6: the engine's revs are the gear's — at a standstill the box is in first at idle, at top
+/// speed it is in top gear at the governor, and the gear never goes DOWN as the speed goes up.
+#[test]
+fn the_gear_is_a_function_of_speed_and_the_revs_are_the_gear_s() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let at_rest = physics::engine_state(&settings, 0.0);
+    assert_eq!(at_rest.gear, 0);
+    assert!((at_rest.rpm_norm - physics::IDLE_RPM_NORM).abs() < 1.0e-6);
+    let flat_out = physics::engine_state(&settings, settings.max_forward_speed_mps);
+    assert_eq!(flat_out.gear, settings.gearbox.gear_count() - 1);
+    assert!((flat_out.rpm_norm - 1.0).abs() < 1.0e-6);
+    let mut last = 0;
+    for step in 0..200 {
+        let speed = settings.max_forward_speed_mps * step as f32 / 200.0;
+        let gear = physics::engine_state(&settings, speed).gear;
+        assert!(gear >= last, "the box shifted down while speeding up at {speed} m/s");
+        last = gear;
+    }
+}
+
+/// J6: the box never starves the drive. Above the clutch floor the thrust through the gears is the
+/// rated power over the speed at every speed a launch passes through — the gears decide the revs,
+/// not the rating — so the mobility table, the climbing envelope and every replay hold to the bit.
+#[test]
+fn the_box_decides_the_revs_and_never_the_rating() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    for step in 1..400 {
+        let speed = settings.max_forward_speed_mps * step as f32 / 400.0;
+        let through_the_box = physics::engine_thrust_mps2(&settings, speed, 1.0);
+        let rated = settings.drive_power_mps3 / speed.max(settings.min_force_speed_mps);
+        assert_eq!(
+            through_the_box.to_bits(),
+            rated.to_bits(),
+            "at {speed:.2} m/s the box delivered {through_the_box} against the rating {rated}"
+        );
+    }
+}

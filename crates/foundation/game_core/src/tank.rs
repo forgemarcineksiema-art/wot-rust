@@ -89,6 +89,9 @@ pub struct TankSpec {
     pub kind: VehicleKind,
     pub mass_kg: f32,
     pub engine_power_kw: f32,
+    /// The transmission (J6): ratios and where first gear tops out, from the engine module.
+    #[serde(default)]
+    pub gearbox: crate::Gearbox,
     pub max_forward_speed_mps: f32,
     pub max_reverse_speed_mps: f32,
     pub turn_rate_rad_s: f32,

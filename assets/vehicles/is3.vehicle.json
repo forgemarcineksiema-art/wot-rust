@@ -3,6 +3,10 @@
   "kind": "IS3",
   "mass_kg": 45910.0,
   "engine_power_kw": 382.0,
+  "gearbox": {
+    "gears": 8,
+    "first_gear_top_speed_fraction": 0.18
+  },
   "max_forward_speed_mps": 11.1,
   "max_reverse_speed_mps": 3.9,
   "turn_rate_rad_s": 0.58,

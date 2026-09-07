@@ -1,5 +1,5 @@
 use super::{
-    EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
+    EngineModule, Gearbox, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
 use crate::{GunSpec, RoundId};
@@ -22,6 +22,7 @@ pub(crate) fn tiger_i_loadout() -> VehicleModules {
             mass_kg: 2_100.0,
             hit_points: 170,
             fire_chance: 0.20,
+            gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
         },
         suspension: SuspensionModule {
             name: "Tiger running gear".to_string(),
@@ -65,6 +66,7 @@ pub(crate) fn tiger_ii_loadout() -> VehicleModules {
             mass_kg: 2_100.0,
             hit_points: 170,
             fire_chance: 0.20,
+            gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
         },
         suspension: SuspensionModule {
             name: "Tiger II running gear".to_string(),
@@ -100,6 +102,7 @@ pub(crate) fn tiger_i_engine_hl210() -> EngineModule {
         mass_kg: 1_950.0,
         hit_points: 165,
         fire_chance: 0.19,
+        gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
     }
 }
 

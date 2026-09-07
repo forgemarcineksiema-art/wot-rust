@@ -3,6 +3,7 @@ mod contact;
 mod contact_impulse;
 mod controller_settings;
 mod cover;
+mod engine;
 mod forces;
 mod hull_attitude;
 mod movement;
@@ -21,6 +22,7 @@ pub use controller_settings::{BeltDrive, TankControllerSettings};
 pub use cover::{
     footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
 };
+pub use engine::{EngineState, IDLE_RPM_NORM, SHIFT_UP_RPM_NORM, engine_state, engine_thrust_mps2};
 pub use hull_attitude::{
     ATTITUDE_REST_EPSILON, HullSpring, MAX_HULL_TILT_RAD, MAX_WEIGHT_TRANSFER_RAD,
     advance_hull_attitude,

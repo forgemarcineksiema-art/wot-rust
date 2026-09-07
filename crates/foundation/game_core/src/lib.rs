@@ -63,7 +63,7 @@ pub use hull_plan::HullPlan;
 pub use ids::{BattleEventId, ShellId, TankId, TeamId};
 pub use mobility::{MAX_CLIMB_GRADE, ROAD_COMFORT_GRADE};
 pub use modules::{
-    EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
+    EngineModule, Gearbox, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
     ModuleHealth, ModuleSlot, RadioModule, SuspensionModule, TurretModule, TurretTraverse,
     VehicleModules, engine_power_fraction, full_reload_seconds, gun_reload_multiplier,
     module_condition, suspension_agility_fraction,

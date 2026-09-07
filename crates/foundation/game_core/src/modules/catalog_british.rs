@@ -4,7 +4,7 @@
 //! `docs/vehicles/centurion.md`).
 
 use super::{
-    EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
+    EngineModule, Gearbox, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
 use crate::{GunSpec, RoundId};
@@ -29,6 +29,7 @@ pub(crate) fn centurion_loadout() -> VehicleModules {
             hit_points: 150,
             // A petrol V12 burns more eagerly than the Soviet diesels around it.
             fire_chance: 0.14,
+            gearbox: Gearbox { gears: 5, first_gear_top_speed_fraction: 0.22 },
         },
         suspension: SuspensionModule {
             name: "Horstmann bogies".to_string(),

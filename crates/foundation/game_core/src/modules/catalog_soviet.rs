@@ -1,5 +1,5 @@
 use super::{
-    EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
+    EngineModule, Gearbox, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
 use crate::{GunSpec, RoundId};
@@ -22,6 +22,7 @@ pub(crate) fn t54_loadout() -> VehicleModules {
             mass_kg: 1_500.0,
             hit_points: 150,
             fire_chance: 0.10,
+            gearbox: Gearbox { gears: 5, first_gear_top_speed_fraction: 0.22 },
         },
         suspension: SuspensionModule {
             name: "T-54 running gear".to_string(),
@@ -73,6 +74,7 @@ pub(crate) fn t34_85_loadout() -> VehicleModules {
             // The fuel cells ride in the fighting compartment sponsons — the T-34's documented
             // fire liability.
             fire_chance: 0.13,
+            gearbox: Gearbox { gears: 5, first_gear_top_speed_fraction: 0.22 },
         },
         suspension: SuspensionModule {
             name: "T-34 Christie gear".to_string(),
@@ -146,6 +148,7 @@ pub(crate) fn is3_loadout() -> VehicleModules {
             mass_kg: 1_700.0,
             hit_points: 160,
             fire_chance: 0.12,
+            gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
         },
         suspension: SuspensionModule {
             name: "IS-3 running gear".to_string(),
@@ -212,6 +215,7 @@ pub(crate) fn t54_engine_v55() -> EngineModule {
         mass_kg: 1_550.0,
         hit_points: 150,
         fire_chance: 0.11,
+        gearbox: Gearbox { gears: 5, first_gear_top_speed_fraction: 0.22 },
     }
 }
 
@@ -223,6 +227,7 @@ pub(crate) fn is3_engine_v54k() -> EngineModule {
         mass_kg: 1_720.0,
         hit_points: 165,
         fire_chance: 0.11,
+        gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
     }
 }
 
