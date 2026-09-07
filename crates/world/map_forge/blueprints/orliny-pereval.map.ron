@@ -107,7 +107,8 @@ MapBlueprint(
         layers: (
             GroundLayerSpec(albedo: (0.24, 0.32, 0.22), detail: 1.0, gloss: 0.03),
             GroundLayerSpec(albedo: (0.44, 0.4, 0.27), detail: 1.0, gloss: 0.03),
-            GroundLayerSpec(albedo: (0.31, 0.27, 0.21), detail: 0.8, gloss: 0.05),
+            // D43: worn dirt at most 0.85x lush grass (was 0.93x).
+            GroundLayerSpec(albedo: (0.28, 0.23, 0.18), detail: 0.8, gloss: 0.05),
             GroundLayerSpec(albedo: (0.47, 0.47, 0.44), detail: 1.0, gloss: 0.13),
         ),
         macro_normal_strength: 0.8,
