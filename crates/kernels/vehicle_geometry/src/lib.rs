@@ -51,7 +51,7 @@ pub use running_gear_end_wheels::{
 };
 pub use running_gear_geom::track_link_unit_mesh;
 pub use running_gear_place::{
-    GearDynamics, running_gear_placements, running_gear_placements_dynamic,
+    GearDynamics, WHEEL_TRAVEL_LIMIT_M, running_gear_placements, running_gear_placements_dynamic,
     running_gear_placements_dynamic_into, thrown_remnant_placements,
 };
 pub use running_gear_wheels::{return_roller_unit_mesh, road_wheel_unit_mesh};

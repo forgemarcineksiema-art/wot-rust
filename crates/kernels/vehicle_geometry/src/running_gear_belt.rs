@@ -12,6 +12,10 @@ pub(crate) struct BeltSample {
     pub z: f32,
     /// Rotation about X that aligns a link's local +Z with the belt tangent.
     pub rot_x: f32,
+    /// On the lower half of the loop — the ground run, the ramps and the underside of the
+    /// wraps — which conforms to the road wheels' travel; the top run rides its carriers
+    /// through the path itself and must not be travelled twice (J7).
+    pub lower: bool,
 }
 
 /// How far below a wheel rim the ground-run link *centre* line rides. The shoe plate reaches
@@ -93,6 +97,18 @@ impl BeltPath {
     /// As [`Self::new`], with an explicit top-run sag: the render scales it with drive state
     /// (a driven track pulls its top run tight; braking or coasting lets it hang).
     pub(crate) fn with_sag(kin: &RunningGearKinematics, top_sag: f32) -> Self {
+        Self::with_sag_and_travel(kin, top_sag, &[])
+    }
+
+    /// As [`Self::with_sag`], with the road wheels' live travel: on a wheel-carried layout the
+    /// carriers under the top run ARE the wheels, so a lifted wheel lifts its contact flat and
+    /// the run over it (the one program's J7 — the tyre used to come out through a rigid run
+    /// at 5 cm of travel). Return rollers do not travel.
+    pub(crate) fn with_sag_and_travel(
+        kin: &RunningGearKinematics,
+        top_sag: f32,
+        travel: &[f32],
+    ) -> Self {
         // The ceiling is for a DEAD SLACK track, not for a healthy one: the render multiplies the
         // authored sag by up to 2.2 when a side loses its tension. At 0.12 that ceiling started
         // biting the moment the T-54's own sag went to the depth its drawings show (0.075 x 2.2 =
@@ -100,7 +116,7 @@ impl BeltPath {
         // 19 mm apart and a thrown track stopped reading as thrown. Raised to clear the scaled
         // range. Vehicles with interleaved wheels sit at 0.035 and never reached the old ceiling,
         // so nothing else moves.
-        Self::build(kin, top_sag.clamp(0.0, 0.20), true)
+        Self::build(kin, top_sag.clamp(0.0, 0.20), true, travel)
     }
 
     /// The loop with ALL slack pulled out — no carrier contact, the top run a straight chord
@@ -108,10 +124,10 @@ impl BeltPath {
     /// from it), never a drawn state: the drawn belt always rests on its carriers, because a
     /// tonne and a half of steel does not levitate off its wheels however hard it is driven.
     pub(crate) fn fully_taut(kin: &RunningGearKinematics) -> Self {
-        Self::build(kin, 0.0, false)
+        Self::build(kin, 0.0, false, &[])
     }
 
-    fn build(kin: &RunningGearKinematics, top_sag: f32, seated: bool) -> Self {
+    fn build(kin: &RunningGearKinematics, top_sag: f32, seated: bool, travel: &[f32]) -> Self {
         // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
         // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
         let r_rear = kin.end_radius.max(0.05) + LINK_SEAT;
@@ -150,13 +166,20 @@ impl BeltPath {
         let wrap_top_front = kin.end_cy + front.r;
         // The carriers under the top run: return rollers where the layout has them, road-wheel
         // tops otherwise. Their tops wear the same LINK_SEAT the ground run does.
-        let carrier_y = if kin.roller_zs.is_empty() {
-            kin.cy + kin.wheel_radius + LINK_SEAT
-        } else {
-            kin.roller_y + kin.roller_radius + LINK_SEAT
+        let wheel_carried = kin.roller_zs.is_empty();
+        let carrier_zs: &[f32] = if wheel_carried { &kin.wheel_zs } else { &kin.roller_zs };
+        // Each carrier's crest: a road wheel's rides its live travel (J7), a return roller's
+        // is bolted to the hull.
+        let carrier_y_at = |index: usize| -> f32 {
+            if wheel_carried {
+                kin.cy
+                    + kin.wheel_radius
+                    + LINK_SEAT
+                    + crate::running_gear_place::travel_at(travel, index)
+            } else {
+                kin.roller_y + kin.roller_radius + LINK_SEAT
+            }
         };
-        let carrier_zs: &[f32] =
-            if kin.roller_zs.is_empty() { &kin.wheel_zs } else { &kin.roller_zs };
         // Tension model v5 (2026-08-14): WHICH carriers the run rests on is a property of the
         // LAYOUT, decided by structure alone; the live tension scales only how deep the spans
         // between those contacts hang. The v27 model let the live sag decide the contacts
@@ -191,11 +214,14 @@ impl BeltPath {
         // flat-to-flat.
         let carrier_r = if kin.roller_zs.is_empty() { kin.wheel_radius } else { kin.roller_radius };
         let contact_half = (carrier_r * 0.28).clamp(0.02, 0.14);
-        for &z in carrier_zs {
+        for (index, &z) in carrier_zs.iter().enumerate() {
             // Structure decides the contact set (v5): the same carriers stay path nodes at
             // every live tension, so scaling the sag can never change the run's topology —
-            // only how deep it hangs between the contacts it always has.
-            let touches = seated && chord_y(z) - REST_CONTACT_DROP_M <= carrier_y + 1.0e-4;
+            // only how deep it hangs between the contacts it always has. (The travel moves a
+            // node's HEIGHT, never whether it is one.)
+            let carrier_y = carrier_y_at(index);
+            let rest_y = if wheel_carried { carrier_y_at(usize::MAX) } else { carrier_y };
+            let touches = seated && chord_y(z) - REST_CONTACT_DROP_M <= rest_y + 1.0e-4;
             if touches && z > -rear.cz + 1.0e-3 && z < front.cz - 1.0e-3 {
                 pts.push((z - contact_half, carrier_y));
                 pts.push((z + contact_half, carrier_y));
@@ -218,8 +244,9 @@ impl BeltPath {
             let len = (span * span + (y1 - y0) * (y1 - y0)).sqrt().max(1.0e-4);
             let floor = carrier_zs
                 .iter()
-                .filter(|&&z| z > z0 + 1.0e-3 && z < z1 - 1.0e-3)
-                .map(|_| carrier_y)
+                .enumerate()
+                .filter(|&(_, &z)| z > z0 + 1.0e-3 && z < z1 - 1.0e-3)
+                .map(|(index, _)| carrier_y_at(index))
                 .fold(f32::NEG_INFINITY, f32::max);
             // Span sag: slack spread over the span, never past the tension reach, and never
             // through a carrier riding under the span. SHORT spans stay dead straight: between
@@ -300,6 +327,7 @@ impl BeltPath {
                 y: self.y_bot,
                 z: self.bottom_end_z - s,
                 rot_x: tangent_rot(-1.0, 0.0),
+                lower: true,
             };
         }
         let s = s - bottom;
@@ -310,6 +338,7 @@ impl BeltPath {
                 y: self.y_bot + dyr * s,
                 z: -self.bottom_end_z + dzr * s,
                 rot_x: tangent_rot(dzr, dyr),
+                lower: true,
             };
         }
         let s = s - self.rear.ramp_len;
@@ -321,6 +350,7 @@ impl BeltPath {
                 y: self.end_cy + self.rear.r * theta.sin(),
                 z: -self.rear.cz + self.rear.r * theta.cos(),
                 rot_x: tangent_rot(theta.sin(), -theta.cos()),
+                lower: theta.sin() < 0.0,
             };
         }
         let s = s - self.rear.arc_len;
@@ -348,6 +378,7 @@ impl BeltPath {
                     y,
                     z: seg.z0 + (seg.z1 - seg.z0) * u,
                     rot_x: tangent_rot(1.0, dy_dz),
+                    lower: false,
                 };
             }
             // Numerical tail: fall through to the front wrap start.
@@ -361,6 +392,7 @@ impl BeltPath {
                 y: self.end_cy + self.front.r * theta.sin(),
                 z: self.front.cz + self.front.r * theta.cos(),
                 rot_x: tangent_rot(theta.sin(), -theta.cos()),
+                lower: theta.sin() < 0.0,
             };
         }
         let s = s - self.front.arc_len;
@@ -371,6 +403,7 @@ impl BeltPath {
             y: self.y_bot + dyf * (self.front.ramp_len - s),
             z: self.bottom_end_z - dzf * (self.front.ramp_len - s),
             rot_x: tangent_rot(dzf, -dyf),
+            lower: true,
         }
     }
 }

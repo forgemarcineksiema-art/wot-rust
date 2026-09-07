@@ -587,7 +587,10 @@ impl ClientApp {
             visible_tanks,
             self.player_tank,
             player_gun_scale,
-            Some(&self.battlefield.heightmap),
+            crate::GroundTruth {
+                heightmap: Some(&self.battlefield.heightmap),
+                rubble: self.live_cover.rubble(),
+            },
             self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick),
             Some(camera.eye),
         );

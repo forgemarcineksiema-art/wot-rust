@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::vehicle_blueprint::{TrackShape, VehicleBlueprint};
 use crate::{HitboxProfile, VehicleKind};
 
-/// Enough for every historical layout in scope (the E-100 carried 8 stations per side).
-pub const MAX_CONTACT_STATIONS: usize = 8;
+/// Nine: the Tiger family runs nine interleaved stations a side, and a beam that reads eight of
+/// them (the old cap) rested on the wrong wheels over a crest and drew the ninth on nothing (J7).
+pub const MAX_CONTACT_STATIONS: usize = 9;
 
 /// Fallback station count for vehicles without a blueprint-authored running gear.
 const FALLBACK_STATIONS: usize = 5;

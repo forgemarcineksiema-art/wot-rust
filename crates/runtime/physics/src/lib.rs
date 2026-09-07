@@ -31,7 +31,9 @@ pub use movement::{
     TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
     step_custom_tank_controller, step_custom_tank_controller_on_contact,
 };
-pub use track_contact::{SupportContact, sample_support, support_height};
+pub use track_contact::{
+    StationGround, SupportContact, sample_support, station_ground, support_height,
+};
 pub use vertical::{GroundStep, is_grounded, resolve_vertical};
 pub use world::{
     MAP_BORDER_MARGIN_M, TankStepContact, advance_tank_on_world, clamp_to_map_border,

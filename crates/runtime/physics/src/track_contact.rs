@@ -134,6 +134,40 @@ fn rest_line(
     Some(rest_on_hull(&hull[..len], 0.0))
 }
 
+/// The ground under every road-wheel station, per side, from the ONE sampler the support
+/// envelope reads (terrain plus collapsed masonry). This is what the drawn wheels stand on (the
+/// one program's G1): the client no longer samples the heightfield on its own — it reads the
+/// physics' truth, rubble included, and fits the wheels to the same plane the hull rides.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StationGround {
+    pub left: [Option<f32>; game_core::MAX_CONTACT_STATIONS],
+    pub right: [Option<f32>; game_core::MAX_CONTACT_STATIONS],
+    pub count: usize,
+}
+
+pub fn station_ground(
+    heightmap: &HeightMap,
+    position: Vec3,
+    yaw_rad: f32,
+    footprint: &ContactFootprint,
+    rubble: &[RubbleMound],
+) -> StationGround {
+    let forward = horizontal_forward(yaw_rad);
+    let right = Vec3::new(forward.z, 0.0, -forward.x);
+    let mut out = StationGround {
+        left: [None; game_core::MAX_CONTACT_STATIONS],
+        right: [None; game_core::MAX_CONTACT_STATIONS],
+        count: 0,
+    };
+    for (index, &station_z) in footprint.station_zs().iter().enumerate() {
+        let centre = position + forward * station_z;
+        out.left[index] = sample(heightmap, centre - right * footprint.half_gauge_x, rubble);
+        out.right[index] = sample(heightmap, centre + right * footprint.half_gauge_x, rubble);
+        out.count = index + 1;
+    }
+    out
+}
+
 /// The one surface every station reads: the terrain, raised wherever collapsed masonry stands on
 /// it. Routing the debris through the SUPPORT ENVELOPE (rather than bolting it on beside it) is
 /// what makes a mound behave like ground for free — the rigid-beam convex hull bridges its way up

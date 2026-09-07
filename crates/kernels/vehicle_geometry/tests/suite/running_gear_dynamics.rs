@@ -300,3 +300,84 @@ fn the_hanging_remnant_drapes_the_sprocket_and_slides_off() {
     let slid = vehicle_geometry::thrown_remnant_placements(&kin, -1.0, 10.0);
     assert!(slid.is_empty(), "the slid-off remnant has joined the band on the field");
 }
+
+/// J7: the top run rides its carriers' LIVE height, and no shoe ever lies inside a road wheel.
+/// A lifted wheel lifts the run over it; a dropped one does not pull the run through its
+/// neighbours; at every travel the belt's shoes keep a full wheel radius from every axle.
+#[test]
+fn the_top_run_rides_a_lifted_wheel_and_no_shoe_enters_a_wheel() {
+    let kin = t54();
+    let rest = running_gear_placements(&kin, 0.0, 0.0);
+    let z_mid = kin.wheel_zs[2];
+    let top_link_over = |set: &[vehicle_geometry::GearPlacement], z: f32| {
+        set.iter()
+            .filter(|p| p.part == GearPart::Link)
+            .map(|p| p.transform.w_axis)
+            .filter(|w| w.x > 0.0 && (w.z - z).abs() < 0.12 && w.y > kin.cy)
+            .map(|w| w.y)
+            .fold(f32::NEG_INFINITY, f32::max)
+    };
+    for lift in [0.15_f32, -0.15] {
+        let mut travel = [0.0_f32; 5];
+        travel[2] = lift;
+        let dynamics = vehicle_geometry::GearDynamics {
+            left_travel: &[],
+            right_travel: &travel,
+            left_sag_scale: 1.0,
+            right_sag_scale: 1.0,
+            left_break_t: None,
+            right_break_t: None,
+        };
+        let moved = vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics);
+        if lift > 0.0 {
+            assert!(
+                top_link_over(&moved, z_mid) >= top_link_over(&rest, z_mid) + 0.12,
+                "the top run over a wheel lifted {lift} m must rise with it"
+            );
+        }
+        // Every shoe over the top run and along the ground run keeps a wheel radius from every
+        // right road wheel's axle — the belt never passes through the steel it rides on. The
+        // ramps past the outer wheels are measured against REST: the rest ramp already grazes
+        // the outer tyre by ~9 mm (a point-tangent, not a wheel-to-wrap tangent — J9), and the
+        // travel may not make that worse.
+        let wheels: Vec<glam::Vec4> = moved
+            .iter()
+            .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
+            .map(|p| p.transform.w_axis)
+            .collect();
+        let rest_wheels: Vec<glam::Vec4> = rest
+            .iter()
+            .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
+            .map(|p| p.transform.w_axis)
+            .collect();
+        let nearest = |set: &[vehicle_geometry::GearPlacement], wheels: &[glam::Vec4], z: f32| {
+            set.iter()
+                .filter(|p| p.part == GearPart::Link && p.transform.w_axis.x > 0.0)
+                .map(|p| p.transform.w_axis)
+                .filter(|l| (l.z - z).abs() < 0.6)
+                .flat_map(|l| {
+                    wheels.iter().map(move |w| ((l.y - w.y).powi(2) + (l.z - w.z).powi(2)).sqrt())
+                })
+                .fold(f32::INFINITY, f32::min)
+        };
+        for link in moved.iter().filter(|p| p.part == GearPart::Link && p.transform.w_axis.x > 0.0)
+        {
+            let l = link.transform.w_axis;
+            let inboard = l.z.abs() <= kin.half_run + 1.0e-3;
+            for w in &wheels {
+                let distance = ((l.y - w.y).powi(2) + (l.z - w.z).powi(2)).sqrt();
+                let floor = if inboard || l.y > kin.cy {
+                    kin.wheel_radius - 0.005
+                } else {
+                    nearest(&rest, &rest_wheels, l.z) - 0.001
+                };
+                assert!(
+                    distance >= floor,
+                    "at travel {lift}: a shoe at z {:.2} sits {distance:.3} m from the axle of the                      wheel at z {:.2} (floor {floor:.3})",
+                    l.z,
+                    w.z
+                );
+            }
+        }
+    }
+}
