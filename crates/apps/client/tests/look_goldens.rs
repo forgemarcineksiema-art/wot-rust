@@ -266,6 +266,9 @@ struct FrameStats {
     /// disc/halo multipliers are shader constants no CPU mirror can see, so the ceiling reads
     /// the recorded photograph instead.
     near_white: f32,
+    /// Mean R over mean B of the top 15 % of rows — the SKY band's warmth, read off the
+    /// photograph (D37). A lavender sky measures below 1; a straw evening sky well above.
+    sky_warmth: f32,
     /// Mean absolute luminance step between horizontally adjacent pixels. Detail, not noise:
     /// a flat wash tends to zero, a shimmering surface runs high.
     local_contrast: f32,
@@ -304,6 +307,8 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
     let (mut dark, mut mid, mut bright, mut near_white) = (0u32, 0u32, 0u32, 0u32);
     let mut deep = 0u32;
     let (mut sum_r, mut sum_b, mut sum_sat) = (0.0f64, 0.0f64, 0.0f64);
+    let (mut sky_r, mut sky_b) = (0.0f64, 0.0f64);
+    let sky_rows_end = ((height * 15) / 100) * width;
     let mut lumas = Vec::with_capacity(width * height);
 
     for px in pixels.chunks_exact(4) {
@@ -326,6 +331,10 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
         }
         sum_r += r as f64;
         sum_b += b as f64;
+        if lumas.len() < sky_rows_end {
+            sky_r += r as f64;
+            sky_b += b as f64;
+        }
         let max = r.max(g).max(b);
         let min = r.min(g).min(b);
         sum_sat += if max > 1.0e-6 { ((max - min) / max) as f64 } else { 0.0 };
@@ -372,6 +381,7 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
         spread: p95 - p05,
         saturation: (sum_sat / n as f64) as f32,
         near_white: near_white as f32 / n,
+        sky_warmth: (sky_r / sky_b.max(1.0e-9)) as f32,
         local_contrast: (contrast_sum / contrast_count.max(1) as f64) as f32,
         band_separation,
     }
@@ -413,6 +423,8 @@ const OUTDOOR_DARK_TARGET: f32 = 0.08;
 /// D35: the sunward frame's recorded DEEP shade (< 0.07 linear) — 15.8 % on the record, against
 /// 1.8 % on the antisolar contact frame and 0.1 % on the reference frame. The floor sits under
 /// the recording with room for the grain, and the target is the recording itself.
+/// D37: the least warm sky band of any recorded golden-evening frame, with room for grain.
+const GOLDEN_SKY_WARMTH_FLOOR: f32 = 1.05;
 const SUNWARD_DEEP_FLOOR: f32 = 0.10;
 const SUNWARD_DEEP_TARGET: f32 = 0.15;
 /// The view that looks INTO the evening sun from the player's seat (`review_views.rs`, D35).
@@ -440,6 +452,37 @@ fn debt(view: &str, metric: &str, measured: f32, floor: f32, target: f32, wave: 
             target - measured
         );
     }
+}
+
+/// D37: the golden evening's sky is straw, not lavender — measured on the PHOTOGRAPH. The
+/// two-stop dome mixed a blue zenith and an orange horizon linearly and the played band came
+/// out (0.50, 0.44, 0.46): magenta-grey under an amber sun. Every recorded frame lit by the
+/// golden evening profile (selected by its data, not by name) must carry a sky band whose mean
+/// R exceeds its mean B — the top 15 % of rows, which on every chase frame is sky.
+#[test]
+fn the_golden_evening_sky_is_straw_not_lavender_on_the_record() {
+    let evening = renderer_api::SceneLighting::prokhorovka_golden_evening();
+    let mut judged = 0;
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            if view.vertical_fov_degrees.is_some()
+                || view.lighting.sky_band_rgb != evening.sky_band_rgb
+            {
+                continue;
+            }
+            let stats = frame_stats(&read_png(&golden_path(&view.name)));
+            assert!(
+                stats.sky_warmth >= GOLDEN_SKY_WARMTH_FLOOR,
+                "{}: the evening sky band reads lavender on the record (R/B {:.3} < {:.2})",
+                view.name,
+                stats.sky_warmth,
+                GOLDEN_SKY_WARMTH_FLOOR
+            );
+            judged += 1;
+        }
+    }
+    assert!(judged >= 4, "the golden evening must be on the record in at least four frames");
 }
 
 /// D35, the one program: the reference set looked +X with the sun at -X, so every cast shadow
@@ -803,9 +846,14 @@ fn the_measured_baseline_of_every_recorded_frame() {
 /// is a third quantity and does not answer to either number — the recorded evening frames run
 /// to 0.52 and are correct. What this locks is that no change makes the picture gaudy: the
 /// ceiling sits above the recorded worst with headroom, and moving it is a deliberate diff.
+///
+/// Moved 0.60 -> 0.63 on 2026-09-07 (D37): the golden evening's sky band went from lavender
+/// grey to straw and its key from 1.32 to a warm 1.72 (D34), and `prokhorovka_evening_contact`
+/// measured 0.563 -> 0.603 — the chroma is in the sky and the light, where rule 2 puts it; the
+/// ground swatches did not move.
 #[test]
 fn no_recorded_frame_runs_away_with_chroma() {
-    const CHROMA_CEILING: f32 = 0.60;
+    const CHROMA_CEILING: f32 = 0.63;
     for map in REVIEWED_MAPS {
         let battlefield = map_forge::battlefield(map);
         for view in review_views_for(map, &battlefield) {

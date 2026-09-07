@@ -179,6 +179,41 @@ fn clear_sky_looks_land_their_value_bands() {
     }
 }
 
+/// D37: the sky in the PLAYED band is a colour the profile writes, never the grey-magenta a
+/// linear mix of orange and blue falls into. On the golden evening the band is warm (R > G > B,
+/// R/B >= 1.5); on every outdoor look the band sits between its horizon and its zenith in
+/// luminance (a third stop, not a fourth plane), and its saturation never exceeds the more
+/// saturated of the two stops it sits between (no invented chroma in the mid-sky).
+#[test]
+fn the_played_sky_band_is_never_lavender() {
+    let evening = SceneLighting::prokhorovka_golden_evening();
+    let [r, g, b] = evening.sky_band_rgb;
+    assert!(
+        r > g && g > b,
+        "the golden evening's played band must be warm: {:?}",
+        evening.sky_band_rgb
+    );
+    assert!(r / b >= 1.5, "the golden evening's played band reads lavender: R/B {:.2}", r / b);
+    for (name, l) in outdoor_profiles() {
+        let band = luminance(l.sky_band_rgb);
+        let (lo, hi) = {
+            let h = luminance(l.sky_horizon_rgb);
+            let z = luminance(l.sky_zenith_rgb);
+            (h.min(z), h.max(z))
+        };
+        assert!(
+            (lo - 0.02..=hi + 0.02).contains(&band),
+            "{name}: the played band ({band:.3}) must sit between horizon and zenith ({lo:.3}..{hi:.3})"
+        );
+        let cap = saturation(l.sky_horizon_rgb).max(saturation(l.sky_zenith_rgb)) + 0.02;
+        assert!(
+            saturation(l.sky_band_rgb) <= cap,
+            "{name}: the played band invents chroma: {:.2} > {cap:.2}",
+            saturation(l.sky_band_rgb)
+        );
+    }
+}
+
 /// RULE 2 (saturation window): the ground plane is muted — the reference palette the terrain
 /// authors against stays under the ceiling. Chroma lives in the sky and the light, not in the
 /// dirt; grass is grey-green, never lawn-green.

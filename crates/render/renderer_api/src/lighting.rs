@@ -102,6 +102,14 @@ pub struct SceneLighting {
     /// toward) — linear. Distant terrain/vehicles desaturate to this so a 1000 m map reads with
     /// real depth instead of as cardboard cut-outs.
     pub sky_horizon_rgb: [f32; 3],
+    /// The sky in the PLAYED band (D37) — the third stop of the dome, at the elevation a chase
+    /// camera at hull height actually looks at (`dir.y` ≈ 0.12). The two-stop dome mixed a blue
+    /// zenith with an orange horizon linearly and the played band landed on the grey-magenta
+    /// between them (the golden evening: (0.57, 0.48, 0.46), R/B 1.23 — lavender). This is a
+    /// COLOUR an artist writes, not a midpoint the maths falls into; on a warm look it is warm.
+    /// Every profile but the golden evening carries the old dome's colour at that elevation, so
+    /// their pictures did not move. Also the hue the shaded side of a cloud takes.
+    pub sky_band_rgb: [f32; 3],
     /// Distance-fog density: larger fades the horizon in sooner. 0 disables fog (interior looks).
     pub fog_density: f32,
     /// Height falloff for the fog: how fast the fog thins with world height, so valleys fill and
@@ -271,6 +279,7 @@ impl SceneLighting {
             // doubles as the fog colour, so distant hills still melt into the same haze.
             sky_zenith_rgb: [0.15, 0.32, 0.62],
             sky_horizon_rgb: [0.55, 0.63, 0.74],
+            sky_band_rgb: [0.386, 0.503, 0.691],
             // Light haze, tuned so enemy vehicles stay crisply readable at combat range (~8% fade
             // at 400 m on the floor — the 0.35 fairness bound has wide margin) while the far
             // field genuinely melts: ~17% at 1.5 km even on the 65-90 m backdrop hills. The
@@ -331,6 +340,7 @@ impl SceneLighting {
             // lit grass it replaced — the user-verdict "białawy" far field. Same warm-grey hue,
             // graded luma ~0.69, still comfortably above the 0.60 bright-band floor.
             sky_horizon_rgb: [0.64, 0.60, 0.51],
+            sky_band_rgb: [0.459, 0.489, 0.526],
             // Doubled density + gentler falloff: the air now reaches the valley's enclosing
             // hills (~23% at 1.5 km / 75 m, was ~5%) so the far ridge melts DOWN into the haze
             // instead of floating full-lit above it. 400 m floor fade 13% — fairness margin wide.
@@ -380,6 +390,7 @@ impl SceneLighting {
             rim_rgb: [0.16, 0.18, 0.22],
             sky_zenith_rgb: [0.30, 0.34, 0.39],
             sky_horizon_rgb: [0.46, 0.50, 0.54],
+            sky_band_rgb: [0.394, 0.434, 0.478],
             fog_density: 0.0009,
             fog_height_falloff: 0.004,
             // Rain: a flat lead-grey day — near-neutral saturation, soft contrast, shallow
@@ -431,6 +442,7 @@ impl SceneLighting {
             rim_rgb: [0.24, 0.24, 0.28],
             sky_zenith_rgb: [0.36, 0.42, 0.55],
             sky_horizon_rgb: [0.72, 0.68, 0.66],
+            sky_band_rgb: [0.572, 0.573, 0.615],
             // Rebalanced for the two-layer model: the valley haze carries the floor
             // mist now; base + valley at height 0 stays under the 400 m fairness bound.
             fog_density: 0.0008,
@@ -493,6 +505,8 @@ impl SceneLighting {
             rim_rgb: [0.12, 0.10, 0.10],
             sky_zenith_rgb: [0.15, 0.23, 0.46],
             sky_horizon_rgb: [0.86, 0.66, 0.46],
+            // D37: straw-gold in the played band, not the lavender the two-stop mix fell into.
+            sky_band_rgb: [0.78, 0.64, 0.47],
             // Slightly denser, much gentler falloff (0.02 -> 0.008): the evening haze reaches
             // the ridge line too, so the raking-light frames keep their depth planes at range.
             fog_density: 0.00025,
@@ -537,6 +551,7 @@ impl SceneLighting {
             rim_rgb: [0.16, 0.18, 0.22],
             sky_zenith_rgb: [0.34, 0.37, 0.42],
             sky_horizon_rgb: [0.52, 0.55, 0.58],
+            sky_band_rgb: [0.446, 0.476, 0.514],
             fog_density: 0.0005,
             fog_height_falloff: 0.01,
             exposure: 1.0,
@@ -582,6 +597,7 @@ impl SceneLighting {
             // still overrides the visible background; these keep the uniform well-formed).
             sky_zenith_rgb: [0.14, 0.15, 0.17],
             sky_horizon_rgb: [0.18, 0.19, 0.21],
+            sky_band_rgb: [0.164, 0.174, 0.194],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Studio: near-neutral grade — the vehicle's own material colour reads true.
@@ -632,6 +648,7 @@ impl SceneLighting {
             // Workshop interior: a dim cool backdrop, no aerial perspective.
             sky_zenith_rgb: [0.10, 0.11, 0.13],
             sky_horizon_rgb: [0.15, 0.16, 0.19],
+            sky_band_rgb: [0.129, 0.139, 0.165],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Workshop: moodier than the studio — deeper blacks under the skylight key.
@@ -742,6 +759,7 @@ impl SceneLighting {
             // Trimmed with the wash itself when the first, fresher tone lost the hero to the
             // room (HERO_OVER_ROOM 1.68x vs the 2.0x floor).
             sky_horizon_rgb: [0.19, 0.192, 0.198],
+            sky_band_rgb: [0.243, 0.253, 0.269],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black

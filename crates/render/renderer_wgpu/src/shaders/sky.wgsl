@@ -87,11 +87,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let world = camera.inv_view_proj * vec4<f32>(input.ndc, 1.0, 1.0);
     let dir = normalize(world.xyz / world.w - camera.camera_pos);
 
-    // Zenith->horizon gradient by the ray's up fraction. A gentle power keeps the deeper zenith blue
-    // reaching down toward the eye line, so the dome is not one flat pale band; the paler haze still
-    // hugs the ground line where real aerial haze thickens.
+    // Three stops (D37): horizon -> the PLAYED band -> zenith. The old two-stop mix of an orange
+    // horizon and a blue zenith fell into the grey-magenta between them exactly where a chase
+    // camera looks (dir.y ~ 0.12), and every golden evening read as lavender. The band is a
+    // colour the profile writes (sky_band_rgb); the haze still hugs the ground line below it,
+    // and the deeper zenith blue is reached above it by a gentle power.
     let up = clamp(dir.y, 0.0, 1.0);
-    var color = mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, pow(up, 0.42));
+    var color = mix(camera.sky_horizon_rgb, camera.sky_band_rgb, smoothstep(0.0, 0.14, up));
+    color = mix(color, camera.sky_zenith_rgb, pow(smoothstep(0.14, 1.0, up), 0.6));
 
     let sun = normalize(camera.key_direction);
     let d = max(dot(dir, sun), 0.0);
@@ -158,7 +161,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // its clouds toward the shaded tone regardless of sun side — a storm face holds no warmth.
     let sun_side = clamp(dot(dir, sun) * 0.5 + 0.5, 0.0, 1.0);
     let cloud_lit = camera.key_rgb + camera.ambient_rgb * 0.5;
-    let cloud_shade = camera.ambient_rgb * 2.5 + vec3<f32>(0.15, 0.15, 0.15);
+    // The shaded side of a bank takes the PLAYED BAND's hue at the ambient's luminance (D37):
+    // the antisolar clouds of a golden evening used to be lit by the sky ambient alone and came
+    // out blue-grey against a straw sky. Luminance is untouched — a lid stays as bright as it
+    // was — only the hue follows the band, and only within 30 %.
+    let shade_luma_rgb = camera.ambient_rgb * 2.5 + vec3<f32>(0.15, 0.15, 0.15);
+    let band_luma = max(dot(camera.sky_band_rgb, vec3<f32>(0.2126, 0.7152, 0.0722)), 1.0e-3);
+    let band_tint = clamp(camera.sky_band_rgb / band_luma, vec3<f32>(0.7), vec3<f32>(1.3));
+    let cloud_shade = shade_luma_rgb * band_tint;
     var cloud_col = mix(cloud_shade, cloud_lit, sun_side);
     cloud_col = mix(cloud_col, cloud_shade * 0.8, clamp(front, 0.0, 1.0));
     color = mix(color, cloud_col, cloud * camera.cloud_params.z);

@@ -32,6 +32,8 @@ struct Camera {
     ssao_params: vec4<f32>,
     sky_zenith_rgb: vec3<f32>,
     sky_horizon_rgb: vec3<f32>,
+    // The played band's sky colour (D37): the dome's third stop, the shaded cloud's hue.
+    sky_band_rgb: vec3<f32>,
     // x = fog density (0 disables — interior looks), y = height falloff,
     // zw = inverse render-target size (screen-pixel -> UV for reduced-resolution screen targets).
     fog_params: vec4<f32>,
