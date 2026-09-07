@@ -262,6 +262,7 @@ fn river_center_coordinates_on_a_riverless_map_error_instead_of_panicking() {
         kind: terrain::StaticCoverKind::WoodenFence,
         at: [map_forge::blueprint::XCoord::RiverCenter, map_forge::blueprint::XCoord::Fixed(150.0)],
         half_extents_m: [1.0, 0.6, 1.0],
+        yaw_rad: 0.0,
     });
     let (map, report) = compile(&blueprint);
     let cover = map.static_cover.iter().find(|cover| cover.id == "adrift").expect("compiled");
@@ -408,6 +409,7 @@ fn playability_bites_walls_starvation_and_unnamed_crossings() {
         kind: terrain::StaticCoverKind::FarmBuilding,
         at: [XCoord::Fixed(x), XCoord::Fixed(z)],
         half_extents_m: half,
+        yaw_rad: 0.0,
     };
     walled.objects.push(wall("wall_n", 150.0, 130.0, [20.0, 3.0, 2.0]));
     walled.objects.push(wall("wall_s", 150.0, 170.0, [20.0, 3.0, 2.0]));
@@ -601,6 +603,7 @@ fn scenery_is_refused_when_it_leaves_the_map_or_grows_through_cover() {
         kind: StaticCoverKind::FarmBuilding,
         at: [XCoord::Fixed(150.0), XCoord::Fixed(200.0)],
         half_extents_m: [6.0, 4.0, 9.0],
+        yaw_rad: 0.0,
     });
     inside_cover.scenery.push(SceneryOp::Fixed {
         kind: SceneryKind::Oak,
@@ -632,6 +635,7 @@ fn a_gap_narrower_than_the_widest_hull_does_not_certify_a_route() {
         kind: terrain::StaticCoverKind::FarmBuilding,
         at: [XCoord::Fixed(x), XCoord::Fixed(z)],
         half_extents_m: half,
+        yaw_rad: 0.0,
     };
     walled.objects.push(wall("wall_n", 150.0, 130.0, [20.0, 3.0, 2.0]));
     walled.objects.push(wall("wall_s", 150.0, 170.0, [20.0, 3.0, 2.0]));

@@ -66,6 +66,39 @@ fn boom_collision_catches_obstacles_thinner_than_a_sampling_step() {
     assert!(frame.eye[2] > 8.0, "boom must stop on the tank side of the plate: {}", frame.eye[2]);
 }
 
+/// X1: the camera meets a turned box where it stands, not where its plan bounds do. A plate
+/// lying along Z beside the boom is turned a quarter across it and stops the boom; the plate
+/// that stood across the boom, turned the same quarter, lets it through.
+#[test]
+fn the_boom_meets_a_turned_plate_where_it_stands() {
+    let heightmap = HeightMap::flat(32, 32, 1.0, 0.0).expect("heightmap");
+    let subject = CameraSubject::from_snapshot(tank_snapshot([10.0, 0.0, 10.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let plate = |center: [f32; 3], half: [f32; 3], yaw_rad: f32| CameraObstacle {
+        yaw_rad,
+        ..CameraObstacle::aabb("plate", center, half)
+    };
+
+    // Along Z at x = 11, a metre beside the boom: unturned it never touches the boom.
+    let mut beside = BattleCameraEnvironment::with_terrain(&heightmap);
+    beside.add_obstacle(plate([11.0, 4.0, 8.0], [0.02, 3.0, 3.0], 0.0));
+    let untouched = camera.render_camera(&subject, &beside);
+    assert!(untouched.eye[2] < 8.0, "an unturned plate beside the boom: {}", untouched.eye[2]);
+
+    // The same plate turned a quarter now lies across x = 8..14 at z = 8 — and stops the boom.
+    let mut across = BattleCameraEnvironment::with_terrain(&heightmap);
+    across.add_obstacle(plate([11.0, 4.0, 8.0], [0.02, 3.0, 3.0], FRAC_PI_2));
+    let stopped = camera.render_camera(&subject, &across);
+    assert!(stopped.eye[2] > 8.0, "the turned plate stops the boom: {}", stopped.eye[2]);
+
+    // And the plate that stood across the boom, turned the same quarter, stands beside it.
+    let mut turned_away = BattleCameraEnvironment::with_terrain(&heightmap);
+    turned_away.add_obstacle(plate([11.0, 4.0, 8.0], [3.0, 3.0, 0.02], FRAC_PI_2));
+    let through = camera.render_camera(&subject, &turned_away);
+    assert!(through.eye[2] < 8.0, "its bounds would block, the box does not: {}", through.eye[2]);
+}
+
 #[test]
 fn boom_shortens_in_front_of_a_terrain_ridge_instead_of_seeing_through_it() {
     // Flat map with a 10 m ridge across z = 13..15; the tank sits at z = 24 looking +Z, so the

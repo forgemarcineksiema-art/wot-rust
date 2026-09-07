@@ -23,6 +23,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         kind: StaticCoverKind::FarmBuilding,
         center: [500.0, ground_y + 4.5, 500.0],
         half_extents_m: [6.5, 4.5, 11.0],
+        yaw_rad: 0.0,
     }];
     battlefield.scenery.clear();
 

@@ -497,6 +497,10 @@ pub enum ObjectSpec {
         kind: StaticCoverKind,
         at: [XCoord; 2],
         half_extents_m: [f32; 3],
+        /// X1: the box's rotation about +Y (radians); absent in every blueprint before
+        /// 2026-09-07, and then exactly the axis-aligned box it always was.
+        #[serde(default)]
+        yaw_rad: f32,
     },
     /// A mirrored town block grid: for each column x and row offset, a south/north pair of
     /// houses whose sizes alternate by grid parity — a town skyline, not a barracks.

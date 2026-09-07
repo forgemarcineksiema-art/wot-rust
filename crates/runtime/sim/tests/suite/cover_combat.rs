@@ -81,6 +81,7 @@ fn wall_at(x: f32) -> StaticCoverObject {
         kind: StaticCoverKind::FarmBuilding,
         center: [x, 1.5, 37.0],
         half_extents_m: [4.0, 2.5, 1.5],
+        yaw_rad: 0.0,
     }
 }
 
@@ -93,6 +94,7 @@ fn static_cover_stops_a_tank_driving_into_it() {
         kind: StaticCoverKind::FarmBuilding,
         center: [10.0, 1.5, 30.0],
         half_extents_m: [5.0, 2.5, 4.0],
+        yaw_rad: 0.0,
     };
 
     let mut state = SimulationState::new();

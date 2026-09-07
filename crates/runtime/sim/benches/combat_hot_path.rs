@@ -21,6 +21,7 @@ fn battle_cover() -> Vec<StaticCoverObject> {
             kind: StaticCoverKind::FarmBuilding,
             center: [60.0 + index as f32 * 55.0, 2.5, 160.0],
             half_extents_m: [8.0, 2.5, 5.0],
+            yaw_rad: 0.0,
         })
         .collect()
 }
@@ -39,6 +40,7 @@ fn urban_cover() -> Vec<StaticCoverObject> {
                 kind: StaticCoverKind::FarmBuilding,
                 center: [30.0 + column as f32 * 28.0, 4.0, 90.0 + row as f32 * 10.0],
                 half_extents_m: [8.0, 4.0, 3.5],
+                yaw_rad: 0.0,
             });
         }
     }

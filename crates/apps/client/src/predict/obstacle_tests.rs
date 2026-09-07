@@ -52,6 +52,7 @@ fn prediction_is_blocked_by_static_cover_like_the_server() {
         kind: StaticCoverKind::FarmBuilding,
         center: [10.0, 1.5, 30.0],
         half_extents_m: [5.0, 2.5, 4.0],
+        yaw_rad: 0.0,
     }];
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));

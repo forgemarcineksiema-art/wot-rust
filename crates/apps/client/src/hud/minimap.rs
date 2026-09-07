@@ -92,6 +92,8 @@ pub(crate) const PING_TTL_S: f32 = 6.0;
 pub struct MinimapBox {
     pub center_xz: [f32; 2],
     pub half_xz: [f32; 2],
+    /// X1: the box's yaw; a turned block is drawn turned.
+    pub yaw_rad: f32,
 }
 
 /// One hull on the map (H15): where, what class, which seat — the roster's identity, so a blip
@@ -209,6 +211,18 @@ pub(crate) fn push_minimap(vertices: &mut Vec<HudVertex>, model: &MinimapModel, 
     push_roads(vertices, model, aspect);
 
     for cover in &model.cover {
+        if cover.yaw_rad != 0.0 {
+            // X1: a turned block — its four corners, as two triangles.
+            let frame = terrain::CoverBox {
+                center: [cover.center_xz[0], 0.0, cover.center_xz[1]],
+                half: [cover.half_xz[0], 0.0, cover.half_xz[1]],
+                yaw_rad: cover.yaw_rad,
+            };
+            let c = frame.corners_xz().map(|xz| model.world_to_clip(xz, aspect));
+            push_tri(vertices, c[0], c[1], c[2], COVER);
+            push_tri(vertices, c[0], c[2], c[3], COVER);
+            continue;
+        }
         let lo = model.world_to_clip(
             [cover.center_xz[0] - cover.half_xz[0], cover.center_xz[1] - cover.half_xz[1]],
             aspect,
@@ -378,7 +392,11 @@ mod tests {
             relief: vec![0.5; RELIEF_RES * RELIEF_RES],
             water: vec![false; RELIEF_RES * RELIEF_RES],
             roads: vec![vec![[0.0, 500.0], [1000.0, 500.0]]],
-            cover: vec![MinimapBox { center_xz: [500.0, 500.0], half_xz: [30.0, 12.0] }],
+            cover: vec![MinimapBox {
+                center_xz: [500.0, 500.0],
+                half_xz: [30.0, 12.0],
+                yaw_rad: 0.0,
+            }],
             player_xz: [400.0, 300.0],
             player_heading_rad: 0.3,
             player_turret_yaw_rad: 1.1,

@@ -90,6 +90,10 @@ pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
         for value in cover.half_extents_m {
             f32_bits(&mut hash, value);
         }
+        // X1: a turned box changes the map; an unturned one keeps every golden as it was.
+        if cover.yaw_rad != 0.0 {
+            f32_bits(&mut hash, cover.yaw_rad);
+        }
     }
     for instance in &map.scenery {
         word(&mut hash, instance.kind as u64);

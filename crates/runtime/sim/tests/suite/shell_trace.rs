@@ -89,6 +89,7 @@ fn projectile_radius_catches_a_cover_edge_and_reports_the_real_surface() {
         kind: StaticCoverKind::FarmBuilding,
         center: [0.0, 1.0, 10.0],
         half_extents_m: [1.0, 1.0, 1.0],
+        yaw_rad: 0.0,
     }];
     let from = Vec3::new(1.05, 1.0, 0.0);
     let to = Vec3::new(1.05, 1.0, 20.0);

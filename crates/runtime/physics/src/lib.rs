@@ -20,7 +20,8 @@ pub use contact_impulse::{
 pub use controller_settings::hull_spring_for_spec;
 pub use controller_settings::{BeltDrive, TankControllerSettings};
 pub use cover::{
-    footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
+    footprint_blocked_by_cover, footprint_overlaps_cover_object, resolve_cover_collision,
+    resolve_cover_collision_with_velocity,
 };
 pub use engine::{EngineState, IDLE_RPM_NORM, SHIFT_UP_RPM_NORM, engine_state, engine_thrust_mps2};
 pub use hull_attitude::{

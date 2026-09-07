@@ -852,13 +852,8 @@ fn check_in_bounds(map: &BattlefieldMap, report: &mut MapReport) {
     let [w, d] = map.size_m;
     let inside = |x: f32, z: f32| x >= 0.0 && x <= w && z >= 0.0 && z <= d;
     for cover in &map.static_cover {
-        if !inside(
-            cover.center[0] - cover.half_extents_m[0],
-            cover.center[2] - cover.half_extents_m[2],
-        ) || !inside(
-            cover.center[0] + cover.half_extents_m[0],
-            cover.center[2] + cover.half_extents_m[2],
-        ) {
+        let [x0, z0, x1, z1] = terrain::CoverBox::of(cover).bounds_xz();
+        if !inside(x0, z0) || !inside(x1, z1) {
             report.push(
                 "in_bounds",
                 Severity::Error,
@@ -913,9 +908,18 @@ fn check_in_bounds(map: &BattlefieldMap, report: &mut MapReport) {
 
 /// Static cover boxes must not interpenetrate (a hull deserves to know which box it hit).
 fn check_cover_overlap(map: &BattlefieldMap, report: &mut MapReport) {
+    // X1: two boxes turned alike are compared in their shared frame; boxes turned apart by
+    // their plan bounds (conservative — a district turned as one has one yaw).
     let overlaps = |a: &StaticCoverObject, b: &StaticCoverObject| {
-        (a.center[0] - b.center[0]).abs() < a.half_extents_m[0] + b.half_extents_m[0]
-            && (a.center[2] - b.center[2]).abs() < a.half_extents_m[2] + b.half_extents_m[2]
+        if a.yaw_rad == b.yaw_rad {
+            let local = terrain::CoverBox::of(a).to_local(b.center);
+            local[0].abs() < a.half_extents_m[0] + b.half_extents_m[0]
+                && local[2].abs() < a.half_extents_m[2] + b.half_extents_m[2]
+        } else {
+            let [ax0, az0, ax1, az1] = terrain::CoverBox::of(a).bounds_xz();
+            let [bx0, bz0, bx1, bz1] = terrain::CoverBox::of(b).bounds_xz();
+            ax0 < bx1 && bx0 < ax1 && az0 < bz1 && bz0 < az1
+        }
     };
     for (i, a) in map.static_cover.iter().enumerate() {
         for b in &map.static_cover[i + 1..] {
@@ -937,8 +941,9 @@ fn check_spawns(map: &BattlefieldMap, report: &mut MapReport) {
     for zone in &map.spawn_zones {
         *team_counts.entry(zone.team).or_default() += 1;
         for cover in &map.static_cover {
-            let dx = (zone.center[0] - cover.center[0]).abs() - cover.half_extents_m[0];
-            let dz = (zone.center[2] - cover.center[2]).abs() - cover.half_extents_m[2];
+            let local = terrain::CoverBox::of(cover).to_local(zone.center);
+            let dx = local[0].abs() - cover.half_extents_m[0];
+            let dz = local[2].abs() - cover.half_extents_m[2];
             if dx.max(dz) < zone.radius_m {
                 report.push(
                     "spawns",
@@ -1093,8 +1098,7 @@ fn check_scenery(map: &BattlefieldMap, report: &mut MapReport) {
         if map.static_cover.iter().any(|c| {
             c.kind != StaticCoverKind::TreeTrunk
                 && !(is_tree && c.kind == StaticCoverKind::TreeLine)
-                && (x - c.center[0]).abs() < c.half_extents_m[0]
-                && (z - c.center[2]).abs() < c.half_extents_m[2]
+                && terrain::CoverBox::of(c).contains_xz(x, z, -1.0e-6)
         }) {
             report.push(
                 "scenery",
@@ -1273,19 +1277,27 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
         );
     }
 
-    let has_twin = |center: [f32; 3], half: Option<[f32; 3]>, others: &[StaticCoverObject]| {
-        let [tx, tz] = twin_of(center[0], center[2]);
-        others.iter().any(|other| {
-            (other.center[0] - tx).abs() < 1.0
-                && (other.center[2] - tz).abs() < 1.0
-                && half.is_none_or(|h| other.half_extents_m == h)
-        })
+    // X1: a twin turned by the same angle modulo a half turn is the same box mirrored.
+    let same_turn = |a: f32, b: f32| {
+        let d = (a - b).rem_euclid(std::f32::consts::PI);
+        d < 1.0e-3 || std::f32::consts::PI - d < 1.0e-3
     };
+    let has_twin =
+        |center: [f32; 3], half: Option<([f32; 3], f32)>, others: &[StaticCoverObject]| {
+            let [tx, tz] = twin_of(center[0], center[2]);
+            others.iter().any(|other| {
+                (other.center[0] - tx).abs() < 1.0
+                    && (other.center[2] - tz).abs() < 1.0
+                    && half.is_none_or(|(h, yaw)| {
+                        other.half_extents_m == h && same_turn(other.yaw_rad, yaw)
+                    })
+            })
+        };
     for cover in &map.static_cover {
         if symmetry.is_self_twin([cover.center[0], cover.center[2]], size_m, 1.0) {
             continue;
         }
-        if !has_twin(cover.center, Some(cover.half_extents_m), &map.static_cover) {
+        if !has_twin(cover.center, Some((cover.half_extents_m, cover.yaw_rad)), &map.static_cover) {
             report.push(
                 "symmetry",
                 Severity::Error,

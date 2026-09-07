@@ -483,8 +483,7 @@ fn cleared_cover_index(
     let p = instance.position;
     cover.iter().enumerate().position(|(index, object)| {
         cover_states.get(index).copied().unwrap_or(0) == 2
-            && (p[0] - object.center[0]).abs() <= object.half_extents_m[0]
-            && (p[2] - object.center[2]).abs() <= object.half_extents_m[2]
+            && terrain::CoverBox::of(object).contains_xz(p[0], p[2], 0.0)
     })
 }
 
@@ -593,8 +592,11 @@ pub fn hosted_scale(
     let mut scale = instance.scale;
     let hosts = cover.iter().filter(|object| {
         object.kind == terrain::StaticCoverKind::TreeLine
-            && (instance.position[0] - object.center[0]).abs() <= object.half_extents_m[0]
-            && (instance.position[2] - object.center[2]).abs() <= object.half_extents_m[2]
+            && terrain::CoverBox::of(object).contains_xz(
+                instance.position[0],
+                instance.position[2],
+                0.0,
+            )
     });
     let mut tip = None;
     for host in hosts {
@@ -952,6 +954,7 @@ mod tests {
             kind: terrain::StaticCoverKind::TreeTrunk,
             center: [0.0, 0.75, 0.0],
             half_extents_m: [0.5, 0.75, 0.5],
+            yaw_rad: 0.0,
         }];
         let eye = TreeEye::at(Vec3::new(0.0, 2.0, 25.0));
         let up_axis = |objects: &[RenderObject]| {
@@ -1502,6 +1505,7 @@ mod tests {
             kind: terrain::StaticCoverKind::TreeLine,
             center: [100.0, 5.0, 100.0],
             half_extents_m: [6.0, 3.0, 6.0],
+            yaw_rad: 0.0,
         }];
         let eye = Vec3::new(100.0, 3.0, 90.0);
         let mut state = TreeLodState::default();

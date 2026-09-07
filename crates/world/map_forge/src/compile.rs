@@ -190,7 +190,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
     let mut out = Vec::new();
     for object in &blueprint.objects {
         match object {
-            ObjectSpec::Cover { id, name, kind, at, half_extents_m } => {
+            ObjectSpec::Cover { id, name, kind, at, half_extents_m, yaw_rad } => {
                 out.push(grounded_cover(
                     heightmap,
                     id,
@@ -198,6 +198,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                     *kind,
                     resolve_x(*at, river, fallback),
                     *half_extents_m,
+                    *yaw_rad,
                 ));
             }
             ObjectSpec::TownGrid {
@@ -234,6 +235,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                             *kind,
                             at,
                             cell.half,
+                            0.0,
                         ));
                         if let Some(annex) = cell.annex {
                             // Behind the house — away from the axis — sharing its rear
@@ -257,6 +259,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                                 *kind,
                                 annex_at,
                                 annex.half,
+                                0.0,
                             ));
                         }
                     }
@@ -342,6 +345,7 @@ fn oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
                     instance.position[2],
                 ],
                 half_extents_m: [TRUNK_HALF_M * scale, half_height, TRUNK_HALF_M * scale],
+                yaw_rad: 0.0,
             }
         })
         .collect()

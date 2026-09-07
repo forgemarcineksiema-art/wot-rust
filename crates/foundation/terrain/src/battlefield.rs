@@ -456,12 +456,16 @@ pub fn opened_building_boxes(
     let floor = c[1] - h[1];
     let top = c[1] + h[1];
     let mut boxes = Vec::with_capacity(SEGMENT_SLOTS + 1);
+    // X1: every slab wears the box's yaw. An unturned box keeps the arithmetic it had, bit
+    // for bit; a turned one places its slabs in its own frame and turns them out.
+    let frame = crate::CoverBox::of(object);
     let slab = |id: String, center: [f32; 3], half: [f32; 3]| StaticCoverObject {
         id,
         name: object.name.clone(),
         kind: object.kind,
         center,
         half_extents_m: half,
+        yaw_rad: object.yaw_rad,
     };
     boxes.push(slab(
         format!("{}#roof", object.id),
@@ -480,11 +484,34 @@ pub fn opened_building_boxes(
             };
             let along = -run * 0.5 + seg * (s as f32 + 0.5);
             let y = floor + height * 0.5;
-            let (center, half) = match facade {
-                0 => ([c[0] + h[0] - t * 0.5, y, c[2] + along], [t * 0.5, height * 0.5, seg * 0.5]),
-                1 => ([c[0] - h[0] + t * 0.5, y, c[2] + along], [t * 0.5, height * 0.5, seg * 0.5]),
-                2 => ([c[0] + along, y, c[2] + h[2] - t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
-                _ => ([c[0] + along, y, c[2] - h[2] + t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
+            let (center, half) = if object.yaw_rad == 0.0 {
+                match facade {
+                    0 => (
+                        [c[0] + h[0] - t * 0.5, y, c[2] + along],
+                        [t * 0.5, height * 0.5, seg * 0.5],
+                    ),
+                    1 => (
+                        [c[0] - h[0] + t * 0.5, y, c[2] + along],
+                        [t * 0.5, height * 0.5, seg * 0.5],
+                    ),
+                    2 => (
+                        [c[0] + along, y, c[2] + h[2] - t * 0.5],
+                        [seg * 0.5, height * 0.5, t * 0.5],
+                    ),
+                    _ => (
+                        [c[0] + along, y, c[2] - h[2] + t * 0.5],
+                        [seg * 0.5, height * 0.5, t * 0.5],
+                    ),
+                }
+            } else {
+                let ly = y - c[1];
+                let (local, half) = match facade {
+                    0 => ([h[0] - t * 0.5, ly, along], [t * 0.5, height * 0.5, seg * 0.5]),
+                    1 => ([-h[0] + t * 0.5, ly, along], [t * 0.5, height * 0.5, seg * 0.5]),
+                    2 => ([along, ly, h[2] - t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
+                    _ => ([along, ly, -h[2] + t * 0.5], [seg * 0.5, height * 0.5, t * 0.5]),
+                };
+                (frame.to_world(local), half)
             };
             boxes.push(slab(format!("{}#f{facade}s{s}", object.id), center, half));
         }
@@ -545,6 +572,11 @@ pub struct StaticCoverObject {
     pub kind: StaticCoverKind,
     pub center: [f32; 3],
     pub half_extents_m: [f32; 3],
+    /// X1: the box's rotation about +Y, radians (`glam::Mat3::from_rotation_y`'s convention).
+    /// Zero for every box authored before 2026-09-07 — and then every reader's arithmetic is
+    /// what it was, bit for bit. Read the geometry through [`crate::CoverBox`].
+    #[serde(default)]
+    pub yaw_rad: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -694,6 +726,7 @@ mod born_phase_tests {
             kind: StaticCoverKind::FarmBuilding,
             center: [10.0, 2.0, -5.0],
             half_extents_m: [6.0, 2.0, 4.0],
+            yaw_rad: 0.0,
         };
         assert_eq!(wall_material(&barn), Some(WallMaterial::Timber));
         let slabs = opened_building_boxes(&barn, &packed);
@@ -728,6 +761,7 @@ mod born_phase_tests {
             kind,
             center: [0.0, 2.0, 0.0],
             half_extents_m: [4.0, 2.0, 3.0],
+            yaw_rad: 0.0,
         }
     }
 

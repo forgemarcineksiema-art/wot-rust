@@ -66,6 +66,7 @@ pub(crate) fn minimap_static_layers(battlefield: &terrain::BattlefieldMap) -> Mi
         .map(|c| MinimapBox {
             center_xz: [c.center[0], c.center[2]],
             half_xz: [c.half_extents_m[0], c.half_extents_m[2]],
+            yaw_rad: c.yaw_rad,
         })
         .collect();
     let relief_bake = bake_minimap_relief(battlefield);

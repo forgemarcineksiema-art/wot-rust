@@ -166,6 +166,30 @@ fn push_ground_ring(
 
 /// A wireframe AABB outline (12 thin edge boxes) — the selection highlight and the
 /// placement ghost. Reads as a surveyor's frame, not a game-engine gizmo.
+/// X1: the outline of a cover box, turned with it.
+pub fn cover_box_outline(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover_box: &terrain::CoverBox,
+    color: [f32; 3],
+) {
+    let start = vertices.len();
+    let center = Vec3::from_array(cover_box.center);
+    aabb_outline(vertices, indices, center, Vec3::from_array(cover_box.half), color);
+    if cover_box.is_axis_aligned() {
+        return;
+    }
+    for vertex in &mut vertices[start..] {
+        let local = [
+            vertex.position[0] - center.x,
+            vertex.position[1] - center.y,
+            vertex.position[2] - center.z,
+        ];
+        vertex.position = cover_box.to_world(local);
+        vertex.normal = terrain::rotate_y(vertex.normal, cover_box.yaw_rad);
+    }
+}
+
 pub fn aabb_outline(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,

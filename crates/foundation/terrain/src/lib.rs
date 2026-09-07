@@ -1,6 +1,7 @@
 mod battlefield;
 mod chunk;
 mod coordinates;
+mod cover_box;
 mod craters;
 mod flow;
 mod ground;
@@ -29,6 +30,7 @@ pub use battlefield::{
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
+pub use cover_box::{CoverBox, rotate_y};
 pub use craters::{
     COVER_SCAR_KIND_HIGH_EXPLOSIVE, COVER_SCAR_KIND_KINETIC, COVER_SCAR_RADIUS_STEP_M,
     CRATER_DEPTH_STEP_M, CRATER_INFLUENCE_FACTOR, CRATER_KIND_HIGH_EXPLOSIVE,

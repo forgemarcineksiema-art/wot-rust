@@ -176,20 +176,12 @@ fn cover_blocks_splash(cover: &[StaticCoverObject], burst: Vec3, hull: Vec3) -> 
     /// The fraction of the burst→hull segment that must lie inside a box to count as occluding.
     const THROUGH_EPS: f32 = 1.0e-3;
     cover.iter().any(|object| {
-        !game_core::math::segment_xz_disjoint(
-            burst,
-            hull,
-            object.center[0],
-            object.center[2],
-            object.half_extents_m[0],
-            object.half_extents_m[2],
-        ) && crate::spotting::segment_box_interval(
-            burst,
-            hull,
-            object.center,
-            object.half_extents_m,
-        )
-        .is_some_and(|(t0, t1)| t1 - t0 > THROUGH_EPS)
+        let cover_box = terrain::CoverBox::of(object);
+        let (burst, hull) = (burst.to_array(), hull.to_array());
+        !cover_box.xz_disjoint_from_segment(burst, hull, 0.0)
+            && cover_box
+                .segment_interval(burst, hull, 0.0)
+                .is_some_and(|(t0, t1)| t1 - t0 > THROUGH_EPS)
     })
 }
 
@@ -362,6 +354,7 @@ mod tests {
             kind: terrain::StaticCoverKind::StoneWall,
             center,
             half_extents_m: half,
+            yaw_rad: 0.0,
         }
     }
 

@@ -512,6 +512,7 @@ mod tests {
             kind: terrain::StaticCoverKind::FarmBuilding,
             center: [40.0, 0.985, 80.0],
             half_extents_m: [6.0, 0.985, 4.0],
+            yaw_rad: 0.0,
         };
         let sweep = |radius| {
             aim_point_with_sweep(

@@ -111,6 +111,7 @@ mod tests {
             kind: StaticCoverKind::FarmBuilding,
             center: [150.0, 5.0 + 4.0, 150.0],
             half_extents_m: [12.0, 4.0, 4.0],
+            yaw_rad: 0.0,
         };
         let (vertices, _) =
             viewshed_mesh(&heightmap, std::slice::from_ref(&barn), [150.0, 60.0], 400.0);

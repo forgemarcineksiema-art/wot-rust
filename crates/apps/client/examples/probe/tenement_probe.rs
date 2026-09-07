@@ -26,6 +26,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             kind: StaticCoverKind::FarmBuilding,
             center: [500.0, ground_y + 6.0, 500.0],
             half_extents_m: [4.6, 6.0, 6.0],
+            yaw_rad: 0.0,
         },
         StaticCoverObject {
             id: "tenement_probe_b".into(),
@@ -33,6 +34,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             kind: StaticCoverKind::FarmBuilding,
             center: [500.0, ground_y + 6.0, 516.0],
             half_extents_m: [4.6, 6.0, 6.0],
+            yaw_rad: 0.0,
         },
     ];
     battlefield.scenery.clear();

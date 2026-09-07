@@ -17,6 +17,7 @@ fn cover_box(center: [f32; 3], half_extents_m: [f32; 3]) -> StaticCoverObject {
         kind: StaticCoverKind::FarmBuilding,
         center,
         half_extents_m,
+        yaw_rad: 0.0,
     }
 }
 

@@ -17,6 +17,7 @@ fn cover_box(center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
         kind: StaticCoverKind::FarmBuilding,
         center,
         half_extents_m: half,
+        yaw_rad: 0.0,
     }
 }
 
@@ -35,6 +36,35 @@ fn pivot_for(seconds: f32, state: &mut TankKinematicState, obstacles: TankWorldO
             1.0 / 60.0,
         );
     }
+}
+
+/// X1: a turned wall blocks where it STANDS, not where its plan bounds do. A 24 m wall at
+/// 45°: a hull parked at the corner of the wall's axis-aligned bounds — clear of the turned
+/// box by metres — is not blocked; a hull on the wall's turned end is.
+#[test]
+fn a_yawed_wall_blocks_where_it_stands_not_where_its_bounds_do() {
+    use physics::footprint_blocked_by_cover;
+    let mut wall = cover_box([40.0, 1.5, 40.0], [1.0, 2.5, 12.0]);
+    wall.yaw_rad = std::f32::consts::FRAC_PI_4;
+    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20 };
+    let bounds = terrain::CoverBox::of(&wall).bounds_xz();
+    assert!(bounds[2] - 40.0 > 8.0, "the turned wall's bounds reach far: {bounds:?}");
+    // The bounds' corner (+x, -z): the turned wall runs along (+x, +z), so this corner is open.
+    let corner = Vec3::new(bounds[2] - 2.0, 0.0, bounds[1] + 2.0);
+    assert!(
+        !footprint_blocked_by_cover(corner, 0.0, footprint, std::slice::from_ref(&wall)),
+        "the bounds' corner is open ground"
+    );
+    // The wall's own end, 10 m down its run at 45°: (40 + 10 sin45, 40 + 10 cos45) — blocked.
+    let s = std::f32::consts::FRAC_PI_4.sin();
+    let on_wall = Vec3::new(40.0 + 10.0 * s, 0.0, 40.0 + 10.0 * s);
+    assert!(
+        footprint_blocked_by_cover(on_wall, 0.0, footprint, std::slice::from_ref(&wall)),
+        "the wall's end blocks"
+    );
+    // And the same hull at the same spots against the UNTURNED wall reads the other way round.
+    wall.yaw_rad = 0.0;
+    assert!(!footprint_blocked_by_cover(on_wall, 0.0, footprint, std::slice::from_ref(&wall)));
 }
 
 #[test]

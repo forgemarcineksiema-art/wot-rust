@@ -41,6 +41,9 @@ pub struct RubbleMound {
     pub base_y_m: f32,
     /// World height of the flat top.
     pub crest_y_m: f32,
+    /// X1: the footprint's yaw (the box's own); the talus runs in the box's frame.
+    #[serde(default)]
+    pub yaw_rad: f32,
 }
 
 impl RubbleMound {
@@ -70,6 +73,7 @@ impl RubbleMound {
             ],
             base_y_m,
             crest_y_m: base_y_m + height,
+            yaw_rad: object.yaw_rad,
         }
     }
 
@@ -79,8 +83,17 @@ impl RubbleMound {
     /// RECTANGLE means — so the surface is continuous: at the footprint edge the flank has run
     /// exactly back down to [`Self::base_y_m`], where the surrounding terrain takes over.
     pub fn height_at(&self, x_m: f32, z_m: f32) -> Option<f32> {
-        let dx = (x_m - self.center_xz_m[0]).abs();
-        let dz = (z_m - self.center_xz_m[1]).abs();
+        let (dx, dz) = if self.yaw_rad == 0.0 {
+            ((x_m - self.center_xz_m[0]).abs(), (z_m - self.center_xz_m[1]).abs())
+        } else {
+            let b = crate::CoverBox {
+                center: [self.center_xz_m[0], 0.0, self.center_xz_m[1]],
+                half: [self.footprint_half_m[0], 0.0, self.footprint_half_m[1]],
+                yaw_rad: self.yaw_rad,
+            };
+            let l = b.to_local([x_m, 0.0, z_m]);
+            (l[0].abs(), l[2].abs())
+        };
         if dx > self.footprint_half_m[0] || dz > self.footprint_half_m[1] {
             return None;
         }
@@ -137,6 +150,7 @@ mod tests {
             kind: StaticCoverKind::CityBuilding,
             center: [0.0, 5.5, 0.0],
             half_extents_m: [9.0, 5.5, 5.0],
+            yaw_rad: 0.0,
         }
     }
 
@@ -175,6 +189,7 @@ mod tests {
             kind: StaticCoverKind::FarmBuilding,
             center: [0.0, 3.0, 0.0],
             half_extents_m: [8.0, 3.0, 0.5],
+            yaw_rad: 0.0,
         };
         let mound = RubbleMound::from_cover(&wall);
         let height = mound.crest_y_m - mound.base_y_m;

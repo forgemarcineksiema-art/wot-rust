@@ -131,6 +131,7 @@ fn a_crag_seats_into_the_slope_it_stands_on() {
         terrain::StaticCoverKind::Crag,
         [50.0, 50.0],
         [5.0, 2.5, 3.0],
+        0.0,
     );
     let bottom = crag.center[1] - crag.half_extents_m[1];
     for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
@@ -148,6 +149,7 @@ fn a_crag_seats_into_the_slope_it_stands_on() {
         terrain::StaticCoverKind::FarmBuilding,
         [50.0, 50.0],
         [5.0, 2.5, 3.0],
+        0.0,
     );
     assert!((barn.center[1] - (20.0 + 2.5)).abs() < 1.0e-3);
 }

@@ -162,6 +162,7 @@ fn the_arrival_window_follows_the_arrival_angle_not_the_range() {
         kind: terrain::StaticCoverKind::FarmBuilding,
         center: [40.0, 1.0, 68.5],
         half_extents_m: [4.0, 1.5, 0.5],
+        yaw_rad: 0.0,
     };
 
     let feedback = reticle_feedback(query(
@@ -232,6 +233,7 @@ fn feedback_marks_static_cover_blocking_the_shell_path() {
         kind: terrain::StaticCoverKind::FarmBuilding,
         center: [40.0, 2.0, 75.0],
         half_extents_m: [4.0, 3.0, 2.0],
+        yaw_rad: 0.0,
     };
     let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
 

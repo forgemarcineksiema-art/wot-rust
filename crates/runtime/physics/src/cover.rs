@@ -102,10 +102,12 @@ fn circumradius(half_x: f32, half_z: f32) -> f32 {
     (half_x * half_x + half_z * half_z).sqrt()
 }
 
+/// The cover box as the SAT's obstacle (X1): its own yaw — the same rotation the hull's
+/// footprint wears — so a turned block collides where it stands, not where its bounds do.
 fn cover_obstacle(object: &StaticCoverObject) -> TankObstacle {
     TankObstacle::new(
         Vec3::new(object.center[0], object.center[1], object.center[2]),
-        0.0,
+        object.yaw_rad,
         TankFootprint {
             half_width_m: object.half_extents_m[0].max(0.01),
             half_length_m: object.half_extents_m[2].max(0.01),
@@ -139,6 +141,7 @@ mod broadphase_tests {
                     kind: StaticCoverKind::FarmBuilding,
                     center: [60.0 + column as f32 * 42.0, 4.0, 60.0 + row as f32 * 30.0],
                     half_extents_m: [8.0 + (row % 3) as f32, 4.0, 5.0 + (column % 2) as f32],
+                    yaw_rad: 0.0,
                 });
             }
         }
@@ -166,6 +169,7 @@ mod broadphase_tests {
             kind: StaticCoverKind::TreeLine,
             center: [40.0, 1.0, 40.0],
             half_extents_m: [10.0, 1.0, 0.6],
+            yaw_rad: 0.0,
         };
         let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.2 };
         let mut state = 0x51ce_d00du32;
