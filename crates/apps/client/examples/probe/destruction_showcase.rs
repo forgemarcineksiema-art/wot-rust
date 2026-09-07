@@ -55,9 +55,57 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // ---- Cover: a farm town before and after HE ----------------------------------------------
     cover_shots(&ctx, &target, &battlefield, width, height, &prefix)?;
 
+    // ---- Terrain: the ground after three HE rounds (T7) ---------------------------------------
+    crater_shots(&ctx, &target, &battlefield, width, height, &prefix)?;
+
     // ---- Vehicle destruction: damaged / wreck / turret pop-off -------------------------------
     vehicle_shots(&ctx, &target, &mut catalog, &battlefield, width, height, &prefix)?;
 
+    Ok(())
+}
+
+/// T7: the ground after three HE rounds, beside the farm — the scorched bowls, the spoil
+/// rings, the clods on the rims, all of it in the ground mesh itself.
+fn crater_shots(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    battlefield: &BattlefieldMap,
+    width: u32,
+    height: u32,
+    prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let building = battlefield
+        .static_cover
+        .iter()
+        .position(|cover| cover.kind == StaticCoverKind::FarmBuilding)
+        .expect("map has a farm building");
+    let center = Vec3::from_array(battlefield.static_cover[building].center);
+    let half = Vec3::from_array(battlefield.static_cover[building].half_extents_m);
+    let (cx, cz) = (center.x + half.x + 9.0, center.z + 2.0);
+    let mut cratered = battlefield.clone();
+    cratered.heightmap.set_craters(&[
+        terrain::CraterRecord::from_world(cx, cz, 2.4, 0.9, terrain::CRATER_KIND_HIGH_EXPLOSIVE),
+        terrain::CraterRecord::from_world(
+            cx + 6.5,
+            cz + 2.0,
+            1.6,
+            0.6,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        ),
+        terrain::CraterRecord::from_world(
+            cx - 4.0,
+            cz + 5.5,
+            1.1,
+            0.45,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        ),
+    ]);
+    let ground = cratered.heightmap.sample_height(cx, cz).unwrap_or(0.0);
+    let focus = Vec3::new(cx + 1.0, ground + 0.3, cz + 2.0);
+    let eye = [cx - 8.0, ground + 4.5, cz - 7.0];
+    let (verts, indices) = battlefield_scene_mesh(&cratered);
+    render_scene(ctx, target, &verts, &indices, focus, eye, focus.to_array(), width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_craters.png"))?;
     Ok(())
 }
 

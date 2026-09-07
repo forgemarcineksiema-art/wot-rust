@@ -1817,8 +1817,25 @@ fn terrain_scene_mesh_full(
             }
         }
     }
+    // T7: the crater patch carries the crater's MATERIAL — the scorched bowl, the spoil ring,
+    // the torn turf — in the vertex lane the ground pipeline lets win over the splat; and the
+    // clods lie in the patch as shards.
+    let make_crater_vertex = |wx: f32, wz: f32, y: f32, normal: Vec3| -> SceneVertex {
+        let mut vertex = make_vertex(wx, wz, y, normal);
+        if let Some((color, dominance, gloss)) = crater_material(heightmap.crater_records(), wx, wz)
+            && dominance > vertex.tint_weight
+        {
+            vertex.color = color;
+            vertex.tint_weight = dominance;
+            vertex.gloss = gloss;
+        }
+        vertex
+    };
     for &(x, z) in &cut {
-        append_crater_cell(&mut vertices, &mut indices, heightmap, x, z, &make_vertex);
+        append_crater_cell(&mut vertices, &mut indices, heightmap, x, z, &make_crater_vertex);
+    }
+    for record in heightmap.crater_records() {
+        append_crater_clods(&mut vertices, &mut indices, heightmap, record);
     }
     if let Some(beyond) = beyond {
         append_border_apron(&mut vertices, &mut indices, heightmap, beyond, &make_vertex);
@@ -1926,6 +1943,139 @@ fn append_border_apron(
                 indices.extend_from_slice(&[i00, i01, i10, i10, i01, i11]);
             }
         }
+    }
+}
+
+/// T7 (the owner, 2026-09-07: „zniszczony teren jest beznadziejny"): the crater's material,
+/// in the ground itself. The scorched bowl, the fresh subsoil thrown up around it and the
+/// turf torn at the ring's edge are colours the crater patch's vertices carry, winning over
+/// the splat by `tint_weight` (the lane the riverbed already uses); the stamps the FX pass
+/// drapes over a fresh crater fade in minutes — this stays as long as the hole does.
+const SCORCH: [f32; 3] = [0.10, 0.08, 0.06];
+const SPOIL: [f32; 3] = [0.34, 0.28, 0.19];
+const TORN_TURF: [f32; 3] = [0.21, 0.30, 0.14];
+/// The clods' earth: darker and damper than the spoil they were thrown out of.
+const CLOD: [f32; 3] = [0.26, 0.21, 0.14];
+/// A crater at least this wide throws six clods and more; a smaller one a couple.
+const CLOD_CRATER_RADIUS_M: f32 = 1.5;
+
+/// What the craters do to the ground's material at a point: the colour it takes, how far the
+/// vertex wins over the splat (0 = untouched) and its gloss — `None` beyond every influence.
+/// Inside the bowl the scorch, darkest at the centre and browning toward the lip; over the
+/// rim (the lip to one and a half radii, the same reach the deformation's spoil has) the
+/// fresh subsoil, fading out at the influence edge, torn turf mottling its outer half.
+pub fn crater_material(
+    records: &[terrain::CraterRecord],
+    wx: f32,
+    wz: f32,
+) -> Option<([f32; 3], f32, f32)> {
+    let lerp = |a: [f32; 3], b: [f32; 3], t: f32| {
+        Vec3::from_array(a).lerp(Vec3::from_array(b), t.clamp(0.0, 1.0)).to_array()
+    };
+    let mut best: Option<([f32; 3], f32, f32)> = None;
+    for record in records {
+        let dx = wx - record.x_m();
+        let dz = wz - record.z_m();
+        let r = record.radius_m().max(0.05);
+        let t = (dx * dx + dz * dz).sqrt() / r;
+        let sample = if t < 1.0 {
+            (lerp(SCORCH, SPOIL, t * t * 0.6), 0.7 - 0.2 * t, 0.02)
+        } else if t < terrain::CRATER_INFLUENCE_FACTOR {
+            let w = (t - 1.0) / (terrain::CRATER_INFLUENCE_FACTOR - 1.0);
+            let mottle = ((wx * 3.7).sin() * (wz * 5.3).cos() * 43_758.5).fract().abs();
+            let tear = ((w - 0.55) / 0.45).clamp(0.0, 1.0) * (0.5 + 0.5 * mottle);
+            let dominance = 0.5 * (1.0 - w).powf(0.7) + 0.25 * (std::f32::consts::PI * w).sin();
+            (lerp(SPOIL, TORN_TURF, tear), dominance, 0.04)
+        } else {
+            continue;
+        };
+        if best.is_none_or(|current| sample.1 > current.1) {
+            best = Some(sample);
+        }
+    }
+    best
+}
+
+/// One clod of a crater's spoil: where it lies, how big, which way it turned.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CraterClod {
+    pub position: Vec3,
+    pub scale: f32,
+    pub yaw_rad: f32,
+}
+
+/// The clods a crater throws (T7): lumps of soil around the rim, between the lip and the
+/// influence edge, sized to the crater — six and more on a crater past `CLOD_CRATER_RADIUS_M`,
+/// a couple on a small one — hashed from the record so the same crater always spills the
+/// same way. `ground` samples the surface height they lie on.
+pub fn crater_clods(
+    record: &terrain::CraterRecord,
+    ground: impl Fn(f32, f32) -> f32,
+) -> Vec<CraterClod> {
+    let r = record.radius_m();
+    let mut hash = 0x9E37_79B9_7F4A_7C15_u64
+        ^ (u64::from(record.x_q) << 32)
+        ^ (u64::from(record.z_q) << 8)
+        ^ u64::from(record.radius_q);
+    let mut next = move || {
+        hash ^= hash << 13;
+        hash ^= hash >> 7;
+        hash ^= hash << 17;
+        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let count = if r >= CLOD_CRATER_RADIUS_M {
+        6 + (next() * 4.99) as usize
+    } else {
+        2 + (next() * 2.99) as usize
+    };
+    (0..count)
+        .map(|index| {
+            let angle = (index as f32 + next() * 0.8) / count as f32 * std::f32::consts::TAU;
+            let dist = r * (1.05 + next() * 0.4);
+            let x = record.x_m() + dist * angle.cos();
+            let z = record.z_m() + dist * angle.sin();
+            let scale = (r * (0.10 + next() * 0.12)).clamp(0.12, 0.45);
+            CraterClod {
+                position: Vec3::new(x, ground(x, z), z),
+                scale,
+                yaw_rad: next() * std::f32::consts::TAU,
+            }
+        })
+        .collect()
+}
+
+/// Bake a crater's clods into the ground patch: frost-shard stones scaled to lumps of earth,
+/// half sunk, in the clods' own earth tone with the vertex winning outright over the splat.
+fn append_crater_clods(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    heightmap: &HeightMap,
+    record: &terrain::CraterRecord,
+) {
+    let [ex, ez] = heightmap.extent_m();
+    let ground =
+        |x: f32, z: f32| heightmap.sample_height(x.clamp(0.0, ex), z.clamp(0.0, ez)).unwrap_or(0.0);
+    for (index, clod) in crater_clods(record, ground).iter().enumerate() {
+        let seed = (u64::from(record.x_q) << 24) ^ (u64::from(record.z_q) << 4) ^ index as u64;
+        let rock = world_forge::rock::bake_rock(world_forge::rock::RockForm::Shard, seed);
+        let rotation = Mat3::from_rotation_y(clod.yaw_rad);
+        let start = vertices.len() as u32;
+        for vertex in rock.body.vertices() {
+            let position = clod.position + rotation * (vertex.position * clod.scale);
+            let normal = (rotation * vertex.normal).normalize_or_zero();
+            vertices.push(SceneVertex {
+                position: position.to_array(),
+                normal: normal.to_array(),
+                color: CLOD,
+                tint_weight: 1.0,
+                gloss: 0.03,
+                surface: 0.0,
+                sway: 0.0,
+                uv: [0.0, 0.0],
+                bounce: [0.0; 3],
+            });
+        }
+        indices.extend(rock.body.indices().iter().map(|i| i + start));
     }
 }
 
@@ -2150,6 +2300,11 @@ mod tests {
             if !used {
                 continue;
             }
+            // T7: a clod is a faceted shard — its flat faces share positions with different
+            // normals by design; the crease rule is the GROUND's.
+            if vertex.tint_weight == 1.0 && vertex.color == CLOD {
+                continue;
+            }
             let key = (
                 (vertex.position[0] * 1024.0).round() as i64,
                 (vertex.position[1] * 1024.0).round() as i64,
@@ -2210,6 +2365,10 @@ mod tests {
         let mut checked = 0;
         for (vertex, used) in vertices.iter().zip(&referenced) {
             if !used {
+                continue;
+            }
+            // T7: the clods on the rim are dressing standing ON the ground, not the surface.
+            if vertex.tint_weight == 1.0 && vertex.color == CLOD {
                 continue;
             }
             let [x, y, z] = vertex.position;
@@ -2355,6 +2514,71 @@ mod tests {
         let highest = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
         assert!(highest > 10.0 + crater.depth_m() * 0.15, "the rim shows: {highest}");
         assert_eq!(indices.len() % 3, 0);
+    }
+
+    /// T7: destroyed terrain is not a smooth bowl under a stamp. The crater patch carries its
+    /// material in the mesh — the scorched bowl (dark, the vertex winning over the splat), the
+    /// spoil ring out to half a radius past the lip (lighter fresh earth than the bowl), the
+    /// untouched ground beyond it untouched — and clods, shards baked into the patch, lie
+    /// around the rim: six and more on a crater past 1.5 m, a couple on a small one, the same
+    /// scatter for the same record. Virgin ground stays byte for byte (the twin lock below).
+    #[test]
+    fn a_crater_wears_scorch_and_spoil_in_the_mesh_and_spills_clods_on_its_rim() {
+        let mut flat = HeightMap::flat(64, 64, 5.0, 10.0).expect("flat map");
+        let crater = terrain::CraterRecord::from_world(
+            150.0,
+            150.0,
+            2.2,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        flat.set_craters(&[crater]);
+        let (vertices, _) = terrain_scene_mesh(&flat);
+        let r = crater.radius_m();
+        let dist = |v: &SceneVertex| {
+            ((v.position[0] - 150.0).powi(2) + (v.position[2] - 150.0).powi(2)).sqrt()
+        };
+        let luma = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        let ground: Vec<&SceneVertex> = vertices.iter().filter(|v| v.tint_weight < 1.0).collect();
+        let painted: Vec<&SceneVertex> =
+            ground.iter().copied().filter(|v| v.tint_weight > 0.25).collect();
+        assert!(!painted.is_empty(), "the crater paints the patch");
+        let reach = painted.iter().map(|v| dist(v)).fold(0.0f32, f32::max);
+        assert!(reach >= r * 1.5 - 0.7, "the spoil ring runs half a radius past the lip: {reach}");
+        let bowl: Vec<&SceneVertex> =
+            painted.iter().copied().filter(|v| dist(v) < r * 0.5).collect();
+        let rim: Vec<&SceneVertex> =
+            painted.iter().copied().filter(|v| dist(v) > r * 1.1 && dist(v) < r * 1.35).collect();
+        assert!(!bowl.is_empty() && !rim.is_empty());
+        let mean = |set: &[&SceneVertex]| {
+            set.iter().map(|v| luma(v.color)).sum::<f32>() / set.len() as f32
+        };
+        assert!(mean(&bowl) < 0.11, "the bowl is scorched: {}", mean(&bowl));
+        assert!(mean(&rim) > mean(&bowl) * 2.0, "the fresh earth outshines the bowl");
+        assert!(bowl.iter().all(|v| v.tint_weight >= 0.5), "the bowl wins over the splat");
+        assert!(
+            ground.iter().filter(|v| dist(v) > r * 1.5 + 0.7).all(|v| v.tint_weight == 0.0),
+            "beyond the influence the ground is untouched"
+        );
+
+        let clods = crater_clods(&crater, |_, _| 10.0);
+        assert!(clods.len() >= 6, "{} clods on a {r} m crater", clods.len());
+        for clod in &clods {
+            let d = ((clod.position.x - 150.0).powi(2) + (clod.position.z - 150.0).powi(2)).sqrt();
+            assert!(d >= r && d <= r * 1.5, "a clod lies on the rim: {d} of {r}");
+            assert!((0.12..=0.45).contains(&clod.scale), "a lump, not a boulder: {}", clod.scale);
+        }
+        assert_eq!(crater_clods(&crater, |_, _| 10.0), clods, "one record, one scatter");
+        let small = terrain::CraterRecord::from_world(
+            50.0,
+            50.0,
+            0.9,
+            0.3,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        assert!(crater_clods(&small, |_, _| 10.0).len() >= 2, "even a small crater spills");
+        let baked = vertices.iter().filter(|v| v.tint_weight == 1.0 && v.color == CLOD).count();
+        assert!(baked >= clods.len() * 4, "the clods are baked into the patch: {baked} vertices");
     }
 
     #[test]
