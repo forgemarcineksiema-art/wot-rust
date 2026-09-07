@@ -105,6 +105,65 @@ pub enum StaticCoverKind {
     StoneTower,
 }
 
+/// Destruction is its own AXIS (the one program's Z11, GDD §4 „bryły z masą i obiekty
+/// stanowe", §13.3, §13.4): what a thing DOES when it is hit or driven into, as data per kind,
+/// separate from what it looks like and what its numbers are. The class decides the phases and
+/// the choreography — `StaticCoverKind::is_crushable` and `leaves_rubble` are derived from it,
+/// the client's fall and collapse pick by it — while the kind keeps its look, its health and
+/// its rubble fraction. `Prop` names a class no kind wears yet (crates, carts): a knock-over
+/// state with a direction, no dynamics on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DestructionClass {
+    /// Never changes: a crag, a rail embankment, a mountain, a field boulder.
+    Immovable,
+    /// Stateful per wall segment (Z9): buildings and towers — four states a segment, the box
+    /// down to a rubble mound; a wreck is steel and slumps to its hull line the same way.
+    Stateful,
+    /// Opens clean, a door and never a mound: a garden wall under a shell or under thirty
+    /// tonnes at speed (Z12).
+    Breach,
+    /// Goes DOWN with a direction byte (Z8): a tree line, a bole, a lamppost, a sign.
+    Topple,
+    /// Flattens under a hull and vanishes: a fence, a bush.
+    Crush,
+    /// A knock-over state with a direction, no dynamics on the wire: crates, carts, signs.
+    Prop,
+    /// The ground itself: craters, furrows.
+    Terrain,
+}
+
+impl DestructionClass {
+    /// Every class, walked by the locks.
+    pub const ALL: [DestructionClass; 7] = [
+        DestructionClass::Immovable,
+        DestructionClass::Stateful,
+        DestructionClass::Breach,
+        DestructionClass::Topple,
+        DestructionClass::Crush,
+        DestructionClass::Prop,
+        DestructionClass::Terrain,
+    ];
+
+    /// Whether a hull driving into it can bring it down (Z12 says at what speed).
+    pub fn yields_to_a_hull(self) -> bool {
+        matches!(
+            self,
+            DestructionClass::Crush | DestructionClass::Breach | DestructionClass::Topple
+        )
+    }
+}
+
+/// Z12: a breach by ramming is MOMENTUM's — a brick garden wall opens under this much
+/// kilogram-metres per second (thirty-six tonnes at 5.6 m/s; a fifteen-tonne light never
+/// gets there under the cap).
+pub const BREACH_MOMENTUM_KG_MPS: f32 = 200_000.0;
+/// The floor and the cap of the speed a ramming breach needs.
+pub const BREACH_SPEED_FLOOR_MPS: f32 = 4.0;
+pub const BREACH_SPEED_CAP_MPS: f32 = 12.0;
+/// The speed a hull must carry to flatten a fence or a hedge, and to push over a mature bole.
+pub const CRUSH_SPEED_MPS: f32 = 2.5;
+pub const TOPPLE_BOLE_SPEED_MPS: f32 = 4.0;
+
 impl StaticCoverKind {
     /// Every kind of cover a map may place. Append-only: the compiled map blueprints store these.
     ///
@@ -151,31 +210,66 @@ impl StaticCoverKind {
         }
     }
 
+    /// What this kind DOES when hit or driven into (Z11): the class the phases and the
+    /// choreography follow. Data per kind; the look and the numbers stay the kind's.
+    pub fn destruction_class(self) -> DestructionClass {
+        match self {
+            StaticCoverKind::FarmBuilding
+            | StaticCoverKind::CityBuilding
+            | StaticCoverKind::StoneTower
+            // A shelled wreck keeps its hull as a mound (Inny Poziom Z3): steel, stateful.
+            | StaticCoverKind::Wreck => DestructionClass::Stateful,
+            StaticCoverKind::RailCover | StaticCoverKind::Crag => DestructionClass::Immovable,
+            StaticCoverKind::TreeLine | StaticCoverKind::TreeTrunk => DestructionClass::Topple,
+            StaticCoverKind::WoodenFence => DestructionClass::Crush,
+            StaticCoverKind::StoneWall => DestructionClass::Breach,
+        }
+    }
+
     /// A hull driving through at speed flattens it (hedgerows/tree lines, fences — and a
     /// brick garden wall under 30 t of tank). Buildings and rail embankments do not crush —
-    /// a shell has to bring them down.
+    /// a shell has to bring them down. Derived from the class (Z11).
     pub fn is_crushable(self) -> bool {
-        matches!(
-            self,
-            StaticCoverKind::TreeLine
-                | StaticCoverKind::TreeTrunk
-                | StaticCoverKind::WoodenFence
-                | StaticCoverKind::StoneWall
-        )
+        self.destruction_class().yields_to_a_hull()
+    }
+
+    /// Z12: the speed a hull of `mass_kg` must carry to bring this kind down by driving into
+    /// it — `None` when no hull can. A fence or a hedge goes under at a walk; a mature bole
+    /// wants a run at it; a brick garden wall opens under MOMENTUM (`BREACH_MOMENTUM_KG_MPS`),
+    /// so a heavy breaches it at a speed a light never reaches.
+    pub fn crush_speed_mps(self, mass_kg: f32) -> Option<f32> {
+        match self.destruction_class() {
+            DestructionClass::Crush => Some(CRUSH_SPEED_MPS),
+            DestructionClass::Topple => Some(if self == StaticCoverKind::TreeTrunk {
+                TOPPLE_BOLE_SPEED_MPS
+            } else {
+                CRUSH_SPEED_MPS
+            }),
+            DestructionClass::Breach => Some(
+                (BREACH_MOMENTUM_KG_MPS / mass_kg.max(1.0))
+                    .clamp(BREACH_SPEED_FLOOR_MPS, BREACH_SPEED_CAP_MPS),
+            ),
+            _ => None,
+        }
+    }
+
+    /// Z12: what the hull pays for bringing this kind down by driving into it. A nick for a
+    /// fence or a hedge; a bole dents the glacis; a brick wall costs real hit points — the
+    /// heavy that rebuilds the village pays for every wall.
+    pub fn crush_self_hp(self) -> u32 {
+        match self.destruction_class() {
+            DestructionClass::Breach => 60,
+            DestructionClass::Topple if self == StaticCoverKind::TreeTrunk => 25,
+            _ => 8,
+        }
     }
 
     /// When destroyed, a building slumps into a rubble mound that still blocks hulls; foliage
     /// simply vanishes. `true` = leaves a (lowered) blocking mound, `false` = goes fully clear.
     /// A StoneWall deliberately leaves NO mound: a breached wall is a door, not a speed bump.
+    /// Derived from the class (Z11): the stateful kinds leave their mound.
     pub fn leaves_rubble(self) -> bool {
-        matches!(
-            self,
-            StaticCoverKind::FarmBuilding
-                | StaticCoverKind::CityBuilding
-                | StaticCoverKind::StoneTower
-                // A shelled wreck keeps its hull as a mound (Inny Poziom Z3).
-                | StaticCoverKind::Wreck
-        )
+        self.destruction_class() == DestructionClass::Stateful
     }
 
     /// The fraction of its original height a rubble mound keeps: low enough that a turret-height
@@ -515,6 +609,57 @@ impl BattlefieldMap {
 #[cfg(test)]
 mod born_phase_tests {
     use super::*;
+
+    /// Z11: every kind names a class, and the class DECIDES the phases — what yields to a
+    /// hull, what leaves a mound, what never changes — while the numbers stay the kind's.
+    /// Z12: the speed a ramming needs is the class's and the mass's: a fence at a walk, a bole
+    /// at a run, a brick wall under momentum — the T-54 breaches it past 5.6 m/s, a light of
+    /// fifteen tonnes never under the cap; and the price is the class's.
+    #[test]
+    fn every_kind_names_a_destruction_class_and_the_class_decides_the_phases() {
+        for kind in StaticCoverKind::ALL {
+            let class = kind.destruction_class();
+            assert!(DestructionClass::ALL.contains(&class), "{kind:?} names a class");
+            assert_eq!(kind.is_crushable(), class.yields_to_a_hull(), "{kind:?}: a hull");
+            assert_eq!(kind.leaves_rubble(), class == DestructionClass::Stateful, "{kind:?}");
+            assert_eq!(
+                kind.max_health().is_none(),
+                class == DestructionClass::Immovable,
+                "{kind:?}: only the immovable has no health"
+            );
+            assert_eq!(kind.crush_speed_mps(36_000.0).is_some(), kind.is_crushable(), "{kind:?}");
+        }
+        for kind in crate::SceneryKind::ALL {
+            assert!(DestructionClass::ALL.contains(&kind.destruction_class()), "{kind:?}");
+        }
+        assert!(
+            DestructionClass::ALL.iter().any(|class| StaticCoverKind::ALL
+                .iter()
+                .all(|kind| kind.destruction_class() != *class)),
+            "a class no kind wears yet (Prop) stands in the table for the kinds to come"
+        );
+        let t54 = 36_000.0;
+        let wall = StaticCoverKind::StoneWall.crush_speed_mps(t54).expect("a wall breaches");
+        assert!(
+            wall > 2.0 && wall < 8.0,
+            "the T-54 breaches a garden wall between a crawl and a run: {wall}"
+        );
+        assert_eq!(
+            StaticCoverKind::StoneWall.crush_speed_mps(15_000.0),
+            Some(BREACH_SPEED_CAP_MPS)
+        );
+        assert_eq!(StaticCoverKind::WoodenFence.crush_speed_mps(t54), Some(CRUSH_SPEED_MPS));
+        assert_eq!(StaticCoverKind::TreeLine.crush_speed_mps(t54), Some(CRUSH_SPEED_MPS));
+        assert_eq!(StaticCoverKind::TreeTrunk.crush_speed_mps(t54), Some(TOPPLE_BOLE_SPEED_MPS));
+        assert_eq!(StaticCoverKind::CityBuilding.crush_speed_mps(t54), None);
+        assert!(
+            StaticCoverKind::StoneWall.crush_self_hp() > StaticCoverKind::TreeTrunk.crush_self_hp()
+        );
+        assert!(
+            StaticCoverKind::TreeTrunk.crush_self_hp()
+                > StaticCoverKind::WoodenFence.crush_self_hp()
+        );
+    }
 
     /// Z9: two bits per segment, a facade cut into ~4 m runs, and an opened building is a
     /// hollow of slabs — every slab inside the authored box, the ruined one sill-high, the

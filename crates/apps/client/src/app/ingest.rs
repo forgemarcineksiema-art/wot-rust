@@ -484,10 +484,9 @@ impl ClientApp {
                     // box — curtain and chunks now, the settle wave, the haze — and the audio
                     // hit sized the same way. One burst at the centre was eleven particles for
                     // an 18 m tenement.
-                    let is_tree = matches!(
-                        object.kind,
-                        terrain::StaticCoverKind::TreeLine | terrain::StaticCoverKind::TreeTrunk
-                    );
+                    // Z11: the class picks the choreography.
+                    let is_tree =
+                        object.kind.destruction_class() == terrain::DestructionClass::Topple;
                     if is_tree && phase == 2 {
                         // Z8: a tree does not vanish under masonry dust — it goes DOWN, along
                         // the heading the authority recorded, over `TOPPLE_DURATION_S`; the

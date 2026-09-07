@@ -267,7 +267,7 @@ pub fn battlefield_statics_bucket_mesh_dressed(
                 // along the run. A breached STONE WALL (PR-10) leaves its toppled course —
                 // knee-high, non-blocking, a door with bricks at its feet. Other kinds
                 // (fences, foliage mass) clear to nothing.
-                if matches!(cover.kind, StaticCoverKind::TreeLine | StaticCoverKind::TreeTrunk) {
+                if cover.kind.destruction_class() == terrain::DestructionClass::Topple {
                     // A felled hero oak leaves the same evidence a felled hedgerow does — a
                     // stump where it stood and its trunk lying beside it — sized to the box,
                     // which for a single bole is exactly one stump and one trunk.

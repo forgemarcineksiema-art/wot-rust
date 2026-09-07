@@ -91,6 +91,70 @@ fn a_hull_driving_through_a_hedgerow_flattens_it_and_takes_a_nick() {
     assert!(tank.position.z > 20.0, "and the hull drove on THROUGH where the hedge stood");
 }
 
+/// Z12 (§13.4 „drewno pada od taranu, cegła od kilku HE, kamień tylko od dużego HE", and the
+/// owner's ramming): a brick garden wall opens under thirty-six tonnes at SPEED, and the hull
+/// PAYS for it — real hit points, not a hedge's nick; at a crawl the same hull stops against
+/// the same wall and pays nothing. The threshold is momentum's (the class and the mass), not
+/// one number for every crushable thing.
+#[test]
+fn a_t54_at_speed_breaches_a_stone_wall_and_pays_but_at_a_crawl_it_stops() {
+    let terrain = flat_field();
+    let wall = [cover("yard_wall", StaticCoverKind::StoneWall, [0.0, 1.1, 60.0], [10.0, 1.1, 0.4])];
+    let step = FixedTimestep::from_hz(60);
+
+    // A run at it from sixty metres back: past 8 m/s when the glacis meets the brick.
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 0.0));
+    let full_hp = state.tank(tank).expect("tank").hit_points;
+    let mut speed_at_contact = 0.0f32;
+    for _ in 0..900 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &wall,
+        );
+        // The last speed read while the wall still stood and the glacis was closing on it.
+        let now = state.tank(tank).expect("tank");
+        if state.cover_states()[0].phase == CoverPhase::Intact && now.position.z > 50.0 {
+            speed_at_contact = now.velocity_mps.length();
+        }
+    }
+    assert!(speed_at_contact >= 8.0, "the run reached the wall at {speed_at_contact} m/s");
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "the wall is a door now");
+    let tank = state.tank(tank).expect("tank");
+    let paid = full_hp - tank.hit_points;
+    assert_eq!(paid, StaticCoverKind::StoneWall.crush_self_hp(), "the brick costs the hull");
+    assert!(paid > StaticCoverKind::WoodenFence.crush_self_hp(), "more than a fence's nick");
+    assert!(tank.position.z > 60.0, "and the hull drove on THROUGH the breach");
+
+    // A crawl: the same hull starting a metre short of the brick never gets past 2 m/s.
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.5));
+    let full_hp = state.tank(tank).expect("tank").hit_points;
+    let mut top_speed = 0.0f32;
+    for _ in 0..300 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &wall,
+        );
+        top_speed = top_speed.max(state.tank(tank).expect("tank").velocity_mps.length());
+    }
+    let needed = StaticCoverKind::StoneWall
+        .crush_speed_mps(TankSpec::t54_1951().mass_kg)
+        .expect("a wall breaches under momentum");
+    assert!(
+        top_speed > terrain::CRUSH_SPEED_MPS && top_speed < needed,
+        "a crawl past a hedge's speed and short of the brick's: {top_speed} m/s (the brick needs {needed})"
+    );
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Intact, "the wall stands");
+    let tank = state.tank(tank).expect("tank");
+    assert!(tank.position.z < 59.0, "the hull stopped against it: z {}", tank.position.z);
+    assert_eq!(tank.hit_points, full_hp, "and paid nothing");
+}
+
 /// The negative case the crush test needs, per the engineering rule on contact approximations:
 /// a hull that drives cleanly PAST a hedgerow must leave it standing.
 ///

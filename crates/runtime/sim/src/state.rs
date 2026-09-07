@@ -128,10 +128,9 @@ fn legacy_cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
     }
 }
 
-/// A hull must be moving at least this fast to flatten a hedgerow it drives into.
-const COVER_CRUSH_MIN_SPEED_MPS: f32 = 2.5;
-/// The nick a hull takes for bulldozing through cover — small, but not free.
-const COVER_CRUSH_SELF_HP: u32 = 8;
+/// The least any crushable kind asks of a hull's speed (`terrain::CRUSH_SPEED_MPS`): the
+/// cheapest gate before the per-kind, per-mass threshold (Z12, `crush_speed_mps`) is asked.
+const COVER_CRUSH_MIN_SPEED_MPS: f32 = terrain::CRUSH_SPEED_MPS;
 /// How far ALONG ITS TRAVEL the hull's footprint is carried forward when asking what it is about
 /// to flatten — the hedge goes over just before contact, so the same tick's movement drives
 /// through instead of being stopped by the (still-blocking) intact hedge and losing the speed the
@@ -391,7 +390,8 @@ impl SimulationState {
             let tanks = &mut self.tanks;
             let states = &mut self.cover_states;
             for tank in tanks.iter_mut() {
-                if tank.hit_points == 0 || tank.velocity_mps.length() < COVER_CRUSH_MIN_SPEED_MPS {
+                let speed = tank.velocity_mps.length();
+                if tank.hit_points == 0 || speed < COVER_CRUSH_MIN_SPEED_MPS {
                     continue;
                 }
                 // The hull's own oriented footprint, carried one approach-length along the
@@ -402,6 +402,14 @@ impl SimulationState {
                 let probe = tank.position + heading * COVER_CRUSH_APPROACH_M;
                 let footprint = TankFootprint::from_plan(tank.spec.hull_plan());
                 for (index, object) in cover.iter().enumerate() {
+                    // Z12: the class and the mass decide — a fence at a walk, a bole at a
+                    // run, a brick wall under momentum; and the price is the class's.
+                    let Some(needed) = object.kind.crush_speed_mps(tank.spec.mass_kg) else {
+                        continue;
+                    };
+                    if speed < needed {
+                        continue;
+                    }
                     if footprint_overlaps_cover_object(probe, tank.yaw_rad, footprint, object)
                         && crate::cover_damage::crush_cover(
                             states,
@@ -410,7 +418,8 @@ impl SimulationState {
                             heading.z.atan2(heading.x),
                         )
                     {
-                        tank.hit_points = tank.hit_points.saturating_sub(COVER_CRUSH_SELF_HP);
+                        tank.hit_points =
+                            tank.hit_points.saturating_sub(object.kind.crush_self_hp());
                     }
                 }
             }
