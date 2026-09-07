@@ -208,48 +208,55 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                 row_offsets_m,
                 wide_half_m,
                 narrow_half_m,
+                annex_share,
             } => {
                 // Immersja A2.2: a town is cast house by house, not stamped from two
-                // moulds on a checkerboard. Each cell picks its mould (wide / narrow /
-                // their blend) and jitters its extents — footprint ±10 %, height ±6 %
-                // (the height feeds the rubble-sightline gameplay band, so it moves
-                // less) — all seeded from the CANONICAL cell (column x, row offset),
-                // which both mirror twins share. The two halves therefore stay
-                // box-for-box identical: the variety is per house, the fairness per
+                // moulds on a checkerboard — see `town_grid_cells`, the one place the
+                // cells are decided (the editor counts them through it). The two halves
+                // stay box-for-box identical: the variety is per house, the fairness per
                 // pair, exactly like the scenery wave before it.
-                for (column, &x) in columns_x_m.iter().enumerate() {
-                    for (row, &row_offset) in row_offsets_m.iter().enumerate() {
-                        let pick = terrain::position_unit(x, row_offset, 0x7061);
-                        let base = if pick < 0.34 {
-                            *wide_half_m
-                        } else if pick < 0.67 {
-                            *narrow_half_m
-                        } else {
-                            [
-                                (wide_half_m[0] + narrow_half_m[0]) * 0.5,
-                                (wide_half_m[1] + narrow_half_m[1]) * 0.5,
-                                (wide_half_m[2] + narrow_half_m[2]) * 0.5,
-                            ]
-                        };
-                        let stretch = |axis: u64, lo: f32, hi: f32| {
-                            lo + terrain::position_unit(x, row_offset, axis) * (hi - lo)
-                        };
-                        let half = [
-                            base[0] * stretch(0x7062, 0.9, 1.1),
-                            base[1] * stretch(0x7063, 0.94, 1.06),
-                            base[2] * stretch(0x7064, 0.9, 1.1),
-                        ];
-                        let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
-                        let south = [x, axis_z - row_offset];
-                        let north = symmetry.twin(south, blueprint.grid.size_m);
-                        for (side, at) in [("south", south), ("north", north)] {
+                let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+                for cell in town_grid_cells(
+                    columns_x_m,
+                    row_offsets_m,
+                    *wide_half_m,
+                    *narrow_half_m,
+                    *annex_share,
+                ) {
+                    let (column, row) = (cell.column, cell.row);
+                    let south = [cell.x, axis_z - cell.row_offset];
+                    let north = symmetry.twin(south, blueprint.grid.size_m);
+                    for (side, at) in [("south", south), ("north", north)] {
+                        out.push(grounded_cover(
+                            heightmap,
+                            &format!("{id_prefix}_c{column}_r{row}_{side}"),
+                            &format!("{name_prefix} (column {column}, row {row}, {side})"),
+                            *kind,
+                            at,
+                            cell.half,
+                        ));
+                        if let Some(annex) = cell.annex {
+                            // Behind the house — away from the axis — sharing its rear
+                            // face, shifted toward one end: an L, not a T. The twin's
+                            // annex mirrors with it.
+                            let annex_south = [
+                                cell.x + annex.x_shift,
+                                axis_z - cell.row_offset - (cell.half[2] + annex.half[2]),
+                            ];
+                            let annex_at = if side == "south" {
+                                annex_south
+                            } else {
+                                symmetry.twin(annex_south, blueprint.grid.size_m)
+                            };
                             out.push(grounded_cover(
                                 heightmap,
-                                &format!("{id_prefix}_c{column}_r{row}_{side}"),
-                                &format!("{name_prefix} (column {column}, row {row}, {side})"),
+                                &format!("{id_prefix}_c{column}_r{row}_{side}_annex"),
+                                &format!(
+                                    "{name_prefix} (column {column}, row {row}, {side}, annex)"
+                                ),
                                 *kind,
-                                at,
-                                half,
+                                annex_at,
+                                annex.half,
                             ));
                         }
                     }
@@ -338,6 +345,94 @@ fn oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
             }
         })
         .collect()
+}
+
+/// One cell of a `TownGrid`: its house's box and, when the cell drew one, its annex (B6).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TownGridCell {
+    pub column: usize,
+    pub row: usize,
+    pub x: f32,
+    pub row_offset: f32,
+    pub half: [f32; 3],
+    pub annex: Option<TownGridAnnex>,
+}
+
+/// An annex behind a grid house: its box and its shift along the house toward one end.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TownGridAnnex {
+    pub half: [f32; 3],
+    pub x_shift: f32,
+}
+
+/// The cells of a `TownGrid`, decided ONCE here for the compiler and the editor alike.
+/// Each cell picks its mould (wide / narrow / their blend) and jitters its extents —
+/// footprint ±10 %, height ±6 % (the height feeds the rubble-sightline gameplay band, so it
+/// moves less) — and, for `annex_share` of the cells, grows an annex: 0.42 × 0.55 × 0.45 of
+/// the house (never under 1.8 × 1.5 × 1.8 m), shifted toward one end by up to 90 % of the
+/// room the house leaves. All seeded from the CANONICAL cell (column x, row offset), which
+/// both mirror twins share.
+pub fn town_grid_cells(
+    columns_x_m: &[f32],
+    row_offsets_m: &[f32],
+    wide_half_m: [f32; 3],
+    narrow_half_m: [f32; 3],
+    annex_share: f32,
+) -> Vec<TownGridCell> {
+    let mut cells = Vec::with_capacity(columns_x_m.len() * row_offsets_m.len());
+    for (column, &x) in columns_x_m.iter().enumerate() {
+        for (row, &row_offset) in row_offsets_m.iter().enumerate() {
+            let pick = terrain::position_unit(x, row_offset, 0x7061);
+            let base = if pick < 0.34 {
+                wide_half_m
+            } else if pick < 0.67 {
+                narrow_half_m
+            } else {
+                [
+                    (wide_half_m[0] + narrow_half_m[0]) * 0.5,
+                    (wide_half_m[1] + narrow_half_m[1]) * 0.5,
+                    (wide_half_m[2] + narrow_half_m[2]) * 0.5,
+                ]
+            };
+            let stretch = |axis: u64, lo: f32, hi: f32| {
+                lo + terrain::position_unit(x, row_offset, axis) * (hi - lo)
+            };
+            let half = [
+                base[0] * stretch(0x7062, 0.9, 1.1),
+                base[1] * stretch(0x7063, 0.94, 1.06),
+                base[2] * stretch(0x7064, 0.9, 1.1),
+            ];
+            let annex = if terrain::position_unit(x, row_offset, 0x7065) < annex_share {
+                let annex_half = [
+                    (half[0] * 0.42).max(1.8),
+                    (half[1] * 0.55).max(1.5),
+                    (half[2] * 0.45).max(1.8),
+                ];
+                let room = (half[0] - annex_half[0]).max(0.0);
+                let x_shift = room * 0.9 * (stretch(0x7066, 0.0, 2.0) - 1.0);
+                Some(TownGridAnnex { half: annex_half, x_shift })
+            } else {
+                None
+            };
+            cells.push(TownGridCell { column, row, x, row_offset, half, annex });
+        }
+    }
+    cells
+}
+
+/// How many cover boxes a `TownGrid` emits: a south/north pair per cell, plus a pair of
+/// annexes for the cells that drew one.
+pub fn town_grid_member_count(
+    columns_x_m: &[f32],
+    row_offsets_m: &[f32],
+    wide_half_m: [f32; 3],
+    narrow_half_m: [f32; 3],
+    annex_share: f32,
+) -> usize {
+    town_grid_cells(columns_x_m, row_offsets_m, wide_half_m, narrow_half_m, annex_share)
+        .iter()
+        .map(|cell| 2 + if cell.annex.is_some() { 2 } else { 0 })
+        .sum()
 }
 
 fn expand_scenery(

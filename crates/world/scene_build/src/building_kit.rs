@@ -16,7 +16,7 @@ use glam::{Mat4, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject, SceneVertex};
 use world_forge::WorldMaterial;
 use world_forge::building_kit::{
-    BuildingPlan, Cladding, KitPart, Placement, TintLane, plan_building, plan_ruin,
+    BuildingPlan, Cladding, KitPart, Placement, TintLane, plan_building_with, plan_ruin,
 };
 
 /// The base of the kit's mesh-handle block. Below the tree ladder's block and the shadowless
@@ -129,6 +129,15 @@ pub fn kit_plan_for_cover_salted(
     cover: &terrain::StaticCoverObject,
     salt: u64,
 ) -> Option<BuildingPlan> {
+    kit_plan_for_cover_blind(cover, salt, [false; 4])
+}
+
+/// [`kit_plan_for_cover_salted`] with the party walls the map gives this box (B6).
+pub fn kit_plan_for_cover_blind(
+    cover: &terrain::StaticCoverObject,
+    salt: u64,
+    blind: [bool; 4],
+) -> Option<BuildingPlan> {
     if !matches!(
         cover.kind,
         terrain::StaticCoverKind::FarmBuilding | terrain::StaticCoverKind::CityBuilding
@@ -137,11 +146,47 @@ pub fn kit_plan_for_cover_salted(
     }
     let half = Vec3::from_array(cover.half_extents_m);
     let style = crate::battlefield::derived_building_style(&cover.id, half);
-    plan_building(
+    plan_building_with(
         style,
         cover_seed(&cover.id).wrapping_add(salt.wrapping_mul(0x9E37_79B9_7F4A_7C15)),
         half,
+        blind,
     )
+}
+
+/// Which facades of `cover` (+X, −X, +Z, −Z) touch another dwelling's box — a party wall
+/// (B6): the two boxes share the plane within 6 cm and overlap along it by a metre.
+pub fn party_walls(
+    cover: &terrain::StaticCoverObject,
+    all: &[terrain::StaticCoverObject],
+) -> [bool; 4] {
+    let dwelling = |c: &terrain::StaticCoverObject| {
+        matches!(
+            c.kind,
+            terrain::StaticCoverKind::FarmBuilding | terrain::StaticCoverKind::CityBuilding
+        )
+    };
+    let mut blind = [false; 4];
+    if !dwelling(cover) {
+        return blind;
+    }
+    let c = Vec3::from_array(cover.center);
+    let h = Vec3::from_array(cover.half_extents_m);
+    for other in all.iter().filter(|o| dwelling(o) && o.id != cover.id) {
+        let oc = Vec3::from_array(other.center);
+        let oh = Vec3::from_array(other.half_extents_m);
+        let dx = oc.x - c.x;
+        let dz = oc.z - c.z;
+        let along_z_overlap = (h.z + oh.z) - dz.abs() >= 1.0;
+        let along_x_overlap = (h.x + oh.x) - dx.abs() >= 1.0;
+        if (dx.abs() - (h.x + oh.x)).abs() <= 0.06 && along_z_overlap {
+            blind[if dx > 0.0 { 0 } else { 1 }] = true;
+        }
+        if (dz.abs() - (h.z + oh.z)).abs() <= 0.06 && along_x_overlap {
+            blind[if dz > 0.0 { 2 } else { 3 }] = true;
+        }
+    }
+    blind
 }
 
 /// The grid cell a `TownGrid` id names — (column, row, south side) — or `None` for an
@@ -205,7 +250,8 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
         .iter()
         .enumerate()
         .filter_map(|(index, cover)| {
-            let mut plan = kit_plan_for_cover(cover)?;
+            let blind = party_walls(cover, &battlefield.static_cover);
+            let mut plan = kit_plan_for_cover_blind(cover, 0, blind)?;
             if let Some(cell) = grid_cell(&cover.id) {
                 let neighbours = [
                     (cell.0 - 1, cell.1, cell.2),
@@ -217,7 +263,7 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
                 while neighbours.iter().any(|n| planned.get(n) == Some(&plan.signature))
                     && salt <= 6
                 {
-                    if let Some(rerolled) = kit_plan_for_cover_salted(cover, salt) {
+                    if let Some(rerolled) = kit_plan_for_cover_blind(cover, salt, blind) {
                         plan = rerolled;
                     }
                     salt += 1;
@@ -297,7 +343,7 @@ pub fn kit_object_count(objects: &[RenderObject]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use world_forge::building_kit::{SCENERY_REACH_M, Signature};
+    use world_forge::building_kit::{SCENERY_REACH_M, Signature, plan_building};
 
     const SHIPPED: [terrain::MapId; 4] = [
         terrain::MapId::ProkhorovkaHill252_2,
@@ -390,6 +436,15 @@ mod tests {
             // B1: the roofs' MASSING varies too — a street of gables is a street of one roof.
             let forms: std::collections::HashSet<_> = grid.iter().map(|(_, _, s)| s.roof).collect();
             assert!(forms.len() >= 2, "{map:?}: roof forms {forms:?}");
+            // B6: a street is not detached rectangles — a fifth of the grid houses at least
+            // are L-shapes with an annex behind (data: the grid's `annex_share`), and every
+            // such pair shares a blind party wall.
+            let attached = grid.iter().filter(|(_, _, s)| s.attached).count();
+            assert!(
+                attached * 5 >= grid.len(),
+                "{map:?}: {attached} attached houses of {}",
+                grid.len()
+            );
             // B4: a street is not one cladding either — brick among the plaster.
             let brick = grid.iter().filter(|(_, _, s)| s.cladding == Cladding::Brick).count();
             assert!(

@@ -805,6 +805,9 @@ pub struct Signature {
     /// Dormers per main slope.
     pub dormers: u8,
     pub cladding: Cladding,
+    /// B6: at least one facade is a party wall — this house touches another box (an annex,
+    /// a terrace neighbour) and its plan keeps that facade blind.
+    pub attached: bool,
     /// The ridge runs across the box's long axis (a near-square box's coin).
     pub ridge_across: bool,
     pub width: BayWidth,
@@ -930,6 +933,18 @@ struct Fit {
 /// origin, the floor at `−half.y`), seeded by the building's id. `None` when the style is a
 /// landmark or the box cannot carry a kit plan (the authored bake stands in then).
 pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<BuildingPlan> {
+    plan_building_with(style, seed, half, [false; 4])
+}
+
+/// [`plan_building`] with PARTY WALLS (B6): `blind[i]` names a facade (in `facades` order:
+/// +X, −X, +Z, −Z) that touches another building's box — it keeps its plain wall per storey
+/// and takes no bays, no eave and no downpipes, and the street moves to the facade across.
+pub fn plan_building_with(
+    style: BuildingStyle,
+    seed: u64,
+    half: Vec3,
+    blind: [bool; 4],
+) -> Option<BuildingPlan> {
     let family = kit_family(style)?;
     let mut rng = Rng(seed ^ 0x6b69_745f_6233_2e31);
     let height = half.y * 2.0;
@@ -1018,6 +1033,7 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
         roof,
         dormers,
         cladding,
+        attached: blind.iter().any(|b| *b),
         ridge_across,
         width,
         ground,
@@ -1031,7 +1047,10 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
     let faces = facades(half);
     // The street facade: the first eaves facade (the one whose normal is perpendicular to
     // the ridge); the door and the shops live there.
-    let street = if ridge_along_x { 2 } else { 0 };
+    let mut street = if ridge_along_x { 2 } else { 0 };
+    if blind[street] {
+        street ^= 1;
+    }
     let door_bay_seed = rng.next();
     let door_side_seed = rng.next();
     for (index, facade) in faces.iter().enumerate() {
@@ -1046,8 +1065,8 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
             Vec3::new(1.0, FOOTING_HEIGHT_M / 0.12, run + 0.24),
         ));
         placements.push(facade.place(half, KitPart::Plinth, 0.0, 0.0, Vec3::new(1.0, plinth, run)));
-        // Bays per storey.
-        let pierced = if style == BuildingStyle::Barn {
+        // Bays per storey; a party wall (B6) is blind.
+        let pierced = if style == BuildingStyle::Barn || blind[index] {
             0
         } else {
             ((run - 2.0 * CORNER_FILLER_M) / bay_m).floor().max(0.0) as usize
@@ -1099,7 +1118,7 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
                 Vec3::new(1.0, fit.knee_m, run),
             ));
         }
-        if style == BuildingStyle::Barn && index == street {
+        if style == BuildingStyle::Barn && index == street && !blind[index] {
             // The portal replaces the middle of the ground leaf: a pierced bay over the
             // plain one (the plain leaf behind it is the barn's own wall).
             let side = if door_side_seed.is_multiple_of(2) { -1.0 } else { 1.0 };
@@ -1121,9 +1140,9 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
                 eaves_m,
                 Vec3::new(1.0, span, span),
             ));
-        } else {
+        } else if !blind[index] {
             // An eave on every facade the roof runs down to: the eaves facades of a gable,
-            // all four of a hip or a pyramid.
+            // all four of a hip or a pyramid — none over a party wall.
             placements.push(facade.place(
                 half,
                 KitPart::Eave,
@@ -1133,7 +1152,7 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
             ));
         }
         // Downpipes (B1) at the corners of the eaves facades of a dwelling.
-        if !is_gable && style != BuildingStyle::Barn {
+        if !is_gable && style != BuildingStyle::Barn && !blind[index] {
             for end in [-1.0, 1.0] {
                 placements.push(facade.place(
                     half,
@@ -1620,6 +1639,49 @@ mod tests {
                 assert!(ruin.iter().any(|p| p.part == KitPart::Slab), "{style:?}: a floor slab");
             }
         }
+    }
+
+    /// B6: a party wall is blind — no bays, no eave, no downpipes on the facade that touches
+    /// another box — and the street moves across; the plan stays inside its box.
+    #[test]
+    fn a_party_wall_is_blind_and_the_street_moves_across() {
+        let half = Vec3::new(6.5, 3.6, 4.0);
+        let open = plan_building(BuildingStyle::Townhouse, 4, half).expect("plan");
+        let blind =
+            plan_building_with(BuildingStyle::Townhouse, 4, half, [false, false, true, false])
+                .expect("plan");
+        assert!(blind.signature.attached && !open.signature.attached);
+        let on_face = |plan: &BuildingPlan, outward: Vec3| {
+            plan.placements
+                .iter()
+                .filter(|p| {
+                    let (_, rotation, _) = p.transform.to_scale_rotation_translation();
+                    (rotation * Vec3::X - outward).length() < 1e-3
+                })
+                .filter(|p| {
+                    matches!(
+                        p.part,
+                        KitPart::WindowBay { .. }
+                            | KitPart::DoorBay { .. }
+                            | KitPart::ShopBay { .. }
+                            | KitPart::Eave
+                            | KitPart::Downpipe
+                    )
+                })
+                .count()
+        };
+        assert_eq!(on_face(&blind, Vec3::Z), 0, "the party wall is blind");
+        assert!(on_face(&open, Vec3::Z) > 0, "the open plan pierces that facade");
+        assert!(
+            blind.placements.iter().any(|p| matches!(p.part, KitPart::DoorBay { .. })),
+            "the door moved to the facade across"
+        );
+        let reach = plan_reach_past_box(&blind, half);
+        assert!(
+            reach.x <= SCENERY_REACH_M + 1e-3
+                && reach.z <= SCENERY_REACH_M + 1e-3
+                && reach.y <= 1e-3
+        );
     }
 
     /// The landmarks stay on the authored bake.

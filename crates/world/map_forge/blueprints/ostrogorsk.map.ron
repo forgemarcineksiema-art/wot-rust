@@ -607,6 +607,8 @@ MapBlueprint(
             ],
             wide_half_m: (8.0, 5.5, 5.5),
             narrow_half_m: (6.5, 5.5, 5.0),
+            // B6: a third of the tenements carry an annex — an oficyna behind the block.
+            annex_share: 0.35,
         ),
     ],
     scenery: [

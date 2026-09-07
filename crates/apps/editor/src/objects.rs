@@ -231,9 +231,20 @@ fn classify_cover(blueprint: &MapBlueprint, cover_index: usize, id: &str) -> Sel
     for (object_index, object) in blueprint.objects.iter().enumerate() {
         let count = match object {
             ObjectSpec::Cover { .. } => 1,
-            ObjectSpec::TownGrid { columns_x_m, row_offsets_m, .. } => {
-                columns_x_m.len() * row_offsets_m.len() * 2
-            }
+            ObjectSpec::TownGrid {
+                columns_x_m,
+                row_offsets_m,
+                wide_half_m,
+                narrow_half_m,
+                annex_share,
+                ..
+            } => map_forge::town_grid_member_count(
+                columns_x_m,
+                row_offsets_m,
+                *wide_half_m,
+                *narrow_half_m,
+                *annex_share,
+            ),
         };
         if cover_index < emitted + count {
             return match object {
