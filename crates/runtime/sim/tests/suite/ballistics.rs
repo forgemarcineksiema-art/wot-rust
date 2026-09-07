@@ -32,7 +32,7 @@ fn the_br412_flies_one_thousand_metres_by_the_numbers() {
         step,
         &terrain,
     );
-    let shell = state.shells().first().expect("a shell was fired").clone();
+    let shell = *state.shells().first().expect("a shell was fired");
     assert_eq!(shell.shell.round, Some(game_core::RoundId::Br412), "the D-10T's stock round");
     let spec = shell.shell;
     // The departure line: the fire tick already integrated one step (drag, then gravity, then
