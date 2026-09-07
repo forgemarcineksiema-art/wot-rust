@@ -192,6 +192,19 @@ impl Pitch {
     }
 }
 
+/// What a dwelling's walls are clad in (B4): the surface role its wall vertices take.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Cladding {
+    /// Rendered and limewashed.
+    Plaster,
+    /// Exposed running-bond brick.
+    Brick,
+}
+
+impl Cladding {
+    pub const ALL: [Cladding; 2] = [Cladding::Plaster, Cladding::Brick];
+}
+
 /// What the ground floor of the street facade carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GroundKind {
@@ -622,6 +635,53 @@ fn pierced_bay(v: &mut Vec<vehicle_geometry::GeometryVertex>, i: &mut Vec<u32>, 
             WorldMaterial::Wall,
         );
     }
+    // The REVEALS (B4): the faces lining the opening — the jambs looking in, the head
+    // looking down, the sill looking up — carry baked shade, so a window reads as a hole
+    // with depth at forty metres instead of a painted rectangle.
+    let reveal = |v: &mut Vec<vehicle_geometry::GeometryVertex>,
+                  i: &mut Vec<u32>,
+                  corners: [Vec3; 4],
+                  normal: Vec3| {
+        push_face_shaded(v, i, corners, normal, WorldMaterial::Wall, REVEAL_SHADE);
+    };
+    for side in [-1.0, 1.0] {
+        let z = side * ow * 0.5;
+        reveal(
+            v,
+            i,
+            [
+                Vec3::new(0.0, sill, z),
+                Vec3::new(-t, sill, z),
+                Vec3::new(-t, head, z),
+                Vec3::new(0.0, head, z),
+            ],
+            Vec3::Z * -side,
+        );
+    }
+    reveal(
+        v,
+        i,
+        [
+            Vec3::new(0.0, head, -ow * 0.5),
+            Vec3::new(-t, head, -ow * 0.5),
+            Vec3::new(-t, head, ow * 0.5),
+            Vec3::new(0.0, head, ow * 0.5),
+        ],
+        -Vec3::Y,
+    );
+    if sill > 0.01 {
+        reveal(
+            v,
+            i,
+            [
+                Vec3::new(0.0, sill, -ow * 0.5),
+                Vec3::new(-t, sill, -ow * 0.5),
+                Vec3::new(-t, sill, ow * 0.5),
+                Vec3::new(0.0, sill, ow * 0.5),
+            ],
+            Vec3::Y,
+        );
+    }
     match opening {
         Opening::Window => {
             // The pane, recessed 0.09 m behind the face; the jambs and a mullion cross at
@@ -708,6 +768,25 @@ pub enum RoofForm {
     Pyramid,
 }
 
+/// The baked shade of a reveal face (B4) — the ambient a window's jamb sees.
+pub const REVEAL_SHADE: f32 = 0.62;
+
+/// A single-sided face with a baked shade on its vertices (the kit's reveals).
+fn push_face_shaded(
+    v: &mut Vec<vehicle_geometry::GeometryVertex>,
+    i: &mut Vec<u32>,
+    corners: [Vec3; 4],
+    normal: Vec3,
+    material: WorldMaterial,
+    shade: f32,
+) {
+    let start = v.len();
+    push_face(v, i, corners, normal, material);
+    for vertex in &mut v[start..] {
+        vertex.surface_shade = shade;
+    }
+}
+
 /// The building's signature — the axes the variety locks read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Signature {
@@ -717,6 +796,7 @@ pub struct Signature {
     pub roof: RoofForm,
     /// Dormers per main slope.
     pub dormers: u8,
+    pub cladding: Cladding,
     /// The ridge runs across the box's long axis (a near-square box's coin).
     pub ridge_across: bool,
     pub width: BayWidth,
@@ -917,12 +997,19 @@ pub fn plan_building(style: BuildingStyle, seed: u64, half: Vec3) -> Option<Buil
     } else {
         0
     };
+    // The cladding (B4): a third of the town in brick, a sixth of the village.
+    let cladding = match family {
+        KitFamily::Town if rng.unit() < 0.35 => Cladding::Brick,
+        KitFamily::Village if rng.unit() < 0.16 => Cladding::Brick,
+        _ => Cladding::Plaster,
+    };
     let signature = Signature {
         family,
         storeys: fit.storeys,
         pitch: fit.pitch,
         roof,
         dormers,
+        cladding,
         ridge_across,
         width,
         ground,
@@ -1339,6 +1426,29 @@ mod tests {
         }
         assert!(forms.len() >= 2, "roof forms {forms:?}");
         assert!(dormers >= 10 && chimneys >= 30, "dormers {dormers} chimneys {chimneys}");
+    }
+
+    /// B4: a window is a hole with depth — every pierced bay carries shaded reveal faces —
+    /// and the claddings both appear over a street of seeds.
+    #[test]
+    fn windows_carry_shaded_reveals_and_both_claddings_appear() {
+        for part in KitPart::all() {
+            if matches!(
+                part,
+                KitPart::WindowBay { .. } | KitPart::DoorBay { .. } | KitPart::ShopBay { .. }
+            ) {
+                let mesh = part.mesh();
+                let shaded = mesh.vertices().iter().filter(|v| v.surface_shade < 0.7).count();
+                assert!(shaded >= 12, "{part:?}: {shaded} reveal vertices");
+            }
+        }
+        let half = Vec3::new(8.0, 5.5, 5.5);
+        let claddings: std::collections::HashSet<Cladding> = (0..40)
+            .map(|seed| {
+                plan_building(BuildingStyle::Tenement, seed, half).expect("plan").signature.cladding
+            })
+            .collect();
+        assert_eq!(claddings.len(), 2, "{claddings:?}");
     }
 
     /// The landmarks stay on the authored bake.

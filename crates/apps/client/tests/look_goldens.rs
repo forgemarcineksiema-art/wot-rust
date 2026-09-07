@@ -570,6 +570,31 @@ fn the_hull_wears_the_same_paint_in_the_hangar_and_on_the_field() {
     );
 }
 
+/// B4, on the record: a facade is not one flat albedo. Two crops of the Ostrogorsk canyon
+/// frame — the tenement on the left and the house on the right, authored against the
+/// rendered golden — carry local contrast (the mean luma step between neighbouring pixels)
+/// above a floor: the courses, the reveals and the streaks are what put it there. Before the
+/// kit the same crops measured 0.0110 and 0.0127; with B4, 0.0163 and 0.0203.
+#[test]
+fn the_canyon_facades_carry_coursing_reveals_and_streaks_on_the_record() {
+    const LEFT_FACADE: [f32; 4] = [0.05, 0.28, 0.30, 0.55];
+    const RIGHT_FACADE: [f32; 4] = [0.70, 0.38, 0.93, 0.55];
+    const LEFT_FLOOR: f32 = 0.0140;
+    const RIGHT_FLOOR: f32 = 0.0170;
+    let pixels = read_png(&golden_path("ostrogorsk_canyon"));
+    for (name, box_n, floor) in
+        [("left", LEFT_FACADE, LEFT_FLOOR), ("right", RIGHT_FACADE, RIGHT_FLOOR)]
+    {
+        let (cropped, w, h) = crop(&pixels, box_n);
+        let stats = frame_stats_of(&cropped, w, h);
+        assert!(
+            stats.local_contrast >= floor,
+            "the canyon's {name} facade went flat: local contrast {:.4} under its floor {floor:.4}",
+            stats.local_contrast
+        );
+    }
+}
+
 /// D35, the one program: the reference set looked +X with the sun at -X, so every cast shadow
 /// hid behind its caster and rule 1's shade mass was certified from frames that could not see
 /// it (the dark plane's fleet floor: 0.55 %). The sunward frame looks into the sun from the

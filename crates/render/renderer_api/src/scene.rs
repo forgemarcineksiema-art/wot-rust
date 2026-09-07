@@ -149,6 +149,10 @@ pub mod surface_role {
     /// by SEMANTICS — the shadow caster cut and the sun-reach locks both key on this role
     /// ("glass passes light") — and rendered as sheen plus grime, no grain. Appended.
     pub const GLASS: f32 = 14.0;
+    /// Brick (B4, the building kit): running-bond courses — 0.075 m rows of 0.24 m bricks,
+    /// joints staggered by half a brick every row, one tone per brick, a lighter lime
+    /// mortar in the joints. The other cladding a kit wall wears beside [`PLASTER`]. Appended.
+    pub const BRICK: f32 = 15.0;
 }
 
 impl SceneVertex {

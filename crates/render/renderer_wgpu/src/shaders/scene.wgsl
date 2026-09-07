@@ -225,10 +225,12 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
     let tangent = normalize(vec3<f32>(-n.z, 1.0e-4, n.x));
     let h = dot(world, tangent);
     if (role < 1.5) {
-        // Plaster: fine grain over half-metre trowel blotches.
+        // Plaster: fine grain over half-metre trowel blotches, and (B4) rain streaks — a
+        // tall, narrow noise drawn down the wall, darkening where water has run.
         let grain = value_noise(vec2<f32>(h, world.y) * 7.0);
         let blotch = value_noise(vec2<f32>(h * 1.4, world.y * 1.1));
-        return 0.90 + grain * 0.08 + blotch * 0.08;
+        let streak = value_noise(vec2<f32>(h * 5.0 + 3.0, world.y * 0.35));
+        return 0.90 + grain * 0.08 + blotch * 0.08 - streak * streak * 0.07;
     }
     if (role < 2.5) {
         // Planks: ~0.2 m boards, each with its own tone, split by dark joints, streaked
@@ -351,11 +353,30 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
         let mottle = mix(value_noise(face_frame * 3.0), value_noise(top_frame * 3.0), up);
         return 0.97 + mottle * 0.04;
     }
-    // Dirty glazing (garage, Światło służy czołgowi): glass has no grain to model — its whole
-    // read is the sheen the gloss lane and the environment reflection already carry — so the
-    // treatment is a faint grime mottle and nothing else.
-    let grime = mix(value_noise(face_frame * 0.8), value_noise(top_frame * 0.8), up);
-    return 0.94 + grime * 0.06;
+    if (role < 14.5) {
+        // Dirty glazing (garage, Światło służy czołgowi): glass has no grain to model — its
+        // whole read is the sheen the gloss lane and the environment reflection already carry
+        // — so the treatment is a faint grime mottle and nothing else. (Bounded now that
+        // BRICK follows: role 14 keeps this arm's exact math.)
+        let grime = mix(value_noise(face_frame * 0.8), value_noise(top_frame * 0.8), up);
+        return 0.94 + grime * 0.06;
+    }
+    // Brick (B4, the building kit): running bond — 0.075 m courses of 0.24 m bricks, the
+    // joints staggered by half a brick every row, one tone per brick, and a LIGHTER lime
+    // mortar in the 0.012 m joints (the opposite of a roof's or an ashlar's dark joint).
+    // World-anchored on the wall's own plane like every course above; a rain streak rides it
+    // the way it rides the plaster.
+    let brow = floor(world.y / 0.075);
+    let boffset = fract(brow * 0.5) * 0.24;
+    let bcol = floor((h + boffset) / 0.24);
+    let brick_tone = detail_hash(vec2<f32>(bcol * 1.9 + 11.0, brow * 0.7)) * 0.22;
+    let bfy = fract(world.y / 0.075);
+    let brow_edge = min(bfy, 1.0 - bfy) * 0.075;
+    let bfx = fract((h + boffset) / 0.24);
+    let bcol_edge = min(bfx, 1.0 - bfx) * 0.24;
+    let mortar = 1.0 - smoothstep(0.0, 0.012, brow_edge) * smoothstep(0.0, 0.012, bcol_edge);
+    let bstreak = value_noise(vec2<f32>(h * 5.0 + 3.0, world.y * 0.35));
+    return mix(0.86 + brick_tone, 1.08, mortar) - bstreak * bstreak * 0.06;
 }
 
 // Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one

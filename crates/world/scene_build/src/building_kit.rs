@@ -15,7 +15,7 @@
 use glam::{Mat4, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject, SceneVertex};
 use world_forge::WorldMaterial;
-use world_forge::building_kit::{BuildingPlan, KitPart, TintLane, plan_building};
+use world_forge::building_kit::{BuildingPlan, Cladding, KitPart, TintLane, plan_building};
 
 /// The base of the kit's mesh-handle block. Below the tree ladder's block and the shadowless
 /// base: a house must cast a shadow.
@@ -30,25 +30,41 @@ const KIT_STONE: ([f32; 3], f32) = ([0.45, 0.42, 0.36], 0.17);
 /// The roof's gloss lane; the roof TONE is the instance tint.
 const KIT_ROOF_GLOSS: f32 = 0.25;
 
-/// The mesh handle of one part.
-pub fn kit_mesh_handle(part: KitPart) -> MeshHandle {
-    MeshHandle(BUILDING_MESH_BASE + part.index() as u32)
+/// The mesh handle of one part in one cladding (B4): the catalogue twice over, plaster then
+/// brick — a wall vertex's surface role is baked into the mesh.
+pub fn kit_mesh_handle(part: KitPart, cladding: Cladding) -> MeshHandle {
+    let block = KitPart::all().len() as u32;
+    let cladding_offset = match cladding {
+        Cladding::Plaster => 0,
+        Cladding::Brick => block,
+    };
+    MeshHandle(BUILDING_MESH_BASE + cladding_offset + part.index() as u32)
 }
 
 /// Whether a handle is one of the kit's.
 pub fn is_kit_mesh(handle: MeshHandle) -> bool {
-    (BUILDING_MESH_BASE..BUILDING_MESH_BASE + KitPart::all().len() as u32).contains(&handle.0)
+    let block = KitPart::all().len() as u32 * Cladding::ALL.len() as u32;
+    (BUILDING_MESH_BASE..BUILDING_MESH_BASE + block).contains(&handle.0)
 }
 
-/// Every part's mesh, ready to register once per renderer.
+/// Every part's mesh in every cladding, ready to register once per renderer.
 pub fn kit_meshes() -> Vec<(MeshHandle, MeshAsset)> {
-    KitPart::all().into_iter().map(|part| (kit_mesh_handle(part), kit_mesh_asset(part))).collect()
+    let mut meshes = Vec::new();
+    for cladding in Cladding::ALL {
+        for part in KitPart::all() {
+            meshes.push((kit_mesh_handle(part, cladding), kit_mesh_asset(part, cladding)));
+        }
+    }
+    meshes
 }
+
+/// The wall tones a brick dwelling wears (its instance tint): red, brown, yellow brick.
+const BRICK_TONES: [[f32; 3]; 3] = [[0.52, 0.34, 0.26], [0.44, 0.30, 0.24], [0.58, 0.48, 0.32]];
 
 /// One part as scene geometry: the material decodes to colour, gloss and surface role the
 /// way the bake decodes it (`world_material::to_scene`), with the wall and the roof left WHITE
 /// and tint-weighted so the instance tint paints them.
-fn kit_mesh_asset(part: KitPart) -> MeshAsset {
+fn kit_mesh_asset(part: KitPart, cladding: Cladding) -> MeshAsset {
     let mesh = part.mesh();
     let palette = crate::world_material::Palette {
         wall: [1.0, 1.0, 1.0],
@@ -62,6 +78,15 @@ fn kit_mesh_asset(part: KitPart) -> MeshAsset {
         .map(|vertex| {
             let material = WorldMaterial::from_carrier(vertex.material);
             let (color, gloss, role) = crate::world_material::to_scene(material, palette);
+            // B4: the cladding decides a wall vertex's role; the reveals carry their baked
+            // shade in the colour (the instance tint multiplies it).
+            let role = if material == WorldMaterial::Wall && cladding == Cladding::Brick {
+                renderer_api::surface_role::BRICK
+            } else {
+                role
+            };
+            let shade = vertex.surface_shade;
+            let color = [color[0] * shade, color[1] * shade, color[2] * shade];
             let mut scene = SceneVertex::surfaced(
                 vertex.position.to_array(),
                 vertex.normal.normalize_or_zero().to_array(),
@@ -198,6 +223,10 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
             let center = Vec3::from_array(cover.center);
             let half = Vec3::from_array(cover.half_extents_m);
             let (wall, roof, _) = crate::battlefield::building_palette(&cover.id);
+            let wall = match plan.signature.cladding {
+                Cladding::Plaster => wall,
+                Cladding::Brick => BRICK_TONES[(cover_seed(&cover.id) >> 16) as usize % 3],
+            };
             let age = plan.signature.age_tint();
             let wall = [wall[0] * age, wall[1] * age, wall[2] * age];
             let objects = plan
@@ -205,7 +234,7 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
                 .iter()
                 .map(|placement| RenderObject {
                     tank_id: None,
-                    mesh: kit_mesh_handle(placement.part),
+                    mesh: kit_mesh_handle(placement.part, plan.signature.cladding),
                     material: MaterialHandle(0),
                     transform: (Mat4::from_translation(center) * placement.transform)
                         .to_cols_array_2d(),
@@ -351,6 +380,13 @@ mod tests {
             // B1: the roofs' MASSING varies too — a street of gables is a street of one roof.
             let forms: std::collections::HashSet<_> = grid.iter().map(|(_, _, s)| s.roof).collect();
             assert!(forms.len() >= 2, "{map:?}: roof forms {forms:?}");
+            // B4: a street is not one cladding either — brick among the plaster.
+            let brick = grid.iter().filter(|(_, _, s)| s.cladding == Cladding::Brick).count();
+            assert!(
+                brick * 8 >= grid.len() && brick * 2 <= grid.len(),
+                "{map:?}: {brick} brick houses of {}",
+                grid.len()
+            );
         }
     }
 
@@ -395,6 +431,7 @@ mod tests {
         }
         for role in [
             surface_role::PLASTER,
+            surface_role::BRICK,
             surface_role::SLATE,
             surface_role::PLANK,
             surface_role::DRESSED_STONE,
