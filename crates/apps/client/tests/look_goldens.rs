@@ -245,6 +245,10 @@ fn look_goldens_match_their_recordings() {
 /// the pixels; `local_contrast` is rule 5's anti-flat clause.
 struct FrameStats {
     dark: f32,
+    /// Share of pixels below 0.07 linear luma — DEEP shade, the cast-shadow core rule 1 calls a
+    /// mass. The dark plane (< 0.25) also counts a shaded field; this counts only what reads as
+    /// shadow (D35).
+    deep: f32,
     mid: f32,
     bright: f32,
     mean_warmth: f32,
@@ -298,6 +302,7 @@ fn frame_stats_of(pixels: &[u8], width: usize, height: usize) -> FrameStats {
 
 fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
     let (mut dark, mut mid, mut bright, mut near_white) = (0u32, 0u32, 0u32, 0u32);
+    let mut deep = 0u32;
     let (mut sum_r, mut sum_b, mut sum_sat) = (0.0f64, 0.0f64, 0.0f64);
     let mut lumas = Vec::with_capacity(width * height);
 
@@ -306,6 +311,9 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
         let g = srgb_to_linear(px[1]);
         let b = srgb_to_linear(px[2]);
         let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if luma < 0.07 {
+            deep += 1;
+        }
         if luma < 0.25 {
             dark += 1;
         } else if luma < 0.60 {
@@ -354,6 +362,7 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
 
     FrameStats {
         dark: dark as f32 / n,
+        deep: deep as f32 / n,
         mid: mid as f32 / n,
         bright: bright as f32 / n,
         mean_warmth: (sum_r / sum_b.max(1.0e-9)) as f32,
@@ -396,8 +405,21 @@ fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
 /// tuft), not a lighting regression. The floor records the new representation's worst; the
 /// target still does not move, and W1 still owes rule 1 its real shade mass.
 const OUTDOOR_DARK_FLOOR: f32 = 0.0055;
-/// Rule 1 wants a real shade mass in every frame, not a token one.
+/// Rule 1 wants a real shade mass in every frame, not a token one. ASSERTED on the sunward
+/// frame since D35 (`the_sunward_frame_carries_rule_ones_shade_mass`); every antisolar frame
+/// still reports its distance as a debt — looking away from the sun, a frame cannot see the
+/// shade the sun casts, which is exactly why the fleet floor sat at 0.0055 for a year.
 const OUTDOOR_DARK_TARGET: f32 = 0.08;
+/// D35: the sunward frame's recorded DEEP shade (< 0.07 linear) — 15.8 % on the record, against
+/// 1.8 % on the antisolar contact frame and 0.1 % on the reference frame. The floor sits under
+/// the recording with room for the grain, and the target is the recording itself.
+const SUNWARD_DEEP_FLOOR: f32 = 0.10;
+const SUNWARD_DEEP_TARGET: f32 = 0.15;
+/// The view that looks INTO the evening sun from the player's seat (`review_views.rs`, D35).
+const SUNWARD_VIEW: &str = "prokhorovka_evening_into_sun";
+/// The antisolar reference frame the whole art direction aims at — the one whose shadows all
+/// hid behind their casters until the sunward frame was added.
+const ANTISOLAR_REFERENCE_VIEW: &str = "prokhorovka_golden_evening";
 /// Recorded worst outdoor p95−p05 spread: `prokhorovka_overcast` at 0.348.
 const OUTDOOR_SPREAD_FLOOR: f32 = 0.34;
 /// Three separated planes need range between them, not just presence.
@@ -418,6 +440,37 @@ fn debt(view: &str, metric: &str, measured: f32, floor: f32, target: f32, wave: 
             target - measured
         );
     }
+}
+
+/// D35, the one program: the reference set looked +X with the sun at -X, so every cast shadow
+/// hid behind its caster and rule 1's shade mass was certified from frames that could not see
+/// it (the dark plane's fleet floor: 0.55 %). The sunward frame looks into the sun from the
+/// player's seat, and on it the policy's TARGET is asserted, not reported: a real shade mass
+/// (>= 8 % dark) and a real cast-shadow core (>= 10 % deep). The antisolar reference frame
+/// must carry LESS deep shade than the sunward one — if it ever carries more, the frames have
+/// been swapped or the sun has moved, and the lock is looking at the wrong picture.
+#[test]
+fn the_sunward_frame_carries_rule_ones_shade_mass() {
+    let sunward = frame_stats(&read_png(&golden_path(SUNWARD_VIEW)));
+    assert!(
+        sunward.dark >= OUTDOOR_DARK_TARGET,
+        "{SUNWARD_VIEW}: {:.1}% dark against rule 1's target of {:.0}% — looking into the sun          the picture has no shade mass",
+        sunward.dark * 100.0,
+        OUTDOOR_DARK_TARGET * 100.0
+    );
+    debt(SUNWARD_VIEW, "deep shade", sunward.deep, SUNWARD_DEEP_FLOOR, SUNWARD_DEEP_TARGET, "D35");
+    assert!(
+        sunward.near_white <= 0.015,
+        "{SUNWARD_VIEW}: {:.2}% pure white — the sun-side haze is milk again (D3)",
+        sunward.near_white * 100.0
+    );
+    let antisolar = frame_stats(&read_png(&golden_path(ANTISOLAR_REFERENCE_VIEW)));
+    assert!(
+        antisolar.deep < sunward.deep,
+        "the antisolar reference frame ({:.1}% deep) out-shades the sunward one ({:.1}%) — the          sun has moved or the frames have swapped",
+        antisolar.deep * 100.0,
+        sunward.deep * 100.0
+    );
 }
 
 /// Always-on, CPU-only: the committed goldens must obey the bible's value structure. This is

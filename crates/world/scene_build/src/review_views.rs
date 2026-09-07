@@ -589,6 +589,33 @@ fn prokhorovka_identity_views(
             subject_box: Some([0.37, 0.62, 0.62, 0.83]),
             vertical_fov_degrees: None,
         },
+        // THE SUNWARD FRAME (the one program's D35). Every frame above looks +X with the
+        // evening sun at -X: each cast shadow hides behind its caster and the sun-side scatter
+        // never enters the picture, so the reference set certified a golden evening whose
+        // shadows nobody had seen. This one looks INTO the sun from the player's seat — the
+        // T-54 ahead throws its shadow toward the eye, the field's shade masses face the
+        // camera, the low disc and its haze sit in the frame. Rule 1's shade mass is asserted
+        // on this frame at the policy's TARGET, not at a recorded floor.
+        ReviewView {
+            name: "prokhorovka_evening_into_sun".to_string(),
+            eye: [
+                tank_x + CHASE_DISTANCE_M,
+                tank_ground + CHASE_EYE_HEIGHT_M,
+                tank_z - CHASE_DISTANCE_M * 0.25,
+            ],
+            target: [tank_x - 40.0, tank_ground + 1.0, tank_z + 10.0],
+            lighting: evening.lighting,
+            sky: evening.sky,
+            vehicle: Some(ReviewVehicle {
+                kind: VehicleKind::T54_1951,
+                position: [tank_x, tank_ground, tank_z],
+                yaw_rad: 0.45,
+                turret_yaw_rad: 0.0,
+                hull_color: VehicleKind::T54_1951.paint(),
+            }),
+            subject_box: None,
+            vertical_fov_degrees: None,
+        },
         // THE SNIPER FRAME (Inny Poziom A7). Every readability floor above is measured at the
         // chase camera's 55°, and the player takes most aimed shots through the scope, where a
         // tank 300 m out is three per cent of the frame at 8°. The eye is the T-54's own sniper
