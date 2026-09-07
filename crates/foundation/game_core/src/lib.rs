@@ -60,7 +60,7 @@ pub use damage_layout::{
     DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,
     DamagePlane, DamageShape, ModuleIntersection,
 };
-pub use hull_plan::HullPlan;
+pub use hull_plan::{FALLBACK_STEP_M, HullPlan, STEP_CLEARANCE_M, fleet_belly_line_m};
 pub use ids::{BattleEventId, ShellId, TankId, TeamId};
 pub use mobility::{MAX_CLIMB_GRADE, ROAD_COMFORT_GRADE};
 pub use modules::{

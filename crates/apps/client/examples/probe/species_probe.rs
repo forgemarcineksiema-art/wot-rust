@@ -95,7 +95,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         // One tree, the position chosen so the seed names the MATURE variant.
         let position = mature_position(kind, tx, tz, &ground);
         shoot(
-            vec![SceneryInstance { kind, position, yaw_rad: 0.6, scale: 1.0 }],
+            vec![SceneryInstance { kind, position, yaw_rad: 0.6, scale: 1.0, seed: 0 }],
             distance,
             aim_up,
             format!("target/species_{name}.png"),
@@ -106,7 +106,13 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         for variant in 0..scene_build::tree_lod::VARIANTS {
             let x = tx + (variant as f32 - 1.5) * spacing;
             let position = variant_position(kind, variant, x, tz, &ground);
-            row.push(SceneryInstance { kind, position, yaw_rad: 0.4 * variant as f32, scale: 1.0 });
+            row.push(SceneryInstance {
+                kind,
+                position,
+                yaw_rad: 0.4 * variant as f32,
+                scale: 1.0,
+                seed: 0,
+            });
         }
         shoot(row, distance * 1.9, aim_up * 0.9, format!("target/species_variants_{name}.png"))?;
     }
@@ -130,6 +136,7 @@ fn variant_position(
             position: [candidate_x, 0.0, candidate_z],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         };
         if scene_build::tree_lod::instance_variant(&instance) == variant {
             return [candidate_x, ground(candidate_x, candidate_z), candidate_z];

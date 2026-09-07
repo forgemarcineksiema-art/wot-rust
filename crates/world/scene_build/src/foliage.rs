@@ -380,6 +380,7 @@ mod baked_tree_tests {
             position: [x, 0.0, 4.0],
             yaw_rad: 0.3,
             scale: 1.0,
+            seed: 0,
         };
         let build = |instance: &SceneryInstance| {
             let mut vertices = Vec::new();
@@ -445,6 +446,7 @@ mod baked_tree_tests {
                 position: [0.0, 0.0, 0.0],
                 yaw_rad: 0.0,
                 scale: 1.0,
+                seed: 0,
             },
             StoneTone::NEUTRAL,
         );
@@ -461,7 +463,13 @@ mod baked_tree_tests {
             push_scenery_instance_far(
                 &mut vertices,
                 &mut indices,
-                &SceneryInstance { kind, position: [0.0, 0.0, 0.0], yaw_rad: 0.0, scale: 1.0 },
+                &SceneryInstance {
+                    kind,
+                    position: [0.0, 0.0, 0.0],
+                    yaw_rad: 0.0,
+                    scale: 1.0,
+                    seed: 0,
+                },
                 StoneTone::NEUTRAL,
             );
             vertices.iter().map(|v| v.position[1]).fold(f32::NEG_INFINITY, f32::max)
@@ -496,6 +504,7 @@ mod baked_tree_tests {
                     position: [10.0, 3.0, 10.0],
                     yaw_rad: 0.7,
                     scale: 1.3,
+                    seed: 0,
                 },
                 StoneTone::NEUTRAL,
             );
@@ -511,7 +520,13 @@ mod baked_tree_tests {
             push_scenery_instance(
                 &mut vertices,
                 &mut indices,
-                &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
+                &SceneryInstance {
+                    kind,
+                    position: [10.0, 3.0, 10.0],
+                    yaw_rad: 0.7,
+                    scale: 1.3,
+                    seed: 0,
+                },
                 StoneTone::NEUTRAL,
             );
             if on_ladder {
@@ -533,7 +548,13 @@ mod baked_tree_tests {
             push_scenery_instance(
                 &mut vertices,
                 &mut indices,
-                &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
+                &SceneryInstance {
+                    kind,
+                    position: [10.0, 3.0, 10.0],
+                    yaw_rad: 0.7,
+                    scale: 1.3,
+                    seed: 0,
+                },
                 StoneTone::NEUTRAL,
             );
             assert!(!indices.is_empty(), "{kind:?} must draw something");

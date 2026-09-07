@@ -250,6 +250,9 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
             // The one program's X4 (2026-09-07): the low tier - a knee-high masonry solid
             // no taller than the fleet's step, so every running gear climbs it.
             "LowWall",
+            // The one program's X5 (2026-09-07): a scattered field stone over the belly
+            // line, boxed by the bounds of the very mesh the eye sees.
+            "Boulder",
         ],
     ),
     (

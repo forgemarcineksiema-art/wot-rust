@@ -102,6 +102,11 @@ pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
         }
         f32_bits(&mut hash, instance.yaw_rad);
         f32_bits(&mut hash, instance.scale);
+        // X5: the pair's seed, hashed only when the scatter gave one — a hand-placed instance
+        // hashes as it always did.
+        if instance.seed != 0 {
+            word(&mut hash, instance.seed);
+        }
     }
     for zone in &map.capture_zones {
         str_bytes(&mut hash, &zone.id);

@@ -1053,6 +1053,9 @@ fn append_cover_box(
         // The low tier (X4) is masonry a hull steps over: the stone wall's coursing and coping,
         // knee high, inside the box a shell stops in.
         StaticCoverKind::LowWall => append_stone_wall(vertices, indices, center, half),
+        // A field stone's box (X5) is the bounds of the stone the scenery pass already draws:
+        // baking a block here would put a second rock inside the first.
+        StaticCoverKind::Boulder => {}
     }
 }
 
@@ -3540,6 +3543,7 @@ mod tests {
             position: [3.0, 0.0, 0.5],
             yaw_rad: 0.0,
             scale: 1.0,
+            seed: 0,
         };
         let outside = terrain::SceneryInstance { position: [40.0, 0.0, 0.0], ..inside };
 
@@ -4099,6 +4103,16 @@ mod tests {
                 );
                 continue;
             }
+            // A field stone's box (X5) draws nothing either: the stone is scenery, and the
+            // proof is that the stone whose bounds the box is stands in it.
+            if cover.kind == StaticCoverKind::Boulder {
+                assert!(
+                    dressed_by_a_stone(&battlefield, cover),
+                    "boulder box {} must have the stone it claims to be",
+                    cover.id
+                );
+                continue;
+            }
             // A kit dwelling (B3) is the other box the bake does not draw: its parts are
             // instanced, and `building_kit` proves they stand inside the box.
             if crate::building_kit::kit_dresses(cover) {
@@ -4182,6 +4196,23 @@ mod tests {
         })
     }
 
+    /// A `Boulder` box (X5) is honest only if the stone whose bounds it is stands in it: the
+    /// same scattered `Rock`, at the same spot, earning the same box from the same seed.
+    fn dressed_by_a_stone(
+        battlefield: &terrain::BattlefieldMap,
+        cover: &terrain::StaticCoverObject,
+    ) -> bool {
+        let belly_line_m = game_core::fleet_belly_line_m();
+        battlefield.scenery.iter().any(|instance| {
+            map_forge::boulder_box_of(instance, belly_line_m).is_some_and(|(center, half)| {
+                (0..3).all(|axis| {
+                    (center[axis] - cover.center[axis]).abs() < 1.0e-3
+                        && (half[axis] - cover.half_extents_m[axis]).abs() < 1.0e-3
+                })
+            })
+        })
+    }
+
     /// THE partial-rebake lock (urban-map program PR-04): collapse one building, re-bake ONLY
     /// the buckets its footprint touches, reassemble — and the result equals a full fresh bake
     /// bit for bit. This is what licenses the client to skip 16/17 of the bake on a phase
@@ -4242,6 +4273,10 @@ mod tests {
             // geometry to survive — what must survive is the tree standing in them.
             if cover.kind == StaticCoverKind::TreeTrunk {
                 assert!(dressed_by_an_oak(&battlefield, cover), "trunk {} kept", cover.id);
+                continue;
+            }
+            if cover.kind == StaticCoverKind::Boulder {
+                assert!(dressed_by_a_stone(&battlefield, cover), "boulder {} kept", cover.id);
                 continue;
             }
             // A kit dwelling (B3) bakes nothing either: its parts are instanced per frame.

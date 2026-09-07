@@ -111,6 +111,13 @@ pub enum StaticCoverKind {
     /// the box. Indestructible masonry like a rail cover, never crushed (the hull goes over,
     /// not through). Appended after StoneTower — the order is frozen.
     LowWall,
+    /// A scattered field stone that stands over the fleet's belly line (the one program's X5):
+    /// the box is the BOUNDS of the very mesh the eye sees (`map_forge` bakes the same seed the
+    /// picture does), so what the hull meets, the shell stops in and the eye cannot see past is
+    /// the stone and nothing else. Within a hull's step it is ground (X4), taller it is a wall.
+    /// Bakes NO box of its own — the stone is drawn by the scenery pass, like a hero oak's bole.
+    /// Granite: indestructible, never crushed. Appended after LowWall — the order is frozen.
+    Boulder,
 }
 
 /// Destruction is its own AXIS (the one program's Z11, GDD §4 „bryły z masą i obiekty
@@ -177,7 +184,7 @@ impl StaticCoverKind {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [StaticCoverKind; 11] = [
+    pub const ALL: [StaticCoverKind; 12] = [
         StaticCoverKind::FarmBuilding,
         StaticCoverKind::RailCover,
         StaticCoverKind::TreeLine,
@@ -189,6 +196,7 @@ impl StaticCoverKind {
         StaticCoverKind::Crag,
         StaticCoverKind::StoneTower,
         StaticCoverKind::LowWall,
+        StaticCoverKind::Boulder,
     ];
 
     /// Structural health before the object is destroyed; `None` is indestructible (rail
@@ -215,7 +223,10 @@ impl StaticCoverKind {
             // indestructible forever — "pre-placed decorative" — on maps where the wrecks are
             // a third of the cover.
             StaticCoverKind::Wreck => Some(500),
-            StaticCoverKind::RailCover | StaticCoverKind::Crag | StaticCoverKind::LowWall => None,
+            StaticCoverKind::RailCover
+            | StaticCoverKind::Crag
+            | StaticCoverKind::LowWall
+            | StaticCoverKind::Boulder => None,
         }
     }
 
@@ -228,9 +239,10 @@ impl StaticCoverKind {
             | StaticCoverKind::StoneTower
             // A shelled wreck keeps its hull as a mound (Inny Poziom Z3): steel, stateful.
             | StaticCoverKind::Wreck => DestructionClass::Stateful,
-            StaticCoverKind::RailCover | StaticCoverKind::Crag | StaticCoverKind::LowWall => {
-                DestructionClass::Immovable
-            }
+            StaticCoverKind::RailCover
+            | StaticCoverKind::Crag
+            | StaticCoverKind::LowWall
+            | StaticCoverKind::Boulder => DestructionClass::Immovable,
             StaticCoverKind::TreeLine | StaticCoverKind::TreeTrunk => DestructionClass::Topple,
             StaticCoverKind::WoodenFence => DestructionClass::Crush,
             StaticCoverKind::StoneWall => DestructionClass::Breach,

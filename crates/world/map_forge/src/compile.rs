@@ -132,6 +132,9 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     // hand-authored box list would. They come after `expand_scenery` on purpose: a tree has no
     // business avoiding its own trunk.
     static_cover.extend(oak_trunk_cover(&scenery));
+    // A field stone over the belly line is the same promise (X5): the scatter just placed it,
+    // the box is the bounds of the stone it placed, and a hull meets exactly what it sees.
+    static_cover.extend(boulder_cover(&scenery));
     let (spawn_zones, strategic_points, features) = expand_gameplay(blueprint, &heightmap);
     let capture_zones = blueprint
         .gameplay
@@ -364,6 +367,69 @@ fn oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
         .collect()
 }
 
+/// A scattered field stone taller than the fleet's belly line as a gameplay solid, one box per
+/// stone (the one program's X5).
+///
+/// Rule 8 of `docs/map-forge-policy.md`: a SOLID scenery object stays under the belly line, and
+/// one that does not is cover. The scatters plant erratics of 0.35–1.45 m, so most of them are
+/// cover — and until now they were ghosts: a hull drove through a metre of granite, a shell flew
+/// through it, an eye saw through it. The box is the BOUNDS of the very mesh the picture draws
+/// (`world_forge::rock::rock_seed` is the one seed both bake with), scaled and turned as the
+/// instance is drawn, standing from the ground the stone is set into up to its crest. Within a
+/// hull's step (X4) the stone is ground the hull climbs; taller, it is the wall it looks like.
+/// The box bakes nothing of its own — the stone is already standing there.
+fn boulder_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
+    let belly_line_m = game_core::fleet_belly_line_m();
+    scenery
+        .iter()
+        .filter(|instance| instance.kind == SceneryKind::Rock)
+        .enumerate()
+        .filter_map(|(index, instance)| {
+            let (center, half) = boulder_box_of(instance, belly_line_m)?;
+            Some(StaticCoverObject {
+                id: format!("boulder_{index:03}"),
+                name: "field stone".to_string(),
+                kind: StaticCoverKind::Boulder,
+                center,
+                half_extents_m: half,
+                yaw_rad: instance.yaw_rad,
+            })
+        })
+        .collect()
+}
+
+/// The box one scattered stone earns — its centre and half extents in the world, its yaw the
+/// instance's — or `None` for a stone that stays under `belly_line_m` (loose dressing a hull
+/// drives over). Public so the honesty locks can ask the same question of the same stone.
+pub fn boulder_box_of(
+    instance: &SceneryInstance,
+    belly_line_m: f32,
+) -> Option<([f32; 3], [f32; 3])> {
+    if instance.kind != SceneryKind::Rock {
+        return None;
+    }
+    let rock = world_forge::rock::bake_rock(
+        world_forge::rock::RockForm::Erratic,
+        world_forge::rock::rock_seed(instance.position, instance.seed),
+    );
+    let bounds = rock.body.bounds()?;
+    let scale = instance.scale;
+    let top_m = bounds.max.y * scale;
+    if top_m <= belly_line_m {
+        return None;
+    }
+    // The stone's plan in its own frame, SYMMETRIC about the instance's origin (the further of
+    // the two reaches on each axis), turned as the picture turns it — the same rotation the box
+    // wears, so the box's frame is the mesh's. Symmetric so that a mirrored pair, the same stone
+    // at the mirrored yaw, earns one box mirrored: the report holds every box to its twin.
+    let half_x = bounds.max.x.abs().max(bounds.min.x.abs()) * scale;
+    let half_z = bounds.max.z.abs().max(bounds.min.z.abs()) * scale;
+    Some((
+        [instance.position[0], instance.position[1] + top_m * 0.5, instance.position[2]],
+        [half_x.max(0.05), top_m * 0.5, half_z.max(0.05)],
+    ))
+}
+
 /// One cell of a `TownGrid`: its house's box and, when the cell drew one, its annex (B6).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TownGridCell {
@@ -511,6 +577,7 @@ fn expand_scenery(
                     *pairs,
                     ScatterRegion { x: (region.x[0], region.x[1]), z: (region.z[0], region.z[1]) },
                     &twin,
+                    &|yaw| symmetry.twin_yaw(yaw),
                     heightmap,
                     &refused,
                     &mut out,
@@ -559,14 +626,23 @@ fn push_paired(
 ) {
     let scale = scale * (0.88 + terrain::position_unit(x, z, 0x5CEA) * 0.24);
     let [tx, tz] = symmetry.twin([x, z], size_m);
+    let pair_seed = terrain::pair_seed_at(x, z);
     for ([xx, zz], base_yaw) in [([x, z], yaw_rad), ([tx, tz], symmetry.twin_yaw(yaw_rad))] {
         let own = terrain::position_unit(xx, zz, 0x0A17);
         let yaw = match kind {
             terrain::SceneryKind::Lamppost => base_yaw + (own - 0.5) * 0.35,
+            // A stone's twin is the same stone at the mirrored yaw (X5): its box must twin.
+            kind if kind.twins_as_a_solid() => base_yaw,
             _ => own * std::f32::consts::TAU,
         };
         if let Some(ground) = heightmap.sample_height(xx, zz) {
-            out.push(SceneryInstance { kind, position: [xx, ground, zz], yaw_rad: yaw, scale });
+            out.push(SceneryInstance {
+                kind,
+                position: [xx, ground, zz],
+                yaw_rad: yaw,
+                scale,
+                seed: pair_seed,
+            });
         }
     }
 }

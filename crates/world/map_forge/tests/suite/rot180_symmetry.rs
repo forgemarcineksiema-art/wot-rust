@@ -79,7 +79,12 @@ fn rot_square() -> MapBlueprint {
                 kind: terrain::SceneryKind::Rock,
                 pairs: 4,
                 region: ScatterRect { x: [40.0, 140.0], z: [40.0, 140.0] },
-                exclude: Default::default(),
+                // A stone over the belly line is cover (X5), and a spawn ring must reach no
+                // cover: the document keeps its spawns clear the way every shipped map does.
+                exclude: map_forge::blueprint::Exclusion {
+                    exclusion_circles: vec![[60.0, 42.0, 25.0], [240.0, 258.0, 25.0]],
+                    ..Default::default()
+                },
             },
             SceneryOp::Fixed {
                 kind: terrain::SceneryKind::Oak,

@@ -1881,6 +1881,7 @@ dependencies = [
  "terrain",
  "thiserror 2.0.18",
  "workspace_hack",
+ "world_forge",
 ]
 
 [[package]]

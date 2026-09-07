@@ -12,6 +12,7 @@ ron.workspace = true
 serde.workspace = true
 terrain.workspace = true
 thiserror.workspace = true
+world_forge.workspace = true
 
 [lints]
 workspace = true
