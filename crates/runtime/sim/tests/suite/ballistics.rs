@@ -3,25 +3,83 @@ use glam::Vec3;
 use sim::{FixedTimestep, SimulationState, TankCommand};
 use terrain::HeightMap;
 
+/// S14 (the one program, block 5): the flight is a NUMBER, not "y went down". The code's
+/// linear drag stands over the GDD's "no air drag" (GDD reconciliation row 31, 2026-09-07):
+/// `c = 0.0130 / sectional density` — the D-10T's BR-412 (15.7 kg over a 100 mm bore) sheds
+/// 0.0828 m/s per metre — and the arc is the shared `integrate_shell_step` at the tick rate.
+/// A T-54 firing flat from the ground: at 1000 m the shell has flown 1.173 s, dropped 6.64 m
+/// under its departure line (semi-implicit Euler at 60 Hz: the closed-form 6.54 m plus half a
+/// tick of gravity per tick), and arrives at 812 m/s — within 2 m/s of the closed form the
+/// reticle and the armour math read (`speed_mps_at_distance`). One physics for the arc you
+/// see and the number the HUD promises.
 #[test]
-fn shell_falls_under_gravity_after_firing() {
+fn the_br412_flies_one_thousand_metres_by_the_numbers() {
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(50.0, 0.0, 50.0));
-    let terrain = HeightMap::flat(64, 64, 4.0, 0.0).expect("flat terrain");
+    // A firing shelf: the hull on a 0 m plateau up to z = 130 m, the range beyond it 20 m
+    // lower, so a 6.6 m drop meets no ground and no Z7 skip; the map long enough to hold the
+    // whole kilometre (320 cells × 4 m).
+    let width = 320;
+    let samples = (0..width * width)
+        .map(|index| if ((index / width) as f32) * 4.0 < 130.0 { 0.0 } else { -20.0 })
+        .collect();
+    let terrain = HeightMap::new(width, width, 4.0, samples).expect("a shelf over a low range");
+    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
     let step = FixedTimestep::from_hz(60);
+    let dt = 1.0 / 60.0;
 
     state.apply_commands_on_terrain(
         &[(id, TankCommand { fire: true, ..TankCommand::idle() })],
         step,
         &terrain,
     );
-    let launch = state.shells().first().expect("a shell was fired").velocity_mps.y;
+    let shell = state.shells().first().expect("a shell was fired").clone();
+    assert_eq!(shell.shell.round, Some(game_core::RoundId::Br412), "the D-10T's stock round");
+    let spec = shell.shell;
+    // The departure line: the fire tick already integrated one step (drag, then gravity, then
+    // the move), so undo it to read the muzzle velocity and the point it left from. The gun
+    // is level to the milliradian (the hull's settle on the ground is the only tilt).
+    let departure = shell.position - shell.velocity_mps * dt;
+    let muzzle_velocity = (shell.velocity_mps + Vec3::Y * game_core::math::SHELL_GRAVITY_MPS2 * dt)
+        / (1.0 - spec.drag_per_s() * dt);
+    let line = muzzle_velocity.normalize();
+    assert!(line.y.abs() < 2.0e-3, "the gun is level at spawn, got a {} rad line", line.y);
+    assert!(
+        (muzzle_velocity.length() - spec.muzzle_velocity_mps).abs() < 0.1,
+        "the round leaves at its muzzle velocity: {}",
+        muzzle_velocity.length()
+    );
 
-    for _ in 0..10 {
+    // Walk the flight tick by tick and interpolate the kilometre crossing.
+    let mut previous = (shell.age_seconds, shell.position, shell.velocity_mps);
+    let crossing = loop {
         state.apply_commands_on_terrain(&[(id, TankCommand::idle())], step, &terrain);
-    }
-    let shell = state.shells().first().expect("shell still in flight");
-    assert!(shell.velocity_mps.y < launch, "gravity must reduce vertical velocity");
+        let shell = state.shells().first().expect("the shell flies the whole kilometre");
+        let range = |p: Vec3| ((p.x - departure.x).powi(2) + (p.z - departure.z).powi(2)).sqrt();
+        let current = (shell.age_seconds, shell.position, shell.velocity_mps);
+        if range(current.1) >= 1000.0 {
+            let a = (1000.0 - range(previous.1)) / (range(current.1) - range(previous.1));
+            break (
+                previous.0 + a * (current.0 - previous.0),
+                previous.1 + (current.1 - previous.1) * a,
+                previous.2 + (current.2 - previous.2) * a,
+            );
+        }
+        previous = current;
+    };
+    let (time_of_flight, position, velocity) = crossing;
+    // The drop is measured under the departure LINE at the kilometre.
+    let line_y_at_range =
+        departure.y + line.y / (line.x * line.x + line.z * line.z).sqrt() * 1000.0;
+    let drop = line_y_at_range - position.y;
+    assert!((time_of_flight - 1.173).abs() < 0.01, "time of flight {time_of_flight} s");
+    assert!((drop - 6.64).abs() < 0.1, "drop {drop} m under the departure line");
+    let integrated = velocity.length();
+    let closed = spec.speed_mps_at_distance(1000.0);
+    assert!(
+        (integrated - closed).abs() < 2.0,
+        "the flown speed {integrated} m/s vs the closed form {closed} m/s"
+    );
+    assert!((closed - 812.2).abs() < 1.0, "the closed form itself: {closed}");
 }
 
 /// The shell must leave the *visible* muzzle: pitched about the trunnion, not swung about the

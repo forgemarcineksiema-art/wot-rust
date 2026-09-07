@@ -51,6 +51,12 @@ not deliver — but it ignores the speed gravity adds back on a plunging arc (th
 flown arc itself uses the shared `game_core::math::integrate_shell_step`, with
 real drag and gravity). Chemical rounds (HEAT/HE) ignore impact speed.
 
+The flight is locked as a NUMBER (S14, 2026-09-07; GDD reconciliation row 31 keeps the
+code's drag over the design text's "no air drag"): a T-54's BR-412 fired level reaches
+1000 m in 1.173 s, 6.64 m under its departure line, at 812 m/s — the sim's own 60 Hz
+arc, within 2 m/s of the closed form the reticle reads
+(`sim/tests/suite/ballistics.rs::the_br412_flies_one_thousand_metres_by_the_numbers`).
+
 There is no random damage roll — ever; this is a standing design law, not a
 slice limitation. Damage, module damage, ricochet, overmatch, and range falloff
 are replay-stable functions of the shell, armor facet, impact angle, and
