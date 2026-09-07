@@ -181,8 +181,14 @@ pub fn advance_hull_drive(
     } else if forced < 0.0 {
         target_yaw_rate = target_yaw_rate.min(forced);
     }
-    state.yaw_rate_rad_s =
-        move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
+    // The belts let go faster than they bite: stopping a rotation has BOTH belts braking against
+    // the ground where starting one has a single belt overcoming the hull's inertia, so a steer
+    // release settles at twice the spool-up rate (the one program's J5: the old symmetric ramp
+    // overshot the heading by 6.7° on a T-54).
+    let letting_go = target_yaw_rate.abs() < state.yaw_rate_rad_s.abs();
+    let yaw_accel =
+        if letting_go { 2.0 * settings.yaw_accel_rad_s2 } else { settings.yaw_accel_rad_s2 };
+    state.yaw_rate_rad_s = move_towards(state.yaw_rate_rad_s, target_yaw_rate, yaw_accel * dt);
     state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
 
     // --- 2. Decompose the surviving world velocity into the rotated hull frame, then resolve the
@@ -206,6 +212,7 @@ pub fn advance_hull_drive(
         v_r,
         state.yaw_rate_rad_s,
         throttle,
+        steer,
         brake,
         settings,
         &contact,

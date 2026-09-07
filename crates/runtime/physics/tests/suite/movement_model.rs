@@ -77,9 +77,11 @@ fn releasing_the_throttle_rolls_out_over_many_hull_lengths() {
     }
     let rollout = state.position.z - start_z;
     assert!(state.speed() < 0.05, "the hull eventually stops");
+    // Engine braking (J3): a T-54 from 13 m/s rolls out ~22 m — a few hull lengths, not the old
+    // 45 m glide the owner read as a hull that would not stop.
     assert!(
-        (25.0..=90.0).contains(&rollout),
-        "a coasting hull rolls out over many hull lengths, got {rollout:.1} m"
+        (15.0..=35.0).contains(&rollout),
+        "a coasting hull rolls out over a few hull lengths, got {rollout:.1} m"
     );
 }
 
@@ -727,4 +729,34 @@ fn the_brake_is_capped_by_the_ground_s_grip() {
         8.0 - firm.forward_speed() > 2.0 * lost,
         "firm ground brakes at least twice as hard as the riverbed"
     );
+}
+
+/// J5: a steer release settles the heading. From full lock at 8 m/s the T-54's heading may
+/// overshoot the point of release by no more than two degrees before it holds.
+#[test]
+fn a_steer_release_overshoots_the_heading_by_at_most_two_degrees() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let contact = TerrainContact::flat(0.0);
+    let dt = 1.0 / 60.0;
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
+    let steering = TankControlInput { throttle: 1.0, steer: 1.0, brake: 0.0 };
+    for _ in 0..60 {
+        step_custom_tank_controller_on_contact(&mut state, steering, &settings, contact, dt);
+    }
+    let released_at = state.yaw_rad;
+    let straight = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let mut peak = released_at;
+    for _ in 0..120 {
+        step_custom_tank_controller_on_contact(&mut state, straight, &settings, contact, dt);
+        peak = peak.max(state.yaw_rad);
+    }
+    let overshoot = (peak - released_at).to_degrees();
+    assert!(
+        overshoot <= 2.0,
+        "the heading overshot the release by {overshoot:.1} deg (the old spool: 6.7 deg)"
+    );
+    assert!(state.yaw_rate_rad_s.abs() < 1.0e-3, "...and the rotation has stopped");
 }
