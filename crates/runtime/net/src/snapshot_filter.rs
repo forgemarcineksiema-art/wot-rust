@@ -122,6 +122,7 @@ impl Snapshot {
             // Cover state is global world state, not intel — everyone sees the same rubble.
             cover_states: self.cover_states.clone(),
             cover_falls: self.cover_falls.clone(),
+            cover_segments: self.cover_segments.clone(),
             // So are craters (v31): the ground itself is deformed for everyone alike.
             craters: self.craters.clone(),
             // And the wounds on the walls (v32) — world dressing, not intel.

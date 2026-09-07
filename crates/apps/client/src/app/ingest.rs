@@ -441,11 +441,17 @@ impl ClientApp {
         let Some(next_live_cover) = super::live_cover::LiveCoverCache::from_replicated(
             &self.battlefield.static_cover,
             &snapshot.cover_states,
+            &snapshot.cover_segments,
         ) else {
             // An incomplete/default snapshot cannot turn a born ruin back into a full building.
             return;
         };
         if next_live_cover.phase_bytes() == self.live_cover.phase_bytes() {
+            // Z9: a wall segment opened (or closed, on a rewind) with no phase stepping —
+            // the blocking hollow and the baked opening follow, without a collapse's dust.
+            if next_live_cover.segment_bytes() != self.live_cover.segment_bytes() {
+                self.scene_cover_dirty = true;
+            }
             // Record that the born-phase bootstrap has now been confirmed by the authority.
             self.live_cover = next_live_cover;
             return;

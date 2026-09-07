@@ -89,6 +89,8 @@ pub(crate) enum SceneKind {
 /// baseline they were baked against (urban-map program PR-04).
 pub(crate) struct StaticsRebuild {
     pub(crate) phases: Vec<u8>,
+    /// Z9: the packed wall segments the buckets were baked against.
+    pub(crate) segments: Vec<u8>,
     pub(crate) scars: Vec<terrain::CoverScar>,
     pub(crate) buckets: Vec<(usize, scene_build::battlefield::SceneMeshData)>,
 }
@@ -152,6 +154,8 @@ pub(crate) struct BattleSceneMeshes {
     /// The cover phases and scars the current `statics_buckets` were baked against — the
     /// baseline the next rebuild diffs to find its dirty buckets.
     pub(crate) statics_baked_phases: Vec<u8>,
+    /// Z9: the packed wall segments the buckets were baked against (empty: every wall whole).
+    pub(crate) statics_baked_segments: Vec<u8>,
     pub(crate) statics_baked_scars: Vec<terrain::CoverScar>,
     pub(crate) water_vertices: Vec<renderer_api::WaterVertex>,
     pub(crate) water_indices: Vec<u32>,
@@ -250,6 +254,7 @@ fn bake_battle_scene_meshes(
         statics_indices,
         statics_buckets,
         statics_baked_phases: cover_phases,
+        statics_baked_segments: Vec::new(),
         statics_baked_scars: Vec::new(),
         water_vertices,
         water_indices,
@@ -387,6 +392,7 @@ impl ClientApp {
         self.live_cover = live_cover::LiveCoverCache::from_replicated(
             &battlefield.static_cover,
             &opening.cover_states,
+            &opening.cover_segments,
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         self.minimap_static = minimap;
@@ -838,6 +844,7 @@ impl ClientApp {
         let live_cover = live_cover::LiveCoverCache::from_replicated(
             &battlefield.static_cover,
             &opening_snapshot.cover_states,
+            &opening_snapshot.cover_segments,
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
@@ -894,6 +901,7 @@ impl ClientApp {
         let player_tank = local_server.player_tank();
         let opening_snapshot = local_server.latest_snapshot_for_player();
         let opening_cover_phases = opening_snapshot.cover_states.clone();
+        let opening_cover_segments = opening_snapshot.cover_segments.clone();
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(opening_snapshot);
         let player_spec = render_state
@@ -907,6 +915,7 @@ impl ClientApp {
         let live_cover = live_cover::LiveCoverCache::from_replicated(
             &battlefield.static_cover,
             &opening_cover_phases,
+            &opening_cover_segments,
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         let mut predictor = LocalPredictor::new(&player_spec);

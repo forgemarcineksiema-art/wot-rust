@@ -92,6 +92,7 @@ impl ClientApp {
                         meshes.statics_vertices = vertices;
                         meshes.statics_indices = indices;
                         meshes.statics_baked_phases = rebuild.phases;
+                        meshes.statics_baked_segments = rebuild.segments;
                         meshes.statics_baked_scars = rebuild.scars;
                     }
                 }
@@ -119,11 +120,17 @@ impl ClientApp {
         let phases = self.dressing_phase_bytes();
         let scars = self.cover_scar_list.clone();
         let falls = self.cover_falls.clone();
+        let segments = self.live_cover.segment_bytes().to_vec();
         let mut dirty = [false; crate::STATICS_BUCKET_COUNT];
         for (index, cover) in self.battlefield.static_cover.iter().enumerate() {
             let now = phases.get(index).copied().unwrap_or(0);
             let then = meshes.statics_baked_phases.get(index).copied().unwrap_or(0);
-            if now != then {
+            // Z9: a standing building's wall segments moved — the opening bakes.
+            let segments_moved = now == 0
+                && crate::segment_states_of(&segments, index).unwrap_or_default()
+                    != crate::segment_states_of(&meshes.statics_baked_segments, index)
+                        .unwrap_or_default();
+            if now != then || segments_moved {
                 for bucket in crate::statics_buckets_touched_by_cover(&self.battlefield, cover) {
                     dirty[bucket] = true;
                 }
@@ -155,17 +162,20 @@ impl ClientApp {
                 .map(|bucket| {
                     (
                         bucket,
-                        crate::battlefield_statics_bucket_mesh_with_falls(
+                        crate::battlefield_statics_bucket_mesh_dressed(
                             &battlefield,
-                            &phases,
-                            &falls,
+                            crate::CoverDressing {
+                                phases: &phases,
+                                falls: &falls,
+                                segments: &segments,
+                            },
                             &scars,
                             bucket,
                         ),
                     )
                 })
                 .collect();
-            let _ = tx.send(super::StaticsRebuild { phases, scars, buckets });
+            let _ = tx.send(super::StaticsRebuild { phases, segments, scars, buckets });
         });
     }
 

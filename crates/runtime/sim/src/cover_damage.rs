@@ -60,15 +60,36 @@ pub struct CoverState {
     /// keeps older fixtures loading with every trunk at +X.
     #[serde(default)]
     pub fall: u8,
+    /// Z9: the wall segments' states, two bits each (`terrain::segment_state`), replicated —
+    /// all whole on a fresh building, all rubble once the box has come down.
+    #[serde(default)]
+    pub segments: terrain::SegmentStates,
+    /// Z9: each segment's remaining budget (`WallMaterial::segment_health`), server-only.
+    #[serde(default)]
+    pub segment_health: [u16; terrain::SEGMENT_SLOTS],
 }
 
 impl CoverState {
     /// A fresh, whole object, healthed from its kind (indestructible kinds get `u32::MAX`).
     pub fn fresh(object: &StaticCoverObject) -> Self {
+        let segment = terrain::wall_material(object).map_or(0, |m| m.segment_health() as u16);
         Self {
             health: object.kind.max_health().unwrap_or(u32::MAX),
             phase: CoverPhase::Intact,
             fall: 0,
+            segments: [0; terrain::SEGMENT_BYTES],
+            segment_health: [segment; terrain::SEGMENT_SLOTS],
+        }
+    }
+
+    /// A state that has come down, whatever its phase byte: no health, every segment rubble.
+    fn fallen(phase: CoverPhase) -> Self {
+        Self {
+            health: 0,
+            phase,
+            fall: 0,
+            segments: terrain::SEGMENTS_ALL_RUBBLE,
+            segment_health: [0; terrain::SEGMENT_SLOTS],
         }
     }
 }
@@ -88,7 +109,7 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
         .iter()
         .map(|object| match terrain::born_cover_phase_byte(object) {
             0 => CoverState::fresh(object),
-            byte => CoverState { health: 0, phase: CoverPhase::from_wire(byte), fall: 0 },
+            byte => CoverState::fallen(CoverPhase::from_wire(byte)),
         })
         .collect()
 }
@@ -122,12 +143,23 @@ fn live_cover_for<'a>(
     states: &[CoverState],
     purpose: CoverPurpose,
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
-    if states.iter().all(|state| state.phase == CoverPhase::Intact) {
+    let opened = purpose == CoverPurpose::SightAndShells
+        && states.iter().any(|state| terrain::segments_opened(&state.segments));
+    if !opened && states.iter().all(|state| state.phase == CoverPhase::Intact) {
         return std::borrow::Cow::Borrowed(cover);
     }
     let mut live = Vec::with_capacity(cover.len());
     for (index, object) in cover.iter().enumerate() {
         match states.get(index).map(|state| state.phase).unwrap_or_default() {
+            // Z9: a standing building with an OPENING is a hollow of slabs to the eye and the
+            // shell — the wall that is there blocks, the segment that is open does not. The
+            // hull never enters (§13.4), so movement keeps the whole box.
+            CoverPhase::Intact
+                if purpose == CoverPurpose::SightAndShells
+                    && states.get(index).is_some_and(|s| terrain::segments_opened(&s.segments)) =>
+            {
+                live.extend(terrain::opened_building_boxes(object, &states[index].segments));
+            }
             CoverPhase::Intact => live.push(object.clone()),
             CoverPhase::Gone => {}
             // Debris is not an obstacle to a hull — it is the ground the hull stands on, and it
@@ -232,6 +264,7 @@ impl<'a> LiveCover<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct CoverCache {
     phases: Vec<CoverPhase>,
+    segments: Vec<terrain::SegmentStates>,
     sight: Vec<StaticCoverObject>,
     movement: Option<Vec<StaticCoverObject>>,
     rubble: Vec<RubbleMound>,
@@ -248,13 +281,15 @@ impl PartialEq for CoverCache {
 }
 
 impl CoverCache {
-    /// Rebuild the memo IFF the cover phases changed since it was last built; otherwise leave the
-    /// materialised slices untouched. The guard is a phase compare — one byte per object — so the
-    /// steady state (no cover changed this tick) is a walk over ~150 bytes instead of ~150 heap
-    /// clones. `movement` is materialised only when a mound exists, exactly like [`LiveCover`].
+    /// Rebuild the memo IFF the cover phases (or, Z9, the wall segments) changed since it was
+    /// last built; otherwise leave the materialised slices untouched. The guard is a compare
+    /// of a few bytes per object, so the steady state (no cover changed this tick) is a walk
+    /// over ~1 KB instead of ~150 heap clones. `movement` is materialised only when a mound
+    /// exists, exactly like [`LiveCover`].
     pub fn refresh(&mut self, cover: &[StaticCoverObject], states: &[CoverState]) {
         let unchanged = self.phases.len() == states.len()
-            && self.phases.iter().zip(states).all(|(phase, state)| *phase == state.phase);
+            && self.phases.iter().zip(states).all(|(phase, state)| *phase == state.phase)
+            && self.segments.iter().zip(states).all(|(seg, state)| *seg == state.segments);
         if unchanged {
             return;
         }
@@ -265,6 +300,7 @@ impl CoverCache {
             .then(|| live_cover_for_movement(cover, states).into_owned());
         self.rubble = rubble_mounds(cover, states);
         self.phases = states.iter().map(|state| state.phase).collect();
+        self.segments = states.iter().map(|state| state.segments).collect();
     }
 
     /// What stops a shell and hides a hull.
@@ -284,9 +320,26 @@ impl CoverCache {
 }
 
 fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {
+    states_from_wire(phase_bytes, &[])
+}
+
+/// The states the wire's bytes describe: a phase byte per object and (Z9) `SEGMENT_BYTES` of
+/// packed segment states per object — or none at all, which reads as every segment whole.
+fn states_from_wire(phase_bytes: &[u8], segment_bytes: &[u8]) -> Vec<CoverState> {
+    let complete = segment_bytes.len() == phase_bytes.len() * terrain::SEGMENT_BYTES;
     phase_bytes
         .iter()
-        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte), fall: 0 })
+        .enumerate()
+        .map(|(index, &byte)| {
+            let mut state = CoverState::fallen(CoverPhase::from_wire(byte));
+            state.segments = if complete {
+                let at = index * terrain::SEGMENT_BYTES;
+                segment_bytes[at..at + terrain::SEGMENT_BYTES].try_into().expect("sized above")
+            } else {
+                [0; terrain::SEGMENT_BYTES]
+            };
+            state
+        })
         .collect()
 }
 
@@ -297,6 +350,17 @@ pub fn sight_cover_for_phase_bytes(
     phase_bytes: &[u8],
 ) -> Vec<StaticCoverObject> {
     live_cover_for_sight_and_shells(cover, &states_from_phase_bytes(phase_bytes)).into_owned()
+}
+
+/// [`sight_cover_for_phase_bytes`] with the wall segments (Z9): a standing building with an
+/// opening resolves to its hollow of slabs, exactly as the authority resolves it.
+pub fn sight_cover_for_wire(
+    cover: &[StaticCoverObject],
+    phase_bytes: &[u8],
+    segment_bytes: &[u8],
+) -> Vec<StaticCoverObject> {
+    live_cover_for_sight_and_shells(cover, &states_from_wire(phase_bytes, segment_bytes))
+        .into_owned()
 }
 
 /// ...and into the movement geometry, which is what the client predictor must drive against if
@@ -357,7 +421,112 @@ pub fn damage_cover(
         state.phase =
             if object.kind.leaves_rubble() { CoverPhase::Rubble } else { CoverPhase::Gone };
         state.fall = terrain::fall_heading_byte(heading_rad);
+        // Z9: the box came down — every segment with it.
+        state.segments = terrain::SEGMENTS_ALL_RUBBLE;
+        state.segment_health = [0; terrain::SEGMENT_SLOTS];
     }
+}
+
+/// A high-explosive charge this large is what stone yields to (§13.4 „kamień tylko od
+/// bezpośredniego dużego HE"): the 122 mm and up, not a 76 mm.
+pub const LARGE_HE_FILLER_KG: f32 = 1.5;
+
+/// What one absorbed shell takes off a wall segment of `material` (Z9, §13.4 „drewno pada od
+/// taranu, cegła od kilku HE, kamień tylko od dużego HE"): timber takes every round in full;
+/// brick takes HE in full and a kinetic round as a chip; stone yields only to a LARGE
+/// high-explosive charge and to nothing else. `cover_hp` is the shell's cover damage
+/// (`cover_damage_hp`).
+pub fn segment_damage(
+    material: terrain::WallMaterial,
+    shell_type: game_core::ShellType,
+    filler_kg: f32,
+    cover_hp: u32,
+) -> u32 {
+    let high_explosive = shell_type == game_core::ShellType::HighExplosive;
+    match material {
+        terrain::WallMaterial::Timber => cover_hp,
+        terrain::WallMaterial::Brick => {
+            if high_explosive {
+                cover_hp
+            } else {
+                cover_hp / 4
+            }
+        }
+        terrain::WallMaterial::Stone => {
+            if high_explosive && filler_kg >= LARGE_HE_FILLER_KG {
+                cover_hp
+            } else {
+                0
+            }
+        }
+    }
+}
+
+/// Which face of a box a point on its surface sits on (as `CoverScar.face` counts: 0 +X, 1 -X,
+/// 2 +Z, 3 -Z, 4 the roof), and the point's normalized `u` across that face's run.
+pub fn struck_face(object: &StaticCoverObject, position: [f32; 3]) -> (u8, f32) {
+    let normalized: Vec<f32> = (0..3)
+        .map(|axis| (position[axis] - object.center[axis]) / object.half_extents_m[axis].max(0.05))
+        .collect();
+    let ax = normalized[0].abs();
+    let ay = normalized[1].abs();
+    let az = normalized[2].abs();
+    if ay >= ax && ay >= az {
+        (4, normalized[0])
+    } else if ax >= az {
+        (if normalized[0] >= 0.0 { 0 } else { 1 }, normalized[2])
+    } else {
+        (if normalized[2] >= 0.0 { 2 } else { 3 }, normalized[0])
+    }
+}
+
+/// Z9: one absorbed shell strikes the wall SEGMENT under it. The segment's budget is the
+/// material's; what the round takes off it is `segment_damage`; its state steps whole →
+/// damaged → ruin (an opening) → rubble (a lip) at thirds of the budget and never back. Returns
+/// the (facade, segment) struck, `None` for the roof, a felled box or a kind without walls.
+pub fn strike_segment(
+    states: &mut [CoverState],
+    cover: &[StaticCoverObject],
+    index: usize,
+    position: [f32; 3],
+    shell_type: game_core::ShellType,
+    filler_kg: f32,
+    cover_hp: u32,
+) -> Option<(usize, usize)> {
+    let (Some(state), Some(object)) = (states.get_mut(index), cover.get(index)) else {
+        return None;
+    };
+    if state.phase != CoverPhase::Intact {
+        return None;
+    }
+    let material = terrain::wall_material(object)?;
+    let (face, u) = struck_face(object, position);
+    if face > 3 {
+        return None;
+    }
+    let facade = usize::from(face);
+    let segment = terrain::segment_at(terrain::facade_run_m(object, facade), u);
+    let damage = segment_damage(material, shell_type, filler_kg, cover_hp);
+    if damage == 0 {
+        return None;
+    }
+    let slot = facade * terrain::SEGMENTS_PER_FACADE + segment;
+    let left = state.segment_health[slot].saturating_sub(damage.min(u32::from(u16::MAX)) as u16);
+    state.segment_health[slot] = left;
+    let full = material.segment_health() as f32;
+    let next = if left == 0 {
+        terrain::SEGMENT_RUBBLE
+    } else if f32::from(left) <= full / 3.0 {
+        terrain::SEGMENT_RUIN
+    } else if f32::from(left) <= full * 2.0 / 3.0 {
+        terrain::SEGMENT_DAMAGED
+    } else {
+        terrain::SEGMENT_WHOLE
+    };
+    if next > terrain::segment_state(&state.segments, facade, segment) {
+        terrain::set_segment_state(&mut state.segments, facade, segment, next);
+    }
+    Some((facade, segment))
 }
 
 /// Flatten a crushable cover object under a hull that drove into it: it goes straight to Gone
@@ -402,17 +571,11 @@ pub fn record_cover_scar(
     let normalized: Vec<f32> =
         (0..3).map(|axis| local[axis] / object.half_extents_m[axis].max(0.05)).collect();
     // The struck face is the axis the hit sits furthest along; roof hits map to +Y.
-    let (face, u_axis, v_axis) = {
-        let ax = normalized[0].abs();
-        let ay = normalized[1].abs();
-        let az = normalized[2].abs();
-        if ay >= ax && ay >= az {
-            (4u8, 0usize, 2usize)
-        } else if ax >= az {
-            (if normalized[0] >= 0.0 { 0u8 } else { 1u8 }, 2usize, 1usize)
-        } else {
-            (if normalized[2] >= 0.0 { 2u8 } else { 3u8 }, 0usize, 1usize)
-        }
+    let (face, _) = struck_face(object, impact.position.to_array());
+    let (u_axis, v_axis) = match face {
+        4 => (0usize, 2usize),
+        0 | 1 => (2usize, 1usize),
+        _ => (0usize, 1usize),
     };
     let quantize = |n: f32| (((n + 1.0) * 0.5).clamp(0.0, 1.0) * 255.0).round() as u8;
     let radius_m = if impact.shell_type == game_core::ShellType::HighExplosive {
@@ -443,6 +606,7 @@ pub fn record_cover_scar(
 
 #[cfg(test)]
 mod tests {
+    use glam::Vec3;
     use terrain::StaticCoverKind;
 
     use super::*;
@@ -560,6 +724,125 @@ mod tests {
         assert_eq!(cover_states_for(&cover)[0].fall, 0, "a standing tree has no fall");
     }
 
+    /// Z9 (§13.4 „drewno pada od taranu, cegła od kilku HE, kamień tylko od dużego HE"): the
+    /// wall's material decides. The same barn segment falls to a 57 mm HE in more rounds than
+    /// to a 152 mm HE; a stone church segment ignores the 57 mm and every kinetic round and
+    /// yields only to the large charge; the segment struck is the one under the shell and its
+    /// neighbour stands whole; the box itself still stands (the segments are not its health).
+    #[test]
+    fn a_57_and_a_152_fell_the_same_barn_segment_in_different_counts_and_stone_only_to_a_large_he()
+    {
+        let cover = vec![
+            object("barn", StaticCoverKind::FarmBuilding, [0.0, 2.0, 0.0], [6.0, 2.0, 4.0]),
+            object(
+                "ostrogorsk_church",
+                StaticCoverKind::CityBuilding,
+                [50.0, 8.0, 0.0],
+                [8.0, 8.0, 6.0],
+            ),
+        ];
+        // ZiS-2's O-271 and the ML-20's OF-540, by their charges; BR-271 the 57 mm shot.
+        let he_57 = game_core::ShellSpec::high_explosive(57.0, 700.0, 30.0, 90, 1.5)
+            .with_projectile(3.75, 0.22);
+        let he_152 = game_core::ShellSpec::high_explosive(152.0, 655.0, 40.0, 910, 5.0)
+            .with_projectile(43.6, 6.0);
+        let ap_57 = game_core::ShellSpec::armor_piercing(57.0, 990.0, 112.0, 85)
+            .with_projectile(3.15, 0.02);
+        let rounds_to_fell = |shell: &game_core::ShellSpec, target: usize, face_x: f32| {
+            let mut states = cover_states_for(&cover);
+            let hp = crate::cover_damage_hp(shell);
+            let hit = [face_x, cover[target].center[1] * 0.5, cover[target].center[2] - 3.0];
+            for round in 1..=40 {
+                strike_segment(
+                    &mut states,
+                    &cover,
+                    target,
+                    hit,
+                    shell.shell_type,
+                    shell.filler_kg,
+                    hp,
+                );
+                assert_eq!(states[target].phase, CoverPhase::Intact, "the box stands");
+                assert_eq!(
+                    terrain::segment_state(&states[target].segments, 0, 1),
+                    terrain::SEGMENT_WHOLE,
+                    "the neighbouring segment stands whole"
+                );
+                if terrain::segment_state(&states[target].segments, 0, 0) == terrain::SEGMENT_RUBBLE
+                {
+                    return round;
+                }
+            }
+            usize::MAX
+        };
+        let barn_57 = rounds_to_fell(&he_57, 0, 6.0);
+        let barn_152 = rounds_to_fell(&he_152, 0, 6.0);
+        assert!(barn_152 < barn_57, "the big charge fells it sooner: {barn_152} vs {barn_57}");
+        assert!(barn_57 <= 4, "a barn segment is timber: {barn_57} rounds of 57 mm HE");
+        assert_eq!(rounds_to_fell(&he_57, 1, 58.0), usize::MAX, "stone shrugs off a 57 mm HE");
+        assert_eq!(rounds_to_fell(&ap_57, 1, 58.0), usize::MAX, "and every kinetic round");
+        assert!(rounds_to_fell(&he_152, 1, 58.0) <= 3, "the large charge opens the church");
+        // A wall's states step in thirds and only forward; the whole box's collapse fells them all.
+        let mut states = cover_states_for(&cover);
+        let hp = crate::cover_damage_hp(&ap_57);
+        let hit = [6.0, 1.0, -3.0];
+        let first = strike_segment(&mut states, &cover, 0, hit, ap_57.shell_type, 0.02, hp);
+        assert_eq!(first, Some((0, 0)));
+        assert!(terrain::segment_state(&states[0].segments, 0, 0) <= terrain::SEGMENT_DAMAGED);
+        damage_cover(&mut states, &cover, 0, u32::MAX, 0.0);
+        assert_eq!(states[0].segments, terrain::SEGMENTS_ALL_RUBBLE, "the box came down");
+        assert_eq!(strike_segment(&mut states, &cover, 0, hit, ap_57.shell_type, 0.02, hp), None);
+    }
+
+    /// Z9: an opening is honest. A brick house with one ruined street segment lets the eye
+    /// (and so the shell) through that segment into the hollow, and the far wall still stops
+    /// it; at the sill's height the eye is blocked; ruin the facing segment of the far wall
+    /// too and the line sees clean through. Movement keeps the whole box: the hull never
+    /// enters (§13.4). A damaged segment alone opens nothing.
+    #[test]
+    fn a_ruined_segment_opens_the_wall_and_the_far_wall_still_stops_the_eye() {
+        use crate::spotting::line_of_sight;
+        let cover =
+            vec![object("house", StaticCoverKind::CityBuilding, [0.0, 4.0, 0.0], [5.0, 4.0, 4.0])];
+        let mut states = cover_states_for(&cover);
+        let eye = Vec3::new(20.0, 1.8, -2.0);
+        let beyond = Vec3::new(-20.0, 1.8, -2.0);
+        let inside = Vec3::new(0.0, 1.8, -2.0);
+        let sees = |states: &[CoverState], from: Vec3, to: Vec3| {
+            line_of_sight(None, &live_cover_for_sight_and_shells(&cover, states), from, to)
+        };
+        assert!(!sees(&states, eye, beyond));
+        assert!(!sees(&states, eye, inside));
+        terrain::set_segment_state(&mut states[0].segments, 0, 0, terrain::SEGMENT_DAMAGED);
+        assert_eq!(
+            live_cover_for_sight_and_shells(&cover, &states).len(),
+            1,
+            "damage opens nothing"
+        );
+        terrain::set_segment_state(&mut states[0].segments, 0, 0, terrain::SEGMENT_RUIN);
+        assert!(live_cover_for_sight_and_shells(&cover, &states).len() > 1, "a hollow of slabs");
+        assert!(sees(&states, eye, inside), "the eye reaches into the hollow through the opening");
+        assert!(!sees(&states, eye, beyond), "the far wall still stops it");
+        assert!(!sees(&states, Vec3::new(20.0, 0.3, -2.0), Vec3::new(0.0, 0.3, -2.0)), "the sill");
+        assert!(
+            !sees(&states, Vec3::new(20.0, 1.8, 2.0), Vec3::new(0.0, 1.8, 2.0)),
+            "the whole one"
+        );
+        terrain::set_segment_state(&mut states[0].segments, 1, 0, terrain::SEGMENT_RUIN);
+        assert!(sees(&states, eye, beyond), "through two openings the line sees clean through");
+        assert_eq!(
+            live_cover_for_movement(&cover, &states).as_ref(),
+            &cover[..],
+            "the hull never enters"
+        );
+        let mut cache = CoverCache::default();
+        cache.refresh(&cover, &states);
+        assert!(cache.sight().len() > 1, "the memo resolves the segments too");
+        terrain::set_segment_state(&mut states[0].segments, 1, 0, terrain::SEGMENT_RUBBLE);
+        cache.refresh(&cover, &states);
+        assert_eq!(cache.sight(), live_cover_for_sight_and_shells(&cover, &states).as_ref());
+    }
+
     /// Urban-map doctrine decision 2, as tests: a CityBuilding soaks 1500 HP and collapses
     /// to the standard rubble mound (hull blocked, turret-height shot clears); a StoneWall
     /// opens at 150 HP and goes fully GONE — a breached wall is a door, never a mound.
@@ -628,9 +911,9 @@ mod tests {
             object("gone", StaticCoverKind::StoneWall, [60.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
         ];
         let states = [
-            CoverState { health: 1500, phase: CoverPhase::Intact, fall: 0 },
-            CoverState { health: 0, phase: CoverPhase::Rubble, fall: 0 },
-            CoverState { health: 0, phase: CoverPhase::Gone, fall: 0 },
+            CoverState::fresh(&cover[0]),
+            CoverState::fallen(CoverPhase::Rubble),
+            CoverState::fallen(CoverPhase::Gone),
         ];
 
         let from_bytes = sight_cover_for_phase_bytes(&cover, &[0, 1, 2]);
