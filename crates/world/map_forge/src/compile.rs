@@ -210,6 +210,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                 wide_half_m,
                 narrow_half_m,
                 annex_share,
+                yaw_rad,
             } => {
                 // Immersja A2.2: a town is cast house by house, not stamped from two
                 // moulds on a checkerboard — see `town_grid_cells`, the one place the
@@ -217,6 +218,15 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                 // stay box-for-box identical: the variety is per house, the fairness per
                 // pair, exactly like the scenery wave before it.
                 let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+                // X2: the grid is one district, turned as a whole about its own centre;
+                // every house wears the district's yaw and the twin the twin's. At yaw 0
+                // every position is the arithmetic it was.
+                let district = town_grid_frame(columns_x_m, row_offsets_m, axis_z, *yaw_rad);
+                let (south_yaw, north_yaw) = if *yaw_rad == 0.0 {
+                    (0.0, 0.0)
+                } else {
+                    (*yaw_rad, symmetry.twin_yaw(*yaw_rad))
+                };
                 for cell in town_grid_cells(
                     columns_x_m,
                     row_offsets_m,
@@ -225,9 +235,11 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                     *annex_share,
                 ) {
                     let (column, row) = (cell.column, cell.row);
-                    let south = [cell.x, axis_z - cell.row_offset];
+                    let south = district.place([cell.x, axis_z - cell.row_offset]);
                     let north = symmetry.twin(south, blueprint.grid.size_m);
-                    for (side, at) in [("south", south), ("north", north)] {
+                    for (side, at, yaw) in
+                        [("south", south, south_yaw), ("north", north, north_yaw)]
+                    {
                         out.push(grounded_cover(
                             heightmap,
                             &format!("{id_prefix}_c{column}_r{row}_{side}"),
@@ -235,16 +247,17 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                             *kind,
                             at,
                             cell.half,
-                            0.0,
+                            yaw,
                         ));
                         if let Some(annex) = cell.annex {
                             // Behind the house — away from the axis — sharing its rear
                             // face, shifted toward one end: an L, not a T. The twin's
-                            // annex mirrors with it.
-                            let annex_south = [
+                            // annex mirrors with it; a turned district turns it with the
+                            // house.
+                            let annex_south = district.place([
                                 cell.x + annex.x_shift,
                                 axis_z - cell.row_offset - (cell.half[2] + annex.half[2]),
-                            ];
+                            ]);
                             let annex_at = if side == "south" {
                                 annex_south
                             } else {
@@ -259,7 +272,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                                 *kind,
                                 annex_at,
                                 annex.half,
-                                0.0,
+                                yaw,
                             ));
                         }
                     }
@@ -422,6 +435,43 @@ pub fn town_grid_cells(
         }
     }
     cells
+}
+
+/// X2: the frame a `TownGrid` is turned in — its centre (the mean column, the mean row on
+/// the south side) and its yaw.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TownGridFrame {
+    pub center_xz: [f32; 2],
+    pub yaw_rad: f32,
+}
+
+impl TownGridFrame {
+    /// An unturned cell position turned about the district's centre. At yaw 0 the position
+    /// comes back untouched — the square grid's arithmetic, bit for bit.
+    pub fn place(&self, unturned: [f32; 2]) -> [f32; 2] {
+        if self.yaw_rad == 0.0 {
+            return unturned;
+        }
+        let frame = terrain::CoverBox {
+            center: [self.center_xz[0], 0.0, self.center_xz[1]],
+            half: [0.0; 3],
+            yaw_rad: self.yaw_rad,
+        };
+        let world =
+            frame.to_world([unturned[0] - self.center_xz[0], 0.0, unturned[1] - self.center_xz[1]]);
+        [world[0], world[2]]
+    }
+}
+
+/// The frame a `TownGrid` turns in, decided ONCE for the compiler and any reader of the grid.
+pub fn town_grid_frame(
+    columns_x_m: &[f32],
+    row_offsets_m: &[f32],
+    axis_z: f32,
+    yaw_rad: f32,
+) -> TownGridFrame {
+    let mean = |values: &[f32]| values.iter().sum::<f32>() / values.len().max(1) as f32;
+    TownGridFrame { center_xz: [mean(columns_x_m), axis_z - mean(row_offsets_m)], yaw_rad }
 }
 
 /// How many cover boxes a `TownGrid` emits: a south/north pair per cell, plus a pair of

@@ -1277,9 +1277,10 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
         );
     }
 
-    // X1: a twin turned by the same angle modulo a half turn is the same box mirrored.
+    // X1/X2: a twin wears the twin's yaw (`twin_yaw`: reflected or turned by π), read
+    // modulo a half turn — a box is the same box turned around.
     let same_turn = |a: f32, b: f32| {
-        let d = (a - b).rem_euclid(std::f32::consts::PI);
+        let d = (a - symmetry.twin_yaw(b)).rem_euclid(std::f32::consts::PI);
         d < 1.0e-3 || std::f32::consts::PI - d < 1.0e-3
     };
     let has_twin =

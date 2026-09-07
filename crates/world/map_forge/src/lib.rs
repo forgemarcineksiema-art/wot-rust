@@ -15,7 +15,8 @@ mod report;
 pub use backdrop::{backdrop_height, cached_blueprint_by_id};
 pub use catalog::{battlefield, blueprint_for, cached_blueprint, formats, set_scratch_source};
 pub use compile::{
-    ForgeError, TownGridAnnex, TownGridCell, compile, town_grid_cells, town_grid_member_count,
+    ForgeError, TownGridAnnex, TownGridCell, TownGridFrame, compile, town_grid_cells,
+    town_grid_frame, town_grid_member_count,
 };
 pub use golden::{battlefield_hash, map_golden_hashes};
 pub use report::{
