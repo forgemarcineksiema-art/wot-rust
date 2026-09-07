@@ -72,15 +72,18 @@ fn born_ruins_seed_blocking_and_camera_before_the_first_snapshot() {
     assert_eq!(cache.phase_bytes(), [0, 1, 2]);
     assert_eq!(
         cache.blocking().iter().map(|cover| cover.id.as_str()).collect::<Vec<_>>(),
-        ["whole", "tenement_ruin"],
-        "a born wall breach is absent while a born building ruin keeps a mound"
+        ["whole"],
+        "a born wall breach is absent and a born building ruin is a mound, not a box (X11)"
     );
-    assert!(cache.blocking()[1].half_extents_m[1] < authored[1].half_extents_m[1]);
-    assert_eq!(cache.camera_obstacles().len(), cache.blocking().len());
-    for (cover, obstacle) in cache.blocking().iter().zip(cache.camera_obstacles()) {
-        assert_eq!(obstacle.center, cover.center);
-        assert_eq!(obstacle.half_extents, cover.half_extents_m);
-    }
+    assert_eq!(cache.rubble().len(), 1, "the born ruin's pile is in the rubble");
+    assert_eq!(cache.rubble()[0].center_xz_m, [30.0, 0.0]);
+    assert!(cache.rubble()[0].crest_y_m < 2.0 * authored[1].half_extents_m[1]);
+    // The camera boom keeps the lowered box for the mound (presentation, not honesty).
+    assert_eq!(cache.camera_obstacles().len(), cache.blocking().len() + 1);
+    assert_eq!(cache.camera_obstacles()[0].center, cache.blocking()[0].center);
+    assert_eq!(cache.camera_obstacles()[0].half_extents, cache.blocking()[0].half_extents_m);
+    assert_eq!(cache.camera_obstacles()[1].center[0], 30.0);
+    assert!(cache.camera_obstacles()[1].half_extents[1] < authored[1].half_extents_m[1]);
     assert!(
         LiveCoverCache::from_replicated(&authored, &[0, 1], &[], &[]).is_none(),
         "an incomplete startup snapshot must not resurrect a born ruin"
@@ -101,9 +104,9 @@ fn prediction_stops_on_intact_and_rubble_cover_but_passes_gone_cover() {
             predictor.step(
                 sim::TankCommand::drive(1.0, 0.0),
                 &flat,
-                cache.blocking(),
+                cache.movement(),
                 &[],
-                &[],
+                cache.rubble(),
                 None,
                 1.0 / 60.0,
             );
@@ -116,7 +119,11 @@ fn prediction_stops_on_intact_and_rubble_cover_but_passes_gone_cover() {
     let gone_z = predicted_z(2);
 
     assert!(intact_z < 25.0, "intact building stops prediction at z={intact_z}");
-    assert!(rubble_z < 25.0, "the low mound still stops a hull at z={rubble_z}");
+    assert!(
+        rubble_z > intact_z && rubble_z < gone_z,
+        "the mound is a pile the hull climbs, not a wall and not a vacuum (X11): \
+         {intact_z} < {rubble_z} < {gone_z}"
+    );
     assert!(
         gone_z > intact_z + 10.0,
         "gone cover opens the route instead of reconciling later ({gone_z} vs {intact_z})"
@@ -125,6 +132,8 @@ fn prediction_stops_on_intact_and_rubble_cover_but_passes_gone_cover() {
 
 #[test]
 fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
+    // The muzzle at 3 m over a 1.8 m crest (0.18 of the 10 m tenement): over the pile.
+    // The traces read the pyramid from `rubble()`, the same surface the server resolves.
     let flat = HeightMap::flat(80, 80, 5.0, -50.0).unwrap();
     let authored =
         [object("tenement", StaticCoverKind::CityBuilding, [40.0, 5.0, 75.0], [4.0, 5.0, 2.0])];
@@ -137,6 +146,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
         crate::aim::aim_point_with_sweep(
             &flat,
             cache.blocking(),
+            cache.rubble(),
             terrain::WaterView::DRY,
             &[],
             TankId(1),
@@ -162,6 +172,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
             hull_pose: game_core::math::HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 },
             heightmap: &flat,
             cover: cache.blocking(),
+            rubble: cache.rubble(),
             water: terrain::WaterView::DRY,
             tanks: &[],
             player_spec: &spec,

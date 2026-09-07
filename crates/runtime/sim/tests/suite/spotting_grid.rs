@@ -38,7 +38,7 @@ fn the_eye_and_the_shell_march_one_surface_on_every_map() {
             let bz = (az + reach * angle.sin()).clamp(5.0, ez - 5.0);
             let from = Vec3::new(ax, heightmap.sample_height(ax, az).unwrap() + 2.4, az);
             let to = Vec3::new(bx, heightmap.sample_height(bx, bz).unwrap() + 1.2, bz);
-            let eye_sees = sim::line_of_sight(Some(heightmap), &[], from, to);
+            let eye_sees = sim::line_of_sight(Some(heightmap), &[], &[], from, to);
             let shell_clears = sim::shell_line_clear(Some(heightmap), &[], from, to, 0.0);
             if shell_clears {
                 assert!(

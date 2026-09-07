@@ -183,7 +183,13 @@ standing solid's from the ground it is planted in up to its top (`TankObstacle::
 the forge grounds a box by its centre, so its bottom face is no evidence of air under it). A hull
 carried up a mound does not shove the hull below, whose band it no longer meets. Nothing ends up on
 a roof: a building's top is where the support envelope never reaches. This is the Honest Steel rule
-"rubble is terrain".
+"rubble is terrain". And the pile is ONE shape (X11, 2026-09-07): the pyramid the hull climbs is the
+surface the shell stops on (`terrain::rubble_segment_impact`, walked every 0.125 m inside the
+footprint) and the eye is stopped by (`sim::line_of_sight` takes the mounds), and the surface the
+bake draws (the flanks and the crown at `height_at`, the slabs sunk into the talus). The
+sight-and-shells cover slice carries no box for a mound; only the camera boom keeps a lowered box,
+as presentation. A hull hull-down behind a pile is hull-down against the same talus the shell
+meets — what a hull stands on, a shell stops on, and an eye is stopped by, at one height.
 
 Low solids are ground (X4, 2026-09-07). The running gear has a STEP — `HullPlan::step_m`, the
 belt's top run less a hand of clearance: the T-54's 0.8 m is the dossier's vertical obstacle, the

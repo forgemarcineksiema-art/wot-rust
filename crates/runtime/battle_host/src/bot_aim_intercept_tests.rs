@@ -25,6 +25,7 @@ fn moving_target_hit_time(shooter: &TankState, target: &TankState) -> Option<f32
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     let mut age = 0.0;

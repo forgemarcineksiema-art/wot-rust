@@ -81,6 +81,7 @@ fn trace_event(from: Vec3, to: Vec3, spec: &TankSpec) -> Option<DamageEvent> {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     match segment_impact(from, to, to - from, &world) {

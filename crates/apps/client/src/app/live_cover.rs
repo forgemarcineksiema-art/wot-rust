@@ -54,7 +54,13 @@ impl LiveCoverCache {
             sim::sight_cover_for_wire(authored, &phase_bytes, &segment_bytes, &turret_rests);
         let movement = sim::movement_cover_for_phase_bytes(authored, &phase_bytes);
         let rubble = sim::rubble_mounds_for_phase_bytes(authored, &phase_bytes);
-        let camera_obstacles = blocking.iter().map(CameraObstacle::from_static_cover).collect();
+        // The boom's solids keep a mound as the lowered box it always was for the camera (X11:
+        // the sight slice carries the pyramid in `rubble` instead); presentation, not honesty.
+        let camera_obstacles =
+            sim::camera_cover_for_wire(authored, &phase_bytes, &segment_bytes, &turret_rests)
+                .iter()
+                .map(CameraObstacle::from_static_cover)
+                .collect();
         Self {
             phase_bytes,
             segment_bytes,

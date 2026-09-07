@@ -124,7 +124,7 @@ pub(crate) fn segment_impact_point_for_test(
     to: Vec3,
     cover: &[::terrain::StaticCoverObject],
 ) -> Option<Vec3> {
-    cover::first_cover_impact(from, to, cover, 0.0)
+    cover::first_cover_impact(from, to, cover, &[], 0.0)
 }
 
 /// True once a shell has fallen to or below the terrain surface beneath it.
@@ -144,7 +144,7 @@ fn nearest_obstacle(
     let radius_m = world.projectile_radius_m.max(0.0);
     let terrain = terrain::first_terrain_impact(previous, current, world.heightmap, radius_m)
         .map(|point| (point, ImpactSurface::Terrain));
-    let cover = cover::first_cover_impact(previous, current, world.cover, radius_m)
+    let cover = cover::first_cover_impact(previous, current, world.cover, world.rubble, radius_m)
         .map(|point| (point, ImpactSurface::Cover));
     let hull = tank::first_tank_impact(previous, current, velocity, world.blockers, radius_m)
         .map(|impact| (impact.point(), ImpactSurface::Hull));
@@ -171,6 +171,7 @@ mod tests {
             blockers: &[],
             heightmap: None,
             cover: &[],
+            rubble: &[],
             water: ::terrain::WaterView::DRY,
         }
     }

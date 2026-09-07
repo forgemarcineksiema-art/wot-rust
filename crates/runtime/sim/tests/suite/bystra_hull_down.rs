@@ -47,7 +47,7 @@ fn windmill_hill_overwatches_the_stone_bridge() {
     let hill_eye = eye(&map, 250.0, HALF_M - 14.0);
     let seen = target_points(&map, bridge_x, HALF_M)
         .into_iter()
-        .any(|point| line_of_sight(Some(&map.heightmap), &map.static_cover, hill_eye, point));
+        .any(|point| line_of_sight(Some(&map.heightmap), &map.static_cover, &[], hill_eye, point));
     assert!(seen, "the Windmill Hill crest must see a hull on the bridge deck");
 }
 
@@ -62,11 +62,11 @@ fn windmill_shelf_masks_a_hull_from_the_bridge_but_fires_over_the_crest() {
     let (shelf_x, shelf_z) = (340.0, HALF_M - 90.0);
     let [hull, turret] = target_points(&map, shelf_x, shelf_z);
     assert!(
-        !line_of_sight(Some(&map.heightmap), &map.static_cover, bridge_eye, hull),
+        !line_of_sight(Some(&map.heightmap), &map.static_cover, &[], bridge_eye, hull),
         "the crest must mask the hull centre on the shelf from the bridge"
     );
     assert!(
-        line_of_sight(Some(&map.heightmap), &map.static_cover, bridge_eye, turret),
+        line_of_sight(Some(&map.heightmap), &map.static_cover, &[], bridge_eye, turret),
         "the turret above the crest must still work the bridge"
     );
 }
@@ -97,19 +97,21 @@ fn a_felled_kamienica_opens_the_turret_line_and_keeps_the_hull_line() {
 
     let live = live_cover_for_sight_and_shells(&map.static_cover, &states);
     assert!(
-        !line_of_sight(Some(&map.heightmap), &live, west_eye, east_turret),
+        !line_of_sight(Some(&map.heightmap), &live, &[], west_eye, east_turret),
         "the intact kamienica must block the cross-market line"
     );
 
     damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
     assert_eq!(states[index].phase, CoverPhase::Rubble);
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    // The mound as the pyramid the eye meets (X11): the sight slice carries no box for it.
+    let mounds_after = sim::rubble_mounds(&map.static_cover, &states);
     assert!(
-        line_of_sight(Some(&map.heightmap), &live_after, west_eye, east_turret),
+        line_of_sight(Some(&map.heightmap), &live_after, &mounds_after, west_eye, east_turret),
         "the mound must stay under turret eyes - destruction opens the market"
     );
     assert!(
-        !line_of_sight(Some(&map.heightmap), &live_after, west_eye, east_hull),
+        !line_of_sight(Some(&map.heightmap), &live_after, &mounds_after, west_eye, east_hull),
         "and the hull line stays covered behind the mound"
     );
 }

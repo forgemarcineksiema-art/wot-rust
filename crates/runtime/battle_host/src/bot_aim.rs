@@ -146,6 +146,7 @@ fn choose_aim_point(tank: &TankState, target: &TankState) -> AimChoice {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     // A centre the shell beats — or a degenerate pose the probe cannot read — keeps the lay

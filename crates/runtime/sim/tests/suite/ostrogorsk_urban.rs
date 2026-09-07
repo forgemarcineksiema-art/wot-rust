@@ -41,14 +41,14 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
     let from = eye(&map, 250.0, 450.0);
     let to = hull(&map, 250.0, 486.0);
     assert!(
-        !line_of_sight(Some(&map.heightmap), &live, from, to),
+        !line_of_sight(Some(&map.heightmap), &live, &[], from, to),
         "the standing tenement row must block the cross-block sightline"
     );
     // Along the market-lane canyon: the street is the sightline.
     let a = eye(&map, 200.0, 446.0);
     let b = hull(&map, 400.0, 446.0);
     assert!(
-        line_of_sight(Some(&map.heightmap), &live, a, b),
+        line_of_sight(Some(&map.heightmap), &live, &[], a, b),
         "the street canyon must carry the eye down its own axis"
     );
 
@@ -69,26 +69,36 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
     assert!(collapsed > 0, "the row line must carry at least one standing block to fell");
 
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    // The mound as the pyramid the eye meets (X11): the sight slice carries no box for it.
+    let mounds_after = sim::rubble_mounds(&map.static_cover, &states);
     // The spotting recompute samples the hull centre AND the turret top: over the mound the
     // TURRET line opens (the pair lights up), while the HULL line stays covered — the mound
     // is still cover, just no longer a wall. Both halves of that promise, asserted.
     let turret_to = eye(&map, 250.0, 486.0);
     assert!(
-        line_of_sight(Some(&map.heightmap), &live_after, from, turret_to),
+        line_of_sight(Some(&map.heightmap), &live_after, &mounds_after, from, turret_to),
         "after the collapse the turret line must open OVER the mound - the per-kind \
          rubble fraction keeps a felled 11 m block under turret eyes"
     );
     assert!(
-        !line_of_sight(Some(&map.heightmap), &live_after, from, to),
+        !line_of_sight(Some(&map.heightmap), &live_after, &mounds_after, from, to),
         "the hull line stays covered - the mound is still cover, not a vacuum"
     );
-    // And the mound still stops a hull: it is present in the live slice, lower but real.
-    let mound = live_after
+    // And the mound still stops a hull: it is a pyramid in the rubble (X11), not a box in
+    // the sight slice — lower than the tenement but real.
+    assert!(
+        !live_after
+            .iter()
+            .any(|c| (c.center[2] - 468.0).abs() < 6.0 && (c.center[0] - 250.0).abs() <= 8.0),
+        "the sight slice carries no box for the mound"
+    );
+    let mound = mounds_after
         .iter()
-        .find(|c| (c.center[2] - 468.0).abs() < 6.0 && (c.center[0] - 250.0).abs() <= 8.0)
-        .expect("the mound remains a blocking box");
-    assert!(mound.half_extents_m[1] > 0.5, "the mound still stops a hull");
-    assert!(mound.half_extents_m[1] < 1.5, "but it stays under the sightline");
+        .find(|m| (m.center_xz_m[1] - 468.0).abs() < 6.0 && (m.center_xz_m[0] - 250.0).abs() <= 8.0)
+        .expect("the mound remains, as the pile the hull climbs");
+    let height = mound.crest_y_m - mound.base_y_m;
+    assert!(height > 1.0, "the mound still stops a hull: {height} m");
+    assert!(height < 3.0, "but it stays under the sightline: {height} m");
 }
 
 /// (c): the born-ruins are already rubble in the battle's initial states — on the compiled
@@ -134,15 +144,17 @@ fn a_bricked_cut_opens_by_demolition() {
     let to = hull(&map, 890.0, 390.0);
     let live = live_cover_for_sight_and_shells(&map.static_cover, &states);
     assert!(
-        !line_of_sight(Some(&map.heightmap), &live, from, to),
+        !line_of_sight(Some(&map.heightmap), &live, &[], from, to),
         "born bricked: the plug must seal the cut's hull line"
     );
 
     damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
     assert_eq!(states[index].phase, CoverPhase::Gone, "{} breaches clean", plug.id);
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
+    // The mound as the pyramid the eye meets (X11): the sight slice carries no box for it.
+    let mounds_after = sim::rubble_mounds(&map.static_cover, &states);
     assert!(
-        line_of_sight(Some(&map.heightmap), &live_after, from, to),
+        line_of_sight(Some(&map.heightmap), &live_after, &mounds_after, from, to),
         "breached: the cut must carry the hull line - the new route is real"
     );
 }

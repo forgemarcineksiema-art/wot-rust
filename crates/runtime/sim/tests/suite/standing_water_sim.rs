@@ -65,6 +65,7 @@ fn a_shell_splashes_on_the_sheets_own_surface() {
         blockers: &[],
         heightmap: Some(&heightmap),
         cover: &[],
+        rubble: &[],
         water: field.view(),
     };
     let velocity = Vec3::new(0.0, -220.0, 0.0);

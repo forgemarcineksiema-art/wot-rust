@@ -306,8 +306,9 @@ impl StaticCoverKind {
             StaticCoverKind::CityBuilding => 0.18,
             // A watchtower stands nearly twice a tenement, so its fraction drops further:
             // 0.11 of the 20 m Orliny tower is a 2.2 m stump — under the benchmark turret
-            // line (2.53 m), above the hull-down floor (1.49 m). The felled landmark
-            // becomes a fighting mound, locked by `sim`'s Orliny tests.
+            // line (2.53 m), above the hull-down floor (1.49 m); the repose angle over its
+            // 2.6 m half-footprint caps the pile at 2.03 m (X11: one shape). The felled
+            // landmark becomes a fighting mound, locked by `sim`'s Orliny tests.
             StaticCoverKind::StoneTower => 0.11,
             // A shelled wreck keeps its hull: the turret and the superstructure go, and a
             // 2.7 m hulk becomes a 1.2 m mound — still a thing to sit behind, no longer a

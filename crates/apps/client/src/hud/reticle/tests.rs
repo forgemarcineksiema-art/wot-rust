@@ -384,6 +384,7 @@ fn query<'a>(
         hull_pose: HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 },
         heightmap,
         cover,
+        rubble: &[],
         water: terrain::WaterView::DRY,
         tanks,
         player_spec: default_spec(),

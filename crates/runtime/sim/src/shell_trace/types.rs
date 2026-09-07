@@ -80,6 +80,10 @@ pub struct ShellTraceWorld<'a> {
     pub blockers: &'a [TraceTank],
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
+    /// The collapsed buildings as the pyramids they are (X11): a shell stops on the talus or
+    /// the crown exactly where a hull would stand on it. The sight-and-shells slice carries
+    /// no box for them.
+    pub rubble: &'a [::terrain::RubbleMound],
     /// The map's standing water: a shell crossing a surface over submerged ground dies there
     /// (`ImpactSurface::Water`). A dry view is a dry map. The reticle preview passes the same
     /// value as the server so a previewed splash is never a hit the server resolves differently.

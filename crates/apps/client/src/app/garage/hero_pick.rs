@@ -120,6 +120,7 @@ impl GarageState {
             blockers: &[],
             heightmap: None,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
         };
         match segment_impact(origin, origin + direction * RAY_LENGTH_M, direction, &world)? {

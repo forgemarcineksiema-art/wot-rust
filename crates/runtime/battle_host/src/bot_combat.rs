@@ -82,6 +82,7 @@ pub(crate) fn bot_best_engageable_enemy<'a>(
     exclude: Option<TankId>,
     heightmap: Option<&terrain::HeightMap>,
     cover: &[terrain::StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
     situation: &BotSituation<'_>,
 ) -> Option<&'a TankState> {
     let mut best: Option<(&TankState, f32)> = None;
@@ -103,7 +104,7 @@ pub(crate) fn bot_best_engageable_enemy<'a>(
         // V0 left the bot on its EYE: on the shell's reading (`sim::tank_shell_line_clear`)
         // the Bystra river soak lost a third seed's hull (`bot_water`), and that lock is not a
         // threshold to raise — the switch waits on H1's escape.
-        if sim::tank_line_of_sight(tank, target, heightmap, cover) {
+        if sim::tank_line_of_sight(tank, target, heightmap, cover, rubble) {
             best = Some((target, score));
         }
     }

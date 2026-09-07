@@ -102,6 +102,75 @@ impl RubbleMound {
     }
 }
 
+/// Where a segment first goes UNDER the mound's surface (the one program's X11): the talus and the
+/// crown as the pyramid they are, for the shell and the eye — the same surface a hull climbs.
+/// Sampled every [`SEGMENT_SAMPLE_M`] along the part of the segment inside the footprint, so a
+/// shell's step (~0.25 m at 900 m/s and 60 Hz is far coarser) never skips a flank. Returns the
+/// first sample under the surface, lifted onto it (the contact point). `radius_m` grows the
+/// surface by the projectile's body.
+pub fn rubble_segment_impact(
+    mounds: &[RubbleMound],
+    from: [f32; 3],
+    to: [f32; 3],
+    radius_m: f32,
+) -> Option<[f32; 3]> {
+    let mut nearest: Option<(f32, [f32; 3])> = None;
+    for mound in mounds {
+        if let Some((t, point)) = mound.segment_impact(from, to, radius_m)
+            && nearest.is_none_or(|(best, _)| t < best)
+        {
+            nearest = Some((t, point));
+        }
+    }
+    nearest.map(|(_, point)| point)
+}
+
+/// The step the segment is walked in inside a mound's footprint, metres.
+const SEGMENT_SAMPLE_M: f32 = 0.125;
+
+impl RubbleMound {
+    /// The first parameter `t` along `from → to` at which the segment is under this mound's
+    /// surface, and that point lifted onto the surface; `None` when the segment clears the pile.
+    pub fn segment_impact(
+        &self,
+        from: [f32; 3],
+        to: [f32; 3],
+        radius_m: f32,
+    ) -> Option<(f32, [f32; 3])> {
+        // The footprint's plan bounds as the broadphase — the same frame `height_at` reads.
+        let plan = crate::CoverBox {
+            center: [self.center_xz_m[0], 0.0, self.center_xz_m[1]],
+            half: [self.footprint_half_m[0], 0.0, self.footprint_half_m[1]],
+            yaw_rad: self.yaw_rad,
+        };
+        if plan.xz_disjoint_from_segment(from, to, radius_m) {
+            return None;
+        }
+        // A segment entirely above the crest cannot touch the pile.
+        if from[1] - radius_m > self.crest_y_m && to[1] - radius_m > self.crest_y_m {
+            return None;
+        }
+        let dx = to[0] - from[0];
+        let dy = to[1] - from[1];
+        let dz = to[2] - from[2];
+        let length = (dx * dx + dy * dy + dz * dz).sqrt();
+        let steps = ((length / SEGMENT_SAMPLE_M).ceil() as usize).max(1);
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let x = from[0] + dx * t;
+            let y = from[1] + dy * t;
+            let z = from[2] + dz * t;
+            if let Some(surface) = self.height_at(x, z)
+                && surface > self.base_y_m + 1.0e-4
+                && y - radius_m <= surface
+            {
+                return Some((t, [x, surface.max(y - radius_m), z]));
+            }
+        }
+        None
+    }
+}
+
 /// The highest debris surface at a world XZ point across every mound, or `None` if the point is
 /// on none of them. `mounds` is empty for the overwhelming majority of battles, which is why this
 /// is a plain linear scan: the fast path is the emptiness check.

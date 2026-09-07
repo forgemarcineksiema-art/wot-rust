@@ -26,6 +26,7 @@ fn world(tank: &TraceTank) -> ShellTraceWorld<'_> {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     }
 }

@@ -136,6 +136,7 @@ fn measure(map: MapId) -> Seam {
             blockers: &sets.blockers,
             heightmap: Some(heightmap),
             cover,
+            rubble: &[],
             water: battlefield.water_view(),
         };
         let eye_world = sim::ShellTraceWorld { projectile_radius_m: 0.0, ..world };
@@ -184,6 +185,7 @@ fn measure(map: MapId) -> Seam {
             crate::hud::reticle_sweep::ReticleTraceQuery {
                 heightmap,
                 cover,
+                rubble: &[],
                 water: battlefield.water_view(),
                 tanks: &tanks,
                 owner: TankId(1),

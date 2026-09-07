@@ -76,6 +76,9 @@ pub(crate) struct PenetrationHint {
 pub(crate) struct ReticleFeedbackQuery<'a> {
     pub heightmap: &'a HeightMap,
     pub cover: &'a [StaticCoverObject],
+    /// The collapsed buildings as the pyramids the shell meets (X11) — the preview must stop on
+    /// the talus exactly where the server's shell will.
+    pub rubble: &'a [terrain::RubbleMound],
     /// The map's standing water — the previewed splash must be the server's splash.
     pub water: terrain::WaterView<'a>,
     /// The PLAYER'S gun arc (min, max) in radians — a per-vehicle property since the fleet
@@ -131,6 +134,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
         crate::hud::reticle_sweep::reticle_trace(crate::hud::reticle_sweep::ReticleTraceQuery {
             heightmap: query.heightmap,
             cover: query.cover,
+            rubble: query.rubble,
             water: query.water,
             tanks: query.tanks,
             owner: query.owner,

@@ -98,9 +98,13 @@ decide the mid-game").
   pale limewashed shaft crests the pass skyline from BOTH spawn roads (locked in `sim`
   through the live LOS rule), so the objective draws the eye from the first minute. It is
   destructible masonry (900 HP), and its rubble fraction is 0.11 by the destruction
-  doctrine: the felled tower leaves a 2.2 m stump under the benchmark turret line (2.53 m)
+  doctrine: the felled tower leaves a stump under the benchmark turret line (2.53 m)
   and above the hull-down floor (1.49 m) — the landmark falls into a fighting mound on the
-  cap, with both sight lines locked in `sim/tests/orliny_watchtower.rs`. 20 m is the honest
+  cap, with both sight lines locked in `sim/tests/orliny_watchtower.rs`. Since X11 (2026-09-07)
+  the stump is ONE shape for the hull, the shell and the eye: a 38° pyramid, 2.03 m tall
+  (the repose angle over the 2.6 m half-footprint caps it under the fraction's 2.2 m) and
+  pointed, so the hull-down band is where a hull-down tank sits — 6 m behind the apex —
+  not 22 m across the bench. 20 m is the honest
   Svan height and the skyline necessity: a 15.4 m first cut lost "tallest silhouette" to
   the chapel standing on the rising Oryol shoulder (ground 37.3 m vs the 31.0 m bench).
 - **The sea of fog (teren W3b tail, 2026-08-26):** a fourth look — `DawnFog`. The
@@ -139,8 +143,8 @@ And in `crates/runtime/sim/tests/orliny_watchtower.rs` (through the live LOS rul
 - `the_watchtower_crests_the_skyline_from_both_spawn_roads` — the crown's near arris is
   visible from a commander's eye at either spawn.
 - `the_felled_watchtower_leaves_a_hull_down_stump_on_the_col` — intact blocks the cross-col
-  lines; felled, the turret line opens over the 2.2 m stump while the hull line stays
-  covered.
+  lines; felled, the turret line opens over the 2.03 m pointed pile while the hull line of
+  a tank 6 m behind it stays covered.
 
 And in `crates/runtime/battle_host/tests/orliny_battle.rs`:
 

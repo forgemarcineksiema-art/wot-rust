@@ -663,28 +663,72 @@ fn turn_baked_with_box(vertices: &mut [SceneVertex], cover: &StaticCoverObject) 
     }
 }
 
-/// A collapsed building: a low, rough rubble mound filling the footprint at the sim's reduced
-/// height (`rubble_height_frac`), so what the eye reads as a blocking mound matches the box a hull
-/// still stops against and a turret-height shot clears.
+/// The most a drawn chunk may stand proud of the mound's surface: a brick's edge. The pile
+/// the eye reads is the pyramid the hull climbs and the shell stops on (X11); the chunks are
+/// texture on it, sunk into the talus, never a second shape.
+pub const RUBBLE_CHUNK_LIP_M: f32 = 0.15;
+
+/// A collapsed building drawn as the ONE shape it is (X11): the truncated 38° pyramid of
+/// `terrain::RubbleMound::from_cover` — the talus, the crown — at the sim's own surface, so
+/// what the eye reads as the pile is what a hull climbs and a shell stops on. Broken slabs
+/// lie ON that surface, sunk so no corner stands more than [`RUBBLE_CHUNK_LIP_M`] proud of it.
 fn append_rubble_mound(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     cover: &StaticCoverObject,
 ) {
+    let mound = terrain::RubbleMound::from_cover(cover);
     let center = Vec3::from_array(cover.center);
     let half = Vec3::from_array(cover.half_extents_m);
-    let ground_y = center.y - half.y;
-    let mound_half_y = half.y * cover.kind.rubble_height_frac();
-    // The base slab: lower than the sim mound, the settled mass the chunks poke out of.
-    let slab_half_y = mound_half_y * 0.55;
-    let slab_center = Vec3::new(center.x, ground_y + slab_half_y, center.z);
-    let slab_half = Vec3::new(half.x * 0.9, slab_half_y, half.z * 0.9);
+    let ground_y = mound.base_y_m;
     // Dull broken masonry: grey-brown, matte.
-    push_surfaced_box(vertices, indices, slab_center, slab_half, [0.38, 0.34, 0.30], 0.04);
+    let tone = [0.38, 0.34, 0.30];
+    let to_world = |local: Vec3| -> Vec3 {
+        let turned = terrain::rotate_y(local.to_array(), cover.yaw_rad);
+        Vec3::new(center.x + turned[0], ground_y + turned[1], center.z + turned[2])
+    };
+    let foot = Vec3::new(mound.footprint_half_m[0], 0.0, mound.footprint_half_m[1]);
+    let crown = Vec3::new(mound.crown_half_m[0], mound.crest_y_m - ground_y, mound.crown_half_m[1]);
+    // The four flanks: each a trapezoid from the footprint edge up to the crown edge (a
+    // triangle pair; a pointed pile's crown edge is a point, the pair degenerates harmlessly).
+    for (sign, along_x) in [(1.0, true), (-1.0, true), (1.0, false), (-1.0, false)] {
+        let corner = |at_foot: bool, side: f32| {
+            let (extent, y) = if at_foot { (foot, 0.0) } else { (crown, crown.y) };
+            if along_x {
+                Vec3::new(sign * extent.x, y, side * extent.z)
+            } else {
+                Vec3::new(side * extent.x, y, sign * extent.z)
+            }
+        };
+        let quad = [corner(true, -1.0), corner(true, 1.0), corner(false, 1.0), corner(false, -1.0)];
+        let outward = if along_x { Vec3::new(sign, 0.0, 0.0) } else { Vec3::new(0.0, 0.0, sign) };
+        let normal = Vec3::from_array(terrain::rotate_y(
+            (outward * terrain::RUBBLE_REPOSE_GRADE + Vec3::Y).normalize().to_array(),
+            cover.yaw_rad,
+        ));
+        let start = vertices.len() as u32;
+        for local in quad {
+            push_scene_vertex(vertices, to_world(local), normal, tone, 0.04, 0.0);
+        }
+        push_tri_facing(indices, vertices, start, start + 1, start + 2, normal);
+        push_tri_facing(indices, vertices, start, start + 2, start + 3, normal);
+    }
+    // The crown, when the talus left one.
+    if crown.x > 0.0 && crown.z > 0.0 {
+        let normal = Vec3::Y;
+        let start = vertices.len() as u32;
+        for (sx, sz) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            let local = Vec3::new(sx * crown.x, crown.y, sz * crown.z);
+            push_scene_vertex(vertices, to_world(local), normal, tone, 0.04, 0.0);
+        }
+        push_tri_facing(indices, vertices, start, start + 1, start + 2, normal);
+        push_tri_facing(indices, vertices, start, start + 2, start + 3, normal);
+    }
 
     // Broken slabs and wall fragments, tilted in plan, seeded from the building id so the same
-    // ruin always collapses the same way. Every chunk stays inside the collision AABB and under
-    // the sim's rubble top: what the eye reads as the pile is what a hull stops against.
+    // ruin always collapses the same way. Every chunk stays inside the footprint and lies on
+    // the pile: sunk until no corner stands more than a brick's edge proud of the surface.
+    let mound_half_y = (mound.crest_y_m - ground_y) * 0.5;
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in cover.id.bytes() {
         hash ^= u64::from(byte);
@@ -702,16 +746,16 @@ fn append_rubble_mound(
         let plan = Vec3::new(half.x, 0.0, half.z);
         let offset = Vec3::new((next() - 0.5) * 1.3, 0.0, (next() - 0.5) * 1.3) * plan * 0.52;
         let chunk_half = Vec3::new(
-            (0.10 + next() * 0.12) * half.x.max(1.0),
-            mound_half_y * (0.35 + next() * 0.2),
-            (0.10 + next() * 0.12) * half.z.max(1.0),
+            ((0.10 + next() * 0.12) * half.x.max(1.0)).min(0.6),
+            (mound_half_y * (0.35 + next() * 0.2)).min(0.35),
+            ((0.10 + next() * 0.12) * half.z.max(1.0)).min(0.6),
         );
-        let chunk_center = Vec3::new(
-            center.x + offset.x,
-            ground_y + slab_half_y * 2.0 + chunk_half.y * (0.2 + next() * 0.4) - chunk_half.y,
-            center.z + offset.z,
-        );
-        let yaw = next() * std::f32::consts::TAU;
+        // Placed in the box's frame, then turned with the box; the chunk's own yaw on top.
+        let local = Vec3::new(offset.x, 0.0, offset.z);
+        let chunk_center = to_world(Vec3::new(local.x, 0.0, local.z));
+        let surface = mound.height_at(chunk_center.x, chunk_center.z).unwrap_or(ground_y);
+        let chunk_center = Vec3::new(chunk_center.x, surface, chunk_center.z);
+        let yaw = cover.yaw_rad + next() * std::f32::consts::TAU;
         let start = vertices.len();
         push_oriented_box(
             vertices,
@@ -721,7 +765,18 @@ fn append_rubble_mound(
             Mat3::from_rotation_y(yaw),
             chunk_tones[index % chunk_tones.len()],
         );
+        // Sink it: the highest corner over the local surface may stand one brick's edge proud.
+        let proud = vertices[start..]
+            .iter()
+            .map(|vertex| {
+                let under =
+                    mound.height_at(vertex.position[0], vertex.position[2]).unwrap_or(ground_y);
+                vertex.position[1] - under
+            })
+            .fold(f32::MIN, f32::max);
+        let sink = (proud - RUBBLE_CHUNK_LIP_M).max(0.0);
         for vertex in &mut vertices[start..] {
+            vertex.position[1] -= sink;
             vertex.gloss = 0.05;
         }
     }
@@ -2739,8 +2794,9 @@ mod tests {
         let mut indices = Vec::new();
         append_rubble_mound(&mut vertices, &mut indices, &barn);
         assert!(!vertices.is_empty(), "a rubble mound draws geometry");
-        // A pile, not a crate: the slab plus tilted chunks — and every chunk inside the box.
+        // A pile, not a crate: the pyramid plus tilted chunks — and every vertex inside the box.
         assert!(vertices.len() > 24, "rubble reads as broken chunks, got {}", vertices.len());
+        let mound = terrain::RubbleMound::from_cover(&barn);
         for vertex in &vertices {
             assert!(
                 (vertex.position[0] - 0.0).abs() <= 5.0 + 1.0e-3
@@ -2748,14 +2804,59 @@ mod tests {
                 "rubble stays inside the collision footprint, got {:?}",
                 vertex.position
             );
+            // X11, one shape: nothing drawn stands more than a brick's edge over the surface
+            // the hull climbs and the shell stops on.
+            let surface = mound.height_at(vertex.position[0], vertex.position[2]).unwrap();
+            assert!(
+                vertex.position[1] <= surface + RUBBLE_CHUNK_LIP_M + 1.0e-3,
+                "the picture is the pile: {:?} over the surface {surface}",
+                vertex.position
+            );
         }
         let top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
         let intact_top = 3.0 + 3.0;
-        // The mound tops out at the sim's rubble height (0.4), well under the standing building.
+        // The mound tops out at the sim's crest, well under the standing building.
         assert!(top < intact_top * 0.6, "the mound is low ({top} vs intact top {intact_top})");
+        assert!(
+            (top - mound.crest_y_m).abs() <= RUBBLE_CHUNK_LIP_M + 1.0e-3,
+            "...and the talus is drawn up to the crest: {top} vs {}",
+            mound.crest_y_m
+        );
         // And it sits on the ground, not floating.
         let bottom = vertices.iter().map(|v| v.position[1]).fold(f32::MAX, f32::min);
         assert!((bottom - 0.0).abs() < 1.0e-3, "the mound rests on the ground, got {bottom}");
+    }
+
+    /// X1 + X11: a turned box's pile is turned with it — the talus in the box's own frame.
+    #[test]
+    fn a_turned_ruin_piles_up_in_its_own_frame() {
+        let mut barn = StaticCoverObject {
+            id: "barn".into(),
+            name: "barn".into(),
+            kind: StaticCoverKind::FarmBuilding,
+            center: [50.0, 3.0, 50.0],
+            half_extents_m: [5.0, 3.0, 4.0],
+            yaw_rad: 0.7,
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_rubble_mound(&mut vertices, &mut indices, &barn);
+        let mound = terrain::RubbleMound::from_cover(&barn);
+        let frame = terrain::CoverBox::of(&barn);
+        for vertex in &vertices {
+            assert!(
+                frame.contains_xz(vertex.position[0], vertex.position[2], 1.0e-3),
+                "inside the turned footprint: {:?}",
+                vertex.position
+            );
+            let surface = mound.height_at(vertex.position[0], vertex.position[2]).unwrap();
+            assert!(vertex.position[1] <= surface + RUBBLE_CHUNK_LIP_M + 1.0e-3);
+        }
+        // The unturned pile is the same pile, byte for byte in its own frame.
+        barn.yaw_rad = 0.0;
+        let mut flat = Vec::new();
+        append_rubble_mound(&mut flat, &mut Vec::new(), &barn);
+        assert_eq!(flat.len(), vertices.len());
     }
 
     #[test]

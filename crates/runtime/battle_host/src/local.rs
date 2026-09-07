@@ -202,6 +202,7 @@ impl LocalAuthoritativeServer {
             self.sim.tick(),
             Some(&self.battlefield.heightmap),
             &live_cover,
+            &sim::rubble_mounds(&self.battlefield.static_cover, self.sim.cover_states()),
         )
     }
 
@@ -424,6 +425,7 @@ impl LocalAuthoritativeServer {
             &self.battlefield,
             self.sim.ground(),
             live_cover,
+            self.sim.cached_rubble(),
             battle_over,
             self.sim.damage_events(),
         ));

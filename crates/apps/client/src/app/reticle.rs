@@ -107,6 +107,7 @@ impl ClientApp {
             crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
                 heightmap: &self.battlefield.heightmap,
                 cover: self.live_cover.blocking(),
+                rubble: self.live_cover.rubble(),
                 water: self.battlefield.water_view(),
                 gun_pitch_limits_rad: player_spec.gun_pitch_limits_rad(),
                 hull_pose: tank.hull_pose(),
@@ -188,6 +189,7 @@ impl ClientApp {
             crate::aim::aim_point_with_sweep(
                 &self.battlefield.heightmap,
                 self.live_cover.blocking(),
+                self.live_cover.rubble(),
                 self.battlefield.water_view(),
                 self.render_state.interpolated_tanks(),
                 self.player_tank,

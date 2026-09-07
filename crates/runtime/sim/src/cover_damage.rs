@@ -123,10 +123,14 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
 /// site has to say which one it is asking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CoverPurpose {
-    /// Shell traces, spotting LOS, camera solids: a mound is a lowered box that still blocks.
+    /// Shell traces and spotting LOS: a mound is NOT a box here (X11) — it is the pyramid the
+    /// hull climbs, read from `rubble_mounds` by the same readers, so the slice omits it.
     SightAndShells,
     /// Horizontal movement collision.
     Movement,
+    /// The camera boom: a mound as a lowered box is a fine solid for a camera to stay out of
+    /// (presentation, not honesty), and it costs the boom nothing to keep it.
+    Camera,
 }
 
 /// The cover the world actually collides against this tick: intact objects as-authored, rubble as
@@ -143,7 +147,7 @@ fn live_cover_for<'a>(
     states: &[CoverState],
     purpose: CoverPurpose,
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
-    let opened = purpose == CoverPurpose::SightAndShells
+    let opened = purpose != CoverPurpose::Movement
         && states.iter().any(|state| terrain::segments_opened(&state.segments));
     if !opened && states.iter().all(|state| state.phase == CoverPhase::Intact) {
         return std::borrow::Cow::Borrowed(cover);
@@ -151,11 +155,11 @@ fn live_cover_for<'a>(
     let mut live = Vec::with_capacity(cover.len());
     for (index, object) in cover.iter().enumerate() {
         match states.get(index).map(|state| state.phase).unwrap_or_default() {
-            // Z9: a standing building with an OPENING is a hollow of slabs to the eye and the
-            // shell — the wall that is there blocks, the segment that is open does not. The
-            // hull never enters (§13.4), so movement keeps the whole box.
+            // Z9: a standing building with an OPENING is a hollow of slabs to the eye, the
+            // shell and the camera boom — the wall that is there blocks, the segment that is
+            // open does not. The hull never enters (§13.4), so movement keeps the whole box.
             CoverPhase::Intact
-                if purpose == CoverPurpose::SightAndShells
+                if purpose != CoverPurpose::Movement
                     && states.get(index).is_some_and(|s| terrain::segments_opened(&s.segments)) =>
             {
                 live.extend(terrain::opened_building_boxes(object, &states[index].segments));
@@ -166,7 +170,7 @@ fn live_cover_for<'a>(
             // reaches the drive through the support envelope instead (`rubble_mounds`). Leaving
             // it in the movement slice was the whole reason a flattened block still walled a
             // tank exactly as the standing block had.
-            CoverPhase::Rubble if purpose == CoverPurpose::Movement => {}
+            CoverPhase::Rubble if purpose != CoverPurpose::Camera => {}
             CoverPhase::Rubble => {
                 let frac = object.kind.rubble_height_frac();
                 let full_half = object.half_extents_m[1];
@@ -182,13 +186,37 @@ fn live_cover_for<'a>(
     std::borrow::Cow::Owned(live)
 }
 
-/// The cover a shell trace, a spotting sight line or the camera meets: intact objects
-/// as-authored, a collapsed building as the low mound it slumped into, cleared ground absent.
+/// The cover a shell trace or a spotting sight line meets: intact objects as-authored, cleared
+/// ground absent — and a collapsed building ABSENT too (X11): the mound it slumped into is the
+/// pyramid in `rubble_mounds`, which the same readers take beside this slice.
 pub fn live_cover_for_sight_and_shells<'a>(
     cover: &'a [StaticCoverObject],
     states: &[CoverState],
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
     live_cover_for(cover, states, CoverPurpose::SightAndShells)
+}
+
+/// The solids the camera boom stays out of: the sight slice plus every mound as the lowered box
+/// it always was for the boom.
+pub fn live_cover_for_camera<'a>(
+    cover: &'a [StaticCoverObject],
+    states: &[CoverState],
+) -> std::borrow::Cow<'a, [StaticCoverObject]> {
+    live_cover_for(cover, states, CoverPurpose::Camera)
+}
+
+/// The camera's solids from the wire's phase bytes, with the landed turrets (the client's).
+pub fn camera_cover_for_wire(
+    cover: &[StaticCoverObject],
+    phase_bytes: &[u8],
+    segment_bytes: &[u8],
+    turret_rests: &[[f32; 3]],
+) -> Vec<StaticCoverObject> {
+    let states = states_from_wire(phase_bytes, segment_bytes);
+    let mut camera = live_cover_for_camera(cover, &states).into_owned();
+    camera
+        .extend(turret_rests.iter().enumerate().map(|(index, &rest)| turret_rest_box(index, rest)));
+    camera
 }
 
 /// The cover a hull's movement collides against.
@@ -668,8 +696,13 @@ mod tests {
         }
     }
 
+    /// A collapsed building is ONE shape (the one program's X11): the pyramid the hull climbs
+    /// is what the eye and the shell meet too. The sight slice carries no box for it; the
+    /// mound is in `rubble_mounds`, and a sight line through the pile stops under its
+    /// surface while one over the crest passes. The camera boom alone keeps the lowered box.
     #[test]
-    fn a_building_collapses_to_a_lower_rubble_box_that_still_blocks_in_plan() {
+    fn a_building_collapses_to_a_mound_that_is_a_pyramid_and_not_a_box() {
+        use crate::line_of_sight;
         let cover =
             vec![object("barn", StaticCoverKind::FarmBuilding, [0.0, 3.0, 0.0], [5.0, 3.0, 4.0])];
         let mut states = cover_states_for(&cover);
@@ -677,11 +710,47 @@ mod tests {
         assert_eq!(states[0].phase, CoverPhase::Rubble);
 
         let live = live_cover_for_sight_and_shells(&cover, &states);
-        assert_eq!(live.len(), 1, "a rubble mound still blocks");
-        assert!(live[0].half_extents_m[1] < 3.0, "the mound is lower than the building");
-        assert_eq!(live[0].half_extents_m[0], 5.0, "its footprint (plan) is unchanged");
-        // The mound sits on the ground, not floating at the old centre height.
-        assert!(live[0].center[1] < 3.0);
+        assert!(live.is_empty(), "the sight slice carries no box for a mound");
+        let mounds = rubble_mounds(&cover, &states);
+        assert_eq!(mounds.len(), 1, "the mound is in the rubble");
+        let mound = mounds[0];
+        assert!(mound.crest_y_m < 6.0 && mound.crest_y_m > mound.base_y_m);
+        assert_eq!(mound.footprint_half_m, [5.0, 4.0], "its footprint (plan) is unchanged");
+
+        let through = |y: f32| {
+            line_of_sight(None, &live, &mounds, Vec3::new(-20.0, y, 0.0), Vec3::new(20.0, y, 0.0))
+        };
+        assert!(!through(mound.crest_y_m * 0.5), "a line through the pile is stopped");
+        assert!(through(mound.crest_y_m + 0.2), "...and one over the crest passes");
+        // A line across a flank, under the talus: blocked where a box's corner would have let
+        // it pass and vice versa — the surface decides.
+        let flank_x =
+            mound.crown_half_m[0] + 0.5 * (mound.footprint_half_m[0] - mound.crown_half_m[0]);
+        let flank_y = mound.height_at(flank_x, 0.0).expect("on the talus");
+        assert!(
+            !line_of_sight(
+                None,
+                &live,
+                &mounds,
+                Vec3::new(flank_x, flank_y - 0.1, -20.0),
+                Vec3::new(flank_x, flank_y - 0.1, 20.0)
+            ),
+            "under the talus the line is stopped"
+        );
+        assert!(
+            line_of_sight(
+                None,
+                &live,
+                &mounds,
+                Vec3::new(flank_x, flank_y + 0.1, -20.0),
+                Vec3::new(flank_x, flank_y + 0.1, 20.0)
+            ),
+            "a hand over the talus it passes"
+        );
+
+        let camera = live_cover_for_camera(&cover, &states);
+        assert_eq!(camera.len(), 1, "the boom keeps a lowered box");
+        assert!(camera[0].half_extents_m[1] < 3.0 && camera[0].center[1] < 3.0);
     }
 
     #[test]
@@ -717,12 +786,15 @@ mod tests {
         assert_eq!(states[1].phase, CoverPhase::Intact, "half its health: still a hulk");
         damage_cover(&mut states, &cover, 1, full / 2, 0.0);
         assert_eq!(states[1].phase, CoverPhase::Rubble, "shelled down to its hull line");
-        let live = live_cover_for_sight_and_shells(&cover, &states);
-        let mound = live.iter().find(|object| object.id == "hulk").expect("the mound still blocks");
+        let mounds = rubble_mounds(&cover, &states);
+        let mound = mounds
+            .iter()
+            .find(|mound| (mound.center_xz_m[0] - 9.0).abs() < 1.0e-3)
+            .expect("the hulk's mound still blocks, as a pyramid (X11)");
+        let height = mound.crest_y_m - mound.base_y_m;
         assert!(
-            mound.half_extents_m[1] < 1.35 * 0.5 && mound.half_extents_m[1] > 0.3,
-            "a hull-line mound, not the full hulk and not nothing: {}",
-            mound.half_extents_m[1]
+            height < 1.35 && height > 0.6,
+            "a hull-line mound, not the full hulk and not nothing: {height}"
         );
     }
 
@@ -851,13 +923,16 @@ mod tests {
         // where the box stands, not where its old bounds were.
         let clear_a = Vec3::new(37.0, 0.8, 47.0);
         let clear_b = Vec3::new(43.0, 0.8, 47.0);
-        assert!(line_of_sight(None, &cover, clear_a, clear_b), "where the unturned wall stood");
+        assert!(
+            line_of_sight(None, &cover, &[], clear_a, clear_b),
+            "where the unturned wall stood"
+        );
         // Across the turned run, 5 m down it: blocked.
         let s = std::f32::consts::FRAC_PI_4.sin();
         let mid = Vec3::new(40.0 + 5.0 * s, 0.8, 40.0 + 5.0 * s);
         let across_a = mid + Vec3::new(-3.0 * s, 0.0, 3.0 * s);
         let across_b = mid + Vec3::new(3.0 * s, 0.0, -3.0 * s);
-        assert!(!line_of_sight(None, &cover, across_a, across_b), "across the turned run");
+        assert!(!line_of_sight(None, &cover, &[], across_a, across_b), "across the turned run");
         assert!(
             crate::shell_trace::segment_impact_point_for_test(across_a, across_b, &cover).is_some(),
             "the shell's slab agrees"
@@ -868,10 +943,19 @@ mod tests {
         let mut unturned = cover.clone();
         unturned[0].yaw_rad = 0.0;
         assert!(
-            !line_of_sight(None, &unturned, Vec3::new(43.0, 0.8, 39.0), Vec3::new(37.0, 0.8, 41.0)),
+            !line_of_sight(
+                None,
+                &unturned,
+                &[],
+                Vec3::new(43.0, 0.8, 39.0),
+                Vec3::new(37.0, 0.8, 41.0)
+            ),
             "the unturned wall blocks across x"
         );
-        assert!(!line_of_sight(None, &unturned, clear_a, clear_b), "and where it stood at z = 47");
+        assert!(
+            !line_of_sight(None, &unturned, &[], clear_a, clear_b),
+            "and where it stood at z = 47"
+        );
     }
 
     /// Z13: a landed turret is a low solid. The eye (and so the shell, which reads the same
@@ -889,15 +973,19 @@ mod tests {
         assert_eq!(cache.sight().len(), 2, "the barn and the landed turret");
         assert_eq!(cache.movement().len(), 1, "the hull's list carries only the barn");
         let low = |x: f32| Vec3::new(x, 0.6, 0.0);
-        assert!(!line_of_sight(None, cache.sight(), low(20.0), low(0.0)), "the eye stops in it");
+        assert!(
+            !line_of_sight(None, cache.sight(), &[], low(20.0), low(0.0)),
+            "the eye stops in it"
+        );
         assert!(line_of_sight(
             None,
             cache.sight(),
+            &[],
             Vec3::new(20.0, 1.5, 0.0),
             Vec3::new(0.0, 1.5, 0.0)
         ));
         assert!(
-            line_of_sight(None, cache.movement(), low(20.0), low(0.0)),
+            line_of_sight(None, cache.movement(), &[], low(20.0), low(0.0)),
             "movement never blocks on it"
         );
         cache.refresh_with_turrets(&cover, &states, &[]);
@@ -924,7 +1012,7 @@ mod tests {
         let beyond = Vec3::new(-20.0, 1.8, -2.0);
         let inside = Vec3::new(0.0, 1.8, -2.0);
         let sees = |states: &[CoverState], from: Vec3, to: Vec3| {
-            line_of_sight(None, &live_cover_for_sight_and_shells(&cover, states), from, to)
+            line_of_sight(None, &live_cover_for_sight_and_shells(&cover, states), &[], from, to)
         };
         assert!(!sees(&states, eye, beyond));
         assert!(!sees(&states, eye, inside));
@@ -978,9 +1066,11 @@ mod tests {
         assert_eq!(states[1].phase, CoverPhase::Gone, "a breached wall leaves no mound");
 
         let live = live_cover_for_sight_and_shells(&cover, &states);
-        assert_eq!(live.len(), 1, "the wall is a clear door; the rubble still stands");
+        assert!(live.is_empty(), "the wall is a clear door; the rubble is a mound, not a box");
+        let mounds = rubble_mounds(&cover, &states);
+        assert_eq!(mounds.len(), 1, "the rubble still stands");
         assert!(
-            live[0].half_extents_m[1] < 5.5 * 0.5,
+            mounds[0].crest_y_m - mounds[0].base_y_m < 5.5,
             "the mound is low enough for a turret-height shot"
         );
     }
@@ -1039,9 +1129,13 @@ mod tests {
         );
         assert_eq!(
             from_bytes.iter().map(|object| object.id.as_str()).collect::<Vec<_>>(),
-            ["whole", "rubble"]
+            ["whole"],
+            "the mound is no box in the sight slice (X11)"
         );
-        assert!(from_bytes[1].half_extents_m[1] < cover[1].half_extents_m[1]);
+        let mounds = rubble_mounds_for_phase_bytes(&cover, &[0, 1, 2]);
+        assert_eq!(mounds, rubble_mounds(&cover, &states), "...it is the pyramid, on both sides");
+        assert_eq!(mounds.len(), 1);
+        assert!(mounds[0].crest_y_m - mounds[0].base_y_m < 2.0 * cover[1].half_extents_m[1]);
     }
 
     /// Born-ruins (urban-map PR-07): a "ruin" id starts at zero health in its collapsed
@@ -1074,8 +1168,14 @@ mod tests {
         assert_eq!(bytes, vec![0, 1, 2]);
 
         let live = live_cover_for_sight_and_shells(&cover, &states);
-        assert_eq!(live.len(), 2, "the ruined wall is a clear door from tick zero");
-        assert!(live[1].half_extents_m[1] < 5.5 * 0.5, "the born mound is already low");
+        assert_eq!(
+            live.len(),
+            1,
+            "the ruined wall is a clear door and the ruin a mound, not a box"
+        );
+        let mounds = rubble_mounds(&cover, &states);
+        assert_eq!(mounds.len(), 1, "the born mound stands from tick zero");
+        assert!(mounds[0].crest_y_m - mounds[0].base_y_m < 5.5, "the born mound is already low");
     }
 
     /// The split is inert everywhere except rubble. Intact boxes and cleared ground mean exactly
@@ -1148,7 +1248,12 @@ mod tests {
         assert_eq!(cache.movement(), live_cover_for_movement(&cover, &changed).as_ref());
         assert_eq!(cache.rubble(), rubble_mounds(&cover, &changed).as_slice());
         assert_eq!(cache.rubble().len(), 1, "the barn is now a mound");
-        assert_ne!(cache.movement(), cache.sight(), "movement and sight part ways over rubble");
+        assert_eq!(
+            cache.movement(),
+            cache.sight(),
+            "movement and sight agree now that neither is a box for rubble (X11); the mound is \
+             the pyramid in `rubble()` for both"
+        );
 
         // Refreshing again with the SAME phases keeps the same answer (the steady-state borrow path).
         cache.refresh_with_turrets(&cover, &changed, &[]);
