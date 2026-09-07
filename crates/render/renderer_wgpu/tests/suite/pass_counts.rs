@@ -4,12 +4,13 @@
 //! worse than no counter: it will be quoted, and nobody will know by how much it was wrong. The
 //! scene below is small enough that every draw in it can be reasoned about by hand.
 
+use super::common;
 use game_core::TankId;
 use renderer_api::{
     Camera, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, RenderObject, SceneVertex,
     view_projection_matrix,
 };
-use renderer_wgpu::{GpuContext, OffscreenTarget, PassId, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, PassId, SceneRenderer};
 
 /// Four triangles, so a miscount by a factor of three cannot hide behind a one-triangle mesh.
 const TRIANGLES_PER_MESH: u64 = 4;
@@ -19,8 +20,7 @@ const OBJECTS: u64 = 3;
 
 #[test]
 fn the_counters_are_exact_for_a_known_scene() {
-    let Ok(ctx) = GpuContext::headless() else {
-        eprintln!("skipping pass counts test: no headless adapter");
+    let Some(ctx) = common::headless("pass counts test") else {
         return;
     };
     let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");

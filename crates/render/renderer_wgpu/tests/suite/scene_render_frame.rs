@@ -7,16 +7,10 @@ use renderer_api::{
     MaterialHandle, MeshAsset, MeshHandle, RenderFrame, RenderObject, SceneVertex,
     view_projection_matrix,
 };
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping render frame test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("render frame test")
 }
 
 #[test]

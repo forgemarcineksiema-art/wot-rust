@@ -6,6 +6,7 @@
 //! device for nothing, and the end-to-end proof that the GPU fills the query set a real frame
 //! wrote — so the readback built on top of it is built on something seen working.
 
+use super::common;
 use renderer_api::view_projection_matrix;
 use renderer_wgpu::{
     FrameProfiler, GpuContext, GpuContextOptions, OffscreenTarget, PassId, SceneRenderer,
@@ -116,8 +117,7 @@ fn collect_rust_sources(dir: &std::path::Path, skip_file: &str, out: &mut String
 /// reason, never a silently dead `Active`.
 #[test]
 fn the_profiler_reports_what_this_device_can_actually_do() {
-    let Ok(plain) = GpuContext::headless() else {
-        eprintln!("skipping profiler negotiation test: no headless adapter");
+    let Some(plain) = common::headless("profiler negotiation test") else {
         return;
     };
 

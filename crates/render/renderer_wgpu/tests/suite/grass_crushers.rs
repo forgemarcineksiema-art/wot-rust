@@ -5,8 +5,9 @@
 //!
 //! Runs on the headless adapter; skips if none.
 
+use super::common;
 use renderer_api::{MaterialHandle, MeshHandle, RenderFrame, RenderObject};
-use renderer_wgpu::{GpuContext, SceneRenderer};
+use renderer_wgpu::SceneRenderer;
 
 fn tank_object(id: u64, x: f32, z: f32) -> RenderObject {
     let mut transform = [[0.0f32; 4]; 4];
@@ -29,8 +30,7 @@ fn tank_object(id: u64, x: f32, z: f32) -> RenderObject {
 /// no-op every grass-free scene relies on.
 #[test]
 fn the_nearest_tanks_take_the_crusher_slots() {
-    let Ok(ctx) = GpuContext::headless() else {
-        eprintln!("no headless adapter — skipped");
+    let Some(ctx) = common::headless("no headless adapter") else {
         return;
     };
     let Ok(mut renderer) = SceneRenderer::for_offscreen(&ctx, &[], &[]) else {

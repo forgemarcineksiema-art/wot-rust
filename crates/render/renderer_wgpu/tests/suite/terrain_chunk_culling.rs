@@ -3,17 +3,12 @@
 //! cleanly end-to-end. The byte-exact image lock lives in the client's `look_goldens` test —
 //! pure-culling changes must leave every golden frame byte-identical.
 
+use super::common;
 use renderer_api::{Camera, SceneVertex, view_projection_matrix};
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping terrain chunk test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("terrain chunk test")
 }
 
 /// A synthetic 1000 m steppe: a flat-ish heightfield grid, the shape of the real battlefield

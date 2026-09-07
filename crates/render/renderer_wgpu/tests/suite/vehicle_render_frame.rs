@@ -8,16 +8,10 @@ use renderer_api::{
     RenderFrame, RenderObject, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
     VehicleTextureMap, VehicleVertex, view_projection_matrix,
 };
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping vehicle render frame test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("vehicle render frame test")
 }
 
 #[test]

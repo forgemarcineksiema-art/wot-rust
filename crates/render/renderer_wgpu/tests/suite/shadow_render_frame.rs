@@ -11,16 +11,10 @@ use renderer_api::{
     MaterialHandle, MeshHandle, RenderFrame, RenderObject, SceneLighting, SceneVertex,
     VehicleMeshAsset, VehicleVertex, view_projection_matrix,
 };
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
-fn headless() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping shadow render frame test: {error}");
-            None
-        }
-    }
+fn headless() -> Option<common::HeadlessGpu> {
+    common::headless("shadow render frame test")
 }
 
 fn ground_at(cx: f32) -> (Vec<SceneVertex>, Vec<u32>) {

@@ -10,17 +10,11 @@ use super::common;
 use common::luma;
 
 use renderer_api::{SceneLighting, SceneVertex, view_projection_matrix};
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
 #[test]
 fn a_battle_frame_spans_true_blacks_and_bright_highlights() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping image formation test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("image formation test") else {
         return;
     };
 
@@ -83,13 +77,7 @@ fn a_battle_frame_spans_true_blacks_and_bright_highlights() {
 
 #[test]
 fn cloud_shade_darkens_the_terrain_key_and_strength_zero_is_a_noop() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping cloud shade test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("cloud shade test") else {
         return;
     };
     // A plain sunlit ground plane; with the coverage biased into a full lid and the shade

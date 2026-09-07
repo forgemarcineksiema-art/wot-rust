@@ -1,5 +1,6 @@
+use super::common;
 use renderer_api::{Rgba8MipChain, Rgba8MipLevel};
-use renderer_wgpu::{GpuContext, SceneRenderer, scene_shader_source, shadow_shader_source};
+use renderer_wgpu::{SceneRenderer, scene_shader_source, shadow_shader_source};
 
 #[test]
 fn color_and_depth_cutout_paths_both_allow_implicit_mip_selection() {
@@ -34,8 +35,7 @@ fn the_wind_rides_one_function_in_both_passes() {
 
 #[test]
 fn renderer_accepts_and_uploads_every_level_of_a_complete_foliage_chain() {
-    let Ok(ctx) = GpuContext::headless() else {
-        eprintln!("skipping foliage upload test: no headless adapter");
+    let Some(ctx) = common::headless("foliage upload test") else {
         return;
     };
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
