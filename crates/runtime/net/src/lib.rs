@@ -177,7 +177,19 @@ pub use team_command::{
 /// each, five bytes per cover object, so every client resolves the hollow of slabs a breached
 /// building blocks with exactly as the authority does. An append with `serde(default)`; the
 /// fixtures were re-pinned as v55.
-pub const PROTOCOL_VERSION: u16 = 55;
+///
+/// v56 (the one program, Z13): `Snapshot.turret_rests` — where every blown-off turret came to
+/// rest, so the client lands its casting on the authority's low solid. An append with
+/// `serde(default)`; the fixtures were re-pinned as v56.
+pub const PROTOCOL_VERSION: u16 = 56;
+
+/// Where a blown-off turret rests (protocol v56, Z13): the wreck it left and the ring-centre
+/// of the casting on the ground.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TurretRest {
+    pub tank: TankId,
+    pub position: [f32; 3],
+}
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -459,6 +471,11 @@ pub struct Snapshot {
     /// Index-aligned with `cover_states`; `serde(default)` reads as every segment whole.
     #[serde(default)]
     pub cover_segments: Vec<u8>,
+    /// Where every blown-off turret came to rest (protocol v56, the one program's Z13): the
+    /// authority's low solid stands there and the client's casting lands there. Re-sent whole
+    /// every snapshot (a late joiner converges); `serde(default)` reads as none landed.
+    #[serde(default)]
+    pub turret_rests: Vec<TurretRest>,
     /// The battle's crater ledger (protocol v31), quantized and re-sent whole every snapshot so
     /// a late joiner converges on the same deformed ground. `serde(default)` keeps pre-v31
     /// fixtures loading with virgin terrain.
@@ -539,6 +556,13 @@ impl From<&SimulationState> for Snapshot {
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
             cover_falls: state.cover_states().iter().map(|state| state.fall).collect(),
             cover_segments: state.cover_states().iter().flat_map(|state| state.segments).collect(),
+            turret_rests: state
+                .tanks()
+                .iter()
+                .filter_map(|tank| {
+                    tank.turret_rest.map(|position| TurretRest { tank: tank.id, position })
+                })
+                .collect(),
             craters: state.craters().to_vec(),
             cover_scars: state.cover_scars().to_vec(),
             team_hit_points: team_hit_points(state.tanks()),

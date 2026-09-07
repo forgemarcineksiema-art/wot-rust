@@ -75,7 +75,7 @@ fn born_ruins_seed_blocking_and_camera_before_the_first_snapshot() {
         assert_eq!(obstacle.half_extents, cover.half_extents_m);
     }
     assert!(
-        LiveCoverCache::from_replicated(&authored, &[0, 1], &[]).is_none(),
+        LiveCoverCache::from_replicated(&authored, &[0, 1], &[], &[]).is_none(),
         "an incomplete startup snapshot must not resurrect a born ruin"
     );
 }
@@ -86,7 +86,7 @@ fn prediction_stops_on_intact_and_rubble_cover_but_passes_gone_cover() {
     let authored =
         [object("block", StaticCoverKind::CityBuilding, [10.0, 3.0, 30.0], [5.0, 3.0, 4.0])];
     let predicted_z = |phase| {
-        let cache = LiveCoverCache::from_replicated(&authored, &[phase], &[]).unwrap();
+        let cache = LiveCoverCache::from_replicated(&authored, &[phase], &[], &[]).unwrap();
         let spec = VehicleKind::T54_1951.spec();
         let mut predictor = crate::predict::LocalPredictor::new(&spec);
         predictor.sync_to(&player_snapshot([10.0, 0.0, 10.0]));
@@ -121,9 +121,9 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
     let flat = HeightMap::flat(80, 80, 5.0, -50.0).unwrap();
     let authored =
         [object("tenement", StaticCoverKind::CityBuilding, [40.0, 5.0, 75.0], [4.0, 5.0, 2.0])];
-    let intact = LiveCoverCache::from_replicated(&authored, &[0], &[]).unwrap();
-    let rubble = LiveCoverCache::from_replicated(&authored, &[1], &[]).unwrap();
-    let gone = LiveCoverCache::from_replicated(&authored, &[2], &[]).unwrap();
+    let intact = LiveCoverCache::from_replicated(&authored, &[0], &[], &[]).unwrap();
+    let rubble = LiveCoverCache::from_replicated(&authored, &[1], &[], &[]).unwrap();
+    let gone = LiveCoverCache::from_replicated(&authored, &[2], &[], &[]).unwrap();
     let muzzle = Vec3::new(40.0, 3.0, 40.0);
     let aim = Vec3::new(40.0, 3.0, 140.0);
     let sight_hit = |cache: &LiveCoverCache| {

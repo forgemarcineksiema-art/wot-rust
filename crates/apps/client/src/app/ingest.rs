@@ -385,11 +385,24 @@ impl ClientApp {
                 continue;
             };
             let ring = crate::vehicle::pose::VehiclePose::from_snapshot(tank).turret_translation();
-            let popoff = crate::vehicle::turret_popoff::TurretPopoff::launch(
+            // Z13: the casting lands where the authority's low solid stands (the replicated
+            // rest); an older host sends none and the arc lands on its own deterministic rest.
+            let ground = self
+                .battlefield
+                .heightmap
+                .sample_height(ring.x, ring.z)
+                .unwrap_or(ring.y - game_core::TURRET_REST_CLEARANCE_M);
+            let rest = snapshot
+                .turret_rests
+                .iter()
+                .find(|rest| rest.tank == id)
+                .map(|rest| glam::Vec3::from_array(rest.position));
+            let popoff = crate::vehicle::turret_popoff::TurretPopoff::launch_to(
                 id,
                 tank.vehicle,
                 ring,
-                Some(&self.battlefield.heightmap),
+                ground,
+                rest,
             );
             self.turret_popoffs.insert(id, popoff);
             // The kaboom at the ring: a spark-and-flash burst, a puff of smoke, a ring of dust.
@@ -455,6 +468,7 @@ impl ClientApp {
             &self.battlefield.static_cover,
             &snapshot.cover_states,
             &snapshot.cover_segments,
+            &super::live_cover::rests_from_wire(&snapshot.turret_rests),
         ) else {
             // An incomplete/default snapshot cannot turn a born ruin back into a full building.
             return;
@@ -465,6 +479,9 @@ impl ClientApp {
             if next_live_cover.segment_bytes() != self.live_cover.segment_bytes() {
                 self.scene_cover_dirty = true;
             }
+            // Z13: a landed turret is a new low solid; nothing to bake — the casting is drawn
+            // by its pop-off — but the blocking and the camera obstacles carry it from here.
+            let _ = next_live_cover.turret_rests();
             // Record that the born-phase bootstrap has now been confirmed by the authority.
             self.live_cover = next_live_cover;
             return;

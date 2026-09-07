@@ -20,6 +20,7 @@ pub mod stability;
 mod steering;
 mod tank;
 mod track;
+pub mod turret_rest;
 mod vehicle_blueprint;
 mod vehicle_kind;
 mod vehicles;
@@ -76,6 +77,10 @@ pub use tank::{HitboxProfile, TankSpec};
 pub use track::{
     TRACK_HP_MAX, TrackDamageMask, TrackHealth, TrackSeverity, TrackSide, track_hit_damage,
     track_traction_fraction,
+};
+pub use turret_rest::{
+    POPOFF_GRAVITY_MPS2, TURRET_REST_CLEARANCE_M, TURRET_REST_HALF_M, TurretLaunch, popoff_unit,
+    turret_launch,
 };
 pub use vehicle_blueprint::{
     ArmorShape, BlueprintFile, BoxVisual, BritishDeckVisual, BustleBinVisual, CanvasCoverVisual,

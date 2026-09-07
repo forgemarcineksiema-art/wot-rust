@@ -5,16 +5,12 @@
 //! flying turret ignores the wreck's still-replicated turret yaw entirely (its transform is
 //! computed here, not posed from the snapshot), which freezes the turret at detonation as it must.
 
-use game_core::math::splitmix64;
-use game_core::{MountFrames, TankId, VehicleKind};
+use game_core::{
+    MountFrames, POPOFF_GRAVITY_MPS2 as GRAVITY_MPS2, TURRET_REST_CLEARANCE_M as REST_CLEARANCE_M,
+    TankId, VehicleKind, popoff_unit, turret_launch,
+};
 use glam::{Mat3, Mat4, Vec3};
 use terrain::HeightMap;
-
-/// Presentation gravity for the arc — a touch snappier than the sim's arcade value reads better
-/// on a light tumbling casting.
-const GRAVITY_MPS2: f32 = 11.0;
-/// The turret casting rests this far above the ground once it lands (roughly its half-height).
-const REST_CLEARANCE_M: f32 = 0.45;
 
 /// One flying turret. Deterministic in `(tank_id, ring)` — construct it once at detonation and ask
 /// it for the turret and gun transforms each frame.
@@ -43,32 +39,43 @@ impl TurretPopoff {
         ring_world: Vec3,
         heightmap: Option<&HeightMap>,
     ) -> Self {
-        let mut seed = splitmix64(tank_id.0 ^ 0x0DDB_1A5E_5EED_1234);
-        let up = 6.5 + next_unit(&mut seed) * 3.5; // 6.5–10 m/s straight up
-        let lean_angle = next_unit(&mut seed) * std::f32::consts::TAU;
-        let lean_mag = 1.2 + next_unit(&mut seed) * 2.3;
-        let launch_velocity =
-            Vec3::new(lean_angle.cos() * lean_mag, up, lean_angle.sin() * lean_mag);
+        let ground = heightmap
+            .and_then(|map| map.sample_height(ring_world.x, ring_world.z))
+            .unwrap_or(ring_world.y - REST_CLEARANCE_M);
+        Self::launch_to(tank_id, kind, ring_world, ground, None)
+    }
+
+    /// Z13: the arc lands on the REST the authority replicated — the spot its low solid stands
+    /// on — or, when the host sent none, on the same deterministic rest the authority would
+    /// compute (`game_core::turret_launch`). The throw's height and the tumble stay the id's;
+    /// the lean is bent so the casting comes down exactly where the solid is.
+    pub fn launch_to(
+        tank_id: TankId,
+        kind: VehicleKind,
+        ring_world: Vec3,
+        ground_y: f32,
+        rest: Option<Vec3>,
+    ) -> Self {
+        let launch = turret_launch(tank_id, ring_world, ground_y);
+        let mut seed = launch.seed;
         let spin_axis = Vec3::new(
-            next_unit(&mut seed) * 2.0 - 1.0,
-            next_unit(&mut seed) * 2.0 - 1.0,
-            next_unit(&mut seed) * 2.0 - 1.0,
+            popoff_unit(&mut seed) * 2.0 - 1.0,
+            popoff_unit(&mut seed) * 2.0 - 1.0,
+            popoff_unit(&mut seed) * 2.0 - 1.0,
         )
         .normalize_or(Vec3::X);
-        let spin_rate = 5.0 + next_unit(&mut seed) * 7.0;
+        let spin_rate = 5.0 + popoff_unit(&mut seed) * 7.0;
 
         let mounts = MountFrames::for_vehicle(kind);
         let gun_offset = mounts.gun_trunnion.translation - mounts.turret_ring.translation;
 
-        let ground = heightmap
-            .and_then(|map| map.sample_height(ring_world.x, ring_world.z))
-            .unwrap_or(ring_world.y - REST_CLEARANCE_M);
-        let rest_y = ground + REST_CLEARANCE_M;
-
-        // Positive root of origin.y + vy t - g/2 t^2 = rest_y.
-        let vy = launch_velocity.y;
-        let drop = (origin_above(ring_world.y, rest_y)).max(0.0);
-        let settle_s = (vy + (vy * vy + 2.0 * GRAVITY_MPS2 * drop).max(0.0).sqrt()) / GRAVITY_MPS2;
+        let rest = rest.unwrap_or(launch.rest);
+        let settle_s = launch.settle_s.max(1.0e-3);
+        let launch_velocity = Vec3::new(
+            (rest.x - ring_world.x) / settle_s,
+            launch.velocity.y,
+            (rest.z - ring_world.z) / settle_s,
+        );
 
         Self {
             origin: ring_world,
@@ -76,8 +83,8 @@ impl TurretPopoff {
             spin_axis,
             spin_rate,
             gun_offset,
-            rest_y,
-            settle_s: settle_s.max(0.0),
+            rest_y: rest.y,
+            settle_s,
             age_s: 0.0,
         }
     }
@@ -116,16 +123,6 @@ impl TurretPopoff {
     pub fn gun_transform(&self) -> Mat4 {
         self.turret_transform() * Mat4::from_translation(self.gun_offset)
     }
-}
-
-fn origin_above(origin_y: f32, rest_y: f32) -> f32 {
-    origin_y - rest_y
-}
-
-/// Advance the seed and map it to `[0, 1)`.
-fn next_unit(seed: &mut u64) -> f32 {
-    *seed = splitmix64(*seed);
-    ((*seed >> 40) as f32) / ((1u64 << 24) as f32)
 }
 
 #[cfg(test)]
@@ -183,6 +180,21 @@ mod tests {
             popoff.tick(0.05);
         }
         assert_eq!(popoff.turret_transform(), frozen, "a settled turret is frozen");
+    }
+
+    /// Z13: told where the authority's solid stands, the casting comes down exactly there.
+    #[test]
+    fn the_casting_lands_on_the_rest_the_authority_replicated() {
+        let ring = Vec3::new(5.0, 2.0, 5.0);
+        let rest = Vec3::new(9.5, 0.45, 2.0);
+        let mut popoff =
+            TurretPopoff::launch_to(TankId(3), VehicleKind::T54_1951, ring, 0.0, Some(rest));
+        for _ in 0..200 {
+            popoff.tick(0.05);
+        }
+        assert!(popoff.settled());
+        let landed = popoff.turret_transform().w_axis.truncate();
+        assert!(landed.distance(rest) < 1e-3, "landed at {landed}, the solid stands at {rest}");
     }
 
     #[test]

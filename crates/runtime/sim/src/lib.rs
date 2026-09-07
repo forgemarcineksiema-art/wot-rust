@@ -40,7 +40,7 @@ pub use cover_damage::{
     initial_cover_states, live_cover_for_movement, live_cover_for_sight_and_shells,
     movement_cover_for_phase_bytes, record_cover_scar, rubble_mounds,
     rubble_mounds_for_phase_bytes, segment_damage, sight_cover_for_phase_bytes,
-    sight_cover_for_wire, strike_segment, struck_face,
+    sight_cover_for_wire, strike_segment, struck_face, turret_rest_box, turret_rests_of,
 };
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
