@@ -37,6 +37,7 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     let outcome = trace_shell(
@@ -99,6 +100,7 @@ fn projectile_radius_catches_a_cover_edge_and_reports_the_real_surface() {
         blockers: &[],
         heightmap: None,
         cover: &cover,
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     assert!(segment_impact(from, to, to - from, &ray_world).is_none(), "center ray clears");
@@ -129,6 +131,7 @@ fn a_shell_falling_into_water_splashes_at_the_surface_not_the_bed() {
         blockers: &[],
         heightmap: Some(&heightmap),
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView { table: Some(water), sheets: &[] },
     };
 
@@ -208,6 +211,7 @@ fn a_muzzle_buried_in_the_ground_is_a_terrain_hit_for_the_server_and_the_reticle
         blockers: &[],
         heightmap: Some(&heightmap),
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     let outcome = trace_shell(

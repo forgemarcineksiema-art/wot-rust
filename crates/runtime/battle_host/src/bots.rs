@@ -210,6 +210,7 @@ impl BotRoster {
         battlefield: &BattlefieldMap,
         ground: Option<&terrain::GroundClassifier>,
         live_cover: &[terrain::StaticCoverObject],
+        live_rubble: &[terrain::RubbleMound],
         battle_over: bool,
         damage_events: &[DamageEvent],
     ) -> Vec<(TankId, TankCommand)> {
@@ -247,6 +248,7 @@ impl BotRoster {
                             battlefield,
                             ground,
                             live_cover,
+                            live_rubble,
                             &engagements,
                             hull_down,
                         )
@@ -287,6 +289,7 @@ fn bot_command_for_tank(
     battlefield: &BattlefieldMap,
     ground: Option<&terrain::GroundClassifier>,
     live_cover: &[terrain::StaticCoverObject],
+    live_rubble: &[terrain::RubbleMound],
     engagements: &[AlliedEngagement],
     hull_down: &[map_forge::HullDownSpot],
 ) -> TankCommand {
@@ -334,8 +337,16 @@ fn bot_command_for_tank(
         agent.reposition_ticks -= 1;
     }
     if !repositioning
-        && let Some(target) =
-            bot_current_target(agent, tick, tank, tanks, battlefield, live_cover, engagements)
+        && let Some(target) = bot_current_target(
+            agent,
+            tick,
+            tank,
+            tanks,
+            battlefield,
+            live_cover,
+            live_rubble,
+            engagements,
+        )
     {
         // A duel that changes nothing is a parked bot: shells eating a crest or a bank while
         // combat preempts the route for the whole battle. When the target's hit points have
@@ -463,6 +474,7 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
 /// acquisition (no engagement at all) rides its own short stagger: before first contact every
 /// cache is empty, so the moment a spotting recompute lit up both teams, all 13 bots used to
 /// fire their full raycast sweeps on that very tick — the recompute's own most expensive tick.
+#[expect(clippy::too_many_arguments)]
 fn bot_current_target<'a>(
     agent: &mut BotAgent,
     tick: u64,
@@ -470,6 +482,7 @@ fn bot_current_target<'a>(
     tanks: &'a [TankState],
     battlefield: &BattlefieldMap,
     live_cover: &[terrain::StaticCoverObject],
+    live_rubble: &[terrain::RubbleMound],
     engagements: &[AlliedEngagement],
 ) -> Option<&'a TankState> {
     // The futile hold: this bot walked away from that duel — the held enemy is out of the
@@ -496,6 +509,7 @@ fn bot_current_target<'a>(
             held,
             Some(&battlefield.heightmap),
             live_cover,
+            live_rubble,
             &situation,
         )
     } else {
@@ -650,6 +664,7 @@ mod tests {
                 &battlefield,
                 None,
                 &battlefield.static_cover,
+                &[],
                 false,
                 &[],
             )[0]
@@ -704,7 +719,7 @@ mod tests {
             let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
             // Run past the cold-acquisition stagger so the selection cadence certainly fired.
             for tick in 0..=ACQUIRE_INTERVAL_TICKS {
-                roster.commands(tick, &tanks, &battlefield, None, live_cover, false, &[]);
+                roster.commands(tick, &tanks, &battlefield, None, live_cover, &[], false, &[]);
             }
             roster.agents[0].target
         };
@@ -748,6 +763,7 @@ mod tests {
                 &battlefield,
                 None,
                 &battlefield.static_cover,
+                &[],
                 false,
                 &[],
             );
@@ -786,6 +802,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         )[0]
@@ -802,6 +819,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         );
@@ -818,6 +836,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         );
@@ -833,6 +852,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         );
@@ -864,6 +884,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         )[0]
@@ -893,15 +914,15 @@ mod tests {
 
         // Tick 30: neither bot's acquire slice is due ((30+1)%3=1, (30+2)%3=2) — nobody
         // raycasts on the hypothetical recompute tick itself.
-        roster.commands(30, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
+        roster.commands(30, &world, &battlefield, None, &battlefield.static_cover, &[], false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, None);
 
         // Tick 31: bot 2's slice. Tick 32: bot 1's. Everyone is locked within the interval.
-        roster.commands(31, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
+        roster.commands(31, &world, &battlefield, None, &battlefield.static_cover, &[], false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, Some(enemy.id));
-        roster.commands(32, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
+        roster.commands(32, &world, &battlefield, None, &battlefield.static_cover, &[], false, &[]);
         assert_eq!(roster.agents[0].target, Some(enemy.id));
         assert_eq!(roster.agents[1].target, Some(enemy.id));
     }
@@ -933,6 +954,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[hit],
         )[0]
@@ -974,6 +996,7 @@ mod tests {
                 &battlefield,
                 None,
                 &battlefield.static_cover,
+                &[],
                 false,
                 std::slice::from_ref(&hit),
             )[0]
@@ -1017,6 +1040,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[hit],
         );
@@ -1029,6 +1053,7 @@ mod tests {
                 &battlefield,
                 None,
                 &battlefield.static_cover,
+                &[],
                 false,
                 &[],
             )[0]
@@ -1076,6 +1101,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[rear_hit],
         )[0]
@@ -1100,6 +1126,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             true,
             &[],
         );
@@ -1113,6 +1140,7 @@ mod tests {
             &battlefield,
             None,
             &battlefield.static_cover,
+            &[],
             false,
             &[],
         );

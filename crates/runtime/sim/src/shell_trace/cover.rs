@@ -10,10 +10,19 @@ pub(super) fn first_cover_impact(
     previous: Vec3,
     current: Vec3,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
     radius_m: f32,
 ) -> Option<Vec3> {
     let radius = radius_m.max(0.0);
     let mut nearest: Option<(f32, Vec3)> = None;
+    // The mounds first (X11): the pyramid's talus and crown, the same surface a hull climbs.
+    if let Some(point) =
+        terrain::rubble_segment_impact(rubble, previous.to_array(), current.to_array(), radius)
+    {
+        let point = Vec3::from_array(point);
+        let t = (point - previous).length() / (current - previous).length().max(1.0e-6);
+        nearest = Some((t, point));
+    }
     for object in cover {
         // X1: a turned box (yaw != 0) is entered in its own frame; an axis-aligned one keeps
         // the world-frame slab it always had, bit for bit.
@@ -128,7 +137,7 @@ mod broadphase_tests {
             );
             let radius = xorshift(&mut state) * 0.12;
             assert_eq!(
-                first_cover_impact(previous, current, &cover, radius),
+                first_cover_impact(previous, current, &cover, &[], radius),
                 first_cover_impact_exact(previous, current, &cover, radius),
                 "prefilter changed the impact for {previous:?} -> {current:?} r {radius}"
             );

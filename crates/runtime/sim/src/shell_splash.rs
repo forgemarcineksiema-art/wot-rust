@@ -40,6 +40,7 @@ fn running_gear_point(burst_local: Vec3, half: Vec3) -> Vec3 {
 /// explosive radius takes attenuated blast damage. The directly-struck tank already took the
 /// surface-burst damage from the armor test and is skipped; allies are protected exactly like
 /// direct fire, but the owner's own HE can absolutely hurt the owner.
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn burst_he_splash(
     shell: &ShellState,
     burst_point: Vec3,
@@ -48,6 +49,7 @@ pub(crate) fn burst_he_splash(
     direct_target: Option<TankId>,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) {
     let radius = shell.shell.explosive_radius_m;
     if shell.shell.shell_type != ShellType::HighExplosive || radius <= 0.0 {
@@ -70,7 +72,7 @@ pub(crate) fn burst_he_splash(
         // the shell stops its pressure wave too — a ridge of terrain OR a cover wall. Without the
         // cover half, an HE round bursting on a garden wall dealt full splash to a tank pressed
         // against the far face, straight through unbroken masonry.
-        if cover_blocks_splash(cover, burst_point, hull_point)
+        if cover_blocks_splash(cover, rubble, burst_point, hull_point)
             || !splash_line_clear(heightmap, burst_point, hull_point)
         {
             continue;
@@ -172,9 +174,18 @@ fn splash_line_clear(heightmap: Option<&HeightMap>, burst: Vec3, hull_point: Vec
 /// that wall as occluding its own blast and wrongly shield a tank standing in FRONT of it. Destroyed
 /// cover is already absent from the slice (`live_cover_for_sight_and_shells`), so a flattened wall
 /// stops nothing.
-fn cover_blocks_splash(cover: &[StaticCoverObject], burst: Vec3, hull: Vec3) -> bool {
+fn cover_blocks_splash(
+    cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
+    burst: Vec3,
+    hull: Vec3,
+) -> bool {
     /// The fraction of the burst→hull segment that must lie inside a box to count as occluding.
     const THROUGH_EPS: f32 = 1.0e-3;
+    // A mound between the burst and the hull (X11): the wave stops in the talus like a shell.
+    if terrain::rubble_segment_impact(rubble, burst.to_array(), hull.to_array(), 0.0).is_some() {
+        return true;
+    }
     cover.iter().any(|object| {
         let cover_box = terrain::CoverBox::of(object);
         let (burst, hull) = (burst.to_array(), hull.to_array());
@@ -260,7 +271,7 @@ mod tests {
         let mut event_stamp = crate::event_stamp::BattleEventStamp::new(Default::default(), 0);
         let mut output =
             BattleEventOutput::new(&mut events, &mut impacts, &mut breaches, &mut event_stamp);
-        burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap, cover);
+        burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap, cover, &[]);
         hp_before - tanks[1].hit_points
     }
 
@@ -364,7 +375,7 @@ mod tests {
         // the wall interior, so the blast is occluded exactly as the shell and the sight line are.
         let wall = [test_wall([0.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
         assert!(
-            cover_blocks_splash(&wall, Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
+            cover_blocks_splash(&wall, &[], Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
             "a wall standing between burst and hull must occlude the blast"
         );
     }
@@ -373,7 +384,7 @@ mod tests {
     fn a_cover_wall_off_to_the_side_does_not_block_the_splash() {
         let wall = [test_wall([20.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
         assert!(
-            !cover_blocks_splash(&wall, Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
+            !cover_blocks_splash(&wall, &[], Vec3::new(0.0, 1.0, 8.0), Vec3::new(0.0, 1.0, 12.0)),
             "a wall nowhere near the blast line must not occlude it"
         );
     }
@@ -387,11 +398,11 @@ mod tests {
         let wall = [test_wall([0.0, 1.5, 10.0], [4.0, 2.5, 0.5])];
         let on_near_face = Vec3::new(0.0, 1.0, 9.5);
         assert!(
-            !cover_blocks_splash(&wall, on_near_face, Vec3::new(0.0, 1.0, 8.0)),
+            !cover_blocks_splash(&wall, &[], on_near_face, Vec3::new(0.0, 1.0, 8.0)),
             "a burst on a wall must still splash what stands in front of that wall"
         );
         assert!(
-            cover_blocks_splash(&wall, on_near_face, Vec3::new(0.0, 1.0, 12.0)),
+            cover_blocks_splash(&wall, &[], on_near_face, Vec3::new(0.0, 1.0, 12.0)),
             "the same wall must shield a hull on its far side"
         );
     }

@@ -277,6 +277,7 @@ impl SimulationState {
             &mut self.spotting_memory,
             heightmap,
             live_cover.sight(),
+            live_cover.rubble(),
         );
         self.live_cover_cache = live_cover;
     }
@@ -298,6 +299,12 @@ impl SimulationState {
     /// borrow, so the host reads it beside `tanks()`/`ground()`/`damage_events()` for bot LOS.
     pub fn cached_sight_cover(&self) -> &[StaticCoverObject] {
         self.live_cover_cache.sight()
+    }
+
+    /// The collapsed buildings as the pyramids the eye and the shell meet (X11), beside the
+    /// sight slice that no longer carries them as boxes.
+    pub fn cached_rubble(&self) -> &[terrain::RubbleMound] {
+        self.live_cover_cache.rubble()
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
@@ -622,6 +629,7 @@ impl SimulationState {
                 context,
                 heightmap,
                 live_cover.sight(),
+                rubble,
             );
         }
         // Z13: a turret blown off this tick lands SOMEWHERE — the same somewhere on every
@@ -729,6 +737,7 @@ impl SimulationState {
             &mut self.spotting_memory,
             heightmap,
             live_cover.sight(),
+            rubble,
         );
         self.last_battle_event_id = event_stamp.last_event_id();
         self.tick += 1;

@@ -44,6 +44,7 @@ fn the_solved_arc_lands_on_the_target_hull_at_range() {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     match trace_shell(
@@ -153,6 +154,7 @@ fn a_gun_the_glacis_defeats_lays_on_the_port_and_beats_it() {
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     match trace_shell(

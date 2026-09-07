@@ -48,6 +48,7 @@ mod ram_bill_is_the_charge;
 mod ramming_contact;
 mod replay_regression;
 mod ricochet_continuation;
+mod rubble_one_shape;
 mod separation_travels;
 mod shell_blockers;
 mod shell_trace;

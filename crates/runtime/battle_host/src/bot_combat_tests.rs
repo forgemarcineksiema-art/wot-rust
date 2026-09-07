@@ -15,6 +15,7 @@ fn bots_target_only_enemies_spotted_by_their_team() {
             None,
             None,
             &[],
+            &[],
             &BotSituation::default()
         )
         .is_none()
@@ -43,11 +44,19 @@ fn bots_engage_only_enemies_in_their_own_line_of_sight() {
         None,
         None,
         std::slice::from_ref(&wall),
+        &[],
         &BotSituation::default(),
     );
     assert_eq!(blocked.map(|target| target.id), Some(TankId(3)));
-    let clear =
-        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+    let clear = bot_best_engageable_enemy(
+        &observer,
+        &tanks,
+        None,
+        None,
+        &[],
+        &[],
+        &BotSituation::default(),
+    );
     assert_eq!(clear.map(|target| target.id), Some(TankId(2)));
 }
 
@@ -163,8 +172,15 @@ fn a_bot_finishes_the_cripple_instead_of_the_nearer_healthy_enemy() {
     cripple.hit_points = cripple.spec.hit_points / 10;
     let tanks = [observer.clone(), healthy, cripple];
 
-    let chosen =
-        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+    let chosen = bot_best_engageable_enemy(
+        &observer,
+        &tanks,
+        None,
+        None,
+        &[],
+        &[],
+        &BotSituation::default(),
+    );
 
     assert_eq!(
         chosen.map(|target| target.id),
@@ -187,12 +203,19 @@ fn a_bot_shoots_back_at_the_quarter_the_shell_came_from() {
     let struck_from_the_left =
         BotSituation { threat_bearing: Some(-std::f32::consts::FRAC_PI_2), ..Default::default() };
     let chosen =
-        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &struck_from_the_left);
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &[], &struck_from_the_left);
     assert_eq!(chosen.map(|target| target.id), Some(TankId(3)));
 
     // With no hit to answer, the same two enemies tie on range and the first one stands.
-    let calm =
-        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+    let calm = bot_best_engageable_enemy(
+        &observer,
+        &tanks,
+        None,
+        None,
+        &[],
+        &[],
+        &BotSituation::default(),
+    );
     assert_eq!(calm.map(|target| target.id), Some(TankId(2)));
 }
 
@@ -208,8 +231,15 @@ fn a_gun_already_laid_on_this_bot_outranks_one_looking_elsewhere() {
     laid_on_us.turret_yaw_rad = -std::f32::consts::FRAC_PI_2; // swung onto the observer
     let tanks = [observer.clone(), looking_away, laid_on_us];
 
-    let chosen =
-        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+    let chosen = bot_best_engageable_enemy(
+        &observer,
+        &tanks,
+        None,
+        None,
+        &[],
+        &[],
+        &BotSituation::default(),
+    );
 
     assert_eq!(chosen.map(|target| target.id), Some(TankId(3)), "shoot the gun that is pointing");
 }
@@ -226,7 +256,7 @@ fn bots_concentrate_on_the_enemy_a_teammate_is_already_fighting() {
     let ally_on_three = [AlliedEngagement { bot: TankId(9), team: TeamId(1), target: TankId(3) }];
 
     let supported = BotSituation { allied_targets: &ally_on_three, ..Default::default() };
-    let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &supported);
+    let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &[], &supported);
     assert_eq!(chosen.map(|target| target.id), Some(TankId(3)));
 
     // The same engagement from the OTHER team is not support, and this bot's own entry is not
@@ -239,7 +269,7 @@ fn bots_concentrate_on_the_enemy_a_teammate_is_already_fighting() {
             allied_targets: std::slice::from_ref(&irrelevant),
             ..Default::default()
         };
-        let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &situation);
+        let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &[], &situation);
         assert_eq!(chosen.map(|target| target.id), Some(TankId(2)), "{irrelevant:?}");
     }
 }

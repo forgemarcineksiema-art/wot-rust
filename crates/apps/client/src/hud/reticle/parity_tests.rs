@@ -82,6 +82,7 @@ fn the_reticle_and_the_server_agree_on_ten_thousand_traced_impacts() {
         let query = ReticleFeedbackQuery {
             heightmap: &heightmap,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
             gun_pitch_limits_rad: limits,
             hull_pose,
@@ -109,6 +110,7 @@ fn the_reticle_and_the_server_agree_on_ten_thousand_traced_impacts() {
         let outcome = reticle_trace(ReticleTraceQuery {
             heightmap: &heightmap,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
             tanks: &snapshots,
             owner: shooter_id,
@@ -178,6 +180,7 @@ fn a_track_hit_prices_the_belt_and_the_side_plate_behind_it() {
     let query = ReticleFeedbackQuery {
         heightmap: &heightmap,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
         gun_pitch_limits_rad: player_spec.gun_pitch_limits_rad(),
         hull_pose: HullPose::level(0.0),

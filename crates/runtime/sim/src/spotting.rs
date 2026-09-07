@@ -191,11 +191,17 @@ pub(crate) fn segment_hits_cover(object: &StaticCoverObject, from: Vec3, to: Vec
 pub fn line_of_sight(
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
     from: Vec3,
     to: Vec3,
 ) -> bool {
     let blocked = cover.iter().any(|c| segment_hits_cover(c, from, to));
     if blocked {
+        return false;
+    }
+    // A collapsed building is the pyramid the hull climbs (X11), not a box: the eye stops
+    // where the line goes under the talus or the crown.
+    if terrain::rubble_segment_impact(rubble, from.to_array(), to.to_array(), 0.0).is_some() {
         return false;
     }
     heightmap.is_none_or(|heightmap| terrain_clear(heightmap, from, to))
@@ -210,9 +216,12 @@ pub fn tank_line_of_sight(
     target: &TankState,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) -> bool {
     let eye = observer_eye(observer);
-    target_points(target).into_iter().any(|point| line_of_sight(heightmap, cover, eye, point))
+    target_points(target)
+        .into_iter()
+        .any(|point| line_of_sight(heightmap, cover, rubble, eye, point))
 }
 
 /// The commander's eye of an observer: the top of the hull box.
@@ -238,11 +247,12 @@ pub(crate) fn refresh_spotted_masks(
     memory: &mut SpottingMemory,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) {
     if !tick.is_multiple_of(SPOTTING_INTERVAL_TICKS) {
         return;
     }
-    apply_spotted_masks_with_hold(tick, tanks, memory, heightmap, cover);
+    apply_spotted_masks_with_hold(tick, tanks, memory, heightmap, cover, rubble);
 }
 
 /// One full recompute: fresh LOS masks, folded through the spotting memory's hold.
@@ -252,8 +262,9 @@ pub(crate) fn apply_spotted_masks_with_hold(
     memory: &mut SpottingMemory,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) {
-    let masks = compute_spotted_masks(tanks, tick, heightmap, cover);
+    let masks = compute_spotted_masks(tanks, tick, heightmap, cover, rubble);
     for (tank, fresh_mask) in tanks.iter_mut().zip(masks) {
         tank.spotted_mask = memory.hold(tank.id, fresh_mask, tick);
     }
@@ -273,6 +284,7 @@ pub fn compute_spotted_masks(
     tick: u64,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) -> Vec<u8> {
     let mut masks = vec![0u8; tanks.len()];
     for (i, target) in tanks.iter().enumerate() {
@@ -300,7 +312,7 @@ pub fn compute_spotted_masks(
             if eye.distance(target.position) > range {
                 continue;
             }
-            if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
+            if points.iter().any(|&p| line_of_sight(heightmap, cover, rubble, eye, p)) {
                 masks[i] |= observer.team.spotting_bit();
             }
         }
@@ -317,6 +329,7 @@ pub fn compute_observer_masks(
     tick: u64,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) -> Vec<ObserverMask> {
     // A roster past the cap does not half-work: hulls beyond it observe nobody. Loud in dev and
     // in every test rather than a quiet blind spot in a shipped mode.
@@ -350,7 +363,7 @@ pub fn compute_observer_masks(
             if eye.distance(target.position) > range {
                 continue;
             }
-            if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
+            if points.iter().any(|&p| line_of_sight(heightmap, cover, rubble, eye, p)) {
                 masks[i] |= 1 << observer_index;
             }
         }
@@ -439,7 +452,7 @@ mod broadphase_tests {
                 xorshift(&mut state) * 520.0,
             );
             let exact_clear = !cover.iter().any(|c| segment_hits_cover(c, from, to));
-            let filtered_clear = line_of_sight(None, &cover, from, to);
+            let filtered_clear = line_of_sight(None, &cover, &[], from, to);
             if exact_clear != filtered_clear {
                 disagreements.push((case, from, to));
             }

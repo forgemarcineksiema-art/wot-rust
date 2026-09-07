@@ -738,9 +738,9 @@ pub fn exposure_field(
                 if eye.distance(turret) > geometry.view_range_m {
                     continue;
                 }
-                if sim::line_of_sight(Some(heightmap), &cover, *eye, turret) {
+                if sim::line_of_sight(Some(heightmap), &cover, &[], *eye, turret) {
                     turret_hits += 1;
-                    if !hull_seen && sim::line_of_sight(Some(heightmap), &cover, *eye, hull) {
+                    if !hull_seen && sim::line_of_sight(Some(heightmap), &cover, &[], *eye, hull) {
                         hull_seen = true;
                     }
                 }
@@ -962,7 +962,7 @@ fn engagement_bands(map: &BattlefieldMap, cover: &[StaticCoverObject]) -> Vec<(f
         total[band] += 1;
         let eye = glam::Vec3::new(ax, height_clamped(heightmap, ax, az) + geometry.eye_m, az);
         let target = glam::Vec3::new(bx, height_clamped(heightmap, bx, bz) + geometry.turret_m, bz);
-        if sim::line_of_sight(Some(heightmap), cover, eye, target) {
+        if sim::line_of_sight(Some(heightmap), cover, &[], eye, target) {
             clear[band] += 1;
         }
     }

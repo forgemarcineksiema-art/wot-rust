@@ -60,6 +60,7 @@ fn hull_tilt_angles_the_glacis_against_a_level_shot() {
             blockers: &[],
             heightmap: None,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
         };
         // Aim at the GLACIS AS POSED, and pin the zone. The old aim was a fixed horizontal

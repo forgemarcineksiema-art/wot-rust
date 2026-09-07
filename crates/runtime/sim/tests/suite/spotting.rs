@@ -70,11 +70,11 @@ fn cover_between_observers_blocks_the_sight_line() {
     let target = Vec3::new(0.0, 1.0, 60.0);
     let wall = [tree_line([0.0, 1.5, 30.0], [6.0, 3.0, 2.0])];
 
-    assert!(line_of_sight(None, &[], eye, target), "open field is a clear line");
-    assert!(!line_of_sight(None, &wall, eye, target), "tree line on the line blocks it");
+    assert!(line_of_sight(None, &[], &[], eye, target), "open field is a clear line");
+    assert!(!line_of_sight(None, &wall, &[], eye, target), "tree line on the line blocks it");
     // A tree line off to the side leaves the line clear.
     let aside = [tree_line([40.0, 1.5, 30.0], [6.0, 3.0, 2.0])];
-    assert!(line_of_sight(None, &aside, eye, target));
+    assert!(line_of_sight(None, &aside, &[], eye, target));
 }
 
 #[test]
@@ -89,10 +89,10 @@ fn a_ridge_between_observers_blocks_the_sight_line() {
     let eye = Vec3::new(50.0, 2.0, 10.0);
     let target = Vec3::new(50.0, 1.0, 90.0);
 
-    assert!(!line_of_sight(Some(&heightmap), &[], eye, target), "ridge occludes");
+    assert!(!line_of_sight(Some(&heightmap), &[], &[], eye, target), "ridge occludes");
     // Flat ground at the same spots is clear.
     let flat = HeightMap::flat(w, w, cell, 0.0).unwrap();
-    assert!(line_of_sight(Some(&flat), &[], eye, target));
+    assert!(line_of_sight(Some(&flat), &[], &[], eye, target));
 }
 
 /// The 10 Hz boolean LOS recompute strobes a target dancing on a ridge or a bush corner — model
@@ -208,8 +208,8 @@ fn a_dead_radio_stops_sharing_but_never_blinds_its_own_eyes() {
     state.apply_commands(&[], FixedTimestep::from_hz(60));
 
     let tanks: Vec<_> = state.tanks().to_vec();
-    let team_masks = sim::compute_spotted_masks(&tanks, 0, None, &[]);
-    let observer_masks = sim::compute_observer_masks(&tanks, 0, None, &[]);
+    let team_masks = sim::compute_spotted_masks(&tanks, 0, None, &[], &[]);
+    let observer_masks = sim::compute_observer_masks(&tanks, 0, None, &[], &[]);
     // The enemy is index 1; the scout is index 0.
     assert_eq!(
         team_masks[1] & TEAM_1_BIT,

@@ -22,6 +22,7 @@ pub(crate) fn step_shells(
     context: CombatTickContext,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) {
     let dt = context.dt_seconds;
     let mut index = 0;
@@ -46,6 +47,7 @@ pub(crate) fn step_shells(
             blockers: &blockers,
             heightmap,
             cover,
+            rubble,
             water: context.water,
         };
         match segment_impact(previous, shells[index].position, velocity, &world) {
@@ -132,6 +134,7 @@ pub(crate) fn step_shells(
                         Some(direct_target),
                         heightmap,
                         cover,
+                        rubble,
                     );
                 }
                 if ricochet_continues {
@@ -169,7 +172,16 @@ pub(crate) fn step_shells(
                     index += 1;
                     continue;
                 }
-                burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover);
+                burst_he_splash(
+                    &shells[index],
+                    position,
+                    tanks,
+                    events,
+                    None,
+                    heightmap,
+                    cover,
+                    rubble,
+                );
                 shells.swap_remove(index);
             }
             None => {
@@ -181,6 +193,7 @@ pub(crate) fn step_shells(
                     segment_distance,
                     heightmap,
                     cover,
+                    rubble,
                 ) {
                     index += 1;
                 }
@@ -212,6 +225,7 @@ fn ground_ricochet_normal(
     (incidence <= GROUND_RICOCHET_MAX_DEG).then_some(normal)
 }
 
+#[expect(clippy::too_many_arguments)]
 fn step_unhit_shell(
     shells: &mut Vec<ShellState>,
     tanks: &mut [TankState],
@@ -220,6 +234,7 @@ fn step_unhit_shell(
     segment_distance: f32,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
 ) -> bool {
     if ground_contact(shells[index].position, heightmap) {
         let position = shells[index].position;
@@ -233,7 +248,7 @@ fn step_unhit_shell(
             shell_id: shells[index].id,
             ..Default::default()
         });
-        burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover);
+        burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover, rubble);
         shells.swap_remove(index);
         false
     } else if shells[index].age_seconds >= shells[index].max_age_seconds {

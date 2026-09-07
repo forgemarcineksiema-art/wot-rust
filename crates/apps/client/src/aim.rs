@@ -139,6 +139,7 @@ pub(crate) struct SightPoint {
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
     cover: &[StaticCoverObject],
+    rubble: &[terrain::RubbleMound],
     water: terrain::WaterView<'_>,
     tanks: &[TankSnapshot],
     owner: TankId,
@@ -154,6 +155,7 @@ pub(crate) fn aim_point_with_sweep(
         blockers: &sets.blockers,
         heightmap: Some(heightmap),
         cover,
+        rubble,
         water,
     };
     // ONE nearest-impact query over the whole sight ray. The old outer 1 m march re-tested
@@ -412,6 +414,7 @@ mod tests {
                 blockers: &sets.blockers,
                 heightmap: Some(heightmap),
                 cover,
+                rubble: &[],
                 water: terrain::WaterView::DRY,
             };
             let mut previous = eye;
@@ -441,6 +444,7 @@ mod tests {
             let fast = aim_point_with_sweep(
                 heightmap,
                 cover,
+                &[],
                 terrain::WaterView::DRY,
                 &tanks,
                 TankId(1),
@@ -468,6 +472,7 @@ mod tests {
         let sweep = |forward: Vec3| {
             aim_point_with_sweep(
                 &flat,
+                &[],
                 &[],
                 terrain::WaterView::DRY,
                 &[],
@@ -518,6 +523,7 @@ mod tests {
             aim_point_with_sweep(
                 &flat,
                 std::slice::from_ref(&barn),
+                &[],
                 terrain::WaterView::DRY,
                 &[],
                 TankId(1),

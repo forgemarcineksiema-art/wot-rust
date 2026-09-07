@@ -126,6 +126,7 @@ fn trace_one(
         blockers: &[],
         heightmap: None,
         cover: &[],
+        rubble: &[],
         water: terrain::WaterView::DRY,
     };
     segment_impact(from, to, to - from, &world)

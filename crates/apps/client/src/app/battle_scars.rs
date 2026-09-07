@@ -500,7 +500,11 @@ mod tests {
         assert_eq!(app.live_cover.phase_bytes()[building], 0, "the box stands");
         assert_eq!(app.live_cover.segment_bytes()[building * terrain::SEGMENT_BYTES], packed[0]);
         assert!(app.live_cover.blocking().len() > standing, "a hollow of slabs blocks now");
-        assert_eq!(app.live_cover.camera_obstacles().len(), app.live_cover.blocking().len());
+        // The boom: every sight box, plus a lowered box per mound (X11 keeps those for the camera).
+        assert_eq!(
+            app.live_cover.camera_obstacles().len(),
+            app.live_cover.blocking().len() + app.live_cover.rubble().len()
+        );
         assert_eq!(app.live_cover.movement().len(), authored.len(), "the hull never enters");
         assert_eq!(app.battlefield.static_cover, authored);
     }
@@ -580,17 +584,30 @@ mod tests {
             app.battlefield.static_cover, authored,
             "render/scar indices keep the authored cover untouched"
         );
-        let rubble_index = app
+        // X11: the mound is a pyramid in `rubble()`, no box in the sight slice; the camera
+        // boom alone keeps a lowered box for it.
+        assert!(
+            !app.live_cover.blocking().iter().any(|cover| cover.id == first_id),
+            "the sight slice carries no box for a mound"
+        );
+        let rubble = app
             .live_cover
-            .blocking()
+            .rubble()
             .iter()
-            .position(|cover| cover.id == first_id)
-            .expect("rubble remains blocking");
-        let rubble = &app.live_cover.blocking()[rubble_index];
-        let camera = &app.live_cover.camera_obstacles()[rubble_index];
-        assert!(rubble.half_extents_m[1] < authored[0].half_extents_m[1]);
-        assert_eq!(camera.center, rubble.center);
-        assert_eq!(camera.half_extents, rubble.half_extents_m);
+            .find(|mound| mound.center_xz_m == [authored[0].center[0], authored[0].center[2]])
+            .expect("the collapsed building's pile is in the rubble");
+        assert!(rubble.crest_y_m < authored[0].center[1] + authored[0].half_extents_m[1]);
+        assert_eq!(app.live_cover.camera_obstacles().len(), app.live_cover.blocking().len() + 1);
+        let camera = app
+            .live_cover
+            .camera_obstacles()
+            .iter()
+            .find(|obstacle| {
+                obstacle.center[0] == authored[0].center[0]
+                    && obstacle.center[2] == authored[0].center[2]
+            })
+            .expect("the boom keeps a lowered box");
+        assert!(camera.half_extents[1] < authored[0].half_extents_m[1]);
 
         // A later Gone phase removes the same index from every blocking consumer in one ingest,
         // while the authored slice stays available for indexed rendering and scar lookup.

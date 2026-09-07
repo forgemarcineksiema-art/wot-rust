@@ -11,6 +11,7 @@ use terrain::{HeightMap, StaticCoverObject};
 pub(crate) struct ReticleTraceQuery<'a> {
     pub heightmap: &'a HeightMap,
     pub cover: &'a [StaticCoverObject],
+    pub rubble: &'a [terrain::RubbleMound],
     /// The map's standing water — the preview must splash exactly where the server will.
     pub water: terrain::WaterView<'a>,
     pub tanks: &'a [TankSnapshot],
@@ -38,6 +39,7 @@ pub(crate) fn reticle_trace(query: ReticleTraceQuery<'_>) -> TraceOutcome {
         blockers: &sets.blockers,
         heightmap: Some(query.heightmap),
         cover: query.cover,
+        rubble: query.rubble,
         water: query.water,
     };
     trace_shell(
@@ -157,6 +159,7 @@ mod tests {
         let outcome = reticle_trace(ReticleTraceQuery {
             heightmap: &heightmap,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
             tanks: &[ally, enemy],
             owner: TankId(1),
@@ -186,6 +189,7 @@ mod tests {
         let outcome = reticle_trace(ReticleTraceQuery {
             heightmap: &heightmap,
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
             tanks: std::slice::from_ref(&target),
             owner: TankId(1),
@@ -207,6 +211,7 @@ mod tests {
             blockers: &sets.blockers,
             heightmap: Some(&heightmap),
             cover: &[],
+            rubble: &[],
             water: terrain::WaterView::DRY,
         };
         let direct =

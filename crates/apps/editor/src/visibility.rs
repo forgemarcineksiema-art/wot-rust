@@ -57,7 +57,7 @@ pub fn viewshed_mesh(
             }
             let ground = heightmap.sample_at_index(xi, zi);
             let target = Vec3::new(x, ground + hull_m, z);
-            if sim::line_of_sight(Some(heightmap), cover, eye, target) {
+            if sim::line_of_sight(Some(heightmap), cover, &[], eye, target) {
                 continue;
             }
             let half = cell * 0.5;
