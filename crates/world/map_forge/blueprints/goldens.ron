@@ -152,9 +152,9 @@
     // parapets are the first of the LOW TIER - `LowWall`, 0.6 m (was 1.1 m of RailCover) -
     // a step every running gear in the fleet crosses with a tilt and a speed loss, and a
     // solid a shell still stops in. The hash moves with the kind and the half height.
-    ("bystra_valley", "52813880f232d664"),
-    ("orliny_pereval", "592ad6105cc25245"),
-    ("ostrogorsk", "2fef5404acb0d8af"),
+    ("bystra_valley", "06c7a69825f6236f"),
+    ("orliny_pereval", "7456171c795a8272"),
+    ("ostrogorsk", "76a696030dfe14a0"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
     // firsts at once: the first Rot180 half-turn map (each team sees the SAME battlefield
     // turned around - lake on the left, moraine on the right, twin mills dead ahead) and
@@ -164,6 +164,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "c8e49b49bef738f6"),
-    ("prokhorovka_hill_252_2", "7950955249b9a8dd"),
+    ("mazurski_przesmyk", "a6e7f9f4e5ab0982"),
+    ("prokhorovka_hill_252_2", "c0e9e432b8138856"),
 ]

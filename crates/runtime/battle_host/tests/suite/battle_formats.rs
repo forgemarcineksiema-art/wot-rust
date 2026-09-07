@@ -51,12 +51,15 @@ fn the_7v7_format_is_todays_battle_byte_for_byte() {
         // same day for X10, no wire change: every authored tree earns a `TreeTrunk` box now
         // (308 on five maps — the oak alone had one), and each rides the snapshot as its phase
         // byte and wall segments, so all five maps moved and the deployment did not.
+        // Re-recorded 2026-09-08 for T1, no wire change: every map's grid went 5 m → 2.5 m,
+        // and a deployment's hulls settle onto the finer ground (their heights and attitudes
+        // ride the snapshot); the deployment's seeds, spawn zones and facing yaws are untouched.
         let expected: u64 = match map {
-            terrain::MapId::ProkhorovkaHill252_2 => 0x5369d1009a5c1282,
-            terrain::MapId::BystraValley => 0x0a919dd9907491f3,
-            terrain::MapId::OrlinyPereval => 0xc5c9df38584067ea,
-            terrain::MapId::Ostrogorsk => 0xc23720800664feb0,
-            terrain::MapId::MazurskiPrzesmyk => 0xc4b5c4519ae4eb9b,
+            terrain::MapId::ProkhorovkaHill252_2 => 0xa9899b53999bcb95,
+            terrain::MapId::BystraValley => 0x4a8c7bb05c835c7d,
+            terrain::MapId::OrlinyPereval => 0xc65a7ba3f2bc9ba0,
+            terrain::MapId::Ostrogorsk => 0x39e32da80c0f7b84,
+            terrain::MapId::MazurskiPrzesmyk => 0xee7d7be1ae2002ff,
             _ => panic!("record a baseline for a newly shipped map"),
         };
         if hash != expected {

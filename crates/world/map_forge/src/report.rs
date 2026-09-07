@@ -101,6 +101,11 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     report
 }
 
+/// How far a start or a target may walk to the nearest passable cell before it counts as
+/// boxed in: a point on a bridge parapet or on a windmill's crest sits inside its own box.
+/// Metres, so the rule does not change with the grid (T1).
+const START_LEASH_M: f32 = 10.0;
+
 /// The drive graph's wall: the grade a hull still climbs, per horizontal metre.
 ///
 /// It was 0.55 — a hand-written "touch more than drivable-ish", against the physics controller's
@@ -161,11 +166,14 @@ fn check_playability(
         zi * width + xi
     };
     // A start may sit on a cell inside cover (a point on a bridge parapet) - walk to the
-    // nearest passable cell within a short leash before declaring anyone boxed in.
+    // nearest passable cell within a short leash before declaring anyone boxed in. The leash
+    // is METRES (T1): two cells of the old 5 m grid reached 10 m; at 2.5 m the same two cells
+    // stopped inside the windmill's own box and reported the crest boxed in.
+    let leash_cells = (START_LEASH_M / cell).ceil() as isize;
     let start_cell = |position: [f32; 3]| -> Option<usize> {
         let origin = cell_of(position);
         let (oxi, ozi) = ((origin % width) as isize, (origin / width) as isize);
-        for radius in 0..3_isize {
+        for radius in 0..=leash_cells {
             for dz in -radius..=radius {
                 for dx in -radius..=radius {
                     let (xi, zi) = (oxi + dx, ozi + dz);

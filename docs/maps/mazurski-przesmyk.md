@@ -12,7 +12,7 @@ at two levels; the global table sits under the terrain floor). Plays via
   during the East Prussian offensive. The land bridges between the great lakes (the
   Lötzen Gap pattern) were the armor question of the whole province. A fictional defile
   composed for half-turn fairness; no specific engagement is depicted.
-- **Size:** 1000 m × 1000 m at 5 m samples, `Rot180` about the map centre.
+- **Size:** 1000 m × 1000 m at 2.5 m samples (5 m until T1, 2026-09-08), `Rot180` about the map centre.
 - **Reading:** water is the architecture. Two drowning-deep glacial lakes own the NW and
   SE quarters — they DENY movement, they do not host it. Two sunken cut-peat ponds flank
   the central causeway: 47 m of land between two splash hazards, the map's only capture

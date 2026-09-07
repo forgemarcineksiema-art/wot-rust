@@ -13,7 +13,7 @@ WoT map anatomy as the genre reference.
 
 ## Playable Shape
 
-- Size: 1000m x 1000m; 201 x 201 height samples at 5 m; `MirrorZ` (mirror-symmetric across
+- Size: 1000m x 1000m; 401 x 401 height samples at 2.5 m (201 x 201 at 5 m until T1, 2026-09-08); `MirrorZ` (mirror-symmetric across
   the embankment axis, locked by `prokhorovka_heightmap_is_mirror_symmetric_across_central_axis`).
 - Theme: open steppe — `horizon: None` is deliberate (the analytic continuation reading out
   to the haze IS the historical statement; Bystra and Orliny carry the enclosed horizons).

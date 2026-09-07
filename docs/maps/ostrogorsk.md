@@ -48,7 +48,7 @@ graph still runs through the three open gates only, so the new doors are EARNED.
 
 ## Playable Shape
 
-- Size: 1000 m × 1000 m; height samples 201 × 201 at 5 m; `min_height_m` 0.2; dry map.
+- Size: 1000 m × 1000 m; height samples 401 × 401 at 2.5 m (201 × 201 at 5 m until T1, 2026-09-08); `min_height_m` 0.2; dry map.
 - Symmetry: `MirrorZ` — heightfield, cover, and points mirror across z = 500
   (report-enforced).
 - Terrain program: `SlopeEases` base falling 14 → 8 m west-to-east, damped `Relief`, a

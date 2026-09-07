@@ -262,8 +262,8 @@ mod tests {
             panic!("a hill is an additive Gauss2")
         };
         assert_eq!(terms.len(), 1, "no twin without symmetry");
-        assert_eq!(terms[0].x, 100.0, "positions snap to the 5 m cell");
-        assert_eq!(terms[0].z, 100.0);
+        assert_eq!(terms[0].x, 102.5, "positions snap to the 2.5 m cell (T1)");
+        assert_eq!(terms[0].z, 97.5, "98.7 rounds to the 2.5 m cell below");
         assert_eq!(terms[0].sx, 15.0, "sigma = half the quantized radius");
 
         blueprint.symmetry = Some(map_forge::blueprint::SymmetrySpec::MirrorZ);

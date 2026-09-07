@@ -35,7 +35,7 @@ decide the mid-game").
 
 ## Playable Shape
 
-- Size: 1000 m × 1000 m; height samples 201 × 201 at 5 m; `min_height_m` 0.2.
+- Size: 1000 m × 1000 m; height samples 401 × 401 at 2.5 m (201 × 201 at 5 m until T1, 2026-09-08); `min_height_m` 0.2.
 - Symmetry: `MirrorZ` — heightfield, cover, scenery, and points mirror across z = 500
   (report-enforced).
 - **Dry map by design.** The blueprint schema has one global water level; a mountain tarn at
