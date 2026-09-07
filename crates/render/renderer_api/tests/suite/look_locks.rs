@@ -214,6 +214,62 @@ fn the_played_sky_band_is_never_lavender() {
     }
 }
 
+/// D42: the presentation bible quotes the CODE's hangar and field constants, not its own. The
+/// bible asserted hangar/field parity for months with numbers that were not the profiles' —
+/// a document that cannot fail a build drifts; this reads it.
+#[test]
+fn the_presentation_bible_quotes_the_hangar_and_the_field_from_the_code() {
+    let bible = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../docs/vehicle-presentation-bible.md"
+    ))
+    .expect("docs/vehicle-presentation-bible.md");
+    // Markdown wraps its lines; a quoted pair may straddle one.
+    let bible = bible.split_whitespace().collect::<Vec<_>>().join(" ");
+    let quote3 = |v: [f32; 3]| format!("({}, {}, {})", trim(v[0]), trim(v[1]), trim(v[2]));
+    let hangar = SceneLighting::garage_hero();
+    let evening = SceneLighting::prokhorovka_golden_evening();
+    for (what, needle) in [
+        ("the hangar ambient", quote3(hangar.ambient_rgb)),
+        ("the hangar key", quote3(hangar.key_rgb)),
+        (
+            "the hangar grade",
+            format!(
+                "exposure {}, black point {}, saturation {}",
+                trim(hangar.exposure),
+                trim3(hangar.black_point),
+                trim(hangar.saturation)
+            ),
+        ),
+        ("the evening ambient", quote3(evening.ambient_rgb)),
+        ("the evening key", quote3(evening.key_rgb)),
+        (
+            "the evening grade",
+            format!(
+                "exposure {}, black point {}, saturation {}",
+                trim(evening.exposure),
+                trim3(evening.black_point),
+                trim(evening.saturation)
+            ),
+        ),
+        ("the lock", "the_hull_wears_the_same_paint_in_the_hangar_and_on_the_field".to_string()),
+    ] {
+        assert!(bible.contains(&needle), "the bible must quote {what} as `{needle}`");
+    }
+}
+
+/// A profile number the way the bible writes it: three decimals, trailing zeros trimmed down
+/// to two — `0.255` stays, `1.100` reads `1.10`, `0.020` reads `0.02`.
+fn trim(v: f32) -> String {
+    let s = format!("{v:.3}");
+    let two = &s[..s.len() - 1];
+    if s.ends_with('0') { two.to_string() } else { s }
+}
+
+fn trim3(v: f32) -> String {
+    trim(v)
+}
+
 /// RULE 2 (saturation window): the ground plane is muted — the reference palette the terrain
 /// authors against stays under the ceiling. Chroma lives in the sky and the light, not in the
 /// dirt; grass is grey-green, never lawn-green.

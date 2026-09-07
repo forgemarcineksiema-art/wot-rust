@@ -494,7 +494,9 @@ fn the_golden_evening_sky_is_straw_not_lavender_on_the_record() {
 fn the_lower_hull_is_darker_and_warmer_than_the_deck_on_the_record() {
     const DECK: [f32; 4] = [0.44, 0.61, 0.58, 0.67];
     const LOWER_HULL: [f32; 4] = [0.40, 0.77, 0.60, 0.84];
-    const MIN_WARMTH_RATIO: f32 = 1.30;
+    // 1.40 on the D41 record; 1.30 after D42 gave the evening's sky ambient the sky's blue
+    // (the deck takes the sky, the lower hull does not). The floor keeps its slack.
+    const MIN_WARMTH_RATIO: f32 = 1.25;
     let pixels = read_png(&golden_path(SUBJECT_REFERENCE_VIEW));
     let (deck, w, h) = crop(&pixels, DECK);
     let deck = frame_stats_of(&deck, w, h);
@@ -510,6 +512,60 @@ fn the_lower_hull_is_darker_and_warmer_than_the_deck_on_the_record() {
     assert!(
         ratio >= MIN_WARMTH_RATIO,
         "the lower hull must read warmer than the deck by {MIN_WARMTH_RATIO:.2}x (the mud band):          {ratio:.2}x"
+    );
+}
+
+/// D42, on the record: the SAME hull under the hangar's rig and the field's reads as the same
+/// paint. The hangar adds its own ambient, a GI probe, a showroom exposure and a dust film; the
+/// field lights the hull with an amber sun — the LIGHT may differ, the MATERIAL may not. So the
+/// lock is on chroma, not on warmth or luminance: the hero's subject crop in the garage and the
+/// reference subject crop in the field carry a mean saturation within `PAINT_CHROMA_BAND` of
+/// each other, and neither crop's median luminance is more than `PAINT_LUMA_RATIO_CEILING`
+/// times the other's. The bible (`docs/vehicle-presentation-bible.md`) quotes this lock and the
+/// hangar constants it reasons about; until D42 it asserted parity with nothing measuring it.
+///
+/// The crops are the TURRET ROOF in both frames (authored against the rendered goldens) — the
+/// subject boxes hold grass in one and the hall's floor in the other, and a crop's mean
+/// saturation is mostly its background. FLOOR/TARGET, like the rest of this file: the band is
+/// a ceiling on the recorded gap (0.255 on 2026-09-07: field 0.787, hangar 0.532 — the amber
+/// key on olive, after the grade's saturation came down from 1.25 and the sky ambient took the
+/// sky's blue), and the distance to `PAINT_CHROMA_TARGET` is printed as a debt.
+#[test]
+fn the_hull_wears_the_same_paint_in_the_hangar_and_on_the_field() {
+    const FIELD_TURRET_ROOF: [f32; 4] = [0.46, 0.62, 0.54, 0.66];
+    const HANGAR_TURRET_ROOF: [f32; 4] = [0.45, 0.38, 0.55, 0.44];
+    const PAINT_CHROMA_BAND: f32 = 0.30;
+    const PAINT_CHROMA_TARGET: f32 = 0.15;
+    const PAINT_LUMA_RATIO_CEILING: f32 = 1.8;
+    let crop_stats = |name: &str, box_n: [f32; 4]| {
+        let (cropped, w, h) = crop(&read_png(&golden_path(name)), box_n);
+        frame_stats_of(&cropped, w, h)
+    };
+    let field = crop_stats(SUBJECT_REFERENCE_VIEW, FIELD_TURRET_ROOF);
+    let hangar = crop_stats("garage_hero", HANGAR_TURRET_ROOF);
+    let gap = (field.saturation - hangar.saturation).abs();
+    if gap > PAINT_CHROMA_TARGET {
+        println!(
+            "LOOK DEBT paint parity: turret chroma gap {gap:.3}, target {PAINT_CHROMA_TARGET:.2}              (short by {:.3}, D42)",
+            gap - PAINT_CHROMA_TARGET
+        );
+    }
+    println!(
+        "PAINT PARITY field sat {:.3} p50 {:.3} | hangar sat {:.3} p50 {:.3}",
+        field.saturation, field.p50, hangar.saturation, hangar.p50
+    );
+    assert!(
+        gap <= PAINT_CHROMA_BAND,
+        "the hull's chroma differs between the field ({:.3}) and the hangar ({:.3}) by more than          {PAINT_CHROMA_BAND}: two paints for one tank",
+        field.saturation,
+        hangar.saturation
+    );
+    let ratio = field.p50.max(hangar.p50) / field.p50.min(hangar.p50).max(1.0e-4);
+    assert!(
+        ratio <= PAINT_LUMA_RATIO_CEILING,
+        "the hangar and the field light the same hull {ratio:.2}x apart in median luminance          (field {:.3}, hangar {:.3}) — the showroom is lying about the paint",
+        field.p50,
+        hangar.p50
     );
 }
 
@@ -1030,7 +1086,10 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         view: "garage_hero_jagdtiger",
         median_floor: 0.182,
         dark_ceiling: 0.66,
-        form_floor: 0.0095,
+        // 0.0095 -> 0.0082 at D40/D42 (2026-09-07), openly: the vehicle maps upload a
+        // filtered mip chain now, and the per-texel hash the old floor was partly measuring
+        // as "form" is gone (rule 5). Measured clean: 0.0090; the same ~9 % slack.
+        form_floor: 0.0082,
     },
     // F3's close orbit: the running gear fills the crop, and earth-toned tracks sit almost
     // entirely under the 0.25 luma bar — dark here measures the PAINT (see the note above on
@@ -1040,7 +1099,9 @@ const SUBJECT_BOUNDS: &[SubjectBounds] = &[
         view: "garage_susp_close",
         median_floor: 0.078,
         dark_ceiling: 0.95,
-        form_floor: 0.0042,
+        // 0.0042 -> 0.0037 at D40/D42 (2026-09-07), the same reason as the Jagdtiger's: the
+        // filtered mip chain took the texel noise out of "form". Measured clean: 0.0040.
+        form_floor: 0.0037,
     },
 ];
 
