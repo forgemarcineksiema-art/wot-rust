@@ -170,9 +170,15 @@ Collapsed buildings are part of that ground. A `CoverPhase::Rubble` object leave
 collision entirely and enters the support envelope as `terrain::RubbleMound` — a truncated pyramid
 with flanks at the angle of repose of broken masonry. Both the resting line and the drive's slope
 probe read `max(terrain, debris)`, so the hull rides the pile AND pays it: the crossing tilts the
-hull and bleeds speed through the same force model every slope uses. Intact cover is unchanged —
-it blocks in plan at any height, so nothing ends up on a roof. This is the Honest Steel rule
-"rubble is terrain".
+hull and bleeds speed through the same force model every slope uses. Intact cover blocks in plan
+below its TOP (X3, 2026-09-07): contact is the XZ separating-axis test AND an overlap of height
+bands — a hull's from its support height up its shell volume's top (`HullPlan::height_m`), a
+standing solid's from the ground it is planted in up to its top (`TankObstacle::grounded_solid`:
+the forge grounds a box by its centre, so its bottom face is no evidence of air under it). A hull
+whose support is at or over a solid's top passes it — that is how a low solid becomes a step (X4);
+a hull carried up a mound does not shove the hull below, whose band it no longer meets. Nothing
+ends up on a roof: a building's top is where the support envelope never reaches. This is the
+Honest Steel rule "rubble is terrain".
 
 A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
 hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every

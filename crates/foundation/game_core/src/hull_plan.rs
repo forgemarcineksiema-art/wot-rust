@@ -30,6 +30,12 @@ pub struct HullPlan {
     /// decision (`docs/contact-and-tracks-program.md`), and a barrel that shoved hulls around would
     /// be a five-metre lever on a thirty-six-tonne body in a planar solver.
     pub half_length_m: f32,
+    /// How tall the hull stands over its support: the top of the shell volume
+    /// (`HitboxProfile::center_y_m + half_height_m`). With the support height under it this is
+    /// the vertical band the hull occupies in contact (the one program's X3) — a hull carried
+    /// three metres up a mound is not level with the hull below, and does not collide as if it
+    /// were.
+    pub height_m: f32,
 }
 
 impl HullPlan {
@@ -41,6 +47,7 @@ impl HullPlan {
             Some(blueprint) => Self {
                 half_width_m: blueprint.track.outer_x,
                 half_length_m: blueprint.hull.half_len,
+                height_m: Self::from_hitbox(&HitboxProfile::for_vehicle(kind)).height_m,
             },
             None => Self::from_hitbox(&HitboxProfile::for_vehicle(kind)),
         }
@@ -49,7 +56,11 @@ impl HullPlan {
     /// The plan a hitbox implies — the pre-split behaviour, kept for vehicles with no shape to
     /// read and for anything that genuinely wants the shell volume's footprint.
     pub fn from_hitbox(hitbox: &HitboxProfile) -> Self {
-        Self { half_width_m: hitbox.half_width_m, half_length_m: hitbox.half_length_m }
+        Self {
+            half_width_m: hitbox.half_width_m,
+            half_length_m: hitbox.half_length_m,
+            height_m: hitbox.center_y_m + hitbox.half_height_m,
+        }
     }
 }
 
@@ -77,6 +88,12 @@ mod tests {
                 plan.half_width_m <= hitbox.half_width_m
                     && plan.half_length_m <= hitbox.half_length_m,
                 "{kind:?} moves as something bigger than it can be shot at"
+            );
+            assert!(
+                (plan.height_m - (hitbox.center_y_m + hitbox.half_height_m)).abs() < 1.0e-6
+                    && plan.height_m > 1.5,
+                "{kind:?} stands as tall as its shell volume, got {}",
+                plan.height_m
             );
         }
     }
