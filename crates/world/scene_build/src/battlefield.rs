@@ -1072,6 +1072,15 @@ fn append_tree_line(
     // hides it with), inset from the box faces so the silhouette stays leafy, not slab-sided.
     // The crown hulls take over from `tree_line::HULL_BOTTOM` up, so the wall is opaque from
     // the ground to the crowns' tips.
+    //
+    // D44 (the one program): the body is FOLIAGE with a BROKEN TOP, not a 24-vertex legacy
+    // box. It is cut into segments along the run, each with its own top height (a hash of
+    // the cover id and the segment: the tallest at the body height, the lowest a
+    // `TREE_LINE_TOP_BREAK` below it — never under the tallest hull's roof), and every
+    // vertex wears the FOLIAGE role, so the scene shader lights the mass as leaves (a wrapped
+    // key and a back-lit transmission lobe; the atlas' white slot at uv 0 keeps it opaque)
+    // instead of as a cliff with strata on its faces. At most `TREE_LINE_MAX_SEGMENTS`
+    // segments — 12 triangles each — so a box costs no more than 120 triangles.
     const UNDERGROWTH: [f32; 3] = [0.10, 0.17, 0.09];
     let center = Vec3::from_array(cover.center);
     let half = Vec3::from_array(cover.half_extents_m);
@@ -1081,16 +1090,51 @@ fn append_tree_line(
     let thin = if along_x { half.z } else { half.x };
     let box_top = half.y * 2.0;
     let body_h = (box_top * TREE_LINE_BODY_HEIGHT).clamp(2.6, 9.0);
-    let (ux, uz) = if along_x { (run - 0.15, thin - 0.22) } else { (thin - 0.22, run - 0.15) };
-    push_surfaced_box(
-        vertices,
-        indices,
-        Vec3::new(center.x, ground_y + body_h * 0.5, center.z),
-        Vec3::new(ux, body_h * 0.5, uz),
-        UNDERGROWTH,
-        0.04,
-    );
+    let run_inset = run - 0.15;
+    let thin_inset = thin - 0.22;
+    let segments = (((run_inset * 2.0) / TREE_LINE_SEGMENT_M).ceil() as usize)
+        .clamp(1, TREE_LINE_MAX_SEGMENTS);
+    let segment_half = run_inset / segments as f32;
+    let mut seed = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        seed ^= u64::from(byte);
+        seed = seed.wrapping_mul(0x0100_0000_01b3);
+    }
+    let start = vertices.len();
+    for segment in 0..segments {
+        let lane = game_core::math::next_hash_unit(&mut seed);
+        // The break: the top wanders down from the body height by up to TREE_LINE_TOP_BREAK,
+        // but never under the roof it must hide.
+        let top = (body_h - lane * TREE_LINE_TOP_BREAK).max(TREE_LINE_BODY_FLOOR_M).min(body_h);
+        let along = -run_inset + segment_half * (2.0 * segment as f32 + 1.0);
+        let (cx, cz, hx, hz) = if along_x {
+            (center.x + along, center.z, segment_half, thin_inset)
+        } else {
+            (center.x, center.z + along, thin_inset, segment_half)
+        };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(cx, ground_y + top * 0.5, cz),
+            Vec3::new(hx, top * 0.5, hz),
+            UNDERGROWTH,
+            0.04,
+        );
+    }
+    for vertex in &mut vertices[start..] {
+        vertex.surface = renderer_api::surface_role::FOLIAGE;
+    }
 }
+
+/// A hedge body segment's length along the run (D44); the body breaks its top every segment.
+pub(crate) const TREE_LINE_SEGMENT_M: f32 = 4.0;
+/// The most segments one body is cut into: 12 triangles each, 120 per box at most.
+pub(crate) const TREE_LINE_MAX_SEGMENTS: usize = 10;
+/// How far a segment's top may fall under the body height.
+pub(crate) const TREE_LINE_TOP_BREAK: f32 = 1.2;
+/// No segment's top goes under this: the tallest hull in the fleet (Tiger II, 3.09 m) stays
+/// hidden behind the lowest dip of the wall.
+pub(crate) const TREE_LINE_BODY_FLOOR_M: f32 = 3.2;
 
 /// The hedge body reaches this fraction of the box height (clamped to 2.6–9 m): above the
 /// crown hulls' bottom (`tree_line::HULL_BOTTOM`, 0.30), so body and hulls overlap; 0.35 left a sight line through where the hulls still taper.
@@ -2384,22 +2428,53 @@ mod tests {
         }
     }
 
-    /// Inny Poziom F3 / F7b: the standing line is trees over the hedge body, not boxes on
-    /// sticks. The cover-box bake draws the body alone (one surfaced box, 24 vertices) — a
-    /// shrub mass over the tallest hull in the fleet and up to the crown hulls' bottom, never
-    /// the old crown slab. The stations themselves ride the ladder (locked in `tree_lod`).
+    /// Inny Poziom F3 / F7b, amended by the one program's D44: the standing line is trees
+    /// over the hedge body, not boxes on sticks — and the body is FOLIAGE with a broken top,
+    /// not a 24-vertex legacy box ("the test locks the box"). The cover-box bake draws the
+    /// body alone: at most 120 triangles, every vertex in the FOLIAGE role, the top varying
+    /// at least half a metre along the run and never under the tallest hull's roof. The
+    /// stations themselves ride the ladder (locked in `tree_lod`).
     #[test]
     fn a_standing_tree_line_is_planted_trees_over_the_hedge_body_and_no_slab() {
         let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let mut broken_tops = 0;
         for cover in map.static_cover.iter().filter(|cover| cover.kind == StaticCoverKind::TreeLine)
         {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             append_cover_box(&mut vertices, &mut indices, cover);
-            assert_eq!(vertices.len(), 24, "{}: the box bake is the hedge body alone", cover.id);
+            assert!(
+                indices.len() / 3 <= 120,
+                "{}: the hedge body costs {} triangles, over its 120",
+                cover.id,
+                indices.len() / 3
+            );
+            assert!(
+                vertices
+                    .iter()
+                    .all(|v| (v.surface - renderer_api::surface_role::FOLIAGE).abs() < 0.01),
+                "{}: no hedge-body vertex rides the legacy treatment — the body is foliage",
+                cover.id
+            );
             let floor = cover.center[1] - cover.half_extents_m[1];
             let box_height = cover.half_extents_m[1] * 2.0;
             let body_top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - floor;
+            // The lowest TOP: every segment's top face is its highest vertices; the lowest of
+            // those across the run is the wall's deepest dip.
+            let lowest_top = vertices
+                .chunks_exact(24)
+                .map(|segment| {
+                    segment.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - floor
+                })
+                .fold(f32::MAX, f32::min);
+            assert!(
+                lowest_top >= 3.1,
+                "{}: the wall's deepest dip ({lowest_top:.2}) shows a Tiger II's roof",
+                cover.id
+            );
+            if body_top - lowest_top >= 0.5 {
+                broken_tops += 1;
+            }
             assert!(
                 body_top >= 3.1 && body_top <= box_height * TREE_LINE_BODY_HEIGHT + 1.0e-3,
                 "{}: the body hides a Tiger II (3.09 m) and stops under the crowns: {body_top:.2}",
@@ -2423,6 +2498,10 @@ mod tests {
                 );
             }
         }
+        assert!(
+            broken_tops >= 3,
+            "the tree lines' tops must BREAK along the run (>= 0.5 m) on at least three boxes: {broken_tops}"
+        );
     }
 
     /// Inny Poziom F3: a felled line leaves a stump at every station it was planted from
