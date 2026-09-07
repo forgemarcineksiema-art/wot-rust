@@ -43,7 +43,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
-    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+    for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
     crate::bind_battle_foliage_atlas(&mut renderer, &ctx);

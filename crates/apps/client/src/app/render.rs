@@ -389,7 +389,7 @@ impl ClientApp {
         }
         // The battlefield-tree LOD ladder: three uploads at deployment serve every oak on
         // the map, and the battle frame picks a rung per tree per frame.
-        for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
             renderer.register_mesh(handle, &mesh);
         }
         // The procedural leaf atlas (Drzewa 3.0 PR5): replaces the renderer's 1x1 white no-op.

@@ -10,6 +10,7 @@ mod common;
 mod armor_breach_replication;
 mod battle_camera;
 mod camera_feel;
+mod dressing_budget;
 mod interpolated_render_state;
 mod probe_foliage_atlas;
 mod procedural_vehicle_geometry;

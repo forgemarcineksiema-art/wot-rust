@@ -8,6 +8,7 @@
 //! (2026-08-06) — vegetation is procedural-only.
 
 pub mod building;
+pub mod building_kit;
 pub mod rock;
 pub(crate) mod shape;
 pub mod spill;

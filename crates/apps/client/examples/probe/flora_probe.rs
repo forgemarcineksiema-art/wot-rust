@@ -69,7 +69,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // The battlefield oak draws from the instanced LOD ladder, not the statics bake — the
     // look gate submits it the way the battle frame does, at the rung this camera distance
     // picks.
-    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+    for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
     // The leaf atlas, exactly as the battle binds it (Drzewa 3.0 PR6) — without it the card

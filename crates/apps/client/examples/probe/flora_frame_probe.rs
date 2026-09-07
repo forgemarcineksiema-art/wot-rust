@@ -61,7 +61,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // side has to submit them the way the battle frame does — otherwise this probe measures an
     // empty map and reports a delta of zero. The baseline keeps submitting nothing: that IS
     // the A/B.
-    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+    for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
         flora.register_mesh(&ctx, handle, &mesh);
     }
     // The leaf atlas rides on BOTH renderers, exactly as the battle binds it — the baseline

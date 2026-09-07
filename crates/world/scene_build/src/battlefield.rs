@@ -1442,6 +1442,12 @@ fn append_building(
     center: Vec3,
     half: Vec3,
 ) {
+    // B3: a dwelling the kit dresses draws NOTHING here — its parts ride the instanced path
+    // (`building_kit::building_frame_objects`); this bake keeps the landmarks (church,
+    // windmill, factory hall) and every box the grammar cannot fit.
+    if crate::building_kit::kit_dresses(cover) {
+        return;
+    }
     let (wall, roof, roof_gloss) = building_palette(&cover.id);
     let mut seed = 0xcbf2_9ce4_8422_2325_u64;
     for byte in cover.id.bytes() {
@@ -1522,7 +1528,7 @@ pub(crate) fn derived_building_style(id: &str, half: Vec3) -> world_forge::build
     }
 }
 
-fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
+pub(crate) fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in id.bytes() {
         hash ^= u64::from(byte);
@@ -2760,19 +2766,21 @@ mod tests {
     /// a plank door, all inside the collision AABB (the walls recess to make the room).
     #[test]
     fn buildings_wear_windows_and_a_door() {
-        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-        let barn = map
+        // B3: the dwellings ride the kit (locked in `building_kit`); the bake's own windows
+        // and door are read off the landmark it still draws, Kamienna's church.
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let church = map
             .static_cover
             .iter()
-            .find(|c| c.kind == StaticCoverKind::FarmBuilding)
-            .expect("prokhorovka has barns");
+            .find(|c| c.id.contains("church"))
+            .expect("Kamienna has its church");
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
-        append_cover_box(&mut vertices, &mut indices, barn);
+        append_cover_box(&mut vertices, &mut indices, church);
         let windows =
             vertices.iter().filter(|v| v.color == crate::world_material::WINDOW.0).count();
         let doors = vertices.iter().filter(|v| v.color == crate::world_material::DOOR.0).count();
-        assert!(windows >= 8, "a barn wall carries windows, got {windows} verts");
+        assert!(windows >= 8, "a church wall carries windows, got {windows} verts");
         assert!(doors >= 4, "a door stands proud of the plaster, got {doors} verts");
         // Glass answers the sky harder than the plaster around it.
         assert!(crate::world_material::WINDOW.1 > 0.10, "window glaze outshines the wall");
@@ -2784,15 +2792,17 @@ mod tests {
     #[test]
     fn buildings_name_their_surfaces_down_the_lane() {
         use renderer_api::surface_role;
-        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-        let barn = map
+        // B3: read off the landmark the bake still draws (the kit's lanes are locked in
+        // `building_kit`).
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let church = map
             .static_cover
             .iter()
-            .find(|c| c.kind == StaticCoverKind::FarmBuilding)
-            .expect("prokhorovka has barns");
+            .find(|c| c.id.contains("church"))
+            .expect("Kamienna has its church");
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
-        append_cover_box(&mut vertices, &mut indices, barn);
+        append_cover_box(&mut vertices, &mut indices, church);
         let count = |role: f32| vertices.iter().filter(|v| (v.surface - role).abs() < 0.01).count();
         assert!(count(surface_role::PLASTER) > 0, "walls wear plaster");
         assert!(count(surface_role::SLATE) > 0, "the roof runs in courses");
@@ -3136,6 +3146,21 @@ mod tests {
                 );
                 continue;
             }
+            // A kit dwelling (B3) is the other box the bake does not draw: its parts are
+            // instanced, and `building_kit` proves they stand inside the box.
+            if crate::building_kit::kit_dresses(cover) {
+                assert!(
+                    !crate::building_kit::place_buildings(&battlefield)
+                        .iter()
+                        .find(|b| battlefield.static_cover[b.cover].id == cover.id)
+                        .expect("placed")
+                        .objects
+                        .is_empty(),
+                    "{}: the kit must place parts in the box it claims",
+                    cover.id
+                );
+                continue;
+            }
             let center = Vec3::from_array(cover.center);
             let half = Vec3::from_array(cover.half_extents_m);
             let rendered = vertices.iter().any(|vertex| {
@@ -3146,6 +3171,47 @@ mod tests {
             });
             assert!(rendered, "static cover {} must be part of the battlefield mesh", cover.id);
         }
+    }
+
+    /// B3's closing number: the town's static buffer no longer carries its dwellings. The
+    /// Ostrogorsk statics bake is locked at its post-kit size, and the triangles the kit took
+    /// out of it (what the authored bake would have added for every kit-dressed box) are
+    /// printed beside it — the row closes "when the town's static-mesh triangle count drops
+    /// and the frame delta is recorded".
+    #[test]
+    fn the_towns_static_buffer_dropped_its_dwellings_into_the_kit() {
+        // Measured 2026-09-07: 124 420 baked, 98 728 taken out by the kit (70 dwellings).
+        const OSTROGORSK_STATICS_TRIANGLE_CEILING: usize = 140_000;
+        let battlefield = map_forge::battlefield(terrain::MapId::Ostrogorsk);
+        let (_, indices) = battlefield_scene_mesh(&battlefield);
+        let baked = indices.len() / 3;
+        let mut removed = 0usize;
+        let mut kit_boxes = 0usize;
+        for cover in &battlefield.static_cover {
+            if !crate::building_kit::kit_dresses(cover) {
+                continue;
+            }
+            kit_boxes += 1;
+            let half = Vec3::from_array(cover.half_extents_m);
+            let style = derived_building_style(&cover.id, half);
+            let target = if half.x > half.z { Vec3::new(half.z, half.y, half.x) } else { half };
+            let baked_building = world_forge::building::bake_building_sized(
+                style,
+                crate::building_kit::cover_seed(&cover.id),
+                world_forge::building::StructureForm::Intact,
+                target,
+            );
+            removed += baked_building.triangle_count();
+        }
+        println!(
+            "OSTROGORSK STATICS: {baked} triangles baked; the kit took {removed} triangles of              {kit_boxes} dwellings out of the buffer"
+        );
+        assert!(kit_boxes >= 40, "the kit dresses the town: {kit_boxes} boxes");
+        assert!(removed > 20_000, "the drop is real: {removed}");
+        assert!(
+            baked <= OSTROGORSK_STATICS_TRIANGLE_CEILING,
+            "the static buffer grew back: {baked} > {OSTROGORSK_STATICS_TRIANGLE_CEILING}"
+        );
     }
 
     /// A `TreeTrunk` box is honest only if a procedural oak really stands in it: same
@@ -3222,6 +3288,10 @@ mod tests {
             // geometry to survive — what must survive is the tree standing in them.
             if cover.kind == StaticCoverKind::TreeTrunk {
                 assert!(dressed_by_an_oak(&battlefield, cover), "trunk {} kept", cover.id);
+                continue;
+            }
+            // A kit dwelling (B3) bakes nothing either: its parts are instanced per frame.
+            if crate::building_kit::kit_dresses(cover) {
                 continue;
             }
             let center = Vec3::from_array(cover.center);

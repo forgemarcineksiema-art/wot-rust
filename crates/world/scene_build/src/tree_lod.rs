@@ -432,6 +432,16 @@ fn sway_allowance(species: TreeSpecies, position: [f32; 3], height_m: f32, is_ca
     TIP_SWAY_M * species_sway_factor(species) * height01 * height01 * (0.25 + 0.75 * reach01)
 }
 
+/// EVERY mesh the dressing pass (`tree_frame_objects_with_backdrop`) can submit: the tree
+/// ladder, the crown hulls and, since B3, the building kit's parts. The one door a renderer
+/// registers the dressing through — the look harness, the battle, the editor and every probe
+/// call this, so a mesh the pass submits is a mesh the renderer knows.
+pub fn dressing_meshes() -> Vec<(MeshHandle, MeshAsset)> {
+    let mut meshes = tree_lod_meshes();
+    meshes.extend(crate::building_kit::kit_meshes());
+    meshes
+}
+
 /// Every rung of every variant of every ladder species, ready for `register_mesh`: one
 /// upload per (species, variant, rung) at deployment serves every copy on the map. The
 /// impostor is per species (one sprite pair), registered under every variant's handle.
@@ -493,6 +503,9 @@ pub struct TreeLodState {
     /// three-way fitted scale, crown hull. Not scenery — stuffing them into `scenery` would
     /// lie to the compile report and to `hosted_scale`.
     lines: Option<(String, Vec<crate::tree_line::TreeLineLadderInstance>)>,
+    /// The kit buildings (B3), placed once per map with the ring and the lines: the same
+    /// per-map dressing cache, the same instanced path.
+    buildings: crate::building_kit::KitCache,
 }
 
 impl TreeLodState {
@@ -578,7 +591,7 @@ impl TreeEye {
     }
 
     /// Whether a tree standing at `base` with a bounding radius `radius` can be in view.
-    fn sees(&self, base: Vec3, radius: f32) -> bool {
+    pub fn sees(&self, base: Vec3, radius: f32) -> bool {
         let Some((forward, cos_half)) = self.cone else {
             return true;
         };
@@ -626,6 +639,14 @@ pub fn tree_frame_objects_with_backdrop(
         cover_states,
         eye,
     );
+    // B3: the dwellings, as instances of the building kit — the same dressing pass, so the
+    // battle and every review instrument draw the same town.
+    objects.extend(crate::building_kit::building_frame_objects(
+        battlefield,
+        cover_states,
+        eye,
+        &mut state.buildings,
+    ));
     objects
 }
 

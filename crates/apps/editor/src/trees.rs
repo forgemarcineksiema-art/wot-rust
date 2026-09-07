@@ -56,7 +56,7 @@ mod tests {
         assert_eq!(trees, planted.len() * 2, "one tree per planted tree");
         for object in &objects {
             assert!(
-                scene_build::tree_lod::tree_lod_meshes()
+                scene_build::tree_lod::dressing_meshes()
                     .iter()
                     .any(|(handle, _)| *handle == object.mesh),
                 "every instance is a registered ladder rung"

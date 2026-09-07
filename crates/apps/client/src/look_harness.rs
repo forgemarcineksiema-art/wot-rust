@@ -134,7 +134,7 @@ pub fn register_battlefield_dressing_meshes(ctx: &GpuContext, renderer: &mut Sce
     for (handle, mesh) in crate::grass_species_meshes() {
         renderer.register_mesh(ctx, handle, &mesh);
     }
-    for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+    for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
         renderer.register_mesh(ctx, handle, &mesh);
     }
 }
@@ -791,7 +791,7 @@ mod tests {
         );
         renderer.scene_lighting = renderer_api::SceneLighting::battlefield_default();
         renderer.scene_time_s = 12.0;
-        for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+        for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
             renderer.register_mesh(&ctx, handle, &mesh);
         }
         let (color, normal) = scene_build::foliage_atlas_paint::foliage_atlas_chains();
