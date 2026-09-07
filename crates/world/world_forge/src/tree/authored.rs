@@ -263,31 +263,31 @@ pub fn asset_dirs(species: TreeSpecies) -> Option<(&'static str, &'static str)> 
 pub const SPECIES_GOLDENS: [(TreeSpecies, u64, u64, u64, u64); 4] = [
     (
         TreeSpecies::Oak,
-        0xa717_8958_c78e_edd5,
+        0x83f9_363d_aaf0_faa8,
         0x8163_ecf6_dce9_7b5d,
         0x42fd_61ea_222f_dd31,
-        0xff77_aa40_ed3e_0145,
+        0xe373_bee8_b4af_6b66,
     ),
     (
         TreeSpecies::Poplar,
-        0xd134_b90f_9756_9b3b,
+        0xea03_2645_cfcc_c1e2,
         0xa815_cd10_0a66_0103,
         0x9114_1fd6_45f4_f3b1,
-        0xfd46_73d8_ff00_d9a1,
+        0x8c49_e357_10ee_6187,
     ),
     (
         TreeSpecies::FruitTree,
-        0x94c7_e4cc_7846_5a63,
+        0x955a_547f_b91e_44c8,
         0x8208_5969_3676_7c2b,
         0x14d1_95fa_d5c6_ec4d,
-        0x84e4_7d83_8920_0b28,
+        0x581b_bab2_6467_5a9e,
     ),
     (
         TreeSpecies::Bush,
-        0x57a8_ac57_d85f_75b6,
+        0xef88_53bd_ddf1_b0ee,
         0xd32c_40fe_223b_1e10,
         0x16db_0350_dcc4_d74d,
-        0x28c7_58f3_c50b_c6da,
+        0x1593_b02c_3753_1f4b,
     ),
 ];
 
@@ -398,7 +398,9 @@ fn decode_bark(bytes: &[u8]) -> BarkPage {
 }
 
 /// The shade lane of an authored deck: rim cards at 1.0, core cards down to this — the same
-/// one-mass law the procedural dealer applied (`leaves::CORE_SHADE`).
+/// one-mass law the procedural dealer applied (`leaves::CORE_SHADE`). Since D38 this is the
+/// crown's ONE occlusion: the cluster page is flat albedo (no Cycles occlusion baked in), so
+/// the 0.68 stays — the program's "≥ 0.85" was written against a page that shaded itself twice.
 const CORE_SHADE: f32 = 0.68;
 
 /// Which variant and mirror a seed names. The ladder passes `variant_seed(v)`; the statics
@@ -570,6 +572,55 @@ fn parse_tree(species: TreeSpecies, bytes: &[u8]) -> BakedTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn srgb_to_linear(v: u8) -> f32 {
+        let c = f32::from(v) / 255.0;
+        if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    }
+
+    /// D38: the cluster page carries the leaf at the WORLD's scale — mean linear luma of its
+    /// opaque texels inside 0.15..=0.25 (the ground's mid albedo is 0.27), mean saturation
+    /// under 0.50 (rule 2's window is 0.45 for the ground; a leaf may sit just above it), and
+    /// no baked shadow: under a twentieth of the texels below 0.07 linear. The first bakes
+    /// measured 0.09-0.11 luma, 0.49-0.62 saturation and 23-33 % of texels under 0.07 — the
+    /// darkest, most saturated object in every frame, shaded once by Cycles and again by the
+    /// engine.
+    #[test]
+    fn cluster_sprite_albedo_sits_in_the_world_window() {
+        for species in
+            [TreeSpecies::Oak, TreeSpecies::Poplar, TreeSpecies::FruitTree, TreeSpecies::Bush]
+        {
+            let pages = clusters(species).expect("clusters");
+            let (mut n, mut luma_sum, mut sat_sum, mut deep) = (0u32, 0.0f64, 0.0f64, 0u32);
+            for px in pages.color.chunks_exact(4) {
+                if px[3] < 128 {
+                    continue;
+                }
+                let (r, g, b) =
+                    (srgb_to_linear(px[0]), srgb_to_linear(px[1]), srgb_to_linear(px[2]));
+                let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                let max = r.max(g).max(b);
+                let min = r.min(g).min(b);
+                n += 1;
+                luma_sum += f64::from(luma);
+                sat_sum += f64::from(if max > 1.0e-6 { (max - min) / max } else { 0.0 });
+                deep += u32::from(luma < 0.07);
+            }
+            let luma = luma_sum / f64::from(n.max(1));
+            let sat = sat_sum / f64::from(n.max(1));
+            let deep = f64::from(deep) / f64::from(n.max(1));
+            assert!(
+                (0.15..=0.25).contains(&luma),
+                "{species:?}: cluster luma {luma:.3} is outside the world window 0.15..=0.25"
+            );
+            assert!(sat <= 0.50, "{species:?}: cluster saturation {sat:.3} > 0.50");
+            assert!(
+                deep <= 0.05,
+                "{species:?}: {:.1} % of the leaf texels are baked shadow",
+                deep * 100.0
+            );
+        }
+    }
 
     /// Every species: the four asset hashes on their goldens.
     #[test]
