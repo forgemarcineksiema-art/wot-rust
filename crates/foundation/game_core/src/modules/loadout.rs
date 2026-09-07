@@ -81,6 +81,7 @@ impl VehicleModules {
             kind,
             mass_kg: self.total_mass_kg(),
             engine_power_kw: self.engine.power_kw,
+            gearbox: self.engine.gearbox,
             max_forward_speed_mps: self.hull.max_forward_speed_mps,
             max_reverse_speed_mps: self.hull.max_reverse_speed_mps,
             turn_rate_rad_s: self.suspension.turn_rate_rad_s,

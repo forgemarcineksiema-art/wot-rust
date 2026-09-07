@@ -114,10 +114,11 @@ pub(crate) fn resolve_ground_velocity(
     if braking > 0.0 {
         v_f = move_towards(v_f, 0.0, brake_cap * braking * dt);
     } else if throttle.abs() > 0.01 {
-        // Engine thrust follows P/v: huge at a crawl (grip-capped), thin near top speed.
+        // Engine thrust through the gearbox (J6): the torque curve read in the gear the speed
+        // puts the box in — hard in first (grip-capped), thinning toward each shift, a beat lost
+        // at every change, and exactly P/vmax at the governor in top gear.
         let dir = throttle.signum();
-        let a_engine = settings.drive_power_mps3 * throttle.abs()
-            / v_f.abs().max(settings.min_force_speed_mps);
+        let a_engine = crate::engine::engine_thrust_mps2(settings, v_f.abs(), throttle.abs());
         let commanded = dir * max_speed * throttle.abs();
         if (commanded - v_f) * dir > 0.0 {
             v_f += dir * a_engine.min(grip_long) * dt;

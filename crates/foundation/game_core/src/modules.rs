@@ -18,7 +18,7 @@ mod radio;
 mod suspension;
 mod turret;
 
-pub use engine::EngineModule;
+pub use engine::{EngineModule, Gearbox};
 pub use gun::GunModule;
 pub use health::{
     ModuleCondition, ModuleHealth, engine_power_fraction, full_reload_seconds,

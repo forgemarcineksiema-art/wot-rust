@@ -3,6 +3,10 @@
   "kind": "Jagdtiger",
   "mass_kg": 75200.0,
   "engine_power_kw": 441.0,
+  "gearbox": {
+    "gears": 8,
+    "first_gear_top_speed_fraction": 0.18
+  },
   "max_forward_speed_mps": 9.61,
   "max_reverse_speed_mps": 2.4,
   "turn_rate_rad_s": 0.32,

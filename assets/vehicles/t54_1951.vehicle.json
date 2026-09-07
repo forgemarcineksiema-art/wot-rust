@@ -3,6 +3,10 @@
   "kind": "T54_1951",
   "mass_kg": 36000.0,
   "engine_power_kw": 390.0,
+  "gearbox": {
+    "gears": 5,
+    "first_gear_top_speed_fraction": 0.22
+  },
   "max_forward_speed_mps": 13.89,
   "max_reverse_speed_mps": 4.2,
   "turn_rate_rad_s": 0.78,

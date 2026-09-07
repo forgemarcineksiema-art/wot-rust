@@ -1,5 +1,5 @@
 use super::{
-    EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
+    EngineModule, Gearbox, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
 use crate::{GunSpec, RoundId};
@@ -22,6 +22,7 @@ pub(crate) fn jagdtiger_loadout() -> VehicleModules {
             mass_kg: 2_000.0,
             hit_points: 170,
             fire_chance: 0.20,
+            gearbox: Gearbox { gears: 8, first_gear_top_speed_fraction: 0.18 },
         },
         suspension: SuspensionModule {
             name: "Jagdtiger running gear".to_string(),
@@ -65,6 +66,7 @@ pub(crate) fn panther_loadout() -> VehicleModules {
             mass_kg: 1_800.0,
             hit_points: 170,
             fire_chance: 0.20,
+            gearbox: Gearbox { gears: 7, first_gear_top_speed_fraction: 0.20 },
         },
         suspension: SuspensionModule {
             name: "Panther II running gear".to_string(),

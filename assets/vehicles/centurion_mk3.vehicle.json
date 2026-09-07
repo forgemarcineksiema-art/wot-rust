@@ -3,6 +3,10 @@
   "kind": "Centurion",
   "mass_kg": 48990.0,
   "engine_power_kw": 480.0,
+  "gearbox": {
+    "gears": 5,
+    "first_gear_top_speed_fraction": 0.22
+  },
   "max_forward_speed_mps": 9.6,
   "max_reverse_speed_mps": 3.4,
   "turn_rate_rad_s": 0.62,

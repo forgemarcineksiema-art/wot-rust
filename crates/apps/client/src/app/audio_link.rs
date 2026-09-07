@@ -249,10 +249,14 @@ impl ClientApp {
         }
         let alive = self.player_hud_hit_points() > 0;
         let speed_mps = self.predictor.speed_mps().abs();
-        let top_speed = self.player_spec().max_forward_speed_mps.max(1.0);
         let throttle = self.input.throttle();
         let demand = throttle.abs().clamp(0.0, 1.0);
-        let rpm_norm = (speed_mps / top_speed).clamp(0.0, 1.0).max(demand * 0.85);
+        // The revs through the gearbox (J6): the same stateless gear the drive is in, so the
+        // voice climbs and drops with every shift the hull actually makes; a pedal on a standing
+        // hull still revs it.
+        let settings = physics::TankControllerSettings::from_spec(self.player_spec());
+        let geared = physics::engine_state(&settings, speed_mps).rpm_norm;
+        let rpm_norm = geared.clamp(0.0, 1.0).max(demand * 0.85);
         // Immersja C1: the LOAD is the predictor's strain, not the raw key — a hull digging
         // up a grade at full pedal reports more work than the same pedal cruising on flat.
         let load = self.predictor.drive_strain(throttle);

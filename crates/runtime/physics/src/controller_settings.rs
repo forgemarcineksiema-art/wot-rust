@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TankControllerSettings {
+    /// The transmission the drive shifts through (J6), from the vehicle's engine module.
+    pub gearbox: game_core::Gearbox,
     pub max_forward_speed_mps: f32,
     pub max_reverse_speed_mps: f32,
     /// The sprung hull's springs (Inny Poziom G7), derived from the vehicle by
@@ -202,6 +204,7 @@ impl TankControllerSettings {
         let yaw_accel_rad_s2 = (spec.turn_rate_rad_s / yaw_spool_s).max(0.1);
 
         Self {
+            gearbox: spec.gearbox,
             max_forward_speed_mps: spec.max_forward_speed_mps,
             max_reverse_speed_mps: spec.max_reverse_speed_mps,
             drive_power_mps3,
