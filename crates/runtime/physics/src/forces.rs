@@ -21,6 +21,7 @@ pub(crate) fn resolve_ground_velocity(
     mut v_r: f32,
     yaw_rate: f32,
     throttle: f32,
+    steer: f32,
     brake: f32,
     settings: &TankControllerSettings,
     contact: &TerrainContact,
@@ -123,9 +124,13 @@ pub(crate) fn resolve_ground_velocity(
         } else {
             v_f = move_towards(v_f, commanded, settings.idle_drag_mps2 * dt);
         }
-    } else {
+    } else if steer.abs() <= 0.01 {
+        // Engine braking: the driver commands nothing, the engine drags the belts (J3).
         v_f = move_towards(v_f, 0.0, settings.idle_drag_mps2 * dt);
     }
+    // (A steer with no throttle is a DRIVEN state — one belt braked, the other under power — so
+    // the engine is not braking it; a braked-belt pivot's walk survives on rolling resistance
+    // alone, as `pivot_mechanism.rs` measures.)
     // Rolling + quadratic resistance (every state) put the top-speed equilibrium at the spec vmax.
     let resistance =
         settings.rolling_resist_mps2 * traction.max(0.5) * contact.ground.rolling_resist

@@ -194,8 +194,11 @@ impl TankControllerSettings {
             ((drive_power_mps3 / vmax - ROLLING_RESIST_MPS2) / (vmax * vmax)).max(1.0e-4);
 
         // Heavier hulls take longer to reach their commanded yaw rate, so the rotation reads as
-        // weight rather than an instant snap. spool ~0.25 s (light) to ~0.7 s (heavy).
-        let yaw_spool_s = (spec.mass_kg / 120_000.0).clamp(0.25, 0.7);
+        // weight rather than an instant snap — but the same ramp runs on RELEASE, and a slow one
+        // overshoots the heading (the old 0.25–0.7 s spool overshot 6.7° on a T-54 and 7.5° on a
+        // Tiger II, the owner's "ciężko go przewidzieć"). Halved (the one program's J5): spool
+        // ~0.12 s (light) to ~0.35 s (heavy); a steer release now settles inside ~2°.
+        let yaw_spool_s = (spec.mass_kg / 240_000.0).clamp(0.12, 0.35);
         let yaw_accel_rad_s2 = (spec.turn_rate_rad_s / yaw_spool_s).max(0.1);
 
         Self {
@@ -213,7 +216,10 @@ impl TankControllerSettings {
             brake_deceleration_mps2: 7.2,
             turn_rate_rad_s: spec.turn_rate_rad_s,
             ground_probe_length_m: 3.0,
-            idle_drag_mps2: 1.3,
+            // Engine braking: releasing W bleeds speed at 2.6 m/s^2 (was 1.3 — a T-54 coasted 45 m
+            // from 50 km/h; now ~25 m). The same knob steps a cruise ladder down and governs a
+            // downhill overspeed (the one program's J3).
+            idle_drag_mps2: 2.6,
             max_climb_grade: DEFAULT_MAX_CLIMB_GRADE,
             yaw_accel_rad_s2,
             longitudinal_grip_mu: DEFAULT_MAX_CLIMB_GRADE,
