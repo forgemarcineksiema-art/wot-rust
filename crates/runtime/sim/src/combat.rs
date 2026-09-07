@@ -50,7 +50,11 @@ pub(crate) fn fire_click_buffers(tank: &TankState) -> bool {
         && tank.reload_remaining_s <= FIRE_BUFFER_S
 }
 
-pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellState> {
+pub(crate) fn try_fire_shell(
+    tank: &mut TankState,
+    tick: u64,
+    dispersion_salt: u64,
+) -> Option<ShellState> {
     let selected = (tank.selected_ammo as usize).min(game_core::MAX_AMMO_SLOTS - 1);
     if tank.reload_remaining_s > 0.0
         || tank.hit_points == 0
@@ -62,7 +66,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
         return None;
     }
 
-    let direction = dispersed_gun_direction(tank, tick);
+    let direction = dispersed_gun_direction(tank, tick, dispersion_salt);
     let shell = tank.selected_shell();
     tank.ammo_counts[selected] -= 1;
     tank.reload_remaining_s = tank.full_reload_seconds();

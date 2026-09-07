@@ -65,9 +65,9 @@ pub(crate) fn apply_shot_bloom(tank: &mut TankState) {
     add_bloom(&mut tank.aim_dispersion_mrad, &tank.spec, fraction, bloom);
 }
 
-pub(crate) fn dispersed_gun_direction(tank: &TankState, tick: u64) -> Vec3 {
+pub(crate) fn dispersed_gun_direction(tank: &TankState, tick: u64, salt: u64) -> Vec3 {
     let radius_rad = tank.aim_dispersion_mrad.max(0.0) * 0.001;
-    let (unit_a, unit_b) = deterministic_pair(tank.id, tick, tank.dispersion_shot_index);
+    let (unit_a, unit_b) = deterministic_pair(tank.id, tick, tank.dispersion_shot_index, salt);
     let angle = unit_a * std::f32::consts::TAU;
     let radius = radius_rad * unit_b * unit_b;
     // Perturb in the hull frame, then carry the direction through the hull basis: the barrel —
@@ -91,8 +91,11 @@ fn add_bloom(
     *aim_dispersion_mrad = (*aim_dispersion_mrad + bloom_mrad.max(0.0)).clamp(0.0, maximum);
 }
 
-fn deterministic_pair(tank_id: TankId, tick: u64, shot_index: u32) -> (f32, f32) {
-    let mut value = tick ^ tank_id.0.rotate_left(17) ^ (shot_index as u64).rotate_left(31);
+/// The shot's draw: (tick, id, shot) folded with the battle's salt (S16). A zero salt is the
+/// pre-S16 draw exactly, so every recorded replay and fixture reproduces bit for bit; a real
+/// battle's salt comes from the server and is unknown to a client before the shot.
+fn deterministic_pair(tank_id: TankId, tick: u64, shot_index: u32, salt: u64) -> (f32, f32) {
+    let mut value = tick ^ tank_id.0.rotate_left(17) ^ (shot_index as u64).rotate_left(31) ^ salt;
     value = splitmix64(value);
     let a = unit_float(value);
     value = splitmix64(value);

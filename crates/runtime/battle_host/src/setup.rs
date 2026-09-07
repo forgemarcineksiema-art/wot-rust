@@ -19,6 +19,9 @@ pub(crate) struct BattleSetup {
     pub bots: BotRoster,
 }
 
+/// S16: the seed's lane for the dispersion salt (the weather has its own).
+const DISPERSION_SALT: u64 = 0x5A17_D15F;
+
 pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     let map_id = MapId::default();
     let battlefield = map_forge::battlefield(map_id);
@@ -78,6 +81,9 @@ pub(crate) fn random_battle_setup_for_humans(
     // client makes from the same battlefield, so the predictor grips the road where the authority
     // grips it — it is derived from the map, so it never rides the wire.
     sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
+    // S16: the shot draw is salted per battle from the seed (the practice duel stays at
+    // zero: it is the client's deterministic test bed, not a match).
+    sim.set_dispersion_salt(config.seed.random_battle_u64(DISPERSION_SALT));
     let mut bot_ids = Vec::new();
     let zones =
         [random_battle_spawn_zone(&battlefield, 1), random_battle_spawn_zone(&battlefield, 2)];
@@ -155,6 +161,9 @@ pub(crate) fn planned_battle_setup(
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water_field());
     sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
+    // S16: the shot draw is salted per battle from the seed (the practice duel stays at
+    // zero: it is the client's deterministic test bed, not a match).
+    sim.set_dispersion_salt(config.seed.random_battle_u64(DISPERSION_SALT));
     let zones =
         [random_battle_spawn_zone(&battlefield, 1), random_battle_spawn_zone(&battlefield, 2)];
     let anchor_vehicle = wishes.iter().find_map(|(_, wish)| *wish).unwrap_or(config.player_vehicle);
