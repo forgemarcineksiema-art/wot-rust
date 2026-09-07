@@ -44,6 +44,7 @@ mod ostrogorsk_urban;
 mod perforation_exit;
 mod perforation_replay;
 mod queue_holds;
+mod ram_bill_is_the_charge;
 mod ramming_contact;
 mod replay_regression;
 mod ricochet_continuation;

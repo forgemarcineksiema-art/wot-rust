@@ -17,94 +17,98 @@ const RAM_FACE_SIDE: f32 = 1.4;
 /// ...and on the REAR: engine deck and final drives, between the two.
 const RAM_FACE_REAR: f32 = 1.0;
 
-/// Charge both hulls of every contact the solver resolved this tick.
+/// Charge both hulls of every COLLISION the solver finished this tick (X7).
 ///
 /// The collision that hurts is the collision the physics actually resolved. Ramming used to run
 /// its own parallel truth — its own closing speed, its own slop radius around the hull footprints,
 /// its own idea of who was touching — and two answers to "did these tanks collide" is one answer
-/// too many. It now reads [`physics::ContactPair`]: the normal impulse the contact exchanged, with
-/// mass and closing speed already folded together, which is exactly what a collision's severity is.
+/// too many. Then it read the solver's per-tick impulse, which was honest about WHO collided and
+/// a hidden die about how hard: the speculative contact shuts whatever gap is left in the touch
+/// tick, so the impulse that tick carried was the charge minus a sub-tick's travel — ~268 HP or
+/// ~55 HP for the same charge by 8 cm of spawn distance. It now reads [`physics::ContactImpact`]:
+/// the PEAK closing speed of the whole approach, reported once when the approach ends. The bill
+/// is the charge, not the tick the plates happened to meet in.
+///
+/// Both hulls pay, weighted by mass: the impulse is shared (Newton's third law) but the lighter
+/// hull takes the larger change of velocity, so each pays `2·m_other / (m_a + m_b)` of the shared
+/// base — equal masses pay exactly the base each, as before — times the face it met the contact
+/// with. A wall (an immovable solid) is the infinite-mass limit: the hull pays it alone, against
+/// its own mass, and the wall takes nothing here (what a hull does TO cover is Z12's).
 pub(crate) fn apply_ramming_damage(
-    pairs: &[physics::ContactPair],
+    impacts: &[physics::ContactImpact],
     bodies: &[physics::ContactBody],
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
     event_stamp: &mut BattleEventStamp,
 ) {
-    for pair in pairs {
-        let (left, right) = (pair.a, pair.b);
-        // A standing solid in the pair (X6): the wall took the momentum, the hull pays for it —
-        // alone, through the face it hit with, against its own mass. The wall takes nothing
-        // here: what a hull does TO cover is the crush and breach path's (Z12).
-        if right >= tanks.len() || left >= tanks.len() {
-            let (hull, wall) = if right >= tanks.len() { (left, right) } else { (right, left) };
-            apply_wall_damage(
-                hull,
-                &bodies[wall],
-                pair.normal_impulse_ns,
-                tanks,
-                damage_events,
-                event_stamp,
-            );
-            continue;
-        }
-        // Teammates never grind each other down: a friendly shove is physics, not damage (the
-        // contact itself still pushes both hulls).
-        if tanks[left].team == tanks[right].team {
-            continue;
-        }
-        let reduced_mass = {
-            let (a, b) = (tanks[left].spec.mass_kg, tanks[right].spec.mass_kg);
-            (a * b) / (a + b).max(1.0)
-        };
-        // Back out the closing speed the impulse represents, so the damage curve keeps the
-        // envelope it was tuned to (zero at the threshold, capped at 360 for a real charge).
-        let closing = pair.normal_impulse_ns / reduced_mass.max(1.0);
+    for impact in impacts {
+        let closing = impact.peak_closing_mps;
         if closing < RAM_MIN_CLOSING_SPEED_MPS {
             continue;
         }
-        let base = ram_damage_hp(reduced_mass, closing);
-        if base == 0 {
-            continue;
+        let index_of = |id: u64| tanks.iter().position(|tank| tank.id.0 == id);
+        match (index_of(impact.a), index_of(impact.b)) {
+            (Some(left), Some(right)) => {
+                // Teammates never grind each other down: a friendly shove is physics, not
+                // damage (the contact itself still pushes both hulls).
+                if tanks[left].team == tanks[right].team {
+                    continue;
+                }
+                let (mass_a, mass_b) = (tanks[left].spec.mass_kg, tanks[right].spec.mass_kg);
+                let reduced_mass = (mass_a * mass_b) / (mass_a + mass_b).max(1.0);
+                let base = ram_damage_hp(reduced_mass, closing);
+                if base == 0 {
+                    continue;
+                }
+                let delta = horizontal(tanks[right].position - tanks[left].position);
+                if delta.length() <= f32::EPSILON {
+                    continue;
+                }
+                let direction = delta.normalize();
+                let total = (mass_a + mass_b).max(1.0);
+                let share_left = base as f32 * (2.0 * mass_b / total);
+                let share_right = base as f32 * (2.0 * mass_a / total);
+                let left_damage =
+                    ram_face_damage(share_left.round() as u32, direction, tanks[left].yaw_rad);
+                let right_damage =
+                    ram_face_damage(share_right.round() as u32, -direction, tanks[right].yaw_rad);
+                if left_damage == 0 && right_damage == 0 {
+                    continue;
+                }
+                apply_pair_damage(
+                    left,
+                    right,
+                    (left_damage, right_damage),
+                    tanks,
+                    damage_events,
+                    event_stamp,
+                );
+            }
+            (Some(hull), None) | (None, Some(hull)) => {
+                let wall_id = if index_of(impact.a).is_some() { impact.b } else { impact.a };
+                let Some(wall) = bodies.iter().find(|body| body.id == wall_id && body.solid) else {
+                    continue;
+                };
+                apply_wall_damage(hull, wall, closing, tanks, damage_events, event_stamp);
+            }
+            (None, None) => {}
         }
-        let delta = horizontal(tanks[right].position - tanks[left].position);
-        if delta.length() <= f32::EPSILON {
-            continue;
-        }
-        let direction = delta.normalize();
-        let left_damage = ram_face_damage(base, direction, tanks[left].yaw_rad);
-        let right_damage = ram_face_damage(base, -direction, tanks[right].yaw_rad);
-        if left_damage == 0 && right_damage == 0 {
-            continue;
-        }
-        apply_pair_damage(
-            left,
-            right,
-            (left_damage, right_damage),
-            tanks,
-            damage_events,
-            event_stamp,
-        );
     }
 }
 
-/// The bill for running into a standing solid (X6): the same curve a ram pays, with the hull's
-/// own mass for the reduced mass (an immovable wall is the infinite-mass limit) and the face it
-/// met the wall with. A charge into a tenement at 14 m/s costs what a charge into a parked heavy
-/// costs; a crawl into a hedge costs nothing (under the threshold).
+/// The bill for running into a standing solid (X6/X7): the same curve a ram pays, with the
+/// hull's own mass for the reduced mass (an immovable wall is the infinite-mass limit) and the
+/// face it met the wall with. A charge into a tenement at 14 m/s costs what a charge into a
+/// parked heavy costs; a crawl into a hedge costs nothing (under the threshold).
 fn apply_wall_damage(
     hull: usize,
     wall: &physics::ContactBody,
-    normal_impulse_ns: f32,
+    closing: f32,
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
     event_stamp: &mut BattleEventStamp,
 ) {
     let mass = tanks[hull].spec.mass_kg.max(1.0);
-    let closing = normal_impulse_ns / mass;
-    if closing < RAM_MIN_CLOSING_SPEED_MPS {
-        return;
-    }
     let base = ram_damage_hp(mass, closing);
     if base == 0 {
         return;
