@@ -132,6 +132,16 @@ impl WindowRenderer {
         self.scene.update_battlefield_ground_geometry(&self.ctx, vertices, indices);
     }
 
+    /// T9: cut the bound ground's triangles in place (a crater's cells).
+    pub fn cut_ground_triangles(&mut self, triangles: &[u32]) {
+        self.scene.cut_ground_triangles(&self.ctx, triangles);
+    }
+
+    /// T9: the ground patch as its own buffers — the cut cells re-meshed, clods, ruts.
+    pub fn set_ground_patch(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
+        self.scene.set_ground_patch(&self.ctx, vertices, indices);
+    }
+
     /// The dressing slot (Żywy Step P2): mid-field grass cards, color-pass-only; empty
     /// slices clear it (the garage has no meadow).
     pub fn set_dressing(&mut self, vertices: &[SceneVertex], indices: &[u32]) {

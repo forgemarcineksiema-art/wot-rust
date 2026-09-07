@@ -295,6 +295,9 @@ impl ClientApp {
                         &meshes.ground_maps,
                         &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
                     );
+                    // T9: the shelled field's patch and cuts ride the round trip with the base.
+                    renderer.cut_ground_triangles(&meshes.ground_cut);
+                    renderer.set_ground_patch(&meshes.ground_patch.0, &meshes.ground_patch.1);
                     renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
                     self.dressing_uploaded_fingerprint = renderer_api::scene_mesh_fingerprint(
                         &meshes.dressing_vertices,

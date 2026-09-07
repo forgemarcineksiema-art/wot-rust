@@ -50,6 +50,21 @@ pub(crate) struct GroundBinding {
     pub indices: wgpu::Buffer,
     pub chunks: Vec<SceneChunk>,
     pub bind_group: wgpu::BindGroup,
+    /// T9: the base's reordered indices, kept on the CPU so a cut can read a triangle's own
+    /// first index and write it thrice — a degenerate triangle, in place.
+    pub base_indices: Vec<u32>,
+    /// T9: where every original base triangle landed after chunking (in triangles).
+    pub triangle_slots: Vec<u32>,
+    /// T9: the crater patch — the cut cells re-meshed, the clods, the ruts — its own buffers,
+    /// sized to the patch, drawn after the base's chunks.
+    pub patch: Option<GroundPatch>,
+}
+
+/// The ground's patch buffers (T9).
+pub(crate) struct GroundPatch {
+    pub vertices: wgpu::Buffer,
+    pub indices: wgpu::Buffer,
+    pub chunks: Vec<SceneChunk>,
 }
 
 pub(crate) struct GroundResources {
@@ -64,6 +79,9 @@ pub(crate) struct GroundResources {
     /// bind: the four-layer detail array and the macro tone tile. Map-independent.
     detail_tiles: Option<GroundDetailViews>,
     pub binding: Option<GroundBinding>,
+    /// T9's instrument: how many bytes the LAST ground upload put on the GPU — the whole field
+    /// on a bind, the patch and the cuts on a crater.
+    pub last_upload_bytes: usize,
 }
 
 struct GroundDetailViews {
@@ -240,6 +258,7 @@ impl GroundResources {
             detail_sampler,
             detail_tiles: None,
             binding: None,
+            last_upload_bytes: 0,
         }
     }
 }
@@ -372,7 +391,8 @@ impl SceneRenderer {
         materials: &TerrainMaterialSet,
     ) {
         debug_assert!(maps.is_well_formed(), "ground maps must be well-formed");
-        let (reordered, chunks) = chunk_scene_indices(vertices, indices, TERRAIN_CHUNK_SIZE_M);
+        let (reordered, chunks, triangle_slots) =
+            renderer_api::chunk_scene_indices_with_slots(vertices, indices, TERRAIN_CHUNK_SIZE_M);
         let vertex_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("terrain_ground_v"),
             contents: bytemuck::cast_slice(vertices),
@@ -381,8 +401,9 @@ impl SceneRenderer {
         let index_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("terrain_ground_i"),
             contents: bytemuck::cast_slice(&reordered),
-            usage: wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
+        self.ground.last_upload_bytes = std::mem::size_of_val(vertices) + reordered.len() * 4;
         let splat_view = upload_rgba8(ctx, "terrain_splat", maps.size, &maps.splat);
         let macro_view = upload_rgba8(ctx, "terrain_macro_normal", maps.size, &maps.macro_normal);
         let material_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -430,7 +451,82 @@ impl SceneRenderer {
             indices: index_buffer,
             chunks,
             bind_group,
+            base_indices: reordered,
+            triangle_slots,
+            patch: None,
         });
+    }
+
+    /// T9: CUT the base — degenerate the given base triangles (ids in the mesh as bound) in
+    /// place, twelve bytes a triangle, so the patch can stand where they stood. Idempotent;
+    /// unknown ids are ignored. No-op with no ground bound.
+    pub fn cut_ground_triangles(&mut self, ctx: &GpuContext, triangles: &[u32]) {
+        let Some(binding) = self.ground.binding.as_mut() else {
+            return;
+        };
+        let mut written = 0usize;
+        for &triangle in triangles {
+            let Some(&slot) = binding.triangle_slots.get(triangle as usize) else {
+                continue;
+            };
+            let at = slot as usize * 3;
+            let first = binding.base_indices[at];
+            if binding.base_indices[at + 1] == first && binding.base_indices[at + 2] == first {
+                continue;
+            }
+            binding.base_indices[at + 1] = first;
+            binding.base_indices[at + 2] = first;
+            ctx.queue.write_buffer(
+                &binding.indices,
+                (at * 4) as u64,
+                bytemuck::cast_slice(&[first, first, first]),
+            );
+            written += 12;
+        }
+        self.ground.last_upload_bytes = written;
+    }
+
+    /// T9: the ground PATCH — the cut cells re-meshed, the clods, the ruts — as its own
+    /// chunked buffers, sized to the patch and nothing else; empty slices clear it. The base
+    /// is never re-uploaded for a crater.
+    pub fn set_ground_patch(
+        &mut self,
+        ctx: &GpuContext,
+        vertices: &[SceneVertex],
+        indices: &[u32],
+    ) {
+        let Some(binding) = self.ground.binding.as_mut() else {
+            return;
+        };
+        if vertices.is_empty() || indices.is_empty() {
+            binding.patch = None;
+            self.ground.last_upload_bytes = 0;
+            return;
+        }
+        let (reordered, chunks) = chunk_scene_indices(vertices, indices, TERRAIN_CHUNK_SIZE_M);
+        let vertex_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrain_ground_patch_v"),
+            contents: bytemuck::cast_slice(vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrain_ground_patch_i"),
+            contents: bytemuck::cast_slice(&reordered),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        self.ground.last_upload_bytes = std::mem::size_of_val(vertices) + reordered.len() * 4;
+        binding.patch =
+            Some(GroundPatch { vertices: vertex_buffer, indices: index_buffer, chunks });
+    }
+
+    /// T9's instrument: the bytes the last ground upload put on the GPU.
+    pub fn last_ground_upload_bytes(&self) -> usize {
+        self.ground.last_upload_bytes
+    }
+
+    /// Diagnostic: how many chunks the ground patch holds.
+    pub fn ground_patch_chunk_count(&self) -> usize {
+        self.ground.binding.as_ref().and_then(|b| b.patch.as_ref()).map_or(0, |p| p.chunks.len())
     }
 
     /// Replace only the ground GEOMETRY (true deformation, protocol v31): a fresh crater
@@ -446,7 +542,8 @@ impl SceneRenderer {
         let Some(binding) = self.ground.binding.as_mut() else {
             return;
         };
-        let (reordered, chunks) = chunk_scene_indices(vertices, indices, TERRAIN_CHUNK_SIZE_M);
+        let (reordered, chunks, triangle_slots) =
+            renderer_api::chunk_scene_indices_with_slots(vertices, indices, TERRAIN_CHUNK_SIZE_M);
         binding.vertices = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("terrain_ground_v"),
             contents: bytemuck::cast_slice(vertices),
@@ -455,9 +552,14 @@ impl SceneRenderer {
         binding.indices = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("terrain_ground_i"),
             contents: bytemuck::cast_slice(&reordered),
-            usage: wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
         binding.chunks = chunks;
+        binding.base_indices = reordered;
+        binding.triangle_slots = triangle_slots;
+        binding.patch = None;
+        self.ground.last_upload_bytes =
+            std::mem::size_of_val(vertices) + binding.base_indices.len() * 4;
     }
 
     /// Drop the ground binding (scene swap to an interior).
@@ -494,6 +596,20 @@ impl SceneRenderer {
                     0,
                     0..1,
                 );
+            }
+        }
+        // T9: the patch, where the base was cut.
+        if let Some(patch) = binding.patch.as_ref() {
+            pass.set_vertex_buffer(0, patch.vertices.slice(..));
+            pass.set_index_buffer(patch.indices.slice(..), wgpu::IndexFormat::Uint32);
+            for chunk in &patch.chunks {
+                if frustum.intersects_aabb(&chunk.aabb) {
+                    pass.draw_indexed(
+                        chunk.index_start..chunk.index_start + chunk.index_count,
+                        0,
+                        0..1,
+                    );
+                }
             }
         }
     }

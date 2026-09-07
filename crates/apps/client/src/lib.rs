@@ -49,9 +49,9 @@ pub use loop_policy::{ClientLoopAction, ClientLoopEvent, FixedTickAccumulator, W
 pub use pass_stats::{Percentiles, RotationStats};
 pub use render_state::InterpolatedBattleState;
 pub use scene_build::battlefield::{
-    CoverDressing, STATICS_BACKDROP_BUCKET, STATICS_BUCKET_COUNT, assemble_statics_mesh,
-    battlefield_ground_and_statics_meshes, battlefield_ground_mesh,
-    battlefield_ground_mesh_with_ruts, battlefield_scene_mesh,
+    CoverDressing, GroundMesh, STATICS_BACKDROP_BUCKET, STATICS_BUCKET_COUNT,
+    assemble_statics_mesh, battlefield_ground_and_statics_meshes, battlefield_ground_mesh,
+    battlefield_ground_mesh_parts, battlefield_ground_mesh_with_ruts, battlefield_scene_mesh,
     battlefield_scene_mesh_with_cover_states, battlefield_statics_bucket_mesh,
     battlefield_statics_bucket_mesh_dressed, battlefield_statics_bucket_mesh_with_falls,
     battlefield_statics_buckets, battlefield_statics_mesh, battlefield_statics_mesh_with_scars,

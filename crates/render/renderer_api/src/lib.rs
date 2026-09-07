@@ -26,7 +26,10 @@ pub use capabilities::{
     GpuBackend, GpuDeviceType, RenderAdapterReport, RenderCapabilityTier, RenderLimitsSummary,
     TextureCompressionSupport,
 };
-pub use culling::{Aabb, Frustum, SceneChunk, chunk_scene_indices, scene_mesh_fingerprint};
+pub use culling::{
+    Aabb, Frustum, SceneChunk, chunk_scene_indices, chunk_scene_indices_with_slots,
+    scene_mesh_fingerprint,
+};
 pub use ground_detail::{
     GROUND_DETAIL_LAYERS, GROUND_MACRO_FAR_RATIO, GROUND_MACRO_PERIOD_M, GROUND_MACRO_TILE_SIZE,
     GROUND_TILE_PERIOD_M, GROUND_TILE_SIZE, GroundDetailTiles, bake_ground_detail_tiles,

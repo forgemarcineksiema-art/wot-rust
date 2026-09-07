@@ -66,13 +66,59 @@ pub fn battlefield_ground_mesh_with_ruts(
     battlefield: &BattlefieldMap,
     ruts: &terrain::RutField,
 ) -> SceneMeshData {
+    battlefield_ground_mesh_parts(battlefield, Some(ruts)).merged()
+}
+
+/// The ground in its two PARTS (T9): the BASE — the whole grid, every cell, plus the apron —
+/// that binds once for the battle, and the PATCH — the cut cells re-meshed at crater
+/// resolution, the clods, the ruts — that a crater re-bakes and uploads alone, with the ids
+/// of the base triangles the patch stands in for (two a cut cell), which the renderer
+/// degenerates in place. `merged()` is the one mesh every other consumer draws.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroundMesh {
+    pub base: SceneMeshData,
+    pub patch: SceneMeshData,
+    pub cut_triangles: Vec<u32>,
+}
+
+impl GroundMesh {
+    /// The whole ground as one mesh: the base less its cut triangles, then the patch.
+    pub fn merged(&self) -> SceneMeshData {
+        let (base_vertices, base_indices) = &self.base;
+        let (patch_vertices, patch_indices) = &self.patch;
+        let mut vertices = Vec::with_capacity(base_vertices.len() + patch_vertices.len());
+        vertices.extend_from_slice(base_vertices);
+        vertices.extend_from_slice(patch_vertices);
+        let mut cut = vec![false; base_indices.len() / 3];
+        for &triangle in &self.cut_triangles {
+            if let Some(flag) = cut.get_mut(triangle as usize) {
+                *flag = true;
+            }
+        }
+        let mut indices = Vec::with_capacity(base_indices.len() + patch_indices.len());
+        for (triangle, corners) in base_indices.chunks_exact(3).enumerate() {
+            if !cut[triangle] {
+                indices.extend_from_slice(corners);
+            }
+        }
+        let offset = base_vertices.len() as u32;
+        indices.extend(patch_indices.iter().map(|index| index + offset));
+        (vertices, indices)
+    }
+}
+
+/// The battlefield ground in its parts (T9), with the client's rut field when it has one.
+pub fn battlefield_ground_mesh_parts(
+    battlefield: &BattlefieldMap,
+    ruts: Option<&terrain::RutField>,
+) -> GroundMesh {
     let beyond = beyond_border_height(battlefield);
-    terrain_scene_mesh_rutted(
+    terrain_ground_parts(
         &battlefield.heightmap,
         battlefield.water_view(),
         &battlefield.roads,
         Some(beyond.as_ref()),
-        Some(ruts),
+        ruts,
     )
 }
 
@@ -1777,6 +1823,18 @@ fn terrain_scene_mesh_rutted(
     beyond: Option<&dyn Fn(f32, f32) -> f32>,
     ruts: Option<&terrain::RutField>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    terrain_ground_parts(heightmap, water, roads, beyond, ruts).merged()
+}
+
+/// The ground in its parts (T9): the base grid with EVERY cell's two triangles (the cut ones
+/// too — the renderer degenerates them in place), the apron after it; the patch apart.
+fn terrain_ground_parts(
+    heightmap: &HeightMap,
+    water: WaterView<'_>,
+    roads: &[Road],
+    beyond: Option<&dyn Fn(f32, f32) -> f32>,
+    ruts: Option<&terrain::RutField>,
+) -> GroundMesh {
     let w = heightmap.width();
     let h = heightmap.height();
     let cell = heightmap.cell_size_m();
@@ -1832,10 +1890,12 @@ fn terrain_scene_mesh_rutted(
     }
     let rut_drop = |x: f32, z: f32| ruts.map_or(0.0, |field| field.depth_at(x, z));
     let mut indices = Vec::with_capacity((w - 1) * (h - 1) * 6);
+    let mut cut_triangles = Vec::with_capacity(cut.len() * 2);
     for z in 0..h - 1 {
         for x in 0..w - 1 {
             if cut.contains(&(x, z)) {
-                continue;
+                let cell = (z * (w - 1) + x) as u32;
+                cut_triangles.extend_from_slice(&[cell * 2, cell * 2 + 1]);
             }
             let i = (z * w + x) as u32;
             let right = i + 1;
@@ -1881,10 +1941,12 @@ fn terrain_scene_mesh_rutted(
         }
         vertex
     };
+    let mut patch_vertices = Vec::new();
+    let mut patch_indices = Vec::new();
     for &(x, z) in &cut {
         append_crater_cell(
-            &mut vertices,
-            &mut indices,
+            &mut patch_vertices,
+            &mut patch_indices,
             heightmap,
             x,
             z,
@@ -1893,12 +1955,12 @@ fn terrain_scene_mesh_rutted(
         );
     }
     for record in heightmap.crater_records() {
-        append_crater_clods(&mut vertices, &mut indices, heightmap, record);
+        append_crater_clods(&mut patch_vertices, &mut patch_indices, heightmap, record);
     }
     if let Some(beyond) = beyond {
         append_border_apron(&mut vertices, &mut indices, heightmap, beyond, &make_vertex);
     }
-    (vertices, indices)
+    GroundMesh { base: (vertices, indices), patch: (patch_vertices, patch_indices), cut_triangles }
 }
 
 /// Border apron: the seam ring runs fine enough to stand next to, the far ring coarsens
@@ -2699,6 +2761,45 @@ mod tests {
         let single = deepest_on_line(&mesh(&once));
         assert!(single > 0.02 && single < 0.05, "one pass presses {single} m");
         assert_eq!(mesh(&terrain::RutField::default()), virgin, "no ruts, the same ground");
+    }
+
+    /// T9: the ground's parts. The base carries every cell of the grid — two triangles a
+    /// cell, the cut ones too — and the apron; the patch carries the cut cells and the clods;
+    /// the cut is exactly two base triangles per cut cell; and the parts merge to the one
+    /// mesh every other consumer draws. Virgin ground has no patch and no cut.
+    #[test]
+    fn the_ground_parts_merge_to_the_whole_mesh_and_the_cut_is_two_triangles_a_cell() {
+        let mut flat = HeightMap::flat(64, 64, 5.0, 10.0).expect("flat map");
+        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None);
+        assert!(parts.patch.0.is_empty() && parts.cut_triangles.is_empty(), "virgin: no patch");
+        assert_eq!(parts.base.1.len(), 63 * 63 * 6, "every cell, two triangles each");
+        assert_eq!(parts.merged(), terrain_scene_mesh(&flat));
+
+        let crater = terrain::CraterRecord::from_world(
+            150.0,
+            150.0,
+            2.2,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        flat.set_craters(&[crater]);
+        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None);
+        let cells = cratered_cells(&flat);
+        assert_eq!(parts.cut_triangles.len(), cells.len() * 2, "two base triangles a cut cell");
+        assert_eq!(parts.base.1.len(), 63 * 63 * 6, "the base still carries every cell");
+        assert!(!parts.patch.0.is_empty(), "the patch carries the crater");
+        for &(x, z) in &cells {
+            let cell = (z * 63 + x) as u32;
+            assert!(parts.cut_triangles.contains(&(cell * 2)));
+            assert!(parts.cut_triangles.contains(&(cell * 2 + 1)));
+        }
+        let merged = parts.merged();
+        assert_eq!(merged, terrain_scene_mesh(&flat), "the parts merge to the one mesh");
+        assert_eq!(
+            merged.1.len(),
+            parts.base.1.len() - parts.cut_triangles.len() * 3 + parts.patch.1.len(),
+            "the merged mesh drops the cut and adds the patch"
+        );
     }
 
     #[test]
