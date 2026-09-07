@@ -31,8 +31,12 @@ FULL reload — the loader swaps the round out of the breech — and cancels any
   does not overmatch and pays a multiple against spaced screens.
 - HE never ricochets and fuzes on the first surface it touches. If it fails to
   penetrate, it still applies small external hull damage, can critically damage
-  exposed running gear, and its `explosive_radius_m` throws splash damage
-  (`DamageCause::Splash`) at every vehicle inside the radius — attenuated
+  exposed running gear (S18: through the module wound scale, so one slap
+  wounds a healthy suspension and never destroys it), and its
+  `explosive_radius_m` throws splash damage
+  (`DamageCause::Splash`) at every vehicle inside the radius — occluded by
+  terrain, standing cover, rubble and wrecks (S23: a dead hull across the line
+  is steel too) — attenuated
   linearly by distance to the hull and soaked by the external plate facing the
   burst (roof from above, glacis from ahead, side from the flank). Allies are
   protected exactly like direct fire; the owner's own HE can

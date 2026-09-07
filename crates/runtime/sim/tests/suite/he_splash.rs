@@ -75,6 +75,53 @@ fn a_non_pen_he_burst_splashes_the_tank_beside_the_impact() {
     assert_eq!(state.tank(far).expect("far").hit_points, far_hp);
 }
 
+/// S23: a wreck is steel to the blast. A dead T-54 parked between the burst and a bystander
+/// shields it; the same bystander with the lane empty takes the wave.
+#[test]
+fn a_wreck_between_the_burst_and_a_bystander_shields_it() {
+    let run = |with_wreck: bool| {
+        let mut state = SimulationState::new();
+        let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+        // A big blast, so the far bystander is well inside the radius either way.
+        state.tank_mut(shooter).expect("shooter").spec.gun.shell =
+            ShellSpec::high_explosive(152.0, 400.0, 40.0, 600, 12.0);
+        state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.007;
+        let wall =
+            state.spawn_tank(TeamId(2), TankSpec::tiger_ii_ausf_b(), Vec3::new(0.0, 0.0, 40.0));
+        state.tank_mut(wall).expect("wall").yaw_rad = PI;
+        let bystander =
+            state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(-8.5, 0.0, 36.0));
+        let bystander_hp = state.tank(bystander).expect("bystander").hit_points;
+        if with_wreck {
+            let wreck =
+                state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(-4.0, 0.0, 36.0));
+            state.tank_mut(wreck).expect("wreck").hit_points = 0;
+        }
+        let step = FixedTimestep::from_hz(60);
+        state.apply_commands(&[(shooter, fire_command())], step);
+        for _ in 0..240 {
+            if !state.damage_events().is_empty() {
+                break;
+            }
+            state.apply_commands(&[], step);
+        }
+        let events = state.damage_events();
+        assert!(
+            events.iter().any(|event| event.target == wall && event.cause == DamageCause::Shell),
+            "the round bursts on the Tiger II"
+        );
+        let splashed = events
+            .iter()
+            .any(|event| event.target == bystander && event.cause == DamageCause::Splash);
+        (splashed, bystander_hp - state.tank(bystander).expect("bystander").hit_points)
+    };
+
+    let (splashed, lost) = run(false);
+    assert!(splashed && lost > 0, "with the lane empty the bystander takes the wave: {lost}");
+    let (splashed, lost) = run(true);
+    assert!(!splashed && lost == 0, "behind a wreck the bystander takes nothing: {lost}");
+}
+
 /// A burst BESIDE a hull throws the band on the side it came from.
 ///
 /// Until 2026-08-02 splash was hit points and nothing else: `shell_splash.rs` mentioned no module,

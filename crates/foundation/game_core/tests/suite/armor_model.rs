@@ -202,6 +202,45 @@ fn the_screen_detonates_heat_early_and_fuzes_he_on_the_track() {
     assert!(burst.damage_hp < 410 / 2, "chip damage, not a penetration's worth");
 }
 
+/// S23: the glance band is a NUMBER the sight can read. A kinetic round between 60° and the
+/// 70° bounce loses up to 30 % of its bite linearly — 15 % at 65° — and the effective
+/// penetration the reticle prints (`effective_armor_mm + remaining_penetration_mm`, the sum
+/// the client's hint reads) is the post-bite figure, not the nominal one.
+#[test]
+fn the_glance_band_costs_fifteen_percent_at_sixty_five_degrees_and_the_hint_reads_it() {
+    let br412 = game_core::RoundId::Br412.spec();
+    let armor = ArmorProfile::new(100.0, 80.0, 45.0, 200.0, 160.0, 65.0);
+    let nominal = br412.penetration_mm_at_distance(300.0);
+    let at = |angle: f32| {
+        resolve_penetration_at_distance(&br412, &armor, ArmorFacing::HullFront, angle, 300.0)
+    };
+    let square = at(30.0);
+    assert_eq!(square.glance_loss, 0.0);
+    assert!(((square.effective_armor_mm + square.remaining_penetration_mm) - nominal).abs() < 0.01);
+    // The band runs from 60° to the ROUND's own bounce: the blunt BR-412 digs in until 73°, so
+    // at 65° it has lost 0.3 · 5/13 = 11.5 %; a sharp-nosed AP that bounces at 70° has lost 15 %.
+    let glancing = at(65.0);
+    let bounce = br412.ricochet_angle_deg().expect("a kinetic round bounces");
+    let expected_loss = 0.3 * (65.0 - 60.0) / (bounce - 60.0);
+    assert!(
+        (glancing.glance_loss - expected_loss).abs() < 1.0e-4,
+        "{} lost at 65° against a {bounce}° bounce",
+        glancing.glance_loss
+    );
+    let effective_pen = glancing.effective_armor_mm + glancing.remaining_penetration_mm;
+    assert!(
+        (effective_pen - nominal * (1.0 - expected_loss)).abs() < 0.01,
+        "{effective_pen} vs {nominal} less the glance"
+    );
+    assert!(effective_pen < nominal, "the sight never prints the nominal figure on a glance");
+
+    let sharp = ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320);
+    assert_eq!(sharp.ricochet_angle_deg(), Some(70.0), "a plain AP bounces at 70°");
+    let sharp_glance =
+        resolve_penetration_at_distance(&sharp, &armor, ArmorFacing::HullFront, 65.0, 300.0);
+    assert!((sharp_glance.glance_loss - 0.15).abs() < 1.0e-4, "15 % at 65° for a 70° bounce");
+}
+
 /// S15 (GDD §3.1): a surface burst hurts by the steel under it. The D-10's OF-412 (430 HP)
 /// on a T-34-85's 45 mm side, a Tiger II's 150 mm glacis and a 166 mm plate, square on.
 #[test]
