@@ -59,7 +59,13 @@ const UPPER_WALL: [f32; 3] = [0.155, 0.16, 0.175];
 const RIB: [f32; 3] = [0.28, 0.29, 0.31];
 const ROOF: [f32; 3] = [0.125, 0.13, 0.14];
 const TRUSS: [f32; 3] = [0.17, 0.17, 0.18];
-const TURNTABLE: [f32; 3] = [0.34, 0.34, 0.35];
+// D45: 0.34 -> 0.30. After K24-1 the disc stood 1.9x the floor's value and the frame's
+// brightest plane was the plinth, not the hull. The row proposed 0.22; measured on the
+// goldens that put the hero room's dark plane at 0.811 against its 0.78 ceiling and the
+// running-gear close-up at 99.8 % void, and 0.28 still left the hero 1.49x its room against
+// the 1.5x floor — the disc was carrying the room's mid plane. 0.30 is the step the room can
+// afford: 1.67x the floor, the tank still leads.
+const TURNTABLE: [f32; 3] = [0.30, 0.30, 0.31];
 const MARKING: [f32; 3] = [0.62, 0.55, 0.20];
 // Wall dressing: panel joints recessed a shade darker, a girt rail riding the band seam.
 const PANEL_JOINT: [f32; 3] = [0.19, 0.195, 0.205];
@@ -86,9 +92,9 @@ const FLOOR_JOINT: [f32; 3] = [0.17, 0.165, 0.16];
 const DRIVE_LANE: [f32; 3] = [0.272, 0.265, 0.256];
 const TRACK_WEAR: [f32; 3] = [0.24, 0.234, 0.226];
 // Turntable dressing: the pit rim it sits in, its radial plate seams, the centre hub.
-const TURNTABLE_RIM: [f32; 3] = [0.225, 0.23, 0.24];
-const TURNTABLE_SEAM: [f32; 3] = [0.27, 0.27, 0.28];
-const TURNTABLE_HUB: [f32; 3] = [0.305, 0.305, 0.315];
+const TURNTABLE_RIM: [f32; 3] = [0.20, 0.205, 0.215];
+const TURNTABLE_SEAM: [f32; 3] = [0.24, 0.24, 0.25];
+const TURNTABLE_HUB: [f32; 3] = [0.27, 0.27, 0.28];
 
 /// Pivot the garage orbit camera looks at: roughly the centre of a parked tank.
 pub fn hangar_camera_pivot() -> Vec3 {
@@ -404,9 +410,43 @@ pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(pitch.cos() * yaw.sin(), pitch.sin(), pitch.cos() * yaw.cos())
 }
 
-/// The eye the garage rests at: the hero framing applied to the turntable pivot.
+/// D45: the hero pivot sits AHEAD of the turntable centre along the parked hull by this share
+/// of the vehicle's silhouette span (hull plus stock barrel — `hero_span_m`), so the shot's
+/// centre is the SILHOUETTE's middle, not the hull's: the muzzle used to land 88 px under the
+/// stats plate while the crew column had a hull-width of empty hall beside it. A share, not
+/// metres, because the boom already scales with the span and a Jagdtiger's barrel overhangs
+/// twice a T-54's (1.9 m on the benchmark).
+pub const HERO_PIVOT_FORWARD_SHARE: f32 = 0.16;
+
+/// The parked hero's forward axis on the floor, from the sim's own heading convention.
+pub fn hero_hull_forward() -> Vec3 {
+    game_core::math::HullPose::level(HERO_PARK_YAW).basis() * Vec3::Z
+}
+
+/// The point the hero framing orbits for `kind`: the turntable pivot carried
+/// [`HERO_PIVOT_FORWARD_SHARE`] of the vehicle's span along the parked hull (D45). The live
+/// camera and every review of it share this one function.
+pub fn hero_pivot_for(kind: game_core::VehicleKind) -> Vec3 {
+    hangar_camera_pivot() + hero_hull_forward() * (hero_span_m(kind) * HERO_PIVOT_FORWARD_SHARE)
+}
+
+/// [`hero_pivot_for`] at the span the framing was designed on ([`HERO_FRAMED_SPAN_M`], the
+/// benchmark's — named by its number here, because the world layer names no vehicle).
+pub fn hero_pivot() -> Vec3 {
+    hangar_camera_pivot() + hero_hull_forward() * (HERO_FRAMED_SPAN_M * HERO_PIVOT_FORWARD_SHARE)
+}
+
+/// The band of the hero frame no interface plate covers, in NDC x (D45): the crew column's
+/// right edge and the stats column's left edge of the garage screen (`garage/screen.rs`:
+/// CREW at 30 + 330 u from the left, STATS at 20 + 400 u from the right, of 1920 u). The
+/// projected muzzle and stern of every vehicle stay inside it
+/// (`the_hero_muzzle_and_stern_sit_inside_the_panel_free_band_on_every_vehicle`); the client
+/// locks these two numbers against its plate constants.
+pub const HERO_PANEL_FREE_BAND_NDC: (f32, f32) = (-0.625, 0.5625);
+
+/// The eye the garage rests at: the hero framing applied to the hero pivot.
 pub fn hero_orbit_eye() -> Vec3 {
-    hangar_camera_pivot() + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * HERO_ORBIT_DISTANCE
+    hero_pivot() + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * HERO_ORBIT_DISTANCE
 }
 
 /// The hero boom for `kind` (F3): [`HERO_ORBIT_DISTANCE`] was framed on the T-54's silhouette,
@@ -436,7 +476,7 @@ pub const HERO_FRAMED_SPAN_M: f32 = 11.885;
 /// [`hero_orbit_eye`] at the per-vehicle boom: the same bearing, backed off far enough that
 /// THIS vehicle's whole silhouette — gun included — stays in the hero frame.
 pub fn hero_orbit_eye_for(kind: game_core::VehicleKind) -> Vec3 {
-    hangar_camera_pivot()
+    hero_pivot_for(kind)
         + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * hero_orbit_boom_for(kind)
 }
 
@@ -1608,6 +1648,49 @@ mod tests {
     fn is_shade_of(color: [f32; 3], base: [f32; 3]) -> bool {
         let k = color[0] / base[0];
         (0.79..=1.001).contains(&k) && (0..3).all(|i| (color[i] - base[i] * k).abs() < 1.0e-4)
+    }
+
+    /// D45: on every playable vehicle the hero frame's muzzle and stern project inside the
+    /// band no interface plate covers — the muzzle used to land under the stats plate. The
+    /// muzzle is the hull's front plus the stock barrel's overhang (the barrel starts at the
+    /// turret front, about the hull's middle), at the turret's height; the stern is the
+    /// hull's rear at the deck.
+    #[test]
+    fn the_hero_muzzle_and_stern_sit_inside_the_panel_free_band_on_every_vehicle() {
+        let (left, right) = HERO_PANEL_FREE_BAND_NDC;
+        let forward = hero_hull_forward();
+        let park = Vec3::new(0.0, TURNTABLE_TOP_M, 0.0);
+        for kind in game_core::VehicleKind::PLAYABLE {
+            // The same gameplay-true geometry the garage's silhouette card draws: the barrel
+            // starts at the turret front and runs the stock length.
+            let hitbox = game_core::HitboxProfile::for_vehicle(kind);
+            let turret_front = hitbox.turret_center_z_m + hitbox.turret_half_length_m;
+            let gun_y = hitbox.center_y_m
+                + hitbox.turret_min_y_m
+                + (hitbox.half_height_m - hitbox.turret_min_y_m) * 0.45;
+            let muzzle =
+                park + forward * (turret_front + kind.stock_barrel_length_m()) + Vec3::Y * gun_y;
+            let stern = park - forward * hitbox.half_length_m + Vec3::Y * hitbox.center_y_m;
+            let camera = renderer_api::Camera {
+                eye: hero_orbit_eye_for(kind).to_array(),
+                target: hero_pivot_for(kind).to_array(),
+                vertical_fov_degrees: HERO_FOV_DEGREES,
+            };
+            let vp = renderer_api::view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 200.0);
+            let project = |p: Vec3| {
+                let c = glam::Mat4::from_cols_array_2d(&vp) * p.extend(1.0);
+                c.x / c.w
+            };
+            let (mx, sx) = (project(muzzle), project(stern));
+            assert!(
+                mx <= right && mx >= left,
+                "{kind:?}: the muzzle projects at {mx:.3}, outside the panel-free band {left}..{right}"
+            );
+            assert!(
+                sx >= left && sx <= right,
+                "{kind:?}: the stern projects at {sx:.3}, outside the panel-free band {left}..{right}"
+            );
+        }
     }
 
     #[test]

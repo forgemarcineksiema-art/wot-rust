@@ -55,7 +55,8 @@ impl CameraTarget {
             yaw: HERO_ORBIT_YAW,
             pitch: HERO_ORBIT_PITCH,
             distance: scene_build::hangar::hero_orbit_boom_for(kind),
-            pivot_offset: Vec3::ZERO,
+            // D45: the hero orbits the hull's middle, not the turntable's centre.
+            pivot_offset: scene_build::hangar::hero_pivot_for(kind) - hangar_camera_pivot(),
         }
     }
 
@@ -300,7 +301,13 @@ mod tests {
         garage.return_to_hero_view();
         let garage = spun(garage, 2.0);
         assert!((garage.orbit_yaw - HERO_ORBIT_YAW).abs() < 0.02, "eased back to hero yaw");
-        assert!(garage.pivot_offset.length() < 0.02, "the look point returns to centre");
+        // D45: the hero's look point is the silhouette's middle, ahead of the turntable centre.
+        let hero = CameraTarget::hero_for(garage.selected_vehicle()).pivot_offset;
+        assert!(
+            (garage.pivot_offset - hero).length() < 0.02,
+            "the look point returns to the hero pivot: {:?} vs {hero:?}",
+            garage.pivot_offset
+        );
     }
 
     /// E2: the turntable presents the vehicle once the garage idles — the parked yaw drifts

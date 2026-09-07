@@ -1309,6 +1309,23 @@ mod tests {
     /// The hit test reads the rectangles the screen draws: every control answers at its
     /// centre, the count zones before their slot, an open list's rows above the strip, and
     /// empty floor is the scene; hovering a control lights it.
+    /// D45: the hangar's panel-free band (`scene_build::hangar::HERO_PANEL_FREE_BAND_NDC`) is
+    /// THIS screen's plates — the crew column's right edge and the stats column's left edge
+    /// of the 1920 u frame — so the hero lock reasons about the plates that are drawn.
+    #[test]
+    fn the_hero_panel_free_band_is_the_screens_plates() {
+        let crew_right_u = CREW_OFFSET_U[0] + CREW_SIZE_U[0];
+        let stats_left_u = 1920.0 - STATS_OFFSET_U[0] - STATS_SIZE_U[0];
+        let to_ndc = |u: f32| u / 1920.0 * 2.0 - 1.0;
+        let (left, right) = scene_build::hangar::HERO_PANEL_FREE_BAND_NDC;
+        assert!((to_ndc(crew_right_u) - left).abs() < 1.0e-4, "crew edge {}", to_ndc(crew_right_u));
+        assert!(
+            (to_ndc(stats_left_u) - right).abs() < 1.0e-4,
+            "stats edge {}",
+            to_ndc(stats_left_u)
+        );
+    }
+
     #[test]
     fn the_hit_test_answers_the_rects_the_screen_draws() {
         let (mut state, ui) = hangar();

@@ -219,7 +219,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
     let hero = |screen: GarageScreen| HangarReviewView {
         name: screen.view_name().to_string(),
         eye: crate::hangar::hero_orbit_eye().to_array(),
-        target: crate::hangar::hangar_camera_pivot().to_array(),
+        target: crate::hangar::hero_pivot().to_array(),
         lighting: SceneLighting::garage_hero(),
         // READ from the one place the live client reads it, not copied from it: a literal here
         // is how the goldens ended up locking a near-black sky through roof openings the game
@@ -285,7 +285,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         views.push(HangarReviewView {
             name: name.to_string(),
             eye: crate::hangar::hero_orbit_eye_for(kind).to_array(),
-            target: crate::hangar::hangar_camera_pivot().to_array(),
+            target: crate::hangar::hero_pivot_for(kind).to_array(),
             lighting: SceneLighting::garage_hero(),
             background: crate::hangar::INTERIOR_BACKGROUND,
             vehicle: ReviewVehicle {
@@ -310,7 +310,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
     views.push(HangarReviewView {
         name: "garage_inspector".to_string(),
         eye: crate::hangar::hero_orbit_eye().to_array(),
-        target: crate::hangar::hangar_camera_pivot().to_array(),
+        target: crate::hangar::hero_pivot().to_array(),
         lighting: SceneLighting::garage_hero(),
         background: crate::hangar::INTERIOR_BACKGROUND,
         vehicle: ReviewVehicle {
@@ -336,7 +336,7 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         views.push(HangarReviewView {
             name: name.to_string(),
             eye: crate::hangar::hero_orbit_eye().to_array(),
-            target: crate::hangar::hangar_camera_pivot().to_array(),
+            target: crate::hangar::hero_pivot().to_array(),
             lighting: SceneLighting::garage_hero(),
             background: crate::hangar::INTERIOR_BACKGROUND,
             vehicle: ReviewVehicle {
