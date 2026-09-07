@@ -16,7 +16,8 @@ use glam::{Mat4, Vec3};
 use renderer_api::{MaterialHandle, MeshAsset, MeshHandle, RenderObject, SceneVertex};
 use world_forge::WorldMaterial;
 use world_forge::building_kit::{
-    BuildingPlan, Cladding, KitPart, Placement, TintLane, plan_building_with, plan_ruin,
+    BuildingPlan, Cladding, KitPart, Placement, TintLane, collapse_placements, plan_building_with,
+    plan_ruin,
 };
 
 /// The base of the kit's mesh-handle block. Below the tree ladder's block and the shadowless
@@ -218,6 +219,39 @@ pub struct PlacedBuilding {
     pub objects: Vec<RenderObject>,
     /// B5: the ruin's objects, drawn in phase 1 over the static bake's mound.
     pub ruin_objects: Vec<RenderObject>,
+    /// The tints the objects were built with — the collapse (Z10) builds its pieces the same.
+    pub wall_tint: [f32; 3],
+    pub roof_tint: [f32; 3],
+}
+
+/// One kit placement as the frame draws it, in world space.
+fn kit_object(
+    placement: &Placement,
+    center: Vec3,
+    wall: [f32; 3],
+    roof: [f32; 3],
+    cladding: Cladding,
+) -> RenderObject {
+    RenderObject {
+        tank_id: None,
+        mesh: kit_mesh_handle(placement.part, cladding),
+        material: MaterialHandle(0),
+        transform: (Mat4::from_translation(center) * placement.transform).to_cols_array_2d(),
+        tint: match placement.tint {
+            TintLane::Wall => wall,
+            TintLane::Roof => roof,
+            TintLane::Absolute => [1.0, 1.0, 1.0],
+        },
+        dither: [0.0, 1.0],
+    }
+}
+
+/// A kit building coming down (Z10): its cover index and how far through the fall it is
+/// (0 standing, 1 the ruin).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BuildingCollapse {
+    pub cover: usize,
+    pub progress: f32,
 }
 
 /// The per-map cache of placed buildings.
@@ -279,19 +313,9 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
             };
             let age = plan.signature.age_tint();
             let wall = [wall[0] * age, wall[1] * age, wall[2] * age];
-            let to_object = |placement: &Placement| RenderObject {
-                tank_id: None,
-                mesh: kit_mesh_handle(placement.part, plan.signature.cladding),
-                material: MaterialHandle(0),
-                transform: (Mat4::from_translation(center) * placement.transform)
-                    .to_cols_array_2d(),
-                tint: match placement.tint {
-                    TintLane::Wall => wall,
-                    TintLane::Roof => roof,
-                    TintLane::Absolute => [1.0, 1.0, 1.0],
-                },
-                dither: [0.0, 1.0],
-            };
+            let cladding = plan.signature.cladding;
+            let to_object =
+                |placement: &Placement| kit_object(placement, center, wall, roof, cladding);
             let objects = plan.placements.iter().map(to_object).collect();
             // B5: the ruin, under the sim's rubble height for this kind of box.
             let ceiling = half.y * 2.0 * cover.kind.rubble_height_frac();
@@ -306,6 +330,8 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
                 plan,
                 objects,
                 ruin_objects,
+                wall_tint: wall,
+                roof_tint: roof,
             })
         })
         .collect()
@@ -320,6 +346,20 @@ pub fn building_frame_objects(
     eye: crate::tree_lod::TreeEye,
     cache: &mut KitCache,
 ) -> Vec<RenderObject> {
+    building_frame_objects_collapsing(battlefield, cover_states, &[], eye, cache)
+}
+
+/// [`building_frame_objects`] with the collapses in progress (Z10): a building in phase 1
+/// whose fall is still running draws the ruin AND the standing pieces coming down over it —
+/// `collapse_placements` at the fall's progress; the fall over, the ruin alone, byte for
+/// byte what a plain phase-1 frame draws.
+pub fn building_frame_objects_collapsing(
+    battlefield: &terrain::BattlefieldMap,
+    cover_states: &[u8],
+    collapses: &[BuildingCollapse],
+    eye: crate::tree_lod::TreeEye,
+    cache: &mut KitCache,
+) -> Vec<RenderObject> {
     let mut objects = Vec::new();
     for building in cache.placed(battlefield) {
         if !eye.sees(building.center, building.radius) {
@@ -327,8 +367,34 @@ pub fn building_frame_objects(
         }
         match cover_states.get(building.cover).copied().unwrap_or(0) {
             0 => objects.extend_from_slice(&building.objects),
-            // B5: the ruin with form over the bake's mound.
-            1 => objects.extend_from_slice(&building.ruin_objects),
+            // B5: the ruin with form over the bake's mound — and, Z10, the walls still coming
+            // down over it while the fall runs.
+            1 => {
+                objects.extend_from_slice(&building.ruin_objects);
+                let falling = collapses
+                    .iter()
+                    .find(|collapse| collapse.cover == building.cover && collapse.progress < 1.0);
+                if let Some(collapse) = falling {
+                    let cover = &battlefield.static_cover[building.cover];
+                    let half = Vec3::from_array(cover.half_extents_m);
+                    let cladding = building.plan.signature.cladding;
+                    let pieces = collapse_placements(
+                        &building.plan,
+                        cover_seed(&cover.id),
+                        half,
+                        collapse.progress,
+                    );
+                    objects.extend(pieces.iter().map(|piece| {
+                        kit_object(
+                            piece,
+                            building.center,
+                            building.wall_tint,
+                            building.roof_tint,
+                            cladding,
+                        )
+                    }));
+                }
+            }
             _ => {}
         }
     }
@@ -529,6 +595,31 @@ mod tests {
         let mut states = vec![0u8; battlefield.static_cover.len()];
         let first = cache.placed(&battlefield)[0].cover;
         states[first] = 1;
+        // Z10: while the fall runs the ruin AND the falling pieces draw; at 0 the pieces are
+        // the standing house; the fall over, the frame is the plain phase-1 frame byte for byte.
+        let eye = crate::tree_lod::TreeEye::at(Vec3::new(500.0, 3.0, 500.0));
+        let ruin_alone = building_frame_objects(&battlefield, &states, eye, &mut cache);
+        let at = |progress: f32, cache: &mut KitCache| {
+            building_frame_objects_collapsing(
+                &battlefield,
+                &states,
+                &[BuildingCollapse { cover: first, progress }],
+                eye,
+                cache,
+            )
+        };
+        let standing_count = cache.placed(&battlefield)[0].objects.len();
+        let ruin_count = cache.placed(&battlefield)[0].ruin_objects.len();
+        let falling = at(0.5, &mut cache);
+        assert_eq!(falling.len(), ruin_alone.len() + standing_count, "the ruin and the pieces");
+        assert!(ruin_count > 0 && standing_count > 0);
+        let start = at(0.0, &mut cache);
+        let standing = &cache.placed(&battlefield)[0].objects;
+        assert!(
+            standing.iter().all(|object| start.contains(object)),
+            "at 0 the standing house is what falls"
+        );
+        assert_eq!(at(1.0, &mut cache), ruin_alone, "the fall over: the ruin, byte for byte");
         let fewer = building_frame_objects(
             &battlefield,
             &states,

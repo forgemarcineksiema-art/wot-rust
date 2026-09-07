@@ -482,6 +482,49 @@ mod tests {
         assert_eq!(app.battlefield.static_cover, authored);
     }
 
+    /// Z10: a kit dwelling stepping to rubble starts its fall — the sim's box is rubble at
+    /// once and the bake is asked for, the theatre's dust bursts, and the picture keeps the
+    /// walls coming down for `COLLAPSE_DURATION_S`; then the list is empty and the ruin the
+    /// kit draws in phase 1 is what stands.
+    #[test]
+    fn a_kit_dwelling_coming_down_lays_its_walls_into_the_ruin_over_a_second() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+        let cover_count = app.battlefield.static_cover.len();
+        let dwelling = app
+            .battlefield
+            .static_cover
+            .iter()
+            .position(scene_build::building_kit::kit_dresses)
+            .expect("the battle map has a kit dwelling");
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        app.fx = crate::fx::FxSystem::default();
+        app.accept_and_sync(snapshot);
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        snapshot.cover_states[dwelling] = 1;
+        app.accept_and_sync(snapshot);
+
+        assert_eq!(app.live_cover.phase_bytes()[dwelling], 1, "the sim's box is rubble at once");
+        assert!(app.scene_cover_dirty, "the mound bakes");
+        assert!(app.fx.live_particles() > 0, "the theatre's dust");
+        assert_eq!(app.building_collapses.len(), 1, "one fall in progress");
+        let mid = crate::app::ingest::collapses_now_of(&app.building_collapses);
+        assert_eq!(mid[0].cover, dwelling);
+        assert!(mid[0].progress < 1e-6);
+        app.tick_building_collapses(world_forge::building_kit::COLLAPSE_DURATION_S * 0.5);
+        let mid = crate::app::ingest::collapses_now_of(&app.building_collapses);
+        assert!((mid[0].progress - 0.5).abs() < 1e-3, "half-way down");
+        app.tick_building_collapses(world_forge::building_kit::COLLAPSE_DURATION_S * 0.6);
+        assert!(app.building_collapses.is_empty(), "the fall is over; the ruin stands");
+    }
+
     #[test]
     fn a_collapsing_cover_object_bursts_dust_and_flags_a_scene_rebuild() {
         let mut app = ClientApp::new();

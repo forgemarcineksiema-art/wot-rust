@@ -104,6 +104,14 @@ pub(crate) struct ActiveTopple {
     pub(crate) age_s: f32,
 }
 
+/// One kit building coming down (the one program's Z10): its cover index and how long it has
+/// been falling.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ActiveCollapse {
+    pub(crate) cover: usize,
+    pub(crate) age_s: f32,
+}
+
 /// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
 /// What one crater re-mesh produces. The ground is always rebuilt — a hole you can drive into is
 /// a real change — but the card meadow usually is not rebuilt at all, and when it is, usually did
@@ -516,6 +524,9 @@ pub(crate) struct ClientApp {
     /// The trees going down right now (Z8). The sim has already cleared their boxes; the
     /// picture lays them down over `TOPPLE_DURATION_S` before the wreckage bakes.
     tree_topples: Vec<ActiveTopple>,
+    /// The kit buildings coming down right now (Z10): the sim's box is already rubble; the
+    /// picture lays the walls down over `COLLAPSE_DURATION_S` into the ruin.
+    building_collapses: Vec<ActiveCollapse>,
     desired_aim: DesiredAim,
     garage: GarageState,
     /// Behind an `Arc` because background bakes (statics rebuild, crater re-mesh) take a handle
@@ -967,6 +978,7 @@ impl ClientApp {
             cover_scar_list: Vec::new(),
             cover_falls: Vec::new(),
             tree_topples: Vec::new(),
+            building_collapses: Vec::new(),
             ground_rebuild_rx: None,
             dressing_uploaded_fingerprint: 0,
             ground_deform_dirty: false,

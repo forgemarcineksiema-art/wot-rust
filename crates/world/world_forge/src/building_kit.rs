@@ -1378,6 +1378,92 @@ pub fn plan_ruin(
     Some(placements)
 }
 
+/// How long a collapse takes to lay the walls down (the one program's Z10).
+pub const COLLAPSE_DURATION_S: f32 = 1.0;
+
+/// The farthest a wall piece leans into the box as it falls.
+const COLLAPSE_LEAN_RAD: f32 = 1.2;
+
+/// Z10: the walls come DOWN. The standing plan's pieces at `progress` of the collapse: every
+/// piece drops to the floor along a gravity curve, and a WALL piece (a bay, the plinth, the
+/// eave, a downpipe, a gable) leans about its own foot INTO the box — toward the centre, never
+/// out past the reach the plan itself keeps — by a lean of its own from the seed; the roof's
+/// pieces drop straight (a slope swung about its eave rises before it falls, and a swung ridge
+/// leaves the box). Deterministic frame for frame, so every client sees one fall. Identical to
+/// the plan at 0; empty from 1, when the ruin (`plan_ruin`) is what stands.
+pub fn collapse_placements(
+    plan: &BuildingPlan,
+    seed: u64,
+    half: Vec3,
+    progress: f32,
+) -> Vec<Placement> {
+    if progress >= 1.0 {
+        return Vec::new();
+    }
+    let p = progress.max(0.0);
+    let mut rng = Rng(seed ^ 0x636f_6c6c_6170_7365);
+    plan.placements
+        .iter()
+        .map(|placement| {
+            let origin = placement.transform.w_axis.truncate();
+            let lean = rng.unit();
+            let height = (origin.y + half.y).max(0.0);
+            let drop = height * p * p;
+            let leans = matches!(
+                placement.part,
+                KitPart::WallBay
+                    | KitPart::WindowBay { .. }
+                    | KitPart::DoorBay { .. }
+                    | KitPart::ShopBay { .. }
+                    | KitPart::PortalBay
+                    | KitPart::Plinth
+                    | KitPart::Eave
+                    | KitPart::GableEnd { .. }
+                    | KitPart::Downpipe
+                    | KitPart::Footing
+            );
+            let tilt = if leans {
+                // The piece's own outward (+X of its frame), flattened; the facade normal for
+                // a bay. It falls the other way — into the box.
+                let outward = placement.transform.transform_vector3(Vec3::X);
+                let outward = Vec3::new(outward.x, 0.0, outward.z);
+                let inward = if outward.length() > 0.1 {
+                    -outward.normalize()
+                } else {
+                    -Vec3::new(origin.x, 0.0, origin.z).normalize_or_zero()
+                };
+                let axis = Vec3::new(inward.z, 0.0, -inward.x);
+                // A tall piece lands ACROSS the box: its lean stops where its top would
+                // reach the far wall (a tenement's downpipe is taller than the box is deep).
+                let top = placement
+                    .part
+                    .mesh()
+                    .vertices()
+                    .iter()
+                    .map(|vertex| {
+                        placement.transform.transform_point3(vertex.position).y - origin.y
+                    })
+                    .fold(0.0f32, f32::max);
+                let across = 2.0 * (inward.x.abs() * half.x + inward.z.abs() * half.z);
+                let room = ((across - 0.15) / top.max(0.01)).clamp(0.0, 1.0).asin();
+                if axis.length() > 0.5 {
+                    let full = ((0.7 + lean * 0.5) * COLLAPSE_LEAN_RAD).min(room);
+                    Quat::from_axis_angle(axis.normalize(), full * p.powf(1.5))
+                } else {
+                    Quat::IDENTITY
+                }
+            } else {
+                Quat::IDENTITY
+            };
+            let transform = Mat4::from_translation(origin - Vec3::Y * drop)
+                * Mat4::from_quat(tilt)
+                * Mat4::from_translation(-origin)
+                * placement.transform;
+            Placement { part: placement.part, transform, tint: placement.tint }
+        })
+        .collect()
+}
+
 /// The farthest any vertex of a placement list reaches past the box, per axis.
 pub fn placements_reach_past_box(placements: &[Placement], half: Vec3) -> Vec3 {
     let mut reach = Vec3::ZERO;
@@ -1409,6 +1495,66 @@ pub fn plan_reach_past_box(plan: &BuildingPlan, half: Vec3) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Z10: the walls come down inside the box. At the start of the collapse the pieces stand
+    /// where the plan put them; through it every piece is lower than it was, no vertex rises
+    /// over the top, nothing reaches past the plan's own horizontal reach; at the end nothing
+    /// stands (the ruin takes over). The same seed falls the same way twice.
+    #[test]
+    fn a_collapse_lays_the_pieces_down_inside_the_box_and_ends_with_nothing_standing() {
+        let top_reach = |pieces: &[Placement], half: Vec3| {
+            let mut over = f32::MIN;
+            for piece in pieces {
+                for vertex in piece.part.mesh().vertices() {
+                    let p = piece.transform.transform_point3(vertex.position);
+                    over = over.max(p.y - half.y);
+                }
+            }
+            over
+        };
+        let mut checked = 0;
+        for (style, half) in boxes() {
+            for seed in [1u64, 7, 42] {
+                let Some(plan) = plan_building(style, seed, half) else {
+                    continue;
+                };
+                checked += 1;
+                let start = collapse_placements(&plan, seed, half, 0.0);
+                assert_eq!(start.len(), plan.placements.len());
+                for (a, b) in start.iter().zip(&plan.placements) {
+                    assert!(a.transform.abs_diff_eq(b.transform, 1e-4), "at 0 the plan stands");
+                }
+                let mut previous_y: Vec<f32> =
+                    plan.placements.iter().map(|p| p.transform.w_axis.y).collect();
+                for progress in [0.25f32, 0.5, 0.75, 0.99] {
+                    let pieces = collapse_placements(&plan, seed, half, progress);
+                    let again = collapse_placements(&plan, seed, half, progress);
+                    assert_eq!(pieces, again, "one fall per seed");
+                    for piece in &pieces {
+                        let reach = placements_reach_past_box(std::slice::from_ref(piece), half);
+                        assert!(
+                            reach.x <= SCENERY_REACH_M + 1e-3 && reach.z <= SCENERY_REACH_M + 1e-3,
+                            "{style:?} seed {seed} at {progress}: {:?} left the box: {reach} (origin {})",
+                            piece.part,
+                            piece.transform.w_axis
+                        );
+                    }
+                    let over = top_reach(&pieces, half);
+                    assert!(
+                        over <= 1e-3,
+                        "{style:?} seed {seed} at {progress}: rose {over} over the top"
+                    );
+                    for (index, piece) in pieces.iter().enumerate() {
+                        let y = piece.transform.w_axis.y;
+                        assert!(y <= previous_y[index] + 1e-4, "every piece keeps falling");
+                        previous_y[index] = y;
+                    }
+                }
+                assert!(collapse_placements(&plan, seed, half, 1.0).is_empty(), "the fall is over");
+            }
+        }
+        assert!(checked >= 6, "the fixtures carry plans");
+    }
 
     /// The ridge may sit this far under the box top and the plan still stands (the roof is
     /// the box's honest top otherwise: a shell that stops in air over a visible roof is a lie).

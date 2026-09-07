@@ -686,15 +686,17 @@ pub fn tree_frame_objects_with_backdrop(
     eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
-    tree_frame_objects_with_topples(battlefield, cover_states, &[], eye, state)
+    tree_frame_objects_with_topples(battlefield, cover_states, &[], &[], eye, state)
 }
 
-/// [`tree_frame_objects_with_backdrop`] with the falls in progress (Z8): the trees of a
-/// toppling box draw tilted about their foot instead of vanishing.
+/// [`tree_frame_objects_with_backdrop`] with the falls in progress: the trees of a toppling
+/// box (Z8) draw tilted about their foot instead of vanishing, and the walls of a collapsing
+/// kit building (Z10) come down over its ruin.
 pub fn tree_frame_objects_with_topples(
     battlefield: &terrain::BattlefieldMap,
     cover_states: &[u8],
     topples: &[TreeTopple],
+    collapses: &[crate::building_kit::BuildingCollapse],
     eye: TreeEye,
     state: &mut TreeLodState,
 ) -> Vec<RenderObject> {
@@ -728,9 +730,10 @@ pub fn tree_frame_objects_with_topples(
     );
     // B3: the dwellings, as instances of the building kit — the same dressing pass, so the
     // battle and every review instrument draw the same town.
-    objects.extend(crate::building_kit::building_frame_objects(
+    objects.extend(crate::building_kit::building_frame_objects_collapsing(
         battlefield,
         cover_states,
+        collapses,
         eye,
         &mut state.buildings,
     ));
