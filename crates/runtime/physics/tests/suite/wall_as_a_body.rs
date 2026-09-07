@@ -42,34 +42,56 @@ fn hull_body(state: &TankKinematicState, spec: &TankSpec) -> ContactBody {
     }
 }
 
-/// One solved tick, the way the authority and the predictor run it: advance, the roster solve
-/// with the standing solids within reach, settle. Returns the pairs that pressed and whether the
-/// backstop veto had anything to refuse.
-fn solved_tick(
-    state: &mut TankKinematicState,
-    spec: &TankSpec,
-    settings: &TankControllerSettings,
-    map: &HeightMap,
-    cover: &[StaticCoverObject],
-    running_gear: &ContactFootprint,
-    cache: &mut ContactCache,
-    input: TankControlInput,
-) -> (Vec<physics::ContactPair>, bool) {
-    let hull = TankFootprint::from_plan(spec.hull_plan());
-    let obstacles = TankWorldObstacles::new(cover, hull);
-    let phase =
-        advance_tank_on_world(state, input, settings, Some(map), obstacles, Some(running_gear), DT);
-    let mut bodies = vec![hull_body(state, spec)];
-    bodies.extend(solid_bodies_near(cover, &bodies, DT));
-    let report = resolve_contacts(&bodies, cache, DT);
-    state.velocity += report.bodies[0].delta_velocity;
-    state.yaw_rate_rad_s += report.bodies[0].delta_yaw_rate_rad_s;
-    // What the settle will integrate, before the backstop can touch it.
-    let intended = state.position + Vec3::new(state.velocity.x, 0.0, state.velocity.z) * DT;
-    settle_tank_on_world(state, settings, phase, Some(map), obstacles, Some(running_gear), DT);
-    let refused = (state.position.x - intended.x).abs() > 1.0e-4
-        || (state.position.z - intended.z).abs() > 1.0e-4;
-    (report.pairs, refused)
+/// The world one hull is solved in: its spec and settings, the flat ground, the cover.
+struct Rig<'a> {
+    spec: &'a TankSpec,
+    settings: TankControllerSettings,
+    map: HeightMap,
+    cover: &'a [StaticCoverObject],
+    running_gear: ContactFootprint,
+}
+
+impl Rig<'_> {
+    /// One solved tick, the way the authority and the predictor run it: advance, the roster
+    /// solve with the standing solids within reach, settle. Returns the pairs that pressed and
+    /// whether the backstop veto had anything to refuse.
+    fn solved_tick(
+        &self,
+        state: &mut TankKinematicState,
+        cache: &mut ContactCache,
+        input: TankControlInput,
+    ) -> (Vec<physics::ContactPair>, bool) {
+        let hull = TankFootprint::from_plan(self.spec.hull_plan());
+        let obstacles = TankWorldObstacles::new(self.cover, hull);
+        let phase = advance_tank_on_world(
+            state,
+            input,
+            &self.settings,
+            Some(&self.map),
+            obstacles,
+            Some(&self.running_gear),
+            DT,
+        );
+        let mut bodies = vec![hull_body(state, self.spec)];
+        bodies.extend(solid_bodies_near(self.cover, &bodies, DT));
+        let report = resolve_contacts(&bodies, cache, DT);
+        state.velocity += report.bodies[0].delta_velocity;
+        state.yaw_rate_rad_s += report.bodies[0].delta_yaw_rate_rad_s;
+        // What the settle will integrate, before the backstop can touch it.
+        let intended = state.position + Vec3::new(state.velocity.x, 0.0, state.velocity.z) * DT;
+        settle_tank_on_world(
+            state,
+            &self.settings,
+            phase,
+            Some(&self.map),
+            obstacles,
+            Some(&self.running_gear),
+            DT,
+        );
+        let refused = (state.position.x - intended.x).abs() > 1.0e-4
+            || (state.position.z - intended.z).abs() > 1.0e-4;
+        (report.pairs, refused)
+    }
 }
 
 /// The row's lock: a 14 m/s wall hit is a contact — one pair with the hull's whole momentum in
@@ -78,11 +100,14 @@ fn solved_tick(
 #[test]
 fn a_fourteen_metre_per_second_wall_hit_is_a_contact_that_dives_the_nose() {
     let spec = TankSpec::t54_1951();
-    let settings = TankControllerSettings::from_spec(&spec);
-    let running_gear = ContactFootprint::for_vehicle(VehicleKind::T54_1951);
-    let map = HeightMap::flat(121, 121, 1.0, 0.0).expect("flat");
     let wall = tenement();
-    let cover = std::slice::from_ref(&wall);
+    let rig = Rig {
+        spec: &spec,
+        settings: TankControllerSettings::from_spec(&spec),
+        map: HeightMap::flat(121, 121, 1.0, 0.0).expect("flat"),
+        cover: std::slice::from_ref(&wall),
+        running_gear: ContactFootprint::for_vehicle(VehicleKind::T54_1951),
+    };
     let mut state = TankKinematicState {
         position: Vec3::new(60.0, 0.0, 60.0),
         velocity: Vec3::new(0.0, 0.0, 14.0),
@@ -92,16 +117,7 @@ fn a_fourteen_metre_per_second_wall_hit_is_a_contact_that_dives_the_nose() {
     let coast = TankControlInput { throttle: 0.0, steer: 0.0, brake: 0.0 };
     let (mut hit_impulse, mut deepest_dive, mut refused_ever) = (0.0_f32, 0.0_f32, false);
     for _ in 0..90 {
-        let (pairs, refused) = solved_tick(
-            &mut state,
-            &spec,
-            &settings,
-            &map,
-            cover,
-            &running_gear,
-            &mut cache,
-            coast,
-        );
+        let (pairs, refused) = rig.solved_tick(&mut state, &mut cache, coast);
         refused_ever |= refused;
         for pair in &pairs {
             assert!(pair.b >= 1 || pair.a >= 1, "the only other body is the wall");
