@@ -18,7 +18,6 @@ mod gpu_diagnostics;
 mod grass_crushers;
 mod ground_material;
 mod hdr_formation;
-mod hud_budget;
 mod image_formation;
 mod local_lights;
 mod msaa_targets;
