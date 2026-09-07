@@ -11,6 +11,7 @@ mod map_plan;
 mod math;
 mod river;
 mod rubble;
+mod ruts;
 mod scenery;
 mod sculpt;
 mod water;
@@ -39,6 +40,7 @@ pub use ground::{
     road_blend_at, road_bound, strongest_road_at, value_noise,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError, cell_splits_on_main_diagonal};
+pub use ruts::{MAX_RUT_SEGMENTS, RUT_HALF_WIDTH_M, RUT_PASS_DEPTH_M, RutField, RutSegment};
 // The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
 // helpers — one grounding/grounding-math implementation, no forked copies.
 pub use map_build::{

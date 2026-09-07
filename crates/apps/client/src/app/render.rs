@@ -226,12 +226,20 @@ impl ClientApp {
                 }
             }
         }
+        // T8: the ruts the tracks pressed since the last bake — debounced, so a column on the
+        // move re-meshes its lane every couple of seconds, not every metre.
+        if self.ruts_dirty && self.rut_rebuild_clock_s >= super::RUT_REBUILD_INTERVAL_S {
+            self.ruts_dirty = false;
+            self.rut_rebuild_clock_s = 0.0;
+            self.ground_deform_dirty = true;
+        }
         if !self.ground_deform_dirty {
             return;
         }
         self.ground_deform_dirty = false;
         let (tx, rx) = std::sync::mpsc::channel();
         self.ground_rebuild_rx = Some(rx);
+        let ruts = self.ruts.clone();
         // Both handles are `Arc` clones — pointer bumps, not copies. The battlefield carries the
         // heightmap's crater overlay (the bake reads `sample_height`, the exact deformed truth
         // the sim and predictor stand on) and the ground maps ride along so the card meadow
@@ -257,7 +265,7 @@ impl ClientApp {
             crate::meadow_changed_by(baked, self.battlefield.heightmap.crater_records(), footprint)
         });
         std::thread::spawn(move || {
-            let ground = crate::battlefield_ground_mesh(&battlefield);
+            let ground = crate::battlefield_ground_mesh_with_ruts(&battlefield, &ruts);
             let dressing = bake_meadow
                 .then(|| {
                     let (maps, _, _) = meadow.as_ref()?;
@@ -505,6 +513,7 @@ impl ClientApp {
         self.fx.tick(frame_dt);
         self.tick_tree_topples(frame_dt);
         self.tick_building_collapses(frame_dt);
+        self.rut_rebuild_clock_s += frame_dt;
         // Where every live shell is this frame, remembered for the path it draws (A8).
         let shells =
             self.render_state.interpolated_shells(super::frame_scene::SNAPSHOT_INTERVAL_SECONDS);
