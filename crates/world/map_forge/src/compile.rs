@@ -125,13 +125,14 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     let mut static_cover = expand_objects(blueprint, &heightmap);
     let roads = expand_roads(blueprint);
     let scenery = expand_scenery(blueprint, &heightmap, &static_cover, &roads);
-    // An oak is not a painting: its trunk stops a shell, blocks an eye and stands in a
-    // hull's way until the hull pushes it over. Deriving the boxes HERE — from the scenery the
-    // scatter just produced — is what keeps that promise honest: every authored tree gets one,
-    // a mirrored pair gets mirrored trunks, and the two can never drift apart the way a
+    // A tree is not a painting: its bole stops a shell, blocks an eye and stands in a hull's
+    // way until the hull pushes it over. Deriving the boxes HERE — from the scenery the scatter
+    // just produced, sized off the very wood the ladder draws (X10: every authored species, not
+    // the oak alone) — is what keeps that promise honest: every authored tree gets one, a
+    // mirrored pair gets mirrored trunks, and the two can never drift apart the way a
     // hand-authored box list would. They come after `expand_scenery` on purpose: a tree has no
     // business avoiding its own trunk.
-    static_cover.extend(oak_trunk_cover(&scenery));
+    static_cover.extend(tree_trunk_cover(&scenery));
     // A field stone over the belly line is the same promise (X5): the scatter just placed it,
     // the box is the bounds of the stone it placed, and a hull meets exactly what it sees.
     static_cover.extend(boulder_cover(&scenery));
@@ -319,52 +320,121 @@ fn expand_roads(blueprint: &MapBlueprint) -> Vec<Road> {
     out
 }
 
-/// The procedural oak's trunk as a gameplay solid, one box per authored tree.
+/// The species an instanced tree kind draws as — the one answer the map compiler's trunk box
+/// (X10) and `scene_build`'s ladder must agree on (locked there: `ladder_species` says the same).
+pub fn trunk_species_for(kind: SceneryKind) -> Option<world_forge::tree::TreeSpecies> {
+    use world_forge::tree::TreeSpecies;
+    match kind {
+        SceneryKind::Oak => Some(TreeSpecies::Oak),
+        SceneryKind::Poplar => Some(TreeSpecies::Poplar),
+        SceneryKind::FruitTree => Some(TreeSpecies::FruitTree),
+        _ => None,
+    }
+}
+
+/// How far the trunk box reaches past the bole's butt radius, metres: a hand for the bark's
+/// relief, inside the lock's five centimetres (wood past the butt by more than
+/// `LIMB_LEAVES_M` is a limb and ends the box).
+const TRUNK_BOX_SKIN_M: f32 = 0.03;
+
+/// An authored tree's bole as a gameplay solid, one box per tree (the one program's X10).
 ///
-/// Sized to the VISIBLE trunk, because the doctrine is that a cover box IS the footprint the
-/// eye reads: a mature procedural oak (`world_forge::tree`) stands ~17–18 m with a ~1.0 m
-/// butt, and the column below the crown is what a hull meets and a shell stops in. The canopy
-/// above it is deliberately NOT covered — leaves do not stop an AP round, and a box that
-/// pretended otherwise would hand crews cover they cannot see themselves taking.
+/// Sized to the VISIBLE bole, because the doctrine is that a cover box IS the footprint the eye
+/// reads: the box is the bole's butt radius and its first limb, measured off the very wood mesh
+/// the ladder draws (`world_forge::tree::authored::bole_metrics`, per species and variant, the
+/// variant from the same seed the ladder grows it from), at the instance's scale, set into the
+/// ground by the ladder's own sink. The crown above it is deliberately NOT covered — leaves do not
+/// stop an AP round, and a box that pretended otherwise would hand crews cover they cannot see
+/// themselves taking. Until X10 only the oak earned a box, from two literals of a generator that
+/// no longer ships; the poplars of Bystra, Mazurski and Orliny and the orchards' fruit trees were
+/// twenty-metre boles a hull drove through.
 ///
 /// `TreeTrunk` is the kind that says exactly this and nothing more: crushable, so a hull pushes
 /// the tree over instead of parking against it forever; destructible by shells; wrecked into the
 /// same stumps a felled hedgerow leaves — and alone among the kinds it bakes no box of its own,
 /// because the tree's mesh is already standing there.
-fn oak_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
-    /// Half-width of the trunk at chest height on an unscaled tree, metres. The procedural
-    /// oak's `trunk_radius` is 0.52 m; 0.6 covers the butt at chest height with a small
-    /// margin for the deterministic lean.
-    const TRUNK_HALF_M: f32 = 0.6;
-    /// Half-height of the covered column: the clear bole under the first limbs (the oak's
-    /// limbs start at ~55% of the 9.2 m trunk, i.e. ~5 m).
-    const TRUNK_HALF_HEIGHT_M: f32 = 5.0;
-    /// The procedural oak bakes at mature scale already — the only factor is the instance's
-    /// own scatter scale. (The retired imported oak needed a 1.7 species fix; the procedural
-    /// species table IS 1:1.)
-    const SPECIES_SCALE: f32 = 1.0;
-
-    scenery
+fn tree_trunk_cover(scenery: &[SceneryInstance]) -> Vec<StaticCoverObject> {
+    // A mirrored pair (the same nonzero `seed`) draws two individuals — its own variant each
+    // side, A2.1's own plant — and the map report holds every cover box to its mirror twin. So
+    // a pair's two boxes are ONE box: the wider bole's radius and the lower first limb of the
+    // two, which still holds each bole and still ends under each first limb (the lock says so
+    // of every tree), without re-rolling a forest the owner has reviewed.
+    let mut boxes: Vec<(usize, [f32; 3], [f32; 3])> = scenery
         .iter()
-        .filter(|instance| instance.kind == SceneryKind::Oak)
         .enumerate()
-        .map(|(index, instance)| {
-            let scale = instance.scale * SPECIES_SCALE;
-            let half_height = TRUNK_HALF_HEIGHT_M * scale;
+        .filter_map(|(index, instance)| {
+            tree_trunk_box_of(instance).map(|(center, half)| (index, center, half))
+        })
+        .collect();
+    let twin_of = |index: usize| -> Option<usize> {
+        let seed = scenery[index].seed;
+        if seed == 0 {
+            return None;
+        }
+        scenery
+            .iter()
+            .enumerate()
+            .find(|(other, instance)| *other != index && instance.seed == seed)
+            .map(|(other, _)| other)
+    };
+    let own: std::collections::HashMap<usize, [f32; 3]> =
+        boxes.iter().map(|(index, _, half)| (*index, *half)).collect();
+    for (index, center, half) in &mut boxes {
+        if let Some(twin) = twin_of(*index)
+            && let Some(twin_half) = own.get(&twin)
+        {
+            let ground = center[1] - half[1];
+            let half_xz = half[0].max(twin_half[0]);
+            let half_y = half[1].min(twin_half[1]);
+            *half = [half_xz, half_y, half_xz];
+            center[1] = ground + half_y;
+        }
+    }
+    boxes
+        .into_iter()
+        .map(|(index, center, half)| {
+            let kind = scenery[index].kind;
             StaticCoverObject {
-                id: format!("oak_trunk_{index:03}"),
-                name: "oak trunk".to_string(),
+                id: format!("{}_trunk_{index:03}", trunk_id_stem(kind)),
+                name: format!("{} trunk", trunk_id_stem(kind)),
                 kind: StaticCoverKind::TreeTrunk,
-                center: [
-                    instance.position[0],
-                    instance.position[1] + half_height,
-                    instance.position[2],
-                ],
-                half_extents_m: [TRUNK_HALF_M * scale, half_height, TRUNK_HALF_M * scale],
+                center,
+                half_extents_m: half,
                 yaw_rad: 0.0,
             }
         })
         .collect()
+}
+
+fn trunk_id_stem(kind: SceneryKind) -> &'static str {
+    match kind {
+        SceneryKind::Oak => "oak",
+        SceneryKind::Poplar => "poplar",
+        SceneryKind::FruitTree => "fruit",
+        _ => "tree",
+    }
+}
+
+/// The ladder sets every trunk into its ground by this much (`scene_build::tree_lod::TRUNK_SINK_M`,
+/// locked equal there): the box starts at the ground the eye sees the bole leave.
+pub const TRUNK_SINK_M: f32 = 0.35;
+
+/// The box one tree instance earns — its centre and half extents in the world — or `None` for
+/// a kind the ladder does not draw as a tree. Public so the honesty lock can ask the same
+/// question of the same tree.
+pub fn tree_trunk_box_of(instance: &SceneryInstance) -> Option<([f32; 3], [f32; 3])> {
+    let species = trunk_species_for(instance.kind)?;
+    let seed = world_forge::tree::authored::instance_tree_seed(instance.position);
+    let (variant, _mirrored) = world_forge::tree::authored::variant_of_seed(seed);
+    let bole = world_forge::tree::authored::bole_metrics(species, variant)?;
+    let scale = instance.scale;
+    let half_xz = bole.bole_radius_m * scale + TRUNK_BOX_SKIN_M;
+    // The bole from the ground up to the first limb, the mesh sunk by the ladder's rule.
+    let top_over_ground = (bole.first_limb_m * scale - TRUNK_SINK_M).max(0.5);
+    Some((
+        [instance.position[0], instance.position[1] + top_over_ground * 0.5, instance.position[2]],
+        [half_xz, top_over_ground * 0.5, half_xz],
+    ))
 }
 
 /// A scattered field stone taller than the fleet's belly line as a gameplay solid, one box per

@@ -29,10 +29,15 @@ fn battle_cover() -> Vec<StaticCoverObject> {
 /// The urban-map fixture (urban-map program PR-03): a 150-box street grid between the battle
 /// lines — the box count the Ostrogorsk core targets (110–140, ceiling 160). The broadphase
 /// prefilters in spotting/shell-trace/movement exist for THIS shape; the bench proves the
-/// budget instead of assuming it.
+/// budget instead of assuming it. `urban_cover_of(12)` is the 180-box envelope X10 raised the
+/// ceiling to (every authored tree earns a trunk box: Ostrogorsk's 62 put it at 177).
 fn urban_cover() -> Vec<StaticCoverObject> {
+    urban_cover_of(10)
+}
+
+fn urban_cover_of(columns: usize) -> Vec<StaticCoverObject> {
     let mut out = Vec::new();
-    for column in 0..10 {
+    for column in 0..columns {
         for row in 0..15 {
             out.push(StaticCoverObject {
                 id: format!("block_c{column}_r{row}"),
@@ -91,6 +96,10 @@ fn combat_hot_path_benchmark(c: &mut Criterion) {
     });
     c.bench_function("combat_128_ticks_14_tank_battle_urban_150", |b| {
         let cover = urban_cover();
+        b.iter(|| run_battle(&cover));
+    });
+    c.bench_function("combat_128_ticks_14_tank_battle_urban_180", |b| {
+        let cover = urban_cover_of(12);
         b.iter(|| run_battle(&cover));
     });
 }

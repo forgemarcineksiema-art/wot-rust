@@ -47,13 +47,16 @@ fn the_7v7_format_is_todays_battle_byte_for_byte() {
         // over the belly line is a `Boulder` cover box now (Orliny 124, Mazurski 60, Bystra 20,
         // Prokhorovka 12), and a cover object rides the snapshot as its phase byte and its wall
         // segments — so the four maps with stones moved and Ostrogorsk, which has none, did not.
-        // The deployment (seeds, spawn zones, facing yaws) is untouched.
+        // The deployment (seeds, spawn zones, facing yaws) is untouched. Re-recorded again the
+        // same day for X10, no wire change: every authored tree earns a `TreeTrunk` box now
+        // (308 on five maps — the oak alone had one), and each rides the snapshot as its phase
+        // byte and wall segments, so all five maps moved and the deployment did not.
         let expected: u64 = match map {
-            terrain::MapId::ProkhorovkaHill252_2 => 0x3cfdad653489940f,
-            terrain::MapId::BystraValley => 0x15dd121ae3c9a480,
-            terrain::MapId::OrlinyPereval => 0xec7747217c25f75d,
-            terrain::MapId::Ostrogorsk => 0x1335e5fb47ab34c9,
-            terrain::MapId::MazurskiPrzesmyk => 0x20d2360d46fd5673,
+            terrain::MapId::ProkhorovkaHill252_2 => 0x5369d1009a5c1282,
+            terrain::MapId::BystraValley => 0x0a919dd9907491f3,
+            terrain::MapId::OrlinyPereval => 0xc5c9df38584067ea,
+            terrain::MapId::Ostrogorsk => 0xc23720800664feb0,
+            terrain::MapId::MazurskiPrzesmyk => 0xc4b5c4519ae4eb9b,
             _ => panic!("record a baseline for a newly shipped map"),
         };
         if hash != expected {

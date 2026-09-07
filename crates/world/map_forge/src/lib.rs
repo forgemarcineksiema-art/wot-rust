@@ -14,11 +14,11 @@ mod report;
 
 pub use backdrop::{backdrop_height, cached_blueprint_by_id};
 pub use catalog::{battlefield, blueprint_for, cached_blueprint, formats, set_scratch_source};
-pub use compile::boulder_box_of;
 pub use compile::{
     ForgeError, TownGridAnnex, TownGridCell, TownGridFrame, compile, town_grid_cells,
     town_grid_frame, town_grid_member_count,
 };
+pub use compile::{TRUNK_SINK_M, boulder_box_of, tree_trunk_box_of, trunk_species_for};
 pub use golden::{battlefield_hash, map_golden_hashes};
 pub use report::{
     DESTRUCTIBLE_FLOOR, DRESSED_MAP_TREES, HullDownSpot, MapReport, RETIRED_KINDS, ReportEntry,

@@ -125,7 +125,7 @@ pub fn ladder_tree_count(objects: &[RenderObject]) -> usize {
 /// The seed an instance grows from — its position bits, the statics bake's own rule
 /// (`foliage::statics_tree_seed`) — which names its variant and mirror on every route.
 pub fn instance_seed(instance: &SceneryInstance) -> u64 {
-    crate::foliage::statics_tree_seed(instance.position)
+    crate::foliage::statics_tree_seed(instance)
 }
 
 /// The variant an instance draws on the ladder (the mirror is a statics-only luxury: a shared
@@ -137,7 +137,9 @@ pub fn instance_variant(instance: &SceneryInstance) -> u32 {
 /// Which scenery kinds ride the instanced ladder, and as which species. `None` is a kind the
 /// statics bake still owns (rocks, street furniture, the retired imports). ONE answer for
 /// the frame builder, the statics bake's skip rule and the instruments that must draw
-/// exactly what the battle draws.
+/// exactly what the battle draws — and the map compiler's trunk box (X10) says the same for
+/// every TREE (`map_forge::trunk_species_for`; a bush is dressing and earns no box), locked
+/// in this file's tests.
 pub fn ladder_species(kind: SceneryKind) -> Option<TreeSpecies> {
     match kind {
         SceneryKind::Oak => Some(TreeSpecies::Oak),
@@ -924,6 +926,22 @@ mod tests {
     /// draws no tree there — the state after the fall is the bake's (stump and trunk), not a
     /// tilted crown hanging over its own wreckage. While it falls the box is already cleared
     /// for the sim and the tree draws tilted; standing, it draws upright.
+    /// The map compiler's trunk box (X10) and the ladder name the same species for every TREE —
+    /// a bush is dressing and earns no box — and plant the trunk by the same sink, or a box would
+    /// stand on a bole the picture draws elsewhere.
+    #[test]
+    fn the_trunk_box_and_the_ladder_agree_on_every_tree() {
+        for kind in SceneryKind::ALL {
+            let ladder = ladder_species(kind).filter(|species| *species != TreeSpecies::Bush);
+            assert_eq!(
+                map_forge::trunk_species_for(kind),
+                ladder,
+                "{kind:?}: the trunk box and the ladder must name the same species"
+            );
+        }
+        assert_eq!(map_forge::TRUNK_SINK_M, TRUNK_SINK_M, "one sink for the bole and its box");
+    }
+
     #[test]
     fn a_toppled_tree_lays_its_crown_down_along_the_heading_and_then_leaves_the_frame() {
         let foot = Vec3::new(10.0, 2.0, -5.0);

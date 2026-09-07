@@ -444,6 +444,68 @@ pub fn tree(species: TreeSpecies, seed: u64, lod: TreeLod) -> Option<BakedTree> 
 }
 
 /// One named variant, unmirrored.
+/// What a hull meets of an authored tree: the BOLE (the one program's X10). Measured off the
+/// wood mesh the picture draws, per species and variant, so the trunk box is the trunk and not a
+/// number somebody typed for a generator that no longer ships.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoleMetrics {
+    /// The bole's reach from its axis at the BUTT (the widest wood in the lowest
+    /// [`BUTT_BAND_M`] of the mesh), metres at scale 1. The bole tapers above it, so a box of
+    /// this half extent holds every bole vertex up to the first limb.
+    pub bole_radius_m: f32,
+    /// Where the first limb leaves the bole: the lowest wood that reaches past the butt's
+    /// cylinder by [`LIMB_LEAVES_M`], metres up the mesh at scale 1. The box a hull meets ends
+    /// here — leaves do not stop an AP round and a limb is not a wall.
+    pub first_limb_m: f32,
+    /// The tip of the wood, metres up the mesh, at scale 1.
+    pub tip_m: f32,
+}
+
+/// The band up the mesh the butt radius is read over: the base ring and the first segment.
+const BUTT_BAND_M: f32 = 0.6;
+
+/// How far past the butt's cylinder a piece of wood has to reach to be a limb, not bark.
+pub const LIMB_LEAVES_M: f32 = 0.09;
+
+/// The bole metrics of `species` at `variant`, from the wood mesh's close rung; `None` for a
+/// species with no authored asset. Cached: the mesh is parsed once per species and variant.
+pub fn bole_metrics(species: TreeSpecies, variant: u32) -> Option<BoleMetrics> {
+    static METRICS: [[OnceLock<Option<BoleMetrics>>; VARIANTS as usize]; 6] =
+        [const { [const { OnceLock::new() }; VARIANTS as usize] }; 6];
+    assets(species)?;
+    let slot = &METRICS[species_index(species) as usize][(variant % VARIANTS) as usize];
+    *slot.get_or_init(|| {
+        let tree = tree_variant(species, variant, TreeLod::Close);
+        Some(measure_bole(&tree))
+    })
+}
+
+fn measure_bole(tree: &BakedTree) -> BoleMetrics {
+    let radial = |v: Vec3| (v.x * v.x + v.z * v.z).sqrt();
+    let vertices = tree.trunk.vertices();
+    let bole_radius_m = vertices
+        .iter()
+        .filter(|v| v.position.y <= BUTT_BAND_M)
+        .map(|v| radial(v.position))
+        .fold(0.0_f32, f32::max)
+        .max(0.05);
+    let tip_m = vertices.iter().map(|v| v.position.y).fold(0.0_f32, f32::max);
+    let first_limb_m = vertices
+        .iter()
+        .filter(|v| radial(v.position) > bole_radius_m + LIMB_LEAVES_M)
+        .map(|v| v.position.y)
+        .fold(tip_m, f32::min)
+        .max(BUTT_BAND_M);
+    BoleMetrics { bole_radius_m, first_limb_m, tip_m }
+}
+
+/// The seed an instance grows from — its position bits — which names its variant and mirror on
+/// every route: the statics bake, the instanced ladder and the map compiler's trunk box (X10)
+/// all read this one rule, so the bole the compiler boxes is the bole the ladder draws.
+pub fn instance_tree_seed(position: [f32; 3]) -> u64 {
+    position[0].to_bits() as u64 ^ ((position[2].to_bits() as u64) << 32)
+}
+
 pub fn tree_variant(species: TreeSpecies, variant: u32, lod: TreeLod) -> BakedTree {
     let rung = match lod {
         TreeLod::Close => 0,

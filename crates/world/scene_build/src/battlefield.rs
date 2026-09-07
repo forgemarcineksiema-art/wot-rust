@@ -4182,15 +4182,16 @@ mod tests {
         );
     }
 
-    /// A `TreeTrunk` box is honest only if a procedural oak really stands in it: same
-    /// footprint, same ground. This is the substitute proof for the geometry check the bake
-    /// cannot make.
+    /// A `TreeTrunk` box is honest only if an authored tree really stands in it — any species
+    /// the ladder draws (X10: the oak, the poplar, the fruit tree), same footprint, same
+    /// ground. This is the substitute proof for the geometry check the bake cannot make; the
+    /// bole-vertices-in-the-box proof is `map_forge`'s lock.
     fn dressed_by_an_oak(
         battlefield: &terrain::BattlefieldMap,
         cover: &terrain::StaticCoverObject,
     ) -> bool {
         battlefield.scenery.iter().any(|instance| {
-            instance.kind == terrain::SceneryKind::Oak
+            map_forge::trunk_species_for(instance.kind).is_some()
                 && (instance.position[0] - cover.center[0]).abs() < 0.05
                 && (instance.position[2] - cover.center[2]).abs() < 0.05
         })
