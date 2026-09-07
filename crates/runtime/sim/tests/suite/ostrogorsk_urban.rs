@@ -61,7 +61,7 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
             && cover.center[2] + cover.half_extents_m[2] >= 450.0
             && cover.center[2] - cover.half_extents_m[2] <= 486.0;
         if crosses_line && cover.kind == terrain::StaticCoverKind::CityBuilding {
-            damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+            damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
             assert_eq!(states[index].phase, CoverPhase::Rubble, "{} collapses", cover.id);
             collapsed += 1;
         }
@@ -138,7 +138,7 @@ fn a_bricked_cut_opens_by_demolition() {
         "born bricked: the plug must seal the cut's hull line"
     );
 
-    damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+    damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
     assert_eq!(states[index].phase, CoverPhase::Gone, "{} breaches clean", plug.id);
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
     assert!(

@@ -116,8 +116,9 @@ impl ClientApp {
         let Some(meshes) = self.battle_scene_meshes.as_ref() else {
             return;
         };
-        let phases = self.live_cover.phase_bytes().to_vec();
+        let phases = self.dressing_phase_bytes();
         let scars = self.cover_scar_list.clone();
+        let falls = self.cover_falls.clone();
         let mut dirty = [false; crate::STATICS_BUCKET_COUNT];
         for (index, cover) in self.battlefield.static_cover.iter().enumerate() {
             let now = phases.get(index).copied().unwrap_or(0);
@@ -154,9 +155,10 @@ impl ClientApp {
                 .map(|bucket| {
                     (
                         bucket,
-                        crate::battlefield_statics_bucket_mesh(
+                        crate::battlefield_statics_bucket_mesh_with_falls(
                             &battlefield,
                             &phases,
+                            &falls,
                             &scars,
                             bucket,
                         ),
@@ -491,6 +493,7 @@ impl ClientApp {
             .map(|age| age + frame_dt)
             .filter(|age| *age < crate::hud::command_wheel::KNOCK_TTL_S);
         self.fx.tick(frame_dt);
+        self.tick_tree_topples(frame_dt);
         // Where every live shell is this frame, remembered for the path it draws (A8).
         let shells =
             self.render_state.interpolated_shells(super::frame_scene::SNAPSHOT_INTERVAL_SECONDS);
@@ -824,9 +827,13 @@ impl ClientApp {
         // to the grass allocation and trimmed off again, so the per-frame scene submission
         // still costs no allocation.
         let grass_len = self.grass_cache.len();
-        self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_backdrop(
+        let dressing_phases =
+            super::ingest::dressing_phases_of(self.live_cover.phase_bytes(), &self.tree_topples);
+        let topples = super::ingest::topples_now_of(&self.tree_topples);
+        self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_topples(
             &self.battlefield,
-            self.live_cover.phase_bytes(),
+            &dressing_phases,
+            &topples,
             tree_eye,
             &mut self.tree_lod_state,
         ));

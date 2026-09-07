@@ -183,6 +183,19 @@ pub fn battlefield_statics_bucket_mesh(
     cover_scars: &[terrain::CoverScar],
     bucket: usize,
 ) -> SceneMeshData {
+    battlefield_statics_bucket_mesh_with_falls(battlefield, cover_states, &[], cover_scars, bucket)
+}
+
+/// [`battlefield_statics_bucket_mesh`] with the replicated fall headings (Z8): a felled tree's
+/// trunk lies along the heading its byte records; an empty slice (a born clearing, a review
+/// bake) keeps the hashed lie.
+pub fn battlefield_statics_bucket_mesh_with_falls(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_falls: &[u8],
+    cover_scars: &[terrain::CoverScar],
+    bucket: usize,
+) -> SceneMeshData {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     if bucket == STATICS_BACKDROP_BUCKET {
@@ -221,7 +234,8 @@ pub fn battlefield_statics_bucket_mesh(
                     // A felled hero oak leaves the same evidence a felled hedgerow does — a
                     // stump where it stood and its trunk lying beside it — sized to the box,
                     // which for a single bole is exactly one stump and one trunk.
-                    append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover);
+                    let fall = cover_falls.get(index).map(|&byte| terrain::fall_heading_rad(byte));
+                    append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover, fall);
                 } else if cover.kind == StaticCoverKind::StoneWall {
                     append_toppled_wall(&mut vertices, &mut indices, cover);
                 }
@@ -301,6 +315,7 @@ fn append_felled_tree_line(
     indices: &mut Vec<u32>,
     battlefield: &BattlefieldMap,
     cover: &StaticCoverObject,
+    fall_heading: Option<f32>,
 ) {
     const BARK: [f32; 3] = [0.26, 0.20, 0.13];
     const HEARTWOOD: [f32; 3] = [0.45, 0.36, 0.24];
@@ -376,12 +391,14 @@ fn append_felled_tree_line(
         };
         let slide = (next() - 0.5) * (run - length * 0.5).max(0.0) * 1.6;
         let drift = (next() - 0.5) * (if along_x { half.z } else { half.x }) * 0.9;
-        let yaw = (next() - 0.5) * 0.5 + if along_x { 0.0 } else { std::f32::consts::FRAC_PI_2 };
-        let log_center = if along_x {
+        let hashed_yaw =
+            (next() - 0.5) * 0.5 + if along_x { 0.0 } else { std::f32::consts::FRAC_PI_2 };
+        let foot = if along_x {
             Vec3::new(center.x + slide, ground_y + radius, center.z + drift)
         } else {
             Vec3::new(center.x + drift, ground_y + radius, center.z + slide)
         };
+        let (yaw, log_center) = felled_log_lie(foot, length, fall_heading, hashed_yaw);
         let start = vertices.len();
         push_oriented_box(
             vertices,
@@ -396,6 +413,29 @@ fn append_felled_tree_line(
         }
     }
 }
+
+/// Where a felled trunk lies (Z8): along the HEADING it fell on — the log from the foot the
+/// tree stood on, downstream, its long axis on the heading — or, with no heading on record (a
+/// born clearing, a review bake), the hashed lie along the run. Returns the box's yaw and
+/// centre; `push_oriented_box` lays the box's X extent along `Mat3::from_rotation_y(yaw) * X`,
+/// which is `(cos yaw, 0, -sin yaw)` — so a heading `h` (from +X toward +Z) is the yaw `-h`.
+pub fn felled_log_lie(
+    foot: Vec3,
+    length_m: f32,
+    fall_heading: Option<f32>,
+    hashed_yaw: f32,
+) -> (f32, Vec3) {
+    match fall_heading {
+        Some(heading) => {
+            let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+            (-heading, foot + along * (length_m * 0.5 + FELLED_LOG_FOOT_GAP_M))
+        }
+        None => (hashed_yaw, foot),
+    }
+}
+
+/// The gap between a stump and the butt of the trunk that fell off it.
+const FELLED_LOG_FOOT_GAP_M: f32 = 0.4;
 
 /// Map a scenery kind to the procedural species that sizes its stump. Retired Flora* kinds
 /// fall through to Oak (they are never authored; the arm keeps the match total).
@@ -2355,6 +2395,44 @@ mod tests {
         assert_eq!(collapsed_clean.0.len(), collapsed_scarred.0.len());
     }
 
+    /// Z8, the state after the fall equals the bake: a trunk felled along a heading lies
+    /// along that heading, its butt at the foot the tree stood on and its far end downstream;
+    /// the box's long axis is on the heading. Without a heading on record the hashed lie
+    /// stands, so born clearings and the review bakes keep their bytes. And the bucket bake
+    /// reads the heading: the same cleared hedge bakes differently with a fall on record.
+    #[test]
+    fn a_felled_trunk_lies_along_the_heading_it_fell_on() {
+        let foot = Vec3::new(10.0, 0.5, -4.0);
+        for heading in [0.0f32, 0.8, 2.4, -1.3, 4.0] {
+            let (yaw, center) = felled_log_lie(foot, 8.0, Some(heading), 0.17);
+            let along = Vec3::new(heading.cos(), 0.0, heading.sin());
+            let long_axis = Mat3::from_rotation_y(yaw) * Vec3::X;
+            assert!(long_axis.dot(along).abs() > 0.9999, "the trunk lies on the heading");
+            let reach = center - foot;
+            assert!((reach.dot(along) - 4.4).abs() < 1e-4, "butt at the foot, downstream");
+            assert!((reach - along * reach.dot(along)).length() < 1e-4, "not off the line");
+        }
+        let (yaw, center) = felled_log_lie(foot, 8.0, None, 0.17);
+        assert_eq!((yaw, center), (0.17, foot), "no heading: the hashed lie");
+
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let tree_line = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::TreeLine)
+            .expect("prokhorovka has a tree line");
+        let cover = &map.static_cover[tree_line];
+        let bucket = statics_bucket_of_position(&map, cover.center[0], cover.center[2]);
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[tree_line] = 2;
+        let mut falls = vec![0u8; map.static_cover.len()];
+        falls[tree_line] = terrain::fall_heading_byte(1.0);
+        let hashed = battlefield_statics_bucket_mesh(&map, &states, &[], bucket);
+        let along = battlefield_statics_bucket_mesh_with_falls(&map, &states, &falls, &[], bucket);
+        assert_eq!(hashed.0.len(), along.0.len(), "the same wreckage, only lying differently");
+        assert_ne!(hashed.0, along.0, "the bucket bake reads the fall heading");
+    }
+
     /// Levelling a tree line empties the volume it occupied and leaves wreckage on the ground.
     ///
     /// F7b: the decks left statics, so the intact bake's upper half is already empty (the
@@ -2526,7 +2604,7 @@ mod tests {
             let stations = crate::tree_line::tree_line_stations(&map, cover).len();
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
-            append_felled_tree_line(&mut vertices, &mut indices, &map, cover);
+            append_felled_tree_line(&mut vertices, &mut indices, &map, cover, None);
             let caps = vertices.iter().filter(|v| v.color == heartwood).count() / 24;
             assert!(
                 caps >= stations && stations >= 5,

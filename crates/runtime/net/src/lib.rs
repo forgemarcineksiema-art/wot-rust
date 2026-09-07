@@ -167,7 +167,12 @@ pub use team_command::{
 /// masks it already computes for the per-viewer cut, closed at the battle's end and handed to
 /// each crew for THEIR hull only, after the battle, so a live client never holds an observer.
 /// An append with `serde(default)`; the fixtures were re-pinned as v52.
-pub const PROTOCOL_VERSION: u16 = 53;
+///
+/// v54 (the one program, Z8): `Snapshot.cover_falls` — one heading byte per static-cover
+/// object, the way a felled tree went down, so the client's topple and the wreckage bake lie
+/// along the crusher's heading or the shell's flight everywhere. An append with
+/// `serde(default)`; the fixtures were re-pinned as v54.
+pub const PROTOCOL_VERSION: u16 = 54;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -436,6 +441,13 @@ pub struct Snapshot {
     /// object by its phase. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
     #[serde(default)]
     pub cover_states: Vec<u8>,
+    /// One fall-heading byte per static-cover object (protocol v54, the one program's Z8):
+    /// which way a felled tree went down — `terrain::fall_heading_byte` of the crusher's
+    /// heading or the shell's flight — so every client lays the trunk down the way the
+    /// wreckage bake does. Index-aligned with `cover_states`; `serde(default)` keeps pre-v54
+    /// fixtures loading with every trunk lying toward +X.
+    #[serde(default)]
+    pub cover_falls: Vec<u8>,
     /// The battle's crater ledger (protocol v31), quantized and re-sent whole every snapshot so
     /// a late joiner converges on the same deformed ground. `serde(default)` keeps pre-v31
     /// fixtures loading with virgin terrain.
@@ -514,6 +526,7 @@ impl From<&SimulationState> for Snapshot {
                 .map(|tank| tank.id)
                 .collect(),
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
+            cover_falls: state.cover_states().iter().map(|state| state.fall).collect(),
             craters: state.craters().to_vec(),
             cover_scars: state.cover_scars().to_vec(),
             team_hit_points: team_hit_points(state.tanks()),

@@ -403,7 +403,12 @@ impl SimulationState {
                 let footprint = TankFootprint::from_plan(tank.spec.hull_plan());
                 for (index, object) in cover.iter().enumerate() {
                     if footprint_overlaps_cover_object(probe, tank.yaw_rad, footprint, object)
-                        && crate::cover_damage::crush_cover(states, object, index)
+                        && crate::cover_damage::crush_cover(
+                            states,
+                            object,
+                            index,
+                            heading.z.atan2(heading.x),
+                        )
                     {
                         tank.hit_points = tank.hit_points.saturating_sub(COVER_CRUSH_SELF_HP);
                     }
@@ -630,7 +635,24 @@ impl SimulationState {
                     })
                     .map(|shell| cover_damage_hp(&shell))
                     .unwrap_or_else(|| legacy_cover_damage_hp(impact.shell_type));
-                crate::cover_damage::damage_cover(&mut self.cover_states, cover, index, damage);
+                // Z8: which way the shell lays a tree down — its flight at death, or, for an
+                // old record without one, the line from the shooter to where it died.
+                let flight = if impact.direction.length_squared() > 1.0e-6 {
+                    impact.direction
+                } else {
+                    impact
+                        .owner
+                        .and_then(|owner| self.tanks.iter().find(|tank| tank.id == owner))
+                        .map(|shooter| impact.position - shooter.position)
+                        .unwrap_or(Vec3::X)
+                };
+                crate::cover_damage::damage_cover(
+                    &mut self.cover_states,
+                    cover,
+                    index,
+                    damage,
+                    flight.z.atan2(flight.x),
+                );
                 // And it leaves a WOUND where it died (protocol v32): a kinetic inset or an
                 // HE bite on that face, replicated so every client dresses the same wall.
                 crate::cover_damage::record_cover_scar(

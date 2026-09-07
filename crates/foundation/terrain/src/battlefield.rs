@@ -220,6 +220,21 @@ pub fn initial_cover_phase_bytes(cover: &[StaticCoverObject]) -> Vec<u8> {
     cover.iter().map(born_cover_phase_byte).collect()
 }
 
+/// The heading a felled tree went down along (the one program's Z8), as the one wire byte:
+/// 256 steps around the compass from +X toward +Z (a degree and a half each), so every client
+/// and the wreckage bake lay the trunk the way the authority decided — along the crusher's
+/// heading, or along the shell's flight.
+pub fn fall_heading_byte(heading_rad: f32) -> u8 {
+    let turns = heading_rad / std::f32::consts::TAU;
+    let unit = turns - turns.floor();
+    ((unit * 256.0).round() as u32 % 256) as u8
+}
+
+/// The heading a fall byte encodes, in radians from +X toward +Z.
+pub fn fall_heading_rad(byte: u8) -> f32 {
+    f32::from(byte) / 256.0 * std::f32::consts::TAU
+}
+
 /// What a road is paved with — picks the painted tone and finish on the terrain mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoadSurface {

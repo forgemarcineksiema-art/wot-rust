@@ -379,6 +379,65 @@ mod tests {
         assert_eq!(objects[0].mesh, handle, "the wreck's hull object draws the dented mesh");
     }
 
+    /// Z8: a felled tree does not vanish under a masonry curtain. Its phase steps to gone
+    /// and the sim's box is cleared at once, but the DRESSING keeps it standing — tilting on
+    /// the ladder — for `TOPPLE_DURATION_S` along the heading the snapshot carries; the dust
+    /// is the roots' heave now and the crown's landing later, staged; when the fall is over
+    /// the box hands itself to the wreckage bake and the scene rebuilds.
+    #[test]
+    fn a_felled_tree_goes_down_along_its_heading_before_the_wreckage_bakes() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+        let cover_count = app.battlefield.static_cover.len();
+        let tree = app
+            .battlefield
+            .static_cover
+            .iter()
+            .position(|cover| {
+                matches!(
+                    cover.kind,
+                    terrain::StaticCoverKind::TreeLine | terrain::StaticCoverKind::TreeTrunk
+                )
+            })
+            .expect("the battle map has a tree to fell");
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        snapshot.cover_falls = vec![0u8; cover_count];
+        app.fx = crate::fx::FxSystem::default();
+        app.accept_and_sync(snapshot);
+
+        let heading = terrain::fall_heading_byte(1.0);
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        snapshot.cover_states[tree] = 2;
+        snapshot.cover_falls = vec![0u8; cover_count];
+        snapshot.cover_falls[tree] = heading;
+        app.accept_and_sync(snapshot);
+
+        assert_eq!(app.live_cover.phase_bytes()[tree], 2, "the sim's box is cleared at once");
+        assert_eq!(app.cover_falls[tree], heading, "the heading is remembered");
+        assert_eq!(app.tree_topples.len(), 1, "one fall in progress");
+        assert!((app.tree_topples[0].heading_rad - 1.0).abs() < 0.02);
+        assert_eq!(app.dressing_phase_bytes()[tree], 0, "the picture keeps it standing");
+        assert_eq!(app.tree_topples_now().len(), 1);
+        let puffs = app.fx.live_particles();
+        assert!((1..40).contains(&puffs), "the roots' heave, not a tenement's curtain: {puffs}");
+        assert_eq!(app.fx.staged_beats(), 1, "the crown's landing is staged");
+
+        app.scene_cover_dirty = false;
+        app.tick_tree_topples(scene_build::tree_lod::TOPPLE_DURATION_S * 0.5);
+        assert!(!app.scene_cover_dirty, "half-way: still falling, nothing to bake yet");
+        assert!((app.tree_topples_now()[0].progress - 0.5).abs() < 1e-3);
+        app.tick_tree_topples(scene_build::tree_lod::TOPPLE_DURATION_S * 0.6);
+        assert!(app.tree_topples.is_empty(), "the fall is over");
+        assert!(app.scene_cover_dirty, "and the wreckage bake is asked for");
+        assert_eq!(app.dressing_phase_bytes()[tree], 2, "the bake sees the cleared box now");
+    }
+
     #[test]
     fn a_collapsing_cover_object_bursts_dust_and_flags_a_scene_rebuild() {
         let mut app = ClientApp::new();

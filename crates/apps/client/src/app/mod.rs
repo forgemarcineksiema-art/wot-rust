@@ -93,6 +93,15 @@ pub(crate) struct StaticsRebuild {
     pub(crate) buckets: Vec<(usize, scene_build::battlefield::SceneMeshData)>,
 }
 
+/// One tree line or bole going down (the one program's Z8): its cover index, the heading the
+/// authority recorded for the fall, and how long it has been falling.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ActiveTopple {
+    pub(crate) cover: usize,
+    pub(crate) heading_rad: f32,
+    pub(crate) age_s: f32,
+}
+
 /// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
 /// What one crater re-mesh produces. The ground is always rebuilt — a hole you can drive into is
 /// a real change — but the card meadow usually is not rebuilt at all, and when it is, usually did
@@ -339,7 +348,7 @@ impl ClientApp {
         };
         // The speculative bake guessed the cover phases (birth rule); if the battle opened on
         // anything else the ordinary dirty-bucket rebuild repairs the buckets that differ.
-        if world.meshes.statics_baked_phases != self.live_cover.phase_bytes() {
+        if world.meshes.statics_baked_phases != self.dressing_phase_bytes() {
             self.scene_cover_dirty = true;
         }
         self.battle_scene_meshes = Some(world.meshes);
@@ -408,7 +417,7 @@ impl ClientApp {
         if self
             .battle_scene_meshes
             .as_ref()
-            .is_some_and(|meshes| meshes.statics_baked_phases != self.live_cover.phase_bytes())
+            .is_some_and(|meshes| meshes.statics_baked_phases != self.dressing_phase_bytes())
         {
             self.scene_cover_dirty = true;
         }
@@ -495,6 +504,12 @@ pub(crate) struct ClientApp {
     /// Phase-consistent blocking geometry for prediction, sight, and camera. The authored
     /// battlefield slice remains untouched and index-stable for scene rebuilds and scars.
     live_cover: live_cover::LiveCoverCache,
+    /// The replicated fall headings (protocol v54, Z8), index-aligned with the cover: which
+    /// way each felled tree went down. Read by the topple and by the wreckage bake.
+    cover_falls: Vec<u8>,
+    /// The trees going down right now (Z8). The sim has already cleared their boxes; the
+    /// picture lays them down over `TOPPLE_DURATION_S` before the wreckage bakes.
+    tree_topples: Vec<ActiveTopple>,
     desired_aim: DesiredAim,
     garage: GarageState,
     /// Behind an `Arc` because background bakes (statics rebuild, crater re-mesh) take a handle
@@ -941,6 +956,8 @@ impl ClientApp {
             wreck_age_s: HashMap::new(),
             scene_rebuild_rx: None,
             cover_scar_list: Vec::new(),
+            cover_falls: Vec::new(),
+            tree_topples: Vec::new(),
             ground_rebuild_rx: None,
             dressing_uploaded_fingerprint: 0,
             ground_deform_dirty: false,

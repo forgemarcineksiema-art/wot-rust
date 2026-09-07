@@ -73,7 +73,7 @@ fn the_felled_watchtower_leaves_a_hull_down_stump_on_the_col() {
         "the intact shaft must block the cross-col turret line"
     );
 
-    damage_cover(&mut states, &map.static_cover, index, u32::MAX);
+    damage_cover(&mut states, &map.static_cover, index, u32::MAX, 0.0);
     assert_eq!(states[index].phase, CoverPhase::Rubble, "masonry falls into rubble, not thin air");
     let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
     assert!(
