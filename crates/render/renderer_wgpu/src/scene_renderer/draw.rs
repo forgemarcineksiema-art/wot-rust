@@ -142,7 +142,9 @@ impl super::SceneRenderer {
             crate::FramePassParams {
                 light_view_proj,
                 light_view_proj_far,
-                shadow_params: self.shadow.shader_params(near_cascade),
+                shadow_params: self
+                    .shadow
+                    .shader_params(near_cascade, self.scene_lighting.shadow_strength),
                 cascade_params: self.shadow.cascade_shader_params(far_cascade, cascades),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
                 inv_render_size: [

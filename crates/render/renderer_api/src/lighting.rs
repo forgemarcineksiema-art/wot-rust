@@ -134,6 +134,11 @@ pub struct SceneLighting {
     /// How strongly the cloud layer shades the terrain's sun (0..1). Kept at 0 under overcast —
     /// the lid itself is the shadow — and gated per tier by `LightingQuality::cloud_shadows`.
     pub cloud_shadow_strength: f32,
+    /// How much of the key the sun shadows take away, 0..=1 (D36): 1.0 under a clear sky; an
+    /// overcast lid lights the world through the cloud, so its "sun" shadows are a shade darker,
+    /// not a cast — the constant 1.0 every look wore gave the lead lid harder shadows than the
+    /// golden evening. Profile data, like everything else about a look.
+    pub shadow_strength: f32,
     /// Sun-directional scatter in the aerial perspective (0..1): haze looked at *toward* the sun
     /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
     /// density/height model (and its 400 m fairness bound) is untouched by this.
@@ -287,7 +292,8 @@ impl SceneLighting {
             cloud_scale: 1.0,
             cloud_opacity: 0.9,
             cloud_drift: 0.004,
-            cloud_shadow_strength: 0.25,
+            cloud_shadow_strength: 0.6,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.5,
             // Matches the old fog-derived value (0.00013 * 700) so the clear-day disc is unchanged.
             sun_softness: 0.09,
@@ -342,7 +348,8 @@ impl SceneLighting {
             cloud_scale: 1.1,
             cloud_opacity: 0.9,
             cloud_drift: 0.004,
-            cloud_shadow_strength: 0.3,
+            cloud_shadow_strength: 0.7,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.45,
             sun_softness: 0.1,
             valley_haze_density: 5e-05,
@@ -388,6 +395,7 @@ impl SceneLighting {
             cloud_opacity: 0.97,
             cloud_drift: 0.006,
             cloud_shadow_strength: 0.0,
+            shadow_strength: 0.35,
             fog_sun_scatter: 0.15,
             // A rain sky holds no hard disc: the softest sun of the outdoor set.
             sun_softness: 0.63,
@@ -409,10 +417,14 @@ impl SceneLighting {
     /// height falloff of the set, still under the 400 m fairness bound at every fighting height.
     pub fn bystra_dawn_fog() -> Self {
         Self {
-            ambient_rgb: [0.20, 0.22, 0.27],
+            // D34 measured this dawn on LEVEL ground for the first time: a 12.5 deg sun lands a
+            // fifth of itself there, and the field sat at 0.215 luma below the mid band the old
+            // 0.75-constant lock certified. The fog-lit sky lifts the ambient and the low sun is a
+            // touch stronger; the field lands in the band on the honest measurement.
+            ambient_rgb: [0.31, 0.33, 0.38],
             ground_ambient_rgb: [0.13, 0.13, 0.14],
             key_direction: [0.80, 0.18, -0.12],
-            key_rgb: [0.92, 0.82, 0.70],
+            key_rgb: [1.20, 1.05, 0.88],
             fill_direction: [-0.55, 0.55, 0.25],
             fill_rgb: [0.15, 0.17, 0.22],
             rim_direction: [-0.75, 0.30, 0.30],
@@ -436,6 +448,7 @@ impl SceneLighting {
             cloud_opacity: 0.55,
             cloud_drift: 0.003,
             cloud_shadow_strength: 0.1,
+            shadow_strength: 0.70,
             fog_sun_scatter: 0.8,
             // Dawn mist: a milky low sun carrying through the fog.
             sun_softness: 0.56,
@@ -458,22 +471,33 @@ impl SceneLighting {
     /// strongest sun scatter of the outdoor set so the whole western haze glows.
     pub fn prokhorovka_golden_evening() -> Self {
         Self {
-            ambient_rgb: [0.13, 0.15, 0.24],
-            ground_ambient_rgb: [0.15, 0.11, 0.08],
-            // Low in the west: the normalized elevation sits ~0.25 — long shadows, real raking.
-            key_direction: [-0.92, 0.25, 0.20],
-            key_rgb: [1.32, 0.95, 0.55],
+            // The indirect is dusk: small and warm-grey, so the low sun OWNS the flat field.
+            // Before D34 the blue indirect delivered 55 % of the field's light against the
+            // key's 45 % (a 14.9° sun lands only a quarter of its energy on level ground), and
+            // the field came out neutral-magenta (R/B 1.08) under an amber sun with 1.8:1
+            // shadows — the "no masses of light and shadow" of the graphics review. Now the
+            // key's share on level ground is ≥ 0.6 and the light that lands there is warm
+            // (`the_low_sun_owns_the_field`). Measured on level ground the old 14.9° sun at
+            // 1.32 left the field at 0.11 luma — a dusk, not an evening: the sun is at 20° now
+            // (shadows still 2.7:1 long), 1.3x stronger, and the look is exposed half a
+            // stop up, so the field lands in the mid band on the honest measurement while a
+            // sunlit wall stays under 0.7 and the sun-side haze stays under unit energy.
+            ambient_rgb: [0.10, 0.10, 0.13],
+            ground_ambient_rgb: [0.12, 0.09, 0.06],
+            // Low in the west: 20° above the horizon — long shadows, real raking.
+            key_direction: [-0.92, 0.35, 0.20],
+            key_rgb: [1.72, 1.24, 0.72],
             fill_direction: [0.60, 0.55, -0.30],
-            fill_rgb: [0.13, 0.15, 0.22],
+            fill_rgb: [0.06, 0.06, 0.07],
             rim_direction: [0.50, 0.35, 0.80],
-            rim_rgb: [0.24, 0.20, 0.20],
+            rim_rgb: [0.12, 0.10, 0.10],
             sky_zenith_rgb: [0.15, 0.23, 0.46],
             sky_horizon_rgb: [0.86, 0.66, 0.46],
             // Slightly denser, much gentler falloff (0.02 -> 0.008): the evening haze reaches
             // the ridge line too, so the raking-light frames keep their depth planes at range.
             fog_density: 0.00025,
             fog_height_falloff: 0.008,
-            exposure: 1.1,
+            exposure: 1.4,
             black_point: 0.035,
             saturation: 1.25,
             contrast: 1.15,
@@ -481,7 +505,8 @@ impl SceneLighting {
             cloud_scale: 1.0,
             cloud_opacity: 0.9,
             cloud_drift: 0.004,
-            cloud_shadow_strength: 0.3,
+            cloud_shadow_strength: 0.7,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.85,
             sun_softness: 0.13,
             valley_haze_density: 0.0,
@@ -523,6 +548,7 @@ impl SceneLighting {
             cloud_opacity: 0.95,
             cloud_drift: 0.005,
             cloud_shadow_strength: 0.0,
+            shadow_strength: 0.30,
             fog_sun_scatter: 0.1,
             sun_softness: 0.35,
             valley_haze_density: 0.0,
@@ -569,6 +595,7 @@ impl SceneLighting {
             cloud_opacity: 0.0,
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.0,
             sun_softness: 0.0,
             valley_haze_density: 0.0,
@@ -618,6 +645,7 @@ impl SceneLighting {
             cloud_opacity: 0.0,
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.0,
             sun_softness: 0.0,
             valley_haze_density: 0.0,
@@ -740,6 +768,7 @@ impl SceneLighting {
             cloud_opacity: 0.0,
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
+            shadow_strength: 1.00,
             fog_sun_scatter: 0.0,
             sun_softness: 0.0,
             // The worklight rig. Positions coincide with the lamp housings the hangar mesh

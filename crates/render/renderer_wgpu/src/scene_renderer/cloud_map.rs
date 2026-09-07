@@ -177,6 +177,45 @@ mod tests {
         );
     }
 
+    /// D36: A PATCH OF CLOUD SHADE IS VISIBLE, not merely multiplied in. The CPU mirror of
+    /// `cloud_shadow` (the shader's smoothstep window and the look's strength) over the baked
+    /// tile: on every clear look that carries clouds, at least a twentieth of the field lies
+    /// under shade 30 % deeper than the open sky next to it — the old 0.25-0.3 strengths topped
+    /// out at exactly 30 % under a FULL bank, so no patch ever crossed the field's own tone
+    /// noise and the shade could not be seen.
+    #[test]
+    fn a_patch_of_cloud_shade_is_visible_on_every_clear_look() {
+        let tile = bake_cloud_coverage();
+        let smoothstep = |edge0: f32, edge1: f32, x: f32| {
+            let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+        for (name, look) in [
+            ("battlefield_default", renderer_api::SceneLighting::battlefield_default()),
+            ("bystra_clear_afternoon", renderer_api::SceneLighting::bystra_clear_afternoon()),
+            (
+                "prokhorovka_golden_evening",
+                renderer_api::SceneLighting::prokhorovka_golden_evening(),
+            ),
+        ] {
+            let strength = look.cloud_shadow_strength;
+            let bias = look.cloud_coverage_bias;
+            let shaded = tile
+                .iter()
+                .filter(|&&t| {
+                    let coverage = t as f32 / 255.0 + bias;
+                    1.0 - smoothstep(0.40, 0.72, coverage) * strength <= 0.7
+                })
+                .count() as f32
+                / tile.len() as f32;
+            assert!(
+                shaded >= 0.05,
+                "{name}: only {:.1} % of the field lies under a visible (>= 30 %) cloud shade at                  strength {strength}",
+                shaded * 100.0
+            );
+        }
+    }
+
     /// CLOUD SHADE FALLS ON EVERYTHING THE SUN LIGHTS — honesty doctrine, one sun for one world.
     /// Terrain and statics took the cloud term from the day it shipped; vehicles did not, so a
     /// tank sitting in a bank of moving shade stayed at full key while the field around it went

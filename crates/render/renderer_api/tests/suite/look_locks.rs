@@ -44,8 +44,29 @@ fn is_overcast_lid(l: &SceneLighting) -> bool {
 /// dusty field tone, inside the ground-saturation window. Policy data, quoted in the bible.
 const REFERENCE_MID_ALBEDO: [f32; 3] = [0.28, 0.27, 0.24];
 
-/// Fraction of the key a typically inclined sunlit surface receives (cos of incidence).
-const KEY_LIT_FRACTION: f32 = 0.75;
+/// The light a level field receives from a directional light: its colour times the cosine of
+/// incidence on n = +Y (the shader's `light_radiance`, `max(dot(n, dir), 0)`). The old lock
+/// assumed a 0.75 constant here — a slope tilted 26° toward the sun — and so certified a golden
+/// evening whose 14.9° sun landed a quarter of its energy on the actual field (D34).
+fn on_level_ground(rgb: [f32; 3], direction: [f32; 3]) -> [f32; 3] {
+    let len = (direction[0].powi(2) + direction[1].powi(2) + direction[2].powi(2)).sqrt();
+    let cos = (direction[1] / len.max(1.0e-6)).max(0.0);
+    [rgb[0] * cos, rgb[1] * cos, rgb[2] * cos]
+}
+
+/// Everything that lights a level field: the sky ambient, the key, the fill and the rim, each
+/// through its own incidence — the CPU mirror of `light_radiance` for n = +Y.
+fn level_field_light(l: &SceneLighting) -> ([f32; 3], [f32; 3]) {
+    let key = on_level_ground(l.key_rgb, l.key_direction);
+    let fill = on_level_ground(l.fill_rgb, l.fill_direction);
+    let rim = on_level_ground(l.rim_rgb, l.rim_direction);
+    let indirect = [
+        l.ambient_rgb[0] + fill[0] + rim[0],
+        l.ambient_rgb[1] + fill[1] + rim[1],
+        l.ambient_rgb[2] + fill[2] + rim[2],
+    ];
+    (key, indirect)
+}
 
 /// Graded display luma of deep shade: the reference albedo lit by ambient + fill only (the key
 /// is occluded — a cast shadow, the shaded flank of a hull).
@@ -58,14 +79,53 @@ fn shade_luma(l: &SceneLighting) -> f32 {
     luminance(l.grade_reference(radiance))
 }
 
-/// Graded display luma of the sunlit mid field: the reference albedo lit by ambient + raked key.
+/// Graded display luma of the sunlit mid field: the reference albedo under the light a LEVEL
+/// field actually receives (D34) — the key through its incidence, plus the indirect.
 fn field_luma(l: &SceneLighting) -> f32 {
+    let (key, indirect) = level_field_light(l);
     let radiance = [
-        REFERENCE_MID_ALBEDO[0] * (l.ambient_rgb[0] + l.key_rgb[0] * KEY_LIT_FRACTION),
-        REFERENCE_MID_ALBEDO[1] * (l.ambient_rgb[1] + l.key_rgb[1] * KEY_LIT_FRACTION),
-        REFERENCE_MID_ALBEDO[2] * (l.ambient_rgb[2] + l.key_rgb[2] * KEY_LIT_FRACTION),
+        REFERENCE_MID_ALBEDO[0] * (key[0] + indirect[0]),
+        REFERENCE_MID_ALBEDO[1] * (key[1] + indirect[1]),
+        REFERENCE_MID_ALBEDO[2] * (key[2] + indirect[2]),
     ];
     luminance(l.grade_reference(radiance))
+}
+
+/// D34: on a clear low-sun look the sun OWNS the level field — the key delivers at least 0.6 of
+/// the light landing there and what lands is warm (R/B ≥ 1.5). D36: a lid's shadows are a shade,
+/// not a cut, and a clear look's cloud shade is deep enough to read.
+#[test]
+fn the_low_sun_owns_the_field_and_the_lid_casts_a_shade() {
+    let l = SceneLighting::prokhorovka_golden_evening();
+    let (key, indirect) = level_field_light(&l);
+    let key_luma = luminance(key);
+    let share = key_luma / (key_luma + luminance(indirect)).max(1.0e-6);
+    let incident = [key[0] + indirect[0], key[1] + indirect[1], key[2] + indirect[2]];
+    assert!(share >= 0.6, "the golden evening's key must own the level field: share {share:.2}");
+    assert!(
+        incident[0] / incident[2].max(1.0e-6) >= 1.5,
+        "the light landing on the field must be warm: R/B {:.2}",
+        incident[0] / incident[2]
+    );
+    // Every clear sky with clouds in it casts a shade you can see; the foggy dawn has no banks
+    // to cast one (D36 — the visibility of a patch on the baked tile is locked in cloud_map.rs).
+    for (name, look) in outdoor_profiles() {
+        if !is_overcast_lid(&look) && name != "bystra_dawn_fog" {
+            assert!(
+                look.cloud_shadow_strength >= 0.6,
+                "{name}: a clear look's cloud shade must read"
+            );
+        }
+    }
+    for (name, look) in outdoor_profiles() {
+        if is_overcast_lid(&look) {
+            assert!(look.shadow_strength <= 0.4, "{name}: a lid casts a shade, not a cut");
+        } else {
+            // A sky with a sun in it casts a shadow you can read; the foggy dawn softens it to
+            // 0.7, the clear looks keep the full cut.
+            assert!(look.shadow_strength >= 0.6, "{name}: a sky with a sun casts a real shadow");
+        }
+    }
 }
 
 /// Graded display luma of the sky at the horizon — the brightest plane of the picture.
