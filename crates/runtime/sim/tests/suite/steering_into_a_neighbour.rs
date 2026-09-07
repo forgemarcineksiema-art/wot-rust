@@ -32,33 +32,29 @@ fn penetration(state: &SimulationState, a: TankId, b: TankId) -> f32 {
     footprint_penetration_m(&hull(a), &hull(b))
 }
 
-/// **A RECORDED DEFECT, not a promise kept.** Register H2.
+/// **The promise, kept (the one program's X8).** Register H2 retired.
 ///
-/// A hull may lean on its neighbour and should never go inside it. It does. These are today's
-/// numbers, held so the hole cannot quietly widen while the fix is built.
+/// A hull may lean on its neighbour and never go inside it. It did: a contact was ONE point — the
+/// midpoint of the two centres — and a hull pinned at one point is free to turn about it, so a
+/// corner elsewhere buried itself 0.166 m steering in and 0.430 m leaning on a parked hull. The
+/// contact now acts WHERE the plates meet: at the incident corner, and at the corner next to it
+/// when a face lies flat on a face (`FootprintContact::points`), with each body's correction
+/// shared across the constraints holding it — the Jacobi split that let the two-point manifold
+/// ship without sinking a queue (the first manifold, unsplit, took a queue of three from no
+/// motion to 0.11 m of sink).
 ///
-/// The cause is understood and measured: a contact is ONE point, and a hull pinned at one point is
-/// free to turn about it — the rotation violates nothing there, so the solver applies nothing while
-/// a corner elsewhere buries itself. The fix is a two-point manifold, built and measured at 0.039 m
-/// worst case, and NOT shipped: a Jacobi pass handed two coupled points per pair destabilises
-/// stacks — a queue of three went from 0.0014 m of sink and no motion to 0.110 m and 0.044 m/tick.
-/// Trading "you can drive into a tank" for "a queue of three sinks 11 cm" is not a fix. It needs
-/// the solver to share a hull's correction across the contacts holding it, or to iterate
-/// sequentially over a deterministically sorted list.
-///
-/// A hull may lean on its neighbour. It may not go inside it.
-///
-/// The solver is designed to leave `POSITION_SLOP_M` — two centimetres — alone, and a hull pressed
-/// with full throttle AND full steer settles a hair past it where the drive's push balances the
-/// recovery. Measured at 0.026-0.030 m; the bound carries a little headroom over that and nothing
-/// like the room the bug had. For scale, the same manoeuvres before the fix: 0.166 m steering in,
-/// 0.430 m leaning on a parked hull, and both were still growing.
-const TOLERATED_M: f32 = 0.13;
+/// What the solver is designed to leave alone is `POSITION_SLOP_M` — two centimetres — and a hull
+/// pressed with full throttle AND full steer settles past it where the drive's push balances the
+/// recovery velocity: measured 0.060–0.065 m on the three manoeuvres below with the manifold (the
+/// same at four and eight solver passes, so it is the equilibrium of push against recovery, not
+/// a solve that ran out of reach). The bound is that equilibrium and a hair, not the hole the bug
+/// had — and it is not to be raised.
+const TOLERATED_M: f32 = 0.07;
 
 /// The reported case, exactly: side by side, the player a shade slower, steering into the
 /// neighbour and holding it there.
 #[test]
-fn steering_into_a_neighbour_does_not_get_worse() {
+fn steering_into_a_neighbour_never_gets_inside_it() {
     let spec = TankSpec::t54_1951();
     let half_width = spec.hull_plan().half_width_m;
     let mut state = SimulationState::new();
@@ -85,14 +81,15 @@ fn steering_into_a_neighbour_does_not_get_worse() {
     println!("steering in: deepest penetration {worst:.4} m at tick {worst_tick}");
     assert!(
         worst <= TOLERATED_M,
-        "steering into a neighbour now buries the hull {worst:.3} m, past the {TOLERATED_M} m          recorded. Register H2 is getting worse; close it with the manifold, do not raise this"
+        "steering into a neighbour buries the hull {worst:.3} m, past the {TOLERATED_M} m a lean is \
+         allowed (H2 was 0.166 m; do not raise this)"
     );
 }
 
 /// The same lean against a neighbour that is standing still, which is how the report described the
 /// worst of it.
 #[test]
-fn leaning_on_a_parked_neighbour_does_not_get_worse() {
+fn leaning_on_a_parked_neighbour_never_gets_inside_it() {
     let spec = TankSpec::t54_1951();
     let half_width = spec.hull_plan().half_width_m;
     let mut state = SimulationState::new();
@@ -112,15 +109,16 @@ fn leaning_on_a_parked_neighbour_does_not_get_worse() {
     }
     println!("leaning on a parked hull: deepest penetration {worst:.4} m");
     assert!(
-        worst <= 0.47,
-        "leaning on a parked hull now buries it {worst:.3} m, past the 0.44 m recorded (H2)"
+        worst <= TOLERATED_M,
+        "leaning on a parked hull buries it {worst:.3} m, past the {TOLERATED_M} m a lean is allowed \
+         (H2 was 0.44 m; do not raise this)"
     );
 }
 
 /// A pure pivot against a touching neighbour — the manoeuvre P1.4 measured as "zero overlap" with
 /// an axis distance that could not see it.
 #[test]
-fn pivoting_against_a_neighbour_does_not_get_worse() {
+fn pivoting_against_a_neighbour_never_gets_inside_it() {
     let spec = TankSpec::t54_1951();
     let half_width = spec.hull_plan().half_width_m;
     let mut state = SimulationState::new();
@@ -139,5 +137,8 @@ fn pivoting_against_a_neighbour_does_not_get_worse() {
         worst = worst.max(penetration(&state, player, parked));
     }
     println!("pivoting against a hull: deepest penetration {worst:.4} m");
-    assert!(worst <= TOLERATED_M, "a pivot now bores {worst:.3} m in, past what is recorded (H2)");
+    assert!(
+        worst <= TOLERATED_M,
+        "a pivot bores {worst:.3} m in, past the {TOLERATED_M} m allowed (H2)"
+    );
 }

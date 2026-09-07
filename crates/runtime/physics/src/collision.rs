@@ -203,7 +203,27 @@ pub struct FootprintContact {
     pub depth_m: f32,
     /// WHICH pair of features is touching — the identity a cached impulse is filed under.
     pub feature: ContactFeature,
+    /// WHERE the pair touches, world XZ (the one program's X8): the incident hull's deepest
+    /// corner, and — when the incident FACE lies flat against the reference face — the corner
+    /// next to it along that face, so a face pressed against a face is held at two points and
+    /// cannot turn about one. `point_count` says how many of the two are real.
+    pub points: [Vec2; 2],
+    pub point_count: u8,
+    /// The corner index (in the incident hull's frame) behind each point, for the identity of
+    /// the second constraint.
+    pub corners: [u8; 2],
 }
+
+impl FootprintContact {
+    pub fn points(&self) -> &[Vec2] {
+        &self.points[..self.point_count as usize]
+    }
+}
+
+/// How much shallower than the deepest corner the corner next to it may sit and still count as
+/// pressed: a face is flat against a face within a hand of cant. Beyond it the contact is a
+/// corner into a face and one point is the truth.
+const MANIFOLD_DEPTH_SLACK_M: f32 = 0.05;
 
 /// Which features of the two hulls are in contact, as a value that stays put while the same
 /// corners stay pressed together and changes when they stop.
@@ -312,7 +332,90 @@ pub(crate) fn footprint_contact_within(
         }
         _ => (index, normal, depth_m),
     };
-    Some(FootprintContact { normal, depth_m, feature: feature_at(a, b, &axes, index, normal) })
+    let feature = feature_at(a, b, &axes, index, normal);
+    let (points, corners, point_count) = manifold_points(a, b, &axes, index, normal, feature);
+    Some(FootprintContact { normal, depth_m, feature, points, point_count, corners })
+}
+
+/// The contact points of the pair (X8): the incident hull's face — the edge from its deepest
+/// corner to the neighbour corner lying most nearly along the reference face — CLIPPED to the
+/// reference face's span along the tangent, the way two boxes meet. The clipped ends that are
+/// pressed (no shallower than the deepest of them by [`MANIFOLD_DEPTH_SLACK_M`]) are the points:
+/// two for a face flat on a face, one for a corner digging into a face. Clipping is what keeps a
+/// hull nose-on into a ten-metre wall honest: the wall is the incident body there (the SAT names
+/// the hull's face the reference), and its own corners stand ten metres to the side — the points
+/// are where the hull's face actually meets it.
+fn manifold_points(
+    a: &TankObstacle,
+    b: &TankObstacle,
+    axes: &[[Vec2; 2]; 2],
+    _axis_index: usize,
+    normal: Vec2,
+    feature: ContactFeature,
+) -> ([Vec2; 2], [u8; 2], u8) {
+    let reference_is_b = feature.reference_is_b;
+    let (incident, incident_axes, reference) =
+        if reference_is_b { (a, axes[0], b) } else { (b, axes[1], a) };
+    let outward = if reference_is_b { -normal } else { normal };
+    let corner_world = |index: u8| -> Vec2 {
+        let sign = |bit: u8| if index & bit == bit { 1.0 } else { -1.0 };
+        Vec2::new(incident.center.x, incident.center.z)
+            + incident_axes[0] * (sign(1) * incident.footprint.half_width_m)
+            + incident_axes[1] * (sign(2) * incident.footprint.half_length_m)
+    };
+    let deepest = feature.incident_corner;
+    let p0 = corner_world(deepest);
+    // The incident FACE: the edge to the neighbour corner that sits deeper (more nearly along
+    // the reference face). Ties keep the lower index, for a stable identity.
+    let mut neighbour = deepest ^ 1;
+    let mut neighbour_depth = corner_world(neighbour).dot(outward);
+    let other = deepest ^ 2;
+    let other_depth = corner_world(other).dot(outward);
+    if other_depth < neighbour_depth - CORNER_TIE_M {
+        neighbour = other;
+        neighbour_depth = other_depth;
+    }
+    let _ = neighbour_depth;
+    let p1 = corner_world(neighbour);
+
+    // Clip the edge to the reference face's span along the tangent.
+    let reference_center = Vec2::new(reference.center.x, reference.center.z);
+    let tangent = Vec2::new(-normal.y, normal.x);
+    let half_span = if feature.reference_is_end {
+        reference.footprint.half_width_m
+    } else {
+        reference.footprint.half_length_m
+    } + CORNER_TIE_M;
+    let t0 = (p0 - reference_center).dot(tangent);
+    let t1 = (p1 - reference_center).dot(tangent);
+    let (mut s_lo, mut s_hi) = (0.0_f32, 1.0_f32);
+    let dt = t1 - t0;
+    if dt.abs() > 1.0e-6 {
+        let s_at = |t: f32| (t - t0) / dt;
+        let (sa, sb) = (s_at(-half_span), s_at(half_span));
+        s_lo = s_lo.max(sa.min(sb));
+        s_hi = s_hi.min(sa.max(sb));
+    } else if t0.abs() > half_span {
+        // The edge runs straight into the face outside its span: no honest point along it.
+        s_lo = 0.0;
+        s_hi = 0.0;
+    }
+    if s_lo > s_hi {
+        return ([p0, p0], [deepest, deepest], 1);
+    }
+    let q_lo = p0 + (p1 - p0) * s_lo;
+    let q_hi = p0 + (p1 - p0) * s_hi;
+    let (d_lo, d_hi) = (q_lo.dot(outward), q_hi.dot(outward));
+    let deepest_depth = d_lo.min(d_hi);
+    let lo_pressed = d_lo <= deepest_depth + MANIFOLD_DEPTH_SLACK_M;
+    let hi_pressed = d_hi <= deepest_depth + MANIFOLD_DEPTH_SLACK_M;
+    let apart = (q_hi - q_lo).length() > CORNER_TIE_M;
+    match (lo_pressed, hi_pressed, apart) {
+        (true, true, true) => ([q_lo, q_hi], [deepest, neighbour], 2),
+        (true, _, _) => ([q_lo, q_lo], [deepest, deepest], 1),
+        (false, true, _) => ([q_hi, q_hi], [neighbour, neighbour], 1),
+        _ => ([p0, p0], [deepest, deepest], 1),
+    }
 }
 
 /// How far apart the pair is along one named axis, with the normal oriented `a` -> `b`.

@@ -105,17 +105,28 @@ fn circumradius(half_x: f32, half_z: f32) -> f32 {
     (half_x * half_x + half_z * half_z).sqrt()
 }
 
+/// What the BACKSTOP yields to the roster solve (X6/X8): the solver's speculative contact
+/// brings a hull to a wall touching it — the closing it allows in the touch tick shuts the gap
+/// exactly, to rounding — and a blocker that refuses any overlap past a hundred-thousandth of a
+/// metre then refuses that very move and deletes the momentum the solver left to close it
+/// (measured: 3.3 of 10.7 m/s of a wall charge went to the veto, not the contact). The blocker
+/// therefore reads every box a hand SMALLER than it is: a hull the solver placed touching passes,
+/// a hull genuinely inside a wall (a spawn in one, the single-hull API) is still held — within a
+/// centimetre, which is the nose-at-the-face lock's tolerance.
+const BACKSTOP_SLOP_M: f32 = 0.01;
+
 /// The cover box as the SAT's obstacle: its own yaw (X1) — the same rotation the hull's footprint
-/// wears — so a turned block collides where it stands, not where its bounds do; and a standing
-/// solid's band (X3), from the ground it is planted in up to its top.
+/// wears — so a turned block collides where it stands, not where its bounds do; a standing
+/// solid's band (X3), from the ground it is planted in up to its top; and a hand smaller than
+/// the box in plan ([`BACKSTOP_SLOP_M`]), because this is the backstop behind the roster solve.
 fn cover_obstacle(object: &StaticCoverObject) -> TankObstacle {
     let height_m = (2.0 * object.half_extents_m[1]).max(0.01);
     TankObstacle::grounded_solid(
         Vec3::new(object.center[0], object.center[1], object.center[2]),
         object.yaw_rad,
         TankFootprint {
-            half_width_m: object.half_extents_m[0].max(0.01),
-            half_length_m: object.half_extents_m[2].max(0.01),
+            half_width_m: (object.half_extents_m[0] - BACKSTOP_SLOP_M).max(0.01),
+            half_length_m: (object.half_extents_m[2] - BACKSTOP_SLOP_M).max(0.01),
             height_m,
             // A solid steps onto nothing: the band a standing solid wears is its own.
             step_m: 0.0,

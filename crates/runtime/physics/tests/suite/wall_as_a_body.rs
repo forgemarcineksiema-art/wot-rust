@@ -116,12 +116,21 @@ fn a_fourteen_metre_per_second_wall_hit_is_a_contact_that_dives_the_nose() {
     let mut cache = ContactCache::default();
     let coast = TankControlInput { throttle: 0.0, steer: 0.0, brake: 0.0 };
     let (mut hit_impulse, mut deepest_dive, mut refused_ever) = (0.0_f32, 0.0_f32, false);
+    // The momentum the hull BRINGS to the contact: a coasting hull sheds speed on its own
+    // (engine braking, the governor above the top speed), so the wall is owed what arrives.
+    let mut momentum_at_contact = 0.0_f32;
     for _ in 0..90 {
+        let speed_before = state.velocity.z;
         let (pairs, refused) = rig.solved_tick(&mut state, &mut cache, coast);
         refused_ever |= refused;
+        if momentum_at_contact == 0.0 && !pairs.is_empty() {
+            momentum_at_contact = spec.mass_kg * speed_before;
+        }
         for pair in &pairs {
             assert!(pair.b >= 1 || pair.a >= 1, "the only other body is the wall");
-            hit_impulse = hit_impulse.max(pair.normal_impulse_ns);
+            // Summed over the charge: the contact takes the momentum over the ticks it takes to
+            // close, and all of it goes through the wall.
+            hit_impulse += pair.normal_impulse_ns;
         }
         deepest_dive = deepest_dive.min(state.dive_pitch_rad);
     }
@@ -129,10 +138,10 @@ fn a_fourteen_metre_per_second_wall_hit_is_a_contact_that_dives_the_nose() {
     let nose = state.position.z + HullPlan::for_vehicle(VehicleKind::T54_1951).half_length_m;
     assert!(nose <= face_z + 0.03, "the hull stops at the wall face, nose at {nose} vs {face_z}");
     assert!(state.velocity.z.abs() < 0.05, "...and stays stopped, got {} m/s", state.velocity.z);
+    assert!(momentum_at_contact > 0.5 * spec.mass_kg * 14.0, "the hull must still be charging");
     assert!(
-        hit_impulse > 0.5 * spec.mass_kg * 14.0,
-        "the wall must take the charge's momentum through the contact: {hit_impulse} N·s of {}",
-        spec.mass_kg * 14.0
+        hit_impulse > 0.9 * momentum_at_contact,
+        "the wall must take the charge's momentum through the contact: {hit_impulse} N·s of          {momentum_at_contact}"
     );
     assert!(
         deepest_dive < -0.003,
