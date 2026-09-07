@@ -289,6 +289,15 @@ impl ContactCache {
     fn remembered(&self, a: u64, b: u64) -> Option<CachedContact> {
         self.entries.iter().find(|entry| entry.a == a && entry.b == b).copied()
     }
+
+    /// The entry for one pair AND one touching feature — a face pressed flat against a face is
+    /// two constraints on the same pair (X8), each with its own memory.
+    fn remembered_feature(&self, a: u64, b: u64, feature: ContactFeature) -> Option<CachedContact> {
+        self.entries
+            .iter()
+            .find(|entry| entry.a == a && entry.b == b && entry.feature == feature)
+            .copied()
+    }
 }
 
 /// One pair's contact as the solver works it. The geometry is fixed for the whole solve — only
@@ -312,6 +321,10 @@ struct Constraint {
     peak_closing_mps: f32,
     impact_reported: bool,
     touched: bool,
+    /// Reserved at 1.0: a two-point manifold is solved as one 2×2 block (X8), so every point
+    /// applies its whole impulse. Kept so the deltas have one signature.
+    share_a: f32,
+    share_b: f32,
 }
 
 /// Solve every hull-to-hull contact in the roster and report what each hull took. `bodies` is left
@@ -357,52 +370,44 @@ pub fn resolve_contacts(
     for _ in 0..ITERATIONS {
         let mut delta_v = vec![Vec3::ZERO; bodies.len()];
         let mut delta_w = vec![0.0_f32; bodies.len()];
-        for constraint in &mut constraints {
-            let (a, b) = (constraint.a, constraint.b);
-            let (normal, tangent) = (constraint.normal, constraint.tangent);
-            let relative = Vec2::new(velocity[b].x - velocity[a].x, velocity[b].z - velocity[a].z);
-            // Positive = separating. The two angular terms follow THIS codebase's yaw convention,
-            // which is worth deriving rather than assuming: `forward = (sin yaw, cos yaw)`, so a
-            // point at offset `r` from a hull's centre moves at `omega * (r.z, -r.x)`, and its
-            // speed along the contact normal is `omega * (r . tangent)` — the lever.
-            //
-            // Both signs were inverted here, and so was the torque in `deltas_for`. Consistently
-            // inverted is not harmlessly inverted: it made a contact ANTI-DAMP rotation. On its own
-            // it changes little, because a single contact point gives rotation nothing to violate
-            // — see the register entry — but it has to be right before a manifold can be.
-            let approach = relative.dot(normal) + yaw_rate[b] * constraint.lever_b
-                - yaw_rate[a] * constraint.lever_a;
-
-            // Solve for the TOTAL impulse this contact should be carrying, then apply only the
-            // change. Clamping the accumulation at zero (rather than the increment) is what lets a
-            // contact that is currently separating give back impulse it no longer needs without
-            // ever pulling the pair together: a constraint pushes, it never pulls.
-            let wanted =
-                (constraint.target - approach * (1.0 + RESTITUTION)) / constraint.effective;
-            let held = constraint.normal_impulse;
-            constraint.normal_impulse = (held + wanted).max(0.0);
-            let normal_step = constraint.normal_impulse - held;
-
-            // Coulomb friction ACROSS the contact, bounded by what the normal impulse can hold —
-            // the ACCUMULATED one, not this iteration's slice of it. Capping each increment
-            // separately let four iterations spend four times the friction budget one contact
-            // actually has, which is not a cone at all.
-            let sliding = relative.dot(tangent);
-            let linear = bodies[a].inverse_mass() + bodies[b].inverse_mass();
-            let mut tangent_step = 0.0;
-            if linear > f32::EPSILON {
-                let cap = CONTACT_FRICTION_MU * constraint.normal_impulse;
-                let held_t = constraint.tangent_impulse;
-                constraint.tangent_impulse = (held_t - sliding / linear).clamp(-cap, cap);
-                tangent_step = constraint.tangent_impulse - held_t;
+        let mut index = 0;
+        while index < constraints.len() {
+            // A pair's two manifold points sit next to each other and share a normal: solve
+            // them as one 2×2 block (X8), the way two boxes pressed face to face must be —
+            // solved one at a time, the front point's impulse frees the rear's and back again,
+            // and a Jacobi pass that hands a body both full impulses at once over-corrects it.
+            let block = index + 1 < constraints.len()
+                && constraints[index + 1].a == constraints[index].a
+                && constraints[index + 1].b == constraints[index].b;
+            if block {
+                let (head, tail) = constraints.split_at_mut(index + 1);
+                let (first, second) = (&mut head[index], &mut tail[0]);
+                let steps = solve_normal_block(bodies, first, second, &velocity, &yaw_rate);
+                for (constraint, normal_step) in [(&mut *first, steps[0]), (&mut *second, steps[1])]
+                {
+                    let tangent_step = solve_friction(bodies, constraint, &velocity);
+                    let impulse =
+                        constraint.normal * normal_step + constraint.tangent * tangent_step;
+                    let ((dv_a, dw_a), (dv_b, dw_b)) =
+                        deltas_for(bodies, constraint, impulse, normal_step);
+                    delta_v[constraint.a] += dv_a;
+                    delta_v[constraint.b] += dv_b;
+                    delta_w[constraint.a] += dw_a;
+                    delta_w[constraint.b] += dw_b;
+                }
+                index += 2;
+                continue;
             }
-
-            let impulse = normal * normal_step + tangent * tangent_step;
+            let constraint = &mut constraints[index];
+            let normal_step = solve_normal_point(bodies, constraint, &velocity, &yaw_rate);
+            let tangent_step = solve_friction(bodies, constraint, &velocity);
+            let impulse = constraint.normal * normal_step + constraint.tangent * tangent_step;
             let ((dv_a, dw_a), (dv_b, dw_b)) = deltas_for(bodies, constraint, impulse, normal_step);
-            delta_v[a] += dv_a;
-            delta_v[b] += dv_b;
-            delta_w[a] += dw_a;
-            delta_w[b] += dw_b;
+            delta_v[constraint.a] += dv_a;
+            delta_v[constraint.b] += dv_b;
+            delta_w[constraint.a] += dw_a;
+            delta_w[constraint.b] += dw_b;
+            index += 1;
         }
         for index in 0..bodies.len() {
             velocity[index] += delta_v[index];
@@ -416,6 +421,8 @@ pub fn resolve_contacts(
     for entry in &cache.entries {
         let still_here =
             constraints.iter().any(|c| bodies[c.a].id == entry.a && bodies[c.b].id == entry.b);
+        // A second point's entry carries no collision of its own (it was marked reported).
+
         if !still_here && !entry.impact_reported && entry.touched && entry.peak_closing_mps > 0.0 {
             impacts.push(ContactImpact {
                 a: entry.a,
@@ -466,9 +473,18 @@ pub fn resolve_contacts(
         if magnitude <= 0.0 {
             continue;
         }
-        out[constraint.a].normal_impulse_ns += magnitude;
-        out[constraint.b].normal_impulse_ns += magnitude;
-        pairs.push(ContactPair { a: constraint.a, b: constraint.b, normal_impulse_ns: magnitude });
+        // The pair's points add up to the pair's one exchange, reported once per pair.
+        let applied = magnitude;
+        out[constraint.a].normal_impulse_ns += applied;
+        out[constraint.b].normal_impulse_ns += applied;
+        match pairs.iter_mut().find(|pair| pair.a == constraint.a && pair.b == constraint.b) {
+            Some(pair) => pair.normal_impulse_ns += applied,
+            None => pairs.push(ContactPair {
+                a: constraint.a,
+                b: constraint.b,
+                normal_impulse_ns: applied,
+            }),
+        }
     }
 
     for index in 0..bodies.len() {
@@ -512,82 +528,92 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
             let normal = contact.normal;
             let tangent = Vec2::new(-normal.y, normal.x);
 
-            // The contact acts at the midpoint of the two centres, so each hull's lever is its own
-            // TANGENTIAL offset to that point — equal and OPPOSITE. A hull struck dead amidships
-            // has no lever and takes no spin; one caught near the nose has a long one and slews.
-            // Getting this equal-and-opposite is what makes the torque a fact about the geometry
-            // rather than about which hull the loop happened to call `a`. Clamped to each hull's
-            // own reach so a deep overlap cannot invent a lever longer than the vehicle.
-            let delta =
-                Vec2::new(here_b.center.x - here_a.center.x, here_b.center.z - here_a.center.z);
-            let offset = delta.dot(tangent) * 0.5;
+            // The contact acts WHERE the plates meet (X8): at the incident hull's corner, and at
+            // the corner next to it when a face lies flat on a face — two points, so a hull held
+            // along a face cannot turn about one of them and bury the other. Each hull's lever
+            // is its own tangential offset to the point (a hull struck dead amidships has none
+            // and takes no spin; one caught near the nose has a long one and slews), clamped to
+            // its own reach so a deep overlap cannot invent a lever longer than the vehicle.
+            // The midpoint of the centres was the contact point before: a charger then slewed
+            // as much as its victim, and a face-to-face lean had one point to turn about.
+            let center_a = Vec2::new(here_a.center.x, here_a.center.z);
+            let center_b = Vec2::new(here_b.center.x, here_b.center.z);
             let reach_a = bodies[a].reach_along(tangent);
             let reach_b = bodies[b].reach_along(tangent);
-            let lever_a = offset.clamp(-reach_a, reach_a);
-            let lever_b = (-offset).clamp(-reach_b, reach_b);
+            for (point_index, point) in contact.points().iter().enumerate() {
+                let lever_a = (*point - center_a).dot(tangent).clamp(-reach_a, reach_a);
+                let lever_b = (*point - center_b).dot(tangent).clamp(-reach_b, reach_b);
+                let feature = ContactFeature {
+                    incident_corner: contact.corners[point_index],
+                    ..contact.feature
+                };
+                let remembered = cache.remembered_feature(bodies[a].id, bodies[b].id, feature);
 
-            let (inv_ma, inv_mb) = (bodies[a].inverse_mass(), bodies[b].inverse_mass());
-            let (inv_ia, inv_ib) = (bodies[a].inverse_inertia(), bodies[b].inverse_inertia());
-            let effective =
-                inv_ma + inv_mb + lever_a * lever_a * inv_ia + lever_b * lever_b * inv_ib;
-            if effective <= f32::EPSILON {
-                continue;
+                let (inv_ma, inv_mb) = (bodies[a].inverse_mass(), bodies[b].inverse_mass());
+                let (inv_ia, inv_ib) = (bodies[a].inverse_inertia(), bodies[b].inverse_inertia());
+                let effective =
+                    inv_ma + inv_mb + lever_a * lever_a * inv_ia + lever_b * lever_b * inv_ib;
+                if effective <= f32::EPSILON {
+                    continue;
+                }
+
+                // How fast this pair is ALLOWED to close. Still apart: exactly fast enough to shut the
+                // remaining gap by the end of the tick and no faster, so they finish it touching.
+                // Already overlapped: the target turns positive and asks them to ease back out at
+                // `RECOVERY_RATE` of the excess, as a velocity rather than as a teleport. Overlap
+                // shallower than `POSITION_SLOP_M` is left alone.
+                let separation = -contact.depth_m;
+                let target = if separation > 0.0 {
+                    -separation / dt
+                } else {
+                    let excess = (-separation - POSITION_SLOP_M).max(0.0);
+                    (RECOVERY_RATE * excess / dt).min(recovery_ceiling_mps(excess))
+                };
+
+                // Carry the impulse forward only while the SAME features are still touching. A flank
+                // impulse re-used on a nose-on contact would shove a hull sideways for a reason that
+                // stopped existing a tick ago.
+                let (normal_impulse, tangent_impulse) = match remembered {
+                    Some(entry) => (entry.normal_impulse, entry.tangent_impulse),
+                    None => (0.0, 0.0),
+                };
+                // The closing speed the pair BROUGHT into the tick, before any impulse: the honest
+                // measure of the collision (X7), independent of where in the tick the plates met.
+                let relative = Vec2::new(
+                    bodies[b].velocity.x - bodies[a].velocity.x,
+                    bodies[b].velocity.z - bodies[a].velocity.z,
+                );
+                let closing_mps = -(relative.dot(normal) + bodies[b].yaw_rate_rad_s * lever_b
+                    - bodies[a].yaw_rate_rad_s * lever_a);
+                // The collision's memory (X7) rides the FIRST point of a pair; a second point of the
+                // same pair is the same collision and reports nothing of its own.
+                let episode = cache.remembered(bodies[a].id, bodies[b].id);
+                let (peak_closing_mps, impact_reported, touched) = match episode {
+                    Some(entry) => (entry.peak_closing_mps, entry.impact_reported, entry.touched),
+                    None => (0.0, false, false),
+                };
+                let impact_reported = impact_reported || point_index > 0;
+
+                constraints.push(Constraint {
+                    a,
+                    b,
+                    normal,
+                    tangent,
+                    lever_a,
+                    lever_b,
+                    target,
+                    effective,
+                    feature,
+                    normal_impulse,
+                    tangent_impulse,
+                    closing_mps,
+                    peak_closing_mps,
+                    impact_reported,
+                    touched,
+                    share_a: 1.0,
+                    share_b: 1.0,
+                });
             }
-
-            // How fast this pair is ALLOWED to close. Still apart: exactly fast enough to shut the
-            // remaining gap by the end of the tick and no faster, so they finish it touching.
-            // Already overlapped: the target turns positive and asks them to ease back out at
-            // `RECOVERY_RATE` of the excess, as a velocity rather than as a teleport. Overlap
-            // shallower than `POSITION_SLOP_M` is left alone.
-            let separation = -contact.depth_m;
-            let target = if separation > 0.0 {
-                -separation / dt
-            } else {
-                let excess = (-separation - POSITION_SLOP_M).max(0.0);
-                (RECOVERY_RATE * excess / dt).min(recovery_ceiling_mps(excess))
-            };
-
-            // Carry the impulse forward only while the SAME features are still touching. A flank
-            // impulse re-used on a nose-on contact would shove a hull sideways for a reason that
-            // stopped existing a tick ago.
-            let (normal_impulse, tangent_impulse) = match remembered {
-                Some(entry) if entry.feature == contact.feature => {
-                    (entry.normal_impulse, entry.tangent_impulse)
-                }
-                _ => (0.0, 0.0),
-            };
-            // The closing speed the pair BROUGHT into the tick, before any impulse: the honest
-            // measure of the collision (X7), independent of where in the tick the plates met.
-            let relative = Vec2::new(
-                bodies[b].velocity.x - bodies[a].velocity.x,
-                bodies[b].velocity.z - bodies[a].velocity.z,
-            );
-            let closing_mps = -(relative.dot(normal) + bodies[b].yaw_rate_rad_s * lever_b
-                - bodies[a].yaw_rate_rad_s * lever_a);
-            let (peak_closing_mps, impact_reported, touched) = match remembered {
-                Some(entry) if entry.feature == contact.feature => {
-                    (entry.peak_closing_mps, entry.impact_reported, entry.touched)
-                }
-                _ => (0.0, false, false),
-            };
-
-            constraints.push(Constraint {
-                a,
-                b,
-                normal,
-                tangent,
-                lever_a,
-                lever_b,
-                target,
-                effective,
-                feature: contact.feature,
-                normal_impulse,
-                tangent_impulse,
-                closing_mps,
-                peak_closing_mps,
-                impact_reported,
-                touched,
-            });
         }
     }
     constraints
@@ -644,6 +670,126 @@ pub fn solid_bodies_near(
     out
 }
 
+/// The relative normal velocity at one point, positive = separating. The two angular terms follow
+/// THIS codebase's yaw convention, which is worth deriving rather than assuming: `forward = (sin
+/// yaw, cos yaw)`, so a point at offset `r` from a hull's centre moves at `omega * (r.z, -r.x)`,
+/// and its speed along the contact normal is `omega * (r . tangent)` — the lever.
+///
+/// Both signs were inverted here once, and so was the torque in `deltas_for`. Consistently
+/// inverted is not harmlessly inverted: it made a contact ANTI-DAMP rotation.
+fn approach_at(constraint: &Constraint, velocity: &[Vec3], yaw_rate: &[f32]) -> f32 {
+    let (a, b) = (constraint.a, constraint.b);
+    let relative = Vec2::new(velocity[b].x - velocity[a].x, velocity[b].z - velocity[a].z);
+    relative.dot(constraint.normal) + yaw_rate[b] * constraint.lever_b
+        - yaw_rate[a] * constraint.lever_a
+}
+
+/// One point's normal impulse step: solve for the TOTAL impulse the contact should carry, apply
+/// only the change. Clamping the accumulation at zero (rather than the increment) lets a contact
+/// that is separating give back impulse it no longer needs without ever pulling the pair
+/// together: a constraint pushes, it never pulls.
+fn solve_normal_point(
+    bodies: &[ContactBody],
+    constraint: &mut Constraint,
+    velocity: &[Vec3],
+    yaw_rate: &[f32],
+) -> f32 {
+    let _ = bodies;
+    let approach = approach_at(constraint, velocity, yaw_rate);
+    let wanted = (constraint.target - approach * (1.0 + RESTITUTION)) / constraint.effective;
+    let held = constraint.normal_impulse;
+    constraint.normal_impulse = (held + wanted).max(0.0);
+    constraint.normal_impulse - held
+}
+
+/// How two points of one pair couple: the change of the relative normal velocity at point `i`
+/// per unit of impulse at point `j` — the same masses, the levers of each.
+fn coupling(bodies: &[ContactBody], i: &Constraint, j: &Constraint) -> f32 {
+    let (a, b) = (i.a, i.b);
+    bodies[a].inverse_mass()
+        + bodies[b].inverse_mass()
+        + i.lever_a * j.lever_a * bodies[a].inverse_inertia()
+        + i.lever_b * j.lever_b * bodies[b].inverse_inertia()
+}
+
+/// The two-point block (X8): both normal impulses at once, as the complementarity problem they
+/// are — each point either presses (its relative normal velocity meets its target) or carries
+/// nothing (and is free to separate). Four cases, tried in order: both press; only the first;
+/// only the second; neither. Returns each point's impulse STEP; the accumulated totals are left
+/// on the constraints.
+fn solve_normal_block(
+    bodies: &[ContactBody],
+    first: &mut Constraint,
+    second: &mut Constraint,
+    velocity: &[Vec3],
+    yaw_rate: &[f32],
+) -> [f32; 2] {
+    let k11 = coupling(bodies, first, first);
+    let k22 = coupling(bodies, second, second);
+    let k12 = coupling(bodies, first, second);
+    let held = [first.normal_impulse, second.normal_impulse];
+    // The velocity error each point sees now (positive = short of its target), and what it
+    // would be with the accumulated impulses taken back out.
+    let vn = [
+        approach_at(first, velocity, yaw_rate) * (1.0 + RESTITUTION) - first.target,
+        approach_at(second, velocity, yaw_rate) * (1.0 + RESTITUTION) - second.target,
+    ];
+    let bias = [vn[0] - (k11 * held[0] + k12 * held[1]), vn[1] - (k12 * held[0] + k22 * held[1])];
+    let det = k11 * k22 - k12 * k12;
+    let total = 'cases: {
+        // Both press.
+        if det.abs() > 1.0e-9 {
+            let x = [(-k22 * bias[0] + k12 * bias[1]) / det, (k12 * bias[0] - k11 * bias[1]) / det];
+            if x[0] >= 0.0 && x[1] >= 0.0 {
+                break 'cases x;
+            }
+        }
+        // Only the first.
+        if k11 > 1.0e-9 {
+            let x0 = -bias[0] / k11;
+            if x0 >= 0.0 && k12 * x0 + bias[1] >= 0.0 {
+                break 'cases [x0, 0.0];
+            }
+        }
+        // Only the second.
+        if k22 > 1.0e-9 {
+            let x1 = -bias[1] / k22;
+            if x1 >= 0.0 && k12 * x1 + bias[0] >= 0.0 {
+                break 'cases [0.0, x1];
+            }
+        }
+        // Neither: the pair is separating at both points.
+        if bias[0] >= 0.0 && bias[1] >= 0.0 {
+            break 'cases [0.0, 0.0];
+        }
+        // Degenerate (the two points coincide, or the matrix will not say): the deeper point
+        // alone, which is the one-point solve.
+        let x0 = if k11 > 1.0e-9 { (-bias[0] / k11).max(0.0) } else { 0.0 };
+        [x0, 0.0]
+    };
+    first.normal_impulse = total[0].max(0.0);
+    second.normal_impulse = total[1].max(0.0);
+    [first.normal_impulse - held[0], second.normal_impulse - held[1]]
+}
+
+/// Coulomb friction ACROSS the contact, bounded by what the normal impulse can hold — the
+/// ACCUMULATED one, not this iteration's slice of it. Capping each increment separately let four
+/// iterations spend four times the friction budget one contact actually has, which is not a cone
+/// at all. Returns the tangent impulse step.
+fn solve_friction(bodies: &[ContactBody], constraint: &mut Constraint, velocity: &[Vec3]) -> f32 {
+    let (a, b) = (constraint.a, constraint.b);
+    let relative = Vec2::new(velocity[b].x - velocity[a].x, velocity[b].z - velocity[a].z);
+    let sliding = relative.dot(constraint.tangent);
+    let linear = bodies[a].inverse_mass() + bodies[b].inverse_mass();
+    if linear <= f32::EPSILON {
+        return 0.0;
+    }
+    let cap = CONTACT_FRICTION_MU * constraint.normal_impulse;
+    let held_t = constraint.tangent_impulse;
+    constraint.tangent_impulse = (held_t - sliding / linear).clamp(-cap, cap);
+    constraint.tangent_impulse - held_t
+}
+
 /// Torque from an impulse `J` at offset `r` is `magnitude * (r . tangent)` in this convention,
 /// which falls out of the power balance: `F . v = omega * (F.x*r.z - F.z*r.x)`. Body `b` takes
 /// `+J` and body `a` takes `-J` — mind that orientation when wiring a new caller.
@@ -661,12 +807,12 @@ fn deltas_for(
     let (a, b) = (constraint.a, constraint.b);
     (
         (
-            -push * bodies[a].inverse_mass(),
-            -constraint.lever_a * normal_step * bodies[a].inverse_inertia(),
+            -push * bodies[a].inverse_mass() * constraint.share_a,
+            -constraint.lever_a * normal_step * bodies[a].inverse_inertia() * constraint.share_a,
         ),
         (
-            push * bodies[b].inverse_mass(),
-            constraint.lever_b * normal_step * bodies[b].inverse_inertia(),
+            push * bodies[b].inverse_mass() * constraint.share_b,
+            constraint.lever_b * normal_step * bodies[b].inverse_inertia() * constraint.share_b,
         ),
     )
 }
