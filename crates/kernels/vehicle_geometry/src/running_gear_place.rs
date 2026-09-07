@@ -102,11 +102,14 @@ pub fn running_gear_placements_dynamic_into(
     }
 }
 
+/// How far a road wheel may travel from its rest line, either way (a real T-54 bogie travels
+/// ~0.2 m). ONE limit, symmetric, shared with the client's residual — the old −0.08/+0.20 pair
+/// floated wheels over ditches on one side and buried them through the belt on the other.
+pub const WHEEL_TRAVEL_LIMIT_M: f32 = 0.20;
+
 /// Vertical travel for the wheel at `index` (0 = rest for anything the caller did not provide).
-/// The upward range is generous (a real T-54 bogie travels ~0.2 m): wheels that cap out on a
-/// bump leave the belt buried in the terrain.
-fn travel_at(travel: &[f32], index: usize) -> f32 {
-    travel.get(index).copied().unwrap_or(0.0).clamp(-0.08, 0.20)
+pub(crate) fn travel_at(travel: &[f32], index: usize) -> f32 {
+    travel.get(index).copied().unwrap_or(0.0).clamp(-WHEEL_TRAVEL_LIMIT_M, WHEEL_TRAVEL_LIMIT_M)
 }
 
 /// Bottom-run travel under `z`: the shoe follows the wheels it spans, interpolated between the
@@ -116,21 +119,34 @@ fn bottom_travel(kin: &RunningGearKinematics, travel: &[f32], z: f32) -> f32 {
         return 0.0;
     }
     let zs = &kin.wheel_zs;
-    if z <= zs[0] {
+    let chord = if z <= zs[0] {
         let fade = ((zs[0] - z) / 0.6).clamp(0.0, 1.0);
-        return travel_at(travel, 0) * (1.0 - fade);
-    }
-    if z >= zs[zs.len() - 1] {
+        travel_at(travel, 0) * (1.0 - fade)
+    } else if z >= zs[zs.len() - 1] {
         let fade = ((z - zs[zs.len() - 1]) / 0.6).clamp(0.0, 1.0);
-        return travel_at(travel, zs.len() - 1) * (1.0 - fade);
-    }
-    for i in 0..zs.len() - 1 {
-        if z >= zs[i] && z <= zs[i + 1] {
-            let t = (z - zs[i]) / (zs[i + 1] - zs[i]).max(1.0e-4);
-            return travel_at(travel, i) * (1.0 - t) + travel_at(travel, i + 1) * t;
+        travel_at(travel, zs.len() - 1) * (1.0 - fade)
+    } else {
+        let mut between = 0.0;
+        for i in 0..zs.len() - 1 {
+            if z >= zs[i] && z <= zs[i + 1] {
+                let t = (z - zs[i]) / (zs[i + 1] - zs[i]).max(1.0e-4);
+                between = travel_at(travel, i) * (1.0 - t) + travel_at(travel, i + 1) * t;
+                break;
+            }
         }
-    }
-    0.0
+        between
+    };
+    // The chord between two differently travelled wheels is straight; a tyre is round. Near a
+    // wheel that sits LOWER than the chord would put the shoe, the shoe follows the tyre's arc
+    // instead (the belt cannot lie inside the steel it is wrapped under): the rest line is
+    // `cy - R - SEAT`, so a shoe at `dz` from a wheel may rise at most to that wheel's travel
+    // plus the tyre's own sagitta there (J7 — the straight chord cut 5 mm into a wheel dropped
+    // 0.15 m; at the audit's 0.28 m differential it cut 27 mm).
+    let r = kin.wheel_radius;
+    zs.iter().enumerate().fold(chord, |dy, (i, &wz)| {
+        let dz = (z - wz).abs();
+        if dz >= r { dy } else { dy.min(travel_at(travel, i) + r - (r * r - dz * dz).sqrt()) }
+    })
 }
 
 /// WHICH WAY A WHEEL FACES, plus its own spin.
@@ -252,7 +268,9 @@ fn place_side(
     if break_t.is_some() {
         return;
     }
-    let path = BeltPath::with_sag(kin, sag);
+    // The top run rides its carriers' LIVE height (J7): a wheel-carried layout lifts the run
+    // with the wheel under it, so the tyre never comes out through the belt.
+    let path = BeltPath::with_sag_and_travel(kin, sag, travel);
     let count = kin.link_count();
     let length = path.length();
     let mut link_phase = phase.rem_euclid(length);
@@ -268,8 +286,8 @@ fn place_side(
         // The whole LOWER half of the loop conforms to the wheels riding over terrain — the
         // ground run fully, the ramps through the same faded interpolation — so the belt lifts
         // with the gear instead of kinking at the ramp foot and knifing into a bump. The upper
-        // wraps and the top run stay rigid (the fade has reached zero there anyway).
-        let dy = if sample.y < kin.end_cy { bottom_travel(kin, travel, sample.z) } else { 0.0 };
+        // wraps stay rigid; the top run already rides the lifted carriers through the path.
+        let dy = if sample.lower { bottom_travel(kin, travel, sample.z) } else { 0.0 };
         out.push(GearPlacement {
             part: GearPart::Link,
             transform: Mat4::from_translation(Vec3::new(

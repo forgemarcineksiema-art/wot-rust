@@ -323,7 +323,7 @@ fn battle_lineup(
         tanks,
         game_core::TankId(1),
         1.0,
-        Some(&battlefield.heightmap),
+        client::GroundTruth { heightmap: Some(&battlefield.heightmap), rubble: &[] },
         0,
         eye,
     )

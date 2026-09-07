@@ -756,9 +756,10 @@
       0.0,
       0.51499987,
       1.03,
-      1.5450001
+      1.5450001,
+      2.06
     ],
-    "station_count": 8,
+    "station_count": 9,
     "half_gauge_x": 1.47,
     "wheel_radius": 0.4
   }

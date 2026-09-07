@@ -72,12 +72,25 @@ pub fn split_pbr_vehicle_render_frame(
         tanks,
         player_tank,
         player_gun_scale,
-        None,
+        GroundTruth::NONE,
         0,
         // No camera: this wrapper serves the harnesses and tests that pose a vehicle rather than
         // stand in a battle, and they are all close looks.
         None,
     )
+}
+
+/// The ground the drawn wheels stand on: the heightfield and the collapsed masonry on it —
+/// the same two the physics support envelope reads (the one program's G1). `NONE` for callers
+/// that pose a vehicle on nothing (the garage, the probes, the tests).
+#[derive(Clone, Copy, Default)]
+pub struct GroundTruth<'a> {
+    pub heightmap: Option<&'a HeightMap>,
+    pub rubble: &'a [terrain::RubbleMound],
+}
+
+impl GroundTruth<'static> {
+    pub const NONE: Self = Self { heightmap: None, rubble: &[] };
 }
 
 /// As [`split_pbr_vehicle_render_frame`], with the local heightmap so each tank's road wheels can
@@ -90,7 +103,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     tanks: Vec<PresentationTank>,
     player_tank: TankId,
     player_gun_scale: f32,
-    terrain: Option<&HeightMap>,
+    ground: GroundTruth<'_>,
     now_tick: u64,
     eye: Option<[f32; 3]>,
 ) -> VehicleRenderFrame {
@@ -120,7 +133,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
                 glam::Vec3::from_array(eye).distance(glam::Vec3::from_array(tank.translation));
             vehicle_geometry::gear_detail_for_distance(distance)
         });
-        let (left_travel, right_travel) = wheel_travel(&tank, terrain);
+        let (left_travel, right_travel) = wheel_travel(&tank, ground);
         // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
         // gentle: the P/v launch hits ~8 m/sÂ˛, and a sag that slams to its clamp on a throttle
         // tap reads as the track convulsing rather than tensioning. A hard landing (the sprung
@@ -277,28 +290,39 @@ fn recoil_gun(objects: &mut [RenderObject], recoil_m: f32) {
     }
 }
 
-/// Per-wheel vertical travel from the terrain under each road wheel: the residual between the
-/// ground height at the wheel and the sprung hull's ground plane there. Wheels drop into dips and
-/// ride over bumps the hull attitude has already averaged out.
-fn wheel_travel(tank: &PresentationTank, terrain: Option<&HeightMap>) -> (Vec<f32>, Vec<f32>) {
-    let (Some(map), Some(kin)) = (terrain, RunningGearKinematics::for_vehicle(tank.vehicle)) else {
+/// Per-wheel vertical travel: the residual between the ground under each road wheel and the
+/// sprung hull's plane there. The ground is the PHYSICS' ground (`physics::station_ground`, the
+/// one program's G1): the same sampler the support envelope stands on, collapsed masonry included
+/// — the client no longer reads the heightfield on its own. The plane is the replicated attitude
+/// (a pass-through since J8) over the presented hull height, the heave the picture adds
+/// subtracted, so a wheel stays on the ground the hull was lifted off.
+fn wheel_travel(tank: &PresentationTank, ground: GroundTruth<'_>) -> (Vec<f32>, Vec<f32>) {
+    let (Some(map), Some(kin)) =
+        (ground.heightmap, RunningGearKinematics::for_vehicle(tank.vehicle))
+    else {
         return (Vec::new(), Vec::new());
     };
+    let footprint = game_core::ContactFootprint::for_vehicle(tank.vehicle);
+    let ground = physics::station_ground(
+        map,
+        Vec3::from_array(tank.translation),
+        tank.hull_yaw_rad,
+        &footprint,
+        ground.rubble,
+    );
     let mut left = vec![0.0; kin.wheel_zs.len()];
     let mut right = vec![0.0; kin.wheel_zs.len()];
-    let (sin, cos) = tank.hull_yaw_rad.sin_cos();
-    let (bx, bz) = (tank.translation[0], tank.translation[2]);
-    let hull_y = tank.translation[1];
+    let hull_y = tank.translation[1] + tank.attitude_heave_m;
     let (pitch, roll) = (tank.attitude_pitch_rad, tank.attitude_roll_rad);
+    let limit = vehicle_geometry::WHEEL_TRAVEL_LIMIT_M;
     for (index, &wz) in kin.wheel_zs.iter().enumerate() {
-        for (lane, side) in [(&mut left, -1.0_f32), (&mut right, 1.0)] {
+        for (lane, side, sampled) in
+            [(&mut left, -1.0_f32, ground.left), (&mut right, 1.0, ground.right)]
+        {
             let lx = side * kin.wheel_x;
-            // Hull-local (lx, wz) into the world; the sprung ground plane tilts with the attitude.
-            let wx = bx + cos * lx + sin * wz;
-            let wzw = bz - sin * lx + cos * wz;
             let plane = hull_y + pitch.tan() * wz + roll.tan() * lx;
-            let ground = map.sample_height(wx, wzw).unwrap_or(plane);
-            lane[index] = (ground - plane).clamp(-0.08, 0.20);
+            let ground = sampled.get(index).copied().flatten().unwrap_or(plane);
+            lane[index] = (ground - plane).clamp(-limit, limit);
         }
     }
     (left, right)
@@ -776,7 +800,8 @@ mod tests {
                 gun_recoil_m: 0.0,
             };
 
-            let (left, right) = wheel_travel(&tank, Some(&terrain));
+            let (left, right) =
+                wheel_travel(&tank, GroundTruth { heightmap: Some(&terrain), rubble: &[] });
 
             assert_eq!(left.len(), 9, "{vehicle:?} must sample every road-wheel station");
             assert_eq!(right.len(), 9, "{vehicle:?} must sample every road-wheel station");
