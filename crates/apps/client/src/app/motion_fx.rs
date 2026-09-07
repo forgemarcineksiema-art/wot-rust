@@ -116,6 +116,14 @@ impl ClientApp {
                                         .ground
                                         .properties_at(&self.battlefield.heightmap, mid.x, mid.z)
                                         .rut_depth_m;
+                                    // T8: and the ground REMEMBERS it — the ledger the mesh
+                                    // reads, pressed as deep as this surface takes.
+                                    self.ruts.press(
+                                        [from.x, from.z],
+                                        [contact.x, contact.z],
+                                        rut_depth_m,
+                                    );
+                                    self.ruts_dirty = true;
                                     self.track_marks.record_segment(
                                         from,
                                         contact,
@@ -274,6 +282,60 @@ mod tests {
             app.tick_motion_fx(&[tank(2, step as f32 * 0.6, 0)], 0.1);
         }
         assert_eq!(app.fx.live_particles(), 0, "a wreck never stirs the ground");
+    }
+
+    /// T8: ruts with memory. A T-54 column of five down a dirt lane presses a rut the ground
+    /// keeps — at least 5 cm — long after the track marks have faded; one hull alone presses
+    /// less than that; and the ledger asks the ground for a bake.
+    #[test]
+    fn a_column_of_five_leaves_a_rut_in_dirt_that_outlives_the_fade() {
+        let lane = |app: &mut ClientApp| {
+            pin_ground(app, |_, _| 0.0);
+            let battlefield = std::sync::Arc::make_mut(&mut app.battlefield);
+            battlefield.roads.push(terrain::Road {
+                id: "lane".into(),
+                surface: terrain::RoadSurface::Dirt,
+                points: vec![[10.0, 0.0], [10.0, 80.0]],
+                width_m: 14.0,
+            });
+            app.ground = terrain::GroundClassifier::new(&app.battlefield);
+        };
+        let rolling_tank = |id: u64, travel_m: f32| {
+            let mut t = tank(id, 100.0 + travel_m, 900);
+            t.translation = [10.0, 0.0, 20.0 + travel_m];
+            t.hull_yaw_rad = 0.0;
+            t
+        };
+        let drive = |app: &mut ClientApp, id: u64| {
+            app.tick_motion_fx(&[rolling_tank(id, 0.0)], 0.1);
+            for step in 1..=15 {
+                app.tick_motion_fx(&[rolling_tank(id, step as f32 * 0.6)], 0.1);
+            }
+        };
+        let deepest = |app: &ClientApp| {
+            (0..200).map(|i| app.ruts.depth_at(5.0 + i as f32 * 0.05, 25.0)).fold(0.0f32, f32::max)
+        };
+
+        let mut column = ClientApp::new();
+        lane(&mut column);
+        for id in 1..=5 {
+            drive(&mut column, id);
+        }
+        assert!(!column.ruts.is_empty() && column.ruts_dirty, "the ledger asks for a bake");
+        let pressed = deepest(&column);
+        assert!(pressed >= 0.05, "five hulls press a rut the dirt keeps: {pressed} m");
+
+        let mut alone = ClientApp::new();
+        lane(&mut alone);
+        drive(&mut alone, 1);
+        let single = deepest(&alone);
+        assert!(single > 0.0 && single < 0.05, "one hull presses less: {single} m");
+
+        for _ in 0..600 {
+            column.track_marks.tick(0.1);
+        }
+        assert_eq!(column.track_marks.live_marks(), 0, "the marks have faded");
+        assert!(deepest(&column) >= 0.05, "the rut outlives the fade");
     }
 
     /// D5's contract: rolling tracks press rut segments into the soil every ~1.5 m of travel,

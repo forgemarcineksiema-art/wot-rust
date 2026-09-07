@@ -60,6 +60,22 @@ pub fn battlefield_ground_mesh(battlefield: &BattlefieldMap) -> SceneMeshData {
     )
 }
 
+/// [`battlefield_ground_mesh`] with the client's rut field (T8): the ground the tracks have
+/// pressed is cut into the patch and lowered by the field's memory — the picture only.
+pub fn battlefield_ground_mesh_with_ruts(
+    battlefield: &BattlefieldMap,
+    ruts: &terrain::RutField,
+) -> SceneMeshData {
+    let beyond = beyond_border_height(battlefield);
+    terrain_scene_mesh_rutted(
+        &battlefield.heightmap,
+        battlefield.water_view(),
+        &battlefield.roads,
+        Some(beyond.as_ref()),
+        Some(ruts),
+    )
+}
+
 /// The analytic ground continuation the border apron stands on: a shipped (catalog) map
 /// exposes the very terrain program its heightmap samples plus its horizon enclosure, so the
 /// apron is exact at the border by construction; anything else falls back to clamped edge
@@ -1744,6 +1760,23 @@ fn terrain_scene_mesh_full(
     roads: &[Road],
     beyond: Option<&dyn Fn(f32, f32) -> f32>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    terrain_scene_mesh_rutted(heightmap, water, roads, beyond, None)
+}
+
+/// The earth a rut bares: darker, damper than the field it is pressed into.
+const RUT_EARTH: [f32; 3] = [0.27, 0.22, 0.15];
+
+/// [`terrain_scene_mesh_full`] with the rut field (T8): the cells any press touches are cut
+/// into the patch like a crater's, and there the surface is the heightmap LESS the field's
+/// depth — heights and normals both, so the trough shades as a trough — with the bared earth
+/// tinted in the vertex lane. Nothing gameplay reads it; `sample_height` never learns of it.
+fn terrain_scene_mesh_rutted(
+    heightmap: &HeightMap,
+    water: WaterView<'_>,
+    roads: &[Road],
+    beyond: Option<&dyn Fn(f32, f32) -> f32>,
+    ruts: Option<&terrain::RutField>,
+) -> (Vec<SceneVertex>, Vec<u32>) {
     let w = heightmap.width();
     let h = heightmap.height();
     let cell = heightmap.cell_size_m();
@@ -1793,7 +1826,11 @@ fn terrain_scene_mesh_full(
         }
     }
 
-    let cut = cratered_cells(heightmap);
+    let mut cut = cratered_cells(heightmap);
+    if let Some(ruts) = ruts {
+        cut.extend(ruts.touched_cells(cell, w - 2, h - 2));
+    }
+    let rut_drop = |x: f32, z: f32| ruts.map_or(0.0, |field| field.depth_at(x, z));
     let mut indices = Vec::with_capacity((w - 1) * (h - 1) * 6);
     for z in 0..h - 1 {
         for x in 0..w - 1 {
@@ -1829,10 +1866,31 @@ fn terrain_scene_mesh_full(
             vertex.tint_weight = dominance;
             vertex.gloss = gloss;
         }
+        // T8: the pressed ground bares its earth, deeper ruts darker.
+        let rut = rut_drop(wx, wz);
+        if rut > 0.005 {
+            let bare = (rut / 0.09).clamp(0.0, 1.0);
+            let dominance = 0.3 + 0.35 * bare;
+            if dominance > vertex.tint_weight {
+                vertex.color = Vec3::from_array(vertex.color)
+                    .lerp(Vec3::from_array(RUT_EARTH), 0.6 + 0.4 * bare)
+                    .to_array();
+                vertex.tint_weight = dominance;
+                vertex.gloss = 0.05;
+            }
+        }
         vertex
     };
     for &(x, z) in &cut {
-        append_crater_cell(&mut vertices, &mut indices, heightmap, x, z, &make_crater_vertex);
+        append_crater_cell(
+            &mut vertices,
+            &mut indices,
+            heightmap,
+            x,
+            z,
+            &make_crater_vertex,
+            &rut_drop,
+        );
     }
     for record in heightmap.crater_records() {
         append_crater_clods(&mut vertices, &mut indices, heightmap, record);
@@ -2114,16 +2172,20 @@ fn append_crater_cell(
     cell_x: usize,
     cell_z: usize,
     make_vertex: &impl Fn(f32, f32, f32, Vec3) -> SceneVertex,
+    drop: &dyn Fn(f32, f32) -> f32,
 ) {
     let cell = heightmap.cell_size_m();
     let sub = CRATER_CELL_SUBDIVISIONS;
     let step = cell / sub as f32;
     let base = vertices.len() as u32;
+    // The surface the patch draws: the deformed truth physics stands on, LESS what the
+    // tracks have pressed into it (T8, the picture's own memory).
     let sample = |wx: f32, wz: f32| -> f32 {
         let [ex, ez] = heightmap.extent_m();
         heightmap
             .sample_height(wx.clamp(0.0, ex), wz.clamp(0.0, ez))
             .expect("clamped sample stays in domain")
+            - drop(wx, wz)
     };
     for sz in 0..=sub {
         for sx in 0..=sub {
@@ -2579,6 +2641,64 @@ mod tests {
         assert!(crater_clods(&small, |_, _| 10.0).len() >= 2, "even a small crater spills");
         let baked = vertices.iter().filter(|v| v.tint_weight == 1.0 && v.color == CLOD).count();
         assert!(baked >= clods.len() * 4, "the clods are baked into the patch: {baked} vertices");
+    }
+
+    /// T8: ruts with memory in the ground mesh. Five passes of a track down a dirt lane
+    /// press a trough the mesh keeps — at least 5 cm, never past the ground's memory — cut at
+    /// patch resolution, shaded as a trough (the normals lean into it), the bared earth tinted;
+    /// one pass presses less than 5 cm; two metres off the line the ground is untouched; and a
+    /// map with no ruts meshes exactly as before.
+    #[test]
+    fn a_column_presses_a_rut_the_ground_mesh_keeps() {
+        let heightmap = terrain::heightmap_from_fn(41, 5.0, |_, _| 10.0);
+        let (virgin, _) = terrain_scene_mesh_full(&heightmap, WaterView::DRY, &[], None);
+        let mesh = |ruts: &terrain::RutField| {
+            terrain_scene_mesh_rutted(&heightmap, WaterView::DRY, &[], None, Some(ruts)).0
+        };
+        let deepest_on_line = |vertices: &[SceneVertex]| {
+            10.0 - vertices
+                .iter()
+                .filter(|v| {
+                    (v.position[0] - 20.0).abs() < 0.05
+                        && v.position[2] > 20.0
+                        && v.position[2] < 55.0
+                })
+                .map(|v| v.position[1])
+                .fold(f32::MAX, f32::min)
+        };
+        let mut column = terrain::RutField::default();
+        for _ in 0..5 {
+            column.press([20.0, 15.0], [20.0, 60.0], 0.09);
+        }
+        let pressed = mesh(&column);
+        assert!(pressed.len() > virgin.len(), "the rut cells bake at patch resolution");
+        let deepest = deepest_on_line(&pressed);
+        assert!((0.05..=0.09 + 1e-4).contains(&deepest), "five passes press {deepest} m");
+        assert!(
+            pressed
+                .iter()
+                .filter(|v| (v.position[0] - 22.0).abs() < 0.05)
+                .all(|v| (v.position[1] - 10.0).abs() < 1e-5),
+            "two metres off the line the ground is untouched"
+        );
+        assert!(
+            pressed.iter().any(|v| (v.position[0] - 20.0).abs() < 0.05
+                && v.position[2] > 20.0
+                && v.position[2] < 55.0
+                && v.tint_weight > 0.3),
+            "the bared earth is tinted"
+        );
+        assert!(
+            pressed
+                .iter()
+                .any(|v| v.position[2] > 20.0 && v.position[2] < 55.0 && v.normal[0].abs() > 0.05),
+            "the trough shades as a trough"
+        );
+        let mut once = terrain::RutField::default();
+        once.press([20.0, 15.0], [20.0, 60.0], 0.09);
+        let single = deepest_on_line(&mesh(&once));
+        assert!(single > 0.02 && single < 0.05, "one pass presses {single} m");
+        assert_eq!(mesh(&terrain::RutField::default()), virgin, "no ruts, the same ground");
     }
 
     #[test]

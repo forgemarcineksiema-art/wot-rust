@@ -104,6 +104,11 @@ pub(crate) struct ActiveTopple {
     pub(crate) age_s: f32,
 }
 
+/// T8: the ruts the tracks pressed are baked into the ground at most this often — a column
+/// on the move presses a segment every metre and a half per track, and every bake is a patch
+/// re-mesh on a worker.
+pub(crate) const RUT_REBUILD_INTERVAL_S: f32 = 2.0;
+
 /// One kit building coming down (the one program's Z10): its cover index and how long it has
 /// been falling.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -575,6 +580,12 @@ pub(crate) struct ClientApp {
     /// Ruts the rolling tracks press into the soil (Inna Liga D5): same budgeted world-space
     /// pool discipline as the craters, written from accumulated track travel.
     track_marks: crate::fx::TrackMarks,
+    /// T8: the ruts with memory — the client's own ledger of pressed soft ground (no wire, no
+    /// gameplay); the ground mesh reads it at every rebuild.
+    ruts: terrain::RutField,
+    /// A press since the last bake, and how long since it.
+    ruts_dirty: bool,
+    rut_rebuild_clock_s: f32,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     motion_fx: HashMap<game_core::TankId, motion_fx::MotionFxState>,
@@ -995,6 +1006,9 @@ impl ClientApp {
             cracked_shells: std::collections::HashSet::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             track_marks: crate::fx::TrackMarks::default(),
+            ruts: terrain::RutField::default(),
+            ruts_dirty: false,
+            rut_rebuild_clock_s: 0.0,
             engine_smoke_accum_s: HashMap::new(),
             motion_fx: HashMap::new(),
             wreck_hull_meshes: HashMap::new(),
