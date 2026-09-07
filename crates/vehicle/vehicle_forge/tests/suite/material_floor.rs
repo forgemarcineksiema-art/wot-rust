@@ -133,3 +133,52 @@ fn every_material_role_varies_its_finish_across_the_surface() {
         );
     }
 }
+
+/// Mean absolute step between texels `stride` apart along rows, in 0..=255 units.
+fn row_step(rgba: &[u8], width: usize, channel: usize, stride: usize) -> f32 {
+    let mut total = 0.0_f64;
+    let mut count = 0.0_f64;
+    for row in rgba.chunks_exact(width * 4) {
+        for x in 0..width - stride {
+            let a = f32::from(row[x * 4 + channel]);
+            let b = f32::from(row[(x + stride) * 4 + channel]);
+            total += (a - b).abs() as f64;
+            count += 1.0;
+        }
+    }
+    (total / count.max(1.0)) as f32
+}
+
+/// D40, rule 5 for vehicles: nothing on a map is finer than the octaves it was authored with.
+/// White noise steps as much between neighbours as between texels eight apart (ratio ≈ 1); a
+/// surface built from 0.3–0.6 m octaves steps far less between neighbours. The per-texel hash
+/// the synthesis shipped until D40 measured ≈ 1.0 on every map and aliased into shimmer at
+/// every distance; the octaves measure ≈ 0.13.
+const MAX_NEIGHBOUR_TO_EIGHT_STEP_RATIO: f32 = 0.35;
+
+#[test]
+fn no_material_map_carries_texel_noise() {
+    for family in default_material_families() {
+        for (kind, map, channel) in [
+            ("albedo", family.albedo(), 0),
+            ("normal", family.normal(), 0),
+            ("cavity", family.cavity(), 0),
+            ("roughness", family.ao_roughness_metalness(), 1),
+        ] {
+            let width = map.width() as usize;
+            let near = row_step(map.rgba(), width, channel, 1);
+            let far = row_step(map.rgba(), width, channel, 8);
+            if far < 0.5 {
+                // A flat channel (a family with a zero amplitude) has nothing to alias.
+                continue;
+            }
+            let ratio = near / far;
+            assert!(
+                ratio <= MAX_NEIGHBOUR_TO_EIGHT_STEP_RATIO,
+                "{:?} {kind}: neighbour step {near:.2} vs 8-texel step {far:.2} (ratio {ratio:.2}) — \
+                 texel noise, which is shimmer at every distance (rule 5)",
+                family.family()
+            );
+        }
+    }
+}

@@ -214,14 +214,42 @@ fn shift(base: u8, delta: i32) -> u8 {
     (base as i32 + delta).clamp(0, 255) as u8
 }
 
-/// Fine high-frequency grain in `0..=amplitude`, deterministic in `(x, y)`.
+/// The fine grain in `0..=amplitude`, deterministic in `(x, y)`: two smooth value-noise
+/// octaves at 0.31 m and 0.56 m on the hull (the triplanar tile is 2 m across 256 texels), the
+/// finer one carrying the larger share. Until D40 this was a per-texel HASH — white noise on
+/// every map, uploaded with one mip level: it aliased into shimmer at every distance (rule 5,
+/// nothing finer than what the pixel resolves), and the vehicle textures shimmered by
+/// construction. The octaves are the finest thing the surface carries; the mip chain does the
+/// rest.
 fn grain(x: u32, y: u32, amplitude: u8) -> u8 {
     if amplitude == 0 {
         return 0;
     }
-    let mut value = x.wrapping_mul(1_103_515_245) ^ y.wrapping_mul(12_345);
-    value ^= value >> 16;
-    (value % (u32::from(amplitude) + 1)) as u8
+    let fine = grain_octave(x, y, GRAIN_FINE_CELL_TEXELS, 0x51a7) * 0.6;
+    let coarse = grain_octave(x, y, GRAIN_COARSE_CELL_TEXELS, 0x2c9d) * 0.4;
+    // 0.8 (not 0.5) on the sum: bilinear value noise spends most of its time near zero, and
+    // at 0.5 the map's mean deviation fell to ~60 % of the hash's for the same amplitude —
+    // the material floor (`every_material_role_perturbs_its_normal_enough_to_be_seen`) is
+    // stated in that deviation. The clip at the ends is a few percent of texels.
+    (((fine + coarse) * 0.8 + 0.5).clamp(0.0, 1.0) * f32::from(amplitude)).round() as u8
+}
+
+/// The grain octaves' lattice cells, in texels of the 256-texel, 2 m triplanar tile: 40 texels
+/// = 0.31 m, 72 texels = 0.56 m — the 0.3–0.6 m band rule 5 asks of a vehicle surface.
+pub const GRAIN_FINE_CELL_TEXELS: f32 = 40.0;
+pub const GRAIN_COARSE_CELL_TEXELS: f32 = 72.0;
+
+/// Bilinear value noise in `-1..=1` on a `cell`-texel lattice, salted so two octaves never
+/// share a lattice.
+fn grain_octave(x: u32, y: u32, cell: f32, salt: i32) -> f32 {
+    let (gx, gy) = (x as f32 / cell, y as f32 / cell);
+    let (x0, y0) = (gx.floor() as i32, gy.floor() as i32);
+    let (fx, fy) = (gx - x0 as f32, gy - y0 as f32);
+    let (sx, sy) = (smooth(fx), smooth(fy));
+    let mix = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let n0 = mix(lattice(x0 + salt, y0), lattice(x0 + 1 + salt, y0), sx);
+    let n1 = mix(lattice(x0 + salt, y0 + 1), lattice(x0 + 1 + salt, y0 + 1), sx);
+    mix(n0, n1, sy)
 }
 
 /// Low-frequency smooth undulation in `-amplitude..=amplitude` (bilinear value noise on a coarse
