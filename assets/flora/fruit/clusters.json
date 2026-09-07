@@ -36,5 +36,5 @@
   ],
   "color": "clusters_color.png",
   "normal": "clusters_normal.png",
-  "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at the bottom centre of each slot (top centre for a hanging species)"
+  "convention": "colour = the leaf albedo, FLAT (an emission of the material colour, no baked occlusion \u2014 D38), sRGB; normal = camera-space (n*0.5+0.5), raw; twig base at the bottom centre of each slot (top centre for a hanging species)"
 }

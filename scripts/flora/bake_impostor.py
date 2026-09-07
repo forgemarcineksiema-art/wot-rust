@@ -129,21 +129,57 @@ def wood_object(positions, normals, indices, bark_path, wood_crown_base=0.0):
     return obj
 
 
-def card_objects(cards, cluster_path):
-    """Every cross-pair card as a double-sided plane cutting the species' cluster sprite."""
+# The engine's shade lane for an authored deck (`world_forge::tree::authored::CORE_SHADE`):
+# rim cards at 1.0, core cards down to this. The impostor bakes the SAME lane (D38), so the
+# far rung is the near deck's picture before the live light, not a second, darker occlusion.
+CORE_SHADE = 0.68
+
+
+def card_objects(cards, cluster_path, centroid, reach):
+    """Every cross-pair card as a double-sided plane cutting the species' cluster sprite.
+
+    D38: the colour is the sprite's flat albedo times the engine's shade lane — an emission,
+    not a lit surface. The cluster page carries no occlusion any more and neither may the
+    impostor: the white-world Cycles occlusion of the first bakes made the far rung 0.57 of
+    the near deck's luminance (a LOD pop by brightness). The wood stays lit."""
     image = bpy.data.images.load(cluster_path)
     material = bpy.data.materials.new("impostor_cards")
     material.use_nodes = True
     material.use_backface_culling = False
     nodes = material.node_tree.nodes
     links = material.node_tree.links
-    principled = nodes["Principled BSDF"]
-    principled.inputs["Roughness"].default_value = 0.65
+    output = nodes["Material Output"]
     tex = nodes.new("ShaderNodeTexImage")
     tex.image = image
     tex.interpolation = "Linear"
-    links.new(tex.outputs["Color"], principled.inputs["Base Color"])
-    links.new(tex.outputs["Alpha"], principled.inputs["Alpha"])
+    geometry = nodes.new("ShaderNodeNewGeometry")
+    sub = nodes.new("ShaderNodeVectorMath")
+    sub.operation = "SUBTRACT"
+    sub.inputs[1].default_value = (centroid.x, centroid.y, centroid.z)
+    links.new(geometry.outputs["Position"], sub.inputs[0])
+    length = nodes.new("ShaderNodeVectorMath")
+    length.operation = "LENGTH"
+    links.new(sub.outputs[0], length.inputs[0])
+    lane = nodes.new("ShaderNodeMapRange")
+    lane.clamp = True
+    lane.inputs["From Min"].default_value = 0.0
+    lane.inputs["From Max"].default_value = max(reach, 0.01)
+    lane.inputs["To Min"].default_value = CORE_SHADE
+    lane.inputs["To Max"].default_value = 1.0
+    links.new(length.outputs["Value"], lane.inputs["Value"])
+    shaded = nodes.new("ShaderNodeVectorMath")
+    shaded.operation = "SCALE"
+    links.new(tex.outputs["Color"], shaded.inputs[0])
+    links.new(lane.outputs["Result"], shaded.inputs["Scale"])
+    flat = nodes.new("ShaderNodeEmission")
+    flat.inputs["Strength"].default_value = 1.0
+    links.new(shaded.outputs[0], flat.inputs["Color"])
+    transparent = nodes.new("ShaderNodeBsdfTransparent")
+    mix = nodes.new("ShaderNodeMixShader")
+    links.new(tex.outputs["Alpha"], mix.inputs["Fac"])
+    links.new(transparent.outputs[0], mix.inputs[1])
+    links.new(flat.outputs[0], mix.inputs[2])
+    links.new(mix.outputs[0], output.inputs["Surface"])
     try:
         material.blend_method = "CLIP"
         material.alpha_threshold = 0.5
@@ -341,7 +377,9 @@ def bake_variant(args, out, variant, bark_path, cluster_path, tmp):
     scene = scene_setup(args.samples)
     crown_base = min(to_blender(c[0]).z for c in cards) if cards else 0.0
     wood = wood_object(positions, normals, indices, bark_path, crown_base)
-    card_obj = card_objects(cards, cluster_path)
+    centroid = sum((to_blender(c[0]) for c in cards), Vector((0.0, 0.0, 0.0))) / max(len(cards), 1)
+    card_reach = max((to_blender(c[0]) - centroid).length for c in cards) if cards else 1.0
+    card_obj = card_objects(cards, cluster_path, centroid, card_reach)
     colors = []
     for azimuth in (0, 1):
         path = os.path.join(tmp, f"impostor_v{variant}_{azimuth}_color.png")
@@ -351,8 +389,6 @@ def bake_variant(args, out, variant, bark_path, cluster_path, tmp):
     wood.data.materials.clear()
     wood.data.materials.append(normal_material())
     card_obj.data.materials.clear()
-    centroid = sum((to_blender(c[0]) for c in cards), Vector((0.0, 0.0, 0.0))) / max(len(cards), 1)
-    card_reach = max((to_blender(c[0]) - centroid).length for c in cards) if cards else 1.0
     card_obj.data.materials.append(normal_material_cards(cluster_path, centroid, card_reach))
     scene.world.node_tree.nodes["Background"].inputs[0].default_value = (0.0, 0.0, 0.0, 1.0)
     scene.view_settings.view_transform = "Raw"

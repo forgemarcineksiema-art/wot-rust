@@ -6,9 +6,16 @@ Run headless, one species per run:
 
 A sprite is a twig with a few hundred individual leaves (or needle fascicles for the pine),
 modelled here from a species outline, cupped and jittered, rendered orthographically by Cycles
-under a uniform white world (the colour page stores ALBEDO x local occlusion; the engine's
-FOLIAGE path lights it live) and once more with a camera-space normal shader (the normal
-page). Four variants tile into one 2048x512 row — a species' block in the foliage atlas
+(the colour page stores the leaf's ALBEDO, flat — an emission of the material's colour with
+the cutout alpha; the engine's FOLIAGE path lights it live, ONCE, through the normal page and
+`CORE_SHADE`) and once more with a camera-space normal shader (the normal page).
+
+D38 (the one program, 2026-09-07): the first bakes stored albedo x Cycles occlusion under a
+white world, and the engine shaded the same crown again — 47 % of crown pixels under 0.07
+linear, the darkest and most saturated object in every frame. The occlusion is the engine's
+job (one light model, honesty doctrine); the page carries what a leaf IS. The albedos below
+are the WORLD's scale: sprite mean luma 0.15-0.25 linear, saturation <= 0.50 (locked on the
+embedded PNG by `cluster_sprite_albedo_sits_in_the_world_window`). Four variants tile into one 2048x512 row — a species' block in the foliage atlas
 (`world_forge::tree::leaf_atlas`); mirrored cards double the variety for free. The twig's
 base sits at the bottom centre of every slot (a card's stem hangs at -half_up), except for a
 HANGING species (the willow), whose twig hangs from the top centre and whose cards point
@@ -44,10 +51,10 @@ SPECIES = {
     # read as lettuce at 22 m), at twice the count so the window stays full; `under` is the
     # underside albedo (paler, matte); the outline carries lobes or teeth.
     "oak": dict(window_m=1.5, leaves=(1050, 1200), leaf_m=(0.09, 0.13), twigs=(20, 26),
-                albedo=(0.085, 0.235, 0.065), under=(0.15, 0.25, 0.11), jitter=(0.03, 0.05, 0.03), cup=(0.08, 0.22),
+                albedo=(0.15, 0.23, 0.12), under=(0.19, 0.25, 0.15), jitter=(0.03, 0.04, 0.03), cup=(0.08, 0.22),
                 outline="oak", hanging=False, needles=False, twig_len=(0.35, 0.62), aspect=1.0, gloss=0.35),
     "poplar": dict(window_m=1.3, leaves=(1400, 1600), leaf_m=(0.07, 0.10), twigs=(24, 30),
-                   albedo=(0.14, 0.29, 0.07), under=(0.20, 0.30, 0.13), jitter=(0.03, 0.05, 0.03), cup=(0.02, 0.08),
+                   albedo=(0.15, 0.235, 0.115), under=(0.20, 0.265, 0.15), jitter=(0.03, 0.04, 0.03), cup=(0.02, 0.08),
                    outline="deltoid", hanging=False, needles=False, twig_len=(0.35, 0.6), aspect=1.0, gloss=0.5),
     # The willow is a CURTAIN: a 2.6 m window of long parallel streamers, leaves close along
     # them — the card hangs the whole window from its twig (the owner, 2026-09-03: the short
@@ -56,14 +63,14 @@ SPECIES = {
                    albedo=(0.19, 0.32, 0.14), jitter=(0.04, 0.05, 0.03), cup=(0.02, 0.08),
                    outline="lanceolate", hanging=True, needles=False, twig_len=(1.6, 2.3), aspect=0.28),
     "fruit": dict(window_m=1.1, leaves=(1100, 1300), leaf_m=(0.055, 0.085), twigs=(22, 28),
-                  albedo=(0.11, 0.27, 0.09), under=(0.19, 0.26, 0.15), jitter=(0.03, 0.05, 0.03), cup=(0.05, 0.15),
+                  albedo=(0.145, 0.24, 0.12), under=(0.20, 0.26, 0.16), jitter=(0.03, 0.04, 0.03), cup=(0.05, 0.15),
                   outline="oval", hanging=False, needles=False, twig_len=(0.3, 0.5), aspect=1.0, gloss=0.25),
     # A Scots pine: TWO needles a fascicle, 4-7 cm, blue-green, a brush of them along the shoot.
     "pine": dict(window_m=1.2, leaves=(1000, 1200), leaf_m=(0.05, 0.08), twigs=(16, 20),
                  albedo=(0.07, 0.16, 0.10), under=(0.09, 0.17, 0.12), jitter=(0.02, 0.03, 0.03), cup=(0.0, 0.0),
                  outline="needle", hanging=False, needles=True, twig_len=(0.3, 0.5), aspect=1.0, gloss=0.3),
     "bush": dict(window_m=0.9, leaves=(1300, 1500), leaf_m=(0.035, 0.055), twigs=(24, 30),
-                 albedo=(0.10, 0.22, 0.08), under=(0.16, 0.24, 0.13), jitter=(0.03, 0.05, 0.03), cup=(0.05, 0.15),
+                 albedo=(0.13, 0.22, 0.11), under=(0.18, 0.24, 0.14), jitter=(0.03, 0.04, 0.03), cup=(0.05, 0.15),
                  outline="oval", hanging=False, needles=False, twig_len=(0.25, 0.45), aspect=1.0, gloss=0.3),
 }
 
@@ -260,7 +267,14 @@ def leaf_material(name, spec, rng):
     mix.inputs["Fac"].default_value = 0.0 if spec["needles"] else 0.28
     links.new(principled.outputs["BSDF"], mix.inputs[1])
     links.new(translucent.outputs["BSDF"], mix.inputs[2])
-    links.new(mix.outputs[0], output.inputs["Surface"])
+    # D38: the colour page is the leaf's albedo, FLAT. An emission of the same colour is what
+    # reaches the output, so no Cycles occlusion, cosine or translucency is baked into the
+    # page; the engine lights the card live, once. The lit shader tree above stays built for
+    # anyone previewing the twig in Blender (swap the output link back to `mix`).
+    flat = nodes.new("ShaderNodeEmission")
+    flat.inputs["Strength"].default_value = 1.0
+    links.new(side_mix.outputs["Result"], flat.inputs["Color"])
+    links.new(flat.outputs[0], output.inputs["Surface"])
     return material
 
 
@@ -500,7 +514,7 @@ def main():
         "sprites": records,
         "color": os.path.basename(color),
         "normal": os.path.basename(normal),
-        "convention": "colour = albedo x local occlusion under a uniform white world, sRGB; "
+        "convention": "colour = the leaf albedo, FLAT (an emission of the material colour, no baked occlusion — D38), sRGB; "
         "normal = camera-space (n*0.5+0.5), raw; twig base at the bottom centre of each slot "
         "(top centre for a hanging species)",
     }
