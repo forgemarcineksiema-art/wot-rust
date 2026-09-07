@@ -147,10 +147,23 @@ pub fn chunk_scene_indices(
     indices: &[u32],
     chunk_size_m: f32,
 ) -> (Vec<u32>, Vec<SceneChunk>) {
+    let (reordered, chunks, _) = chunk_scene_indices_with_slots(vertices, indices, chunk_size_m);
+    (reordered, chunks)
+}
+
+/// [`chunk_scene_indices`] that also says where every ORIGINAL triangle landed: `slots[t]` is
+/// the triangle's position (in triangles) in the reordered list. The ground's patch path (T9)
+/// degenerates a cut cell's two triangles in place through it — a 12-byte write per triangle
+/// instead of a re-upload of the whole field.
+pub fn chunk_scene_indices_with_slots(
+    vertices: &[SceneVertex],
+    indices: &[u32],
+    chunk_size_m: f32,
+) -> (Vec<u32>, Vec<SceneChunk>, Vec<u32>) {
     assert!(chunk_size_m > 0.0, "chunk size must be positive");
     let triangle_count = indices.len() / 3;
     if triangle_count == 0 {
-        return (indices.to_vec(), Vec::new());
+        return (indices.to_vec(), Vec::new(), Vec::new());
     }
 
     // Grid extent from the referenced vertices' XZ footprint.
@@ -191,12 +204,14 @@ pub fn chunk_scene_indices(
     // Emit non-empty cells in row-major order as contiguous index ranges.
     let mut reordered = Vec::with_capacity(indices.len());
     let mut chunks = Vec::new();
+    let mut slots = vec![0u32; triangle_count];
     for cell in 0..cell_triangles.len() {
         if cell_triangles[cell].is_empty() {
             continue;
         }
         let index_start = reordered.len() as u32;
         for &tri in &cell_triangles[cell] {
+            slots[tri] = (reordered.len() / 3) as u32;
             reordered.extend_from_slice(&indices[tri * 3..tri * 3 + 3]);
         }
         chunks.push(SceneChunk {
@@ -205,5 +220,5 @@ pub fn chunk_scene_indices(
             aabb: cell_aabbs[cell],
         });
     }
-    (reordered, chunks)
+    (reordered, chunks, slots)
 }

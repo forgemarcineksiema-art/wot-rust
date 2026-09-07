@@ -190,13 +190,15 @@ impl ClientApp {
             match receiver.try_recv() {
                 Ok(rebuilt) => {
                     self.ground_rebuild_rx = None;
-                    let super::GroundRebuild { ground: (vertices, indices), dressing } = rebuilt;
+                    let super::GroundRebuild { ground, dressing } = rebuilt;
                     // The fingerprint is recorded only where the upload actually happened, so a
                     // harvest that arrives before the renderer exists cannot leave the client
                     // believing the GPU holds a meadow it never received.
                     let mut uploaded = None;
                     if let Some(renderer) = self.renderer.as_mut() {
-                        renderer.update_battlefield_ground_geometry(&vertices, &indices);
+                        // T9: the base the GPU holds is cut in place; only the patch uploads.
+                        renderer.cut_ground_triangles(&ground.cut_triangles);
+                        renderer.set_ground_patch(&ground.patch.0, &ground.patch.1);
                         // The card meadow follows the same ledger: the burst that dug the
                         // hole also mowed the cards around it (Żywy Step P2). Usually it mowed
                         // nothing — and then the worker did not even bake one.
@@ -209,8 +211,8 @@ impl ClientApp {
                         self.dressing_uploaded_fingerprint = fingerprint;
                     }
                     if let Some(meshes) = self.battle_scene_meshes.as_mut() {
-                        meshes.ground_vertices = vertices;
-                        meshes.ground_indices = indices;
+                        meshes.ground_patch = ground.patch;
+                        meshes.ground_cut = ground.cut_triangles;
                         if let Some(rebuild) = dressing {
                             meshes.dressing_vertices = rebuild.mesh.0;
                             meshes.dressing_indices = rebuild.mesh.1;
@@ -265,7 +267,7 @@ impl ClientApp {
             crate::meadow_changed_by(baked, self.battlefield.heightmap.crater_records(), footprint)
         });
         std::thread::spawn(move || {
-            let ground = crate::battlefield_ground_mesh_with_ruts(&battlefield, &ruts);
+            let ground = crate::battlefield_ground_mesh_parts(&battlefield, Some(&ruts));
             let dressing = bake_meadow
                 .then(|| {
                     let (maps, _, _) = meadow.as_ref()?;
@@ -394,12 +396,16 @@ impl ClientApp {
         let mut renderer =
             WindowRenderer::new(window, width, height, statics_vertices, statics_indices)?;
         match self.battle_scene_meshes.as_ref() {
-            Some(meshes) => renderer.set_battlefield_ground(
-                &meshes.ground_vertices,
-                &meshes.ground_indices,
-                &meshes.ground_maps,
-                &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
-            ),
+            Some(meshes) => {
+                renderer.set_battlefield_ground(
+                    &meshes.ground_vertices,
+                    &meshes.ground_indices,
+                    &meshes.ground_maps,
+                    &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
+                );
+                renderer.cut_ground_triangles(&meshes.ground_cut);
+                renderer.set_ground_patch(&meshes.ground_patch.0, &meshes.ground_patch.1);
+            }
             None => renderer.clear_battlefield_ground(),
         }
         // The near-field grass tuft (Materia Świata 1b): one registered unit mesh the battle

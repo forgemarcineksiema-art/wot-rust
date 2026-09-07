@@ -122,7 +122,9 @@ pub(crate) struct ActiveCollapse {
 /// a real change — but the card meadow usually is not rebuilt at all, and when it is, usually did
 /// not change.
 pub(crate) struct GroundRebuild {
-    pub(crate) ground: (Vec<renderer_api::SceneVertex>, Vec<u32>),
+    /// T9: the ground in its parts — the base is what the GPU already holds; the harvest
+    /// uploads the patch and cuts the base's triangles in place.
+    pub(crate) ground: scene_build::battlefield::GroundMesh,
     /// `None` when the meadow was not baked (nothing that changed could reach a card) or was
     /// baked and came out byte-identical to what the dressing slot already holds.
     pub(crate) dressing: Option<DressingRebuild>,
@@ -142,6 +144,10 @@ pub(crate) struct BattleSceneMeshes {
     /// The heightfield the terrain pipeline shades (splat layers + macro normals).
     pub(crate) ground_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) ground_indices: Vec<u32>,
+    /// T9: the ground PATCH (cut cells, clods, ruts) and the base triangles it stands in for.
+    /// The base above binds once; a crater re-bakes and uploads only these.
+    pub(crate) ground_patch: scene_build::battlefield::SceneMeshData,
+    pub(crate) ground_cut: Vec<u32>,
     /// The baked ground maps (splat + macro normal) — cover changes never touch these.
     ///
     /// Behind an `Arc` because the crater re-mesh hands them to a worker thread: at 1024² they
@@ -242,7 +248,8 @@ fn bake_battle_scene_meshes(
     cover_phases: &[u8],
 ) -> BattleSceneMeshes {
     let cover_phases = cover_phases.to_vec();
-    let (ground_vertices, ground_indices) = crate::battlefield_ground_mesh(battlefield);
+    let ground = crate::battlefield_ground_mesh_parts(battlefield, None);
+    let (ground_vertices, ground_indices) = ground.base;
     let statics_buckets = crate::battlefield_statics_buckets(battlefield, &cover_phases, &[]);
     let (statics_vertices, statics_indices) = crate::assemble_statics_mesh(&statics_buckets);
     let ground_maps =
@@ -258,6 +265,8 @@ fn bake_battle_scene_meshes(
     BattleSceneMeshes {
         ground_vertices,
         ground_indices,
+        ground_patch: ground.patch,
+        ground_cut: ground.cut_triangles,
         ground_maps,
         dressing_vertices,
         dressing_indices,
