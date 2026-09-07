@@ -202,6 +202,31 @@ fn the_screen_detonates_heat_early_and_fuzes_he_on_the_track() {
     assert!(burst.damage_hp < 410 / 2, "chip damage, not a penetration's worth");
 }
 
+/// S15 (GDD §3.1): a surface burst hurts by the steel under it. The D-10's OF-412 (430 HP)
+/// on a T-34-85's 45 mm side, a Tiger II's 150 mm glacis and a 166 mm plate, square on.
+#[test]
+fn he_surface_damage_is_a_function_of_the_steel_at_the_point() {
+    let of412 = game_core::RoundId::Of412.spec();
+    let square = |front_mm: f32| {
+        let armor = ArmorProfile::new(front_mm, 45.0, 45.0, 90.0, 75.0, 52.0);
+        resolve_penetration_at_distance(&of412, &armor, ArmorFacing::HullFront, 0.0, 300.0)
+    };
+    let side = square(45.0);
+    let glacis = square(150.0);
+    let thick = square(166.0);
+    assert!(!side.penetrated && !glacis.penetrated && !thick.penetrated);
+    assert_eq!(side.damage_hp, 157, "0.5 * 430 - 1.3 * 45");
+    assert_eq!(glacis.damage_hp, 20, "0.5 * 430 - 1.3 * 150");
+    assert!(side.damage_hp > glacis.damage_hp, "a thin side hurts more than a thick glacis");
+    assert_eq!(thick.damage_hp, 0, "from 166 mm a surface burst does nothing");
+    assert_eq!(game_core::he_surface_damage_hp(430, 165.0), 1, "...and 165 mm is the last HP");
+    // Obliquity counts as steel: the same 45 mm plate met at 60 degrees is 90 mm through.
+    let armor = ArmorProfile::new(45.0, 45.0, 45.0, 90.0, 75.0, 52.0);
+    let oblique =
+        resolve_penetration_at_distance(&of412, &armor, ArmorFacing::HullFront, 60.0, 300.0);
+    assert_eq!(oblique.damage_hp, 98, "0.5 * 430 - 1.3 * 90");
+}
+
 #[test]
 fn he_non_penetration_still_reports_surface_damage() {
     let armor = ArmorProfile::new(150.0, 80.0, 60.0, 200.0, 90.0, 65.0);

@@ -103,26 +103,38 @@ fn rear_side_penetration_hits_engine_volume_instead_of_generic_side_module() {
 }
 
 #[test]
-fn high_explosive_on_the_glacis_hurts_without_penetrating() {
-    let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::tiger_i_ausf_e(), Vec3::ZERO);
-    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
-    {
-        let shooter = state.tank_mut(shooter).expect("shooter");
-        shooter.spec.gun.shell = game_core::ShellSpec::high_explosive(88.0, 600.0, 22.0, 300, 3.5);
-        shooter.aim_dispersion_mrad = 0.0;
-        shooter.spec.gun.dispersion_mrad = 0.0;
-        shooter.gun_pitch_rad = -0.010;
-    }
-    state.tank_mut(target).expect("target").yaw_rad = PI;
-    let target_hp = state.tank(target).expect("target").hit_points;
+fn high_explosive_on_a_thin_side_hurts_without_penetrating_and_a_thick_glacis_shrugs_it() {
+    // S15: the surface burst is a function of the steel at the point (GDD 3.1). The same
+    // 88 mm HE (300 HP) on a T-34-85's 45 mm side plate hurts; on the T-54's 100 mm glacis at
+    // 60 degrees (200 mm through) it does nothing: 0.5 * 300 - 1.3 * 200 < 0.
+    let shoot = |target_spec: TankSpec, yaw: f32| {
+        let mut state = SimulationState::new();
+        let shooter = state.spawn_tank(TeamId(1), TankSpec::tiger_i_ausf_e(), Vec3::ZERO);
+        let target = state.spawn_tank(TeamId(2), target_spec, Vec3::new(0.0, 0.0, 55.0));
+        {
+            let shooter = state.tank_mut(shooter).expect("shooter");
+            shooter.spec.gun.shell =
+                game_core::ShellSpec::high_explosive(88.0, 600.0, 22.0, 300, 3.5);
+            shooter.aim_dispersion_mrad = 0.0;
+            shooter.spec.gun.dispersion_mrad = 0.0;
+            shooter.gun_pitch_rad = -0.010;
+        }
+        state.tank_mut(target).expect("target").yaw_rad = yaw;
+        let target_hp = state.tank(target).expect("target").hit_points;
+        run_until_shell_resolved(&mut state, shooter);
+        let event = *state.damage_events().last().expect("HE surface hit event");
+        assert!(!event.penetrated, "22 mm of HE penetration opens neither plate");
+        (event, target_hp, state.tank(target).expect("target").hit_points)
+    };
 
-    run_until_shell_resolved(&mut state, shooter);
+    let (side, hp_before, hp_after) = shoot(VehicleKind::T34_85.spec(), PI * 0.5);
+    assert!(side.damage_hp > 0, "a 45 mm side takes the burst: {}", side.damage_hp);
+    assert!(side.damage_hp < 150, "...but never more than half the alpha: {}", side.damage_hp);
+    assert_eq!(hp_before - hp_after, side.damage_hp);
 
-    let event = state.damage_events().last().expect("HE surface hit event");
-    assert!(!event.penetrated);
-    assert!(event.damage_hp > 0);
-    assert!(state.tank(target).expect("target").hit_points < target_hp);
+    let (glacis, hp_before, hp_after) = shoot(TankSpec::t54_1951(), PI);
+    assert_eq!(glacis.damage_hp, 0, "200 mm through the glacis: the burst does nothing");
+    assert_eq!(hp_before, hp_after);
 }
 
 #[test]

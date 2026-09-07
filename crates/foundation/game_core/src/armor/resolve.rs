@@ -87,7 +87,7 @@ pub(crate) fn resolve_penetration_at_distance_on_facet(
     let remaining_penetration_mm =
         shell.penetration_mm_at_distance(distance_m) * bite - effective_armor_mm;
     let penetrated = !ricocheted && remaining_penetration_mm >= 0.0;
-    let damage_hp = shell_damage_hp(shell, penetrated, ricocheted);
+    let damage_hp = shell_damage_hp(shell, penetrated, ricocheted, effective_armor_mm);
 
     PenetrationResult {
         penetrated,
@@ -118,7 +118,7 @@ pub fn resolve_penetration_through_open_channel(
         ricocheted: false,
         effective_armor_mm: 0.0,
         remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m),
-        damage_hp: shell_damage_hp(shell, true, false),
+        damage_hp: shell_damage_hp(shell, true, false, 0.0),
         module_damage_hp: module_damage_hp(shell, true, false),
         // No steel means no face to skid off: a round through an open channel never glances.
         glance_loss: 0.0,
@@ -191,7 +191,7 @@ pub fn resolve_penetration_through_screens(
             ricocheted: false,
             effective_armor_mm: outer_los,
             remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m) - outer_los,
-            damage_hp: shell_damage_hp(shell, false, false),
+            damage_hp: shell_damage_hp(shell, false, false, outer_los),
             module_damage_hp: module_damage_hp(shell, false, false),
             glance_loss: 0.0,
         };
@@ -217,7 +217,7 @@ pub fn resolve_penetration_through_screens(
     let remaining_penetration_mm =
         shell.penetration_mm_at_distance(distance_m) * bite - effective_armor_mm;
     let penetrated = !ricocheted && remaining_penetration_mm >= 0.0;
-    let damage_hp = shell_damage_hp(shell, penetrated, ricocheted);
+    let damage_hp = shell_damage_hp(shell, penetrated, ricocheted, effective_armor_mm);
 
     PenetrationResult {
         penetrated,
@@ -297,11 +297,30 @@ fn ricochets(shell: &ShellSpec, facet: &ArmorFacet, impact_angle_degrees: f32) -
         && shell.caliber_mm <= facet.nominal_thickness_mm * OVERMATCH_CALIBER_RATIO
 }
 
-fn shell_damage_hp(shell: &ShellSpec, penetrated: bool, ricocheted: bool) -> u32 {
+/// S15 (GDD §3.1 "obrażenia w funkcji grubości w punkcie", reconciliation row 32): a
+/// high-explosive round that bursts ON the plate hurts by how much steel is under the burst,
+/// not by a flat share of its alpha. The bystander law in the splash (`sim::shell_splash`:
+/// blast minus the plate soaked) already said so for the next tank over; this is the same
+/// law for the tank that was hit. Half the alpha, less this many HP per millimetre of
+/// line-of-sight steel at the point: an OF-412 (430 HP) puts 157 HP into a 45 mm side, 20 HP
+/// into a 150 mm glacis, and nothing into 166 mm and up. The old rule was a flat 18 % — a
+/// T-34-85 side and a Tiger II glacis both took 77 HP.
+pub const HE_SURFACE_ALPHA_SHARE: f32 = 0.5;
+pub const HE_SURFACE_HP_PER_MM: f32 = 1.3;
+
+/// The HP a high-explosive surface burst deals through `los_mm` of steel at the point of
+/// burst — the one formula the resolver, the reticle hint and the inspector read.
+pub fn he_surface_damage_hp(alpha_hp: u32, los_mm: f32) -> u32 {
+    (alpha_hp as f32 * HE_SURFACE_ALPHA_SHARE - HE_SURFACE_HP_PER_MM * los_mm.max(0.0))
+        .round()
+        .max(0.0) as u32
+}
+
+fn shell_damage_hp(shell: &ShellSpec, penetrated: bool, ricocheted: bool, los_mm: f32) -> u32 {
     if penetrated {
         shell.damage_hp
     } else if !ricocheted && shell.shell_type == ShellType::HighExplosive {
-        ((shell.damage_hp as f32) * 0.18).round().max(1.0) as u32
+        he_surface_damage_hp(shell.damage_hp, los_mm)
     } else {
         0
     }

@@ -48,7 +48,9 @@ fn a_non_pen_he_burst_splashes_the_tank_beside_the_impact() {
         .find(|event| event.target == wall && event.cause == DamageCause::Shell)
         .expect("the HE round bursts on the Tiger II");
     assert!(!direct.penetrated, "38 mm of HE penetration cannot open a Tiger II");
-    assert!(direct.damage_hp > 0, "the surface burst still chips the plate");
+    // S15: the burst on a Tiger II glacis (150 mm at 50 degrees, 233 mm through) does nothing
+    // to the tank it hit (0.5 * 410 - 1.3 * 233 < 0); the whole bill is the blast around it.
+    assert_eq!(direct.damage_hp, 0, "the surface burst finds too much steel under it");
 
     let splash = events
         .iter()
