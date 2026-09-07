@@ -182,6 +182,8 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
             crew_down_remaining_s: Default::default(),
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
+            hull_dive_pitch_rad: 0.0,
+            hull_dive_pitch_velocity_rad_s: 0.0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

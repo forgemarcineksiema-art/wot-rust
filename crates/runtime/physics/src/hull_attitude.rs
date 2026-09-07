@@ -79,6 +79,11 @@ pub fn advance_hull_attitude(
     let roll_target = (target_roll_rad + lean).clamp(-MAX_HULL_TILT_RAD, MAX_HULL_TILT_RAD);
     spring_axis(&mut state.pitch_rad, &mut state.pitch_vel_rad_s, pitch_target, spring, dt);
     spring_axis(&mut state.roll_rad, &mut state.roll_vel_rad_s, roll_target, spring, dt);
+    // The dive SHARE of the pitch, on the same spring driven by the transfer target alone. A
+    // linear spring superposes, so this is exactly the part of `pitch_rad` the brake and the
+    // launch put there — what every gun's mount holds against (J4); the terrain share is the
+    // remainder, and only a historical stabilizer (`TankSpec::vertical_stabilizer`) holds that.
+    spring_axis(&mut state.dive_pitch_rad, &mut state.dive_pitch_vel_rad_s, dive, spring, dt);
 }
 
 /// One semi-implicit spring-damper step on one axis: `x'' = ω²(target − x) − 2ζω x'`, the

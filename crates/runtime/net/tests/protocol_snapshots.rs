@@ -31,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -46,7 +46,7 @@ fn vehicle_selection_wire_snapshot_v50_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v50"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -58,8 +58,8 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 52);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v51"));
+    assert_eq!(PROTOCOL_VERSION, 53);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v53"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -109,8 +109,8 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 52);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v51"));
+    assert_eq!(PROTOCOL_VERSION, 53);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v53"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -128,7 +128,7 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
@@ -168,6 +168,8 @@ pub fn tank_snapshot_message() -> Snapshot {
             crew_down_remaining_s: Default::default(),
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
+            hull_dive_pitch_rad: 0.0,
+            hull_dive_pitch_velocity_rad_s: 0.0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
@@ -214,11 +216,13 @@ fn snapshot_delivery_wire_v38_is_stable() {
             hull_yaw_velocity_rad_s: 0.33,
             hull_pitch_velocity_rad_s: 0.05,
             hull_roll_velocity_rad_s: -0.02,
+            hull_dive_pitch_rad: -0.011,
+            hull_dive_pitch_velocity_rad_s: 0.04,
         },
     };
     let message = ProtocolMessage::SnapshotDelivery(delivery);
     let bytes = net::encode_frame(&message).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v51"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v53"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), message);
 }
 
@@ -269,7 +273,7 @@ fn the_battle_ended_word_with_its_spotting_log_wire_v52_is_stable() {
         ],
     };
     let bytes = net::encode_frame(&ended).expect("encode");
-    assert_eq!(PROTOCOL_VERSION, 52);
+    assert_eq!(PROTOCOL_VERSION, 53);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "battle_ended_v52"));
     let decoded = net::decode_frame(&bytes).expect("decode");
     assert_eq!(decoded, ended, "the log round-trips whole");
@@ -422,6 +426,8 @@ pub fn combat_snapshot_message() -> Snapshot {
             crew_down_remaining_s: Default::default(),
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
+            hull_dive_pitch_rad: 0.0,
+            hull_dive_pitch_velocity_rad_s: 0.0,
         }],
         shells: vec![ShellSnapshot {
             shell_id: game_core::ShellId::from_shot(TankId(7), 3),

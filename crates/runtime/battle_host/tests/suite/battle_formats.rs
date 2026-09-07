@@ -34,13 +34,16 @@ fn the_7v7_format_is_todays_battle_byte_for_byte() {
         let hash = bytes.iter().fold(0xcbf29ce484222325_u64, |hash, byte| {
             (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
         });
-        // Recorded from master 12bf9f48 before adding formats, seed 42, Tiger II.
-        let expected = match map {
-            terrain::MapId::ProkhorovkaHill252_2 => 0x542a8116342b8f03,
-            terrain::MapId::BystraValley => 0xdb41e8284b556181,
-            terrain::MapId::OrlinyPereval => 0x55a76543d993f0bc,
-            terrain::MapId::Ostrogorsk => 0x54fc565dadf8db5b,
-            terrain::MapId::MazurskiPrzesmyk => 0xd8823ba214633e65,
+        // Recorded from master 12bf9f48 before adding formats, seed 42, Tiger II; re-recorded
+        // 2026-09-07 for wire v53 (the one program's J4: two f32 fields per tank ride the
+        // snapshot — the hash is of the BYTES, so a wire bump moves it while the deployment
+        // itself stays: seeds, spawn zones and facing yaws are untouched by J4).
+        let expected: u64 = match map {
+            terrain::MapId::ProkhorovkaHill252_2 => 0x184e8a9ee8c61923,
+            terrain::MapId::BystraValley => 0xc1d12533298eba21,
+            terrain::MapId::OrlinyPereval => 0xd92b3e1dcd33f63c,
+            terrain::MapId::Ostrogorsk => 0x1fa4e80dc1605e3b,
+            terrain::MapId::MazurskiPrzesmyk => 0x6616a2693b5367c5,
             _ => panic!("record a baseline for a newly shipped map"),
         };
         assert_eq!(hash, expected, "{map:?}: existing 7v7 deployment moved");

@@ -126,6 +126,8 @@ fn stale_delivery_is_rejected_before_ack_recording_and_snapshot_side_effects() {
             hull_yaw_velocity_rad_s: 99.0,
             hull_pitch_velocity_rad_s: 0.0,
             hull_roll_velocity_rad_s: 0.0,
+            hull_dive_pitch_rad: 0.0,
+            hull_dive_pitch_velocity_rad_s: 0.0,
         },
     });
     server.send(&mut server_port, &stale).expect("stale delivery");

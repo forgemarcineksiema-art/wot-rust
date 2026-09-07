@@ -167,7 +167,7 @@ pub use team_command::{
 /// masks it already computes for the per-viewer cut, closed at the battle's end and handed to
 /// each crew for THEIR hull only, after the battle, so a live client never holds an observer.
 /// An append with `serde(default)`; the fixtures were re-pinned as v52.
-pub const PROTOCOL_VERSION: u16 = 52;
+pub const PROTOCOL_VERSION: u16 = 53;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -312,6 +312,13 @@ pub struct TankSnapshot {
     pub hull_pitch_velocity_rad_s: f32,
     #[serde(default)]
     pub hull_roll_velocity_rad_s: f32,
+    /// v53: the dive SHARE of the hull pitch and its spring velocity (the one program's J4), the
+    /// part of `hull_pitch_rad` weight transfer put there — every gun's mount holds against it,
+    /// so the owner's predictor must carry the same share to lay the same gun.
+    #[serde(default)]
+    pub hull_dive_pitch_rad: f32,
+    #[serde(default)]
+    pub hull_dive_pitch_velocity_rad_s: f32,
 }
 
 impl TankSnapshot {
@@ -363,6 +370,8 @@ impl From<&TankState> for TankSnapshot {
             crew_down_remaining_s: tank.crew.down_remaining_s(),
             hull_pitch_velocity_rad_s: tank.hull_pitch_velocity_rad_s,
             hull_roll_velocity_rad_s: tank.hull_roll_velocity_rad_s,
+            hull_dive_pitch_rad: tank.hull_dive_pitch_rad,
+            hull_dive_pitch_velocity_rad_s: tank.hull_dive_pitch_velocity_rad_s,
         }
     }
 }
@@ -524,6 +533,11 @@ pub struct AuthoritativeMotion {
     pub hull_pitch_velocity_rad_s: f32,
     #[serde(default)]
     pub hull_roll_velocity_rad_s: f32,
+    /// v53: the dive share's state (J4), replayed exactly through a rewind.
+    #[serde(default)]
+    pub hull_dive_pitch_rad: f32,
+    #[serde(default)]
+    pub hull_dive_pitch_velocity_rad_s: f32,
 }
 
 /// Per-recipient delivery metadata. ACK state belongs to a connection, not to the battle world,

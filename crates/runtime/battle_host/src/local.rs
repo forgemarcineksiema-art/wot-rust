@@ -374,6 +374,8 @@ impl LocalAuthoritativeServer {
             hull_yaw_velocity_rad_s: tank.hull_yaw_velocity_rad_s,
             hull_pitch_velocity_rad_s: tank.hull_pitch_velocity_rad_s,
             hull_roll_velocity_rad_s: tank.hull_roll_velocity_rad_s,
+            hull_dive_pitch_rad: tank.hull_dive_pitch_rad,
+            hull_dive_pitch_velocity_rad_s: tank.hull_dive_pitch_velocity_rad_s,
         })
     }
 
