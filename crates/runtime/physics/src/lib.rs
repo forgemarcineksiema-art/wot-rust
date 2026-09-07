@@ -5,6 +5,7 @@ mod controller_settings;
 mod cover;
 mod engine;
 mod forces;
+mod ground;
 mod hull_attitude;
 mod movement;
 mod track_contact;
@@ -26,6 +27,9 @@ pub use cover::{
     resolve_cover_collision_with_velocity,
 };
 pub use engine::{EngineState, IDLE_RPM_NORM, SHIFT_UP_RPM_NORM, engine_state, engine_thrust_mps2};
+pub use ground::{
+    GroundLayers, MAX_STEP_SOLIDS, StepSolid, StepSolids, is_step_for, step_solids_near,
+};
 pub use hull_attitude::{
     ATTITUDE_REST_EPSILON, HullSpring, MAX_HULL_TILT_RAD, MAX_WEIGHT_TRANSFER_RAD,
     advance_hull_attitude,

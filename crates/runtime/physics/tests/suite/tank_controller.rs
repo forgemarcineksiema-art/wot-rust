@@ -138,7 +138,8 @@ fn drive_north_into_embankment(
 #[test]
 fn cover_collision_blocks_head_on_and_keeps_the_unblocked_axis() {
     let cover = vec![cover_box([0.0, 1.0, 10.0], [6.0, 2.0, 1.0])];
-    let footprint = TankFootprint { half_width_m: 1.6, half_length_m: 1.6, height_m: 2.4 };
+    let footprint =
+        TankFootprint { half_width_m: 1.6, half_length_m: 1.6, height_m: 2.4, step_m: 0.8 };
     let previous = glam::Vec3::new(0.0, 0.0, 1.0);
 
     // A clear move that never reaches the cover is unchanged.

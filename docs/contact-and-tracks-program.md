@@ -321,7 +321,11 @@ precede drive.
 
   M14 is **halved**: `a_hull_is_blocked_by_exactly_the_metal_it_is_drawn_with` asserts zero, not a
   ceiling. The shell half keeps the 0.141 m ceiling and stays the user's decision.
-- **P2.2 Low obstacles are ground — MEASURED OUT, deferred.** The plan was that anything shorter
+- **P2.2 Low obstacles are ground — CLOSED as X4 of `docs/program.md` (2026-09-07):** the step is
+  `HullPlan::step_m` (belt top run − 0.10 m; T-54 0.805), the rule `physics::is_step_for` read by
+  the SAT and the support envelope alike, the tier `StaticCoverKind::LowWall` (Bystra's bridge
+  parapets at 0.6 m the first of it). The record below stands as the measurement that shaped it.
+  **Was — MEASURED OUT, deferred.** The plan was that anything shorter
   than a vehicle's step height should enter the support envelope instead of blocking in plan.
   Measured across all four shipped maps first: **272 cover objects, none below 0.80 m.** The
   shortest object anywhere is a 1.10 m rail cover; the shortest KIND in the vocabulary is the

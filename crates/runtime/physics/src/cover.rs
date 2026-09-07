@@ -47,9 +47,10 @@ pub fn resolve_cover_collision_with_velocity(
 
 /// Whether the hull footprint at `position`/`yaw_rad` overlaps any cover box: the box's own yaw in
 /// the shared SAT (X1), and the hull's height band against the box's top (X3) — `position.y` is
-/// the hull's support height, and a hull whose support is at or over a solid's top passes it.
-/// Public because the world step also asks it about a ROTATION candidate (yaw is
-/// collision-resolved like translation).
+/// the hull's support height, and the band starts a STEP above it (X4): a solid whose top is
+/// within the running gear's step is ground the support envelope carries the hull onto, not a
+/// wall, by the one predicate both read (`is_step_for`). Public because the world step also asks
+/// it about a ROTATION candidate (yaw is collision-resolved like translation).
 ///
 /// The circumradius early-out in front of the SAT is the urban-map broadphase: two shapes whose
 /// XZ centre distance exceeds the sum of their circumscribed radii cannot overlap under ANY yaw,
@@ -61,7 +62,7 @@ pub fn footprint_blocked_by_cover(
     footprint: TankFootprint,
     cover: &[StaticCoverObject],
 ) -> bool {
-    let hull = TankObstacle::new(position, yaw_rad, footprint);
+    let hull = TankObstacle::climbing(position, yaw_rad, footprint);
     let hull_reach = circumradius(footprint.half_width_m, footprint.half_length_m);
     cover.iter().any(|object| {
         let dx = position.x - object.center[0];
@@ -93,7 +94,7 @@ pub fn footprint_overlaps_cover_object(
         + circumradius(object.half_extents_m[0], object.half_extents_m[2]);
     dx * dx + dz * dz <= reach * reach
         && obstacles_overlap(
-            &TankObstacle::new(position, yaw_rad, footprint),
+            &TankObstacle::climbing(position, yaw_rad, footprint),
             &cover_obstacle(object),
         )
 }
@@ -116,6 +117,8 @@ fn cover_obstacle(object: &StaticCoverObject) -> TankObstacle {
             half_width_m: object.half_extents_m[0].max(0.01),
             half_length_m: object.half_extents_m[2].max(0.01),
             height_m,
+            // A solid steps onto nothing: the band a standing solid wears is its own.
+            step_m: 0.0,
         },
         object.center[1] + object.half_extents_m[1],
     )
@@ -151,13 +154,14 @@ mod broadphase_tests {
                 });
             }
         }
-        let footprint = TankFootprint { half_width_m: 1.7, half_length_m: 3.4, height_m: 2.4 };
+        let footprint =
+            TankFootprint { half_width_m: 1.7, half_length_m: 3.4, height_m: 2.4, step_m: 0.8 };
         let mut state = 0x0bad_cafeu32;
         for _ in 0..800 {
             let position =
                 Vec3::new(xorshift(&mut state) * 520.0, 0.0, xorshift(&mut state) * 520.0);
             let yaw = xorshift(&mut state) * std::f32::consts::TAU;
-            let hull = TankObstacle::new(position, yaw, footprint);
+            let hull = TankObstacle::climbing(position, yaw, footprint);
             let exact =
                 cover.iter().any(|object| obstacles_overlap(&hull, &cover_obstacle(object)));
             let filtered = footprint_blocked_by_cover(position, yaw, footprint, &cover);
@@ -177,7 +181,8 @@ mod broadphase_tests {
             half_extents_m: [10.0, 1.0, 0.6],
             yaw_rad: 0.0,
         };
-        let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4 };
+        let footprint =
+            TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4, step_m: 0.8 };
         let mut state = 0x51ce_d00du32;
         let mut touched = 0;
         for _ in 0..800 {
@@ -189,7 +194,7 @@ mod broadphase_tests {
             );
             let yaw = xorshift(&mut state) * std::f32::consts::TAU;
             let exact = obstacles_overlap(
-                &TankObstacle::new(position, yaw, footprint),
+                &TankObstacle::climbing(position, yaw, footprint),
                 &cover_obstacle(&object),
             );
             let filtered = footprint_overlaps_cover_object(position, yaw, footprint, &object);

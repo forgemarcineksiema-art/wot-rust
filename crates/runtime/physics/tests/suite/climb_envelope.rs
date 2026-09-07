@@ -184,7 +184,7 @@ fn climbs(kind: VehicleKind, grade: f32, heading: f32, run_up_m: f32) -> bool {
             state.position,
             state.yaw_rad,
             settings.ground_probe_length_m,
-            &[],
+            physics::GroundLayers::NONE,
             None,
         ) else {
             return true; // off the far end of the ramp: it climbed further than the map is long

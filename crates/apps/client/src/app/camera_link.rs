@@ -138,7 +138,7 @@ impl ClientApp {
             position,
             self.predictor.yaw(),
             3.0,
-            self.live_cover.rubble(),
+            physics::GroundLayers::rubble(self.live_cover.rubble()),
             Some(&self.ground),
         ) else {
             return 0.0;

@@ -29,7 +29,7 @@ its box over a hedge body. Retired imported kinds are never authored.
 
 | Crossing | Where | Numbers |
 |---|---|---|
-| Kamienna stone bridge | on-axis, `z=500` | causeway deck 6.4 m (~1.4 m freeboard), parapet walls as cover |
+| Kamienna stone bridge | on-axis, `z=500` | causeway deck 6.4 m (~1.4 m freeboard); parapets 0.6 m of `LowWall` (X4, 2026-09-07): a shell stops in them, every hull steps over them with a tilt — and off the deck into the river if it keeps going |
 | fords | `z = 500 ± 180` | sill depth ~0.65 m — inside the wading band, slow and exposed |
 | plank crossings | `z = 500 ± 320` | deck 5.6 m, 9 m wide — fast early flank rotation near the spawns |
 

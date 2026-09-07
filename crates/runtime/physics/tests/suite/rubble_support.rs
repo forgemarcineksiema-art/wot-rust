@@ -54,7 +54,7 @@ fn a_hull_on_the_mound_drives_on_masonry_not_on_the_lawn() {
         Vec3::new(60.0, 0.0, 60.0),
         0.0,
         2.2,
-        std::slice::from_ref(&mound),
+        physics::GroundLayers::rubble(std::slice::from_ref(&mound)),
         None,
     )
     .expect("contact on the mound");
@@ -68,7 +68,7 @@ fn a_hull_on_the_mound_drives_on_masonry_not_on_the_lawn() {
         Vec3::new(20.0, 0.0, 20.0),
         0.0,
         2.2,
-        std::slice::from_ref(&mound),
+        physics::GroundLayers::rubble(std::slice::from_ref(&mound)),
         None,
     )
     .expect("contact beside the mound");
@@ -137,8 +137,14 @@ fn the_support_envelope_rests_on_the_debris_instead_of_the_buried_ground() {
     let mound = barn_rubble();
     let footprint = ContactFootprint::for_vehicle(VehicleKind::T54_1951);
 
-    let on_crest = support_height(&map, Vec3::new(60.0, 0.0, 60.0), 0.0, &footprint, &[mound])
-        .expect("stations on the map");
+    let on_crest = support_height(
+        &map,
+        Vec3::new(60.0, 0.0, 60.0),
+        0.0,
+        &footprint,
+        physics::GroundLayers::rubble(&[mound]),
+    )
+    .expect("stations on the map");
     assert!(
         (on_crest - mound.crest_y_m).abs() < 0.05,
         "a hull over the crown rides the debris at {}, not the buried ground",
@@ -146,13 +152,25 @@ fn the_support_envelope_rests_on_the_debris_instead_of_the_buried_ground() {
     );
 
     // Clear of the footprint the debris is simply not there.
-    let beside = support_height(&map, Vec3::new(20.0, 0.0, 60.0), 0.0, &footprint, &[mound])
-        .expect("stations on the map");
+    let beside = support_height(
+        &map,
+        Vec3::new(20.0, 0.0, 60.0),
+        0.0,
+        &footprint,
+        physics::GroundLayers::rubble(&[mound]),
+    )
+    .expect("stations on the map");
     assert!(beside.abs() < 1.0e-4, "off the pile the ground is the ground, got {beside}");
 
     // And an EMPTY rubble slice must read exactly like the terrain — this is what keeps every
     // battlefield that has not been knocked down yet bit-identical.
-    let untouched = support_height(&map, Vec3::new(60.0, 0.0, 60.0), 0.0, &footprint, &[]);
+    let untouched = support_height(
+        &map,
+        Vec3::new(60.0, 0.0, 60.0),
+        0.0,
+        &footprint,
+        physics::GroundLayers::NONE,
+    );
     assert_eq!(untouched, Some(0.0));
 }
 

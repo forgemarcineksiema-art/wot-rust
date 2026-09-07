@@ -17,8 +17,11 @@
 //! it a command this tick — the same rule drowning follows.
 
 use glam::Vec3;
-use physics::{TankKinematicState, is_grounded, resolve_vertical, support_height};
-use terrain::{HeightMap, RubbleMound};
+use physics::{
+    GroundLayers, TankFootprint, TankKinematicState, is_grounded, resolve_vertical,
+    step_solids_near, support_height,
+};
+use terrain::{HeightMap, RubbleMound, StaticCoverObject};
 
 use crate::tank_state::TankState;
 
@@ -28,6 +31,7 @@ use crate::tank_state::TankState;
 pub(crate) fn settle_wrecks(
     tanks: &mut [TankState],
     heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
     rubble: &[RubbleMound],
     dt: f32,
 ) {
@@ -41,7 +45,11 @@ pub(crate) fn settle_wrecks(
         // The same ride height a living hull reads: the running-gear support envelope, with the
         // centre probe as the fallback, so a wreck rests exactly where the tank rested.
         let footprint = tank.spec.contact_footprint();
-        let ground = support_height(heightmap, tank.position, tank.yaw_rad, &footprint, rubble)
+        // ...low solids included (X4): a wreck that died on a parapet rests on the parapet.
+        let hull = TankFootprint::from_plan(tank.spec.hull_plan());
+        let steps = step_solids_near(cover, tank.position, hull, hull.half_length_m + 1.0);
+        let layers = GroundLayers { rubble, steps: steps.as_slice() };
+        let ground = support_height(heightmap, tank.position, tank.yaw_rad, &footprint, layers)
             .or_else(|| heightmap.sample_height(tank.position.x, tank.position.z));
         let Some(ground) = ground else {
             continue;

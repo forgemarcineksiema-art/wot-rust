@@ -15,6 +15,7 @@ mod pivot_mechanism;
 mod rigid_body_movement;
 mod rollover_unreachable;
 mod rubble_support;
+mod step_over_low_solids;
 mod tank_controller;
 mod track_contact;
 mod vertical_flight;

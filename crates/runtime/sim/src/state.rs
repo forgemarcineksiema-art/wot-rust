@@ -580,7 +580,7 @@ impl SimulationState {
         );
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
-        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, rubble, dt);
+        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, live_cover.movement(), rubble, dt);
         // Drowning runs for EVERY living hull, commanded or not — a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
