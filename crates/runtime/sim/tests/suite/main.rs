@@ -68,4 +68,5 @@ mod turret_taper;
 mod turret_volume;
 mod vehicle_identity;
 mod vehicle_replacement;
+mod wall_contact;
 mod wreck_settle;

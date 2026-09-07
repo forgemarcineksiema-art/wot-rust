@@ -170,6 +170,7 @@ fn ramming_a_live_hull_does_not_buzz_the_camera() {
                 footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
                 mass_kg: spec.mass_kg,
                 movable: true,
+                solid: false,
             };
             server.apply_commands_on_terrain(&go, step, &flat);
             predictor.step(drive, &flat, &[], &[neighbour], &[], None, step.dt_seconds());

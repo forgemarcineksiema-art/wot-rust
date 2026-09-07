@@ -95,6 +95,7 @@ fn the_predictor_meets_another_hull_the_way_the_server_does() {
         footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
         mass_kg: spec.mass_kg,
         movable: false,
+        solid: false,
     };
     let mut predictor = LocalPredictor::new(&spec);
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
@@ -138,6 +139,7 @@ fn predictor_and_server_rest_in_the_same_place() {
         footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
         mass_kg: spec.mass_kg,
         movable: false,
+        solid: false,
     };
     let mut predictor = LocalPredictor::new(&spec);
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));

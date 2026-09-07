@@ -20,7 +20,15 @@ impl ClientApp {
     }
 
     pub(super) fn step_prediction(&mut self, command: &sim::TankCommand) {
-        let neighbours = self.neighbours_for_prediction();
+        let mut neighbours = self.neighbours_for_prediction();
+        // ...and the standing solids within the local hull's reach (X6), built through the
+        // same gather the authority uses, so a wall hit is predicted the way it is served.
+        let local = self.predictor.contact_body();
+        neighbours.extend(physics::solid_bodies_near(
+            self.live_cover.movement(),
+            std::slice::from_ref(&local),
+            TICK_DT,
+        ));
         self.predictor.step(
             *command,
             &self.battlefield.heightmap,
@@ -64,6 +72,7 @@ impl ClientApp {
                     footprint: physics::TankFootprint::from_plan(spec.hull_plan()),
                     mass_kg: spec.mass_kg,
                     movable: true,
+                    solid: false,
                 }
             })
             .collect()

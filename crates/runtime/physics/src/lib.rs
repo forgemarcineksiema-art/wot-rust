@@ -18,7 +18,8 @@ pub use collision::{
 };
 pub use contact::{GroundScales, TerrainContact, sample_tank_terrain_contact};
 pub use contact_impulse::{
-    ContactBody, ContactCache, ContactImpulse, ContactPair, ContactReport, resolve_contacts,
+    ContactBody, ContactCache, ContactImpulse, ContactPair, ContactReport, SOLID_ID_BASE,
+    resolve_contacts, solid_bodies_near,
 };
 pub use controller_settings::hull_spring_for_spec;
 pub use controller_settings::{BeltDrive, TankControllerSettings};

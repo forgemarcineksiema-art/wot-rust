@@ -19,5 +19,6 @@ mod step_over_low_solids;
 mod tank_controller;
 mod track_contact;
 mod vertical_flight;
+mod wall_as_a_body;
 mod water_wading;
 mod yaw_collision;

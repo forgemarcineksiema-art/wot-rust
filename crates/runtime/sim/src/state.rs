@@ -526,8 +526,10 @@ impl SimulationState {
             phases.push((index, command, phase));
         }
 
-        // PHASE 2 — the contacts.
-        let contact_pairs = self.exchange_contact_momentum(dt);
+        // PHASE 2 — the contacts: every hull against every hull AND against every standing solid
+        // within reach (X6) — a wall is a body the solver meets, not a veto the settle applies.
+        let (contact_bodies, contact_pairs) =
+            self.exchange_contact_momentum(live_cover.movement(), dt);
 
         // PHASE 3 — spend what survived, then finish each hull's tick.
         for (index, command, phase) in phases {
@@ -574,6 +576,7 @@ impl SimulationState {
 
         apply_ramming_damage(
             &contact_pairs,
+            &contact_bodies,
             &mut self.tanks,
             &mut self.damage_events,
             &mut event_stamp,
@@ -739,20 +742,27 @@ impl SimulationState {
     /// Solved against predicted positions — where each velocity is about to put its hull — so a
     /// collision is refused before it happens rather than repaired after. Wrecks take part as
     /// dead weight: they stop a charge without giving ground.
-    fn exchange_contact_momentum(&mut self, dt: f32) -> Vec<physics::ContactPair> {
-        if self.tanks.len() < 2 {
-            return Vec::new();
+    /// The roster solve: the hulls, then the standing solids within reach of any of them (X6).
+    /// Returns the bodies (the ram bill needs a wall's place) and the pairs that pressed.
+    fn exchange_contact_momentum(
+        &mut self,
+        cover: &[StaticCoverObject],
+        dt: f32,
+    ) -> (Vec<ContactBody>, Vec<physics::ContactPair>) {
+        let mut bodies = self.contact_bodies();
+        bodies.extend(physics::solid_bodies_near(cover, &bodies, dt));
+        if bodies.len() < 2 {
+            return (bodies, Vec::new());
         }
-        let bodies = self.contact_bodies();
         let report = physics::resolve_contacts(&bodies, &mut self.contact_cache, dt);
-        for (index, impulse) in report.bodies.iter().enumerate() {
+        for (index, impulse) in report.bodies.iter().enumerate().take(self.tanks.len()) {
             if impulse.is_empty() || self.tanks[index].hit_points == 0 {
                 continue;
             }
             self.tanks[index].velocity_mps += impulse.delta_velocity;
             self.tanks[index].hull_yaw_velocity_rad_s += impulse.delta_yaw_rate_rad_s;
         }
-        report.pairs
+        (bodies, report.pairs)
     }
 
     fn contact_bodies(&self) -> Vec<ContactBody> {
@@ -767,6 +777,7 @@ impl SimulationState {
                 footprint: TankFootprint::from_plan(tank.spec.hull_plan()),
                 mass_kg: tank.spec.mass_kg,
                 movable: tank.hit_points > 0,
+                solid: false,
             })
             .collect()
     }

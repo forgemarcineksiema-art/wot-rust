@@ -217,6 +217,12 @@ pub fn settle_tank_on_world(
             state.yaw_rate_rad_s = 0.0;
         }
     }
+    // The BACKSTOP (X6): in a solved tick the roster solve has already met every standing solid
+    // as an immovable body — the hull arrives here with the wall's impulse spent on its velocity
+    // (the dive, the torque, the bill all came from that) and this resolve finds nothing to
+    // refuse. It stays for the ticks nobody solves: a spawn inside a wall, the single-hull
+    // physics API, a hull the predictor does not pair (locked: over a solved wall charge it
+    // trims nothing).
     let (position, velocity) = resolve_cover_collision_with_velocity(
         previous,
         state.position,
