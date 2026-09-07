@@ -341,6 +341,8 @@ pub fn battlefield_statics_bucket_mesh_dressed(
             }
         }
     }
+    // B7: the paved streets' kerbs and pavements, by the bucket their run falls in.
+    append_street_kerbs(&mut vertices, &mut indices, battlefield, bucket);
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
     // cover box fell with it, so it is left out of the rebuilt scene.
@@ -1845,9 +1847,15 @@ fn terrain_ground_parts(
         // Grass is near-matte; exposed rock on steep faces takes a mineral sheen; the
         // riverbed under water is permanently wet and reads glossiest of all.
         let mut gloss = 0.03 + (1.0 - normal.y).clamp(0.0, 1.0) * 0.12;
-        if let Some((tone, road_gloss, blend)) = road_paint(roads, wx, wz) {
+        // B7: a paved street carries the SETTS lane where its paint is more than half —
+        // the ground pipeline draws its own stones there, not the rock lane's crack tile.
+        let mut surface = 0.0;
+        if let Some((tone, road_gloss, blend, road_surface)) = road_paint(roads, wx, wz) {
             color = Vec3::from_array(color).lerp(tone, blend).to_array();
             gloss = gloss + (road_gloss - gloss) * blend;
+            if road_surface == RoadSurface::Cobble && blend >= 0.5 {
+                surface = renderer_api::surface_role::SETTS;
+            }
         }
         // The ground pipeline reads its albedo from the splat layers; the vertex colour
         // wins only where the tint lane says so — the submerged riverbed, whose depth
@@ -1867,7 +1875,7 @@ fn terrain_ground_parts(
             color,
             tint_weight: vertex_color_dominance,
             gloss,
-            surface: 0.0,
+            surface,
             sway: 0.0,
             uv: [0.0, 0.0],
             bounce: [0.0; 3],
@@ -2350,10 +2358,10 @@ pub(crate) fn road_surface_tone(surface: RoadSurface) -> (Vec3, f32) {
     }
 }
 
-/// The road tone at a world point, if any road reaches it: `(tone, gloss, blend)` with the
-/// blend feathering from full paint over the core to nothing at the authored edge.
-fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
-    let mut best: Option<(Vec3, f32, f32)> = None;
+/// The road tone at a world point, if any road reaches it: `(tone, gloss, blend, surface)`
+/// with the blend feathering from full paint over the core to nothing at the authored edge.
+fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32, RoadSurface)> {
+    let mut best: Option<(Vec3, f32, f32, RoadSurface)> = None;
     for road in roads {
         // The bounds check before the polyline walk (terrain::road_bound): this runs per
         // ground VERTEX — playfield plus both apron rings — and past the box the blend is
@@ -2372,11 +2380,128 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
         // looks cannot drift apart.
         let blend = terrain::road_blend(road, wx, wz);
         let (tone, gloss) = road_surface_tone(road.surface);
-        if best.map(|(_, _, b)| blend > b).unwrap_or(true) {
-            best = Some((tone, gloss, blend));
+        if best.map(|(_, _, b, _)| blend > b).unwrap_or(true) {
+            best = Some((tone, gloss, blend, road.surface));
         }
     }
     best
+}
+
+/// B7: the kerb and the pavement of a paved street, baked into the statics. Every
+/// `RoadSurface::Cobble` road gets, on both edges, a granite kerb (0.25 m wide, 0.15 m proud)
+/// and a flagstone pavement strip (1.5 m wide, 0.10 m proud) outside it, laid along the
+/// polyline in runs of at most `KERB_RUN_M` so they follow the ground. Under the belly line
+/// (0.40 m) like every solid dressing: a hull crosses them, nothing blocks on them.
+pub const KERB_HEIGHT_M: f32 = 0.15;
+pub const KERB_WIDTH_M: f32 = 0.25;
+pub const PAVEMENT_WIDTH_M: f32 = 1.5;
+pub const PAVEMENT_HEIGHT_M: f32 = 0.10;
+const KERB_RUN_M: f32 = 8.0;
+pub const KERB_TONE: [f32; 3] = [0.46, 0.45, 0.43];
+// Under the belly line: a hull crosses a kerb and a pavement, nothing blocks on them.
+const _: () = assert!(KERB_HEIGHT_M <= 0.40 && PAVEMENT_HEIGHT_M <= 0.40);
+pub const PAVEMENT_TONE: [f32; 3] = [0.52, 0.50, 0.47];
+
+/// One run of kerb and pavement on one side of a paved road: where it lies and which way.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct KerbRun {
+    /// The kerb's centre on the ground.
+    pub kerb_center: Vec3,
+    /// The pavement's centre on the ground.
+    pub pavement_center: Vec3,
+    /// Half the run's length along the road.
+    pub half_run_m: f32,
+    /// The yaw that lays a box's X extent along the road (`Mat3::from_rotation_y`).
+    pub yaw_rad: f32,
+}
+
+/// The kerb runs of every paved road on the map, both sides, following the ground — and
+/// breaking at the JUNCTIONS: a run whose kerb would stand inside another paved road's
+/// width is a crossing, not a kerb, and is left out.
+pub fn street_kerb_runs(battlefield: &BattlefieldMap) -> Vec<KerbRun> {
+    let mut runs = Vec::new();
+    let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+    let paved: Vec<&Road> =
+        battlefield.roads.iter().filter(|road| road.surface == RoadSurface::Cobble).collect();
+    let crosses_another = |own: &Road, x: f32, z: f32| {
+        paved.iter().any(|other| {
+            !std::ptr::eq(*other, own)
+                && other.distance_to(x, z) < other.width_m * 0.5 + KERB_WIDTH_M + PAVEMENT_WIDTH_M
+        })
+    };
+    for road in paved.iter().copied() {
+        let half_width = road.width_m * 0.5;
+        for pair in road.points.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            let (dx, dz) = (b[0] - a[0], b[1] - a[1]);
+            let length = (dx * dx + dz * dz).sqrt();
+            if length < 0.5 {
+                continue;
+            }
+            let along = Vec3::new(dx / length, 0.0, dz / length);
+            let across = Vec3::new(-along.z, 0.0, along.x);
+            let yaw = -along.z.atan2(along.x);
+            let pieces = (length / KERB_RUN_M).ceil().max(1.0) as usize;
+            let piece = length / pieces as f32;
+            for index in 0..pieces {
+                let mid = Vec3::new(a[0], 0.0, a[1]) + along * (piece * (index as f32 + 0.5));
+                for side in [-1.0f32, 1.0] {
+                    let kerb_xz = mid + across * side * (half_width + KERB_WIDTH_M * 0.5);
+                    let pavement_xz =
+                        mid + across * side * (half_width + KERB_WIDTH_M + PAVEMENT_WIDTH_M * 0.5);
+                    if crosses_another(road, kerb_xz.x, kerb_xz.z) {
+                        continue;
+                    }
+                    runs.push(KerbRun {
+                        kerb_center: Vec3::new(kerb_xz.x, ground(kerb_xz.x, kerb_xz.z), kerb_xz.z),
+                        pavement_center: Vec3::new(
+                            pavement_xz.x,
+                            ground(pavement_xz.x, pavement_xz.z),
+                            pavement_xz.z,
+                        ),
+                        half_run_m: piece * 0.5,
+                        yaw_rad: yaw,
+                    });
+                }
+            }
+        }
+    }
+    runs
+}
+
+/// Bake the kerb runs whose kerb centre falls in `bucket`.
+fn append_street_kerbs(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    battlefield: &BattlefieldMap,
+    bucket: usize,
+) {
+    for run in street_kerb_runs(battlefield) {
+        if statics_bucket_of_position(battlefield, run.kerb_center.x, run.kerb_center.z) != bucket {
+            continue;
+        }
+        let rotation = Mat3::from_rotation_y(run.yaw_rad);
+        let start = vertices.len();
+        push_oriented_box(
+            vertices,
+            indices,
+            run.kerb_center + Vec3::Y * (KERB_HEIGHT_M * 0.5),
+            Vec3::new(run.half_run_m, KERB_HEIGHT_M * 0.5, KERB_WIDTH_M * 0.5),
+            rotation,
+            KERB_TONE,
+        );
+        push_oriented_box(
+            vertices,
+            indices,
+            run.pavement_center + Vec3::Y * (PAVEMENT_HEIGHT_M * 0.5),
+            Vec3::new(run.half_run_m, PAVEMENT_HEIGHT_M * 0.5, PAVEMENT_WIDTH_M * 0.5),
+            rotation,
+            PAVEMENT_TONE,
+        );
+        for vertex in &mut vertices[start..] {
+            vertex.gloss = 0.08;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2761,6 +2886,86 @@ mod tests {
         let single = deepest_on_line(&mesh(&once));
         assert!(single > 0.02 && single < 0.05, "one pass presses {single} m");
         assert_eq!(mesh(&terrain::RutField::default()), virgin, "no ruts, the same ground");
+    }
+
+    /// B7: the paved street wears setts, not cliff cracks. On Ostrogorsk every ground vertex
+    /// more than half under a `Cobble` road carries the SETTS lane and none under a dirt road
+    /// does (Prokhorovka's farm road stays earth); the statics carry a kerb and a pavement on
+    /// both sides of every paved road, under the belly line, following the ground; and a map
+    /// without a paved road bakes exactly as before.
+    #[test]
+    fn a_paved_road_wears_setts_not_cliff_cracks() {
+        let town = map_forge::battlefield(terrain::MapId::Ostrogorsk);
+        let paved: Vec<&Road> =
+            town.roads.iter().filter(|road| road.surface == RoadSurface::Cobble).collect();
+        assert!(!paved.is_empty(), "Ostrogorsk has paved streets");
+        let (vertices, _) = battlefield_ground_mesh(&town);
+        let (mut on_setts, mut on_street_without) = (0, 0);
+        for vertex in &vertices {
+            let [x, _, z] = vertex.position;
+            let blend =
+                paved.iter().map(|road| terrain::road_blend(road, x, z)).fold(0.0f32, f32::max);
+            if blend >= 0.5 {
+                if vertex.surface == renderer_api::surface_role::SETTS {
+                    on_setts += 1;
+                } else {
+                    on_street_without += 1;
+                }
+            } else {
+                assert_ne!(
+                    vertex.surface,
+                    renderer_api::surface_role::SETTS,
+                    "setts stop at the street's edge"
+                );
+            }
+        }
+        assert!(on_setts > 100, "the street's vertices carry the setts lane: {on_setts}");
+        assert_eq!(on_street_without, 0, "every vertex under a paved street wears setts");
+
+        let farm = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let (farm_vertices, _) = battlefield_ground_mesh(&farm);
+        assert!(
+            farm_vertices.iter().all(|v| v.surface != renderer_api::surface_role::SETTS),
+            "a farm road is earth"
+        );
+
+        let runs = street_kerb_runs(&town);
+        assert!(
+            runs.len() >= 40,
+            "kerb runs down both sides of every paved street: {}",
+            runs.len()
+        );
+        for run in &runs {
+            let ground = town
+                .heightmap
+                .sample_height(run.kerb_center.x, run.kerb_center.z)
+                .expect("on the map");
+            assert!((run.kerb_center.y - ground).abs() < 1e-4, "the kerb sits on the ground");
+            let nearest = paved
+                .iter()
+                .map(|road| road.distance_to(run.kerb_center.x, run.kerb_center.z))
+                .fold(f32::MAX, f32::min);
+            let expected = paved
+                .iter()
+                .map(|road| road.width_m * 0.5 + KERB_WIDTH_M * 0.5)
+                .fold(f32::MAX, f32::min);
+            assert!(
+                nearest >= expected - 0.6,
+                "the kerb lies just off the street's edge: {nearest}"
+            );
+        }
+        let first = &runs[0];
+        let bucket = statics_bucket_of_position(&town, first.kerb_center.x, first.kerb_center.z);
+        let (statics, _) =
+            battlefield_statics_bucket_mesh(&town, &vec![0; town.static_cover.len()], &[], bucket);
+        let kerb_vertices = statics
+            .iter()
+            .filter(|v| {
+                v.color == KERB_TONE && v.position[1] <= first.kerb_center.y + KERB_HEIGHT_M + 1e-3
+            })
+            .count();
+        assert!(kerb_vertices >= 8, "the bucket carries the kerb: {kerb_vertices} vertices");
+        assert!(street_kerb_runs(&farm).is_empty(), "no paved road, no kerb");
     }
 
     /// T9: the ground's parts. The base carries every cell of the grid — two triangles a
@@ -3858,8 +4063,9 @@ mod tests {
     /// and the frame delta is recorded".
     #[test]
     fn the_towns_static_buffer_dropped_its_dwellings_into_the_kit() {
-        // Measured 2026-09-07: 124 420 baked, 98 728 taken out by the kit (70 dwellings).
-        const OSTROGORSK_STATICS_TRIANGLE_CEILING: usize = 140_000;
+        // Measured 2026-09-07: 124 420 baked, 98 728 taken out by the kit (70 dwellings);
+        // the same day B7 laid the kerbs and pavements into the buffer: 146 068 baked.
+        const OSTROGORSK_STATICS_TRIANGLE_CEILING: usize = 155_000;
         let battlefield = map_forge::battlefield(terrain::MapId::Ostrogorsk);
         let (_, indices) = battlefield_scene_mesh(&battlefield);
         let baked = indices.len() / 3;
