@@ -130,8 +130,8 @@ dependency; a block is done when every row in it is closed.
 |---|---|---|---|
 | 0 | **Housekeeping, any time, between gates** | X9 (`parry3d` out), S22 (`legacy_boxes` out), D17 close, S21 (bible tint = code), S19/S20 (reticle Clear-on-ground, detached turret in `trace_sets`), Z4, S6, A2 | 0.5 day |
 | 1 | **Jazda** | J1 → J2 → J3 → J4 → J5 → J6, then G1 → J7 (the running gear), K10; each PR with the stop-and-aim lock and the owner at the wheel | 2–3 days |
-| 2 | **Światło i materiały, zero triangles** | D34 → D35 → D36 → D37 (light); D38 (leaf sprites); D39 → D40 → D41 → D42 (vehicle material = K6's first half); D43 → D44 (ground form); D45 (garage pivot, turntable, crew strip); O2 rewritten with each | 2–3 days |
-| 3 | **Budynki i destrukcja (Destruction 2.0)** | B3 → B1 → B2 → B4 → B5 → B6 → B7; Z8 → Z9 → Z10 → Z11 → Z12 → Z13; T7 → T8 → T9; V0; Z7; Q1 | 7–10 days |
+| ~~2~~ | ~~**Światło i materiały, zero triangles**~~ DONE 2026-09-07 (#817–#829) | D34 → D35 → D36 → D37 (light); D38 (leaf sprites); D39 → D40 → D41 → D42 (vehicle material = K6's first half); D43 → D44 (ground form); D45 (garage pivot, turntable, crew strip); O2 rewritten with each | 2–3 days |
+| ~~3~~ | ~~**Budynki i destrukcja (Destruction 2.0)**~~ DONE 2026-09-07 (#830–#844; raport `output/raport-blok3-2026-09-07.md`) | B3 → B1 → B2 → B4 → B5 → B6 → B7; Z8 → Z9 → Z10 → Z11 → Z12 → Z13; T7 → T8 → T9; V0; Z7; Q1 | 7–10 days |
 | 4 | **Kolizje 2,5D** | X1 → X2 (one district of Kamienna at an angle) → X3 → X4 → X5 → X6 → X7 → X8; X10, X11 | 3–4 days |
 | 5 | **Balistyka** | S14 → S15 → S16 → S17 → S18; S23 | 2 days |
 | 6 | **Widoczność** | V1 (bushes hide) → V3 → V4; R1 as amended | 2 days |
