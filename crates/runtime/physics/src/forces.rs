@@ -84,15 +84,34 @@ pub(crate) fn resolve_ground_velocity(
     } else {
         1.0
     };
-    let max_speed = if throttle >= 0.0 {
-        settings.max_forward_speed_mps
-    } else {
-        settings.max_reverse_speed_mps
-    };
+    // The speed cap follows the direction the hull is MOVING while it carries opposing momentum
+    // (a forward hull under S is braking, not "over the reverse limit"), and the commanded
+    // direction otherwise.
+    let forward_cap = if carrying_opposing_momentum { v_f > 0.0 } else { throttle >= 0.0 };
+    let max_speed =
+        if forward_cap { settings.max_forward_speed_mps } else { settings.max_reverse_speed_mps };
     // Track thrust cap: mu * g * traction * cos(theta), weakened by the climb slip on steep faces.
     let grip_long = settings.longitudinal_grip_mu * g * traction * inv * climb_slip;
-    if brake > 0.0 {
-        v_f = move_towards(v_f, 0.0, settings.brake_deceleration_mps2 * brake * dt);
+    // The brake: the pedal, or an opposing throttle while the hull still carries momentum — S
+    // stops a rolling hull before it reverses it (the one program's J1). Either way the tracks
+    // can only take what the ground gives: the demand is capped at mu * g * traction * cos(theta),
+    // so a riverbed or a wet bank brakes as badly as it drives (J2).
+    let grip_brake = settings.longitudinal_grip_mu * g * traction * inv;
+    let brake_cap = settings.brake_deceleration_mps2.min(grip_brake);
+    // ...but only momentum the tick cannot spend counts as TRAVEL to brake. A hull holding W
+    // that a queue's contact shoved a few centimetres a second backwards is starting, not
+    // reversing: the drive below crosses zero inside the tick and keeps the press, exactly as it
+    // did before S became a brake (the queue lock `queue_holds.rs` is the witness).
+    let braking_on_throttle = carrying_opposing_momentum && v_f.abs() > brake_cap * dt;
+    let braking = if brake > 0.0 {
+        brake
+    } else if braking_on_throttle {
+        throttle.abs()
+    } else {
+        0.0
+    };
+    if braking > 0.0 {
+        v_f = move_towards(v_f, 0.0, brake_cap * braking * dt);
     } else if throttle.abs() > 0.01 {
         // Engine thrust follows P/v: huge at a crawl (grip-capped), thin near top speed.
         let dir = throttle.signum();
