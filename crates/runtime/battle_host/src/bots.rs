@@ -698,6 +698,7 @@ mod tests {
             kind: terrain::StaticCoverKind::FarmBuilding,
             center: [300.0, ground(300.0, 330.0) + 5.0, 330.0],
             half_extents_m: [20.0, 10.0, 2.0],
+            yaw_rad: 0.0,
         };
         let target_after = |live_cover: &[terrain::StaticCoverObject]| {
             let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));

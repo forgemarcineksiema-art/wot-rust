@@ -11,7 +11,14 @@ fn object(
     center: [f32; 3],
     half_extents_m: [f32; 3],
 ) -> StaticCoverObject {
-    StaticCoverObject { id: id.to_string(), name: id.to_string(), kind, center, half_extents_m }
+    StaticCoverObject {
+        id: id.to_string(),
+        name: id.to_string(),
+        kind,
+        center,
+        half_extents_m,
+        yaw_rad: 0.0,
+    }
 }
 
 fn player_snapshot(position: [f32; 3]) -> TankSnapshot {

@@ -51,6 +51,7 @@ fn rot_square() -> MapBlueprint {
                 kind: terrain::StaticCoverKind::FarmBuilding,
                 at: [XCoord::Fixed(140.0), XCoord::Fixed(60.0)],
                 half_extents_m: [4.0, 3.0, 5.0],
+                yaw_rad: 0.0,
             },
             ObjectSpec::Cover {
                 id: "barn_b".into(),
@@ -58,6 +59,7 @@ fn rot_square() -> MapBlueprint {
                 kind: terrain::StaticCoverKind::FarmBuilding,
                 at: [XCoord::Fixed(160.0), XCoord::Fixed(240.0)],
                 half_extents_m: [4.0, 3.0, 5.0],
+                yaw_rad: 0.0,
             },
             ObjectSpec::TownGrid {
                 id_prefix: "row".into(),

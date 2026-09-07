@@ -576,14 +576,22 @@ fn fill_box(
     color: [u8; 3],
     alpha: f32,
 ) {
-    let (x0, z0) =
-        (object.center[0] - object.half_extents_m[0], object.center[2] - object.half_extents_m[2]);
-    let (x1, z1) =
-        (object.center[0] + object.half_extents_m[0], object.center[2] + object.half_extents_m[2]);
+    // X1: the turned box's plan bounds, then each pixel's own centre against the box itself.
+    let cover_box = terrain::CoverBox::of(object);
+    let [x0, z0, x1, z1] = cover_box.bounds_xz();
     let (px0, py1) = frame.pixel_at(x0, z0);
     let (px1, py0) = frame.pixel_at(x1, z1);
     for py in py0..=py1 {
         for px in px0..=px1 {
+            if !cover_box.is_axis_aligned() {
+                if px < 0 || py < 0 {
+                    continue;
+                }
+                let (wx, wz) = frame.world_at(px as usize, py as usize);
+                if !cover_box.contains_xz(wx, wz, 0.0) {
+                    continue;
+                }
+            }
             raster.blend(px, py, color, alpha);
         }
     }

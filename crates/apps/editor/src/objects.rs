@@ -12,8 +12,6 @@ use glam::Vec3;
 use map_forge::blueprint::{MapBlueprint, ObjectSpec, SceneryOp, SymmetrySpec, XCoord};
 use terrain::{BattlefieldMap, SceneryKind, StaticCoverKind};
 
-use crate::pick::ray_aabb;
-
 /// One palette entry: what a click places.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteEntry {
@@ -147,6 +145,7 @@ pub fn place_entry(blueprint: &mut MapBlueprint, entry: PaletteEntry, at: [f32; 
             kind,
             at: [XCoord::Fixed(at[0]), XCoord::Fixed(at[1])],
             half_extents_m: half,
+            yaw_rad: 0.0,
         });
         format!("placed {id} at {:.0}, {:.0}", at[0], at[1])
     } else if let Some(kind) = entry.scenery() {
@@ -198,12 +197,9 @@ pub fn pick(
 ) -> Option<Selection> {
     let mut best: Option<(f32, Selection)> = None;
     for (cover_index, cover) in map.static_cover.iter().enumerate() {
-        if let Some(t) = ray_aabb(
-            origin,
-            direction,
-            Vec3::from_array(cover.center),
-            Vec3::from_array(cover.half_extents_m),
-        ) && best.as_ref().is_none_or(|(closest, _)| t < *closest)
+        if let Some(t) =
+            crate::pick::ray_cover_box(origin, direction, &terrain::CoverBox::of(cover))
+            && best.as_ref().is_none_or(|(closest, _)| t < *closest)
         {
             let selection = classify_cover(blueprint, cover_index, &cover.id);
             best = Some((t, selection));
@@ -375,12 +371,15 @@ pub fn inspector_lines(
 ) -> Vec<(String, bool)> {
     match selection {
         Selection::Cover { object_index, id } => {
-            let Some(ObjectSpec::Cover { kind, half_extents_m, .. }) =
+            let Some(ObjectSpec::Cover { kind, half_extents_m, yaw_rad, .. }) =
                 blueprint.objects.get(*object_index)
             else {
                 return vec![("stale selection".to_string(), false)];
             };
             let mut lines = vec![(format!("{id}  ({kind:?})"), false)];
+            if *yaw_rad != 0.0 {
+                lines.push((format!("yaw: {:.0}°", yaw_rad.to_degrees()), false));
+            }
             for (index, (name, value)) in [
                 ("half w", half_extents_m[0]),
                 ("half h", half_extents_m[1]),

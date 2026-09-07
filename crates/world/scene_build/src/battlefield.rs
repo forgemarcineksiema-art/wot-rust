@@ -217,16 +217,9 @@ pub fn statics_buckets_touched_by_cover(
     battlefield: &BattlefieldMap,
     cover: &StaticCoverObject,
 ) -> impl Iterator<Item = usize> {
-    let min_bucket = statics_bucket_of_position(
-        battlefield,
-        cover.center[0] - cover.half_extents_m[0],
-        cover.center[2] - cover.half_extents_m[2],
-    );
-    let max_bucket = statics_bucket_of_position(
-        battlefield,
-        cover.center[0] + cover.half_extents_m[0],
-        cover.center[2] + cover.half_extents_m[2],
-    );
+    let [x0, z0, x1, z1] = terrain::CoverBox::of(cover).bounds_xz();
+    let min_bucket = statics_bucket_of_position(battlefield, x0, z0);
+    let max_bucket = statics_bucket_of_position(battlefield, x1, z1);
     let (min_row, min_column) =
         (min_bucket / STATICS_BUCKET_GRID, min_bucket % STATICS_BUCKET_GRID);
     let (max_row, max_column) =
@@ -303,6 +296,9 @@ pub fn battlefield_statics_bucket_mesh_dressed(
         if statics_bucket_of_position(battlefield, cover.center[0], cover.center[2]) != bucket {
             continue;
         }
+        // X1: everything a box bakes is built axis-aligned about its centre, then turned with
+        // the box; an unturned box (every box before 2026-09-07) is left byte for byte.
+        let baked_from = vertices.len();
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => {
                 append_cover_box(&mut vertices, &mut indices, cover);
@@ -340,6 +336,7 @@ pub fn battlefield_statics_bucket_mesh_dressed(
                 }
             }
         }
+        turn_baked_with_box(&mut vertices[baked_from..], cover);
     }
     // B7: the paved streets' kerbs and pavements, by the bucket their run falls in.
     append_street_kerbs(&mut vertices, &mut indices, battlefield, bucket);
@@ -430,8 +427,7 @@ fn append_felled_tree_line(
     // furniture standing in the footprint are not trees and do not leave a stump.
     let hosted = battlefield.scenery.iter().filter(|instance| {
         let p = instance.position;
-        (p[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
-            && (p[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+        terrain::CoverBox::of(cover).contains_xz(p[0], p[2], 0.0)
     });
     let planted = crate::tree_line::tree_line_stations(battlefield, cover);
     for instance in hosted.chain(planted.iter().map(|station| &station.instance)) {
@@ -645,9 +641,26 @@ fn scenery_stands_in_cleared_cover(
     let p = instance.position;
     cover.iter().enumerate().any(|(index, object)| {
         cover_states.get(index).copied().unwrap_or(0) == 2
-            && (p[0] - object.center[0]).abs() <= object.half_extents_m[0]
-            && (p[2] - object.center[2]).abs() <= object.half_extents_m[2]
+            && terrain::CoverBox::of(object).contains_xz(p[0], p[2], 0.0)
     })
+}
+
+/// X1: turn a box's baked vertices with the box — positions about its centre, normals with
+/// them. An unturned box is untouched, byte for byte.
+fn turn_baked_with_box(vertices: &mut [SceneVertex], cover: &StaticCoverObject) {
+    if cover.yaw_rad == 0.0 {
+        return;
+    }
+    let frame = terrain::CoverBox::of(cover);
+    for vertex in vertices {
+        let local = [
+            vertex.position[0] - cover.center[0],
+            vertex.position[1] - cover.center[1],
+            vertex.position[2] - cover.center[2],
+        ];
+        vertex.position = frame.to_world(local);
+        vertex.normal = terrain::rotate_y(vertex.normal, cover.yaw_rad);
+    }
 }
 
 /// A collapsed building: a low, rough rubble mound filling the footprint at the sim's reduced
@@ -2714,6 +2727,7 @@ mod tests {
             kind: StaticCoverKind::FarmBuilding,
             center: [0.0, 3.0, 0.0],
             half_extents_m: [5.0, 3.0, 4.0],
+            yaw_rad: 0.0,
         };
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -2886,6 +2900,53 @@ mod tests {
         let single = deepest_on_line(&mesh(&once));
         assert!(single > 0.02 && single < 0.05, "one pass presses {single} m");
         assert_eq!(mesh(&terrain::RutField::default()), virgin, "no ruts, the same ground");
+    }
+
+    /// X1: a turned box bakes turned. A wreck box at 30° bakes a hull whose every vertex lies
+    /// inside the turned footprint and some outside the unturned one; the same box at 0 bakes
+    /// byte for byte what it baked before the yaw existed.
+    #[test]
+    fn a_turned_box_bakes_turned_with_it() {
+        let mut map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let index = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::Wreck)
+            .expect("prokhorovka has a wreck");
+        let phases = vec![0u8; map.static_cover.len()];
+        let bucket = statics_bucket_of_position(
+            &map,
+            map.static_cover[index].center[0],
+            map.static_cover[index].center[2],
+        );
+        let before = battlefield_statics_bucket_mesh(&map, &phases, &[], bucket);
+        map.static_cover[index].yaw_rad = 0.0;
+        assert_eq!(
+            battlefield_statics_bucket_mesh(&map, &phases, &[], bucket),
+            before,
+            "yaw 0 is the old bake"
+        );
+        map.static_cover[index].yaw_rad = 0.52;
+        let turned = battlefield_statics_bucket_mesh(&map, &phases, &[], bucket);
+        assert_eq!(turned.0.len(), before.0.len());
+        let cover = &map.static_cover[index];
+        let frame = terrain::CoverBox::of(cover);
+        let axis = terrain::CoverBox::axis_aligned(cover.center, cover.half_extents_m);
+        let (mut moved, mut outside_axis) = (0, 0);
+        for (a, b) in before.0.iter().zip(&turned.0) {
+            if a.position != b.position {
+                moved += 1;
+                assert!(
+                    frame.contains_xz(b.position[0], b.position[2], 0.05),
+                    "inside the turned box"
+                );
+                if !axis.contains_xz(b.position[0], b.position[2], 0.05) {
+                    outside_axis += 1;
+                }
+            }
+        }
+        assert!(moved > 8, "the wreck's vertices turned: {moved}");
+        assert!(outside_axis > 0, "and some left the unturned footprint");
     }
 
     /// B7: the paved street wears setts, not cliff cracks. On Ostrogorsk every ground vertex
@@ -3469,6 +3530,7 @@ mod tests {
             kind: StaticCoverKind::TreeLine,
             center: [0.0, 1.0, 0.0],
             half_extents_m: [10.0, 1.0, 1.0],
+            yaw_rad: 0.0,
         }];
         let inside = terrain::SceneryInstance {
             kind: terrain::SceneryKind::Oak,
@@ -3828,6 +3890,7 @@ mod tests {
             kind: StaticCoverKind::StoneWall,
             center: [0.0, 1.1, 0.0],
             half_extents_m: [0.4, 1.1, 7.0],
+            yaw_rad: 0.0,
         };
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -3860,6 +3923,7 @@ mod tests {
                 kind: StaticCoverKind::RailCover,
                 center: [0.0, 0.9, 0.0],
                 half_extents_m: [1.4, 0.9, 12.0],
+                yaw_rad: 0.0,
             },
             StaticCoverObject {
                 id: "silo_probe".into(),
@@ -3867,6 +3931,7 @@ mod tests {
                 kind: StaticCoverKind::RailCover,
                 center: [0.0, 5.5, 0.0],
                 half_extents_m: [2.2, 5.5, 2.2],
+                yaw_rad: 0.0,
             },
         ];
         for cover in &cases {
@@ -3912,6 +3977,7 @@ mod tests {
             kind: StaticCoverKind::StoneTower,
             center: [0.0, 10.0, 0.0],
             half_extents_m: [2.6, 10.0, 2.6],
+            yaw_rad: 0.0,
         };
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
@@ -3951,6 +4017,7 @@ mod tests {
             kind: StaticCoverKind::StoneWall,
             center: [10.0, 1.1, 5.0],
             half_extents_m: [0.4, 1.1, 7.0],
+            yaw_rad: 0.0,
         };
         let mut first = (Vec::new(), Vec::new());
         append_toppled_wall(&mut first.0, &mut first.1, &wall);

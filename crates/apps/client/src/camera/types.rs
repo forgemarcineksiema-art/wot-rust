@@ -146,11 +146,13 @@ pub struct CameraObstacle {
     pub label: String,
     pub center: [f32; 3],
     pub half_extents: [f32; 3],
+    /// X1: the box's yaw about +Y; the slab runs in the box's own frame.
+    pub yaw_rad: f32,
 }
 
 impl CameraObstacle {
     pub fn aabb(label: impl Into<String>, center: [f32; 3], half_extents: [f32; 3]) -> Self {
-        Self { label: label.into(), center, half_extents }
+        Self { label: label.into(), center, half_extents, yaw_rad: 0.0 }
     }
 
     /// Fraction `t` in `[0, 1]` where the segment `from -> to` first enters this box, or `None`
@@ -159,6 +161,21 @@ impl CameraObstacle {
     pub(crate) fn segment_entry(&self, from: Vec3, to: Vec3) -> Option<f32> {
         let center = Vec3::from_array(self.center);
         let half = Vec3::from_array(self.half_extents);
+        // X1: a turned box is entered in its own frame (the slab below subtracts the centre,
+        // so the local endpoints ride on it); an unturned one keeps the arithmetic it had.
+        let (from, to) = if self.yaw_rad == 0.0 {
+            (from, to)
+        } else {
+            let frame = terrain::CoverBox {
+                center: self.center,
+                half: self.half_extents,
+                yaw_rad: self.yaw_rad,
+            };
+            (
+                Vec3::from_array(frame.to_local(from.to_array())) + center,
+                Vec3::from_array(frame.to_local(to.to_array())) + center,
+            )
+        };
         let direction = to - from;
         let mut t_enter = 0.0_f32;
         let mut t_exit = 1.0_f32;
@@ -218,6 +235,9 @@ impl<'a> BattleCameraEnvironment<'a> {
 
 impl CameraObstacle {
     pub fn from_static_cover(cover: &StaticCoverObject) -> Self {
-        Self::aabb(&cover.name, cover.center, cover.half_extents_m)
+        Self {
+            yaw_rad: cover.yaw_rad,
+            ..Self::aabb(&cover.name, cover.center, cover.half_extents_m)
+        }
     }
 }

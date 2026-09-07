@@ -34,6 +34,7 @@ fn bots_engage_only_enemies_in_their_own_line_of_sight() {
         kind: terrain::StaticCoverKind::FarmBuilding,
         center: [300.0, 5.0, 330.0],
         half_extents_m: [20.0, 10.0, 2.0],
+        yaw_rad: 0.0,
     };
 
     let blocked = bot_best_engageable_enemy(

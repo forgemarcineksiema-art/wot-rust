@@ -68,6 +68,7 @@ pub fn grounded_cover(
     kind: StaticCoverKind,
     xz: [f32; 2],
     half_extents_m: [f32; 3],
+    yaw_rad: f32,
 ) -> StaticCoverObject {
     let centre = heightmap.sample_height(xz[0], xz[1]).unwrap_or(0.0);
     let ground_y = if kind == StaticCoverKind::Crag {
@@ -88,6 +89,7 @@ pub fn grounded_cover(
         kind,
         center: [xz[0], ground_y + half_extents_m[1], xz[1]],
         half_extents_m,
+        yaw_rad,
     }
 }
 

@@ -171,13 +171,17 @@ pub fn party_walls(
     if !dwelling(cover) {
         return blind;
     }
-    let c = Vec3::from_array(cover.center);
     let h = Vec3::from_array(cover.half_extents_m);
-    for other in all.iter().filter(|o| dwelling(o) && o.id != cover.id) {
-        let oc = Vec3::from_array(other.center);
+    // X1: neighbours are read in this box's own frame; a neighbour turned differently shares
+    // no plane with it.
+    let frame = terrain::CoverBox::of(cover);
+    for other in
+        all.iter().filter(|o| dwelling(o) && o.id != cover.id && o.yaw_rad == cover.yaw_rad)
+    {
         let oh = Vec3::from_array(other.half_extents_m);
-        let dx = oc.x - c.x;
-        let dz = oc.z - c.z;
+        let local = frame.to_local(other.center);
+        let dx = local[0];
+        let dz = local[2];
         let along_z_overlap = (h.z + oh.z) - dz.abs() >= 1.0;
         let along_x_overlap = (h.x + oh.x) - dx.abs() >= 1.0;
         if (dx.abs() - (h.x + oh.x)).abs() <= 0.06 && along_z_overlap {
@@ -222,21 +226,30 @@ pub struct PlacedBuilding {
     /// The tints the objects were built with — the collapse (Z10) builds its pieces the same.
     pub wall_tint: [f32; 3],
     pub roof_tint: [f32; 3],
+    /// X1: the box's yaw the objects were turned by.
+    pub yaw_rad: f32,
 }
 
 /// One kit placement as the frame draws it, in world space.
 fn kit_object(
     placement: &Placement,
     center: Vec3,
+    yaw_rad: f32,
     wall: [f32; 3],
     roof: [f32; 3],
     cladding: Cladding,
 ) -> RenderObject {
+    // X1: the plan is laid in the box's own frame and turned with it.
+    let placed = if yaw_rad == 0.0 {
+        Mat4::from_translation(center) * placement.transform
+    } else {
+        Mat4::from_translation(center) * Mat4::from_rotation_y(yaw_rad) * placement.transform
+    };
     RenderObject {
         tank_id: None,
         mesh: kit_mesh_handle(placement.part, cladding),
         material: MaterialHandle(0),
-        transform: (Mat4::from_translation(center) * placement.transform).to_cols_array_2d(),
+        transform: placed.to_cols_array_2d(),
         tint: match placement.tint {
             TintLane::Wall => wall,
             TintLane::Roof => roof,
@@ -314,8 +327,10 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
             let age = plan.signature.age_tint();
             let wall = [wall[0] * age, wall[1] * age, wall[2] * age];
             let cladding = plan.signature.cladding;
-            let to_object =
-                |placement: &Placement| kit_object(placement, center, wall, roof, cladding);
+            let yaw_rad = cover.yaw_rad;
+            let to_object = |placement: &Placement| {
+                kit_object(placement, center, yaw_rad, wall, roof, cladding)
+            };
             let objects = plan.placements.iter().map(to_object).collect();
             // B5: the ruin, under the sim's rubble height for this kind of box.
             let ceiling = half.y * 2.0 * cover.kind.rubble_height_frac();
@@ -332,6 +347,7 @@ pub fn place_buildings(battlefield: &terrain::BattlefieldMap) -> Vec<PlacedBuild
                 ruin_objects,
                 wall_tint: wall,
                 roof_tint: roof,
+                yaw_rad: cover.yaw_rad,
             })
         })
         .collect()
@@ -388,6 +404,7 @@ pub fn building_frame_objects_collapsing(
                         kit_object(
                             piece,
                             building.center,
+                            building.yaw_rad,
                             building.wall_tint,
                             building.roof_tint,
                             cladding,

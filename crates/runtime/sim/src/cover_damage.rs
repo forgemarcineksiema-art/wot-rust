@@ -397,6 +397,7 @@ pub fn turret_rest_box(index: usize, rest: [f32; 3]) -> StaticCoverObject {
         kind: terrain::StaticCoverKind::Wreck,
         center: rest,
         half_extents_m: game_core::TURRET_REST_HALF_M,
+        yaw_rad: 0.0,
     }
 }
 
@@ -434,7 +435,8 @@ pub fn cover_index_at(
             center[1] -= half[1] - rubble_half;
             half[1] = rubble_half;
         }
-        if (0..3).all(|axis| (point[axis] - center[axis]).abs() <= half[axis] + SKIN_M) {
+        let cover_box = terrain::CoverBox { center, half, yaw_rad: object.yaw_rad };
+        if cover_box.contains(point, SKIN_M) {
             return Some(index);
         }
     }
@@ -507,9 +509,10 @@ pub fn segment_damage(
 /// Which face of a box a point on its surface sits on (as `CoverScar.face` counts: 0 +X, 1 -X,
 /// 2 +Z, 3 -Z, 4 the roof), and the point's normalized `u` across that face's run.
 pub fn struck_face(object: &StaticCoverObject, position: [f32; 3]) -> (u8, f32) {
-    let normalized: Vec<f32> = (0..3)
-        .map(|axis| (position[axis] - object.center[axis]) / object.half_extents_m[axis].max(0.05))
-        .collect();
+    // X1: in the box's own frame — a turned box's faces are its own, not the world's.
+    let local = terrain::CoverBox::of(object).to_local(position);
+    let normalized: Vec<f32> =
+        (0..3).map(|axis| local[axis] / object.half_extents_m[axis].max(0.05)).collect();
     let ax = normalized[0].abs();
     let ay = normalized[1].abs();
     let az = normalized[2].abs();
@@ -605,11 +608,7 @@ pub fn record_cover_scar(
     object: &StaticCoverObject,
     impact: &game_core::ShellImpact,
 ) {
-    let local = [
-        impact.position.x - object.center[0],
-        impact.position.y - object.center[1],
-        impact.position.z - object.center[2],
-    ];
+    let local = terrain::CoverBox::of(object).to_local(impact.position.to_array());
     let normalized: Vec<f32> =
         (0..3).map(|axis| local[axis] / object.half_extents_m[axis].max(0.05)).collect();
     // The struck face is the axis the hit sits furthest along; roof hits map to +Y.
@@ -665,6 +664,7 @@ mod tests {
             kind,
             center,
             half_extents_m: half,
+            yaw_rad: 0.0,
         }
     }
 
@@ -834,6 +834,44 @@ mod tests {
         damage_cover(&mut states, &cover, 0, u32::MAX, 0.0);
         assert_eq!(states[0].segments, terrain::SEGMENTS_ALL_RUBBLE, "the box came down");
         assert_eq!(strike_segment(&mut states, &cover, 0, hit, ap_57.shell_type, 0.02, hp), None);
+    }
+
+    /// X1: a turned box blocks the eye where it STANDS. A 16 m wall turned 45° blocks a line
+    /// across its run and lets one pass through the corner of its plan bounds where the
+    /// unturned wall would have stood; the shell's own slab agrees with the eye's.
+    #[test]
+    fn a_yawed_box_blocks_the_eye_and_the_shell_where_it_stands() {
+        use crate::spotting::line_of_sight;
+        let mut wall =
+            object("wall", StaticCoverKind::StoneWall, [40.0, 1.1, 40.0], [0.4, 1.1, 8.0]);
+        wall.yaw_rad = std::f32::consts::FRAC_PI_4;
+        let cover = vec![wall];
+        // Across x at z = 47: the unturned wall (z 32..48) stood here and blocked it; the turned
+        // wall's run has swung away (its nearest point is 2.8 m off) and the line passes clean —
+        // where the box stands, not where its old bounds were.
+        let clear_a = Vec3::new(37.0, 0.8, 47.0);
+        let clear_b = Vec3::new(43.0, 0.8, 47.0);
+        assert!(line_of_sight(None, &cover, clear_a, clear_b), "where the unturned wall stood");
+        // Across the turned run, 5 m down it: blocked.
+        let s = std::f32::consts::FRAC_PI_4.sin();
+        let mid = Vec3::new(40.0 + 5.0 * s, 0.8, 40.0 + 5.0 * s);
+        let across_a = mid + Vec3::new(-3.0 * s, 0.0, 3.0 * s);
+        let across_b = mid + Vec3::new(3.0 * s, 0.0, -3.0 * s);
+        assert!(!line_of_sight(None, &cover, across_a, across_b), "across the turned run");
+        assert!(
+            crate::shell_trace::segment_impact_point_for_test(across_a, across_b, &cover).is_some(),
+            "the shell's slab agrees"
+        );
+        assert!(
+            crate::shell_trace::segment_impact_point_for_test(clear_a, clear_b, &cover).is_none()
+        );
+        let mut unturned = cover.clone();
+        unturned[0].yaw_rad = 0.0;
+        assert!(
+            !line_of_sight(None, &unturned, Vec3::new(43.0, 0.8, 39.0), Vec3::new(37.0, 0.8, 41.0)),
+            "the unturned wall blocks across x"
+        );
+        assert!(!line_of_sight(None, &unturned, clear_a, clear_b), "and where it stood at z = 47");
     }
 
     /// Z13: a landed turret is a low solid. The eye (and so the shell, which reads the same

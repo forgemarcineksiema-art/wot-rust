@@ -16,7 +16,14 @@ use terrain::{HeightMap, StaticCoverKind, StaticCoverObject};
 const HE_SLOT: u8 = 2;
 
 fn cover(id: &str, kind: StaticCoverKind, center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
-    StaticCoverObject { id: id.into(), name: id.into(), kind, center, half_extents_m: half }
+    StaticCoverObject {
+        id: id.into(),
+        name: id.into(),
+        kind,
+        center,
+        half_extents_m: half,
+        yaw_rad: 0.0,
+    }
 }
 
 fn fire_once(

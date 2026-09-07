@@ -200,8 +200,11 @@ pub fn hosted_trees(battlefield: &BattlefieldMap, cover: &StaticCoverObject) -> 
         .filter(|instance| {
             instance.kind != SceneryKind::Bush
                 && foliage::tree_species(instance.kind).is_some()
-                && (instance.position[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
-                && (instance.position[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+                && terrain::CoverBox::of(cover).contains_xz(
+                    instance.position[0],
+                    instance.position[2],
+                    0.0,
+                )
         })
         .map(|instance| [instance.position[0], instance.position[2]])
         .collect()
@@ -235,15 +238,15 @@ pub fn station_plan(cover: &StaticCoverObject) -> Vec<[f32; 2]> {
     let usable = (run - END_MARGIN_M).max(0.0);
     let count = (usable * 2.0 / STATION_SPACING_M).floor() as usize + 1;
     let step = if count > 1 { usable * 2.0 / (count - 1) as f32 } else { 0.0 };
+    // X1: the stations are laid in the box's own frame and turned with it.
+    let frame = terrain::CoverBox::of(cover);
     (0..count)
         .map(|index| {
             let along = -usable + step * index as f32;
             let across = if index % 2 == 0 { -ACROSS_STAGGER } else { ACROSS_STAGGER } * thin;
-            if along_x {
-                [cover.center[0] + along, cover.center[2] + across]
-            } else {
-                [cover.center[0] + across, cover.center[2] + along]
-            }
+            let local = if along_x { [along, 0.0, across] } else { [across, 0.0, along] };
+            let world = frame.to_world(local);
+            [world[0], world[2]]
         })
         .collect()
 }
@@ -285,9 +288,10 @@ pub fn tree_line_stations(
     let mut hash = seed_from_id(&cover.id);
     let plan = station_plan(cover);
     let mut stations = Vec::with_capacity(plan.len());
+    let frame = terrain::CoverBox::of(cover);
     for [x, z] in plan {
-        let (along, across) =
-            if along_x { (x - center.x, z - center.z) } else { (z - center.z, x - center.x) };
+        let local = frame.to_local([x, 0.0, z]);
+        let (along, across) = if along_x { (local[0], local[2]) } else { (local[2], local[0]) };
         let drawn = crate::backdrop::weighted_kind(
             &mix,
             game_core::math::next_hash_unit(&mut hash) * total_weight,

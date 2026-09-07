@@ -15,6 +15,26 @@ pub(super) fn first_cover_impact(
     let radius = radius_m.max(0.0);
     let mut nearest: Option<(f32, Vec3)> = None;
     for object in cover {
+        // X1: a turned box (yaw != 0) is entered in its own frame; an axis-aligned one keeps
+        // the world-frame slab it always had, bit for bit.
+        if object.yaw_rad != 0.0 {
+            let cover_box = terrain::CoverBox::of(object);
+            if cover_box.xz_disjoint_from_segment(previous.to_array(), current.to_array(), radius) {
+                continue;
+            }
+            let local_prev = Vec3::from_array(cover_box.to_local(previous.to_array()));
+            let local_cur = Vec3::from_array(cover_box.to_local(current.to_array()));
+            let swept_half = Vec3::from_array(object.half_extents_m) + Vec3::splat(radius);
+            if let Some(t) = segment_box_entry(local_prev, local_cur, -swept_half, swept_half)
+                && nearest.is_none_or(|(best_t, _)| t < best_t)
+            {
+                let sphere_center = previous + (current - previous) * t;
+                let contact =
+                    Vec3::from_array(cover_box.clamp_to_surface(sphere_center.to_array()));
+                nearest = Some((t, contact));
+            }
+            continue;
+        }
         if segment_xz_disjoint(
             previous,
             current,
@@ -90,6 +110,7 @@ mod broadphase_tests {
                     kind: StaticCoverKind::FarmBuilding,
                     center: [60.0 + column as f32 * 42.0, 4.0, 60.0 + row as f32 * 30.0],
                     half_extents_m: [8.0 + (row % 3) as f32, 4.0, 5.0 + (column % 2) as f32],
+                    yaw_rad: 0.0,
                 });
             }
         }

@@ -937,6 +937,7 @@ mod tests {
             kind: terrain::StaticCoverKind::CityBuilding,
             center: [128.0, 1.0, 128.0],
             half_extents_m: [6.0, 3.0, 5.0],
+            yaw_rad: 0.0,
         };
         let materials = TerrainMaterialSet::default();
         let grown = grass_frame_objects(

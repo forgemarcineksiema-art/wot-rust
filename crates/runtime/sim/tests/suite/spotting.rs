@@ -19,6 +19,7 @@ fn tree_line(center: [f32; 3], half: [f32; 3]) -> StaticCoverObject {
         kind: StaticCoverKind::TreeLine,
         center,
         half_extents_m: half,
+        yaw_rad: 0.0,
     }
 }
 

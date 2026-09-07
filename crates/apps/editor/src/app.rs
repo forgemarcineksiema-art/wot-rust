@@ -1642,11 +1642,10 @@ impl EditorApp {
                             _ => false,
                         },
                     ) {
-                        markers::aabb_outline(
+                        markers::cover_box_outline(
                             &mut vertices,
                             &mut indices,
-                            Vec3::from_array(cover.center),
-                            Vec3::from_array(cover.half_extents_m),
+                            &terrain::CoverBox::of(cover),
                             [0.95, 0.65, 0.15],
                         );
                     }

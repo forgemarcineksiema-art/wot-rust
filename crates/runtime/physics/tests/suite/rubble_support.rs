@@ -38,6 +38,7 @@ fn barn_rubble() -> RubbleMound {
         kind: StaticCoverKind::FarmBuilding,
         center: [60.0, 3.0, 60.0],
         half_extents_m: [8.0, 3.0, 6.0],
+        yaw_rad: 0.0,
     })
 }
 
@@ -201,6 +202,7 @@ fn a_flank_longer_than_the_running_gear_is_a_wall() {
         kind: StaticCoverKind::FarmBuilding,
         center: [60.0, 12.0, 60.0],
         half_extents_m: [20.0, 12.0, 20.0],
+        yaw_rad: 0.0,
     });
     let (peak_y, _) = climb(Vec3::new(60.0, 0.0, 20.0), 0.0, &[tower], 600);
     assert!(

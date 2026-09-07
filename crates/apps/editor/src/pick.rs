@@ -23,6 +23,19 @@ pub fn cursor_ray(camera: &Camera, aspect: f32, ndc: [f32; 2]) -> (Vec3, Vec3) {
 /// Slab test of a ray against an axis-aligned box: the entry distance when it hits (0 when
 /// the origin already sits inside). The shared pick primitive — cover selection and the
 /// grab tool's form handles use the SAME math, so what the eye clicks is what both mean.
+/// X1: the ray against a cover box in the box's own frame — a turned block picks where it
+/// stands. At yaw 0 exactly [`ray_aabb`].
+pub fn ray_cover_box(origin: Vec3, direction: Vec3, cover_box: &terrain::CoverBox) -> Option<f32> {
+    let center = Vec3::from_array(cover_box.center);
+    let half = Vec3::from_array(cover_box.half);
+    if cover_box.is_axis_aligned() {
+        return ray_aabb(origin, direction, center, half);
+    }
+    let local_origin = Vec3::from_array(cover_box.to_local(origin.to_array()));
+    let local_tip = Vec3::from_array(cover_box.to_local((origin + direction).to_array()));
+    ray_aabb(local_origin, local_tip - local_origin, Vec3::ZERO, half)
+}
+
 pub fn ray_aabb(origin: Vec3, direction: Vec3, center: Vec3, half: Vec3) -> Option<f32> {
     let inv = direction.recip();
     let t1 = (center - half - origin) * inv;

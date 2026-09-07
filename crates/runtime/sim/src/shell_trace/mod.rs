@@ -117,6 +117,16 @@ pub fn trace_shell(
     }
 }
 
+/// The first cover impact of a bare segment — the shell's slab, exposed for the locks.
+#[cfg(test)]
+pub(crate) fn segment_impact_point_for_test(
+    from: Vec3,
+    to: Vec3,
+    cover: &[::terrain::StaticCoverObject],
+) -> Option<Vec3> {
+    cover::first_cover_impact(from, to, cover, 0.0)
+}
+
 /// True once a shell has fallen to or below the terrain surface beneath it.
 pub fn ground_contact(position: Vec3, heightmap: Option<&HeightMap>) -> bool {
     heightmap
