@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use renderer_api::{MaterialHandle, VehicleMaterialFamilies, VehicleTextureMap};
+use renderer_api::{
+    MaterialHandle, MipMode, Rgba8MipChain, Rgba8MipLevel, VehicleMaterialFamilies,
+    VehicleTextureMap,
+};
 
 use crate::GpuContext;
 
@@ -31,7 +34,9 @@ impl VehicleMaterialRegistry {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            // D40: the maps carry a complete chain (`vehicle_mip_level_count`); the filter
+            // between levels is what stops a 256-texel tile from shimmering at 30 m.
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
         let albedo = solid_array(device, queue, "vehicle_albedo_fallback", [255, 255, 255, 255]);
@@ -130,7 +135,7 @@ fn layer_array(
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size: wgpu::Extent3d { width, height, depth_or_array_layers: LAYERS },
-        mip_level_count: 1,
+        mip_level_count: vehicle_mip_level_count(width, height),
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
@@ -138,7 +143,15 @@ fn layer_array(
         view_formats: &[],
     });
     for (layer, map) in maps.iter().enumerate() {
-        write_layer(queue, &texture, layer as u32, map.width(), map.height(), map.rgba());
+        // D40: every layer uploads its COMPLETE box-filtered chain, built on the CPU like the
+        // ground maps' (deterministic, one upload per vehicle). Before this the array had one
+        // mip level and a `Nearest` mip filter: 256 texels of per-texel noise across 2 m,
+        // sampled at every distance at full frequency — the vehicle shimmered by construction.
+        let base = Rgba8MipLevel::new(map.width(), map.height(), map.rgba().to_vec());
+        let chain = Rgba8MipChain::build(base, MipMode::Box);
+        for (level, mip) in chain.levels().iter().enumerate() {
+            write_layer(queue, &texture, layer as u32, level as u32, mip);
+        }
     }
     texture.create_view(&wgpu::TextureViewDescriptor {
         dimension: Some(wgpu::TextureViewDimension::D2Array),
@@ -161,22 +174,28 @@ fn solid_map(rgba: [u8; 4]) -> VehicleTextureMap {
     VehicleTextureMap::new(1, 1, rgba.to_vec())
 }
 
+/// The complete mip chain a vehicle map carries: down to 1x1 — nine levels for the 256-texel
+/// default maps (D40; locked in `vehicle_maps_upload_a_complete_mip_chain`).
+pub fn vehicle_mip_level_count(width: u32, height: u32) -> u32 {
+    32 - width.max(height).max(1).leading_zeros()
+}
+
 fn write_layer(
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
     layer: u32,
-    width: u32,
-    height: u32,
-    rgba: &[u8],
+    level: u32,
+    mip: &Rgba8MipLevel,
 ) {
+    let (width, height) = (mip.width(), mip.height());
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
             texture,
-            mip_level: 0,
+            mip_level: level,
             origin: wgpu::Origin3d { x: 0, y: 0, z: layer },
             aspect: wgpu::TextureAspect::All,
         },
-        rgba,
+        mip.rgba(),
         wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(width * 4),
@@ -188,4 +207,18 @@ fn write_layer(
 
 fn texture_entry<'a>(binding: u32, view: &'a wgpu::TextureView) -> wgpu::BindGroupEntry<'a> {
     wgpu::BindGroupEntry { binding, resource: wgpu::BindingResource::TextureView(view) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vehicle_mip_level_count;
+
+    /// D40: the 256-texel default maps upload nine levels, down to 1x1 — not the one level
+    /// that shimmered.
+    #[test]
+    fn vehicle_maps_upload_a_complete_mip_chain() {
+        assert_eq!(vehicle_mip_level_count(256, 256), 9);
+        assert_eq!(vehicle_mip_level_count(1, 1), 1);
+        assert_eq!(vehicle_mip_level_count(512, 256), 10);
+    }
 }
