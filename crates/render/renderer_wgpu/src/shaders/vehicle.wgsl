@@ -95,9 +95,18 @@ fn vs_interior(input: VsIn) -> VsOut {
     return out;
 }
 
+// D39: the synthesis' roughness lane (G of the AO/roughness map, 0.5 = the role's finish)
+// wanders the role's roughness by +-this much, ADDED. The old law multiplied the role by
+// (0.55 + G) and saturated three of four exterior roles at 1.0 — no lobe, no environment,
+// "does not read as tonnes of steel". Mirrored on the CPU by renderer_api::vehicle_lobes.
+const ROUGHNESS_LANE_SPAN: f32 = 0.30;
+
 // Per-material PBR-lite parameters: base albedo and roughness, keyed by material id
 // (0 rolled armour, 1 cast armour, 2 barrel steel, 3 track metal, 4 rubber,
 // 5 interior primer, 6 interior machinery, 7 ammunition, 8 exposed armor section).
+// The exterior roughness values are an ORDERED ladder (D39, `renderer_api::vehicle_lobes`):
+// glass 0.10 < barrel 0.45 < track 0.50 < rolled 0.55 < cast 0.62 < rubber 0.80 < timber
+// 0.88 < canvas 0.95 — every exterior role keeps a lobe of its own.
 struct Material {
     albedo: vec3<f32>,
     roughness: f32,
@@ -110,7 +119,7 @@ fn material_params(id: u32) -> Material {
         m.roughness = 0.55;
     } else if (id == 1u) {
         m.albedo = vec3<f32>(0.46, 0.47, 0.48);
-        m.roughness = 0.72;
+        m.roughness = 0.62;
     } else if (id == 2u) {
         m.albedo = vec3<f32>(0.14, 0.15, 0.16);
         // The exterior gun tube is painted service steel, not polished bare metal.
@@ -119,11 +128,11 @@ fn material_params(id: u32) -> Material {
         // Worn track steel: a stop lighter than raw plate — link faces, guide horns and pad
         // wear must read as shapes, not merge into one black band under the fenders.
         m.albedo = vec3<f32>(0.17, 0.17, 0.18);
-        m.roughness = 0.60;
+        m.roughness = 0.50;
     } else if (id == 4u) {
         // Roadwheel rubber: dark but not void — the spoke/tire boundary stays visible.
         m.albedo = vec3<f32>(0.10, 0.10, 0.11);
-        m.roughness = 0.90;
+        m.roughness = 0.80;
     } else if (id == 5u) {
         m.albedo = vec3<f32>(0.46, 0.52, 0.39);
         m.roughness = 0.82;
@@ -149,7 +158,7 @@ fn material_params(id: u32) -> Material {
         // Glass: the headlight lens, vision-block prisms. The one thing on a tank that is meant
         // to catch the sun, so it is the only role here with a genuinely tight lobe.
         m.albedo = vec3<f32>(0.55, 0.60, 0.62);
-        m.roughness = 0.08;
+        m.roughness = 0.10;
     } else if (id == 11u) {
         // Seasoned timber: the unditching log. Warm, fibrous, unpainted — nothing like steel.
         m.albedo = vec3<f32>(0.33, 0.25, 0.16);
@@ -496,8 +505,8 @@ fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec
     let half_v = normalize(key_dir + view_dir);
     // Micro-variation and dust roughen the finish; rain tightens it; charring caps it matte.
     let role_roughness = select(mat.roughness, mix(0.78, 0.42, torn_tip), fractured_steel);
-    let rough_base = role_roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet)
-        * (1.0 - wound.bare * 0.25);
+    let rough_base = (role_roughness + (ao_rough.g - 0.5) * ROUGHNESS_LANE_SPAN)
+        * mix(1.0, 0.55, wet) * (1.0 - wound.bare * 0.25);
     let roughness = clamp(
         mix(rough_base + (grain - 0.5) * 0.20 + dust * 0.22, 0.95, burnt),
         0.04,

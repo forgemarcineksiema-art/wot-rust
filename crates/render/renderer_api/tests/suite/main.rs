@@ -14,3 +14,4 @@ mod render_settings;
 mod resource_registry;
 mod scene_lighting;
 mod scene_vertex_lanes;
+mod vehicle_lobes;
