@@ -4,10 +4,18 @@ use terrain::StaticCoverObject;
 
 pub(crate) const TANK_COLLISION_RADIUS_M: f32 = 1.6;
 
+/// The height the radius-only default footprint stands: a medium tank's shell volume, near
+/// enough (the T-54's shell volume tops out at 2.53 m). Callers with a vehicle read the vehicle's own.
+pub(crate) const DEFAULT_TANK_HEIGHT_M: f32 = 2.4;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TankFootprint {
     pub half_width_m: f32,
     pub half_length_m: f32,
+    /// How tall the hull stands over its support (the shell volume's top, see
+    /// [`game_core::HullPlan::height_m`]). With the hull's height under it this is the band the
+    /// hull occupies in contact (X3).
+    pub height_m: f32,
 }
 
 impl TankFootprint {
@@ -17,6 +25,7 @@ impl TankFootprint {
         Self {
             half_width_m: plan.half_width_m.max(0.01),
             half_length_m: plan.half_length_m.max(0.01),
+            height_m: plan.height_m.max(0.01),
         }
     }
 
@@ -27,16 +36,56 @@ impl TankFootprint {
     }
 }
 
+/// The vertical interval a solid occupies, world metres (X3). Contact is an XZ separating-axis
+/// overlap AND an overlap of these: the SAT alone made a hull three metres up a rubble mound
+/// collide with the hull below as if the two were level, and a knee-high parapet block like a
+/// tenement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeightBand {
+    pub bottom_m: f32,
+    pub top_m: f32,
+}
+
+impl HeightBand {
+    /// Two bands touching edge to edge do NOT overlap: a hull resting exactly on a solid's top
+    /// (X4's support) is carried by it, not blocked by it.
+    pub fn overlaps(self, other: Self) -> bool {
+        self.bottom_m < other.top_m && other.bottom_m < self.top_m
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TankObstacle {
     pub center: Vec3,
     pub yaw_rad: f32,
     pub footprint: TankFootprint,
+    /// The band the obstacle occupies. For a hull: from its support height (`center.y`) up
+    /// `footprint.height_m`. For a standing solid: see [`Self::grounded_solid`].
+    pub band: HeightBand,
 }
 
 impl TankObstacle {
+    /// A hull: it stands on its support at `center.y` and reaches `footprint.height_m` above it.
     pub fn new(center: Vec3, yaw_rad: f32, footprint: TankFootprint) -> Self {
-        Self { center, yaw_rad, footprint }
+        let band = HeightBand { bottom_m: center.y, top_m: center.y + footprint.height_m };
+        Self { center, yaw_rad, footprint, band }
+    }
+
+    /// A solid that STANDS ON THE GROUND and reaches `top_m`: its band runs from below every
+    /// support up to its top. The forge grounds every box by its centre (`terrain::grounded_cover`),
+    /// so on a slope a box's own bottom face floats over its downhill corners while the wall it
+    /// stands for does not — nothing authored hangs in the air, and a hull is never let under a
+    /// building because the hill dropped away under the corner. What decides is the top: a hull
+    /// whose support is at or above it passes (a hull three metres up passes a one-metre wall);
+    /// anything lower meets the solid in plan, as it always did.
+    pub fn grounded_solid(
+        center: Vec3,
+        yaw_rad: f32,
+        footprint: TankFootprint,
+        top_m: f32,
+    ) -> Self {
+        let band = HeightBand { bottom_m: f32::NEG_INFINITY, top_m };
+        Self { center, yaw_rad, footprint, band }
     }
 
     pub fn from_hitbox(center: Vec3, yaw_rad: f32, hitbox: HitboxProfile) -> Self {
@@ -83,7 +132,11 @@ impl<'a> TankWorldObstacles<'a> {
 }
 
 pub fn default_tank_footprint() -> TankFootprint {
-    TankFootprint { half_width_m: TANK_COLLISION_RADIUS_M, half_length_m: TANK_COLLISION_RADIUS_M }
+    TankFootprint {
+        half_width_m: TANK_COLLISION_RADIUS_M,
+        half_length_m: TANK_COLLISION_RADIUS_M,
+        height_m: DEFAULT_TANK_HEIGHT_M,
+    }
 }
 
 /// Zero the world-axis velocity components that the resolver had to drop back to `previous`,
@@ -179,12 +232,20 @@ pub(crate) fn obstacles_contact(a: &TankObstacle, b: &TankObstacle) -> Option<Fo
 /// The axis picked is the same one either way, and that falls out of the arithmetic rather than
 /// needing a second rule: overlapping, the minimum depth IS the minimum translation out; apart,
 /// the minimum (most negative) depth IS the axis that separates them best.
+///
+/// Height first (X3): two solids whose bands do not overlap are not in contact whatever their
+/// plans do — a hull carried up a mound passes over the hull below, a hull passes a wall whose
+/// top is under its belly. Level solids (every band overlapping, which is every hull on the same
+/// ground) take the XZ test exactly as before, expression for expression.
 pub(crate) fn footprint_contact_within(
     a: &TankObstacle,
     b: &TankObstacle,
     margin_m: f32,
     incumbent: Option<ContactFeature>,
 ) -> Option<FootprintContact> {
+    if !a.band.overlaps(b.band) {
+        return None;
+    }
     let center_a = Vec2::new(a.center.x, a.center.z);
     let center_b = Vec2::new(b.center.x, b.center.z);
     let [right_a, forward_a] = footprint_axes(a.yaw_rad);
@@ -343,7 +404,7 @@ mod contact_tests {
         TankObstacle::new(
             Vec3::new(x, 0.0, z),
             yaw_rad,
-            TankFootprint { half_width_m: 1.75, half_length_m: 3.2 },
+            TankFootprint { half_width_m: 1.75, half_length_m: 3.2, height_m: 2.4 },
         )
     }
 

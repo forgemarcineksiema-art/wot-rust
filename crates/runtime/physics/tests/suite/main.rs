@@ -6,6 +6,7 @@
 
 mod climb_envelope;
 mod cover_footprint;
+mod height_in_contact;
 mod hull_attitude;
 mod mobility_baseline;
 mod movement_model;

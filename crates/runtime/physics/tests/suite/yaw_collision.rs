@@ -46,7 +46,7 @@ fn a_yawed_wall_blocks_where_it_stands_not_where_its_bounds_do() {
     use physics::footprint_blocked_by_cover;
     let mut wall = cover_box([40.0, 1.5, 40.0], [1.0, 2.5, 12.0]);
     wall.yaw_rad = std::f32::consts::FRAC_PI_4;
-    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20 };
+    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53 };
     let bounds = terrain::CoverBox::of(&wall).bounds_xz();
     assert!(bounds[2] - 40.0 > 8.0, "the turned wall's bounds reach far: {bounds:?}");
     // The bounds' corner (+x, -z): the turned wall runs along (+x, +z), so this corner is open.
@@ -71,7 +71,7 @@ fn a_yawed_wall_blocks_where_it_stands_not_where_its_bounds_do() {
 fn a_pivot_beside_a_wall_stops_instead_of_grinding_into_it() {
     // A long hull parked parallel to a wall, closer than its half length: rotating in place
     // MUST refuse once the swinging nose would enter the wall.
-    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20 };
+    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53 };
     let wall = cover_box([44.0, 1.5, 40.0], [1.0, 2.5, 12.0]);
     let mut state =
         TankKinematicState { position: Vec3::new(40.6, 0.0, 40.0), ..Default::default() };
@@ -92,7 +92,7 @@ fn a_pivot_beside_a_wall_stops_instead_of_grinding_into_it() {
 
 #[test]
 fn a_pivot_in_the_open_stays_free() {
-    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20 };
+    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53 };
     let mut state =
         TankKinematicState { position: Vec3::new(40.0, 0.0, 40.0), ..Default::default() };
     pivot_for(1.0, &mut state, TankWorldObstacles::new(&[], footprint));
@@ -107,7 +107,7 @@ fn a_pivot_in_the_open_stays_free() {
 fn an_already_overlapped_hull_keeps_its_freedom_to_rotate_out() {
     // Spawn accident: the hull STARTS inside the wall. The rotation gate must not freeze it —
     // only rotations from a CLEAR pose into a blocked one are refused.
-    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20 };
+    let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.20, height_m: 2.53 };
     let wall = cover_box([40.0, 1.5, 40.0], [2.0, 2.5, 2.0]);
     let mut state =
         TankKinematicState { position: Vec3::new(40.5, 0.0, 40.0), ..Default::default() };
