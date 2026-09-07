@@ -94,7 +94,9 @@ fn foliage_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow_in: f32, ao: f32)
 // in sky.wgsl; reflections use this cheaper sqrt form everywhere so they all agree.
 fn env_sky(dir: vec3<f32>) -> vec3<f32> {
     let up = clamp(dir.y, 0.0, 1.0);
-    return mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
+    // The same three stops as the dome (D37), through the cheaper sqrt above the played band.
+    let low = mix(camera.sky_horizon_rgb, camera.sky_band_rgb, smoothstep(0.0, 0.14, up));
+    return mix(low, camera.sky_zenith_rgb, sqrt(smoothstep(0.14, 1.0, up)));
 }
 
 // Aerial perspective: fade a fragment's HDR radiance toward the horizon haze by distance and

@@ -48,6 +48,7 @@ impl SceneLighting {
             rim_rgb: vector(self.rim_rgb, other.rim_rgb, t),
             sky_zenith_rgb: vector(self.sky_zenith_rgb, other.sky_zenith_rgb, t),
             sky_horizon_rgb: vector(self.sky_horizon_rgb, other.sky_horizon_rgb, t),
+            sky_band_rgb: vector(self.sky_band_rgb, other.sky_band_rgb, t),
             fog_density: scalar(self.fog_density, other.fog_density, t),
             fog_height_falloff: scalar(self.fog_height_falloff, other.fog_height_falloff, t),
             exposure: scalar(self.exposure, other.exposure, t),

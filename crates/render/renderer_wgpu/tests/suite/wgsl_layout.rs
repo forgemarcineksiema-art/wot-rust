@@ -26,8 +26,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // The meadow's crushers (Jedna Trawa P9) append array<vec4, 6> = 96: 800 + 96 = 896.
     // The garage hero probe (Hala 3.0 B2) appends its irradiance cube, array<vec4, 6> = 96:
     // 896 + 96 = 992. The per-scene flags (C1: interior detail normal) append one vec4:
-    // 992 + 16 = 1008.
-    assert_eq!(bytes.len(), 1008);
+    // 992 + 16 = 1008. The played sky band (D37, sky_band_rgb) appends one vec3 in a 16-byte
+    // slot: 1008 + 16 = 1024.
+    assert_eq!(bytes.len(), 1024);
     assert_eq!(bytes.len() % 16, 0);
 }
 

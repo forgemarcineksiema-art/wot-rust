@@ -121,6 +121,8 @@ pub struct CameraUniform {
     /// Gradient-sky horizon colour (linear); also the aerial-perspective fog colour distant
     /// surfaces fade toward in the lit shaders.
     pub sky_horizon_rgb: GpuVec3,
+    /// The sky in the played band (D37): the dome's third stop and the shaded cloud's hue.
+    pub sky_band_rgb: GpuVec3,
     /// Packed fog controls + render size: x = density, y = height falloff (density 0 disables
     /// the aerial perspective — interior looks); z/w = inverse render-target width/height, which
     /// `screen_ao` uses to address the (possibly reduced-resolution) AO chain by framebuffer
@@ -272,6 +274,7 @@ impl CameraUniform {
             ssao_params: GpuVec4(passes.ssao_params),
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
+            sky_band_rgb: GpuVec3(lighting.sky_band_rgb),
             fog_params: GpuVec4([
                 lighting.fog_density,
                 lighting.fog_height_falloff,
