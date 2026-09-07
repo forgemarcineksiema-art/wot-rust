@@ -4,6 +4,7 @@ mod coordinates;
 mod craters;
 mod flow;
 mod ground;
+mod ground_march;
 mod heightmap;
 mod map_build;
 mod map_id;
@@ -38,6 +39,9 @@ pub use flow::FlowField;
 pub use ground::{
     GroundClassifier, GroundMaterial, GroundProperties, grass_patchwork_noise, road_blend,
     road_blend_at, road_bound, strongest_road_at, value_noise,
+};
+pub use ground_march::{
+    CRATER_MARCH_STEP_M, first_ground_impact, ground_blocks_segment, ground_normal_at,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError, cell_splits_on_main_diagonal};
 pub use ruts::{MAX_RUT_SEGMENTS, RUT_HALF_WIDTH_M, RUT_PASS_DEPTH_M, RutField, RutSegment};

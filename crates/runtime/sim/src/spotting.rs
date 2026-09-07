@@ -124,48 +124,60 @@ impl SpottingMemory {
     }
 }
 
-/// The coarsest the sight line may ever step, in metres.
-///
-/// On a 5 m grid this is 2.5 samples per cell — the margin the check has always had, and the
-/// reason it never missed a ridge. The cap keeps that: a coarser grid must not make the eye
-/// coarser too, or a long sight line over gentle ground starts skipping crests.
-const LOS_STEP_CEILING_M: f32 = 2.0;
-
-/// How far apart the sight line samples the ground, for a heightmap of this cell size.
-///
-/// Two samples per cell, never coarser than [`LOS_STEP_CEILING_M`]. Public because the promise is
-/// not "some step that works today" — it is that the eye never samples the terrain more coarsely
-/// than the terrain is defined, on any grid a map might use.
-pub fn terrain_sight_step_m(cell_size_m: f32) -> f32 {
-    (cell_size_m * 0.5).clamp(0.1, LOS_STEP_CEILING_M)
+/// Whether the segment `from -> to` clears the terrain (with a little slack so grazing a crest
+/// still counts as seeing over). THE ONE MARCH (V0): the eye reads the same exact kernel the
+/// shell does — `terrain::ground_blocks_segment`, exact on the piecewise-planar surface, no
+/// step to choose — so what blocks the shell blocks the eye, up to the eye's slack.
+fn terrain_clear(heightmap: &HeightMap, from: Vec3, to: Vec3) -> bool {
+    !terrain::ground_blocks_segment(
+        heightmap,
+        from.to_array(),
+        to.to_array(),
+        game_core::SIGHT_GRAZE_SLACK_M,
+    )
 }
 
-/// Whether the segment `from -> to` clears the terrain: step along it and fail if the ground ever
-/// rises above the sight line (with a little slack so grazing a crest still counts as seeing over).
-///
-/// THE STEP IS TIED TO THE GRID, at two samples per cell. It used to be a flat 2 m, which is fine
-/// while cells are 5 m wide and quietly wrong once they are not: at 2.5 m that is 1.25 samples per
-/// cell and at 1.25 m it is 0.6 — the sight line steps clean over ridges a shell would hit, and
-/// `shell_trace` marches its own terrain sweep at 1 m regardless. A bot would then fire at
-/// something it "sees" through a crest and eat the crest, which is the honesty doctrine breaking
-/// in the one place it is least visible: what blocks the shell must block the eye.
-///
-/// At today's 5 m grid the cap wins and nothing changes, so this costs no ticks until a map is
-/// actually densified — which is the point of writing it before densifying one.
-fn terrain_clear(heightmap: &HeightMap, from: Vec3, to: Vec3) -> bool {
-    let segment = to - from;
-    let step_m = terrain_sight_step_m(heightmap.cell_size_m());
-    let steps = (segment.length() / step_m).ceil().max(1.0) as u32;
-    for step in 1..steps {
-        let point = from + segment * (step as f32 / steps as f32);
-        if heightmap
-            .sample_height(point.x, point.z)
-            .is_some_and(|g| g > point.y + game_core::SIGHT_GRAZE_SLACK_M)
-        {
-            return false;
-        }
+/// The SHELL's line (V0): no slack, the projectile's own radius, the same cover boxes — the
+/// bot fires only when this is clear, not when its eye grazes over a crest the round would
+/// eat.
+pub fn shell_line_clear(
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+    from: Vec3,
+    to: Vec3,
+    radius_m: f32,
+) -> bool {
+    let blocked = cover.iter().any(|c| {
+        !game_core::math::segment_xz_disjoint(
+            from,
+            to,
+            c.center[0],
+            c.center[2],
+            c.half_extents_m[0],
+            c.half_extents_m[2],
+        ) && segment_hits_box(from, to, c.center, c.half_extents_m)
+    });
+    if blocked {
+        return false;
     }
-    true
+    heightmap.is_none_or(|heightmap| {
+        terrain::first_ground_impact(heightmap, from.to_array(), to.to_array(), radius_m).is_none()
+    })
+}
+
+/// Whether `observer`'s gun has a clear SHELL line to any of `target`'s sample points (V0): the
+/// bot's fire check, on the shell's own march and radius.
+pub fn tank_shell_line_clear(
+    observer: &TankState,
+    target: &TankState,
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+) -> bool {
+    let eye = observer_eye(observer);
+    let radius_m = observer.spec.gun.shell.collision_radius_m();
+    target_points(target)
+        .into_iter()
+        .any(|point| shell_line_clear(heightmap, cover, eye, point, radius_m))
 }
 
 /// The `[t_min, t_max]` sub-interval of the segment `from -> to` (parameter in `[0, 1]`) that lies

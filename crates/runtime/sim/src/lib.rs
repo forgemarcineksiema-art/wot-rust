@@ -63,7 +63,8 @@ pub use shell_trace::{
 pub use spotting::{
     FIRE_REVEAL_TICKS, MAX_OBSERVERS, ObserverMask, SPOTTED_HOLD_TICKS, SPOTTING_INTERVAL_TICKS,
     STATIONARY_SPEED_MPS, STATIONARY_SPOT_FACTOR, VIEW_RANGE_M, compute_observer_masks,
-    compute_spotted_masks, line_of_sight, tank_line_of_sight, terrain_sight_step_m,
+    compute_spotted_masks, line_of_sight, shell_line_clear, tank_line_of_sight,
+    tank_shell_line_clear,
 };
 pub use state::{SimulationState, cover_damage_hp};
 pub use tank_drive::{

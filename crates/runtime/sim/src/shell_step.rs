@@ -1,6 +1,7 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::integrate_shell_step;
 use game_core::{ImpactSurface, ShellImpact};
+use glam::Vec3;
 
 use crate::breach_space::admits_existing_channel;
 use crate::combat::{ArmorEntry, CombatTickContext, apply_shell_impact};
@@ -154,6 +155,20 @@ pub(crate) fn step_shells(
                     shell_id: shells[index].id,
                     ..Default::default()
                 });
+                // Z7: a kinetic round meeting the GROUND at a graze skips off it — once, like
+                // off a plate: mirrored about the ground's plane, slower, blunted (the mark it
+                // leaves is the furrow the impact above already recorded). A charge never
+                // skips; a plunge never does; a round that skipped already does not again.
+                if surface == ImpactSurface::Terrain
+                    && let Some(heightmap) = heightmap
+                    && let Some(normal) =
+                        ground_ricochet_normal(&shells[index], position, heightmap)
+                {
+                    let distance_m = shells[index].traveled_m + position.distance(previous);
+                    deflect_shell(&mut shells[index], position, normal, distance_m);
+                    index += 1;
+                    continue;
+                }
                 burst_he_splash(&shells[index], position, tanks, events, None, heightmap, cover);
                 shells.swap_remove(index);
             }
@@ -172,6 +187,29 @@ pub(crate) fn step_shells(
             }
         }
     }
+}
+
+/// Z7: a kinetic round skips off the ground when its flight meets the surface within this
+/// angle of the plane (the incidence measured to the ground, not its normal).
+pub const GROUND_RICOCHET_MAX_DEG: f32 = 12.0;
+
+/// The ground's normal at a terrain impact IF the round skips (Z7): kinetic, not yet skipped,
+/// still carrying speed, and meeting the plane within `GROUND_RICOCHET_MAX_DEG` of it.
+fn ground_ricochet_normal(
+    shell: &ShellState,
+    position: Vec3,
+    heightmap: &HeightMap,
+) -> Option<Vec3> {
+    if shell.shell.shell_type == game_core::ShellType::HighExplosive || shell.ricocheted_once {
+        return None;
+    }
+    let velocity = shell.velocity_mps;
+    if velocity.length() < 80.0 {
+        return None;
+    }
+    let normal = Vec3::from_array(::terrain::ground_normal_at(heightmap, position.x, position.z));
+    let incidence = velocity.normalize().dot(normal).abs().asin().to_degrees();
+    (incidence <= GROUND_RICOCHET_MAX_DEG).then_some(normal)
 }
 
 fn step_unhit_shell(
