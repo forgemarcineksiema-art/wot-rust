@@ -1,11 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-/// Whether the turret traverses (a normal rotating turret) or is welded to the hull (a
-/// casemate tank destroyer like the Jagdtiger).
+/// Whether the turret traverses (a normal rotating turret), is welded to the hull with no
+/// gun traverse at all (`Fixed`), or is a casemate whose GUN lays inside an arc about the
+/// hull line (`Limited`, S17: the Jagdtiger's ball mount gives ±10°). Append-only: the
+/// variants ride the module data.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TurretTraverse {
-    Rotating { rate_rad_s: f32 },
+    Rotating {
+        rate_rad_s: f32,
+    },
     Fixed,
+    /// A casemate: the superstructure never turns, the gun lays `half_arc_rad` to either
+    /// side of the hull line at `rate_rad_s`; beyond the arc the hull pivots.
+    Limited {
+        half_arc_rad: f32,
+        rate_rad_s: f32,
+    },
 }
 
 impl TurretTraverse {
@@ -13,11 +23,27 @@ impl TurretTraverse {
         match self {
             TurretTraverse::Rotating { rate_rad_s } => rate_rad_s,
             TurretTraverse::Fixed => 0.0,
+            TurretTraverse::Limited { rate_rad_s, .. } => rate_rad_s,
         }
     }
 
     pub fn is_fixed(self) -> bool {
         matches!(self, TurretTraverse::Fixed)
+    }
+
+    /// The gun's yaw arc about the hull line: `None` for a turret (the full circle), `Some`
+    /// for a casemate — zero when it cannot lay at all.
+    pub fn half_arc_rad(self) -> Option<f32> {
+        match self {
+            TurretTraverse::Rotating { .. } => None,
+            TurretTraverse::Fixed => Some(0.0),
+            TurretTraverse::Limited { half_arc_rad, .. } => Some(half_arc_rad.max(0.0)),
+        }
+    }
+
+    /// A casemate: the superstructure is the hull's, whatever the gun can do inside it.
+    pub fn is_casemate(self) -> bool {
+        self.half_arc_rad().is_some()
     }
 }
 

@@ -39,7 +39,13 @@ pub(crate) fn jagdtiger_loadout() -> VehicleModules {
             side_mm: 80.0,
             rear_mm: 80.0,
             roof_mm: None,
-            traverse: TurretTraverse::Fixed,
+            // S17: the Pak 80 lays 10° to either side in its ball mount (Panzerworld: "10
+            // degree traverse to each side"); the rate is a decision — a hand-cranked mount
+            // on a 75 t hull, well under any turret (the fleet's slowest rotates at 0.40).
+            traverse: TurretTraverse::Limited {
+                half_arc_rad: 10.0_f32.to_radians(),
+                rate_rad_s: 0.20,
+            },
             vertical_stabilizer: 0.0,
             max_gun_caliber_mm: 130.0,
         },

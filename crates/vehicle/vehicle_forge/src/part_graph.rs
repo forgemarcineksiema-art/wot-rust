@@ -43,7 +43,7 @@ impl ForgePartGraph {
                 Some(ForgePartGraph {
                     kind,
                     road_wheel_count_per_side: blueprint.track.wheel_count,
-                    turret_traverses: !kind.has_fixed_casemate(),
+                    turret_traverses: !kind.is_casemate(),
                     parts: build(&blueprint),
                 })
             }
@@ -66,7 +66,7 @@ impl ForgePartGraph {
         let hull = bounds(SubmeshKind::Hull)?;
         let turret = bounds(SubmeshKind::Turret)?;
         let gun = bounds(SubmeshKind::Gun)?;
-        let traverses = !kind.has_fixed_casemate();
+        let traverses = !kind.is_casemate();
 
         Some(ForgePartGraph {
             kind,

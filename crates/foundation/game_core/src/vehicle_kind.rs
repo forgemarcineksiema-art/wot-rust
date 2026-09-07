@@ -243,6 +243,11 @@ impl VehicleKind {
         self.spec_ref().has_fixed_casemate()
     }
 
+    /// A casemate (S17): the superstructure never turns; the gun lays inside its arc.
+    pub fn is_casemate(self) -> bool {
+        self.spec_ref().is_casemate()
+    }
+
     /// World of Tanks combat tier (1–10). The matchmaking bracket and the tree's vertical axis.
     /// Numbers match the live Tankopedia: T-34-85 is VI, Tiger I is VII, the T8 park is VIII,
     /// T-54 and Jagdtiger are IX.
@@ -431,14 +436,17 @@ mod tests {
     }
 
     #[test]
-    fn fixed_casemate_rule_is_shared_by_vehicle_kind_and_tank_spec() {
+    fn casemate_rule_is_shared_by_vehicle_kind_and_tank_spec() {
         for kind in VehicleKind::ALL {
             let spec = kind.spec();
             assert_eq!(kind.has_fixed_casemate(), spec.has_fixed_casemate());
-            assert_eq!(
-                spec.effective_turret_yaw_rad(0.75),
-                if kind == VehicleKind::Jagdtiger { 0.0 } else { 0.75 }
-            );
+            assert_eq!(kind.is_casemate(), spec.is_casemate());
+            assert_eq!(kind.effective_turret_yaw_rad(0.75), spec.effective_turret_yaw_rad(0.75));
+            // S17: the Jagdtiger lays inside ±10° of the hull line, a turret takes any bearing.
+            let expected =
+                if kind == VehicleKind::Jagdtiger { 10.0_f32.to_radians() } else { 0.75 };
+            assert!((spec.effective_turret_yaw_rad(0.75) - expected).abs() < 1.0e-6, "{kind:?}");
+            assert!(!spec.has_fixed_casemate(), "{kind:?}: no vehicle in the fleet cannot lay");
         }
     }
 

@@ -3,7 +3,7 @@ use game_core::{
 };
 
 #[test]
-fn jagdtiger_spec_models_fixed_casemate_tank_destroyer() {
+fn jagdtiger_spec_models_a_casemate_tank_destroyer_that_lays_ten_degrees() {
     let tank = TankSpec::jagdtiger();
 
     assert_eq!(tank.name, "Panzerjager Tiger Ausf. B Jagdtiger");
@@ -11,7 +11,10 @@ fn jagdtiger_spec_models_fixed_casemate_tank_destroyer() {
     assert!((tank.mass_kg - 75_200.0).abs() < 1_000.0);
     assert!((tank.engine_power_kw - 441.0).abs() < 15.0);
     assert!((tank.max_forward_speed_mps - 9.61).abs() < 0.3);
-    assert_eq!(tank.turret_rotation_rad_s, 0.0);
+    // S17: the Pak 80 lays 10 degrees to either side in its mount, slower than any turret.
+    assert!(tank.is_casemate() && !tank.has_fixed_casemate());
+    assert!((tank.turret_arc_half_rad().unwrap() - 10.0_f32.to_radians()).abs() < 1.0e-6);
+    assert!(tank.turret_rotation_rad_s > 0.0 && tank.turret_rotation_rad_s < 0.40);
     assert_eq!(tank.hull.nominal_thickness_mm(ArmorFacing::HullFront), 150.0);
     assert_eq!(tank.hull.nominal_thickness_mm(ArmorFacing::HullSide), 80.0);
     assert_eq!(tank.hull.nominal_thickness_mm(ArmorFacing::HullRear), 80.0);

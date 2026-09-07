@@ -42,7 +42,7 @@ impl ClientApp {
             limits,
             shell.muzzle_velocity_mps,
             shell.drag_per_s(),
-            self.player_spec().has_fixed_casemate(),
+            self.player_spec().turret_arc_half_rad(),
         ) {
             return Some(SightSolution {
                 pitch_rad: solution.gun_pitch_rad,

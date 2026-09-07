@@ -89,12 +89,14 @@ fn the_250mm_face_leans_fifteen_degrees_on_the_armor_plane() {
     assert!(on_plane >= 4, "the visible face must lie on the armor plane: {on_plane}");
 }
 
-/// A casemate never traverses: the spec keeps its fixed-casemate clamp, and the whole
-/// superstructure sits in the turret submesh only because the renderer needs a slot.
+/// A casemate never traverses: the spec is a casemate (S17: its GUN lays ±10° in the mount,
+/// the superstructure never turns), and the whole superstructure sits in the turret submesh
+/// only because the renderer needs a slot.
 #[test]
 fn the_casemate_never_traverses() {
     let spec = VehicleKind::Jagdtiger.spec();
-    assert!(spec.has_fixed_casemate(), "the sim must clamp casemate yaw at zero");
+    assert!(spec.is_casemate(), "the sim must clamp the lay to the mount's arc");
+    assert!((spec.turret_arc_half_rad().unwrap() - 10.0_f32.to_radians()).abs() < 1.0e-6);
     assert!(matches!(blueprint().turret.form, game_core::TurretForm::Casemate));
 }
 

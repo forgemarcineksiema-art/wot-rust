@@ -186,23 +186,43 @@ fn knocked_out_tank_ignores_drive_aim_and_fire_commands() {
     assert!(state.shells().is_empty(), "knocked-out tank must not fire");
 }
 
+/// S17: the Jagdtiger lays its gun 9° without hull motion and refuses 11° — the arc is the
+/// ball mount's ±10° about the hull line; beyond it the hull pivots (the old lock held the
+/// yaw at zero and made the casemate lay by hull alone, which bloomed the sight through the
+/// steer term).
 #[test]
-fn fixed_casemate_ignores_turret_yaw_commands() {
+fn a_casemate_lays_nine_degrees_without_hull_motion_and_refuses_eleven() {
+    let arc = 10.0_f32.to_radians();
+    let step = FixedTimestep::from_hz(60);
     let mut state = SimulationState::new();
     let tank = state.spawn_tank(TeamId(1), TankSpec::jagdtiger(), Vec3::ZERO);
-    state.tank_mut(tank).expect("tank").turret_yaw_rad = 0.35;
+    let hull_yaw = state.tank(tank).expect("tank").yaw_rad;
 
-    state.apply_commands(
-        &[(
-            tank,
-            TankCommand { turret_yaw_delta: 1.0, gun_pitch_delta: 1.0, ..TankCommand::idle() },
-        )],
-        FixedTimestep::from_hz(60),
-    );
-
+    // Full traverse command for three seconds: the gun walks to the stop and no further.
+    let mut reached_nine_at = None;
+    for tick in 0..180 {
+        state.apply_commands(
+            &[(tank, TankCommand { turret_yaw_delta: 1.0, ..TankCommand::idle() })],
+            step,
+        );
+        let yaw = state.tank(tank).expect("tank").turret_yaw_rad;
+        if reached_nine_at.is_none() && yaw >= 9.0_f32.to_radians() {
+            reached_nine_at = Some(tick);
+        }
+        assert!(yaw <= arc + 1.0e-6, "the lay never passes the arc: {yaw}");
+    }
     let after = state.tank(tank).expect("tank");
-    assert_eq!(after.turret_yaw_rad, 0.0);
-    assert!(after.gun_pitch_rad > 0.0);
+    assert!(reached_nine_at.is_some(), "the gun lays nine degrees on its own");
+    assert!((after.turret_yaw_rad - arc).abs() < 1.0e-6, "...and stops on the arc");
+    assert_eq!(after.turret_yaw_velocity_rad_s, 0.0, "a lay on the stop reports no velocity");
+    assert_eq!(after.yaw_rad, hull_yaw, "the hull did not move");
+
+    // An eleven-degree lay written in from outside is refused by the next tick.
+    state.tank_mut(tank).expect("tank").turret_yaw_rad = 11.0_f32.to_radians();
+    state.apply_commands(&[(tank, TankCommand::idle())], step);
+    let after = state.tank(tank).expect("tank");
+    assert!((after.turret_yaw_rad - arc).abs() < 1.0e-6, "eleven degrees is clamped to ten");
+    assert_eq!(after.yaw_rad, hull_yaw);
 }
 
 #[test]

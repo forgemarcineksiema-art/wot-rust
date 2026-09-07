@@ -170,12 +170,18 @@ fn prediction_tracks_turret_and_gun_pitch_from_local_commands() {
     );
 }
 
+/// S17: the predictor clamps a casemate's lay to its arc exactly as the server does — a
+/// snapshot past the arc syncs onto the stop, a command at the stop stays there, and a lay
+/// inside the arc walks at the mount's rate.
 #[test]
-fn prediction_zeros_fixed_casemate_yaw_from_snapshots_and_commands() {
+fn prediction_clamps_a_casemate_lay_to_its_arc_from_snapshots_and_commands() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
     let spec = TankSpec::jagdtiger();
+    let arc = spec.turret_arc_half_rad().expect("the Jagdtiger is a casemate");
+    let dt = 1.0 / 60.0;
     let mut predictor = LocalPredictor::new(&spec);
     predictor.sync_to(&snapshot_with_vehicle_aim(game_core::VehicleKind::Jagdtiger, 0.35, -0.02));
+    assert!((predictor.turret_yaw() - arc).abs() < 1.0e-6, "0.35 rad syncs onto the stop");
 
     predictor.step(
         TankCommand { turret_yaw_delta: 1.0, gun_pitch_delta: 1.0, ..TankCommand::idle() },
@@ -184,11 +190,23 @@ fn prediction_zeros_fixed_casemate_yaw_from_snapshots_and_commands() {
         &[],
         &[],
         None,
-        1.0 / 60.0,
+        dt,
     );
-
-    assert_eq!(predictor.turret_yaw(), 0.0);
+    assert!((predictor.turret_yaw() - arc).abs() < 1.0e-6, "the stop holds under a command");
     assert!(predictor.gun_pitch() > -0.02);
+
+    predictor.sync_to(&snapshot_with_vehicle_aim(game_core::VehicleKind::Jagdtiger, 0.05, -0.02));
+    predictor.step(
+        TankCommand { turret_yaw_delta: -1.0, ..TankCommand::idle() },
+        &flat,
+        &[],
+        &[],
+        &[],
+        None,
+        dt,
+    );
+    let expected = 0.05 - spec.turret_rotation_rad_s * dt;
+    assert!((predictor.turret_yaw() - expected).abs() < 1.0e-5, "inside the arc the lay walks");
 }
 
 #[test]

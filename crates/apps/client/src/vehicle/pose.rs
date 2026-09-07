@@ -31,6 +31,8 @@ pub(crate) struct VehiclePose {
     ground: Vec3,
     hull_rotation: Mat3,
     turret_rotation: Mat3,
+    /// S17: a casemate's gun yaw in its mount (identity for a turret, whose ring turns).
+    gun_yaw: Mat3,
     gun_pitch: Mat3,
     turret_ring: Vec3,
     trunnion: Vec3,
@@ -82,7 +84,18 @@ impl VehiclePose {
         Self {
             ground: ground + Vec3::Y * heave,
             hull_rotation,
-            turret_rotation: Mat3::from_rotation_y(kind.effective_turret_yaw_rad(turret_yaw_rad)),
+            // S17: a casemate's superstructure never turns — its gun yaws in the mount, inside
+            // the arc the sim clamps to (`effective_turret_yaw_rad`).
+            turret_rotation: if kind.is_casemate() {
+                Mat3::IDENTITY
+            } else {
+                Mat3::from_rotation_y(kind.effective_turret_yaw_rad(turret_yaw_rad))
+            },
+            gun_yaw: if kind.is_casemate() {
+                Mat3::from_rotation_y(kind.effective_turret_yaw_rad(turret_yaw_rad))
+            } else {
+                Mat3::IDENTITY
+            },
             gun_pitch: Mat3::from_rotation_x(-gun_pitch_rad),
             turret_ring: mounts.turret_ring.translation,
             trunnion: mounts.gun_trunnion.translation,
@@ -117,7 +130,11 @@ impl VehiclePose {
     }
 
     pub fn gun_basis(&self) -> Mat3 {
-        self.hull_rotation * self.turret_rotation * self.gun_mount_basis * self.gun_pitch
+        self.hull_rotation
+            * self.turret_rotation
+            * self.gun_mount_basis
+            * self.gun_yaw
+            * self.gun_pitch
     }
 
     /// Map a hull-submesh point from authoring space to the world.
@@ -158,13 +175,26 @@ mod tests {
         );
     }
 
-    /// Casemate vehicles hold turret yaw at zero, whatever the snapshot says.
+    /// S17: a casemate's superstructure holds still whatever the snapshot says, while its gun
+    /// yaws in the mount inside the arc — and no further.
     #[test]
-    fn casemate_pose_ignores_turret_yaw() {
+    fn casemate_pose_holds_the_superstructure_and_lays_the_gun_inside_the_arc() {
+        let arc = 10.0_f32.to_radians();
         let traversed = VehiclePose::new(VehicleKind::Jagdtiger, Vec3::ZERO, 0.3, 1.2, 0.05);
+        let on_arc = VehiclePose::new(VehicleKind::Jagdtiger, Vec3::ZERO, 0.3, arc, 0.05);
+        let laid = VehiclePose::new(VehicleKind::Jagdtiger, Vec3::ZERO, 0.3, 0.12, 0.05);
         let held = VehiclePose::new(VehicleKind::Jagdtiger, Vec3::ZERO, 0.3, 0.0, 0.05);
         let probe = Vec3::new(0.6, 2.0, 1.4);
+        // The superstructure never turns.
         assert!((traversed.turret_point(probe) - held.turret_point(probe)).length() < 1.0e-6);
-        assert!((traversed.gun_point(probe) - held.gun_point(probe)).length() < 1.0e-6);
+        assert!((laid.turret_point(probe) - held.turret_point(probe)).length() < 1.0e-6);
+        // The gun lays: 0.12 rad moves the muzzle, 1.2 rad is the same as the arc's edge.
+        let muzzle = Vec3::new(0.0, 2.25, 6.0);
+        assert!((laid.gun_point(muzzle) - held.gun_point(muzzle)).length() > 0.5);
+        assert!((traversed.gun_point(muzzle) - on_arc.gun_point(muzzle)).length() < 1.0e-5);
+        // ...about the trunnion, which does not move.
+        let mounts = MountFrames::for_vehicle(VehicleKind::Jagdtiger);
+        let trunnion = mounts.gun_trunnion.translation;
+        assert!((laid.gun_point(trunnion) - held.gun_point(trunnion)).length() < 1.0e-5);
     }
 }

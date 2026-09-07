@@ -50,8 +50,14 @@ pub fn step_aiming(
         // Wrap into (-PI, PI] so a long session of one-way traverse cannot grow the angle
         // without bound and erode f32 sin/cos precision (the camera already wraps; snapshot
         // interpolation is shortest-arc, so the seam is invisible to rendering).
-        aiming.turret_yaw_rad =
+        let unclamped =
             wrap_angle(aiming.turret_yaw_rad + aiming.turret_yaw_velocity_rad_s * dt_seconds);
+        // S17: a casemate's gun lays inside its arc about the hull line; at the stop it
+        // stands still (a clamped lay reports no velocity, so nothing extrapolates past it).
+        aiming.turret_yaw_rad = spec.effective_turret_yaw_rad(unclamped);
+        if aiming.turret_yaw_rad != unclamped {
+            aiming.turret_yaw_velocity_rad_s = 0.0;
+        }
     }
     aiming.turret_yaw_rad = spec.effective_turret_yaw_rad(aiming.turret_yaw_rad);
     let (min_pitch, max_pitch) = spec.gun_pitch_limits_rad();

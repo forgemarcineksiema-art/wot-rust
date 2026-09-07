@@ -428,15 +428,17 @@ fn an_open_sky_shot_is_not_blocked_just_targetless() {
     assert_eq!(feedback.status, ReticleStatus::Clear);
 }
 
-/// Inny Poziom A4: a casemate's sight is honest about its hull line. On the line the shot
-/// arrives and the sight is CLEAR; 30° off it the shell leaves down the hull line anyway —
-/// the sim forces the yaw — so the sight is BLOCKED and names the traverse limit, instead of
-/// the green it used to show while the round left for the wrong bearing.
+/// Inny Poziom A4 + S17: a casemate's sight is honest about its ARC. On the hull line and
+/// 9° off it (inside the ±10° the Pak 80 lays) the shot arrives and the sight is CLEAR; 30°
+/// off it the shell leaves along the arc's edge anyway — the sim clamps the yaw — so the sight
+/// is BLOCKED and names the traverse limit, instead of the green it used to show while the
+/// round left for the wrong bearing.
 #[test]
 fn a_casemates_sight_is_blocked_off_the_hull_line_and_clear_on_it() {
     let heightmap = HeightMap::flat(200, 200, 5.0, 0.0).unwrap();
     let jagdtiger = VehicleKind::Jagdtiger.spec();
-    assert!(jagdtiger.has_fixed_casemate(), "precondition: the Jagdtiger is a casemate");
+    assert!(jagdtiger.is_casemate(), "precondition: the Jagdtiger is a casemate");
+    assert!(!jagdtiger.has_fixed_casemate(), "...that lays inside an arc (S17)");
     let muzzle = Vec3::new(500.0, 2.0, 100.0);
     let on_line = tank_snapshot(TankId(2), [500.0, 0.0, 400.0]);
     let off_line = tank_snapshot(TankId(3), [500.0 + 300.0 * 0.5, 0.0, 100.0 + 300.0 * 0.866]);
@@ -451,6 +453,20 @@ fn a_casemates_sight_is_blocked_off_the_hull_line_and_clear_on_it() {
     ));
     assert_eq!(clear.feedback.status, ReticleStatus::Clear, "on the hull line the shot arrives");
     assert_eq!(clear.feedback.arc_limit, None);
+
+    // Nine degrees off the hull line: inside the arc, the gun lays there, the sight is clear.
+    let (s9, c9) = 9.0_f32.to_radians().sin_cos();
+    let nine_off = tank_snapshot(TankId(4), [500.0 + 300.0 * s9, 0.0, 100.0 + 300.0 * c9]);
+    let inside = reticle_report(query_with_player(
+        &heightmap,
+        std::slice::from_ref(&nine_off),
+        muzzle,
+        Vec3::new(500.0 + 300.0 * s9, 1.4, 100.0 + 300.0 * c9),
+        0.0,
+        &jagdtiger,
+    ));
+    assert_eq!(inside.feedback.status, ReticleStatus::Clear, "9° off: inside the arc");
+    assert_eq!(inside.feedback.arc_limit, None);
 
     let blocked = reticle_report(query_with_player(
         &heightmap,
