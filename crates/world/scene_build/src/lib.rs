@@ -5,6 +5,7 @@
 
 pub mod backdrop;
 pub mod battlefield;
+pub mod building_kit;
 pub mod clutter;
 pub mod foliage;
 pub mod foliage_atlas_paint;

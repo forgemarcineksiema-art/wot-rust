@@ -17,6 +17,20 @@ use super::{
 /// upload, which would leave the previous frame's poses on screen with every tank frozen mid-run.
 pub const VEHICLE_INSTANCE_CAPACITY: u64 = 1 << 20;
 
+/// The scene (dressing) instance buffer: 2 MiB, ~26k instances at 80 B. Raised from 512 KiB
+/// (~6.5k) on 2026-09-07 with the building kit (B3): the near grass ring peaks at 4.8k tufts,
+/// the tree ladder adds its stations and hulls, and the densest town's dwellings submit
+/// 4 558 parts with nothing culled — at 6.5k the frame clipped in the middle of a street
+/// (plinths and corner fillers standing, the bays gone). `set_render_frame` still truncates
+/// with a warning beyond this; the client locks its worst-case dressing under the budget.
+pub const SCENE_INSTANCE_CAPACITY: u64 = 1 << 21;
+
+/// How many scene instances fit [`SCENE_INSTANCE_CAPACITY`].
+pub const fn scene_instance_budget() -> usize {
+    (SCENE_INSTANCE_CAPACITY as usize)
+        / std::mem::size_of::<crate::scene_resources::SceneInstance>()
+}
+
 /// How many vehicle instances fit [`VEHICLE_INSTANCE_CAPACITY`] — the client locks its worst-case
 /// battle frame against this so a roster/gear change cannot silently outgrow the buffer again.
 pub const fn vehicle_instance_budget() -> usize {
@@ -87,11 +101,9 @@ impl GeometryBuffers {
         });
         let frame_instances = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_frame_instances"),
-            // 512 KiB (~6.5k instances at 80 B): the geometry-path lineup examples submit the
-            // whole 7-vehicle roster with animated running gear (~200 instances per tank), and
-            // the near-field grass ring (60 m, screen-constant density) peaks at ~4.8k tufts —
-            // the old 256 KiB ceiling would have clipped the field's far rim every frame.
-            size: 1 << 19,
+            // See SCENE_INSTANCE_CAPACITY: the grass ring, the tree ladder and the building
+            // kit's parts, with headroom — a clipped frame is a street with no walls.
+            size: SCENE_INSTANCE_CAPACITY,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });

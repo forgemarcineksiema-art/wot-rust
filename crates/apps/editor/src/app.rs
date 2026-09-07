@@ -1703,7 +1703,7 @@ impl ApplicationHandler for EditorApp {
                 renderer.set_hud_material_sheet(sheet_w, sheet_h, sheet);
                 // The tree ladder, its leaf atlas and its bark — the battle's binding, so a
                 // planted tree is drawn, and drawn as the game draws it.
-                for (handle, mesh) in scene_build::tree_lod::tree_lod_meshes() {
+                for (handle, mesh) in scene_build::tree_lod::dressing_meshes() {
                     renderer.register_mesh(handle, &mesh);
                 }
                 let (foliage_color, foliage_normal) =

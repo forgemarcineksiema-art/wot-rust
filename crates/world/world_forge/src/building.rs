@@ -1569,7 +1569,7 @@ fn bake_rubble(
     }
 }
 
-fn push_box(
+pub(crate) fn push_box(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
     center: Vec3,
@@ -1588,7 +1588,7 @@ fn push_box(
 /// One four-corner face of a structure, indexed and flat-shaded. Named for the world it builds:
 /// the HUD's `ui_kit::push_quad` is a 2D triangle pair with no indices and no normal, and two
 /// unrelated helpers sharing one name is how an edit reaches the wrong one.
-fn push_face(
+pub(crate) fn push_face(
     vertices: &mut Vec<GeometryVertex>,
     indices: &mut Vec<u32>,
     corners: [Vec3; 4],

@@ -68,7 +68,10 @@ pub const fn fx_vertex_budget() -> usize {
     (FX_VERTEX_CAPACITY as usize) / std::mem::size_of::<renderer_api::FxVertex>()
 }
 pub use armor_damage::{armor_damage_aperture_budget, armor_damage_header_budget};
-pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
+pub use buffers::{
+    SCENE_INSTANCE_CAPACITY, VEHICLE_INSTANCE_CAPACITY, scene_instance_budget,
+    vehicle_instance_budget,
+};
 
 pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,
