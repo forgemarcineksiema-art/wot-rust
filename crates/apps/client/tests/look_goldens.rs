@@ -485,6 +485,34 @@ fn the_golden_evening_sky_is_straw_not_lavender_on_the_record() {
     assert!(judged >= 4, "the golden evening must be on the record in at least four frames");
 }
 
+/// D41, on the record: the evening contact frame's LOWER HULL — the band the mud climbs and
+/// the running gear — reads darker and warmer than its sunlit deck. Two crops authored against
+/// the rendered frame (the deck: turret roof and hull top; the lower band: hull side under the
+/// fender and the running gear). Before D41 the two crops' warmth ratio was 1.21 (one paint
+/// tone, top to bottom); with the mud band it measures 1.40. The floor sits between.
+#[test]
+fn the_lower_hull_is_darker_and_warmer_than_the_deck_on_the_record() {
+    const DECK: [f32; 4] = [0.44, 0.61, 0.58, 0.67];
+    const LOWER_HULL: [f32; 4] = [0.40, 0.77, 0.60, 0.84];
+    const MIN_WARMTH_RATIO: f32 = 1.30;
+    let pixels = read_png(&golden_path(SUBJECT_REFERENCE_VIEW));
+    let (deck, w, h) = crop(&pixels, DECK);
+    let deck = frame_stats_of(&deck, w, h);
+    let (lower, w, h) = crop(&pixels, LOWER_HULL);
+    let lower = frame_stats_of(&lower, w, h);
+    assert!(
+        lower.p50 < deck.p50,
+        "the lower hull ({:.3}) must read darker than the deck ({:.3})",
+        lower.p50,
+        deck.p50
+    );
+    let ratio = lower.mean_warmth / deck.mean_warmth.max(1.0e-6);
+    assert!(
+        ratio >= MIN_WARMTH_RATIO,
+        "the lower hull must read warmer than the deck by {MIN_WARMTH_RATIO:.2}x (the mud band):          {ratio:.2}x"
+    );
+}
+
 /// D35, the one program: the reference set looked +X with the sun at -X, so every cast shadow
 /// hid behind its caster and rule 1's shade mass was certified from frames that could not see
 /// it (the dark plane's fleet floor: 0.55 %). The sunward frame looks into the sun from the

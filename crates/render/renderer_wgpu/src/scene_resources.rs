@@ -9,7 +9,10 @@ use crate::GpuContext;
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SceneInstance {
     pub model: [[f32; 4]; 4],
-    /// Per-instance team tint (rgb + unused w for 16-byte alignment).
+    /// Per-instance team tint (rgb) and, in w, the GROUND height of the vehicle the instance
+    /// belongs to (D41): the lowest origin among the objects sharing its tank and material —
+    /// the hull's, which the client places at the ground. The vehicle shader's mud band is
+    /// `world_pos.y - w`; a turret's own origin (the ring) would put mud on its skirt.
     pub tint: [f32; 4],
     /// One-based index into the analytical armor-damage header buffer; zero means undamaged.
     pub damage_index: u32,
@@ -178,15 +181,28 @@ pub fn frame_instances_into(scratch: &mut InstanceScratch, frame: &RenderFrame) 
         start += counts[batch];
     }
 
+    // D41: the ground each vehicle stands on, from its own objects — the lowest origin among
+    // those sharing a tank and a material (the hull's, placed at the ground by the client).
+    let mut ground_of: std::collections::HashMap<(Option<renderer_api::VehicleId>, u32), f32> =
+        std::collections::HashMap::new();
+    for object in &frame.objects {
+        let origin_y = object.transform[3][1];
+        ground_of
+            .entry((object.tank_id, object.material.0))
+            .and_modify(|ground| *ground = ground.min(origin_y))
+            .or_insert(origin_y);
+    }
+
     instances.resize(start as usize, bytemuck::Zeroable::zeroed());
     for (object, &batch) in frame.objects.iter().zip(object_batch.iter()) {
         let slot = &mut cursor[batch as usize];
         let [r, g, b] = object.tint;
+        let ground_y = ground_of[&(object.tank_id, object.material.0)];
         let damage_index =
             object.tank_id.and_then(|tank_id| damage_of.get(&tank_id).copied()).unwrap_or(0);
         instances[*slot as usize] = SceneInstance {
             model: object.transform,
-            tint: [r, g, b, 1.0],
+            tint: [r, g, b, ground_y],
             damage_index,
             dither: object.dither,
             _padding: 0,
