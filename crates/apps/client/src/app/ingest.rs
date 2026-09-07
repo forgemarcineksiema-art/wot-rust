@@ -2,7 +2,7 @@
 //! FX, scars, the camera shudder, the kill confirmation, the render buffer and the predictor.
 //! Split from `prediction.rs` for the reviewability budget.
 
-use super::{ActiveTopple, ClientApp};
+use super::{ActiveCollapse, ActiveTopple, ClientApp};
 
 /// The phases the DRESSING draws (Z8): the live phases, except that a tree still going down
 /// keeps standing in the bake and on the ladder until its choreography ends. The sim's boxes
@@ -15,6 +15,19 @@ pub(crate) fn dressing_phases_of(live_phases: &[u8], topples: &[ActiveTopple]) -
         }
     }
     phases
+}
+
+/// The collapses in progress, for the kit: progress 0..1 over `COLLAPSE_DURATION_S`.
+pub(crate) fn collapses_now_of(
+    collapses: &[ActiveCollapse],
+) -> Vec<scene_build::building_kit::BuildingCollapse> {
+    collapses
+        .iter()
+        .map(|collapse| scene_build::building_kit::BuildingCollapse {
+            cover: collapse.cover,
+            progress: collapse.age_s / world_forge::building_kit::COLLAPSE_DURATION_S,
+        })
+        .collect()
 }
 
 /// The falls in progress, for the ladder: progress 0..1 over `TOPPLE_DURATION_S`.
@@ -495,6 +508,13 @@ impl ClientApp {
                         );
                     } else {
                         self.fx.cover_collapse(center, half);
+                        // Z10: a kit dwelling coming down lays its walls into the ruin over
+                        // `COLLAPSE_DURATION_S` — inside the theatre's dust.
+                        if phase == 1 && scene_build::building_kit::kit_dresses(object) {
+                            self.building_collapses.retain(|collapse| collapse.cover != index);
+                            self.building_collapses
+                                .push(ActiveCollapse { cover: index, age_s: 0.0 });
+                        }
                     }
                     self.queue_audio(audio::AudioEvent::CoverCollapse {
                         position: center,
@@ -520,6 +540,16 @@ impl ClientApp {
     #[cfg(test)]
     pub(crate) fn tree_topples_now(&self) -> Vec<scene_build::tree_lod::TreeTopple> {
         topples_now_of(&self.tree_topples)
+    }
+
+    /// Age the collapses (Z10); one whose walls have come down leaves the list — the ruin the
+    /// kit draws in phase 1 is already what stands.
+    pub(crate) fn tick_building_collapses(&mut self, dt: f32) {
+        for collapse in &mut self.building_collapses {
+            collapse.age_s += dt;
+        }
+        self.building_collapses
+            .retain(|collapse| collapse.age_s < world_forge::building_kit::COLLAPSE_DURATION_S);
     }
 
     /// Age the falls; one that has lain down leaves the list and hands its box to the bake.

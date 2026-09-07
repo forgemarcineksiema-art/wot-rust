@@ -504,6 +504,7 @@ impl ClientApp {
             .filter(|age| *age < crate::hud::command_wheel::KNOCK_TTL_S);
         self.fx.tick(frame_dt);
         self.tick_tree_topples(frame_dt);
+        self.tick_building_collapses(frame_dt);
         // Where every live shell is this frame, remembered for the path it draws (A8).
         let shells =
             self.render_state.interpolated_shells(super::frame_scene::SNAPSHOT_INTERVAL_SECONDS);
@@ -840,10 +841,12 @@ impl ClientApp {
         let dressing_phases =
             super::ingest::dressing_phases_of(self.live_cover.phase_bytes(), &self.tree_topples);
         let topples = super::ingest::topples_now_of(&self.tree_topples);
+        let collapses = super::ingest::collapses_now_of(&self.building_collapses);
         self.grass_cache.extend(scene_build::tree_lod::tree_frame_objects_with_topples(
             &self.battlefield,
             &dressing_phases,
             &topples,
+            &collapses,
             tree_eye,
             &mut self.tree_lod_state,
         ));
