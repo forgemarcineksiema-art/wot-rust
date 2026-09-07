@@ -191,8 +191,7 @@ pub fn covers_containing(
     margin_m: f32,
 ) -> impl Iterator<Item = usize> + '_ {
     cover.iter().enumerate().filter_map(move |(index, object)| {
-        let inside = (x - object.center[0]).abs() <= object.half_extents_m[0] + margin_m
-            && (z - object.center[2]).abs() <= object.half_extents_m[2] + margin_m;
-        inside.then_some(index)
+        // X1: the box's own footprint — a turned box excludes where it stands.
+        crate::CoverBox::of(object).contains_xz(x, z, margin_m).then_some(index)
     })
 }

@@ -519,6 +519,12 @@ pub enum ObjectSpec {
         /// detached rectangles.
         #[serde(default)]
         annex_share: f32,
+        /// X2: the district's turn about +Y (radians) — the whole grid turned as ONE about
+        /// its own centre (the mean column, the mean row), every house wearing it and the
+        /// twin the twin's (`SymmetrySpec::twin_yaw`). Absent in every blueprint before
+        /// 2026-09-07, and then exactly the square grid it always was.
+        #[serde(default)]
+        yaw_rad: f32,
     },
 }
 

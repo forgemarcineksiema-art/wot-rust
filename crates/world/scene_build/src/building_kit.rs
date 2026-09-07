@@ -448,12 +448,14 @@ mod tests {
             for building in &placed {
                 let cover = &battlefield.static_cover[building.cover];
                 let half = Vec3::from_array(cover.half_extents_m);
+                // X2: a turned box is measured in its own frame.
+                let frame = terrain::CoverBox::of(cover);
                 for object in &building.objects {
                     let mesh = &meshes[&object.mesh];
                     let transform = Mat4::from_cols_array_2d(&object.transform);
                     for vertex in mesh.vertices() {
-                        let p = transform.transform_point3(Vec3::from_array(vertex.position))
-                            - building.center;
+                        let world = transform.transform_point3(Vec3::from_array(vertex.position));
+                        let p = Vec3::from_array(frame.to_local(world.to_array()));
                         let over = (p.abs() - half).max(Vec3::ZERO);
                         assert!(
                             over.x <= SCENERY_REACH_M + 1e-3 && over.z <= SCENERY_REACH_M + 1e-3,

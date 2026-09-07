@@ -421,15 +421,18 @@ MapBlueprint(
         // cut the mound stood 2.52 m and blocked the turret line too, burying the
         // destruction-opens-the-map promise this row exists to import. The timber grid
         // keeps the two outer rows.
+        // X2 (2026-09-07): Kamienna is two districts. The west column stands square on
+        // the town street; the three columns east of it are ONE district turned 0.17 rad
+        // (10°) about its own centre — a small town's streets never met at right angles,
+        // and the turned block is the first content that reads through the yawed box
+        // (X1). The cells are seeded by (column x, row offset) as before, so the houses
+        // are the houses they were; only their ids and their footprints moved.
         TownGrid(
             id_prefix: "town_house",
             name_prefix: "Kamienna house",
             kind: FarmBuilding,
             columns_x_m: [
                 690.0,
-                732.0,
-                774.0,
-                816.0,
             ],
             row_offsets_m: [
                 82.0,
@@ -440,6 +443,24 @@ MapBlueprint(
             // B6: half the houses grow an annex behind them — a small-town street is a row
             // of L-shapes and yards, not of detached rectangles.
             annex_share: 0.5,
+        ),
+        TownGrid(
+            id_prefix: "town_house_east",
+            name_prefix: "Kamienna east house",
+            kind: FarmBuilding,
+            columns_x_m: [
+                732.0,
+                774.0,
+                816.0,
+            ],
+            row_offsets_m: [
+                82.0,
+                126.0,
+            ],
+            wide_half_m: (6.5, 3.6, 4.0),
+            narrow_half_m: (5.5, 3.0, 4.8),
+            annex_share: 0.5,
+            yaw_rad: 0.17,
         ),
         Cover(
             id: "kamienica_a_south",

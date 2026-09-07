@@ -23,6 +23,52 @@ fn bystra_heightmap_is_mirror_symmetric_across_the_central_axis() {
     assert!(max_delta < 1.0e-3, "mirror symmetry broke: max delta {max_delta}");
 }
 
+/// X2: Kamienna's east district is turned as ONE. Every house east of the town street wears
+/// the district's yaw (its twin the mirrored yaw), the west column stands square, the turn
+/// is about the district's own centre (the mean of the south houses is where the square
+/// grid's was), a far house left its square footprint, and no tree stands in a turned box —
+/// the scatter's containment reads the box, not its bounds.
+#[test]
+fn kamiennas_east_district_is_turned_as_one() {
+    let map = battlefield(MapId::BystraValley);
+    let east: Vec<_> =
+        map.static_cover.iter().filter(|c| c.id.starts_with("town_house_east_")).collect();
+    assert!(east.len() >= 12, "three columns, two rows, two sides: {}", east.len());
+    for cover in &east {
+        let expected = if cover.id.contains("_south") { 0.17 } else { -0.17 };
+        assert!((cover.yaw_rad - expected).abs() < 1.0e-6, "{}: {}", cover.id, cover.yaw_rad);
+    }
+    for cover in map.static_cover.iter().filter(|c| c.id.starts_with("town_house_c")) {
+        assert_eq!(cover.yaw_rad, 0.0, "the west column stands square: {}", cover.id);
+    }
+    let houses: Vec<_> =
+        east.iter().filter(|c| c.id.ends_with("_south") && !c.id.ends_with("_annex")).collect();
+    assert_eq!(houses.len(), 6);
+    let mean_x = houses.iter().map(|c| c.center[0]).sum::<f32>() / 6.0;
+    let mean_z = houses.iter().map(|c| c.center[2]).sum::<f32>() / 6.0;
+    assert!((mean_x - 774.0).abs() < 0.05, "turned about the district's centre: {mean_x}");
+    assert!((mean_z - 396.0).abs() < 0.05, "turned about the district's centre: {mean_z}");
+    let far = east
+        .iter()
+        .find(|c| c.id == "town_house_east_c2_r0_south")
+        .expect("the far column's street-row house");
+    assert!(
+        (far.center[2] - 418.0).abs() > 5.0,
+        "the far house left its square spot: {:?}",
+        far.center
+    );
+    for instance in &map.scenery {
+        for cover in &east {
+            let inside = terrain::CoverBox::of(cover).contains_xz(
+                instance.position[0],
+                instance.position[2],
+                0.0,
+            );
+            assert!(!inside, "{:?} stands in {}", instance.kind, cover.id);
+        }
+    }
+}
+
 /// Layout fairness: spawns, strategic points and cover are on-axis or mirrored pairs.
 #[test]
 fn bystra_layout_is_mirrored_or_on_axis() {

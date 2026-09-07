@@ -14,7 +14,7 @@ splitting the map into two flanks with different games; five crossings decide th
 | 300–520 | open fields, mirrored hedgerow screens | the spotting/positioning game |
 | ~520–620 | **the Bystra**: meandering channel (centerline `bystra_river_center_x(z)`), water level 5.0 m | drowning-deep current everywhere except the crossings |
 | ~620–650 | floodplain, riverside mill + orchard screens | approach cover to the crossings |
-| 650–840 | **town of Kamienna**: 4×3 mirrored block grid on a flattened bench ramp, church + market square on-axis | the brawl; streets hold a constant honest grade |
+| 650–840 | **town of Kamienna**: a mirrored block grid on a flattened bench ramp — the west column square on the town street, the three east columns ONE district turned 10° about its centre (X2, 2026-09-07: the first yawed boxes on any map) — church + market square on-axis | the brawl; streets hold a constant honest grade; the turned district's lanes read at an angle |
 | 860–1000 | quarry ridge (+9 m), mirrored perches (`x≈915, z=500±160`), quarry bowl on-axis | eastern overwatch and the sheltered rotation |
 
 Flora (Inny Poziom F2, 2026-09-02): the valley plants its horizon's species — 26 oaks

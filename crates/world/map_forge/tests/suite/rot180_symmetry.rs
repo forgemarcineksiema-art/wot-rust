@@ -70,6 +70,7 @@ fn rot_square() -> MapBlueprint {
                 wide_half_m: [5.0, 3.0, 4.0],
                 narrow_half_m: [4.0, 2.5, 3.5],
                 annex_share: 0.0,
+                yaw_rad: 0.0,
             },
         ],
         scenery: vec![
