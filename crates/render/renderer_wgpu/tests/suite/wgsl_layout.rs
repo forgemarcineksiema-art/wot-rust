@@ -911,3 +911,20 @@ fn the_vehicle_shader_carries_the_cpu_mirrors_roughness_ladder() {
     }
     assert!(source.contains("pow(1.0 - roughness, 3.0) * 0.6"), "the cube-of-smoothness lobe");
 }
+
+/// D41: paint is not one tone — the vehicle shader carries the 3 m macro octave, the edge
+/// wear on `fwidth` of the normal, and the mud band from the ground the instance lane carries.
+#[test]
+fn the_vehicle_shader_carries_the_macro_octave_the_edge_wear_and_the_mud_band() {
+    let source = vehicle_shader_source();
+    for needle in [
+        "const MACRO_OCTAVE_PER_M: f32 = 0.33;",
+        "v_noise(input.local_pos * MACRO_OCTAVE_PER_M",
+        "length(fwidth(normalize(input.world_normal))) * EDGE_WEAR_GAIN",
+        "const MUD_BAND_TOP_M: f32 = 0.9;",
+        "let above_ground = input.world_pos.y - input.ground_y;",
+        "out.ground_y = input.tint.w;",
+    ] {
+        assert!(source.contains(needle), "vehicle.wgsl must carry `{needle}`");
+    }
+}

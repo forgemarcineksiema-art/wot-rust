@@ -54,6 +54,8 @@ struct VsOut {
     @location(10) @interpolate(flat) mapping_mode: u32,
     @location(11) shade: f32,
     @location(12) @interpolate(flat) damage_index: u32,
+    // The ground height of the vehicle this part belongs to (the instance tint's w, D41).
+    @location(13) ground_y: f32,
 };
 
 fn vs_body(input: VsIn) -> VsOut {
@@ -74,6 +76,7 @@ fn vs_body(input: VsIn) -> VsOut {
     out.mapping_mode = input.mapping_mode;
     out.shade = input.shade;
     out.damage_index = input.damage_index;
+    out.ground_y = input.tint.w;
     return out;
 }
 
@@ -100,6 +103,17 @@ fn vs_interior(input: VsIn) -> VsOut {
 // (0.55 + G) and saturated three of four exterior roles at 1.0 — no lobe, no environment,
 // "does not read as tonnes of steel". Mirrored on the CPU by renderer_api::vehicle_lobes.
 const ROUGHNESS_LANE_SPAN: f32 = 0.30;
+
+// D41: paint is not one tone. A 3 m object-space octave over albedo and roughness (rule 5's
+// macro octave — the largest variation on a hull used to be 0.38 m), bare steel at the edges
+// where the surface turns within a pixel (`fwidth` of the normal — chipped paint lives on
+// edges), and a mud band from the ground up on every exterior role. All object-local and
+// deterministic: a parked tank and a moving one wear the same.
+const MACRO_OCTAVE_PER_M: f32 = 0.33;
+const MACRO_TONE_SPAN: f32 = 0.06;
+const EDGE_WEAR_GAIN: f32 = 2.5;
+const MUD_BAND_TOP_M: f32 = 0.9;
+const MUD_BAND_FLOOR_M: f32 = 0.15;
 
 // Per-material PBR-lite parameters: base albedo and roughness, keyed by material id
 // (0 rolled armour, 1 cast armour, 2 barrel steel, 3 track metal, 4 rubber,
@@ -364,7 +378,9 @@ fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec
     // Material micro-variation: broad patches of repainted/faded finish over a finer service
     // grain. Object-local, so a parked tank and a moving one carry the same wear.
     let grain = v_noise(input.local_pos * 2.6) * 0.65 + v_noise(input.local_pos * 9.0) * 0.35;
-    let albedo_var = mix(0.92, 1.08, grain);
+    // The 3 m macro octave (D41): faded and repainted PANELS, not a fine grain.
+    let macro_tone = v_noise(input.local_pos * MACRO_OCTAVE_PER_M + vec3<f32>(11.3, 5.1, 2.7));
+    let albedo_var = mix(0.92, 1.08, grain) * mix(1.0 - MACRO_TONE_SPAN, 1.0 + MACRO_TONE_SPAN, macro_tone);
     // A burnt-out wreck is charcoal, not lacquer: the wreck tint's near-black luma (well under
     // any live paint — the darkest camo+dirt tint stays above ~0.33) drives the WHOLE vehicle
     // matte and kills the sky mirror, so charring never reads as gloss paint. Not gated by
@@ -388,6 +404,24 @@ fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec
 
     var albedo = mat.albedo * baked_albedo * tinted * albedo_var * mix(1.0, 0.85, wet);
     let fractured_steel = input.material_id == 8u;
+    // Edge wear (D41): where the surface turns within a pixel the paint is chipped to steel.
+    // Armour roles only — a track link's edges are steel already, glass has no paint.
+    let armour = input.material_id <= 1u;
+    let edge_wear = select(
+        0.0,
+        smoothstep(0.30, 0.80, length(fwidth(normalize(input.world_normal))) * EDGE_WEAR_GAIN),
+        armour,
+    ) * (1.0 - burnt);
+    albedo = mix(albedo, vec3<f32>(0.50, 0.50, 0.52) * albedo_var, edge_wear * 0.7);
+    // The mud band (D41): from the ground up on every exterior role — dry earth, matte, broken
+    // by the broad noise. Glass and the interior stay clean; rain thins it toward wet mud.
+    let exterior = input.material_id != 10u && !(input.material_id >= 5u && input.material_id <= 7u);
+    let above_ground = input.world_pos.y - input.ground_y;
+    let mud = select(0.0, 1.0, exterior)
+        * (1.0 - smoothstep(MUD_BAND_FLOOR_M, MUD_BAND_TOP_M, above_ground))
+        * (0.5 + 0.5 * v_noise(input.local_pos * 2.1 + vec3<f32>(3.1, 17.7, 9.3)))
+        * (1.0 - burnt);
+    albedo = mix(albedo, vec3<f32>(0.27, 0.22, 0.15) * albedo_var, mud * 0.45 * (1.0 - wet * 0.4));
     // Torn steel by the tear lane the rim mesh writes into `shade` (Z6): the scorched root of
     // a tongue is near-black, the plate's section is dark warm steel, the torn tip is BRIGHT
     // bare metal — fresh steel is silver at the break; rust is weeks away.
@@ -508,7 +542,12 @@ fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec
     let rough_base = (role_roughness + (ao_rough.g - 0.5) * ROUGHNESS_LANE_SPAN)
         * mix(1.0, 0.55, wet) * (1.0 - wound.bare * 0.25);
     let roughness = clamp(
-        mix(rough_base + (grain - 0.5) * 0.20 + dust * 0.22, 0.95, burnt),
+        mix(
+            rough_base + (grain - 0.5) * 0.20 + (macro_tone - 0.5) * 0.12 + dust * 0.22
+                + mud * 0.20 - edge_wear * 0.25,
+            0.95,
+            burnt,
+        ),
         0.04,
         1.0,
     );
@@ -540,7 +579,10 @@ fn fs_main(input: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec
     // only reflects at grazing angles, so F0 rides the lane: worn track metal catches the sky at
     // any angle instead of only silhouette-on, which is most of what separates a steel belt from
     // a rubber one at battle range.
-    let metal = max(max(ao_rough.b, wound.bare * 0.4), select(0.0, torn_tip * 0.6, fractured_steel));
+    let metal = max(
+        max(max(ao_rough.b, wound.bare * 0.4), edge_wear * 0.6),
+        select(0.0, torn_tip * 0.6, fractured_steel),
+    );
     let f0 = mix(0.04, 0.32, metal);
     let fresnel = f0 + (1.0 - f0) * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
