@@ -56,6 +56,23 @@ pub(crate) fn burst_he_splash(
         return;
     }
     let owner_team = tanks.iter().find(|tank| tank.id == shell.owner).map(|tank| tank.team);
+    // S23: a wreck is steel too — the wave stops in a dead hull standing between the burst and
+    // the next tank exactly as it stops in a wall.
+    let wrecks: Vec<WreckSlab> = tanks
+        .iter()
+        .filter(|tank| tank.hit_points == 0)
+        .map(|tank| WreckSlab {
+            id: tank.id,
+            position: tank.position,
+            center_y_m: tank.spec.hitbox.center_y_m,
+            pose: tank.hull_pose(),
+            half: Vec3::new(
+                tank.spec.hitbox.half_width_m,
+                tank.spec.hitbox.half_height_m,
+                tank.spec.hitbox.half_length_m,
+            ),
+        })
+        .collect();
     for tank in tanks.iter_mut() {
         if tank.hit_points == 0 || Some(tank.id) == direct_target {
             continue;
@@ -74,6 +91,7 @@ pub(crate) fn burst_he_splash(
         // against the far face, straight through unbroken masonry.
         if cover_blocks_splash(cover, rubble, burst_point, hull_point)
             || !splash_line_clear(heightmap, burst_point, hull_point)
+            || wreck_blocks_splash(&wrecks, tank.id, direct_target, burst_point, hull_point)
         {
             continue;
         }
@@ -193,6 +211,38 @@ fn cover_blocks_splash(
             && cover_box
                 .segment_interval(burst, hull, 0.0)
                 .is_some_and(|(t0, t1)| t1 - t0 > THROUGH_EPS)
+    })
+}
+
+/// A dead hull as the blast sees it: its hitbox slab in its own frame.
+struct WreckSlab {
+    id: TankId,
+    position: Vec3,
+    center_y_m: f32,
+    pose: game_core::math::HullPose,
+    half: Vec3,
+}
+
+/// Whether a wreck genuinely stands BETWEEN the burst and the hull point (S23) — a positive
+/// interior crossing of its slab, never the wreck the shell burst on (the direct target) and
+/// never the tank being asked about. A burst on a wreck's own face still reaches what stands
+/// beside it; only a dead hull across the line shields.
+fn wreck_blocks_splash(
+    wrecks: &[WreckSlab],
+    victim: TankId,
+    direct_target: Option<TankId>,
+    burst: Vec3,
+    hull: Vec3,
+) -> bool {
+    const THROUGH_EPS: f32 = 0.02;
+    wrecks.iter().any(|wreck| {
+        if wreck.id == victim || Some(wreck.id) == direct_target {
+            return false;
+        }
+        let from = world_to_tank_local(burst, wreck.position, wreck.center_y_m, wreck.pose);
+        let to = world_to_tank_local(hull, wreck.position, wreck.center_y_m, wreck.pose);
+        game_core::math::segment_box_entry(from, to, -wreck.half, wreck.half)
+            .is_some_and(|entry| entry > THROUGH_EPS && entry < 1.0 - THROUGH_EPS)
     })
 }
 

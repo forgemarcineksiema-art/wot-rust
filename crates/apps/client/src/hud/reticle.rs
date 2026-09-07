@@ -256,6 +256,9 @@ fn penetration_from_outcome(
         direction,
         belts_present: [target.track_hp[0] > 0, target.track_hp[1] > 0],
     });
+    // S23: the sum is the POST-BITE penetration — inside the glance band (60–70°) the round
+    // has already lost up to 30 % of its bite, and the sight prints what is left, never the
+    // nominal figure (`game_core` locks the 15 % at 65°).
     Some(PenetrationHint {
         penetrates: result.penetrated,
         shell_pen_mm: result.effective_armor_mm + result.remaining_penetration_mm,

@@ -449,9 +449,16 @@ fn apply_internal_module_path(
         } else {
             target.spec.damage_layout.impacted_module(penetrated, local_hit)
         };
-        if let Some(slot) = module {
-            target.modules.damage(slot, base_damage_hp);
+        // S18: through the same wound scale the interior path uses — a slap on the running
+        // gear WOUNDS a module (280 HP of OF-412 used to land raw on a 150-HP suspension and
+        // destroy it in one lump); a destroyed module stays an event a second hit earns.
+        let wound = (base_damage_hp as f32 * MODULE_WOUND_SCALE).round() as u32;
+        if let Some(slot) = module
+            && wound > 0
+        {
+            target.modules.damage(slot, wound);
         }
+        let module = module.filter(|_| wound > 0);
         return InternalPath {
             first_module: module,
             damaged_modules_mask: module.map_or(0, ModuleSlot::destroyed_mask_bit),
@@ -1076,6 +1083,37 @@ mod tests {
             .expect("T-54 blueprint")
             .hull
             .half_width
+    }
+
+    /// S18: a non-penetrating slap on a `requires_penetration: false` component goes through
+    /// the wound scale like every other module hit — one OF-412 wounds a healthy T-54
+    /// suspension (280 → 126 of 150 HP), never destroys it.
+    #[test]
+    fn a_non_penetrating_slap_wounds_a_component_and_never_destroys_it() {
+        let spec = TankSpec::t54_1951();
+        let mut tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+        let mut shell =
+            shell_toward(TankId(1), Vec3::new(-5.0, 0.5, 0.0), Vec3::new(900.0, 0.0, 0.0), &spec);
+        shell.shell = game_core::RoundId::Of412.spec();
+        let full = tank.spec.module_health.hit_points(ModuleSlot::Suspension);
+        assert_eq!(full, 150);
+        let base = 280;
+        // A point inside the left suspension capsule (x 1.32, y −0.70 in the hull frame).
+        let path = apply_internal_module_path(
+            &mut tank,
+            &shell,
+            false,
+            0.0,
+            base,
+            ArmorZone::HullSide,
+            Vec3::new(-1.32, -0.70, 0.0),
+        );
+        assert_eq!(path.first_module, Some(ModuleSlot::Suspension));
+        let left = tank.modules.hit_points(ModuleSlot::Suspension);
+        assert!(left > 0, "one slap never destroys a healthy suspension");
+        assert!(left < full, "...but it wounds it");
+        assert_eq!(full - left, (base as f32 * MODULE_WOUND_SCALE).round() as u32);
+        assert_eq!(game_core::module_condition(left, full), game_core::ModuleCondition::Damaged);
     }
 
     #[test]

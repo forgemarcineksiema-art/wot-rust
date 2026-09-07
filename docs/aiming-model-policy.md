@@ -121,6 +121,14 @@ steering, turret traverse, gun elevation, and firing add bloom up to the gun's
 maximum dispersion. Partial gun damage raises the minimum dispersion; a
 destroyed gun still cannot fire.
 
+On the record (S23, 2026-09-08; GDD reconciliation row 32): the aim time is
+THREE e-folds — `excess · exp(−3·t / aim_time)`, so 95 % of a bloom is gone one
+aim time after the hull stands still (a T-54's "2.5 s" settles the way WoT's
+0.8 s does) — and the bloom is ADDITIVE, not a multiplier stack: a hull at full
+speed settles where the bloom rate meets the recovery, `base + bloom_mrad ·
+(v / v_max) · aim_time / 3` = 2.9 + 5.0 · 2.5 / 3 = 7.07 mrad for the T-54
+(2.44× its base). Both are locked in `sim/tests/suite/aim_dispersion.rs`.
+
 The server simulation owns the live dispersion value and applies a deterministic
 center-biased shot offset when spawning a shell. Snapshots replicate the current
 dispersion so the client can draw the aiming circle without inventing combat
