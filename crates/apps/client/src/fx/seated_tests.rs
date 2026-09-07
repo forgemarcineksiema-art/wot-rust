@@ -21,6 +21,8 @@ fn target_at(z: f32) -> TankSnapshot {
         hull_roll_rad: 0.0,
         hull_pitch_velocity_rad_s: 0.0,
         hull_roll_velocity_rad_s: 0.0,
+        hull_dive_pitch_rad: 0.0,
+        hull_dive_pitch_velocity_rad_s: 0.0,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.0,

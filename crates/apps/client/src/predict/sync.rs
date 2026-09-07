@@ -47,6 +47,8 @@ impl LocalPredictor {
         self.drive.kinematic.roll_rad = authoritative.hull_roll_rad;
         self.drive.kinematic.pitch_vel_rad_s = authoritative.hull_pitch_velocity_rad_s;
         self.drive.kinematic.roll_vel_rad_s = authoritative.hull_roll_velocity_rad_s;
+        self.drive.kinematic.dive_pitch_rad = authoritative.hull_dive_pitch_rad;
+        self.drive.kinematic.dive_pitch_vel_rad_s = authoritative.hull_dive_pitch_velocity_rad_s;
         self.drive.aiming = AimingState {
             turret_yaw_rad: self.spec.effective_turret_yaw_rad(authoritative.turret_yaw_rad),
             turret_yaw_velocity_rad_s: authoritative.turret_yaw_velocity_rad_s,
@@ -68,6 +70,8 @@ impl LocalPredictor {
             self.drive.kinematic.yaw_rate_rad_s = motion.hull_yaw_velocity_rad_s;
             self.drive.kinematic.pitch_vel_rad_s = motion.hull_pitch_velocity_rad_s;
             self.drive.kinematic.roll_vel_rad_s = motion.hull_roll_velocity_rad_s;
+            self.drive.kinematic.dive_pitch_rad = motion.hull_dive_pitch_rad;
+            self.drive.kinematic.dive_pitch_vel_rad_s = motion.hull_dive_pitch_velocity_rad_s;
         }
 
         if force_anchor || !was_seeded || correction_m > MAX_SMOOTH_AUTHORITATIVE_CORRECTION_M {

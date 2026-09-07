@@ -41,6 +41,16 @@ pub struct TankKinematicState {
     /// The roll spring's velocity (rad/s); same lifecycle as `pitch_vel_rad_s`.
     #[serde(default)]
     pub roll_vel_rad_s: f32,
+    /// The pitch spring's response to WEIGHT TRANSFER alone (the brake dive, the launch squat):
+    /// the same spring driven by the dive target only, so `pitch_rad` = terrain share + this. The
+    /// gun compensates this share on every vehicle (the one program's J4 — the owner: „stabilizować
+    /// udział nurka dla każdego działa jak w WoT”), while the terrain share stays the historical
+    /// stabilizer's business. `serde(default)` keeps older fixtures level.
+    #[serde(default)]
+    pub dive_pitch_rad: f32,
+    /// The dive spring's velocity (rad/s); same lifecycle as `dive_pitch_rad`.
+    #[serde(default)]
+    pub dive_pitch_vel_rad_s: f32,
 }
 
 impl Default for TankKinematicState {
@@ -54,6 +64,8 @@ impl Default for TankKinematicState {
             roll_rad: 0.0,
             pitch_vel_rad_s: 0.0,
             roll_vel_rad_s: 0.0,
+            dive_pitch_rad: 0.0,
+            dive_pitch_vel_rad_s: 0.0,
         }
     }
 }

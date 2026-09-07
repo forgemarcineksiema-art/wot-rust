@@ -330,6 +330,8 @@ impl LocalPredictor {
             hull_yaw_velocity_rad_s: self.drive.kinematic.yaw_rate_rad_s,
             hull_pitch_velocity_rad_s: self.drive.kinematic.pitch_vel_rad_s,
             hull_roll_velocity_rad_s: self.drive.kinematic.roll_vel_rad_s,
+            hull_dive_pitch_rad: self.drive.kinematic.dive_pitch_rad,
+            hull_dive_pitch_velocity_rad_s: self.drive.kinematic.dive_pitch_vel_rad_s,
         }
     }
 

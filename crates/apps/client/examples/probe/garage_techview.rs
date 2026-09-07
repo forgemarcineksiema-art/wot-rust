@@ -52,6 +52,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         crew_down_remaining_s: Default::default(),
         hull_pitch_velocity_rad_s: 0.0,
         hull_roll_velocity_rad_s: 0.0,
+        hull_dive_pitch_rad: 0.0,
+        hull_dive_pitch_velocity_rad_s: 0.0,
     };
     let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
     // screen over the dim hangar. Kept here so the example stays close to the

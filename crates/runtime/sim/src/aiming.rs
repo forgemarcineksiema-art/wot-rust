@@ -18,8 +18,13 @@ pub struct AimingState {
 }
 
 /// Advance turret yaw and gun pitch one tick. `hull_pitch_delta_rad` is how much the hull
-/// pitched THIS tick (the drive step measures it around the attitude advance); a vehicle with a
-/// vertical stabilizer cancels that share of it so the gun holds its world elevation.
+/// pitched THIS tick (the drive step measures it around the attitude advance) and
+/// `dive_pitch_delta_rad` how much of that was WEIGHT TRANSFER (the brake dive, the launch
+/// squat — `physics::TankKinematicState::dive_pitch_rad`). Every gun's mount holds against the
+/// dive share (the one program's J4, the owner: „stabilizować udział nurka dla każdego działa jak
+/// w WoT”): the hull may nod under the brakes as tonnes do, the aim point does not. A vehicle
+/// with a vertical stabilizer additionally cancels the TERRAIN share, so its gun holds its world
+/// elevation over a crest too.
 ///
 /// Inny Poziom A12: the elevation rate is the gun's own (`GunSpec::elevation_rate_rad_s`) — the
 /// fleet shared one constant, 0.5 rad/s, slower than every hull's pitch rate — and the
@@ -32,6 +37,7 @@ pub fn step_aiming(
     command: TankCommand,
     dt_seconds: f32,
     hull_pitch_delta_rad: f32,
+    dive_pitch_delta_rad: f32,
 ) {
     let command = command.clamped();
 
@@ -52,7 +58,10 @@ pub fn step_aiming(
     // The stabilizer acts first — a gyro-driven mount, not a gunner's reaction — so the
     // gunner's own command rides on the held gun; the arc clamp bounds both, because no
     // stabilizer depresses a breech through the turret roof.
-    let stabilized = spec.vertical_stabilizer.clamp(0.0, 1.0) * hull_pitch_delta_rad;
+    let historical = spec.vertical_stabilizer.clamp(0.0, 1.0);
+    // The dive share is held by every mount; the historical stabilizer holds the whole delta
+    // (the dive is inside it), so the two never double-count.
+    let stabilized = historical * hull_pitch_delta_rad + (1.0 - historical) * dive_pitch_delta_rad;
     aiming.gun_pitch_rad = (aiming.gun_pitch_rad - stabilized
         + command.gun_pitch_delta * spec.gun.elevation_rate_rad_s * dt_seconds)
         .clamp(min_pitch, max_pitch);
@@ -72,7 +81,7 @@ mod tests {
 
         // Ten minutes of full one-way traverse (~275 rad unwrapped at 0.46 rad/s).
         for _ in 0..36_000 {
-            step_aiming(&mut aiming, &spec, command, 1.0 / 60.0, 0.0);
+            step_aiming(&mut aiming, &spec, command, 1.0 / 60.0, 0.0, 0.0);
             assert!(
                 aiming.turret_yaw_rad > -PI - 1.0e-5 && aiming.turret_yaw_rad <= PI + 1.0e-5,
                 "turret yaw must stay wrapped, got {}",
@@ -92,7 +101,7 @@ mod tests {
         let mut stabilized = TankSpec::t54_1951();
         stabilized.vertical_stabilizer = 1.0;
         let mut held = AimingState { gun_pitch_rad: 0.10, ..AimingState::default() };
-        step_aiming(&mut held, &stabilized, TankCommand::idle(), dt, hull_pitch_step);
+        step_aiming(&mut held, &stabilized, TankCommand::idle(), dt, hull_pitch_step, 0.0);
         let world_before = 0.0 + 0.10;
         let world_after = hull_pitch_step + held.gun_pitch_rad;
         assert!(
@@ -103,7 +112,7 @@ mod tests {
         let riding = TankSpec::t54_1951();
         assert_eq!(riding.vertical_stabilizer, 0.0, "the obr. 1951 carries no STP-1");
         let mut rode = AimingState { gun_pitch_rad: 0.10, ..AimingState::default() };
-        step_aiming(&mut rode, &riding, TankCommand::idle(), dt, hull_pitch_step);
+        step_aiming(&mut rode, &riding, TankCommand::idle(), dt, hull_pitch_step, 0.0);
         assert_eq!(rode.gun_pitch_rad, 0.10, "unstabilized: the hull-relative gun did not move");
         assert!(
             ((hull_pitch_step + rode.gun_pitch_rad) - world_before - hull_pitch_step).abs()
@@ -116,7 +125,7 @@ mod tests {
         let (min_pitch, _) = stabilized.gun_pitch_limits_rad();
         let mut at_limit =
             AimingState { gun_pitch_rad: min_pitch + 0.01, ..AimingState::default() };
-        step_aiming(&mut at_limit, &stabilized, TankCommand::idle(), dt, 0.2);
+        step_aiming(&mut at_limit, &stabilized, TankCommand::idle(), dt, 0.2, 0.0);
         assert_eq!(at_limit.gun_pitch_rad, min_pitch, "no stabilizer depresses through the roof");
     }
 
@@ -128,7 +137,7 @@ mod tests {
         assert!(spec.gun.elevation_rate_rad_s > 0.5, "the D-10 is faster than the old constant");
         let mut aiming = AimingState::default();
         let command = TankCommand { gun_pitch_delta: 1.0, ..TankCommand::idle() };
-        step_aiming(&mut aiming, &spec, command, 1.0 / 60.0, 0.0);
+        step_aiming(&mut aiming, &spec, command, 1.0 / 60.0, 0.0, 0.0);
         assert!((aiming.gun_pitch_rad - spec.gun.elevation_rate_rad_s / 60.0).abs() < 1.0e-6);
     }
 }

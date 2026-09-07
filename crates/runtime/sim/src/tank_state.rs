@@ -55,6 +55,13 @@ pub struct TankState {
     /// The roll spring's velocity (rad/s); same lifecycle as `hull_pitch_velocity_rad_s`.
     #[serde(default)]
     pub hull_roll_velocity_rad_s: f32,
+    /// The dive share of the hull pitch and its spring velocity (J4): the part of
+    /// `hull_pitch_rad` that weight transfer put there, which every gun's mount holds against.
+    /// On the wire (v53) so the predictor holds the same gun the server does.
+    #[serde(default)]
+    pub hull_dive_pitch_rad: f32,
+    #[serde(default)]
+    pub hull_dive_pitch_velocity_rad_s: f32,
     pub hit_points: u32,
     pub reload_remaining_s: f32,
     /// A fire command that arrived a hair before the reload completed (within the input-buffer
