@@ -1,6 +1,7 @@
+use super::common;
 use renderer_api::{FxVertex, VehicleVertex, surface_role};
 use renderer_wgpu::{
-    CameraUniform, GpuContext, build_camera_bind_group_layout, build_shadow_bind_group_layout,
+    CameraUniform, build_camera_bind_group_layout, build_shadow_bind_group_layout,
     build_vehicle_pipeline, encode_camera_uniform, fx_shader_source, scene_shader_source,
     shadow_shader_source, sky_shader_source, terrain_shader_source, validate_wgsl_shader,
     vehicle_shader_source,
@@ -799,8 +800,7 @@ fn assert_binding_declared(source: &str, binding: &str, name: &str) {
 
 #[test]
 fn vehicle_pipeline_builds_on_a_real_device() {
-    let Ok(ctx) = GpuContext::headless() else {
-        eprintln!("skipping vehicle pipeline test: no GPU adapter");
+    let Some(ctx) = common::headless("vehicle pipeline test") else {
         return;
     };
     // Proves the shader compiles on the GPU and the VehicleVertex/instance layout binds without

@@ -4,17 +4,12 @@
 //! framebuffer would have clipped. This is the property bloom (A4) will feed on. Runs on the
 //! headless adapter; skips if none is available.
 
+use super::common;
 use renderer_api::{Camera, SceneLighting, SceneVertex, view_projection_matrix};
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping hdr formation test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("hdr formation test")
 }
 
 /// Decode one IEEE 754 half-precision float.

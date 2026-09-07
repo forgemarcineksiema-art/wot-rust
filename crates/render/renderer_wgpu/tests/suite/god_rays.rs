@@ -10,14 +10,8 @@ use common::total_luma;
 use renderer_api::{Camera, SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping god ray test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("god ray test")
 }
 
 fn render_with_rays(ctx: &GpuContext, strength: f32) -> Vec<u8> {

@@ -10,14 +10,8 @@ use common::total_luma;
 use renderer_api::{Camera, SceneLighting, SceneVertex, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping bloom energy test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("bloom energy test")
 }
 
 fn render_with_bloom(ctx: &GpuContext, weight: f32) -> Vec<u8> {

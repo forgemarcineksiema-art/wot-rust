@@ -1,14 +1,9 @@
+use super::common;
 use renderer_api::{MeshHandle, VehicleMeshAsset, VehicleVertex};
-use renderer_wgpu::{GpuContext, VehicleMeshRegistry};
+use renderer_wgpu::VehicleMeshRegistry;
 
-fn headless_context() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping vehicle resource test: {error}");
-            None
-        }
-    }
+fn headless_context() -> Option<common::HeadlessGpu> {
+    common::headless("vehicle resource test")
 }
 
 #[test]

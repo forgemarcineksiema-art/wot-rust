@@ -42,13 +42,7 @@ fn render_sky(
 
 #[test]
 fn an_overcast_lid_occludes_the_sun_disc() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping sun occlusion test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("sun occlusion test") else {
         return;
     };
 
@@ -88,13 +82,7 @@ fn an_overcast_lid_occludes_the_sun_disc() {
 
 #[test]
 fn looking_below_the_horizon_stays_finite_and_deterministic() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping horizon singularity test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("horizon singularity test") else {
         return;
     };
 

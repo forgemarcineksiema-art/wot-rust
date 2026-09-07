@@ -52,13 +52,7 @@ fn render_crease(ctx: &GpuContext, lighting: SceneLighting, ssao: bool) -> Vec<u
 
 #[test]
 fn under_pure_key_light_ssao_is_invisible() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping ssao coupling test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("ssao coupling test") else {
         return;
     };
     // Kill every indirect term: only the sun key (and its shadow) lights the scene.
@@ -127,13 +121,7 @@ fn render_field(ctx: &GpuContext, lighting: SceneLighting, ssao: bool) -> Vec<u8
 /// under the ambient-only rig where AO is most visible.
 #[test]
 fn a_flat_field_does_not_occlude_itself() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping ssao coupling test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("ssao coupling test") else {
         return;
     };
     let mut lighting = SceneLighting::battlefield_default();
@@ -162,13 +150,7 @@ fn a_flat_field_does_not_occlude_itself() {
 
 #[test]
 fn with_ambient_on_the_crease_still_darkens() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping ssao coupling test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("ssao coupling test") else {
         return;
     };
     // Isolate the indirect lane this test owns. The correctly normalized near-shadow PCF leaves

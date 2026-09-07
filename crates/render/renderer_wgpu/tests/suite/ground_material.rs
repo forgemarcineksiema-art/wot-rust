@@ -11,6 +11,7 @@
 //!
 //! GPU-only; skips without an adapter like the other render tests.
 
+use super::common;
 use renderer_api::{
     LightingQuality, SceneLighting, SceneVertex, ShaderDetailMask, TerrainGroundMaps,
     TerrainMaterialSet, view_projection_matrix,
@@ -163,13 +164,7 @@ fn band_mean(plane: &[f32], rows: std::ops::Range<usize>) -> f32 {
 
 #[test]
 fn the_ground_material_varies_the_mid_field_and_grains_the_near_field_without_retinting() {
-    let Some(ctx) = (match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping ground material test: {error}");
-            None
-        }
-    }) else {
+    let Some(ctx) = common::headless("ground material test") else {
         return;
     };
     let with = luma_plane(&render_field(&ctx, true));

@@ -44,14 +44,8 @@ fn render_floor(ctx: &GpuContext, lighting: SceneLighting) -> Vec<u8> {
     target.read_rgba8(ctx).expect("readback")
 }
 
-fn headless() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping local lights test: {error}");
-            None
-        }
-    }
+fn headless() -> Option<common::HeadlessGpu> {
+    common::headless("local lights test")
 }
 
 #[test]

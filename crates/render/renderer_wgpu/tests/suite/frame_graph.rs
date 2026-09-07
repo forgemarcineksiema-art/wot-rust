@@ -9,6 +9,7 @@
 //! wave hangs from, and a net that only runs where there is a GPU would not be under the parts of
 //! the gate that always run.
 
+use super::common;
 use std::collections::BTreeSet;
 
 use renderer_wgpu::{FRAME_GRAPH, FrameResource, PassId, PassNode};
@@ -198,8 +199,7 @@ fn a_frame_draws_its_world_exactly_once() {
 /// frame, and the recorder keeps it whether or not anything is timing.
 #[test]
 fn the_encoded_passes_match_the_graph() {
-    let Ok(ctx) = renderer_wgpu::GpuContext::headless() else {
-        eprintln!("skipping graph/encoding agreement test: no headless adapter");
+    let Some(ctx) = common::headless("graph/encoding agreement test") else {
         return;
     };
     let target = renderer_wgpu::OffscreenTarget::new(&ctx, 64, 64).expect("target");

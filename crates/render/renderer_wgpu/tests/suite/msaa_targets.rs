@@ -9,17 +9,12 @@
 //! and colour ever disagreed, `wgpu` would reject the pass outright — so a successful render is
 //! the GPU itself certifying the thing the old guard was trying to check by hand.
 
+use super::common;
 use renderer_api::{Camera, view_projection_matrix};
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer, clear_color};
+use renderer_wgpu::{OffscreenTarget, SceneRenderer, clear_color};
 
-fn headless() -> Option<GpuContext> {
-    match GpuContext::headless() {
-        Ok(ctx) => Some(ctx),
-        Err(error) => {
-            eprintln!("skipping MSAA target test: {error}");
-            None
-        }
-    }
+fn headless() -> Option<common::HeadlessGpu> {
+    common::headless("MSAA target test")
 }
 
 /// A frame renders at every sample count the renderer ships or reviews at.
