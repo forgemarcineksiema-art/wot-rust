@@ -30,6 +30,10 @@ const SEPARATE_BINARY_ALLOWLIST: &[(&str, &str)] = &[
         "crates/runtime/net/tests/protocol_snapshots.rs",
         "re-records the wire fixtures under REGEN_WIRE_FIXTURES; runs alone",
     ),
+    (
+        "crates/render/renderer_wgpu/tests/hud_budget.rs",
+        "a GPU timing floor: measures the HUD pass with the GPU to itself — inside the suite          binary the other GPU tests run alongside it and the pass read 3 ms instead of 0.4",
+    ),
 ];
 
 #[test]

@@ -4,6 +4,12 @@
 //! silently blanking the frame. The shape: the HUD is one draw in its own pass (interface program
 //! F1). And the cost: what that pass takes on the min spec, as a FLOOR that cannot regress and a
 //! TARGET the design document set.
+//!
+//! Its own test binary, on purpose (2026-09-07): inside the `suite` binary the other GPU tests
+//! run on their own threads alongside this one, and under the full gate the HUD pass measured a
+//! steady 2.99 ms (p95 3.00) against 0.4 ms alone — the GPU was shared, not the pass costlier.
+//! Cargo runs test binaries one after another, so here the pass has the GPU to itself, which is
+//! the only condition under which a floor on its time means anything.
 
 use renderer_api::{Camera, HudVertex, view_projection_matrix};
 use renderer_wgpu::{
