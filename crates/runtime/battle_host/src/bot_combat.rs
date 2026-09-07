@@ -100,6 +100,9 @@ pub(crate) fn bot_best_engageable_enemy<'a>(
         if best.is_some_and(|(_, best_score)| score <= best_score) {
             continue;
         }
+        // V0 left the bot on its EYE: on the shell's reading (`sim::tank_shell_line_clear`)
+        // the Bystra river soak lost a third seed's hull (`bot_water`), and that lock is not a
+        // threshold to raise — the switch waits on H1's escape.
         if sim::tank_line_of_sight(tank, target, heightmap, cover) {
             best = Some((target, score));
         }

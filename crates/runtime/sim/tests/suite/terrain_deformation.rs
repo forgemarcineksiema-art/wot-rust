@@ -15,7 +15,8 @@ use terrain::HeightMap;
 const HE_SLOT: u8 = 2;
 
 /// Fire the shooter's currently selected round into the dirt ahead and run the battle until the
-/// shell has died.
+/// shell has died. A kinetic round nosed down seven degrees meets the field inside Z7's skip
+/// cone and flies on once before it lands for good, so the wait is generous.
 fn fire_into_the_ground(state: &mut SimulationState, terrain: &HeightMap) {
     let step = FixedTimestep::from_hz(60);
     state.apply_commands_on_battlefield(
@@ -24,7 +25,7 @@ fn fire_into_the_ground(state: &mut SimulationState, terrain: &HeightMap) {
         terrain,
         &[],
     );
-    for _ in 0..120 {
+    for _ in 0..1500 {
         if state.shells().is_empty() {
             break;
         }

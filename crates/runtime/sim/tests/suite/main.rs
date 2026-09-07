@@ -27,6 +27,7 @@ mod fire;
 mod fire_buffer;
 mod fixed_tick;
 mod ghost_barrel_honesty;
+mod ground_ricochet;
 mod gun_arc;
 mod he_splash;
 mod hull_attitude_combat;
