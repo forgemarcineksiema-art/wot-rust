@@ -17,6 +17,7 @@
 //! real cost (see `ramming.rs`), and a sequential solver would hand it straight back.
 
 use glam::{Vec2, Vec3};
+use terrain::StaticCoverObject;
 
 use crate::collision::{ContactFeature, TankFootprint, TankObstacle, footprint_contact_within};
 
@@ -124,11 +125,36 @@ pub struct ContactBody {
     /// A wreck still blocks, but nothing moves it: it takes part in every contact as an immovable
     /// obstacle, so a hull that runs into one is stopped by the contact rather than by a veto.
     pub movable: bool,
+    /// A STANDING SOLID — a wall, a building, a stone — in the roster solve (the one program's
+    /// X6): immovable, planted in the ground (its band runs from below every support up to
+    /// `position.y + footprint.height_m`), met by a hull's STEP band (`TankObstacle::climbing`,
+    /// the one predicate the cover blocker reads), so a hull that hits it loses its momentum
+    /// through a contact — a dive, a torque, a bill — and not through a veto. Built through
+    /// [`solid_bodies_near`], on both sides of the wire.
+    pub solid: bool,
 }
 
 impl ContactBody {
     fn obstacle(&self) -> TankObstacle {
+        if self.solid {
+            return TankObstacle::grounded_solid(
+                self.position,
+                self.yaw_rad,
+                self.footprint,
+                self.position.y + self.footprint.height_m,
+            );
+        }
         TankObstacle::new(self.position, self.yaw_rad, self.footprint)
+    }
+
+    /// This body as the OTHER side of a pair sees it: against a standing solid a hull wears its
+    /// step band (a solid whose top is within the step is ground, not a wall — X4); against a
+    /// hull it wears its full band (a hull does not step onto a hull).
+    fn obstacle_against(&self, other: &ContactBody) -> TankObstacle {
+        if !self.solid && other.solid {
+            return TankObstacle::climbing(self.position, self.yaw_rad, self.footprint);
+        }
+        self.obstacle()
     }
 
     fn inverse_mass(&self) -> f32 {
@@ -384,7 +410,12 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
             // side of the plate it should have hit.
             let reach = SPECULATIVE_MARGIN_M
                 + (bodies[a].velocity.length() + bodies[b].velocity.length()) * dt;
-            let (here_a, here_b) = (bodies[a].obstacle(), bodies[b].obstacle());
+            // Two solids never meet: walls do not shove walls.
+            if bodies[a].solid && bodies[b].solid {
+                continue;
+            }
+            let (here_a, here_b) =
+                (bodies[a].obstacle_against(&bodies[b]), bodies[b].obstacle_against(&bodies[a]));
             let remembered = cache.remembered(bodies[a].id, bodies[b].id);
             let Some(contact) = footprint_contact_within(
                 &here_a,
@@ -460,6 +491,57 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
     constraints
 }
 
+/// The id space of the standing solids in a roster solve: a bit no vehicle id carries, plus the
+/// cover object's index — the same id on the server and in the predictor, so the impulse cache is
+/// filed under the same key on both sides.
+pub const SOLID_ID_BASE: u64 = 1 << 63;
+
+/// The standing solids within reach of any hull this tick, as immovable bodies for the roster
+/// solve (X6): in cover order (deterministic), each box once, its plan the box's, its band from the
+/// ground up to its top. `cover` is the MOVEMENT list — what stops a hull — so a crushed fence or
+/// a collapsed building (rubble is ground) is not here. Both the authority and the predictor build
+/// their solids through this, which is what keeps a wall hit predicted the way it is served.
+pub fn solid_bodies_near(
+    cover: &[StaticCoverObject],
+    hulls: &[ContactBody],
+    dt: f32,
+) -> Vec<ContactBody> {
+    let mut out = Vec::new();
+    for (index, object) in cover.iter().enumerate() {
+        let [hx, hy, hz] = object.half_extents_m;
+        let box_reach = (hx * hx + hz * hz).sqrt();
+        let near = hulls.iter().any(|hull| {
+            if hull.solid {
+                return false;
+            }
+            let reach = contact_reach(hull) + box_reach + hull.velocity.length() * dt;
+            let dx = hull.position.x - object.center[0];
+            let dz = hull.position.z - object.center[2];
+            dx * dx + dz * dz <= reach * reach
+        });
+        if !near {
+            continue;
+        }
+        out.push(ContactBody {
+            id: SOLID_ID_BASE | index as u64,
+            position: Vec3::new(object.center[0], object.center[1] - hy, object.center[2]),
+            velocity: Vec3::ZERO,
+            yaw_rad: object.yaw_rad,
+            yaw_rate_rad_s: 0.0,
+            footprint: TankFootprint {
+                half_width_m: hx.max(0.01),
+                half_length_m: hz.max(0.01),
+                height_m: (2.0 * hy).max(0.01),
+                step_m: 0.0,
+            },
+            mass_kg: f32::MAX,
+            movable: false,
+            solid: true,
+        });
+    }
+    out
+}
+
 /// Torque from an impulse `J` at offset `r` is `magnitude * (r . tangent)` in this convention,
 /// which falls out of the power balance: `F . v = omega * (F.x*r.z - F.z*r.x)`. Body `b` takes
 /// `+J` and body `a` takes `-J` — mind that orientation when wiring a new caller.
@@ -518,6 +600,7 @@ mod tests {
             },
             mass_kg,
             movable: true,
+            solid: false,
         }
     }
 

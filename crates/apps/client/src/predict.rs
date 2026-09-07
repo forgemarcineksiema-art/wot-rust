@@ -243,6 +243,7 @@ impl LocalPredictor {
             footprint: physics::TankFootprint::from_plan(self.spec.hull_plan()),
             mass_kg: self.spec.mass_kg,
             movable: true,
+            solid: false,
         });
         bodies.extend_from_slice(neighbours);
         let report = physics::resolve_contacts(&bodies, &mut self.contacts, dt);
@@ -252,6 +253,22 @@ impl LocalPredictor {
         }
         self.drive.kinematic.velocity += taken.delta_velocity;
         self.drive.kinematic.yaw_rate_rad_s += taken.delta_yaw_rate_rad_s;
+    }
+
+    /// The local hull as the contact solver sees it, for the caller's gather of the standing
+    /// solids within its reach (X6).
+    pub fn contact_body(&self) -> ContactBody {
+        ContactBody {
+            id: LOCAL_HULL_ID,
+            position: self.drive.kinematic.position,
+            velocity: self.drive.kinematic.velocity,
+            yaw_rad: self.drive.kinematic.yaw_rad,
+            yaw_rate_rad_s: self.drive.kinematic.yaw_rate_rad_s,
+            footprint: physics::TankFootprint::from_plan(self.spec.hull_plan()),
+            mass_kg: self.spec.mass_kg,
+            movable: true,
+            solid: false,
+        }
     }
 
     /// The hardest landing since the last call, consumed by the render loop for the camera slam.

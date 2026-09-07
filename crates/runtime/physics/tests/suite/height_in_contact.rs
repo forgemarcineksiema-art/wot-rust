@@ -127,6 +127,7 @@ fn a_hull_on_a_mound_does_not_shove_the_hull_below() {
         footprint: hull,
         mass_kg: spec.mass_kg,
         movable: true,
+        solid: false,
     };
     // The plans overlap by half a metre across the flank; the upper hull is driving into it.
     let above = body(1, Vec3::new(60.0, carried_to, 60.0), Vec3::new(2.0, 0.0, 0.0));

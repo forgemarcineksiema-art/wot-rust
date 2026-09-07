@@ -162,9 +162,15 @@ Laterally (while moving), friction saturates at `mu * g * traction`: below it th
 nose, above it (a hard turn at speed, or a steep low-traction face) it slides. The lateral friction
 impulse only ever cancels sideways velocity, never reverses it, so the step stays stable at 60 Hz.
 
-Static cover (buildings, treelines, wrecks) is a hard obstacle as well: the shared drive step
-keeps the hull out of cover footprints, sliding along a face rather than sticking, so the
-predicted hull stops exactly where the server stops it (see Shared Drive Step).
+Static cover (buildings, treelines, wrecks) is a BODY in the roster solve (X6, 2026-09-07): every
+standing solid within reach of a hull enters the tick's contact solve as an immovable body
+(`physics::solid_bodies_near`, the same gather on the authority and in the predictor), so a hull
+that runs into a wall spends its momentum on a contact impulse — the nose dives, an off-centre hit
+turns it, the ram bill is paid — exactly as it would against a parked hull of infinite mass. The
+shared drive step's cover resolve is a backstop behind that: it keeps a hull out of a footprint it
+somehow starts inside (a spawn in a wall) and serves the single-hull API, and in a solved tick it
+has nothing to refuse. Either way the predicted hull stops exactly where the server stops it (see
+Shared Drive Step).
 
 Collapsed buildings are part of that ground. A `CoverPhase::Rubble` object leaves the movement
 collision entirely and enters the support envelope as `terrain::RubbleMound` — a truncated pyramid
