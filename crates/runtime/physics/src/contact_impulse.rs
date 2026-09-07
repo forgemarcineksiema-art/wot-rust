@@ -212,15 +212,34 @@ pub struct ContactPair {
     pub normal_impulse_ns: f32,
 }
 
-/// Everything one tick of contact produced: what each hull took, and what each pair exchanged.
+/// One COLLISION, as a whole (the one program's X7): the peak closing speed a pair reached along
+/// their contact normal over one approach, reported ONCE — when the approach has ended (the
+/// pair no longer closes), or when the pair separates without ever having stopped closing (a
+/// glancing pass). This is what a ram bill reads. The per-tick impulse was a hidden die: the
+/// speculative contact shuts whatever gap is left in the touch tick, so the impulse that tick
+/// carried was the charge's momentum minus a sub-tick's worth of travel — ~268 HP or ~55 HP for
+/// the same charge by 8 cm of spawn distance. The peak closing speed is the charge itself.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContactImpact {
+    /// The two bodies' ids (`ContactBody::id`), `a < b` as the pair was gathered.
+    pub a: u64,
+    pub b: u64,
+    /// The fastest the pair closed along the contact normal during this approach, m/s.
+    pub peak_closing_mps: f32,
+}
+
+/// Everything one tick of contact produced: what each hull took, what each pair exchanged, and
+/// the collisions that ENDED this tick with their peak closing speed.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ContactReport {
     pub bodies: Vec<ContactImpulse>,
     pub pairs: Vec<ContactPair>,
+    pub impacts: Vec<ContactImpact>,
 }
 
 /// What one pair's contact ended a tick carrying, so the next tick can start from it instead of
-/// rediscovering it from zero.
+/// rediscovering it from zero — and the approach it is in (X7): the fastest it has closed, and
+/// whether that approach has been reported.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 struct CachedContact {
     a: u64,
@@ -228,7 +247,25 @@ struct CachedContact {
     feature: ContactFeature,
     normal_impulse: f32,
     tangent_impulse: f32,
+    /// The fastest closing speed of the CURRENT approach, m/s (0 when the pair was never closing).
+    #[serde(default)]
+    peak_closing_mps: f32,
+    /// The current approach has been reported as an impact; a new one starts when the pair
+    /// closes again faster than [`IMPACT_RESET_MPS`].
+    #[serde(default)]
+    impact_reported: bool,
+    /// The pair has actually pressed (carried a normal impulse) during this approach: a pair
+    /// gathered within the speculative margin that never touched is not a collision.
+    #[serde(default)]
+    touched: bool,
 }
+
+/// The closing speed at which an approach is OVER (the impact is reported), and the closing
+/// speed above which a reported pair is in a NEW collision. A hull that keeps its throttle on
+/// after the hit brings a hand's worth of fresh closing into every tick — the drive's push — so
+/// "no longer closing" cannot mean zero; it means under the push. A hull that backed off and
+/// charged again closes far faster than this.
+const IMPACT_RESET_MPS: f32 = 0.5;
 
 /// The solver's memory of last tick, keyed by vehicle identity and touching feature.
 ///
@@ -270,6 +307,11 @@ struct Constraint {
     /// Impulses accumulated over the solve, seeded from last tick's answer.
     normal_impulse: f32,
     tangent_impulse: f32,
+    /// The closing speed the pair brought into the tick (X7), and the approach's memory.
+    closing_mps: f32,
+    peak_closing_mps: f32,
+    impact_reported: bool,
+    touched: bool,
 }
 
 /// Solve every hull-to-hull contact in the roster and report what each hull took. `bodies` is left
@@ -283,9 +325,10 @@ pub fn resolve_contacts(
     let mut out = vec![ContactImpulse::default(); bodies.len()];
     if bodies.len() < 2 {
         cache.entries.clear();
-        return ContactReport { bodies: out, pairs: Vec::new() };
+        return ContactReport { bodies: out, pairs: Vec::new(), impacts: Vec::new() };
     }
     let mut pairs: Vec<ContactPair> = Vec::new();
+    let mut impacts: Vec<ContactImpact> = Vec::new();
     // Project every pair ONCE. Positions and yaws do not move during the solve, only velocities
     // do, so re-running the four-axis SAT each iteration was the same answer four times over.
     let mut constraints = gather(bodies, cache, dt);
@@ -367,17 +410,58 @@ pub fn resolve_contacts(
         }
     }
 
+    // A pair the cache remembered that was NOT gathered this tick has separated: an approach it
+    // never finished reporting (a glancing pass that parted while still closing) is reported now,
+    // from its peak (X7).
+    for entry in &cache.entries {
+        let still_here =
+            constraints.iter().any(|c| bodies[c.a].id == entry.a && bodies[c.b].id == entry.b);
+        if !still_here && !entry.impact_reported && entry.touched && entry.peak_closing_mps > 0.0 {
+            impacts.push(ContactImpact {
+                a: entry.a,
+                b: entry.b,
+                peak_closing_mps: entry.peak_closing_mps,
+            });
+        }
+    }
+
     // Report the impulse each contact ENDED the tick carrying — the honest measure of how hard the
-    // pair was pressed together, which is what the ram bill reads.
+    // pair was pressed together — and the approach each pair is in: the fastest it has closed,
+    // reported ONCE when the closing ends (the pair no longer approaches), so the bill is the
+    // charge and not the tick the plates happened to meet in.
     cache.entries.clear();
     for constraint in &constraints {
         let magnitude = constraint.normal_impulse;
+        let (mut peak, mut reported) = (constraint.peak_closing_mps, constraint.impact_reported);
+        let touched = constraint.touched || magnitude > 0.0;
+        let closing = constraint.closing_mps;
+        if reported && closing > IMPACT_RESET_MPS {
+            // Backed off and charged again: a new collision.
+            peak = 0.0;
+            reported = false;
+        }
+        if !reported {
+            peak = peak.max(closing);
+            // The approach is over once the pair has pressed and closes no faster than the
+            // drive's push: report the collision from its peak, once.
+            if touched && closing <= IMPACT_RESET_MPS && peak > 0.0 {
+                impacts.push(ContactImpact {
+                    a: bodies[constraint.a].id,
+                    b: bodies[constraint.b].id,
+                    peak_closing_mps: peak,
+                });
+                reported = true;
+            }
+        }
         cache.entries.push(CachedContact {
             a: bodies[constraint.a].id,
             b: bodies[constraint.b].id,
             feature: constraint.feature,
             normal_impulse: magnitude,
             tangent_impulse: constraint.tangent_impulse,
+            peak_closing_mps: peak,
+            impact_reported: reported,
+            touched,
         });
         if magnitude <= 0.0 {
             continue;
@@ -391,7 +475,7 @@ pub fn resolve_contacts(
         out[index].delta_velocity = velocity[index] - bodies[index].velocity;
         out[index].delta_yaw_rate_rad_s = yaw_rate[index] - bodies[index].yaw_rate_rad_s;
     }
-    ContactReport { bodies: out, pairs }
+    ContactReport { bodies: out, pairs, impacts }
 }
 
 /// Project every pair that could touch this tick into a constraint, seeded from what the cache
@@ -472,6 +556,20 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
                 }
                 _ => (0.0, 0.0),
             };
+            // The closing speed the pair BROUGHT into the tick, before any impulse: the honest
+            // measure of the collision (X7), independent of where in the tick the plates met.
+            let relative = Vec2::new(
+                bodies[b].velocity.x - bodies[a].velocity.x,
+                bodies[b].velocity.z - bodies[a].velocity.z,
+            );
+            let closing_mps = -(relative.dot(normal) + bodies[b].yaw_rate_rad_s * lever_b
+                - bodies[a].yaw_rate_rad_s * lever_a);
+            let (peak_closing_mps, impact_reported, touched) = match remembered {
+                Some(entry) if entry.feature == contact.feature => {
+                    (entry.peak_closing_mps, entry.impact_reported, entry.touched)
+                }
+                _ => (0.0, false, false),
+            };
 
             constraints.push(Constraint {
                 a,
@@ -485,6 +583,10 @@ fn gather(bodies: &[ContactBody], cache: &ContactCache, dt: f32) -> Vec<Constrai
                 feature: contact.feature,
                 normal_impulse,
                 tangent_impulse,
+                closing_mps,
+                peak_closing_mps,
+                impact_reported,
+                touched,
             });
         }
     }
