@@ -66,8 +66,11 @@ from the same plane equations), locked by
 
 - Casemate face: 250 mm at only 15° — thickness over slope — with the mantlet patch riding it.
 - Hull glacis: the Tiger II school's 150 mm at 50°; rear at 30°.
-- A casemate never traverses: the spec's `has_fixed_casemate` clamp holds yaw at zero and the
-  armor volume is a fixed prism (no swept sectors, no ring).
+- A casemate never traverses: the superstructure is the hull's and the armor volume is a fixed
+  prism (no swept sectors, no ring). Since S17 (2026-09-07) the GUN lays in its ball mount —
+  `TurretTraverse::Limited`, 10° to either side of the hull line (Panzerworld), 0.20 rad/s (a
+  decision: a hand-cranked mount on 75 t) — the sim clamps the lay to the arc, the sight
+  reports `Traverse` only past it, the bots pivot the hull only past it.
 - No cupola: the roof carries only the commander's low periscope housing.
 
 ### What deliberately changed for gameplay (re-recorded consciously)

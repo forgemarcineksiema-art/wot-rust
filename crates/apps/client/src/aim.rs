@@ -192,8 +192,8 @@ pub(crate) struct FiringSolution {
     /// WHICH end of the arc bit, when one did (Inny Poziom A3). A gun that cannot depress onto
     /// a target below the crest and a gun that cannot elevate onto a roof are two different
     /// lessons for the player, and both used to wear the same broken form as a wall. A casemate
-    /// whose hull line does not pass through the sight point reports `Traverse` (A4): the shot
-    /// leaves along the hull line, and whether THAT arrives is what the trace then judges.
+    /// whose ARC does not reach the sight point reports `Traverse` (A4, S17): the shot leaves
+    /// along the arc's edge, and whether THAT arrives is what the trace then judges.
     pub arc_limit: Option<ArcLimit>,
 }
 
@@ -204,7 +204,7 @@ pub(crate) enum ArcLimit {
     Depression,
     /// The sight point sits above what the gun can elevate to.
     Elevation,
-    /// The sight point sits off the bearing a fixed casemate can point at — the hull line.
+    /// The sight point sits outside the arc a casemate's gun can lay to about the hull line.
     Traverse,
 }
 
@@ -217,9 +217,10 @@ pub(crate) fn firing_solution(
     gun_pitch_limits_rad: (f32, f32),
     muzzle_velocity_mps: f32,
     drag_per_s: f32,
-    // A fixed casemate cannot traverse: the sim forces its turret yaw to the hull line
-    // (`TankSpec::effective_turret_yaw_rad`), so the solution must fly THAT bearing (A4).
-    fixed_casemate: bool,
+    // A casemate lays inside an arc about the hull line (S17; `None` is a turret's full
+    // circle): the sim clamps its yaw to it (`TankSpec::effective_turret_yaw_rad`), so the
+    // solution must fly the bearing the gun can actually take (A4).
+    traverse_arc_half_rad: Option<f32>,
 ) -> Option<FiringSolution> {
     let delta = aim - muzzle;
     if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
@@ -229,10 +230,13 @@ pub(crate) fn firing_solution(
     let world_direction = gun_direction(delta.x.atan2(delta.z), world_pitch);
     let (solved_yaw, solved_pitch) = world_direction_to_turret(hull, world_direction);
     // The bearing the gun can actually take. A turret takes the solved one; a casemate takes
-    // the hull line, and the shell leaves along it whatever the sight asked for — the trace
-    // downstream then judges whether that shot still arrives (a sight point a hair off the
-    // line does; one 30° off does not).
-    let turret_yaw_rad = if fixed_casemate { 0.0 } else { solved_yaw };
+    // the nearest bearing inside its arc, and the shell leaves along it whatever the sight
+    // asked for — the trace downstream then judges whether that shot still arrives (a sight
+    // point a hair past the arc does; one 30° off does not).
+    let turret_yaw_rad = match traverse_arc_half_rad {
+        None => solved_yaw,
+        Some(arc) => solved_yaw.clamp(-arc, arc),
+    };
     let yaw_clamped = (turret_yaw_rad - solved_yaw).abs() > 1.0e-6;
     let (min_pitch, max_pitch) = gun_pitch_limits_rad;
     let gun_pitch_rad = solved_pitch.clamp(min_pitch, max_pitch);

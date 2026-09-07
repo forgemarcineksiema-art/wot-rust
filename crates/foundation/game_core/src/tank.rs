@@ -96,6 +96,11 @@ pub struct TankSpec {
     pub max_reverse_speed_mps: f32,
     pub turn_rate_rad_s: f32,
     pub turret_rotation_rad_s: f32,
+    /// S17: the gun's yaw arc about the hull line — `None` for a turret (the full circle),
+    /// `Some(half_arc)` for a casemate (the Jagdtiger's ±10°; `Some(0.0)` cannot lay at
+    /// all). `serde(default)` keeps older spec fixtures reading as turrets.
+    #[serde(default)]
+    pub turret_arc_half_rad: Option<f32>,
     /// Vertical gun stabilizer, 0..1 (Inny Poziom A12): the share of every hull pitch change
     /// the mount cancels the same tick, so the gun holds its WORLD elevation within its arc.
     #[serde(default)]
@@ -166,11 +171,32 @@ impl TankSpec {
         }
     }
 
+    /// A casemate whose gun cannot lay at all (no arc, or a zero one). Since S17 the
+    /// Jagdtiger is NOT one of these — it lays ±10° — so a reader that wants "the
+    /// superstructure never turns" asks [`Self::is_casemate`] instead.
     pub fn has_fixed_casemate(&self) -> bool {
-        self.turret_rotation_rad_s == 0.0
+        self.turret_rotation_rad_s == 0.0 || self.turret_arc_half_rad == Some(0.0)
     }
 
+    /// A casemate: the superstructure is welded to the hull; the gun lays inside
+    /// [`Self::turret_arc_half_rad`] about the hull line.
+    pub fn is_casemate(&self) -> bool {
+        self.turret_arc_half_rad.is_some()
+    }
+
+    /// The gun's yaw arc about the hull line (S17): `None` is a turret's full circle.
+    pub fn turret_arc_half_rad(&self) -> Option<f32> {
+        if self.turret_rotation_rad_s == 0.0 {
+            return Some(0.0);
+        }
+        self.turret_arc_half_rad
+    }
+
+    /// The yaw the gun can actually take: a turret's own, a casemate's clamped to its arc.
     pub fn effective_turret_yaw_rad(&self, turret_yaw_rad: f32) -> f32 {
-        if self.has_fixed_casemate() { 0.0 } else { turret_yaw_rad }
+        match self.turret_arc_half_rad() {
+            None => turret_yaw_rad,
+            Some(arc) => turret_yaw_rad.clamp(-arc, arc),
+        }
     }
 }

@@ -165,7 +165,7 @@ fn measure(map: MapId) -> Seam {
                 limits,
                 muzzle_velocity,
                 drag,
-                spec.has_fixed_casemate(),
+                spec.turret_arc_half_rad(),
             );
             let Some(solved) = solution else { break };
             gun_pitch = solved.gun_pitch_rad;

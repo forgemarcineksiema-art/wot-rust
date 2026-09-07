@@ -126,7 +126,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
         query.gun_pitch_limits_rad,
         query.muzzle_velocity_mps,
         query.drag_per_s,
-        query.player_spec.has_fixed_casemate(),
+        query.player_spec.turret_arc_half_rad(),
     );
     // Sight point on the muzzle (no bearing to solve): fall back to the live barrel.
     let fired_direction = solution.map_or(query.gun_direction, |s| s.world_direction);

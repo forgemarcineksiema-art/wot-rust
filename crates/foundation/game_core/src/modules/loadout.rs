@@ -86,6 +86,7 @@ impl VehicleModules {
             max_reverse_speed_mps: self.hull.max_reverse_speed_mps,
             turn_rate_rad_s: self.suspension.turn_rate_rad_s,
             turret_rotation_rad_s: self.turret.traverse.rate_rad_s(),
+            turret_arc_half_rad: self.turret.traverse.half_arc_rad(),
             vertical_stabilizer: self.turret.vertical_stabilizer,
             hull: armor_profile_for(kind, self),
             gun: self.gun.spec.clone(),

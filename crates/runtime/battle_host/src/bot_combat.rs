@@ -185,9 +185,18 @@ pub(crate) fn bot_combat_command(
         && find_tank(tanks, solution.target).is_some_and(|target| {
             !ally_blocks_fire_line(tank, target, solution.aim_point_world(), tanks)
         });
+    // S17: a casemate lays inside its arc; a target past the arc is laid by the hull — the
+    // same steering gain as the route brain — until the next solve finds it inside.
+    let desired_lay = tank.turret_yaw_rad + aim.turret_error;
+    let steer = match tank.spec.turret_arc_half_rad() {
+        Some(arc) if desired_lay.abs() > arc => {
+            ((desired_lay - desired_lay.signum() * arc) * 1.8).clamp(-1.0, 1.0)
+        }
+        _ => 0.0,
+    };
     TankCommand {
         throttle: 0.0,
-        steer: 0.0,
+        steer,
         brake: 0.35,
         turret_yaw_delta: (aim.turret_error * 4.0).clamp(-1.0, 1.0),
         gun_pitch_delta: (aim.pitch_error * 4.0).clamp(-1.0, 1.0),

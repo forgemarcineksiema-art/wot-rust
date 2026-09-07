@@ -66,11 +66,17 @@ fn oversized_gun_is_rejected_by_the_turret() {
     assert_eq!(modules.gun.spec.name, "100 mm D-10T", "loadout unchanged after a rejected swap");
 }
 
+/// S17: the Jagdtiger is a casemate that LAYS — ±10° about the hull line in its ball mount,
+/// never the superstructure.
 #[test]
-fn jagdtiger_turret_is_a_fixed_casemate() {
+fn jagdtiger_turret_is_a_casemate_with_a_ten_degree_arc() {
     let modules = VehicleKind::Jagdtiger.default_loadout();
-    assert!(modules.turret.traverse.is_fixed());
-    assert_eq!(modules.assemble(VehicleKind::Jagdtiger).turret_rotation_rad_s, 0.0);
+    assert!(!modules.turret.traverse.is_fixed(), "the Pak 80 lays in its mount");
+    assert!(modules.turret.traverse.is_casemate());
+    let spec = modules.assemble(VehicleKind::Jagdtiger);
+    assert!(spec.is_casemate() && !spec.has_fixed_casemate());
+    assert!((spec.turret_arc_half_rad().unwrap() - 10.0_f32.to_radians()).abs() < 1.0e-6);
+    assert!(spec.turret_rotation_rad_s > 0.0 && spec.turret_rotation_rad_s < 0.40);
 }
 
 /// Inny Poziom A11: the fleet's turrets traverse at genre-class rates. They shipped at half of
@@ -86,7 +92,7 @@ fn every_rotating_turret_is_genre_fast_and_keeps_up_with_its_hull() {
     let mut walked = 0usize;
     for kind in VehicleKind::ALL {
         let spec = kind.default_loadout().assemble(kind);
-        if spec.has_fixed_casemate() {
+        if spec.is_casemate() {
             continue;
         }
         let turret = spec.turret_rotation_rad_s.to_degrees();
