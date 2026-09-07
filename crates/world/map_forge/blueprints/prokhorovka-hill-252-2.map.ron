@@ -216,7 +216,8 @@ MapBlueprint(
         layers: (
             GroundLayerSpec(albedo: (0.28, 0.33, 0.2), detail: 1.0, gloss: 0.03),
             GroundLayerSpec(albedo: (0.45, 0.4, 0.26), detail: 1.0, gloss: 0.03),
-            GroundLayerSpec(albedo: (0.36, 0.3, 0.22), detail: 0.8, gloss: 0.05),
+            // D43: dirt luma 0.307 sat at grass's 0.310 - the road had no value contrast. 0.256 now.
+            GroundLayerSpec(albedo: (0.30, 0.25, 0.18), detail: 0.8, gloss: 0.05),
             GroundLayerSpec(albedo: (0.52, 0.51, 0.47), detail: 0.9, gloss: 0.12),
         ),
         macro_normal_strength: 0.65,

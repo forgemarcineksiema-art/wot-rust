@@ -54,7 +54,10 @@ const DETAIL_SHADE_AMP: f32 = 0.40;
 // light, the same knob the old grain had at 0.12 of a lattice gradient).
 const DETAIL_BEND: f32 = 0.85;
 // The macro tone tile's amplitude: ±12 % lightness at the extremes of its lanes.
-const MACRO_TONE_AMP: f32 = 0.12;
+// D43: 0.12 -> 0.06. Three isotropic tone fields (macro +-12 %, the quilt's light +-17 %,
+// the straw patchwork) stacked into a marbled mat with no form; the tone fields are halved
+// and the form is left to the light, the roads and the plots.
+const MACRO_TONE_AMP: f32 = 0.06;
 // The height blend's sharpness: the weight of a layer is its splat weight times
 // (height + HEIGHT_BLEND_FLOOR)^HEIGHT_BLEND_POWER, renormalized. Where one layer holds the
 // whole splat nothing changes; at a border the taller material shows through.
@@ -118,7 +121,8 @@ fn field_quilt(world_xz: vec2<f32>) -> vec2<f32> {
         border,
     );
     let lean = (dry - 0.5) * field_strength;
-    let light_drift = (light - 0.5) * 0.34 * field_strength;
+    // D43: 0.34 -> 0.17 — a plot's lightness drifts +-8.5 %, not +-17 %.
+    let light_drift = (light - 0.5) * 0.17 * field_strength;
     return vec2<f32>(lean, light_drift);
 }
 

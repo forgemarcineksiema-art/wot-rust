@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(steppe.field_patch_strength, 1.0);
 
         assert_eq!(valley.layers[0].albedo, [0.26, 0.33, 0.21]);
-        assert_eq!(valley.layers[2].albedo, [0.30, 0.26, 0.20]);
+        assert_eq!(valley.layers[2].albedo, [0.28, 0.24, 0.18]);
         assert_eq!(valley.field_patch_strength, 0.75);
 
         assert!(steppe.field_patch_strength > valley.field_patch_strength);

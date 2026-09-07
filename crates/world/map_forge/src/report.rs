@@ -284,6 +284,10 @@ fn check_playability(
 /// wrong map, so it is refused here instead. A river must also share the grid's symmetry
 /// axis when the map declares one — the centerline's mirror-fairness is even about
 /// `river.axis_z_m`, not about the grid.
+/// D43: worn dirt reads at most this share of lush grass's luminance — the road's value
+/// contrast, as a rule every shipped map answers to.
+pub const DIRT_TO_GRASS_LUMA_CEILING: f32 = 0.85;
+
 fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
     let [w, d] = blueprint.grid.size_m;
     if (w - d).abs() > f32::EPSILON {
@@ -754,6 +758,21 @@ fn check_presentation(blueprint: &MapBlueprint, report: &mut MapReport) {
                 "materials",
                 Severity::Error,
                 "broken rock must read lighter than worn dirt".to_string(),
+                None,
+            );
+        }
+        // D43: a road is a VALUE, not only a hue. Prokhorovka's dirt measured 0.307 against
+        // its grass's 0.310 and the road read as a colour change on one grey-green mat.
+        if luma(2) > DIRT_TO_GRASS_LUMA_CEILING * luma(0) {
+            report.push(
+                "materials",
+                Severity::Error,
+                format!(
+                    "worn dirt (luma {:.3}) must read at most {DIRT_TO_GRASS_LUMA_CEILING}x lush \
+                     grass (luma {:.3}) — a road needs value contrast, not only a hue",
+                    luma(2),
+                    luma(0)
+                ),
                 None,
             );
         }

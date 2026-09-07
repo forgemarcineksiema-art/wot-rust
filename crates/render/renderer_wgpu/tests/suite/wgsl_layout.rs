@@ -928,3 +928,14 @@ fn the_vehicle_shader_carries_the_macro_octave_the_edge_wear_and_the_mud_band() 
         assert!(source.contains(needle), "vehicle.wgsl must carry `{needle}`");
     }
 }
+
+/// D43: the ground's tone fields are halved — the terrain shader carries the numbers.
+#[test]
+fn the_terrain_shader_carries_the_halved_tone_fields() {
+    let source = terrain_shader_source();
+    assert!(source.contains("const MACRO_TONE_AMP: f32 = 0.06;"), "the macro tone at +-6 %");
+    assert!(
+        source.contains("let light_drift = (light - 0.5) * 0.17 * field_strength;"),
+        "the quilt's light drift at +-8.5 %"
+    );
+}

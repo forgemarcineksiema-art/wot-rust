@@ -420,11 +420,31 @@ pub(crate) const CLUMP_PULL: f32 = 0.55;
 /// budgets and candidate counts stay exactly what they were.
 pub(crate) const BALD_CUT: f32 = 0.24;
 
-/// 2–3 deterministic clump centres per cell, in cell-local metres. Always draws the same
-/// number of lanes from the seed stream, so the candidate stream after it never shifts.
-pub(crate) fn clump_centres(seed: &mut u64) -> ([(f32, f32); 3], usize) {
-    let count = if game_core::math::next_hash_unit(seed) < 0.5 { 2 } else { 3 };
-    let mut centres = [(0.0, 0.0); 3];
+/// The period of the occupancy noise that decides how many clumps a cell holds (D43).
+pub(crate) const CLUMP_OCCUPANCY_PERIOD_M: f32 = 60.0;
+/// The most clump centres one cell can hold.
+pub(crate) const MAX_CLUMPS_PER_CELL: usize = 4;
+
+/// 0–4 deterministic clump centres per cell, in cell-local metres, the COUNT drawn from a
+/// 60 m occupancy noise over the cell's world origin (D43): the old 2–3 per 8 m cell was a
+/// lattice of clumps, the same rhythm in every cell; now open stretches hold none and thick
+/// stands four. Always draws the same number of lanes from the seed stream, so the candidate
+/// stream after it never shifts.
+pub(crate) fn clump_centres(
+    seed: &mut u64,
+    origin_x: f32,
+    origin_z: f32,
+) -> ([(f32, f32); MAX_CLUMPS_PER_CELL], usize) {
+    let occupancy = terrain::value_noise(
+        (origin_x + 0.5 * CELL_M) / CLUMP_OCCUPANCY_PERIOD_M,
+        (origin_z + 0.5 * CELL_M) / CLUMP_OCCUPANCY_PERIOD_M,
+    );
+    // Value noise crowds its middle; stretched 1.6x about it, the open (0) and thick (4)
+    // tails each hold a real share of the field instead of a twentieth.
+    let stretched = ((occupancy - 0.5) * 1.6 + 0.5).clamp(0.0, 1.0);
+    let count = ((stretched * (MAX_CLUMPS_PER_CELL as f32 + 1.0)).floor() as usize)
+        .min(MAX_CLUMPS_PER_CELL);
+    let mut centres = [(0.0, 0.0); MAX_CLUMPS_PER_CELL];
     for centre in &mut centres {
         *centre = (
             game_core::math::next_hash_unit(seed) * CELL_M,
@@ -438,9 +458,13 @@ pub(crate) fn clump_centres(seed: &mut u64) -> ([(f32, f32); 3], usize) {
 pub(crate) fn pull_toward_clump(
     x: f32,
     z: f32,
-    centres: &[(f32, f32); 3],
+    centres: &[(f32, f32); MAX_CLUMPS_PER_CELL],
     count: usize,
 ) -> (f32, f32) {
+    if count == 0 {
+        // An open stretch: the tufts stand where the candidate stream put them.
+        return (x, z);
+    }
     let mut nearest = centres[0];
     let mut best = f32::INFINITY;
     for &(cx, cz) in &centres[..count] {
@@ -483,7 +507,7 @@ pub(crate) struct CellStream {
     origin_x: f32,
     origin_z: f32,
     pub cell_dry: f32,
-    centres: [(f32, f32); 3],
+    centres: [(f32, f32); MAX_CLUMPS_PER_CELL],
     centre_count: usize,
 }
 
@@ -496,7 +520,8 @@ impl CellStream {
         // shader's field quilt without resampling it.
         let cell_dry = game_core::math::next_hash_unit(&mut seed);
         // D7: grass grows in CLUMPS around 2–3 hash centres, not uniformly at random.
-        let (centres, centre_count) = clump_centres(&mut seed);
+        let (centres, centre_count) =
+            clump_centres(&mut seed, cx as f32 * CELL_M, cz as f32 * CELL_M);
         Self {
             seed,
             origin_x: cx as f32 * CELL_M,
@@ -824,6 +849,35 @@ mod tests {
         assert!(
             clumped < 0.85 * uniform_expectation,
             "the field must clump (mean NN {clumped:.3} vs uniform {uniform_expectation:.3})"
+        );
+    }
+
+    /// D43: the clump count is a FIELD, not a lattice. Over a 400 m square of cells the
+    /// histogram of centres per cell is spread by the occupancy noise — open cells with none,
+    /// thick cells with four — and no single count owns half the field; the old 2–3 draw
+    /// put every cell on {2, 3}.
+    #[test]
+    fn clump_counts_follow_the_occupancy_noise_not_a_lattice() {
+        let mut histogram = [0u32; MAX_CLUMPS_PER_CELL + 1];
+        for cz in 0..50 {
+            for cx in 0..50 {
+                let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    ^ (cz as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F);
+                let (_, count) = clump_centres(&mut seed, cx as f32 * CELL_M, cz as f32 * CELL_M);
+                histogram[count] += 1;
+            }
+        }
+        let total: u32 = histogram.iter().sum();
+        let share = |n: usize| histogram[n] as f32 / total as f32;
+        assert!(share(0) >= 0.08, "open cells with no clump: {:.1} %", share(0) * 100.0);
+        assert!(share(4) >= 0.08, "thick cells with four: {:.1} %", share(4) * 100.0);
+        for n in 0..=MAX_CLUMPS_PER_CELL {
+            assert!(share(n) <= 0.45, "count {n} owns {:.1} % of the field", share(n) * 100.0);
+        }
+        assert!(
+            share(2) + share(3) <= 0.70,
+            "the field is still a {{2, 3}} lattice: {:.1} %",
+            (share(2) + share(3)) * 100.0
         );
     }
 
