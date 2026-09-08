@@ -17,3 +17,4 @@ mod prokhorovka_battle;
 mod remote_battle;
 mod remote_reconnect;
 mod server_tick_policy;
+mod tick_profile;

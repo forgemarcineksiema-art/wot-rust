@@ -19,7 +19,7 @@ pub use battle::{
     BattleFormat, BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
     RandomBattleConfig, SEATS_PER_TEAM,
 };
-pub use local::{AuthoritativeTick, LocalAuthoritativeServer};
+pub use local::{AuthoritativeTick, LocalAuthoritativeServer, TickSections};
 pub use match_info::{pick_weather, supported_weather};
 pub use remote_events::MAX_PENDING_COMBAT_EVENTS;
 pub use setup::human_team;
