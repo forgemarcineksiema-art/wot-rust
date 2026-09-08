@@ -78,8 +78,6 @@ pub struct BattleHudModel {
     pub speed_kmh: f32,
     /// The cruise latch (H5), `-2..=3`; the speed instrument lights its notches by it.
     pub cruise_level: i8,
-    /// Sniper magnification; `None` in third person (no readout).
-    pub zoom_factor: Option<f32>,
     /// Recent dealt/taken hits, newest first (`hud/damage_log.rs`, H8).
     pub damage_log: Vec<damage_log::DamageLogEntry>,
     /// N (H8): the log shows its newest row only.
@@ -154,7 +152,6 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             frame_p95_ms: 0.0,
             speed_kmh: 0.0,
             cruise_level: 0,
-            zoom_factor: None,
             damage_log: Vec::new(),
             hit_log_collapsed: false,
             incoming_hits: Vec::new(),
@@ -194,7 +191,6 @@ pub(crate) fn test_model(
     reticle: Option<HudReticle>,
     fps: f32,
     speed_kmh: f32,
-    zoom_factor: Option<f32>,
 ) -> BattleHudModel {
     BattleHudModel {
         vitals,
@@ -203,7 +199,6 @@ pub(crate) fn test_model(
         frame_p95_ms: 0.0,
         speed_kmh,
         cruise_level: 0,
-        zoom_factor,
         damage_log: Vec::new(),
         hit_log_collapsed: false,
         incoming_hits: Vec::new(),
@@ -246,9 +241,8 @@ pub(crate) fn build_hud_with_reticle(
     reticle: Option<HudReticle>,
     fps: f32,
     speed_kmh: f32,
-    zoom_factor: Option<f32>,
 ) -> Vec<HudVertex> {
-    build_battle_hud(&test_model(vitals, reticle, fps, speed_kmh, zoom_factor), aspect)
+    build_battle_hud(&test_model(vitals, reticle, fps, speed_kmh), aspect)
 }
 
 /// The reticle a frame draws when the model carries none: a neutral third-person marker at

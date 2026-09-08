@@ -209,12 +209,13 @@ pub(crate) fn push_markers(
                 digits: DigitMode::Proportional,
             },
         ));
+        // U14 (2026-09-08): the range is the reticle's readout, printed once, by the sight —
+        // the plate carried it a second time and the eye read the same number twice.
         let number_w = ui.px(48.0);
-        let distance_w = ui.px(56.0);
         let bar = Rect::new(
             plate.x + ui.px(8.0),
             plate.y + ui.px(30.0),
-            plate.w - ui.px(16.0) - number_w - distance_w,
+            plate.w - ui.px(16.0) - number_w,
             ui.px(5.0),
         );
         push(Element::new(
@@ -235,23 +236,6 @@ pub(crate) fn push_markers(
                 size_u: TEXT_U,
                 align: Align::Right,
                 color: theme.text.value,
-                digits: DigitMode::Tabular,
-            },
-        ));
-        push(Element::new(
-            HudElement::Marker(MarkerPart::Distance(i)),
-            Rect::new(
-                plate.right() - ui.px(4.0) - distance_w,
-                plate.y + ui.px(24.0),
-                distance_w,
-                ui.px(TEXT_U),
-            ),
-            Payload::Text {
-                text: format!("{} {}", hull.distance_m, crate::ui_strings::battle::DISTANCE_UNIT),
-                style: Style::VALUE,
-                size_u: TEXT_U,
-                align: Align::Right,
-                color: theme.text.unit,
                 digits: DigitMode::Tabular,
             },
         ));
@@ -292,16 +276,13 @@ mod tests {
         let list = build(&model);
         let has = |part: MarkerPart| list.find(HudElement::Marker(part)).is_some();
         assert!(has(MarkerPart::Plate(1)) && has(MarkerPart::Class(1)) && has(MarkerPart::Name(1)));
-        assert!(
-            has(MarkerPart::Bar(1)) && has(MarkerPart::Number(1)) && has(MarkerPart::Distance(1))
-        );
+        assert!(has(MarkerPart::Bar(1)) && has(MarkerPart::Number(1)));
         for other in [0, 2] {
             assert!(has(MarkerPart::Bar(other)), "a known hull keeps its bar");
             assert!(
                 !has(MarkerPart::Plate(other))
                     && !has(MarkerPart::Name(other))
-                    && !has(MarkerPart::Number(other))
-                    && !has(MarkerPart::Distance(other)),
+                    && !has(MarkerPart::Number(other)),
                 "and nothing else"
             );
         }
@@ -309,10 +290,14 @@ mod tests {
             Payload::Text { text, .. } => assert_eq!(text, "T-54 \u{b7} C"),
             other => panic!("{other:?}"),
         }
-        match &list.find(HudElement::Marker(MarkerPart::Distance(1))).expect("range").payload {
-            Payload::Text { text, .. } => assert_eq!(text, "214 M"),
-            other => panic!("{other:?}"),
-        }
+        // U14: the range is the sight's readout, never the plate's — printed once.
+        assert!(
+            !list.iter().any(|element| matches!(
+                &element.payload,
+                Payload::Text { text, .. } if text.ends_with(" M")
+            )),
+            "no marker prints a range"
+        );
         // The plate hangs above the hull's projected box.
         let plate = list.find(HudElement::Marker(MarkerPart::Plate(1))).expect("plate").rect;
         assert!(plate.bottom() <= 400.0 && (plate.center()[0] - 960.0).abs() < 1.0);

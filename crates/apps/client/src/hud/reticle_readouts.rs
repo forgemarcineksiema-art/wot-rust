@@ -5,6 +5,7 @@
 use renderer_api::HudVertex;
 
 use super::primitives::push_segment;
+use super::push_quad;
 use super::reticle::PenetrationHint;
 use super::reticle_overlay::{RETICLE_NO_PEN, RETICLE_PEN};
 
@@ -14,6 +15,60 @@ pub(crate) struct HitConfirm {
     pub age_s: f32,
     pub penetrated: bool,
     pub ricocheted: bool,
+}
+
+/// The enamel plate the readout column stands on (U13, 2026-09-08): the range, the pen and
+/// armour millimetres and the block distance are printed on whatever the world puts behind
+/// the aim — pale straw at noon read them at 1.07:1 to 1.89:1 against the policy's 3:1 floor.
+/// The plate is the HUD's own enamel black at the alpha the other plates wear, so the numbers
+/// keep their tones and their contrast wherever the sight points. Drawn first, under the rows.
+pub(crate) const RETICLE_READOUT_PLATE: [f32; 4] = [0.07, 0.07, 0.08, 0.86];
+
+/// Clip-space padding around the readout rows on their plate.
+const READOUT_PLATE_PAD: f32 = 0.012;
+
+/// The plate under the readout column: one quad spanning the range row and, when a second
+/// row prints (the millimetres in sniper mode, or the block distance), that row too. The
+/// column's own anchor rule decides where it stands; the plate follows it.
+pub(super) fn push_readout_plate(
+    vertices: &mut Vec<HudVertex>,
+    aim_clip: [f32; 2],
+    ring_radius: f32,
+    second_row: bool,
+    aspect: f32,
+) {
+    // The widest values the rows print: four digits of range at 0.05 plus its unit, or the
+    // "pen / armour" pair at 0.038 — the plate is sized for the widest of what may appear, so
+    // it never resizes as the numbers change under the sight.
+    let range_w = digits_width(9_999, 0.05, aspect)
+        + 0.006
+        + crate::hud::font::text_width(crate::ui_strings::battle::DISTANCE_UNIT, 0.05, aspect);
+    let [right_x, top_y] =
+        readout_anchor(aim_clip, ring_radius, 0.05, digits_width(9_999, 0.05, aspect), aspect);
+    let mut left = right_x - digits_width(9_999, 0.05, aspect);
+    let mut right = right_x - digits_width(9_999, 0.05, aspect) + range_w;
+    let top = top_y;
+    let mut bottom = top_y - 0.05;
+    if second_row {
+        let [right_2, top_2] = readout_anchor(
+            aim_clip,
+            ring_radius,
+            0.105,
+            digits_width(9_999, 0.038, aspect),
+            aspect,
+        );
+        let pair_w =
+            digits_width(9_999, 0.038, aspect) + 0.058 + digits_width(9_999, 0.038, aspect);
+        left = left.min(right_2 - digits_width(9_999, 0.038, aspect));
+        right = right.max(right_2 - digits_width(9_999, 0.038, aspect) + pair_w);
+        bottom = bottom.min(top_2 - 0.038);
+    }
+    let center = [(left + right) * 0.5, (top + bottom) * 0.5];
+    let half = [
+        (right - left) * 0.5 + READOUT_PLATE_PAD / aspect,
+        (top - bottom) * 0.5 + READOUT_PLATE_PAD,
+    ];
+    push_quad(vertices, center, half, RETICLE_READOUT_PLATE);
 }
 
 /// Seconds the hit-confirm ticks stay on screen.

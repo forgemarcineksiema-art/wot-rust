@@ -1,4 +1,4 @@
-//! The battle readouts: health and reload bars, the sniper zoom label, the FPS diagnostic and
+//! The battle readouts: health and reload bars, the FPS diagnostic and
 //! the speed readout. Split from `hud.rs` (model + assembly order) for the reviewability budget.
 
 use renderer_api::HudVertex;
@@ -22,21 +22,8 @@ pub(crate) fn push_battle_readouts(
     // The reload lives at the reticle alone (arc + seconds): the old bottom-center bar drew a
     // SECOND loading indicator that split the eye between two progress displays for one gun.
 
-    // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
-    // eye reads it without leaving the sight. Third person draws nothing.
-    if let Some(zoom) = model.zoom_factor {
-        let label =
-            format!("{}{:.1}", crate::ui_strings::battle::ZOOM_PREFIX, zoom.clamp(0.0, 99.9));
-        crate::hud::font::push_text(
-            vertices,
-            &label,
-            -0.03,
-            -0.16,
-            0.05,
-            aspect,
-            crate::hud::number::ZOOM_COLOR,
-        );
-    }
+    // The sniper zoom label ("X6.9") burned here (U14, 2026-09-08): it answered none of the
+    // sight's four questions and sat under the aim where the eye is busiest.
 
     // The battle clock lives in the top bar now (H1, `top_bar.rs`) — under glass, in the
     // middle, with the frags and the pools beside it.

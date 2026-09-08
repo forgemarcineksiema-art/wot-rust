@@ -112,8 +112,8 @@ fn fps_readout_draws_digits_in_the_top_right_only_when_positive() {
 
     // More digits means strictly more segment geometry (same digit isolates digit count
     // from which-segments-are-lit). "8" lights 7 segments; "888" lights 21.
-    let one_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 8.0, 0.0, None);
-    let three_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 888.0, 0.0, None);
+    let one_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 8.0, 0.0);
+    let three_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 888.0, 0.0);
     let count = |hud: &[HudVertex]| hud.iter().filter(|v| v.color == FPS_COLOR).count();
     assert!(count(&one_digit) > 0, "fps digits should be drawn");
     assert!(count(&three_digit) > count(&one_digit), "888 needs more segments than 8");
@@ -132,7 +132,7 @@ fn fps_readout_draws_digits_in_the_top_right_only_when_positive() {
 fn the_speed_instrument_sits_beside_the_damage_panel_and_reads_the_speed() {
     use crate::hud::elements::SpeedPart;
     let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
-    let moving = super::test_model(vitals(), None, 0.0, 42.0, None);
+    let moving = super::test_model(vitals(), None, 0.0, 42.0);
     let list = super::build_battle_hud_list(&moving, &ui);
     match &list.find(HudElement::Speed(SpeedPart::Number)).expect("number").payload {
         ui_kit::draw_list::Payload::Text { text, .. } => assert_eq!(text, "42"),
@@ -142,7 +142,7 @@ fn the_speed_instrument_sits_beside_the_damage_panel_and_reads_the_speed() {
     assert!(plate.x < 960.0 && plate.y > 540.0, "bottom-left: {plate:?}");
     // The readouts no longer draw the speed: the vertices they emit are the same whether the
     // hull moves or not.
-    let stopped = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let stopped = super::test_model(vitals(), None, 0.0, 0.0);
     let readouts_of = |model: &BattleHudModel| match &super::build_battle_hud_list(model, &ui)
         .find(HudElement::Readouts)
         .expect("readouts")
@@ -162,7 +162,7 @@ fn the_speed_instrument_sits_beside_the_damage_panel_and_reads_the_speed() {
 fn the_hit_points_live_in_the_damage_panel() {
     use crate::hud::elements::DamagePart;
     let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
-    let mut model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let mut model = super::test_model(vitals(), None, 0.0, 0.0);
     let tank = tank_snapshot(1, 1, 750);
     model.damage = Some(super::damage_panel::DamagePanelModel::from_snapshot(
         &tank,
@@ -275,7 +275,6 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         frame_p95_ms: 0.0,
         speed_kmh: 33.0,
         cruise_level: 0,
-        zoom_factor: Some(4.2),
         damage_log: Vec::new(),
         hit_log_collapsed: false,
         incoming_hits: Vec::new(),
@@ -305,8 +304,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         shell: None,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
-    let from_wrapper =
-        build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 61.0, 33.0, Some(4.2));
+    let from_wrapper = build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 61.0, 33.0);
     assert_eq!(from_model, from_wrapper, "wrapper must stay a pure forwarding shim");
     assert!(!from_model.is_empty());
 }
@@ -323,7 +321,6 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         frame_p95_ms: 0.0,
         speed_kmh: 0.0,
         cruise_level: 0,
-        zoom_factor: None,
         damage_log: Vec::new(),
         hit_log_collapsed: false,
         incoming_hits: Vec::new(),
@@ -379,7 +376,6 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         frame_p95_ms: 0.0,
         speed_kmh: 0.0,
         cruise_level: 0,
-        zoom_factor: None,
         damage_log: Vec::new(),
         hit_log_collapsed: false,
         incoming_hits: Vec::new(),
@@ -453,7 +449,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
 #[test]
 fn battle_clock_is_the_top_bars_and_draws_only_when_timed() {
     let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
-    let mut untimed = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let mut untimed = super::test_model(vitals(), None, 0.0, 0.0);
     untimed.top_bar = Some(super::top_bar::TopBarModel {
         frags: [0, 0],
         team_hit_points: [7_000, 7_000],
@@ -476,7 +472,7 @@ fn the_damage_panel_draws_only_when_present_and_a_dead_module_reads_red() {
     use crate::hud::elements::DamagePart;
     let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
     let theme = ui_kit::theme::Theme::standard();
-    let base = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let base = super::test_model(vitals(), None, 0.0, 0.0);
     assert!(
         super::build_battle_hud_list(&base, &ui)
             .find(HudElement::DamagePanel(DamagePart::Plate))
@@ -514,7 +510,7 @@ fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
     use ui_kit::draw_list::{DrawList, Element, Payload};
     let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
     let theme = ui_kit::theme::Theme::standard();
-    let model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let model = super::test_model(vitals(), None, 0.0, 0.0);
     let list = super::build_battle_hud_list(&model, &ui);
     let mut legacy_only = DrawList::new();
     let mut expected: Vec<HudVertex> = Vec::new();
@@ -538,7 +534,7 @@ fn the_draw_list_emits_the_legacy_hud_byte_for_byte() {
 #[test]
 fn the_reticle_stack_is_emitted_verbatim() {
     let aspect = 16.0 / 9.0;
-    let model = super::test_model(vitals(), None, 0.0, 0.0, None);
+    let model = super::test_model(vitals(), None, 0.0, 0.0);
     let list = super::build_battle_hud_list(&model, &ui_kit::ui::Ui::for_aspect(aspect));
     let mut expected = Vec::new();
     super::reticle_overlay::push_reticle(&mut expected, &super::default_reticle(), aspect);
