@@ -761,6 +761,18 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
     }
 }
 
+/// The slot's name (U21): the word the player reads before the value.
+pub(super) fn slot_word(slot: FitSlot) -> &'static str {
+    match slot {
+        FitSlot::Turret => words::SLOT_TURRET,
+        FitSlot::Gun => words::SLOT_GUN,
+        FitSlot::Hull => words::SLOT_HULL,
+        FitSlot::Engine => words::SLOT_ENGINE,
+        FitSlot::Suspension => words::SLOT_SUSPENSION,
+        FitSlot::Radio => words::SLOT_RADIO,
+    }
+}
+
 fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageState) {
     let strip = ui.anchor(Anchor::Bottom, LOADOUT_SIZE_U, LOADOUT_OFFSET_U);
     put(list, E::LoadoutPlate, strip, plate(theme, theme.plates.steel_brushed, 3.0));
@@ -796,8 +808,29 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             ),
             Payload::Icon { icon: slot_icon(slot), color: tint },
         );
+        // U21 (2026-09-08): the slot says WHAT it is, then the value — a number under an icon
+        // told nobody whether it was the turret's front or the gun's calibre.
+        let name =
+            Rect::new(rect.x + ui.px(2.0), rect.y + ui.px(62.0), rect.w - ui.px(4.0), ui.px(18.0));
+        let z = list.len() as i16;
+        list.push(
+            Element::new(
+                E::ModuleName(index),
+                name,
+                text(
+                    slot_word(slot),
+                    Style::VALUE_STRONG,
+                    16.0,
+                    Align::Center,
+                    theme.text.label,
+                    DigitMode::Proportional,
+                ),
+            )
+            .z(z)
+            .clipped(Some(name)),
+        );
         let summary =
-            Rect::new(rect.x + ui.px(4.0), rect.y + ui.px(64.0), rect.w - ui.px(8.0), ui.px(52.0));
+            Rect::new(rect.x + ui.px(4.0), rect.y + ui.px(84.0), rect.w - ui.px(8.0), ui.px(32.0));
         let z = list.len() as i16;
         list.push(
             Element::new(
@@ -805,11 +838,11 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
                 summary,
                 text(
                     &draft.current_module_summary(slot),
-                    Style::LABEL,
+                    Style::VALUE,
                     16.0,
                     Align::Center,
-                    theme.text.label,
-                    DigitMode::Proportional,
+                    theme.text.value,
+                    DigitMode::Tabular,
                 ),
             )
             .z(z)
@@ -923,7 +956,7 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             ui.px(SLOT_SIZE_U[1]),
         ),
         text(
-            &format!("{} / {}", draft.rack_total(), draft.rack_capacity()),
+            &format!("{} {} / {}", words::RACK, draft.rack_total(), draft.rack_capacity()),
             Style::VALUE,
             18.0,
             Align::Center,
@@ -1270,8 +1303,16 @@ mod tests {
         }
         assert_eq!(
             text_of(&list, E::RackTotal),
-            format!("{} / {}", draft.rack_total(), draft.rack_capacity())
+            format!("{} {} / {}", words::RACK, draft.rack_total(), draft.rack_capacity())
         );
+        // U21: every module slot says what it is, then its value, both legible.
+        for (i, slot) in FitSlot::ALL.into_iter().enumerate() {
+            assert_eq!(text_of(&list, E::ModuleName(i as u8)), slot_word(slot));
+            assert!(!text_of(&list, E::ModuleSummary(i as u8)).is_empty());
+        }
+        let names: std::collections::BTreeSet<&str> =
+            FitSlot::ALL.into_iter().map(slot_word).collect();
+        assert_eq!(names.len(), FitSlot::ALL.len(), "six slots, six different words");
     }
 
     /// G7: the one red is the commit's — BATTLE — and nothing else on the screen wears it; a

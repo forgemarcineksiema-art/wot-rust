@@ -52,6 +52,8 @@ pub(crate) enum GarageElement {
     ModuleSlot(u8),
     ModuleIcon(u8),
     ModuleSummary(u8),
+    /// The slot's NAME above its value (U21).
+    ModuleName(u8),
     AmmoSlot(u8),
     AmmoIcon(u8),
     AmmoName(u8),
@@ -139,7 +141,7 @@ impl GarageElement {
 impl GarageElement {
     /// Walked by the tests; the identity rule wants it whole (a data variant once).
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [GarageElement; 100] = [
+    pub const ALL: [GarageElement; 101] = [
         GarageElement::TopBar,
         GarageElement::Nameplate,
         GarageElement::Crew,
@@ -185,6 +187,7 @@ impl GarageElement {
         GarageElement::ModuleSlot(0),
         GarageElement::ModuleIcon(0),
         GarageElement::ModuleSummary(0),
+        GarageElement::ModuleName(0),
         GarageElement::AmmoSlot(0),
         GarageElement::AmmoIcon(0),
         GarageElement::AmmoName(0),
