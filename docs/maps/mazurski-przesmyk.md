@@ -35,6 +35,14 @@ Three honest lanes per team:
 The peat-pond defiles (`west_defile` / `east_defile`) stitch the lanes together at
 mid-map.
 
+**Topology as data (W1/W2, 2026-09-08)** — the three lanes in the blueprint as a rotated pair
+(south side): the causeway road 484 m, 11 cover boxes (2.3 per 100 m), 4 crest spots; the
+shore road 716 m, 4 boxes (0.6 per 100 m); the moraine lane 570 m, 15 boxes (2.6 per 100 m).
+The crossfire the report proves is the own esker crest and the far side's worked shelf over
+the moraine lane; the esker perches (250, 160 / 750, 840) see the lanes at 250–500 m. The
+peat defiles are the declared rotation path and the report says, on the record, that it is
+EXPOSED (19 % masked) — a lakeland is open by design, the long lines running over water.
+
 ## Water (the standing-sheet showcase)
 
 | Sheet | Rect | Level | Depth (max) | Role |

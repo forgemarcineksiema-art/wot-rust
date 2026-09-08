@@ -974,12 +974,106 @@ MapBlueprint(
                 at: (Fixed(895.0), Fixed(750.0)),
                 radius_m: 40.0,
             ),
+            // W1 (2026-09-08): the perches and the fallbacks — roles the report proves from
+            // geometry (a perch: at least two lane samples 250–500 m away in sight; a
+            // fallback: on a lane's band, 50 m behind its far end toward its own spawn).
+            StrategicPointSpec(
+                id: "berm_perch_south",
+                name: "railway berm perch (south)",
+                role: SniperPerch,
+                at: (Fixed(900.0), Fixed(400.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "berm_perch_north",
+                name: "railway berm perch (north)",
+                role: SniperPerch,
+                at: (Fixed(900.0), Fixed(600.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "boulevard_fallback_south",
+                name: "high street fallback (south)",
+                role: Fallback,
+                at: (Fixed(430.0), Fixed(300.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "boulevard_fallback_north",
+                name: "high street fallback (north)",
+                role: Fallback,
+                at: (Fixed(430.0), Fixed(700.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "outskirts_fallback_south",
+                name: "outskirts fallback (south)",
+                role: Fallback,
+                at: (Fixed(620.0), Fixed(260.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "outskirts_fallback_north",
+                name: "outskirts fallback (north)",
+                role: Fallback,
+                at: (Fixed(620.0), Fixed(740.0)),
+                radius_m: 30.0,
+            ),
         ],
         capture_zones: [
             CaptureZoneSpec(
                 id: "town_square",
                 at: (470.0, 500.0),
                 radius_m: 30.0,
+            ),
+        ],
+        // W1 (2026-09-08): the map as gameplay topology — the dossier's lanes as DATA (each
+        // from its spawn to a named place, walked by the report as a corridor on drivable
+        // ground), the rotation paths the report measures for masking, the crossfires it
+        // proves. A mirrored pair emits the twin point by point.
+        lanes: [
+            MirroredPair(
+                id_base: "mill_lane",
+                name_base: "the mill flank",
+                south_points: [(500.0, 130.0), (300.0, 250.0), (160.0, 350.0), (200.0, 450.0), (272.0, 500.0)],
+                width_m: 50.0,
+            ),
+            MirroredPair(
+                id_base: "boulevard_lane",
+                name_base: "the high street",
+                south_points: [(500.0, 130.0), (430.0, 240.0), (430.0, 496.0), (470.0, 500.0)],
+                width_m: 30.0,
+            ),
+            MirroredPair(
+                id_base: "outskirts_lane",
+                name_base: "the outskirts",
+                south_points: [(500.0, 130.0), (640.0, 270.0), (680.0, 330.0), (760.0, 420.0), (830.0, 500.0)],
+                width_m: 50.0,
+            ),
+        ],
+        rotation_paths: [
+            // A row street through the canyon: the tenements mask it from the far side.
+            MirroredPair(
+                id_base: "depot_rotation",
+                name_base: "the depot lane",
+                south_points: [(120.0, 314.0), (430.0, 314.0)],
+                width_m: 10.0,
+            ),
+        ],
+        crossfires: [
+            // The high street under the outskirts rise and the far side's fallback at the
+            // street's end: a hull on the boulevard is seen from the flank and head-on.
+            Crossfire(
+                id: "boulevard_crossfire_south",
+                a: "outskirts_rise_south",
+                b: "boulevard_fallback_north",
+                lane: "boulevard_lane_south",
+            ),
+            Crossfire(
+                id: "boulevard_crossfire_north",
+                a: "outskirts_rise_north",
+                b: "boulevard_fallback_south",
+                lane: "boulevard_lane_north",
             ),
         ],
         features: [

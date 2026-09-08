@@ -5,7 +5,9 @@
     // Re-blessed 2026-09-08 (the one program's W1, Prokhorovka only): the map's TOPOLOGY is
     // data now — three lanes a side, the balka rotation, the Psel crossfire, two sniper
     // perches and four fallbacks — and it folds into the hash after the roads; the four
-    // other maps declare none yet (W1b) and kept their goldens. Re-blessed the same day for
+    // other maps followed the same day (W1b: Bystra, Orliny, Ostrogorsk, Mazurski — each on
+    // its own road skeleton, the pairs and rotations chosen by the probe's ranking of what
+    // the geometry actually carries). Re-blessed the same day for
     // T1 (every map): the grid went 5 m -> 2.5 m, four times the samples of the same strokes.
     // Re-blessed 2026-08-26 (teren W3b tail, Orliny only): the col carries its LANDMARK -
     // the Orlinoye watchtower, a Svan-style shaft on the axis at (500, 500), the capture
@@ -157,9 +159,9 @@
     // parapets are the first of the LOW TIER - `LowWall`, 0.6 m (was 1.1 m of RailCover) -
     // a step every running gear in the fleet crosses with a tilt and a speed loss, and a
     // solid a shell still stops in. The hash moves with the kind and the half height.
-    ("bystra_valley", "06c7a69825f6236f"),
-    ("orliny_pereval", "7456171c795a8272"),
-    ("ostrogorsk", "76a696030dfe14a0"),
+    ("bystra_valley", "dd9b94854e13fe69"),
+    ("orliny_pereval", "d3c6969da3dd7374"),
+    ("ostrogorsk", "2bb6c0c490027d76"),
     // Blessed 2026-08-26 (teren W6, NEW MAP): Mazurski Przesmyk - the fifth map, and two
     // firsts at once: the first Rot180 half-turn map (each team sees the SAME battlefield
     // turned around - lake on the left, moraine on the right, twin mills dead ahead) and
@@ -169,6 +171,6 @@
     // floor). The report came back CLEAN on the first compile - the sheet gates (dry
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
-    ("mazurski_przesmyk", "a6e7f9f4e5ab0982"),
+    ("mazurski_przesmyk", "fe0357a9b3c4e780"),
     ("prokhorovka_hill_252_2", "ae2a87b247709efe"),
 ]

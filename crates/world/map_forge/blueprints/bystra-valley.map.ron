@@ -871,6 +871,92 @@ MapBlueprint(
                 at: (Fixed(180.0), Fixed(650.0)),
                 radius_m: 60.0,
             ),
+            // W1 (2026-09-08): the perches and the fallbacks — roles the report proves from
+            // geometry (a perch: at least two lane samples 250–500 m away in sight; a
+            // fallback: on a lane's band, 50 m behind its far end toward its own spawn).
+            StrategicPointSpec(
+                id: "quarry_perch_south",
+                name: "quarry ridge perch (south)",
+                role: SniperPerch,
+                at: (Fixed(900.0), Fixed(400.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "quarry_perch_north",
+                name: "quarry ridge perch (north)",
+                role: SniperPerch,
+                at: (Fixed(900.0), Fixed(600.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "valley_fallback_south",
+                name: "valley road fallback (south)",
+                role: Fallback,
+                at: (Fixed(440.0), Fixed(300.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "valley_fallback_north",
+                name: "valley road fallback (north)",
+                role: Fallback,
+                at: (Fixed(440.0), Fixed(700.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "field_fallback_south",
+                name: "field lane fallback (south)",
+                role: Fallback,
+                at: (Fixed(260.0), Fixed(320.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "field_fallback_north",
+                name: "field lane fallback (north)",
+                role: Fallback,
+                at: (Fixed(260.0), Fixed(680.0)),
+                radius_m: 30.0,
+            ),
+        ],
+        // W1 (2026-09-08): the map as gameplay topology — the dossier's lanes as DATA (each
+        // from its spawn to a named place, walked by the report as a corridor on drivable
+        // ground), the rotation paths the report measures for masking, the crossfires it
+        // proves. A mirrored pair emits the twin point by point.
+        lanes: [
+            MirroredPair(
+                id_base: "field_lane",
+                name_base: "western field lane",
+                south_points: [(400.0, 170.0), (300.0, 260.0), (180.0, 350.0), (250.0, 500.0)],
+                width_m: 60.0,
+            ),
+            MirroredPair(
+                id_base: "valley_lane",
+                name_base: "valley road and the bridge",
+                south_points: [(400.0, 170.0), (430.0, 260.0), (450.0, 380.0), (470.0, 460.0), (470.0, 500.0), (600.0, 500.0)],
+                width_m: 40.0,
+            ),
+            MirroredPair(
+                id_base: "ford_lane",
+                name_base: "ford track to the quarry ridge",
+                south_points: [(400.0, 170.0), (450.0, 300.0), (505.0, 340.0), (560.0, 320.0), (620.0, 330.0), (760.0, 330.0), (915.0, 340.0)],
+                width_m: 50.0,
+            ),
+        ],
+        rotation_paths: [
+            MirroredPair(
+                id_base: "plank_rotation",
+                name_base: "the plank crossing track",
+                south_points: [(430.0, 260.0), (480.0, 220.0), (530.0, 185.0), (575.0, 180.0), (620.0, 200.0), (640.0, 240.0)],
+                width_m: 10.0,
+            ),
+        ],
+        crossfires: [
+            // The two overwatches — the west knoll and the quarry ridge — over the field lane.
+            MirroredPair(
+                id_base: "field_crossfire",
+                a_base: "knoll_overwatch",
+                b_base: "ridge_perch",
+                lane_base: "field_lane",
+            ),
         ],
         features: [
             FeatureSpec(

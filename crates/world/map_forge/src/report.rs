@@ -96,9 +96,13 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     if map.water.is_some() && map.river.is_some() {
         check_water_contract(blueprint, map, &WaterThresholds::default(), &mut report);
     }
-    check_playability(blueprint, map, &WaterThresholds::default(), &mut report);
+    // The drive graph's mask once (T1: 160 k cells against every cover box — 0.4 s on Orliny),
+    // shared by the playability flood and the topology walks.
+    let thresholds = WaterThresholds::default();
+    let passable = passable_mask(map, &thresholds);
+    check_playability(blueprint, map, &passable, &mut report);
     check_hull_down(map, &mut report);
-    check_topology(map, &WaterThresholds::default(), &mut report);
+    check_topology(map, &passable, &mut report);
     report
 }
 
@@ -142,13 +146,12 @@ pub fn cover_passability_margin_m() -> f32 {
 fn check_playability(
     blueprint: &MapBlueprint,
     map: &BattlefieldMap,
-    thresholds: &WaterThresholds,
+    passable: &[bool],
     report: &mut MapReport,
 ) {
     let heightmap = &map.heightmap;
     let (width, height) = (heightmap.width(), heightmap.height());
     let cell = heightmap.cell_size_m();
-    let passable = passable_mask(map, thresholds);
 
     let cell_of = |position: [f32; 3]| -> usize {
         let xi = (position[0] / cell).round().clamp(0.0, (width - 1) as f32) as usize;
@@ -189,7 +192,7 @@ fn check_playability(
             );
             continue;
         };
-        let reached = flood_reachable(start, &passable, heightmap, width, height, cell);
+        let reached = flood_reachable(start, passable, heightmap, width, height, cell);
         let mut assert_reaches = |what: String, position: [f32; 3]| {
             let target = start_cell(position);
             if target.is_none_or(|target| !reached[target]) {
@@ -200,7 +203,7 @@ fn check_playability(
                 let blame = target
                     .map(|target| {
                         walls_around(
-                            target, position, &passable, map, heightmap, width, height, cell,
+                            target, position, passable, map, heightmap, width, height, cell,
                         )
                     })
                     .unwrap_or_default();
@@ -1847,6 +1850,28 @@ fn nearer_spawn(map: &BattlefieldMap, p: [f32; 2]) -> Option<&terrain::SpawnZone
     })
 }
 
+/// Whether a point is `side`'s own: nearer to that side's spawn than to any other — a point on
+/// the axis (a summit, a bridge) is equidistant and belongs to NO side, so it is every side's
+/// eye (the west summit of Orliny sees both shoulders).
+fn belongs_to_side(map: &BattlefieldMap, p: [f32; 2], side: Option<u16>) -> bool {
+    let mut distances: Vec<(f32, u16)> = map
+        .spawn_zones
+        .iter()
+        .map(|spawn| {
+            (
+                ((spawn.center[0] - p[0]).powi(2) + (spawn.center[2] - p[1]).powi(2)).sqrt(),
+                spawn.team,
+            )
+        })
+        .collect();
+    distances.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    match distances.as_slice() {
+        [] => false,
+        [(_, team)] => Some(*team) == side,
+        [(d0, team), (d1, _), ..] => (d1 - d0) > 1.0 && Some(*team) == side,
+    }
+}
+
 /// A lane's or a path's walk: every sample on passable ground and every step within the climb
 /// grade; the first offence, if any.
 fn walk_offence(
@@ -1966,9 +1991,7 @@ pub fn rotation_masking(map: &BattlefieldMap) -> Vec<(String, f32)> {
                         StrategicRole::Observation
                             | StrategicRole::HighGround
                             | StrategicRole::SniperPerch
-                    ) && nearer_spawn(map, [point.position[0], point.position[2]])
-                        .map(|spawn| spawn.team)
-                        != own
+                    ) && !belongs_to_side(map, [point.position[0], point.position[2]], own)
                 })
                 .map(|point| [point.position[0], point.position[1] + eye, point.position[2]])
                 .collect();
@@ -1990,7 +2013,7 @@ pub fn rotation_masking(map: &BattlefieldMap) -> Vec<(String, f32)> {
 /// named place on drivable ground, crossfires whose two positions really see one stretch of
 /// their lane from > 60° apart, perches with long lines onto a lane, rotation paths that walk,
 /// fallbacks that stand behind their lane, and at least one of each per side.
-fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &mut MapReport) {
+fn check_topology(map: &BattlefieldMap, passable: &[bool], report: &mut MapReport) {
     if map.lanes.is_empty() {
         if map.size_m[0] >= 500.0 {
             report.push(
@@ -2002,7 +2025,6 @@ fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &m
         }
         return;
     }
-    let passable = passable_mask(map, thresholds);
     let eye = benchmark_eye_m();
     let point_by_id = |id: &str| map.strategic_points.iter().find(|point| point.id == id);
 
@@ -2053,7 +2075,7 @@ fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &m
                 ground_at(map, last, 0.0),
             );
         }
-        if let Some((what, at)) = walk_offence(map, &passable, &lane.points, lane.width_m) {
+        if let Some((what, at)) = walk_offence(map, passable, &lane.points, lane.width_m) {
             report.push(
                 "topology",
                 Severity::Error,
@@ -2065,7 +2087,7 @@ fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &m
 
     // Rotation paths: they walk, and they mask.
     for path in &map.rotation_paths {
-        if let Some((what, at)) = walk_offence(map, &passable, &path.points, path.width_m) {
+        if let Some((what, at)) = walk_offence(map, passable, &path.points, path.width_m) {
             report.push(
                 "topology",
                 Severity::Error,
@@ -2156,6 +2178,8 @@ fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &m
         match point.role {
             StrategicRole::SniperPerch => {
                 let from = [point.position[0], point.position[1] + eye, point.position[2]];
+                // Counted only up to the floor: a perch that sees its two samples is proven,
+                // and every further sight line is report time the editor's loop pays for.
                 let seen = lane_samples
                     .iter()
                     .filter(|p| {
@@ -2165,6 +2189,7 @@ fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &m
                         (PERCH_RANGE_M[0]..=PERCH_RANGE_M[1]).contains(&range)
                             && sees_hull_at(map, from, **p)
                     })
+                    .take(PERCH_MIN_SAMPLES)
                     .count();
                 if seen < PERCH_MIN_SAMPLES {
                     report.push(

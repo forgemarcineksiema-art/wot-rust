@@ -692,6 +692,92 @@ MapBlueprint(
                 at: (Fixed(840.0), Fixed(690.0)),
                 radius_m: 45.0,
             ),
+            // W1 (2026-09-08): the perches and the fallbacks — roles the report proves from
+            // geometry (a perch: at least two lane samples 250–500 m away in sight; a
+            // fallback: on a lane's band, 50 m behind its far end toward its own spawn).
+            StrategicPointSpec(
+                id: "east_rim_perch_south",
+                name: "east rim perch (south)",
+                role: SniperPerch,
+                at: (Fixed(930.0), Fixed(330.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "east_rim_perch_north",
+                name: "east rim perch (north)",
+                role: SniperPerch,
+                at: (Fixed(930.0), Fixed(670.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "pass_fallback_south",
+                name: "pass road fallback (south)",
+                role: Fallback,
+                at: (Fixed(520.0), Fixed(300.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "pass_fallback_north",
+                name: "pass road fallback (north)",
+                role: Fallback,
+                at: (Fixed(520.0), Fixed(700.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "dolina_fallback_south",
+                name: "Dolina fallback (south)",
+                role: Fallback,
+                at: (Fixed(210.0), Fixed(250.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "dolina_fallback_north",
+                name: "Dolina fallback (north)",
+                role: Fallback,
+                at: (Fixed(210.0), Fixed(750.0)),
+                radius_m: 30.0,
+            ),
+        ],
+        // W1 (2026-09-08): the map as gameplay topology — the dossier's lanes as DATA (each
+        // from its spawn to a named place, walked by the report as a corridor on drivable
+        // ground), the rotation paths the report measures for masking, the crossfires it
+        // proves. A mirrored pair emits the twin point by point.
+        lanes: [
+            MirroredPair(
+                id_base: "dolina_lane",
+                name_base: "Dolina lane",
+                south_points: [(500.0, 160.0), (300.0, 120.0), (195.0, 180.0), (210.0, 320.0), (200.0, 500.0)],
+                width_m: 50.0,
+            ),
+            MirroredPair(
+                id_base: "pass_lane",
+                name_base: "the pass road",
+                south_points: [(500.0, 160.0), (552.0, 240.0), (468.0, 330.0), (524.0, 420.0), (520.0, 468.0), (500.0, 500.0)],
+                width_m: 40.0,
+            ),
+            MirroredPair(
+                id_base: "defile_lane",
+                name_base: "the defile",
+                south_points: [(500.0, 160.0), (700.0, 130.0), (840.0, 180.0), (834.0, 330.0), (840.0, 500.0)],
+                width_m: 30.0,
+            ),
+        ],
+        rotation_paths: [
+            MirroredPair(
+                id_base: "shoulder_rotation",
+                name_base: "the Sokol shoulder walk",
+                south_points: [(250.0, 330.0), (310.0, 325.0), (400.0, 340.0), (468.0, 330.0)],
+                width_m: 12.0,
+            ),
+        ],
+        crossfires: [
+            // Both shoulders' hull-down shelves over the pass road.
+            MirroredPair(
+                id_base: "pass_crossfire",
+                a_base: "shoulder_hulldown",
+                b_base: "face_hulldown",
+                lane_base: "pass_lane",
+            ),
         ],
         features: [
             FeatureSpec(
