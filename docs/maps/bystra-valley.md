@@ -1,6 +1,6 @@
 # Dolina Bystrej (Bystra Valley)
 
-Fictional Central-European river valley, 1000 m × 1000 m at 5 m samples, mirror-symmetric
+Fictional Central-European river valley, 1000 m × 1000 m at 2.5 m samples (5 m until T1, 2026-09-08), mirror-symmetric
 across the central axis (`z = 500`). The Bystra river runs **along the axis of advance**,
 splitting the map into two flanks with different games; five crossings decide the mid-game.
 

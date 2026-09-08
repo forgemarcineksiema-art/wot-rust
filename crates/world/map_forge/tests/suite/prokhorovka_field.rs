@@ -11,8 +11,10 @@ fn western_field_is_flat_open_ground_unlike_the_rolling_steppe() {
     // must be markedly flatter than the rolling central steppe. The window starts EAST of
     // the Psel's own bank (teren W5): the river the flank is named for is a feature, not a
     // violation - the FIELD between the reeds and the rails is what stays naked.
-    let field_relief = max_local_relief(hm, (16, 26), (46, 74), 3);
-    let steppe_relief = max_local_relief(hm, (60, 92), (46, 74), 3);
+    // Windows in METRES (T1): the old cell indices were the 5 m grid's; on 2.5 m the same
+    // indices landed in the Psel's own bank and read the river as the field.
+    let field_relief = max_local_relief(hm, (80.0, 130.0), (230.0, 370.0), 15.0);
+    let steppe_relief = max_local_relief(hm, (300.0, 460.0), (230.0, 370.0), 15.0);
 
     assert!(
         field_relief < 1.2,
@@ -70,12 +72,11 @@ fn line_of_sight_clear(hm: &HeightMap, from: (f32, f32, f32), to: (f32, f32, f32
 
 /// Worst-case local relief (max minus min height) over sliding `radius`-cell windows inside
 /// the given inclusive-exclusive cell band.
-fn max_local_relief(
-    hm: &HeightMap,
-    x_cells: (usize, usize),
-    z_cells: (usize, usize),
-    radius: usize,
-) -> f32 {
+fn max_local_relief(hm: &HeightMap, x_m: (f32, f32), z_m: (f32, f32), radius_m: f32) -> f32 {
+    let cell = hm.cell_size_m();
+    let to_cells = |m: (f32, f32)| ((m.0 / cell).round() as usize, (m.1 / cell).round() as usize);
+    let (x_cells, z_cells) = (to_cells(x_m), to_cells(z_m));
+    let radius = (radius_m / cell).round() as usize;
     let mut worst = 0.0f32;
     for cz in z_cells.0..z_cells.1 {
         for cx in x_cells.0..x_cells.1 {

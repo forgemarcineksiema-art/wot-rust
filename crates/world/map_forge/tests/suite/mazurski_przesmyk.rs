@@ -112,10 +112,13 @@ fn the_mills_flank_the_causeway_as_a_rot_pair() {
 /// banks. The dossier's first verdict called the inventory "v1-thin" off the ATLAS BAND,
 /// which is a DIFFERENT metric (fleet-integrated LOS - thin here because a lakeland is
 /// open by design, the long lines running over water); the census says the POSITIONS are
-/// there. Measured 40; the ratchet holds erosion at ten percent.
+/// there. Measured 40 on the 5 m grid; 34 on the 2.5 m grid (T1, 2026-09-08 — the census
+/// is metre-lattice arithmetic over `sample_height`, and six spots that read level and
+/// crested between 5 m samples do not on the finer ground: the number got more honest,
+/// not the map worse). The ratchet holds erosion at ten percent of the measured 34.
 #[test]
 fn mazurski_carries_a_fightable_crest_inventory() {
     let map = map();
     let spots = map_forge::hull_down_positions(&map).len();
-    assert!(spots >= 36, "the crest inventory eroded: {spots} against the measured 40");
+    assert!(spots >= 31, "the crest inventory eroded: {spots} against the measured 34");
 }

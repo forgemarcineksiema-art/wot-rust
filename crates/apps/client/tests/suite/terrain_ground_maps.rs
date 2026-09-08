@@ -243,11 +243,14 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // gravel tracks and cobbled street splat as stone since A2), the second floodplain
     // terrace and swales (the moisture rule wets the wider lowland), the bridgehead bluffs
     // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
+    // Blessed again 2026-09-08 (T1), ALL EIGHT HASHES: every map's grid went 5 m -> 2.5 m, so
+    // the splat and the macro normals are baked off a heightfield sampled twice as often —
+    // the same strokes, read finer; the classification and its weights rule are untouched.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0x9028_ea73_8ba3_6f5e_u64, 0x7d30_f9e6_9044_2f4a_u64),
-        (MapId::BystraValley, 0xd6cf_ed0c_d6be_34d5, 0x60a6_1b27_f521_1396),
-        (MapId::OrlinyPereval, 0xcfe5_3851_bf87_55d4, 0x97bb_a288_deee_7e8c),
-        (MapId::Ostrogorsk, 0xbed9_c9eb_8b15_08fb, 0x3e52_2c8c_ea8b_f9f2),
+        (MapId::ProkhorovkaHill252_2, 0x9428_f970_814a_773e_u64, 0x9057_9c61_e2c4_86d0_u64),
+        (MapId::BystraValley, 0xd5fb_9049_885b_91be, 0x4983_585c_af75_14af),
+        (MapId::OrlinyPereval, 0xb47e_c6e1_2ad4_39d8, 0xe525_0ef8_aa53_3bba),
+        (MapId::Ostrogorsk, 0x2946_4fb9_2c19_8939, 0xca84_94a8_2cf9_fa3b),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");

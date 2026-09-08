@@ -1924,12 +1924,20 @@ fn terrain_ground_parts(
         // B7: a paved street carries the SETTS lane where its paint is more than half —
         // the ground pipeline draws its own stones there, not the rock lane's crack tile.
         let mut surface = 0.0;
-        if let Some((tone, road_gloss, blend, road_surface)) = road_paint(roads, wx, wz) {
+        if let Some((tone, road_gloss, blend, _)) = road_paint(roads, wx, wz) {
             color = Vec3::from_array(color).lerp(tone, blend).to_array();
             gloss = gloss + (road_gloss - gloss) * blend;
-            if road_surface == RoadSurface::Cobble && blend >= 0.5 {
-                surface = renderer_api::surface_role::SETTS;
-            }
+        }
+        // The setts lane follows the PAVED paint alone: at a junction a dirt road's fuller
+        // paint used to win the vertex and take the stones off a street it lay across (two
+        // vertices of Ostrogorsk on the 2.5 m grid; none happened to land there on 5 m).
+        let paved_blend = roads
+            .iter()
+            .filter(|road| road.surface == RoadSurface::Cobble)
+            .map(|road| terrain::road_blend(road, wx, wz))
+            .fold(0.0f32, f32::max);
+        if paved_blend >= 0.5 {
+            surface = renderer_api::surface_role::SETTS;
         }
         // The ground pipeline reads its albedo from the splat layers; the vertex colour
         // wins only where the tint lane says so — the submerged riverbed, whose depth
@@ -4249,11 +4257,14 @@ mod tests {
     #[test]
     fn the_towns_static_buffer_dropped_its_dwellings_into_the_kit() {
         // Measured 2026-09-07: 124 420 baked, 98 728 taken out by the kit (70 dwellings);
-        // the same day B7 laid the kerbs and pavements into the buffer: 146 068 baked.
-        const OSTROGORSK_STATICS_TRIANGLE_CEILING: usize = 155_000;
+        // the same day B7 laid the kerbs and pavements into the buffer: 146 068 baked — both
+        // counts WITH the ground's 110 488 triangles in the scene mesh. T1 (2026-09-08) put the
+        // ground on a 2.5 m grid (4× its triangles), so the lock counts the STATICS alone now,
+        // which is what the row was about: measured 35 580 statics under the old ceiling.
+        const OSTROGORSK_STATICS_TRIANGLE_CEILING: usize = 45_000;
         let battlefield = map_forge::battlefield(terrain::MapId::Ostrogorsk);
-        let (_, indices) = battlefield_scene_mesh(&battlefield);
-        let baked = indices.len() / 3;
+        let (_, (_, statics_indices)) = battlefield_ground_and_statics_meshes(&battlefield, &[]);
+        let baked = statics_indices.len() / 3;
         let mut removed = 0usize;
         let mut kit_boxes = 0usize;
         for cover in &battlefield.static_cover {

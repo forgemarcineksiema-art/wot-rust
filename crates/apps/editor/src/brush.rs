@@ -355,6 +355,10 @@ mod tests {
     use super::*;
     use map_forge::blueprint::SymmetrySpec;
 
+    /// The scratch document's grid: 300 m at the shipped 2.5 m cell (T1) — 121 samples a side,
+    /// the centre at index 60. Every index below is derived from it, not from the old 61.
+    const SIDE: u32 = 121;
+
     fn scratch() -> (MapBlueprint, HeightMap) {
         let document = crate::EditorDocument::new_scratch();
         let compiled = document.recompile();
@@ -374,8 +378,8 @@ mod tests {
         let sculpt = stroke.committed(None).expect("a real stroke commits");
         assert_eq!(sculpt.step_m, DEFAULT_STEP_M);
         assert!(sculpt.samples.windows(2).all(|pair| pair[0].0 < pair[1].0), "canonical order");
-        let side = 61_u32;
-        let centre = 30 * side + 30;
+        let side = SIDE;
+        let centre = 60 * side + 60;
         let raised = sculpt.samples.iter().find(|(index, _)| *index == centre).expect("centre");
         assert_eq!(raised.1, (6.0_f32 / DEFAULT_STEP_M).round() as i16, "full rate, quantized");
 
@@ -392,7 +396,7 @@ mod tests {
         let (mut blueprint, _) = scratch();
         blueprint.symmetry = Some(SymmetrySpec::MirrorZ);
         let compiled = map_forge::compile(&blueprint).0;
-        let side = 61_u32;
+        let side = SIDE;
         for mode in BrushMode::CYCLE {
             let mut stroke = Stroke::begin(&blueprint, &compiled.heightmap);
             stroke.dab([150.0, 100.0], &settings(mode), 0.7);
@@ -426,7 +430,7 @@ mod tests {
         let (mut blueprint, _) = scratch();
         blueprint.symmetry = Some(SymmetrySpec::Rot180);
         let compiled = map_forge::compile(&blueprint).0;
-        let side = 61_u32;
+        let side = SIDE;
         for mode in BrushMode::CYCLE {
             let mut stroke = Stroke::begin(&blueprint, &compiled.heightmap);
             stroke.dab([150.0, 100.0], &settings(mode), 0.7);
@@ -464,10 +468,12 @@ mod tests {
         stroke.dab([60.0, 150.0], &raise, 0.05);
         stroke.dab([150.0, 150.0], &raise, 0.05);
         let sculpt = stroke.committed(None).expect("commits");
-        let side = 61_u32;
-        let row = 30_u32;
-        // Every column between the two dab centres must carry sculpt on the stroke row.
-        for xi in 13..=29 {
+        let side = SIDE;
+        let row = 60_u32;
+        // Every column between the two dab centres must carry sculpt on the stroke row
+        // (up to 5 m before the end dab, as the 5 m grid's lock read it: a stroke's last
+        // half-quantum tail is a tail, not a gap).
+        for xi in 26..=58 {
             assert!(
                 sculpt.samples.iter().any(|(index, _)| *index == row * side + xi),
                 "gap at column {xi} — the drag stitched dots instead of a stroke"
@@ -484,7 +490,7 @@ mod tests {
         stroke.dab([90.0, 150.0], &ridge, 0.3);
         stroke.dab([150.0, 150.0], &ridge, 0.3);
         let sculpt = stroke.committed(None).expect("commits");
-        let side = 61_u32;
+        let side = SIDE;
         let quanta_at = |xi: u32, zi: u32| {
             sculpt
                 .samples
@@ -494,11 +500,11 @@ mod tests {
         };
         // On the drag line the crest stands; 10 m across it there is nothing — the
         // anisotropic weight (0.35 r across) is what separates a line from a blob trail.
-        assert!(quanta_at(24, 30) > 0, "the crest rises on the drag line");
+        assert!(quanta_at(48, 60) > 0, "the crest rises on the drag line");
         assert!(
-            quanta_at(24, 32) == 0,
+            quanta_at(48, 64) == 0,
             "10 m across the line the ridge weight is zero, got {}",
-            quanta_at(24, 32)
+            quanta_at(48, 64)
         );
     }
 
@@ -523,7 +529,7 @@ mod tests {
             stroke.dab([150.0, 150.0], &terrace, 0.2);
         }
         // The held centre converges onto a multiple of the step.
-        let index = (30 * 61 + 30) as usize;
+        let index = (60 * SIDE + 60) as usize;
         let level = stroke.effective(index) / terrace.terrace_step_m;
         assert!(
             (level - level.round()).abs() < 0.1,
@@ -535,7 +541,7 @@ mod tests {
     #[test]
     fn erode_relaxes_peaks_faster_than_pits() {
         let (blueprint, heightmap) = scratch();
-        let index = (30 * 61 + 30) as usize;
+        let index = (60 * SIDE + 60) as usize;
 
         // A raised bump, then one erosion pass at its crest.
         let mut peak = Stroke::begin(&blueprint, &heightmap);
@@ -565,7 +571,7 @@ mod tests {
         // Paint right into the corner: the fade must keep the ring untouched.
         stroke.dab([2.0, 2.0], &settings(BrushMode::Raise), 1.0);
         let sculpt = stroke.committed(None).expect("commits");
-        let side = 61_u32;
+        let side = SIDE;
         for &(index, _) in &sculpt.samples {
             let (xi, zi) = (index % side, index / side);
             assert!(
@@ -586,7 +592,7 @@ mod tests {
         for _ in 0..40 {
             flatten.dab([150.0, 150.0], &settings(BrushMode::Flatten), 0.2);
         }
-        let index = (30 * 61 + 30) as usize;
+        let index = (60 * SIDE + 60) as usize;
         let flattened = flatten.effective(index);
         let anchor = flatten.flatten_target_m.expect("anchored");
         assert!(
