@@ -17,6 +17,20 @@ WoT map anatomy as the genre reference.
   the embankment axis, locked by `prokhorovka_heightmap_is_mirror_symmetric_across_central_axis`).
 - Theme: open steppe — `horizon: None` is deliberate (the analytic continuation reading out
   to the haze IS the historical statement; Bystra and Orliny carry the enclosed horizons).
+- **Three lanes, three characters** — since W1 (2026-09-08) DATA in the blueprint
+  (`gameplay.lanes`, mirrored pairs), walked by the report as corridors from the spawn to a
+  named place; the W2 census per lane (south side; the north twin carries the same numbers):
+  the Psel field lane 424 m, 1 cover box (0.2 per 100 m), 5 hull-down spots in its band —
+  the naked flank; the farm corridor 342 m, 16 boxes (4.7 per 100 m), 2 spots — the brawl;
+  the hill lane 421 m, 5 boxes (1.2 per 100 m), 11 spots — the hull-down duel. The balka
+  (`balka_rotation`, 380→660 m along z≈380) is the rotation path, masked from the other
+  side's eyes over 59–69 % of its run; the Psel crossfire (the overwatch knoll and the farm
+  rise over the field lane) is proven by the report (25 of 86 lane samples seen by both from
+  bearings > 60°); the approach-crest perches (330, 250/750) see the lanes at 250–500 m;
+  the fallbacks stand behind the farm corridor and the hill lane. The hill's hull-down shelf
+  and its crest were tried as the crossfire's east eye and REFUSED by the geometry: the top
+  ridge at z≈368 stands between them and the farm corridor — a hull-down looks where its
+  crest lets it, which is exactly what it is for.
 - **Three lanes, three characters:**
   1. **West — Psel field (x 60–240):** the naked flank. Fast rotation, punished from the
      overwatch knolls (235, 200/800) and the embankment line. Stays bare by contract

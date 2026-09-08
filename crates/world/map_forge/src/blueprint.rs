@@ -616,6 +616,31 @@ pub enum RoadSpec {
     },
 }
 
+// --- Topology (W1) -------------------------------------------------------------------------
+
+/// W1: a lane as authored — one polyline, or a southern polyline with its exact twin
+/// (`_south` / `_north`), like a road.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LaneSpec {
+    Lane { id: String, name: String, points: Vec<[f32; 2]>, width_m: f32 },
+    MirroredPair { id_base: String, name_base: String, south_points: Vec<[f32; 2]>, width_m: f32 },
+}
+
+/// W1: a rotation path as authored (the same two forms as a lane).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RotationPathSpec {
+    Path { id: String, name: String, points: Vec<[f32; 2]>, width_m: f32 },
+    MirroredPair { id_base: String, name_base: String, south_points: Vec<[f32; 2]>, width_m: f32 },
+}
+
+/// W1: a crossfire as authored — explicit ids, or the bases of a mirrored pair (every id
+/// takes `_south` / `_north`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CrossfireSpec {
+    Crossfire { id: String, a: String, b: String, lane: String },
+    MirroredPair { id_base: String, a_base: String, b_base: String, lane_base: String },
+}
+
 // --- Gameplay layout ---------------------------------------------------------------------
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -635,6 +660,14 @@ pub struct GameplaySpec {
     pub capture_zones: Vec<CaptureZoneSpec>,
     #[serde(default)]
     pub features: Vec<FeatureSpec>,
+    /// W1: the topology lanes — the drive corridors, rotation paths and crossfires the report
+    /// proves from geometry (GDD row 35). Empty until a map is authored for it.
+    #[serde(default)]
+    pub lanes: Vec<LaneSpec>,
+    #[serde(default)]
+    pub rotation_paths: Vec<RotationPathSpec>,
+    #[serde(default)]
+    pub crossfires: Vec<CrossfireSpec>,
 }
 
 impl GameplaySpec {

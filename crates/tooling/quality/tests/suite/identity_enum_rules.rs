@@ -36,6 +36,8 @@ const IDENTITY_ENUMS: &[&str] = &[
     "SceneryKind",
     "ShellType",
     "StaticCoverKind",
+    // W1 (2026-09-08): the blueprints and the bots read the role's order; two appended.
+    "StrategicRole",
     "VehicleKind",
 ];
 
@@ -258,6 +260,20 @@ const IDENTITY_ENUM_ORDER: &[(&str, &[&str])] = &[
     (
         "VehicleKind",
         &["T54_1951", "TigerI", "TigerII", "Jagdtiger", "PantherII", "IS3", "Centurion", "T34_85"],
+    ),
+    (
+        // The one program's W1 (2026-09-08): the blueprints and the bots read the role's order.
+        "StrategicRole",
+        &[
+            "HighGround",
+            "Crossing",
+            "Observation",
+            "HullDown",
+            "FlankRoute",
+            // W1: a perch with long lines onto a lane; a position behind a lane to fall back to.
+            "SniperPerch",
+            "Fallback",
+        ],
     ),
 ];
 

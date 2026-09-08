@@ -2,6 +2,11 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
+    // Re-blessed 2026-09-08 (the one program's W1, Prokhorovka only): the map's TOPOLOGY is
+    // data now — three lanes a side, the balka rotation, the Psel crossfire, two sniper
+    // perches and four fallbacks — and it folds into the hash after the roads; the four
+    // other maps declare none yet (W1b) and kept their goldens. Re-blessed the same day for
+    // T1 (every map): the grid went 5 m -> 2.5 m, four times the samples of the same strokes.
     // Re-blessed 2026-08-26 (teren W3b tail, Orliny only): the col carries its LANDMARK -
     // the Orlinoye watchtower, a Svan-style shaft on the axis at (500, 500), the capture
     // point itself. StoneTower is the NEW tenth cover kind (identity-enum golden extended):
@@ -165,5 +170,5 @@
     // rect edges, no overlap, no doubled column) and the Rot180 probe certified the
     // authored numbers as written.
     ("mazurski_przesmyk", "a6e7f9f4e5ab0982"),
-    ("prokhorovka_hill_252_2", "c0e9e432b8138856"),
+    ("prokhorovka_hill_252_2", "ae2a87b247709efe"),
 ]

@@ -141,6 +141,9 @@ fn rot_square() -> MapBlueprint {
                 radius_m: 20.0,
             }],
             features: Vec::new(),
+            lanes: Vec::new(),
+            rotation_paths: Vec::new(),
+            crossfires: Vec::new(),
         },
     }
 }

@@ -21,7 +21,8 @@ pub use compile::{
 pub use compile::{TRUNK_SINK_M, boulder_box_of, tree_trunk_box_of, trunk_species_for};
 pub use golden::{battlefield_hash, map_golden_hashes};
 pub use report::{
-    DESTRUCTIBLE_FLOOR, DRESSED_MAP_TREES, HullDownSpot, MapReport, RETIRED_KINDS, ReportEntry,
-    Severity, TREE_KINDS, WaterThresholds, cover_passability_margin_m, destructible_count,
-    hull_down_positions, hull_down_rise_min_m, species_counts,
+    DESTRUCTIBLE_FLOOR, DRESSED_MAP_TREES, HullDownSpot, LaneCensus, MapReport, RETIRED_KINDS,
+    ReportEntry, Severity, TREE_KINDS, WaterThresholds, cover_passability_margin_m,
+    destructible_count, hull_down_positions, hull_down_rise_min_m, lane_census, rotation_masking,
+    species_counts,
 };

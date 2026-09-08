@@ -5,7 +5,7 @@
 //! The report is the editor's early warning; the gameplay-side contract tests (river
 //! physics constants, battle setup) stay in `sim`/`server` as the authoritative gate.
 
-use terrain::{BattlefieldMap, StaticCoverKind, StaticCoverObject};
+use terrain::{BattlefieldMap, StaticCoverKind, StaticCoverObject, StrategicRole};
 
 use crate::blueprint::{MapBlueprint, TerrainOp, XCoord};
 
@@ -98,6 +98,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     }
     check_playability(blueprint, map, &WaterThresholds::default(), &mut report);
     check_hull_down(map, &mut report);
+    check_topology(map, &WaterThresholds::default(), &mut report);
     report
 }
 
@@ -147,18 +148,7 @@ fn check_playability(
     let heightmap = &map.heightmap;
     let (width, height) = (heightmap.width(), heightmap.height());
     let cell = heightmap.cell_size_m();
-    let water_field = map.water_field();
-    let passable: Vec<bool> = (0..width * height)
-        .map(|index| {
-            let (xi, zi) = (index % width, index / width);
-            let ground = heightmap.sample_at_index(xi, zi);
-            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
-            if water_field.depth_at(ground, x, z) >= thresholds.drown_depth_m {
-                return false;
-            }
-            !terrain::inside_any_cover(&map.static_cover, x, z, cover_passability_margin_m())
-        })
-        .collect();
+    let passable = passable_mask(map, thresholds);
 
     let cell_of = |position: [f32; 3]| -> usize {
         let xi = (position[0] / cell).round().clamp(0.0, (width - 1) as f32) as usize;
@@ -1738,6 +1728,508 @@ fn check_hull_down(map: &BattlefieldMap, report: &mut MapReport) {
             ),
             at,
         );
+    }
+}
+
+/// The drive graph's cells a hull may stand on: not drowning, not inside a cover box (with the
+/// widest hull's margin). Shared by the playability flood and the topology walks (W1).
+fn passable_mask(map: &BattlefieldMap, thresholds: &WaterThresholds) -> Vec<bool> {
+    let heightmap = &map.heightmap;
+    let (width, height) = (heightmap.width(), heightmap.height());
+    let cell = heightmap.cell_size_m();
+    let water_field = map.water_field();
+    (0..width * height)
+        .map(|index| {
+            let (xi, zi) = (index % width, index / width);
+            let ground = heightmap.sample_at_index(xi, zi);
+            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
+            if water_field.depth_at(ground, x, z) >= thresholds.drown_depth_m {
+                return false;
+            }
+            !terrain::inside_any_cover(&map.static_cover, x, z, cover_passability_margin_m())
+        })
+        .collect()
+}
+
+// --- W1: the map as gameplay topology ------------------------------------------------------
+
+/// The step a lane or a rotation path is walked in.
+const TOPOLOGY_STEP_M: f32 = 5.0;
+/// How far a lane's first point may sit from its team's spawn, and its last point from a
+/// named place (a strategic point or a capture zone): a lane leads from somewhere to somewhere.
+const LANE_END_LEASH_M: f32 = 80.0;
+/// The bearings a crossfire's two positions must differ by at the lane sample they both see.
+const CROSSFIRE_MIN_ANGLE_DEG: f32 = 60.0;
+/// The band of lane samples a sniper perch must see: long lines, not a hull-down's.
+const PERCH_RANGE_M: [f32; 2] = [250.0, 500.0];
+/// How many lane samples inside that band a perch must see.
+const PERCH_MIN_SAMPLES: usize = 2;
+/// A fallback stands this much closer to its spawn than the lane's far end.
+const FALLBACK_BEHIND_M: f32 = 50.0;
+/// The band around a lane's centreline that counts as "on the lane" for its census and for a
+/// fallback: half the width plus a hull's reach.
+const LANE_BAND_EXTRA_M: f32 = 15.0;
+/// Under this masked share a rotation path is a lane, not a rotation: the report warns.
+const ROTATION_MASKED_WARN: f32 = 0.5;
+/// The sight line's slack over the ground, the spotting rule's own.
+const SIGHT_SLACK_M: f32 = 0.3;
+
+/// The benchmark's eye over the ground (the hitbox top, `sim::spotting::observer_eye`); the
+/// benchmark is a named constant, not a vehicle spelled out here (the fleet is data).
+fn benchmark_eye_m() -> f32 {
+    let hitbox = game_core::VehicleKind::BENCHMARK.spec_ref().hitbox;
+    hitbox.center_y_m + hitbox.half_height_m
+}
+
+/// The benchmark's hull centre over the ground (the first target sample of the spotting rule).
+fn benchmark_hull_m() -> f32 {
+    game_core::VehicleKind::BENCHMARK.spec_ref().hitbox.center_y_m
+}
+
+/// Whether an eye at `from` sees a hull standing at `p`: its hull centre OR its turret top, the
+/// two samples the spotting rule reads (a hull-down crest hides the first and shows the second;
+/// what shows is what gets hit).
+fn sees_hull_at(map: &BattlefieldMap, from: [f32; 3], p: [f32; 2]) -> bool {
+    let (hull, turret) = (benchmark_hull_m(), benchmark_eye_m());
+    ground_at(map, p, hull).is_some_and(|target| sight_clear(map, from, target))
+        || ground_at(map, p, turret).is_some_and(|target| sight_clear(map, from, target))
+}
+
+/// Whether an eye at `from` sees `to` over the ground and past the born cover boxes — the
+/// spotting rule's geometry (the ground march with the eye's slack; a cover box blocks when
+/// the line passes THROUGH it, a graze does not).
+fn sight_clear(map: &BattlefieldMap, from: [f32; 3], to: [f32; 3]) -> bool {
+    if terrain::ground_blocks_segment(&map.heightmap, from, to, SIGHT_SLACK_M) {
+        return false;
+    }
+    !map.static_cover.iter().any(|object| {
+        let cover_box = terrain::CoverBox::of(object);
+        !cover_box.xz_disjoint_from_segment(from, to, 0.0)
+            && cover_box.segment_interval(from, to, 0.0).is_some_and(|(t0, t1)| t1 - t0 > 1.0e-3)
+    })
+}
+
+/// Points every `step` metres along a polyline, the polyline's own vertices included.
+fn polyline_samples(points: &[[f32; 2]], step: f32) -> Vec<[f32; 2]> {
+    let mut out = Vec::new();
+    for pair in points.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let length = ((b[0] - a[0]).powi(2) + (b[1] - a[1]).powi(2)).sqrt();
+        let count = (length / step).ceil().max(1.0) as usize;
+        for i in 0..count {
+            let t = i as f32 / count as f32;
+            out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+        }
+    }
+    if let Some(last) = points.last() {
+        out.push(*last);
+    }
+    out
+}
+
+fn polyline_length(points: &[[f32; 2]]) -> f32 {
+    points
+        .windows(2)
+        .map(|pair| ((pair[1][0] - pair[0][0]).powi(2) + (pair[1][1] - pair[0][1]).powi(2)).sqrt())
+        .sum()
+}
+
+fn ground_at(map: &BattlefieldMap, p: [f32; 2], lift: f32) -> Option<[f32; 3]> {
+    map.heightmap.sample_height(p[0], p[1]).map(|y| [p[0], y + lift, p[1]])
+}
+
+/// The nearer spawn zone to a point (the team a lane or a fallback belongs to).
+fn nearer_spawn(map: &BattlefieldMap, p: [f32; 2]) -> Option<&terrain::SpawnZone> {
+    map.spawn_zones.iter().min_by(|a, b| {
+        let da = (a.center[0] - p[0]).powi(2) + (a.center[2] - p[1]).powi(2);
+        let db = (b.center[0] - p[0]).powi(2) + (b.center[2] - p[1]).powi(2);
+        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+    })
+}
+
+/// A lane's or a path's walk: every sample on passable ground and every step within the climb
+/// grade; the first offence, if any.
+fn walk_offence(
+    map: &BattlefieldMap,
+    passable: &[bool],
+    points: &[[f32; 2]],
+    width_m: f32,
+) -> Option<(String, [f32; 3])> {
+    let heightmap = &map.heightmap;
+    let (width, height) = (heightmap.width(), heightmap.height());
+    let cell = heightmap.cell_size_m();
+    let samples = polyline_samples(points, TOPOLOGY_STEP_M);
+    let passable_at = |x: f32, z: f32| {
+        let xi = (x / cell).round().clamp(0.0, (width - 1) as f32) as usize;
+        let zi = (z / cell).round().clamp(0.0, (height - 1) as f32) as usize;
+        passable[zi * width + xi]
+    };
+    let mut previous: Option<[f32; 3]> = None;
+    for (index, p) in samples.iter().copied().enumerate() {
+        let Some(here) = ground_at(map, p, 0.0) else {
+            return Some(("leaves the map".to_string(), [p[0], 0.0, p[1]]));
+        };
+        // A lane is a CORRIDOR, not a line: the sample stands if any cell across its width
+        // (the centre and four offsets to either half-width, perpendicular to the walk) is
+        // passable — a fence post on the centreline does not close a 60 m corridor.
+        let next = samples.get(index + 1).or(samples.get(index.wrapping_sub(1))).copied();
+        let across = next.map_or([0.0, 1.0], |n| {
+            let d = [n[0] - p[0], n[1] - p[1]];
+            let len = (d[0] * d[0] + d[1] * d[1]).sqrt().max(1.0e-3);
+            [-d[1] / len, d[0] / len]
+        });
+        let corridor_open = [0.0, 0.25, -0.25, 0.5, -0.5].iter().any(|share| {
+            let offset = share * width_m;
+            passable_at(p[0] + across[0] * offset, p[1] + across[1] * offset)
+        });
+        if !corridor_open {
+            return Some((
+                "is blocked across its whole width (cover or drowning water)".to_string(),
+                here,
+            ));
+        }
+        if let Some(prev) = previous {
+            let run = ((here[0] - prev[0]).powi(2) + (here[2] - prev[2]).powi(2)).sqrt();
+            if run > 0.0 {
+                let grade = (here[1] - prev[1]).abs() / run;
+                if grade > CLIMB_GRADE {
+                    return Some((format!("climbs a {grade:.2} grade"), here));
+                }
+            }
+        }
+        previous = Some(here);
+    }
+    None
+}
+
+/// W2: what a lane carries — its length, the cover boxes along it per 100 m and the
+/// hull-down census spots inside its band.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LaneCensus {
+    pub id: String,
+    pub length_m: f32,
+    pub cover_boxes: usize,
+    pub cover_per_100m: f32,
+    pub hull_down_spots: usize,
+}
+
+/// The per-lane census (W2), for the report, the dossier and the bots.
+pub fn lane_census(map: &BattlefieldMap) -> Vec<LaneCensus> {
+    let spots = hull_down_positions(map);
+    map.lanes
+        .iter()
+        .map(|lane| {
+            let band = lane.width_m * 0.5 + LANE_BAND_EXTRA_M;
+            let length_m = polyline_length(&lane.points);
+            let cover_boxes = map
+                .static_cover
+                .iter()
+                .filter(|object| lane.distance_to(object.center[0], object.center[2]) <= band)
+                .count();
+            let hull_down_spots = spots
+                .iter()
+                .filter(|spot| lane.distance_to(spot.at[0], spot.at[2]) <= band)
+                .count();
+            LaneCensus {
+                id: lane.id.clone(),
+                length_m,
+                cover_boxes,
+                cover_per_100m: if length_m > 0.0 {
+                    cover_boxes as f32 * 100.0 / length_m
+                } else {
+                    0.0
+                },
+                hull_down_spots,
+            }
+        })
+        .collect()
+}
+
+/// W1: a rotation path's masked share — the fraction of its samples the other side's eyes
+/// (their Observation, HighGround and SniperPerch points, eye at the benchmark's hitbox top)
+/// cannot see at hull height.
+pub fn rotation_masking(map: &BattlefieldMap) -> Vec<(String, f32)> {
+    let eye = benchmark_eye_m();
+    map.rotation_paths
+        .iter()
+        .map(|path| {
+            let Some(start) = path.points.first().copied() else {
+                return (path.id.clone(), 1.0);
+            };
+            let own = nearer_spawn(map, start).map(|spawn| spawn.team);
+            let eyes: Vec<[f32; 3]> = map
+                .strategic_points
+                .iter()
+                .filter(|point| {
+                    matches!(
+                        point.role,
+                        StrategicRole::Observation
+                            | StrategicRole::HighGround
+                            | StrategicRole::SniperPerch
+                    ) && nearer_spawn(map, [point.position[0], point.position[2]])
+                        .map(|spawn| spawn.team)
+                        != own
+                })
+                .map(|point| [point.position[0], point.position[1] + eye, point.position[2]])
+                .collect();
+            let samples = polyline_samples(&path.points, TOPOLOGY_STEP_M);
+            if samples.is_empty() || eyes.is_empty() {
+                return (path.id.clone(), 1.0);
+            }
+            let masked = samples
+                .iter()
+                .filter(|p| !eyes.iter().any(|from| sees_hull_at(map, *from, **p)))
+                .count();
+            (path.id.clone(), masked as f32 / samples.len() as f32)
+        })
+        .collect()
+}
+
+/// W1: the topology contract. A map that declares no lane is not asked (a warning names the
+/// debt); a map that declares any is held to every class: lanes that lead from a spawn to a
+/// named place on drivable ground, crossfires whose two positions really see one stretch of
+/// their lane from > 60° apart, perches with long lines onto a lane, rotation paths that walk,
+/// fallbacks that stand behind their lane, and at least one of each per side.
+fn check_topology(map: &BattlefieldMap, thresholds: &WaterThresholds, report: &mut MapReport) {
+    if map.lanes.is_empty() {
+        if map.size_m[0] >= 500.0 {
+            report.push(
+                "topology",
+                Severity::Warning,
+                "no lanes declared - the map's topology is prose until W1 authors it",
+                None,
+            );
+        }
+        return;
+    }
+    let passable = passable_mask(map, thresholds);
+    let eye = benchmark_eye_m();
+    let point_by_id = |id: &str| map.strategic_points.iter().find(|point| point.id == id);
+
+    // Lanes: from a spawn, over drivable ground, to a named place.
+    for lane in &map.lanes {
+        let Some(first) = lane.points.first().copied() else {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!("lane '{}' has no points", lane.id),
+                None,
+            );
+            continue;
+        };
+        let last = *lane.points.last().expect("a first point implies a last");
+        let from_spawn = map.spawn_zones.iter().any(|spawn| {
+            ((spawn.center[0] - first[0]).powi(2) + (spawn.center[2] - first[1]).powi(2)).sqrt()
+                <= LANE_END_LEASH_M
+        });
+        if !from_spawn {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!(
+                    "lane '{}' does not start within {LANE_END_LEASH_M:.0} m of a spawn",
+                    lane.id
+                ),
+                ground_at(map, first, 0.0),
+            );
+        }
+        let to_named = map
+            .strategic_points
+            .iter()
+            .map(|point| [point.position[0], point.position[2]])
+            .chain(map.capture_zones.iter().map(|zone| [zone.center[0], zone.center[2]]))
+            .any(|p| {
+                ((p[0] - last[0]).powi(2) + (p[1] - last[1]).powi(2)).sqrt() <= LANE_END_LEASH_M
+            });
+        if !to_named {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!(
+                    "lane '{}' ends nowhere named - no strategic point or capture zone within \
+                     {LANE_END_LEASH_M:.0} m of its last point",
+                    lane.id
+                ),
+                ground_at(map, last, 0.0),
+            );
+        }
+        if let Some((what, at)) = walk_offence(map, &passable, &lane.points, lane.width_m) {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!("lane '{}' {what} at ({:.0}, {:.0})", lane.id, at[0], at[2]),
+                Some(at),
+            );
+        }
+    }
+
+    // Rotation paths: they walk, and they mask.
+    for path in &map.rotation_paths {
+        if let Some((what, at)) = walk_offence(map, &passable, &path.points, path.width_m) {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!("rotation path '{}' {what} at ({:.0}, {:.0})", path.id, at[0], at[2]),
+                Some(at),
+            );
+        }
+    }
+    for (id, masked) in rotation_masking(map) {
+        if masked < ROTATION_MASKED_WARN {
+            let at = map
+                .rotation_paths
+                .iter()
+                .find(|path| path.id == id)
+                .and_then(|path| path.points.first().copied())
+                .and_then(|p| ground_at(map, p, 0.0));
+            report.push(
+                "topology",
+                Severity::Warning,
+                format!(
+                    "rotation path '{id}' is exposed: only {:.0} % of it is masked from the other \
+                     side's eyes",
+                    masked * 100.0
+                ),
+                at,
+            );
+        }
+    }
+
+    // Crossfires: two positions, one stretch of lane, bearings > 60° apart.
+    for crossfire in &map.crossfires {
+        let (Some(a), Some(b)) = (point_by_id(&crossfire.a), point_by_id(&crossfire.b)) else {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!(
+                    "crossfire '{}' names a strategic point that does not exist ('{}' / '{}')",
+                    crossfire.id, crossfire.a, crossfire.b
+                ),
+                None,
+            );
+            continue;
+        };
+        let Some(lane) = map.lanes.iter().find(|lane| lane.id == crossfire.lane) else {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!(
+                    "crossfire '{}' names a lane that does not exist ('{}')",
+                    crossfire.id, crossfire.lane
+                ),
+                None,
+            );
+            continue;
+        };
+        let eye_a = [a.position[0], a.position[1] + eye, a.position[2]];
+        let eye_b = [b.position[0], b.position[1] + eye, b.position[2]];
+        let seen_from_both = polyline_samples(&lane.points, TOPOLOGY_STEP_M).into_iter().any(|p| {
+            if !(sees_hull_at(map, eye_a, p) && sees_hull_at(map, eye_b, p)) {
+                return false;
+            }
+            let to_a = [a.position[0] - p[0], a.position[2] - p[1]];
+            let to_b = [b.position[0] - p[0], b.position[2] - p[1]];
+            let dot = to_a[0] * to_b[0] + to_a[1] * to_b[1];
+            let norms = (to_a[0].powi(2) + to_a[1].powi(2)).sqrt()
+                * (to_b[0].powi(2) + to_b[1].powi(2)).sqrt();
+            norms > 0.0
+                && (dot / norms).clamp(-1.0, 1.0).acos().to_degrees() >= CROSSFIRE_MIN_ANGLE_DEG
+        });
+        if !seen_from_both {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!(
+                    "crossfire '{}': no stretch of lane '{}' is seen by both '{}' and '{}' from \
+                     bearings {CROSSFIRE_MIN_ANGLE_DEG:.0}° apart",
+                    crossfire.id, crossfire.lane, crossfire.a, crossfire.b
+                ),
+                Some(a.position),
+            );
+        }
+    }
+
+    // Perches and fallbacks: the roles with a geometry.
+    let lane_samples: Vec<[f32; 2]> =
+        map.lanes.iter().flat_map(|lane| polyline_samples(&lane.points, TOPOLOGY_STEP_M)).collect();
+    for point in &map.strategic_points {
+        match point.role {
+            StrategicRole::SniperPerch => {
+                let from = [point.position[0], point.position[1] + eye, point.position[2]];
+                let seen = lane_samples
+                    .iter()
+                    .filter(|p| {
+                        let range = ((p[0] - point.position[0]).powi(2)
+                            + (p[1] - point.position[2]).powi(2))
+                        .sqrt();
+                        (PERCH_RANGE_M[0]..=PERCH_RANGE_M[1]).contains(&range)
+                            && sees_hull_at(map, from, **p)
+                    })
+                    .count();
+                if seen < PERCH_MIN_SAMPLES {
+                    report.push(
+                        "topology",
+                        Severity::Error,
+                        format!(
+                            "sniper perch '{}' sees {seen} lane sample(s) at {:.0}–{:.0} m - a perch \
+                             needs {PERCH_MIN_SAMPLES}",
+                            point.id, PERCH_RANGE_M[0], PERCH_RANGE_M[1]
+                        ),
+                        Some(point.position),
+                    );
+                }
+            }
+            StrategicRole::Fallback => {
+                let p = [point.position[0], point.position[2]];
+                let Some(spawn) = nearer_spawn(map, p) else { continue };
+                let own_distance =
+                    ((spawn.center[0] - p[0]).powi(2) + (spawn.center[2] - p[1]).powi(2)).sqrt();
+                let behind_a_lane = map.lanes.iter().any(|lane| {
+                    let band = lane.width_m * 0.5 + LANE_BAND_EXTRA_M;
+                    let Some(far) = lane.points.last() else { return false };
+                    let far_distance = ((spawn.center[0] - far[0]).powi(2)
+                        + (spawn.center[2] - far[1]).powi(2))
+                    .sqrt();
+                    lane.distance_to(p[0], p[1]) <= band
+                        && own_distance + FALLBACK_BEHIND_M <= far_distance
+                });
+                if !behind_a_lane {
+                    report.push(
+                        "topology",
+                        Severity::Error,
+                        format!(
+                            "fallback '{}' stands on no lane's band {FALLBACK_BEHIND_M:.0} m behind its far end",
+                            point.id
+                        ),
+                        Some(point.position),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Every class, per side: two of each on a two-team map.
+    let sides = map.spawn_zones.len().max(1);
+    let perches =
+        map.strategic_points.iter().filter(|p| p.role == StrategicRole::SniperPerch).count();
+    let fallbacks =
+        map.strategic_points.iter().filter(|p| p.role == StrategicRole::Fallback).count();
+    for (class, count) in [
+        ("lane", map.lanes.len()),
+        ("rotation path", map.rotation_paths.len()),
+        ("crossfire", map.crossfires.len()),
+        ("sniper perch", perches),
+        ("fallback", fallbacks),
+    ] {
+        if count < sides {
+            report.push(
+                "topology",
+                Severity::Error,
+                format!("the map declares lanes but only {count} {class}(s) for {sides} side(s)"),
+                None,
+            );
+        }
     }
 }
 

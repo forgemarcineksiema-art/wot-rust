@@ -528,6 +528,8 @@ pub fn tactical_layer(map: &BattlefieldMap, res_m: f32) -> Raster {
             terrain::StrategicRole::Observation => ("O", [240, 240, 240]),
             terrain::StrategicRole::HullDown => ("D", [110, 150, 255]),
             terrain::StrategicRole::FlankRoute => ("F", [210, 130, 255]),
+            terrain::StrategicRole::SniperPerch => ("S", [255, 200, 120]),
+            terrain::StrategicRole::Fallback => ("B", [160, 220, 160]),
         };
         raster.circle(px, py, radius, color, 0.6);
         raster.text(px - 2, py - 3, label, color);
@@ -1154,6 +1156,9 @@ mod tests {
             static_cover: vec![],
             scenery: vec![],
             roads: vec![],
+            lanes: vec![],
+            rotation_paths: vec![],
+            crossfires: vec![],
         };
         let field = exposure_field(&map, true, 10.0, 60.0);
         assert!(field.observer_count > 10, "the plateau fields a real observer fleet");
