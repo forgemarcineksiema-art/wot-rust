@@ -22,7 +22,16 @@ Ostrogozhsk without depicting it.
 ## The Core Idea
 
 Where Prokhorovka is the open steppe, Bystra a river valley and Orliny Pereval a mountain
-wall, Ostrogorsk is a **city + open outskirts hybrid** — every playstyle gets its flank:
+wall, Ostrogorsk is a **city + open outskirts hybrid** — every playstyle gets its flank.
+
+**Topology as data (W1/W2, 2026-09-08)** — three lanes a side in the blueprint (south side):
+the mill flank 601 m, 24 cover boxes (4.0 per 100 m); the high street 427 m, 12 boxes (2.8
+per 100 m); the outskirts 497 m, 5 boxes (1.0 per 100 m) — no hull-down census spot in any
+lane's band (a city fights from corners). The depot row street is the rotation path, masked
+by the tenements over 62 % of its run; the crossfire the report proves is the outskirts
+rise and the far side's street-end fallback over the high street; the berm perches
+(900, 400/600) see the lanes at 250–500 m.
+
 
 1. **The city (west, x ≤ ~470)** — a flat masonry bench carrying a street-grid town, the
    church square on the mirror axis, and the mirrored mill compounds on the deep flank.

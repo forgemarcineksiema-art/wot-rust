@@ -5,8 +5,9 @@
 //! crossfire is two positions that both see one stretch of a lane from bearings > 60° apart;
 //! a sniper perch sees lane samples 250–500 m out; a rotation path is measured by how much of
 //! it the other side's eyes cannot see; a fallback stands on a lane's band behind its far end.
-//! Prokhorovka is the first map authored for it (the owner: „Prochorowka nie ma torów"); the
-//! numbers below are the map's, measured 2026-09-08, and the other four maps follow in W1b.
+//! Prokhorovka was the first map authored for it (the owner: „Prochorowka nie ma torów"); the
+//! other four followed the same day (W1b) — every shipped map declares every class, and the
+//! numbers below are each map's own, measured 2026-09-08.
 
 use map_forge::{
     blueprint::{CrossfireSpec, LaneSpec, RotationPathSpec, StrategicPointSpec, XCoord},
@@ -122,6 +123,94 @@ fn prokhorovka_declares_its_topology_and_the_report_proves_it() {
     for (id, masked) in rotation_masking(&map) {
         assert!(masked >= 0.5, "the balka is a covered rotation: {id} {masked}");
     }
+}
+
+/// W1b: every shipped map declares every class and the report proves it — and says, on the
+/// record, where the geometry does not carry a covered rotation: Orliny's shoulder walk is
+/// seen whole from the summits (0 % masked — the massif's own eyes), Mazurski's peat defiles
+/// 19 % (a lakeland is open by design, the dossier's own word). The census per map (south
+/// lanes; the north twin carries the same numbers) is what the dossiers cite.
+#[test]
+fn every_shipped_map_declares_every_topology_class_and_the_report_proves_it() {
+    let exposed_on_record: [(MapId, &str); 2] =
+        [(MapId::OrlinyPereval, "shoulder_rotation"), (MapId::MazurskiPrzesmyk, "defile_rotation")];
+    /// (map, lane base, length band, cover-per-100 m band, hull-down floor)
+    type CensusRow = (MapId, &'static str, [f32; 2], [f32; 2], usize);
+    let census_table: [CensusRow; 15] = [
+        (MapId::ProkhorovkaHill252_2, "psel_field_lane", [400.0, 450.0], [0.0, 1.0], 4),
+        (MapId::ProkhorovkaHill252_2, "farm_lane", [320.0, 370.0], [3.0, 6.0], 1),
+        (MapId::ProkhorovkaHill252_2, "hill_lane", [400.0, 450.0], [0.5, 2.0], 8),
+        (MapId::BystraValley, "field_lane", [420.0, 480.0], [1.0, 2.5], 0),
+        (MapId::BystraValley, "valley_lane", [440.0, 560.0], [2.0, 4.0], 1),
+        (MapId::BystraValley, "ford_lane", [590.0, 650.0], [1.5, 3.5], 3),
+        (MapId::OrlinyPereval, "dolina_lane", [620.0, 680.0], [0.5, 2.0], 0),
+        (MapId::OrlinyPereval, "pass_lane", [390.0, 430.0], [3.0, 5.5], 0),
+        (MapId::OrlinyPereval, "defile_lane", [640.0, 700.0], [0.5, 2.0], 0),
+        (MapId::Ostrogorsk, "mill_lane", [580.0, 620.0], [3.0, 5.5], 0),
+        (MapId::Ostrogorsk, "boulevard_lane", [400.0, 450.0], [2.0, 4.0], 0),
+        (MapId::Ostrogorsk, "outskirts_lane", [470.0, 520.0], [0.5, 2.0], 0),
+        (MapId::MazurskiPrzesmyk, "causeway_lane", [460.0, 510.0], [1.5, 3.5], 3),
+        (MapId::MazurskiPrzesmyk, "shore_lane", [690.0, 740.0], [0.0, 1.2], 0),
+        (MapId::MazurskiPrzesmyk, "moraine_lane", [550.0, 590.0], [1.5, 3.5], 0),
+    ];
+    let mut checked = 0usize;
+    for id in MapId::SHIPPED {
+        let (map, report) = compile(&map_forge::blueprint_for(*id));
+        assert!(topology_errors(&report).is_empty(), "{id:?}: {:?}", topology_errors(&report));
+        let warned: Vec<String> = report
+            .warnings()
+            .filter(|entry| entry.check == "topology")
+            .map(|entry| entry.message.clone())
+            .collect();
+        let expected_warning =
+            exposed_on_record.iter().find(|(m, _)| m == id).map(|(_, path)| *path);
+        match expected_warning {
+            Some(path) => assert!(
+                warned.len() == 2
+                    && warned.iter().all(|w| w.contains(path) && w.contains("is exposed")),
+                "{id:?}: the exposed rotation is on the record and nothing else: {warned:?}"
+            ),
+            None => assert!(warned.is_empty(), "{id:?}: no topology warning: {warned:?}"),
+        }
+        let sides = map.spawn_zones.len();
+        assert_eq!(map.lanes.len(), 3 * sides, "{id:?}: three lanes a side");
+        assert_eq!(map.rotation_paths.len(), sides, "{id:?}: one rotation path a side");
+        assert_eq!(map.crossfires.len(), sides, "{id:?}: one crossfire a side");
+        let count = |role| map.strategic_points.iter().filter(|p| p.role == role).count();
+        assert_eq!(count(StrategicRole::SniperPerch), sides, "{id:?}: one perch a side");
+        assert_eq!(count(StrategicRole::Fallback), 2 * sides, "{id:?}: two fallbacks a side");
+
+        let census = lane_census(&map);
+        for (m, base, length, cover, hull_down) in &census_table {
+            if m != id {
+                continue;
+            }
+            checked += 1;
+            let south = census.iter().find(|c| c.id == format!("{base}_south")).expect(base);
+            let north = census.iter().find(|c| c.id == format!("{base}_north")).expect(base);
+            assert!(
+                (length[0]..=length[1]).contains(&south.length_m),
+                "{id:?} {base}: length {} m",
+                south.length_m
+            );
+            assert!(
+                (cover[0]..=cover[1]).contains(&south.cover_per_100m),
+                "{id:?} {base}: {} boxes per 100 m",
+                south.cover_per_100m
+            );
+            assert!(
+                south.hull_down_spots >= *hull_down,
+                "{id:?} {base}: {} hull-down spots",
+                south.hull_down_spots
+            );
+            assert_eq!(
+                (south.cover_boxes, south.hull_down_spots),
+                (north.cover_boxes, north.hull_down_spots),
+                "{id:?} {base}: the twin carries the same census"
+            );
+        }
+    }
+    assert_eq!(checked, census_table.len(), "every lane of every shipped map was measured");
 }
 
 /// The contract on a synthetic map: a lane that leads nowhere, a lane through a wall, a

@@ -4,6 +4,15 @@ Fictional Central-European river valley, 1000 m × 1000 m at 2.5 m samples (5 m 
 across the central axis (`z = 500`). The Bystra river runs **along the axis of advance**,
 splitting the map into two flanks with different games; five crossings decide the mid-game.
 
+**Topology as data (W1/W2, 2026-09-08)** — three lanes a side in the blueprint, walked by the
+report as corridors (south side; the north twin carries the same census): the western field
+lane 450 m, 7 cover boxes (1.6 per 100 m), no crest spot; the valley road over the stone
+bridge 470 m, 13 boxes (2.7 per 100 m), 2 spots; the ford track to the quarry ridge 622 m,
+15 boxes (2.4 per 100 m), 5 spots. The plank-crossing track is the rotation path, masked
+from the far side's eyes over 62 % of its run; the crossfire the report proves is the west
+knoll and the quarry ridge over the field lane; the quarry perches (900, 400/600) see the
+lanes at 250–500 m; the fallbacks stand behind the valley road and the field lane.
+
 ## Anatomy (west → east)
 
 | x band | Feature | Role |

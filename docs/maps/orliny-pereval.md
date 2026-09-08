@@ -30,6 +30,16 @@ except at **three gates**, which are the three lanes:
 
 The signature mechanic: the summits (~65/71 m) stand ON the axis — contested equally — but
 are reachable **only through the pass col**. Taking the middle unlocks the high ground, and
+**Topology as data (W1/W2, 2026-09-08)** — the three gates as lanes in the blueprint, walked
+by the report (south side): the Dolina lane 646 m, 8 cover boxes (1.2 per 100 m); the pass
+road 410 m, 17 boxes (4.1 per 100 m); the defile 671 m, 7 boxes (1.0 per 100 m) — and NO
+hull-down census spot in any lane's band: the pass fights from walls and shoulders, not
+crests. The crossfire the report proves is both shoulders' shelves over the pass road; the
+east-rim perches (930, 330/670) see the lanes at 250–500 m. The Sokol shoulder walk is the
+declared rotation path and the report says, on the record, that it is EXPOSED: 0 % of it is
+masked, because the summits on the axis are every side's eyes — a mountain map with no
+covered rotation is a finding for the rebuild (T2 erosion, T4 cliffs).
+
 the high ground dominates both other lanes (the mountain version of Bystra's "the crossings
 decide the mid-game").
 

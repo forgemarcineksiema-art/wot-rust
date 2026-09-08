@@ -106,7 +106,9 @@ fn the_gameplay_layer_mirrors() {
             });
         assert!(has_twin, "strategic point {} needs an axis seat or a mirror twin", point.id);
     }
-    assert_eq!(map.strategic_points.len(), 13, "the skeleton ships its full 13-point layer");
+    // 13 until W1 (2026-09-08): the topology roles added a berm perch pair and two fallback
+    // pairs (high street, outskirts) — 19, every one mirrored above.
+    assert_eq!(map.strategic_points.len(), 19, "the skeleton ships its full 19-point layer");
 }
 
 /// The dense core (urban-map PR-12): the city carries a real box count inside the proven

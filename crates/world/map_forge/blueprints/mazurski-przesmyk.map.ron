@@ -501,6 +501,53 @@ MapBlueprint(
                 radius_m: 22.0,
             ),
         ],
+        // W1 (2026-09-08): the map as gameplay topology — the dossier's lanes as DATA (each
+        // from its spawn to a named place, walked by the report as a corridor on drivable
+        // ground), the rotation paths the report measures for masking, the crossfires it
+        // proves. A mirrored pair emits the twin point by point.
+        lanes: [
+            MirroredPair(
+                id_base: "causeway_lane",
+                name_base: "the causeway road",
+                south_points: [(170.0, 150.0), (330.0, 300.0), (455.0, 420.0), (500.0, 500.0)],
+                width_m: 40.0,
+            ),
+            MirroredPair(
+                id_base: "shore_lane",
+                name_base: "the shore road",
+                south_points: [(150.0, 160.0), (110.0, 400.0), (95.0, 620.0), (130.0, 870.0)],
+                width_m: 40.0,
+            ),
+            MirroredPair(
+                id_base: "moraine_lane",
+                name_base: "the moraine lane",
+                south_points: [(220.0, 150.0), (480.0, 210.0), (560.0, 300.0), (596.0, 430.0), (600.0, 478.0)],
+                width_m: 40.0,
+            ),
+        ],
+        rotation_paths: [
+            MirroredPair(
+                id_base: "defile_rotation",
+                name_base: "the peat-pond defiles",
+                south_points: [(404.0, 548.0), (455.0, 470.0), (560.0, 430.0), (596.0, 452.0)],
+                width_m: 10.0,
+            ),
+        ],
+        crossfires: [
+            // The own esker crest and the far side's worked shelf over the moraine lane.
+            Crossfire(
+                id: "moraine_crossfire_south",
+                a: "esker_south",
+                b: "shelf_north",
+                lane: "moraine_lane_south",
+            ),
+            Crossfire(
+                id: "moraine_crossfire_north",
+                a: "esker_north",
+                b: "shelf_south",
+                lane: "moraine_lane_north",
+            ),
+        ],
         strategic_points: [
             StrategicPointSpec(
                 id: "causeway_gate",
@@ -564,6 +611,51 @@ MapBlueprint(
                 role: Observation,
                 at: (Fixed(850.0), Fixed(95.0)),
                 radius_m: 35.0,
+            ),
+            // W1 (2026-09-08): the perches and the fallbacks — roles the report proves from
+            // geometry (a perch: at least two lane samples 250–500 m away in sight; a
+            // fallback: on a lane's band, 50 m behind its far end toward its own spawn).
+            StrategicPointSpec(
+                id: "esker_perch_south",
+                name: "esker crest perch (south)",
+                role: SniperPerch,
+                at: (Fixed(250.0), Fixed(160.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "esker_perch_north",
+                name: "esker crest perch (north)",
+                role: SniperPerch,
+                at: (Fixed(750.0), Fixed(840.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "causeway_fallback_south",
+                name: "causeway road fallback (south)",
+                role: Fallback,
+                at: (Fixed(300.0), Fixed(280.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "causeway_fallback_north",
+                name: "causeway road fallback (north)",
+                role: Fallback,
+                at: (Fixed(700.0), Fixed(720.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "moraine_fallback_south",
+                name: "moraine lane fallback (south)",
+                role: Fallback,
+                at: (Fixed(480.0), Fixed(240.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "moraine_fallback_north",
+                name: "moraine lane fallback (north)",
+                role: Fallback,
+                at: (Fixed(520.0), Fixed(760.0)),
+                radius_m: 30.0,
             ),
         ],
         features: [
