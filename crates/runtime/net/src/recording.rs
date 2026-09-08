@@ -40,6 +40,13 @@ impl<W: Write> FrameRecorder<W> {
     pub fn frames(&self) -> u64 {
         self.frames
     }
+
+    /// Push whatever the sink still holds at the file. A `BufWriter` flushes on drop, which is
+    /// enough when the process unwinds and nothing when it does not — and a recording is only
+    /// worth the frames that reached the disk. Callers flush at the end of a battle and at exit.
+    pub fn flush(&mut self) -> Result<(), NetError> {
+        self.sink.flush().map_err(|error| NetError::Transport(error.to_string()))
+    }
 }
 
 /// Reads a recording back into messages. Stops cleanly at EOF; a torn tail record (the game was

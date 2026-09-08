@@ -8,6 +8,8 @@ use super::ClientApp;
 use crate::{BattleCameraInput, BattleCameraMode};
 
 const MOUSE_YAW_SENSITIVITY: f32 = 0.0035;
+/// Peak mouse counts per 60 Hz frame the autodrive look sweeps with — about 90° each way.
+const AUTODRIVE_LOOK_COUNTS: f32 = 2.0;
 const MOUSE_PITCH_SENSITIVITY: f32 = 0.0030;
 
 impl ClientApp {
@@ -389,6 +391,40 @@ impl ClientApp {
         self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
         if let Some(pitch) = self.input.free_look_return_pitch.take() {
             self.camera_controller.set_pitch(pitch);
+        }
+    }
+
+    /// `WOT_AUTODRIVE=1` does not only drive: it LOOKS and it SHOOTS.
+    ///
+    /// A measured session with a camera that never turns and a gun that never fires is not the
+    /// frame the player gets. Where the eye points decides what is culled, lit and filled — a
+    /// hull weaving under a world-fixed camera sweeps the terrain past the screen but never
+    /// re-aims at it — and the shot brings the muzzle, the shell, the recoil and the reticle's
+    /// whole settle with it. Both ride the REAL paths: synthetic mouse counts through
+    /// [`Self::apply_mouse_look`] (sensitivity, zoom scaling, camera and turret command
+    /// included) and the same fire latch a mouse press sets, under the same deploy shield. No
+    /// branch of the aiming or firing code knows autodrive exists.
+    pub(super) fn drive_autodrive_look_and_trigger(&mut self, frame_dt: f32) {
+        if !self.autodrive || frame_dt <= 0.0 || !self.garage.has_started() || self.garage.is_open()
+        {
+            return;
+        }
+        // A ±90° sweep with an 11 s period, in mouse counts, paced by the frame so a slow
+        // frame turns the same amount as a fast one (0.0035 rad per count at 60 Hz).
+        let phase = self.battle_elapsed_s / 11.0 * std::f32::consts::TAU;
+        self.input.mouse_dx += AUTODRIVE_LOOK_COUNTS * phase.sin() * frame_dt * 60.0;
+        // Fire the moment the breech is loaded — the cadence is then the gun's own, not a
+        // number invented here, and never a click the reload would refuse. A wreck's reload
+        // reads zero and a finished battle refuses every click, so both are checked: without
+        // them a hull that died at 0:40 would latch the trigger on EVERY frame for the rest of
+        // the run, and the refusal knock with it.
+        let alive = self.player_hud_hit_points() > 0;
+        if alive
+            && self.battle_outcome.is_none()
+            && self.input.deploy_fire_shield_ticks == 0
+            && self.player_reload().0 <= 0.0
+        {
+            self.input.fire_pending = true;
         }
     }
 

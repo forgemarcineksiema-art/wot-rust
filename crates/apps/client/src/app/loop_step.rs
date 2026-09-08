@@ -77,6 +77,7 @@ impl ClientApp {
                 self.intel.ingest(outcome.kills, outcome.team_commands);
                 self.apply_armor_breach_deltas(outcome.armor_breaches);
                 if let Some(snapshot) = outcome.snapshot {
+                    self.record_local_replay_snapshot(&snapshot);
                     if let Some(reconciliation) = outcome.reconciliation {
                         self.accept_remote_and_sync(snapshot, reconciliation);
                     } else {
@@ -142,6 +143,10 @@ impl ClientApp {
             self.apply_armor_breach_deltas(outcome.armor_breaches);
             let clock = timing.then(std::time::Instant::now);
             if let Some(snapshot) = outcome.snapshot {
+                // P10: the replay records the delivery the frame is about to be drawn from,
+                // before the client folds it in — a recording of what was SHOWN, not of a
+                // re-simulation that might not match it.
+                self.record_local_replay_snapshot(&snapshot);
                 if let Some(reconciliation) = outcome.reconciliation {
                     self.accept_remote_and_sync(snapshot, reconciliation);
                 } else {
@@ -177,6 +182,11 @@ impl ClientApp {
             self.ledger.name_observers(log);
             // P5: the battle is written once, here, with the observers named.
             self.write_battle_record();
+            // P10: and the replay is closed with the same word the wire would have sent.
+            // The same word the wire sends (`remote.rs`): the team's id, not the enum.
+            let winning_team =
+                self.session.battle_outcome().and_then(|end| end.winning_team()).map(|team| team.0);
+            self.end_local_replay(winning_team);
         }
     }
 

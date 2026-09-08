@@ -86,6 +86,10 @@ impl ApplicationHandler for ClientApp {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         self.write_frame_log();
+        // A run cut short (WOT_EXIT_AFTER_S, or a player who alt-F4s) still leaves a readable
+        // replay: the buffered tail goes to disk here, with no end word invented for a battle
+        // that never ended.
+        self.flush_local_replay();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

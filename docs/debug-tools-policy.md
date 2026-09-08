@@ -25,7 +25,20 @@ renderer, and tools can expose state without ad hoc one-off code.
   `atlas.md` stats — drivability by the game's own grade and wading constants, exposure and
   hull-down bands through `sim::line_of_sight` with the T-54 geometry, the sim-vs-mesh
   ground-parity residual, and the engagement-distance profile. Writes `target/map_atlas/`.
-- **`WOT_RECORD`** capture.
+- **`WOT_RECORD=<path>`** — the battle's frames, appended in the wire format
+  (`net::recording`). The remote session records the frames it accepted; the OFFLINE AI battle
+  records the world's word, the seat, the roster, one snapshot per authoritative delivery and
+  the end word (`client/src/app/local_replay.rs`), so the game the owner actually plays is
+  replayable too. A run cut short flushes what it had and invents no ending. No viewer yet
+  (P10/L3) — the file is read back through `net::recording::read_recording`.
+- **`WOT_FRAME_LOG=<path>`** — the live frame instrument (Q2). Writes the report at exit and,
+  beside it, `<path-without-extension>.frames.csv`: EVERY presented frame of the run as a row
+  (its interval, its own FPS, the eight CPU phases, the four fixed-tick parts). Read it with
+  `python scripts/perf/frame-trace.py <csv> [--chart out.png]` — the per-second FPS timeline,
+  the worst frames and what owned them. `WOT_AUTOBATTLE=1` deploys straight into the AI battle
+  and `WOT_AUTODRIVE=1` plays it hands-off (full throttle in a weave, a ±90° camera sweep, and
+  the trigger whenever the breech is loaded — all through the real input paths);
+  `WOT_EXIT_AFTER_S=<s>` ends the run.
 - **Per-pass GPU timing** (`renderer_wgpu::FrameProfiler`, armed by probes only) and per-pass
   draw/triangle/instance counts on every frame (`PassRecorder`), keyed by `PassId`.
 

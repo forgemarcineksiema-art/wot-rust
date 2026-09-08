@@ -340,7 +340,7 @@ impl ClientApp {
     fn replays_model(&self, shell: &ShellState) -> ReplaysScreenModel {
         ReplaysScreenModel {
             reason: words::REPLAY_REASON.to_string(),
-            recording: self.session.recording_path(),
+            recording: self.recording_path(),
             hovered: shell.hovered,
             footer: shell_footer(&self.keybinds),
         }
@@ -636,7 +636,7 @@ impl ClientApp {
                         ledger: &self.ledger,
                         roster: &roster,
                         player_team: self.player_team(),
-                        recording: self.session.recording_path(),
+                        recording: self.recording_path(),
                         tab,
                         first_visible: shell.first_visible,
                         hovered: shell.hovered,
