@@ -20,6 +20,13 @@ fn battle_tick(criterion: &mut Criterion) {
     // The largest format: pair-wise target choice and the per-viewer filter both grow ~4.8x
     // in pairs; this row is the number M5 records against the tick.
     bench_warmed_window(criterion, "random_15v15_tick", BattleFormat::FifteenVsFifteen, 1800);
+    // The AI battle the garage's BATTLE deploys into (M3): 15v15 on the map `WOT_MAP` names, as
+    // in the game — the row the client's frame log (Q2) is read against (Q8).
+    bench_warmed_window_with(criterion, "ai_15v15_tick", 1800, || {
+        let mut config = RandomBattleConfig::runtime_from_env(game_core::VehicleKind::T54_1951);
+        config.seed = BattleSeed::fixed(42);
+        LocalAuthoritativeServer::new_ai_battle(ServerTickConfig::default(), config)
+    });
 }
 
 fn bench_warmed_window(
@@ -28,11 +35,22 @@ fn bench_warmed_window(
     format: BattleFormat,
     warm_ticks: u64,
 ) {
-    criterion.bench_function(name, |bencher| {
+    bench_warmed_window_with(criterion, name, warm_ticks, move || {
         let config =
             RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::T54_1951)
                 .with_format(format);
-        let mut warmed = LocalAuthoritativeServer::new_random(ServerTickConfig::default(), config);
+        LocalAuthoritativeServer::new_random(ServerTickConfig::default(), config)
+    });
+}
+
+fn bench_warmed_window_with(
+    criterion: &mut Criterion,
+    name: &str,
+    warm_ticks: u64,
+    build: impl Fn() -> LocalAuthoritativeServer,
+) {
+    criterion.bench_function(name, |bencher| {
+        let mut warmed = build();
         let player_tank = warmed.player_tank();
         let drive = |client_tick: u64| ClientInputCommand {
             client_tick,

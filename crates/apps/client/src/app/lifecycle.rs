@@ -89,6 +89,7 @@ impl ApplicationHandler for ClientApp {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        self.note_loop_woke();
         let actions = match event {
             WindowEvent::CloseRequested => {
                 self.loop_driver.handle_event(ClientLoopEvent::CloseRequested)
@@ -162,6 +163,10 @@ impl ApplicationHandler for ClientApp {
             _ => Vec::new(),
         };
         self.handle_actions(event_loop, actions);
+        // Between this handler and the next (winit's own dispatch, DWM) is waiting too.
+        if self.frame_log.is_some() {
+            self.loop_wait_started = Some(Instant::now());
+        }
     }
 
     fn device_event(&mut self, _loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
@@ -172,6 +177,7 @@ impl ApplicationHandler for ClientApp {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.note_loop_woke();
         // A failure the frame could not live past (a GPU device lost twice, a renderer that
         // could not be rebuilt): say so once, loudly, and leave — never a black window that
         // keeps pumping.
@@ -195,6 +201,9 @@ impl ApplicationHandler for ClientApp {
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
             Instant::now() + self.loop_driver.suggested_wait(),
         ));
+        if self.frame_log.is_some() {
+            self.loop_wait_started = Some(Instant::now());
+        }
     }
 }
 

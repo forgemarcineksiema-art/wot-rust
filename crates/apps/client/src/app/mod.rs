@@ -525,6 +525,9 @@ pub(crate) struct ClientApp {
     renderer: Option<WindowRenderer>,
     loop_driver: WinitLoopDriver,
     last_loop_time: Instant,
+    /// When the loop last went to sleep (`about_to_wait` set its `WaitUntil`); the next
+    /// event closes it into the frame log's `wait` phase.
+    loop_wait_started: Option<Instant>,
     session: session::BattleSessionKind,
     weather_timeline: scene_build::weather_timeline::WeatherTimeline,
     weather_frame: scene_build::weather_timeline::WeatherFrame,
@@ -981,6 +984,7 @@ impl ClientApp {
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),
             last_loop_time: Instant::now(),
+            loop_wait_started: None,
             session: local_server,
             weather_timeline,
             weather_frame,
@@ -1101,10 +1105,20 @@ impl ClientApp {
 /// Run the desktop client with winit, the local server, and the real wgpu renderer.
 impl ClientApp {
     /// The frame log's report, written where `WOT_FRAME_LOG` said — once, at exit.
+    /// The loop woke up: whatever passed since it went to sleep was waiting, not work.
+    pub(crate) fn note_loop_woke(&mut self) {
+        if let (Some(started), Some(log)) = (self.loop_wait_started.take(), self.frame_log.as_mut())
+        {
+            log.add_ms(crate::frame_log::Phase::Wait, started.elapsed().as_secs_f32() * 1000.0);
+        }
+    }
+
     pub(crate) fn write_frame_log(&mut self) {
+        let viewport = self.viewport;
         let (Some(log), Some(path)) = (self.frame_log.as_mut(), self.frame_log_path.take()) else {
             return;
         };
+        log.set_viewport(viewport.0, viewport.1);
         let report = log.report();
         match std::fs::write(&path, &report) {
             Ok(()) => tracing::info!(path, "frame log written"),
