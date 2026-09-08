@@ -101,9 +101,12 @@ impl ClientApp {
             // consumes the resulting aim. The sight sweep runs EVERY tick — the sight point moves
             // as the predicted hull advances, and a catch-up batch reusing one stale solution
             // overshoots the turret each batch, wobbling the reticle exactly when FPS dips.
+            let timing = self.frame_log.is_some();
+            let clock = timing.then(std::time::Instant::now);
             let solution = self.sight_solution();
             let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
             let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
+            self.note_tick_part(crate::frame_log::TickPart::Sight, clock);
             let mut command = TankCommand {
                 throttle: self.input.throttle(),
                 steer: -self.input.steer(),
@@ -122,17 +125,22 @@ impl ClientApp {
                 command.brake = 0.0;
             }
             fire = false;
+            let clock = timing.then(std::time::Instant::now);
             self.step_prediction(&command);
+            self.note_tick_part(crate::frame_log::TickPart::Predict, clock);
+            let clock = timing.then(std::time::Instant::now);
             let outcome = self.session.tick_with_player_input(ClientInputCommand {
                 client_tick: self.client_tick,
                 tank_id: self.player_tank,
                 command,
             });
+            self.note_tick_part(crate::frame_log::TickPart::Host, clock);
             self.client_tick += 1;
             self.ticks_since_snapshot = self.ticks_since_snapshot.saturating_add(1);
             self.ledger.ingest_kills(&outcome.kills);
             self.intel.ingest(outcome.kills, outcome.team_commands);
             self.apply_armor_breach_deltas(outcome.armor_breaches);
+            let clock = timing.then(std::time::Instant::now);
             if let Some(snapshot) = outcome.snapshot {
                 if let Some(reconciliation) = outcome.reconciliation {
                     self.accept_remote_and_sync(snapshot, reconciliation);
@@ -140,7 +148,18 @@ impl ClientApp {
                     self.accept_and_sync(snapshot);
                 }
             }
+            self.note_tick_part(crate::frame_log::TickPart::Sync, clock);
             self.refresh_battle_outcome();
+        }
+    }
+
+    fn note_tick_part(
+        &mut self,
+        part: crate::frame_log::TickPart,
+        clock: Option<std::time::Instant>,
+    ) {
+        if let (Some(log), Some(started)) = (self.frame_log.as_mut(), clock) {
+            log.add_tick_ms(part, started.elapsed().as_secs_f32() * 1000.0);
         }
     }
 

@@ -16,6 +16,8 @@ use std::time::Instant;
 
 /// A frame longer than this is a hitch the player feels (a frame and a half at 60 Hz).
 pub const HITCH_MS: f32 = 25.0;
+/// A frame longer than this is left out of the means (a bake, a stall), never a hitch.
+pub const STEADY_MAX_MS: f32 = 1_000.0;
 /// How many frames the ring keeps: a minute at 60 FPS.
 pub const RING_FRAMES: usize = 3_600;
 /// The GPU pass table is read back (a blocking device read) once per this many frames.
@@ -38,10 +40,13 @@ pub enum Phase {
     Upload,
     /// `renderer.render`: acquire the surface, encode, submit, present.
     Render,
+    /// The loop asleep between events: `WaitUntil` (the pacer's beat, the next tick) and the
+    /// OS event queue. Not work — but a frame that is late AND waits is the pacer's bug.
+    Wait,
 }
 
 impl Phase {
-    pub const ALL: [Phase; 7] = [
+    pub const ALL: [Phase; 8] = [
         Phase::FixedTicks,
         Phase::Bookkeeping,
         Phase::Camera,
@@ -49,6 +54,7 @@ impl Phase {
         Phase::Hud,
         Phase::Upload,
         Phase::Render,
+        Phase::Wait,
     ];
 
     pub fn name(self) -> &'static str {
@@ -60,6 +66,38 @@ impl Phase {
             Phase::Hud => "hud",
             Phase::Upload => "upload",
             Phase::Render => "render",
+            Phase::Wait => "wait",
+        }
+    }
+}
+
+/// The parts of one fixed tick worth telling apart (Q8): what the client does around the
+/// authoritative step, and the step itself. Sub-phases of [`Phase::FixedTicks`]; their sum
+/// never exceeds it, the rest of the envelope is "other" (input latches, breach deltas,
+/// outcome refresh).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum TickPart {
+    /// `sight_solution` and the turret/gun commands derived from it.
+    Sight,
+    /// `step_prediction`: the player's hull predicted one tick.
+    Predict,
+    /// `tick_with_player_input`: the local authoritative server (bots, sim, spotting, filter).
+    Host,
+    /// Ingesting the tick's snapshot: `accept_and_sync` / `accept_remote_and_sync`.
+    Sync,
+}
+
+impl TickPart {
+    pub const ALL: [TickPart; 4] =
+        [TickPart::Sight, TickPart::Predict, TickPart::Host, TickPart::Sync];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            TickPart::Sight => "sight",
+            TickPart::Predict => "predict",
+            TickPart::Host => "host",
+            TickPart::Sync => "sync",
         }
     }
 }
@@ -71,7 +109,9 @@ pub struct FrameSample {
     pub at_s: f32,
     /// The whole frame interval (presented-to-presented).
     pub total_ms: f32,
-    pub phases_ms: [f32; 7],
+    pub phases_ms: [f32; 8],
+    /// The fixed ticks' parts, in [`TickPart::ALL`] order (summed over the frame's ticks).
+    pub tick_parts_ms: [f32; 4],
     /// The fixed ticks this frame ran (0 on a frame between ticks, 2+ when catching up).
     pub fixed_ticks: u32,
 }
@@ -114,10 +154,12 @@ pub struct FrameLog {
     total_frames: u64,
     gpu: Vec<GpuSample>,
     /// The frame in flight: phase accumulators.
-    phases_ms: [f32; 7],
+    phases_ms: [f32; 8],
+    tick_parts_ms: [f32; 4],
     fixed_ticks: u32,
     phase_started: Option<(Phase, Instant)>,
     context: String,
+    viewport: (u32, u32),
 }
 
 impl FrameLog {
@@ -128,14 +170,27 @@ impl FrameLog {
             hitches: Vec::new(),
             total_frames: 0,
             gpu: Vec::new(),
-            phases_ms: [0.0; 7],
+            phases_ms: [0.0; 8],
+            tick_parts_ms: [0.0; 4],
             fixed_ticks: 0,
             phase_started: None,
             context: String::new(),
+            viewport: (0, 0),
         }
     }
 
     /// A line the report opens with (the map, the mode, the vehicle).
+    /// The presented size — the fill-bound half of every GPU number.
+    pub fn set_viewport(&mut self, width: u32, height: u32) {
+        self.viewport = (width, height);
+    }
+
+    /// The frames the means are taken over: a frame over [`STEADY_MAX_MS`] is a bake or a
+    /// stall, not a frame, and one of them would own every mean in a 90 s run.
+    fn steady_frames(&self) -> impl Iterator<Item = &FrameSample> {
+        self.frames.iter().filter(|frame| frame.total_ms <= STEADY_MAX_MS)
+    }
+
     pub fn set_context(&mut self, context: impl Into<String>) {
         self.context = context.into();
     }
@@ -162,6 +217,11 @@ impl FrameLog {
         self.phases_ms[phase as usize] += ms;
     }
 
+    /// Add a measured duration to one part of the frame's fixed ticks.
+    pub fn add_tick_ms(&mut self, part: TickPart, ms: f32) {
+        self.tick_parts_ms[part as usize] += ms;
+    }
+
     pub fn note_fixed_ticks(&mut self, count: u32) {
         self.fixed_ticks += count;
     }
@@ -174,9 +234,11 @@ impl FrameLog {
             at_s: self.elapsed_s(),
             total_ms,
             phases_ms: self.phases_ms,
+            tick_parts_ms: self.tick_parts_ms,
             fixed_ticks: self.fixed_ticks,
         };
-        self.phases_ms = [0.0; 7];
+        self.phases_ms = [0.0; 8];
+        self.tick_parts_ms = [0.0; 4];
         self.fixed_ticks = 0;
         if self.frames.len() >= RING_FRAMES {
             self.frames.pop_front();
@@ -223,21 +285,27 @@ impl FrameLog {
     }
 
     /// Mean of each phase over the ring, in [`Phase::ALL`] order.
-    pub fn mean_phases_ms(&self) -> [f32; 7] {
-        let mut sums = [0.0f32; 7];
-        for frame in &self.frames {
+    pub fn mean_phases_ms(&self) -> [f32; 8] {
+        let mut sums = [0.0f32; 8];
+        let mut n = 0usize;
+        for frame in self.steady_frames() {
+            n += 1;
             for (sum, ms) in sums.iter_mut().zip(frame.phases_ms) {
                 *sum += ms;
             }
         }
-        let n = self.frames.len().max(1) as f32;
+        let n = n.max(1) as f32;
         sums.map(|sum| sum / n)
     }
 
     /// The report: what the frame cost, where the hitches went, what the GPU said, the heap.
     pub fn report(&self) -> String {
         let mut out = String::new();
-        let _ = writeln!(out, "# frame log — {}", self.context);
+        let _ = writeln!(
+            out,
+            "# frame log — {}, viewport {}x{}",
+            self.context, self.viewport.0, self.viewport.1
+        );
         let _ = writeln!(
             out,
             "frames {} ({:.1} s), ring {} frames: p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
@@ -258,17 +326,41 @@ impl FrameLog {
             self.hitches.len()
         );
         let means = self.mean_phases_ms();
-        let _ = writeln!(out, "mean CPU phases (ms):");
+        let stalls = self.frames.len() - self.steady_frames().count();
+        let _ = writeln!(
+            out,
+            "mean CPU phases (ms) over the steady frames ({stalls} frames over {STEADY_MAX_MS:.0} ms left out — a bake or a stall is not a frame):"
+        );
         for (phase, mean) in Phase::ALL.iter().zip(means) {
             let _ = writeln!(out, "  {:<15} {:>7.3}", phase.name(), mean);
         }
-        let unattributed: f32 = self.frames.iter().map(FrameSample::unattributed_ms).sum::<f32>()
-            / self.frames.len().max(1) as f32;
-        let _ = writeln!(
-            out,
-            "  {:<15} {:>7.3}  (pacer sleep, OS, event queue)",
-            "unattributed", unattributed
-        );
+        let steady = self.steady_frames().count().max(1) as f32;
+        let unattributed: f32 =
+            self.steady_frames().map(FrameSample::unattributed_ms).sum::<f32>() / steady;
+        let _ =
+            writeln!(out, "  {:<15} {:>7.3}  (event dispatch, OS)", "unattributed", unattributed);
+
+        if self.frames.iter().any(|frame| frame.fixed_ticks > 0) {
+            let n = self.steady_frames().count().max(1) as f32;
+            let mut parts = [0.0f32; 4];
+            for frame in self.steady_frames() {
+                for (sum, ms) in parts.iter_mut().zip(frame.tick_parts_ms) {
+                    *sum += ms;
+                }
+            }
+            let ticks_per_frame =
+                self.steady_frames().map(|frame| frame.fixed_ticks as f32).sum::<f32>() / n;
+            let envelope = self.mean_phases_ms()[Phase::FixedTicks as usize];
+            let _ = writeln!(
+                out,
+                "fixed tick parts (mean ms per frame, {ticks_per_frame:.2} ticks per frame):"
+            );
+            for (part, sum) in TickPart::ALL.iter().zip(parts) {
+                let _ = writeln!(out, "  {:<15} {:>7.3}", part.name(), sum / n);
+            }
+            let other = (envelope - parts.iter().sum::<f32>() / n).max(0.0);
+            let _ = writeln!(out, "  {:<15} {:>7.3}", "other", other);
+        }
 
         let mut worst: Vec<&FrameSample> = self.hitches.iter().collect();
         worst.sort_by(|a, b| b.total_ms.total_cmp(&a.total_ms));
@@ -288,7 +380,7 @@ impl FrameLog {
         }
         // Which phase owns the hitches: count the worst phase over every hitch.
         if !self.hitches.is_empty() {
-            let mut owners = [0usize; 7];
+            let mut owners = [0usize; 8];
             for frame in &self.hitches {
                 owners[frame.worst_phase().0 as usize] += 1;
             }
@@ -374,6 +466,53 @@ mod tests {
         assert_eq!(log.frames().count(), RING_FRAMES);
         assert_eq!(log.total_frames(), RING_FRAMES as u64 + 51);
         assert!(log.gpu_sample_due() || !log.gpu_sample_due());
+    }
+
+    #[test]
+    fn the_fixed_tick_parts_are_reported_per_frame_with_the_rest_as_other() {
+        let mut log = FrameLog::new();
+        for _ in 0..2 {
+            log.begin(Phase::FixedTicks);
+            log.note_fixed_ticks(2);
+            log.add_tick_ms(TickPart::Host, 6.0);
+            log.add_tick_ms(TickPart::Sight, 1.0);
+            log.end_phase();
+            log.add_ms(Phase::FixedTicks, 10.0);
+            log.end_frame(12.0);
+        }
+        let report = log.report();
+        assert!(
+            report.contains("fixed tick parts (mean ms per frame, 2.00 ticks per frame):"),
+            "{report}"
+        );
+        assert!(report.contains("  host              6.000"), "{report}");
+        assert!(report.contains("  sight             1.000"), "{report}");
+        // The envelope is 10 ms plus the clock's epsilon: other = envelope - 7.
+        let other: f32 = report
+            .lines()
+            .find_map(|line| {
+                line.trim().strip_prefix("other").map(|rest| rest.trim().parse().unwrap())
+            })
+            .expect("other row");
+        assert!((other - 3.0).abs() < 0.05, "{other}");
+    }
+
+    #[test]
+    fn a_stall_over_a_second_is_left_out_of_the_means_but_kept_in_the_percentiles() {
+        let mut log = FrameLog::new();
+        log.begin(Phase::Hud);
+        log.add_ms(Phase::Hud, 8_000.0);
+        log.end_frame(9_000.0);
+        for _ in 0..9 {
+            log.add_ms(Phase::Render, 10.0);
+            log.end_frame(12.0);
+        }
+        let means = log.mean_phases_ms();
+        assert!((means[Phase::Render as usize] - 10.0).abs() < 1e-3, "{means:?}");
+        assert!(means[Phase::Hud as usize] < 1e-3, "{means:?}");
+        let report = log.report();
+        assert!(report.contains("1 frames over 1000 ms left out"), "{report}");
+        assert!(report.contains("max 9000.00 ms"), "{report}");
     }
 
     #[test]
