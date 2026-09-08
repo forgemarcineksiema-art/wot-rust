@@ -51,6 +51,25 @@ impl RemoteInputQueue {
     }
 
     pub(crate) fn command_for_tick(&mut self, server_tick: u64) -> TankCommand {
+        // One command per tick, so a DRY tick (the whole batch in flight was lost, the queue had
+        // nothing for `next_sequence`) leaves the client one input behind the host for good: the
+        // retransmit lands next step together with the next command, the host applies one, and
+        // the backlog is a tick of control lag that never drains — under thirty percent loss
+        // it grew by one every dry tick for the whole battle (the seeded-loss lock caught it by
+        // luck when a map's bots changed the datagram count). So a stale command that carries no
+        // edge is skipped when a newer one already waits; a fire or an ammo switch is never
+        // skipped, it is applied on the tick it gets.
+        while self.pending.len() > 1
+            && self
+                .pending
+                .get(&self.next_sequence)
+                .is_some_and(|stale| !stale.fire && stale.select_ammo.is_none())
+            && self.pending.contains_key(&self.next_sequence.saturating_add(1))
+        {
+            self.pending.remove(&self.next_sequence);
+            self.last_processed = Some(self.next_sequence);
+            self.next_sequence = self.next_sequence.saturating_add(1);
+        }
         if let Some(command) = self.pending.remove(&self.next_sequence) {
             self.last_processed = Some(self.next_sequence);
             self.next_sequence = self.next_sequence.saturating_add(1);
@@ -132,6 +151,44 @@ mod tests {
         assert!(!held.fire);
         assert_eq!(held.select_ammo, None);
         assert_eq!(queue.last_processed(), Some(1));
+    }
+
+    #[test]
+    fn a_dry_tick_is_caught_up_on_the_next_one_and_no_edge_is_skipped() {
+        // Tick 90: the batch carrying input 0 was lost — a dry tick, the axes hold.
+        let mut queue = RemoteInputQueue::default();
+        assert_eq!(queue.command_for_tick(90), TankCommand::idle());
+        assert_eq!(queue.last_processed(), None);
+        // Tick 91: the retransmit of 0 arrives together with 1. Without catch-up the host would
+        // apply 0 now and 1 a tick late, and stay a tick behind for the rest of the battle.
+        let stale = TankCommand::drive(1.0, 0.0);
+        let fresh = TankCommand::drive(0.5, 0.4);
+        assert!(queue.ingest_batch(
+            TankId(7),
+            &[sequenced_input(0, 7, stale), sequenced_input(1, 7, fresh)],
+            91,
+        ));
+        assert_eq!(queue.command_for_tick(91), fresh, "the stale edge-free command is skipped");
+        assert_eq!(queue.last_processed(), Some(1), "the skip is acknowledged to the client");
+        assert!(queue.pending.is_empty());
+
+        // A stale command that CARRIES an edge is applied, never skipped: the shot lands a tick
+        // late rather than never.
+        let fire = TankCommand { fire: true, ..TankCommand::drive(1.0, 0.0) };
+        assert_eq!(queue.command_for_tick(92), continuous_only(fresh));
+        assert!(queue.ingest_batch(
+            TankId(7),
+            &[
+                sequenced_input(2, 7, fire),
+                sequenced_input(3, 7, fresh),
+                sequenced_input(4, 7, TankCommand { select_ammo: Some(1), ..fresh }),
+            ],
+            93,
+        ));
+        assert!(queue.command_for_tick(93).fire, "the fire edge waited a tick, it is applied");
+        // 3 is edge-free and 4 waits behind it: 3 is skipped, the ammo switch applies now.
+        assert_eq!(queue.command_for_tick(94).select_ammo, Some(1));
+        assert_eq!(queue.last_processed(), Some(4));
     }
 
     #[test]
