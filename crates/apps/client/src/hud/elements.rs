@@ -166,7 +166,6 @@ pub enum MarkerPart {
     Name(u8),
     Bar(u8),
     Number(u8),
-    Distance(u8),
 }
 
 /// The parts of a hit-log row, by row index.

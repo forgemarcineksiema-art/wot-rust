@@ -14,8 +14,6 @@ pub(crate) const RELOAD_TIME_COLOR: [f32; 4] = tagged(theme::ACCENT, 0.94);
 pub(crate) const TARGET_DISTANCE_COLOR: [f32; 4] = tagged(theme::READOUT, 0.93);
 /// Dim secondary tint for unit labels (KM/H, M) so they read as context next to the bright value.
 pub(crate) const UNIT_COLOR: [f32; 4] = theme::UNIT;
-/// Sniper magnification readout ("X6.9") under the reticle.
-pub(crate) const ZOOM_COLOR: [f32; 4] = tagged(theme::READOUT_SOFT, 0.74);
 
 /// Number of decimal digits in `n` (1 for zero); used to budget layout width for readouts.
 pub(crate) fn digit_count(mut n: u32) -> u32 {

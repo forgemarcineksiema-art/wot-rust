@@ -13,7 +13,7 @@ use super::*;
 use crate::hud::number::TARGET_DISTANCE_COLOR;
 
 fn hud_with(reticle: HudReticle) -> Vec<HudVertex> {
-    build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 0.0, 0.0, None)
+    build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 0.0, 0.0)
 }
 
 #[test]
@@ -643,7 +643,6 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             frame_p95_ms: 0.0,
             speed_kmh: 0.0,
             cruise_level: 0,
-            zoom_factor: None,
             damage_log: Vec::new(),
             hit_log_collapsed: false,
             incoming_hits: Vec::new(),
@@ -914,4 +913,48 @@ fn a_traverse_limit_brackets_the_ring_on_both_sides() {
     assert!(bars(&traverse_hud, 1.0) >= 4, "a stop bar on the right of the ring");
     let glyphs = |hud: &[HudVertex]| hud.iter().filter(|v| v.uv[0] >= 0.0).count();
     assert!(glyphs(&traverse_hud) > glyphs(&wall_hud), "the refusal is named in words");
+}
+
+/// U13 (2026-09-08): the readout column stands on an enamel plate, and every tone it prints
+/// keeps the policy's 3:1 against that plate over the palest ground the sight can point at.
+#[test]
+fn the_reticle_readouts_stand_on_a_plate_that_keeps_them_above_three_to_one() {
+    use crate::hud::reticle_readouts::RETICLE_READOUT_PLATE;
+    let with_range = HudReticle {
+        target_distance_m: Some(214.0),
+        ..reticle_at(ReticleStatus::Clear, Some(hint(true)))
+    };
+    let plate = |hud: &[HudVertex]| hud.iter().filter(|v| v.color == RETICLE_READOUT_PLATE).count();
+    assert_eq!(plate(&hud_with(with_range)), 6, "one quad under the range row");
+    assert_eq!(plate(&hud_with(sniper(with_range))), 6, "one quad under both rows in sniper mode");
+    let no_range = reticle_at(ReticleStatus::Clear, None);
+    assert_eq!(plate(&hud_with(no_range)), 0, "no numbers, no plate");
+
+    // The palest ground the sight points at: straw at noon (the look goldens' meadow).
+    let straw = [0.72, 0.66, 0.42, 1.0];
+    let over = |ink: [f32; 4], ground: [f32; 4]| {
+        [
+            ground[0] + (ink[0] - ground[0]) * ink[3],
+            ground[1] + (ink[1] - ground[1]) * ink[3],
+            ground[2] + (ink[2] - ground[2]) * ink[3],
+            1.0,
+        ]
+    };
+    let plate_ground = over(RETICLE_READOUT_PLATE, straw);
+    for (name, ink) in [
+        ("range", crate::hud::number::TARGET_DISTANCE_COLOR),
+        ("unit", crate::hud::number::UNIT_COLOR),
+        ("pen", RETICLE_PEN),
+        ("no pen", RETICLE_NO_PEN),
+        ("armour", [0.85, 0.42, 0.38, 0.80]),
+        ("blocked", RETICLE_BLOCKED),
+    ] {
+        let ratio = ui_kit::theme::contrast_ratio(over(ink, plate_ground), plate_ground);
+        assert!(ratio >= 3.0, "{name} reads {ratio:.2}:1 on the readout plate over straw");
+        let bare = ui_kit::theme::contrast_ratio(over(ink, straw), straw);
+        assert!(
+            bare < ratio,
+            "{name}: the plate must add contrast on straw ({bare:.2} -> {ratio:.2})"
+        );
+    }
 }

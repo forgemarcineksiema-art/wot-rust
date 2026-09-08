@@ -30,7 +30,9 @@ const VERTEX_EQUALITY_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/hud/demo_strip.rs", 1, Hold::Held),
     ("crates/apps/client/src/hud/hit_direction.rs", 4, Hold::Burn),
     ("crates/apps/client/src/hud/minimap.rs", 2, Hold::Burn),
-    ("crates/apps/client/src/hud/reticle_overlay_tests.rs", 42, Hold::Held),
+    // 42 -> 43 on 2026-09-08 (U13): the readout plate's own lock finds its quad by colour — one
+    // more tag on the reticle stack, moved on purpose with the picture change stated in the PR.
+    ("crates/apps/client/src/hud/reticle_overlay_tests.rs", 43, Hold::Held),
     ("crates/apps/client/src/hud/scope_overlay.rs", 2, Hold::Held),
     ("crates/apps/client/src/hud/tests.rs", 16, Hold::Burn),
 ];
@@ -46,10 +48,12 @@ const LEGACY_CALL_SITE_CEILINGS: &[(&str, usize, Hold)] = &[
     ("crates/apps/client/src/hud/minimap.rs", 3, Hold::Burn),
     ("crates/apps/client/src/hud/number.rs", 1, Hold::Burn),
     ("crates/apps/client/src/hud/outcome.rs", 3, Hold::Burn),
-    ("crates/apps/client/src/hud/readouts.rs", 6, Hold::Burn),
+    ("crates/apps/client/src/hud/readouts.rs", 5, Hold::Burn),
     ("crates/apps/client/src/hud/reticle_marks.rs", 9, Hold::Held),
     ("crates/apps/client/src/hud/reticle_overlay.rs", 8, Hold::Held),
-    ("crates/apps/client/src/hud/reticle_readouts.rs", 5, Hold::Held),
+    // 5 -> 6 on 2026-09-08 (U13): the readout column's enamel plate, one `push_quad` — moved on
+    // purpose, the way H25 allows, with the picture change stated in the PR.
+    ("crates/apps/client/src/hud/reticle_readouts.rs", 6, Hold::Held),
     ("crates/apps/client/src/hud/scope_overlay.rs", 2, Hold::Held),
     ("crates/apps/client/src/hud/tests.rs", 1, Hold::Burn),
 ];

@@ -292,6 +292,16 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
         super::reticle_readouts::push_hit_confirm(vertices, reticle.aim_clip, confirm, aspect);
     }
     if let Some(distance_m) = reticle.target_distance_m {
+        // U13: the column's plate first, under every row it will print.
+        let second_row =
+            (sniper && reticle.penetration_hint.is_some()) || reticle.block_distance_m.is_some();
+        super::reticle_readouts::push_readout_plate(
+            vertices,
+            reticle.aim_clip,
+            reticle.aim_radius_clip,
+            second_row,
+            aspect,
+        );
         super::reticle_readouts::push_target_distance(
             vertices,
             reticle.aim_clip,
