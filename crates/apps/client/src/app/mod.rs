@@ -109,6 +109,12 @@ pub(crate) struct ActiveTopple {
 /// re-mesh on a worker.
 pub(crate) const RUT_REBUILD_INTERVAL_S: f32 = 2.0;
 
+/// How far the eye may travel before the ground patch is re-spent around it. The patch is the
+/// [`scene_build::RUT_PATCH_CELL_BUDGET`] cells nearest the camera, so a camera that has moved
+/// is a patch drawn in the wrong place; at 2 000 cells of a 2.5 m grid the disc is roughly
+/// 60 m across, and re-spending it every 25 m keeps its edge well outside the near field.
+pub(crate) const RUT_PATCH_REFOCUS_M: f32 = 25.0;
+
 /// One kit building coming down (the one program's Z10): its cover index and how long it has
 /// been falling.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -248,7 +254,7 @@ fn bake_battle_scene_meshes(
     cover_phases: &[u8],
 ) -> BattleSceneMeshes {
     let cover_phases = cover_phases.to_vec();
-    let ground = crate::battlefield_ground_mesh_parts(battlefield, None);
+    let ground = crate::battlefield_ground_mesh_parts(battlefield, None, None);
     let (ground_vertices, ground_indices) = ground.base;
     let statics_buckets = crate::battlefield_statics_buckets(battlefield, &cover_phases, &[]);
     let (statics_vertices, statics_indices) = crate::assemble_statics_mesh(&statics_buckets);
@@ -625,6 +631,15 @@ pub(crate) struct ClientApp {
     dressing_uploaded_fingerprint: u64,
     /// Set when the replicated crater ledger changed: the next frame kicks a ground re-mesh.
     ground_deform_dirty: bool,
+    /// Where the ground patch is spent — the presented camera's world XZ, as of the last
+    /// frame. The rut ledger remembers the whole battle; the patch can only afford the cells
+    /// nearest the eye (`scene_build::RUT_PATCH_CELL_BUDGET`), so it has to know where that
+    /// is. `None` until the first battle frame has a camera.
+    ground_patch_focus: Option<[f32; 2]>,
+    /// How far the eye may travel before the patch is re-spent around it, even with no fresh
+    /// rut to bake: the budget is a disc around the camera, and a disc left behind is a patch
+    /// drawn where nobody is looking.
+    ground_patch_focus_moved: bool,
     /// The world-anchored grass population, cached with an invisible margin around the shader's
     /// visible ring. It rebuilds after a four-metre planar step or any crater-ledger mutation.
     grass_cache: Vec<renderer_api::RenderObject>,
@@ -1022,6 +1037,8 @@ impl ClientApp {
             ground_rebuild_rx: None,
             dressing_uploaded_fingerprint: 0,
             ground_deform_dirty: false,
+            ground_patch_focus: None,
+            ground_patch_focus_moved: false,
             grass_cache: Vec::new(),
             grass_cache_eye: None,
             grass_cache_crater_fingerprint: 0,

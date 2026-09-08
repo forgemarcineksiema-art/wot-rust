@@ -48,7 +48,10 @@ pub use ground_march::{
     CRATER_MARCH_STEP_M, first_ground_impact, ground_blocks_segment, ground_normal_at,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError, cell_splits_on_main_diagonal};
-pub use ruts::{MAX_RUT_SEGMENTS, RUT_HALF_WIDTH_M, RUT_PASS_DEPTH_M, RutField, RutSegment};
+pub use ruts::{
+    RUT_DEPTH_QUANT_STEP_M, RUT_HALF_WIDTH_M, RUT_PASS_DEPTH_M, RUT_RASTER_CELL_M,
+    RUT_RASTER_MAX_DEPTH_M, RutField,
+};
 // The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
 // helpers — one grounding/grounding-math implementation, no forked copies.
 pub use map_build::{
