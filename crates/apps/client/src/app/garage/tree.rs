@@ -99,7 +99,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
         Rect::new(panel.x + pad, header_y, ui.px(LINE_LABEL_W_U), ui.px(HEADER_H_U)),
         text(
             words::TREE_LINE,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Left,
             theme.text.label_dim,
@@ -114,7 +114,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
             text(
                 &format!("{} {}", words::TREE_TIER, tier_roman(*tier)),
                 Style::BANNER,
-                20.0,
+                Style::STENCIL_FLOOR_U,
                 Align::Center,
                 theme.lamp,
                 DigitMode::Proportional,
@@ -163,7 +163,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
                     line.nation.label().to_uppercase(),
                     line.class.label().to_uppercase()
                 ),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 18.0,
                 Align::Left,
                 theme.text.value,
@@ -202,7 +202,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
                 Rect::new(name_x, inner.y, inner.right() - name_x, ui.px(NODE_ICON_U)),
                 text(
                     kind.short_name(),
-                    Style::LABEL,
+                    Style::VALUE_STRONG,
                     20.0,
                     Align::Left,
                     if focused { theme.lamp } else { theme.text.value },
@@ -277,7 +277,7 @@ pub(super) fn push_tree(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &
         back,
         text(
             words::BACK,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             20.0,
             Align::Center,
             theme.text.value,

@@ -47,7 +47,7 @@ pub(crate) fn push_sixth_sense(
             plate,
             Payload::Text {
                 text: crate::ui_strings::battle::SPOTTED_LAMP.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: 16.0,
                 align: Align::Center,
                 color: theme.lamp,

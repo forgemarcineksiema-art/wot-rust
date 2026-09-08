@@ -799,7 +799,7 @@ fn push_battles(
                     row.damage_dealt,
                     words::DMG_UNIT
                 ),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 16.0,
                 Align::Right,
                 theme.text.label,
@@ -992,7 +992,7 @@ fn push_results(
                     note,
                     shell_text(
                         &format!("{} {path}", words::RECORDED_TO),
-                        Style::LABEL,
+                        Style::VALUE_STRONG,
                         16.0,
                         Align::Right,
                         theme.lamp,
@@ -1102,7 +1102,7 @@ fn push_results(
                     note,
                     shell_text(
                         crew,
-                        Style::LABEL,
+                        Style::VALUE_STRONG,
                         16.0,
                         Align::Right,
                         if row.ally { theme.text.label } else { theme.text.value },
@@ -1183,7 +1183,7 @@ fn push_menu(
             rect,
             shell_text(
                 item.word(),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 20.0,
                 Align::Center,
                 ink,
@@ -1286,7 +1286,14 @@ fn push_footer(
         z,
         ShellPart::Footer,
         rect,
-        shell_text(footer, Style::LABEL, 16.0, Align::Center, theme.lamp, DigitMode::Proportional),
+        shell_text(
+            footer,
+            Style::VALUE_STRONG,
+            16.0,
+            Align::Center,
+            theme.lamp,
+            DigitMode::Proportional,
+        ),
         WidgetState::Idle,
     );
 }
@@ -1318,7 +1325,7 @@ fn push_row_plate(
         z,
         ShellPart::RowLabel(index),
         rect.inset(ui.px(8.0)),
-        shell_text(label, Style::LABEL, 18.0, Align::Left, ink, DigitMode::Proportional),
+        shell_text(label, Style::VALUE_STRONG, 18.0, Align::Left, ink, DigitMode::Proportional),
         WidgetState::Idle,
     );
 }
@@ -1393,7 +1400,7 @@ fn push_arrows(
         dec,
         shell_text(
             words::ARROW_DEC,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             theme.text.label,
@@ -1408,7 +1415,7 @@ fn push_arrows(
         inc,
         shell_text(
             words::ARROW_INC,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             theme.text.label,
@@ -1513,7 +1520,7 @@ fn push_keybinds(
                 note,
                 shell_text(
                     &format!("{} {other}", words::SHARED_WITH),
-                    Style::LABEL,
+                    Style::VALUE_STRONG,
                     16.0,
                     Align::Right,
                     theme.lamp,

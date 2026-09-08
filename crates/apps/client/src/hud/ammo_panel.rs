@@ -168,7 +168,7 @@ pub(crate) fn push_ammo_panel(
             Rect::new(text_x, rect.y + ui.px(8.0), text_w, ui.px(TEXT_U)),
             Payload::Text {
                 text: slot.designation.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: TEXT_U,
                 align: Align::Left,
                 color: dim(theme.text.label),
@@ -245,7 +245,7 @@ pub(crate) fn push_ammo_panel(
             band,
             Payload::Text {
                 text: crate::ui_strings::battle::AMMO_SWITCHING.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: TEXT_U,
                 align: Align::Center,
                 color: theme.text.value,

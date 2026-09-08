@@ -396,7 +396,7 @@ pub(crate) fn push_damage_panel(
             lamp,
             Payload::Text {
                 text: crate::ui_strings::battle::FIRE_LAMP.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: TEXT_U,
                 align: Align::Center,
                 color: theme.text.value,
@@ -419,7 +419,7 @@ pub(crate) fn push_damage_panel(
                 ),
                 Payload::Text {
                     text: format!("{} {remaining_s:.1}", crate::ui_strings::battle::RACK_FUZE),
-                    style: Style::LABEL,
+                    style: Style::VALUE_STRONG,
                     size_u: TEXT_U,
                     align: Align::Left,
                     // The fuze is a countdown the crew acts on: the lamp, not red on enamel (H23).
@@ -437,7 +437,7 @@ pub(crate) fn push_damage_panel(
             row(3.0),
             Payload::Text {
                 text: crate::ui_strings::battle::RADIO_OUT.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: TEXT_U,
                 align: Align::Left,
                 // A state word in the label ink; the red is the lamp plate's (H23).

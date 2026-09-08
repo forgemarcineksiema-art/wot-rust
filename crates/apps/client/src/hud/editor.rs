@@ -76,7 +76,7 @@ pub(crate) fn push_editor(
                 ),
                 Payload::Text {
                     text: instrument.name().to_string(),
-                    style: Style::LABEL,
+                    style: Style::VALUE_STRONG,
                     size_u: 16.0,
                     align: Align::Left,
                     color: if lit { theme.lamp } else { theme.text.label },
@@ -93,7 +93,7 @@ pub(crate) fn push_editor(
             ui.anchor(Anchor::Bottom, [820.0, 22.0], [0.0, 132.0]),
             Payload::Text {
                 text: words::EDITOR_FOOTER.to_string(),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: 16.0,
                 align: Align::Center,
                 color: theme.lamp,

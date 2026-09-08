@@ -98,7 +98,7 @@ pub(crate) fn push_spectate(
                     strip.index + 1,
                     strip.count
                 ),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: 16.0,
                 align: Align::Center,
                 color: theme.lamp,

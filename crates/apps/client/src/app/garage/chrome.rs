@@ -54,7 +54,7 @@ pub(super) fn push_hint_strip(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, st
                 rect,
                 text(
                     line,
-                    Style::LABEL,
+                    Style::VALUE_STRONG,
                     18.0,
                     Align::Left,
                     theme.text.label,
@@ -91,7 +91,7 @@ pub(super) fn push_chips(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: 
             inner,
             text(
                 chip.word(),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 18.0,
                 Align::Left,
                 theme.text.label,

@@ -320,7 +320,7 @@ fn push_garage_top_bar(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &G
                 battle,
                 text(
                     &format!("{} \u{b7} {}", words::IN_BATTLE, lock_clock_word(remaining)),
-                    Style::LABEL,
+                    Style::VALUE_STRONG,
                     20.0,
                     Align::Center,
                     theme.text.label,
@@ -367,7 +367,7 @@ fn push_garage_top_bar(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &G
         map,
         text(
             map_pick_label(state.selected_map()),
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             if set { theme.text.value } else { theme.text.label },
@@ -386,7 +386,7 @@ fn push_garage_top_bar(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &G
             rect,
             text(
                 tab.word(),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 20.0,
                 Align::Center,
                 if active == tab { theme.lamp } else { theme.text.label },
@@ -429,7 +429,7 @@ fn push_nameplate(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &Garage
         line(46.0, 22.0),
         text(
             &identity,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             theme.text.label,
@@ -471,7 +471,7 @@ fn push_nameplate(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &Garage
             list,
             E::NameTag,
             ui.anchor(Anchor::Top, [NAME_SIZE_U[0], 24.0], [0.0, TAG_TOP_U]),
-            text(&word, Style::LABEL, 18.0, Align::Center, color, DigitMode::Proportional),
+            text(&word, Style::VALUE_STRONG, 18.0, Align::Center, color, DigitMode::Proportional),
         );
     }
 }
@@ -495,7 +495,7 @@ fn push_legend(list: &mut DrawList<E>, ui: &Ui, theme: &Theme) {
         Rect::new(plate_rect.x + pad, plate_rect.y, ui.px(110.0), plate_rect.h),
         text(
             words::LEGEND_TITLE,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Left,
             theme.text.label,
@@ -537,7 +537,7 @@ fn push_legend(list: &mut DrawList<E>, ui: &Ui, theme: &Theme) {
         Rect::new(row_right, plate_rect.y, unit_w, plate_rect.h),
         text(
             words::LEGEND_UNIT,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             16.0,
             Align::Right,
             theme.text.label,
@@ -566,7 +566,14 @@ fn push_column_header(
         list,
         header,
         head,
-        text(word, Style::LABEL, 20.0, Align::Left, theme.text.label, DigitMode::Proportional),
+        text(
+            word,
+            Style::VALUE_STRONG,
+            20.0,
+            Align::Left,
+            theme.text.label,
+            DigitMode::Proportional,
+        ),
     );
     let rule_rect = Rect::new(head.x, head.bottom() + ui.px(4.0), head.w, ui.px(1.0));
     put(
@@ -604,7 +611,7 @@ fn push_crew(list: &mut DrawList<E>, ui: &Ui, theme: &Theme) {
             ),
             text(
                 &role.label().to_uppercase(),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 20.0,
                 Align::Left,
                 theme.text.value,
@@ -649,7 +656,7 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
         Rect::new(header.x, header.y, own_right - header.x, header.h),
         text(
             game_core::tier_roman(spec.kind.tier()),
-            Style::BANNER,
+            Style::VALUE_STRONG,
             20.0,
             Align::Right,
             theme.lamp,
@@ -667,7 +674,7 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
                     other.kind.short_name().to_uppercase(),
                     game_core::tier_roman(other.kind.tier())
                 ),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 18.0,
                 Align::Right,
                 theme.text.value,
@@ -696,7 +703,7 @@ fn push_stats(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageStat
             line,
             text(
                 row.label,
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 16.0,
                 Align::Left,
                 theme.text.label,
@@ -890,7 +897,7 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             Rect::new(rect.x, rect.y + ui.px(42.0), rect.w, ui.px(18.0)),
             text(
                 &name,
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 16.0,
                 Align::Center,
                 theme.text.label,
@@ -921,7 +928,14 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             list,
             E::AmmoMinus(index),
             Rect::new(rect.x, band_y, ui.px(28.0), band_h),
-            text("-", Style::LABEL, 22.0, Align::Center, theme.text.value, DigitMode::Proportional),
+            text(
+                "-",
+                Style::VALUE_STRONG,
+                22.0,
+                Align::Center,
+                theme.text.value,
+                DigitMode::Proportional,
+            ),
             WidgetState::Idle,
         );
         put(
@@ -941,7 +955,14 @@ fn push_loadout(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageSt
             list,
             E::AmmoPlus(index),
             Rect::new(rect.right() - ui.px(28.0), band_y, ui.px(28.0), band_h),
-            text("+", Style::LABEL, 22.0, Align::Center, theme.text.value, DigitMode::Proportional),
+            text(
+                "+",
+                Style::VALUE_STRONG,
+                22.0,
+                Align::Center,
+                theme.text.value,
+                DigitMode::Proportional,
+            ),
             WidgetState::Idle,
         );
     }
@@ -1014,7 +1035,14 @@ fn push_carousel(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageS
             list,
             E::CarouselNation(index),
             Rect::new(cell.x, cell.y + ui.px(6.0), cell.w, ui.px(18.0)),
-            text(&tag, Style::LABEL, 16.0, Align::Center, tag_color, DigitMode::Proportional),
+            text(
+                &tag,
+                Style::VALUE_STRONG,
+                16.0,
+                Align::Center,
+                tag_color,
+                DigitMode::Proportional,
+            ),
         );
         put(
             list,
@@ -1022,7 +1050,7 @@ fn push_carousel(list: &mut DrawList<E>, ui: &Ui, theme: &Theme, state: &GarageS
             Rect::new(cell.x, cell.y + ui.px(26.0), cell.w, ui.px(24.0)),
             text(
                 kind.short_name(),
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 20.0,
                 Align::Center,
                 if selected { theme.lamp } else { theme.text.value },
@@ -1115,7 +1143,7 @@ fn push_options(
         header,
         text(
             slot_label(slot),
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             theme.text.label,
@@ -1146,7 +1174,7 @@ fn push_options(
             inner,
             text(
                 &option.name,
-                Style::LABEL,
+                Style::VALUE_STRONG,
                 18.0,
                 Align::Left,
                 if option.installed { theme.lamp } else { theme.text.value },
@@ -1317,6 +1345,36 @@ mod tests {
 
     /// G7: the one red is the commit's — BATTLE — and nothing else on the screen wears it; a
     /// locked hull's BATTLE wears none at all.
+    /// U12 (2026-09-08): the stencil is for headings at 24 u and above; a label under it is
+    /// set in the text face. Every list the garage can draw.
+    #[test]
+    fn no_garage_label_wears_the_stencil_below_its_floor() {
+        use ui_kit::font::{Face, Style};
+        let (mut state, ui) = hangar();
+        let mut lists = vec![build_screen_list(&state, &ui, None)];
+        state.open_option_list(FitSlot::Gun);
+        lists.push(build_screen_list(&state, &ui, None));
+        state.toggle_inspector();
+        lists.push(build_screen_list(&state, &ui, None));
+        state.open_tech_tree();
+        lists.push(build_screen_list(&state, &ui, None));
+        let mut stencils = 0;
+        for element in lists.iter().flat_map(|list| list.iter()) {
+            if let Payload::Text { style, size_u, text, .. } = &element.payload
+                && style.face == Face::Display
+            {
+                stencils += 1;
+                assert!(
+                    *size_u >= Style::STENCIL_FLOOR_U,
+                    "{:?} sets {text:?} in the stencil at {size_u} u — under the {} u floor",
+                    element.id,
+                    Style::STENCIL_FLOOR_U
+                );
+            }
+        }
+        assert!(stencils > 0, "the headings still wear the stencil");
+    }
+
     #[test]
     fn signal_red_is_only_worn_by_commit() {
         let (mut state, ui) = hangar();
