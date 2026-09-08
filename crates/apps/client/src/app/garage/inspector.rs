@@ -270,7 +270,7 @@ pub(super) fn push_inspector_panel(
         switch,
         text(
             words::INSPECTOR_SHOOT_ME,
-            Style::LABEL,
+            Style::VALUE_STRONG,
             18.0,
             Align::Center,
             if state.shoot_me() { theme.lamp } else { theme.text.value },

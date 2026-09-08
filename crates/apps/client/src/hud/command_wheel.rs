@@ -105,7 +105,7 @@ pub(crate) fn push_command_wheel(
                     rect,
                     Payload::Text {
                         text: command_word(*command).to_string(),
-                        style: Style::LABEL,
+                        style: Style::VALUE_STRONG,
                         size_u: 16.0,
                         align: Align::Center,
                         color: if chosen { theme.lamp } else { theme.text.label },

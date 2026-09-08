@@ -566,3 +566,29 @@ fn the_full_hud_state_fits_the_buffer_with_headroom() {
         busiest.1
     );
 }
+
+/// U12 (2026-09-08): the stencil is for headings at 24 u and above; a label under it is set in
+/// the text face. Every HUD state the review renders, at the standard size.
+#[test]
+fn no_hud_label_wears_the_stencil_below_its_floor() {
+    use ui_kit::font::{Face, Style};
+    let ui = ui_kit::ui::Ui::for_aspect(16.0 / 9.0);
+    let mut checked = 0;
+    for state in HudState::ALL {
+        let list = super::build_battle_hud_list(&state.model(), &ui);
+        for element in list.iter() {
+            if let ui_kit::draw_list::Payload::Text { style, size_u, text, .. } = &element.payload
+                && style.face == Face::Display
+            {
+                checked += 1;
+                assert!(
+                    *size_u >= Style::STENCIL_FLOOR_U,
+                    "{state:?}: {:?} sets {text:?} in the stencil at {size_u} u — under the {} u floor",
+                    element.id,
+                    Style::STENCIL_FLOOR_U
+                );
+            }
+        }
+    }
+    let _ = checked;
+}

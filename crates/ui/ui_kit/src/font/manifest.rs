@@ -51,8 +51,13 @@ pub struct Style {
 }
 
 impl Style {
-    /// Labels and headers: the stencil at medium weight.
+    /// Labels and headers: the stencil at medium weight. Headings only, at
+    /// [`Self::STENCIL_FLOOR_U`] and above (U12, 2026-09-08): the stencil's stems are 1.0 px at
+    /// 16 u on a 900p screen and its counters close — a label set in it is a texture, not a word.
     pub const LABEL: Style = Style { face: Face::Display, weight: Weight::Medium };
+    /// The smallest size the stencil faces (`LABEL`, `BANNER`) may be set at, in units. Below
+    /// it a label is `VALUE_STRONG`. Locked on every garage list and every HUD state.
+    pub const STENCIL_FLOOR_U: f32 = 24.0;
     /// Banners and the largest words: the stencil at black.
     pub const BANNER: Style = Style { face: Face::Display, weight: Weight::Black };
     /// Values and running text.

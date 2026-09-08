@@ -158,7 +158,7 @@ pub(crate) fn push_kill_feed(
                 Rect::new(right - word_w, line.y, word_w, line.h),
                 Payload::Text {
                     text: row.word().to_string(),
-                    style: Style::LABEL,
+                    style: Style::VALUE_STRONG,
                     size_u: 16.0,
                     align: Align::Right,
                     color: row_faded(theme.text.label_dim, row.age_s),

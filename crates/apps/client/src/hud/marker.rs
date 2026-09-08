@@ -202,7 +202,7 @@ pub(crate) fn push_markers(
             ),
             Payload::Text {
                 text: format!("{} \u{b7} {}", hull.vehicle.short_name(), hull.seat),
-                style: Style::LABEL,
+                style: Style::VALUE_STRONG,
                 size_u: TEXT_U,
                 align: Align::Left,
                 color: theme.text.label,

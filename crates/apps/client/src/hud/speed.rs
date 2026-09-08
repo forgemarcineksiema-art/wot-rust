@@ -61,7 +61,7 @@ pub(crate) fn push_speed(
         Rect::new(number.right() + ui.px(6.0), plate.y + ui.px(12.0), ui.px(44.0), ui.px(16.0)),
         Payload::Text {
             text: crate::ui_strings::battle::SPEED_UNIT.to_string(),
-            style: Style::LABEL,
+            style: Style::VALUE_STRONG,
             size_u: 16.0,
             align: Align::Left,
             color: theme.text.unit,
