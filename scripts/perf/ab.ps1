@@ -16,6 +16,7 @@ param(
     [Parameter(Mandatory = $true)][string]$A,
     [string]$B = "",
     [string[]]$Rows = @("full scene"),
+    [string[]]$Masks = @(),
     [int]$Rounds = 3,
     [int]$CoolBelowC = 68,
     [int]$MaxWaitS = 400,
@@ -63,7 +64,18 @@ $Rows = @($Rows | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() 
 # The plan: a list of (label, exe, row). A/B alternates the binaries on one row; attribution
 # alternates the rows on one binary. Either way every measurement is the first row of a cold run.
 $plan = @()
-if ($B -ne "") {
+$Masks = @($Masks | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
+if ($Masks.Count -gt 0) {
+    # Shader ablation: one binary, one row, `WOT_GPU_DETAIL=<mask>` per run (the canonical
+    # profile's bits plus the probe's ablation bits, renderer_api::ShaderDetailMask), rounds interleaved.
+    for ($r = 0; $r -lt $Rounds; $r++) {
+        $ordered = @($Masks)
+        if ($r % 2 -eq 1) { [array]::Reverse($ordered) }
+        foreach ($mask in $ordered) {
+            $plan += [pscustomobject]@{ label = "mask $mask"; exe = $A; row = $Rows[0]; mask = $mask }
+        }
+    }
+} elseif ($B -ne "") {
     for ($r = 0; $r -lt $Rounds; $r++) {
         $pair = if ($r % 2 -eq 0) { @("A", "B") } else { @("B", "A") }
         foreach ($which in $pair) {
@@ -85,6 +97,7 @@ $results = @()
 $i = 0
 foreach ($step in $plan) {
     $env:WOT_PERF_ONLY = $step.row
+    if ($step.PSObject.Properties["mask"]) { $env:WOT_GPU_DETAIL = $step.mask } else { Remove-Item Env:WOT_GPU_DETAIL -ErrorAction SilentlyContinue }
     $temp = Wait-Cool
     $safe = ($step.label -replace "[^A-Za-z0-9]+", "-")
     $log = Join-Path $outDir ("{0:d2}-{1}.txt" -f $i, $safe)

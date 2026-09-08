@@ -27,8 +27,13 @@ fn local_pools(world_pos: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     var sum = vec3<f32>(0.0, 0.0, 0.0);
     for (var k = 0u; k < 6u; k = k + 1u) {
         let pr = camera.light_pos_radius[k];
+        // The live pools are a PREFIX of the slots (renderer_api::local_lights_are_a_prefix:
+        // the FX system packs its pulses to the front, the hangar rig is authored so, a blend
+        // of two prefixes is one), so the first dark slot ends the loop. Measured cold on the
+        // MX330 (Q9, 2026-09-08): six `continue`s per pixel of an outdoor frame with no pool
+        // lit were 0.6 ms of the 11.4 ms scene pass; one `break` is the same sum, bit for bit.
         if (pr.w <= 0.0) {
-            continue;
+            break;
         }
         let to_light = pr.xyz - world_pos;
         let d = length(to_light);
@@ -51,11 +56,15 @@ fn light_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> v
     let key = max(dot(n, normalize(camera.key_direction)), 0.0) * shadow;
     let fill = max(dot(n, normalize(camera.fill_direction)), 0.0) * ao;
     let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
+    var pools = vec3<f32>(0.0, 0.0, 0.0);
+    if (!detail_bit(16384u)) {
+        pools = local_pools(world_pos, n);
+    }
     return hemi_ambient(n) * ao
         + camera.key_rgb * key
         + camera.fill_rgb * fill
         + camera.rim_rgb * rim
-        + local_pools(world_pos, n) * ao;
+        + pools * ao;
 }
 
 // Canopy light (surface_role::FOLIAGE): leaves are thin scatterers, not opaque walls, so the
@@ -107,6 +116,9 @@ fn env_sky(dir: vec3<f32>) -> vec3<f32> {
 // model, mirrored on the CPU by SceneLighting::fog_factor. Applied in linear HDR before the tone
 // curve.
 fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+    if (detail_bit(1024u)) {
+        return color;
+    }
     let density = max(camera.fog_params.x, 0.0);
     // The second air layer: valley haze pooled below its fade-out height, quadratic falloff.
     // CPU-mirrored by SceneLighting::fog_factor; the 400 m fairness sweep bounds the SUM.

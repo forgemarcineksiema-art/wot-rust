@@ -234,7 +234,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let fill = clamp(camera.weather_params.z, 0.0, 1.0);
     // The puddle field is a two-noise pool: paid only when the look fills puddles at all.
     var puddle = 0.0;
-    if (fill > 0.001) {
+    if (fill > 0.001 && !detail_bit(8192u)) {
         puddle = packed.a * fill * puddle_pool(input.world_pos.xz, fill) * 0.38;
     }
     // The vertex lane carries the baked steepness/road/riverbed gloss; the chalk break adds
@@ -277,12 +277,15 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // T3: the macro tone — two taps of one tile, the second rotated and 3.83x larger, so the
     // 160 m tile never shows its repeat inside a map; colour variation in the 15–120 m band
     // that the splat (1 m, four flat layers) and the field quilt (50–100 m plots) leave out.
-    let macro_near = textureSample(macro_tile, detail_sampler,
-        input.world_pos.xz / GROUND_MACRO_PERIOD_M).rgb;
-    let macro_far = textureSample(macro_tile, detail_sampler,
-        octave_frame_fine(input.world_pos.xz) / (GROUND_MACRO_PERIOD_M * GROUND_MACRO_FAR_RATIO)).rgb;
-    let macro_tone = vec3<f32>(1.0)
-        + ((macro_near - 0.5) * 0.6 + (macro_far - 0.5) * 0.4) * 2.0 * MACRO_TONE_AMP;
+    var macro_tone = vec3<f32>(1.0);
+    if (!detail_bit(4096u)) {
+        let macro_near = textureSample(macro_tile, detail_sampler,
+            input.world_pos.xz / GROUND_MACRO_PERIOD_M).rgb;
+        let macro_far = textureSample(macro_tile, detail_sampler,
+            octave_frame_fine(input.world_pos.xz) / (GROUND_MACRO_PERIOD_M * GROUND_MACRO_FAR_RATIO)).rgb;
+        macro_tone = vec3<f32>(1.0)
+            + ((macro_near - 0.5) * 0.6 + (macro_far - 0.5) * 0.4) * 2.0 * MACRO_TONE_AMP;
+    }
 
     var albedo = materials.layers[0].rgb * wb.r
         + materials.layers[1].rgb * wb.g
@@ -313,7 +316,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         sun_shadow(input.world_pos, geometric_n, input.clip) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
-    if (gloss > 0.001) {
+    if (gloss > 0.001 && !detail_bit(32768u)) {
         let view = normalize(camera.camera_pos - input.world_pos);
         let key = normalize(camera.key_direction);
         let halfway = normalize(key + view);

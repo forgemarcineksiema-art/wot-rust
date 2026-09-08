@@ -58,6 +58,28 @@ impl ShaderDetailMask {
     // every meadow and its interpolated direction kinked at every 5 m triangle: the owner's
     // zigzag waves. The bit is NOT reused; worked land returns as a material in Teren 2.0.
 
+    // Bits 8–15: the PROBE'S ablations (Q9, 2026-09-08). Never in a profile, never in `FULL`;
+    // `WOT_GPU_DETAIL=<mask>` may set them so `scripts/perf/ab.ps1 -Masks` can price one part
+    // of the fragment at a time, cold. Each bit REMOVES work the shipped frame does.
+    /// The procedural grain and strata of the scene pass's materials (`material_detail`).
+    pub const ABLATE_MATERIAL_NOISE: u32 = 1 << 8;
+    /// The sun shadow: one tap instead of the rotated cross, no far cascade.
+    pub const ABLATE_PCF: u32 = 1 << 9;
+    /// The fog and the valley haze.
+    pub const ABLATE_FOG: u32 = 1 << 10;
+    /// The cloud shadow map tap.
+    pub const ABLATE_CLOUD_SHADOW: u32 = 1 << 11;
+    /// The terrain's two macro-tone taps.
+    pub const ABLATE_MACRO_TONE: u32 = 1 << 12;
+    /// The puddle noise (scene and terrain).
+    pub const ABLATE_PUDDLES: u32 = 1 << 13;
+    /// The six local light pools.
+    pub const ABLATE_LOCAL_LIGHTS: u32 = 1 << 14;
+    /// The specular lobe and the environment reflection.
+    pub const ABLATE_SPECULAR: u32 = 1 << 15;
+    /// Every ablation bit — what the env override may set beyond `FULL`.
+    pub const PROBE_ABLATIONS: u32 = 0xFF00;
+
     pub const NONE: Self = Self(0);
     pub const FULL: Self = Self(0b011_1111);
 

@@ -49,7 +49,7 @@ const CLOUD_TILE_SPAN: f32 = 8.0;
 // infinity. Strength (sky_params.x) is profile data; 0 skips it.
 fn cloud_shadow(world: vec3<f32>) -> f32 {
     let strength = camera.sky_params.x;
-    if (strength <= 0.0) {
+    if (strength <= 0.0 || detail_bit(2048u)) {
         return 1.0;
     }
     let drift = camera.time_params.x * camera.cloud_params.w;
@@ -98,6 +98,20 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>, frag: vec4<f32>) -> f32 {
     let strength = camera.shadow_params.z;
     if (strength <= 0.0) {
         return 1.0;
+    }
+    // The probe's ablation (bit 9): ONE tap, no far cascade - what the kernel costs.
+    if (detail_bit(512u)) {
+        let biased_one = world_pos + n * camera.shadow_params.w;
+        let clip_one = camera.light_view_proj * vec4<f32>(biased_one, 1.0);
+        let ndc_one = clip_one.xyz / clip_one.w;
+        let uv_one = ndc_one.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+        if (uv_one.x < 0.0 || uv_one.x > 1.0 || uv_one.y < 0.0 || uv_one.y > 1.0
+            || ndc_one.z < 0.0 || ndc_one.z > 1.0) {
+            return 1.0;
+        }
+        let one = textureSampleCompareLevel(
+            shadow_map, shadow_sampler, uv_one, ndc_one.z - camera.shadow_params.y);
+        return mix(1.0, one, strength);
     }
     // Near cascade: shadow_params = (texel UV step, depth bias, strength, world normal offset).
     let biased = world_pos + n * camera.shadow_params.w;

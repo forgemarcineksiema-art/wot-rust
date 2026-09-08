@@ -106,7 +106,9 @@ pub(crate) fn apply_shader_detail_override(
         // a time on the min-spec, e.g. WOT_GPU_DETAIL=3 = terrain bend + micro octave.
         Some(mask) if mask.parse::<u32>().is_ok() => {
             quality.shader_detail = renderer_api::ShaderDetailMask(
-                mask.parse::<u32>().unwrap_or(0) & renderer_api::ShaderDetailMask::FULL.0,
+                mask.parse::<u32>().unwrap_or(0)
+                    & (renderer_api::ShaderDetailMask::FULL.0
+                        | renderer_api::ShaderDetailMask::PROBE_ABLATIONS),
             )
         }
         _ => {}

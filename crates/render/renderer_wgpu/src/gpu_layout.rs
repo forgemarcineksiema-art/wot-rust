@@ -305,9 +305,20 @@ impl CameraUniform {
                 if passes.bloom_enabled { lighting.bloom_weight } else { 0.0 },
                 lighting.vignette,
             ]),
-            light_pos_radius: lighting.local_lights.map(|light| {
-                GpuVec4([light.position[0], light.position[1], light.position[2], light.radius_m])
-            }),
+            light_pos_radius: {
+                debug_assert!(
+                    renderer_api::local_lights_are_a_prefix(&lighting.local_lights),
+                    "the lit pools must stand at the front of the slots: the shader loop stops at the first dark one"
+                );
+                lighting.local_lights.map(|light| {
+                    GpuVec4([
+                        light.position[0],
+                        light.position[1],
+                        light.position[2],
+                        light.radius_m,
+                    ])
+                })
+            },
             light_rgb_intensity: lighting
                 .local_lights
                 .map(|light| GpuVec4([light.rgb[0], light.rgb[1], light.rgb[2], light.intensity])),
