@@ -25,6 +25,16 @@ pub(crate) mod garage {
     pub const TREE_NEXT: &str = "NEXT IN LINE";
     /// Left crew panel header.
     pub const CREW: &str = "CREW";
+    /// The loadout's six module slots by NAME (U21, 2026-09-08): the slot said a number and
+    /// no word, and the player could not tell the turret's front from the gun's calibre.
+    pub const SLOT_TURRET: &str = "TURRET";
+    pub const SLOT_GUN: &str = "GUN";
+    pub const SLOT_HULL: &str = "HULL";
+    pub const SLOT_ENGINE: &str = "ENGINE";
+    pub const SLOT_SUSPENSION: &str = "SUSPENSION";
+    pub const SLOT_RADIO: &str = "RADIO";
+    /// The rack line's word: "RACK 34 / 34".
+    pub const RACK: &str = "RACK";
     /// Right stats panel header.
     pub const VEHICLE: &str = "VEHICLE";
     /// Tech-tree close button.
@@ -114,6 +124,13 @@ pub(crate) mod garage {
         TREE_TIER,
         TREE_NEXT,
         CREW,
+        SLOT_TURRET,
+        SLOT_GUN,
+        SLOT_HULL,
+        SLOT_ENGINE,
+        SLOT_SUSPENSION,
+        SLOT_RADIO,
+        RACK,
         VEHICLE,
         BACK,
         UNIT_KILOWATTS,
