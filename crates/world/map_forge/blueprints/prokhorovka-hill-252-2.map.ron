@@ -777,12 +777,105 @@ MapBlueprint(
                 at: (Fixed(520.0), Fixed(616.0)),
                 radius_m: 45.0,
             ),
+            // W1 (2026-09-08): the perches and the fallbacks — roles the report proves from
+            // geometry (a perch: at least two lane samples 250–500 m away in sight; a
+            // fallback: on a lane's band, 50 m behind its far end toward its own spawn).
+            StrategicPointSpec(
+                id: "steppe_perch_south",
+                name: "approach crest perch (south)",
+                role: SniperPerch,
+                at: (Fixed(330.0), Fixed(250.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "steppe_perch_north",
+                name: "approach crest perch (north)",
+                role: SniperPerch,
+                at: (Fixed(330.0), Fixed(750.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "farm_fallback_south",
+                name: "farm corridor fallback (south)",
+                role: Fallback,
+                at: (Fixed(478.0), Fixed(380.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "farm_fallback_north",
+                name: "farm corridor fallback (north)",
+                role: Fallback,
+                at: (Fixed(478.0), Fixed(620.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "hill_fallback_south",
+                name: "hill lane fallback (south)",
+                role: Fallback,
+                at: (Fixed(700.0), Fixed(290.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "hill_fallback_north",
+                name: "hill lane fallback (north)",
+                role: Fallback,
+                at: (Fixed(700.0), Fixed(710.0)),
+                radius_m: 30.0,
+            ),
         ],
         capture_zones: [
             CaptureZoneSpec(
                 id: "oktyabrskiy_farm",
                 at: (500.0, 500.0),
                 radius_m: 30.0,
+            ),
+        ],
+        // W1 (2026-09-08): the map as gameplay topology — the three lanes of the dossier as
+        // DATA (each from its spawn to a named place on the axis, walked by the report on
+        // drivable ground), the balka as the covered rotation, and the crossfire over the
+        // farm corridor. The mirrored pair emits the north twin point by point.
+        lanes: [
+            MirroredPair(
+                id_base: "psel_field_lane",
+                name_base: "Psel field lane",
+                south_points: [(500.0, 170.0), (380.0, 260.0), (290.0, 400.0), (250.0, 500.0)],
+                width_m: 60.0,
+            ),
+            MirroredPair(
+                id_base: "farm_lane",
+                name_base: "farm corridor",
+                south_points: [(500.0, 170.0), (478.0, 300.0), (468.0, 452.0), (500.0, 500.0)],
+                width_m: 60.0,
+            ),
+            MirroredPair(
+                id_base: "hill_lane",
+                name_base: "Hill 252.2 lane",
+                south_points: [(560.0, 160.0), (660.0, 236.0), (736.0, 320.0), (756.0, 420.0), (750.0, 500.0)],
+                width_m: 50.0,
+            ),
+        ],
+        rotation_paths: [
+            MirroredPair(
+                id_base: "balka_rotation",
+                name_base: "the Storozhevoe balka",
+                south_points: [(380.0, 380.0), (520.0, 384.0), (660.0, 372.0)],
+                width_m: 12.0,
+            ),
+        ],
+        crossfires: [
+            // The Psel field under the knoll AND the farm rise: a hull crossing the naked
+            // flank is seen from the south-west and from the east at once.
+            Crossfire(
+                id: "psel_crossfire_south",
+                a: "psel_overwatch_south",
+                b: "oktyabrskiy",
+                lane: "psel_field_lane_south",
+            ),
+            Crossfire(
+                id: "psel_crossfire_north",
+                a: "psel_overwatch_north",
+                b: "oktyabrskiy",
+                lane: "psel_field_lane_north",
             ),
         ],
         features: [

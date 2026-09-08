@@ -395,6 +395,9 @@ mod tests {
             static_cover: vec![],
             scenery: vec![],
             roads,
+            lanes: vec![],
+            rotation_paths: vec![],
+            crossfires: vec![],
         }
     }
 

@@ -125,6 +125,31 @@ pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
         }
         f32_bits(&mut hash, road.width_m);
     }
+    // W1: the topology folds in AFTER everything else, so a map without it keeps its golden.
+    for lane in &map.lanes {
+        str_bytes(&mut hash, &lane.id);
+        for point in &lane.points {
+            for value in point {
+                f32_bits(&mut hash, *value);
+            }
+        }
+        f32_bits(&mut hash, lane.width_m);
+    }
+    for path in &map.rotation_paths {
+        str_bytes(&mut hash, &path.id);
+        for point in &path.points {
+            for value in point {
+                f32_bits(&mut hash, *value);
+            }
+        }
+        f32_bits(&mut hash, path.width_m);
+    }
+    for crossfire in &map.crossfires {
+        str_bytes(&mut hash, &crossfire.id);
+        str_bytes(&mut hash, &crossfire.a);
+        str_bytes(&mut hash, &crossfire.b);
+        str_bytes(&mut hash, &crossfire.lane);
+    }
     hash
 }
 

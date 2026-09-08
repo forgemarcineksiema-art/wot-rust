@@ -42,6 +42,9 @@ fn flat_square() -> MapBlueprint {
             strategic_points: Vec::new(),
             capture_zones: Vec::new(),
             features: Vec::new(),
+            lanes: Vec::new(),
+            rotation_paths: Vec::new(),
+            crossfires: Vec::new(),
         },
     }
 }

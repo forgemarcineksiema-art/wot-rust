@@ -31,13 +31,7 @@ impl GameplayTool {
     }
 }
 
-pub const ROLES: [StrategicRole; 5] = [
-    StrategicRole::HighGround,
-    StrategicRole::Crossing,
-    StrategicRole::Observation,
-    StrategicRole::HullDown,
-    StrategicRole::FlankRoute,
-];
+pub const ROLES: [StrategicRole; 7] = StrategicRole::ALL;
 
 /// Move (or create) a team's spawn. On a fair map the OTHER team's spawn mirrors too —
 /// both teams get equivalent ground, which is the entire fairness contract.

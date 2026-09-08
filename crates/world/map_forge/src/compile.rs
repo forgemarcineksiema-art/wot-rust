@@ -4,14 +4,15 @@
 //! a world that never crosses the wire.
 
 use terrain::{
-    BattlefieldMap, HeightMap, MapFeature, RiverSpec, Road, ScatterRegion, SceneryInstance,
-    SceneryKind, SpawnZone, StaticCoverKind, StaticCoverObject, StrategicPoint, WaterBody,
-    ground_position, grounded_cover, grounded_feature, grounded_point, grounded_spawn_zone,
-    heightmap_from_fn, inside_any_cover, scatter_mirrored,
+    BattlefieldMap, Crossfire, HeightMap, Lane, MapFeature, RiverSpec, Road, RotationPath,
+    ScatterRegion, SceneryInstance, SceneryKind, SpawnZone, StaticCoverKind, StaticCoverObject,
+    StrategicPoint, WaterBody, ground_position, grounded_cover, grounded_feature, grounded_point,
+    grounded_spawn_zone, heightmap_from_fn, inside_any_cover, scatter_mirrored,
 };
 
 use crate::blueprint::{
-    GameplaySpec, MapBlueprint, ObjectSpec, RoadSpec, SceneryOp, SymmetrySpec, XCoord,
+    CrossfireSpec, GameplaySpec, LaneSpec, MapBlueprint, ObjectSpec, RoadSpec, RotationPathSpec,
+    SceneryOp, SymmetrySpec, XCoord,
 };
 use crate::ops::EvalContext;
 use crate::report::{MapReport, validate_map};
@@ -165,9 +166,101 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
         static_cover,
         scenery,
         roads,
+        lanes: expand_lanes(blueprint),
+        rotation_paths: expand_rotation_paths(blueprint),
+        crossfires: expand_crossfires(blueprint),
     };
     let report = validate_map(blueprint, &map);
     (map, report)
+}
+
+/// W1: the lanes as the runtime reads them — a mirrored pair emitted as its two twins, the
+/// north one the symmetry's twin of the south one point by point (like a road).
+fn expand_lanes(blueprint: &MapBlueprint) -> Vec<Lane> {
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = blueprint.grid.size_m;
+    let mut out = Vec::new();
+    for lane in &blueprint.gameplay.lanes {
+        match lane {
+            LaneSpec::Lane { id, name, points, width_m } => out.push(Lane {
+                id: id.clone(),
+                name: name.clone(),
+                points: points.clone(),
+                width_m: *width_m,
+            }),
+            LaneSpec::MirroredPair { id_base, name_base, south_points, width_m } => {
+                out.push(Lane {
+                    id: format!("{id_base}_south"),
+                    name: format!("{name_base} (south)"),
+                    points: south_points.clone(),
+                    width_m: *width_m,
+                });
+                out.push(Lane {
+                    id: format!("{id_base}_north"),
+                    name: format!("{name_base} (north)"),
+                    points: south_points.iter().map(|p| symmetry.twin(*p, size_m)).collect(),
+                    width_m: *width_m,
+                });
+            }
+        }
+    }
+    out
+}
+
+fn expand_rotation_paths(blueprint: &MapBlueprint) -> Vec<RotationPath> {
+    let symmetry = blueprint.symmetry.unwrap_or(SymmetrySpec::MirrorZ);
+    let size_m = blueprint.grid.size_m;
+    let mut out = Vec::new();
+    for path in &blueprint.gameplay.rotation_paths {
+        match path {
+            RotationPathSpec::Path { id, name, points, width_m } => out.push(RotationPath {
+                id: id.clone(),
+                name: name.clone(),
+                points: points.clone(),
+                width_m: *width_m,
+            }),
+            RotationPathSpec::MirroredPair { id_base, name_base, south_points, width_m } => {
+                out.push(RotationPath {
+                    id: format!("{id_base}_south"),
+                    name: format!("{name_base} (south)"),
+                    points: south_points.clone(),
+                    width_m: *width_m,
+                });
+                out.push(RotationPath {
+                    id: format!("{id_base}_north"),
+                    name: format!("{name_base} (north)"),
+                    points: south_points.iter().map(|p| symmetry.twin(*p, size_m)).collect(),
+                    width_m: *width_m,
+                });
+            }
+        }
+    }
+    out
+}
+
+fn expand_crossfires(blueprint: &MapBlueprint) -> Vec<Crossfire> {
+    let mut out = Vec::new();
+    for crossfire in &blueprint.gameplay.crossfires {
+        match crossfire {
+            CrossfireSpec::Crossfire { id, a, b, lane } => out.push(Crossfire {
+                id: id.clone(),
+                a: a.clone(),
+                b: b.clone(),
+                lane: lane.clone(),
+            }),
+            CrossfireSpec::MirroredPair { id_base, a_base, b_base, lane_base } => {
+                for side in ["south", "north"] {
+                    out.push(Crossfire {
+                        id: format!("{id_base}_{side}"),
+                        a: format!("{a_base}_{side}"),
+                        b: format!("{b_base}_{side}"),
+                        lane: format!("{lane_base}_{side}"),
+                    });
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Resolve an authored coordinate pair: fixed, or riding the river centerline. Author

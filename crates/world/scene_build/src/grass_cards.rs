@@ -397,6 +397,9 @@ mod tests {
             static_cover: vec![],
             scenery: vec![],
             roads: vec![],
+            lanes: vec![],
+            rotation_paths: vec![],
+            crossfires: vec![],
         };
         (battlefield, maps)
     }
@@ -601,6 +604,9 @@ mod tests {
             static_cover: vec![],
             scenery: vec![],
             roads: vec![],
+            lanes: vec![],
+            rotation_paths: vec![],
+            crossfires: vec![],
         };
         let mut splat = Vec::new();
         for _ in 0..4 {

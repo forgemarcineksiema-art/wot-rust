@@ -5,6 +5,8 @@ use crate::river::RiverSpec;
 use crate::scenery::SceneryInstance;
 use crate::water::WaterBody;
 
+/// The role a strategic point plays. Append-only (the blueprints and the bots read the
+/// order): W1 (2026-09-08) appended `SniperPerch` and `Fallback`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StrategicRole {
     HighGround,
@@ -12,6 +14,24 @@ pub enum StrategicRole {
     Observation,
     HullDown,
     FlankRoute,
+    /// W1: a perch with long lines onto a lane (the report: at least two lane samples
+    /// 250–500 m away in sight).
+    SniperPerch,
+    /// W1: a position behind a lane's axis crossing, toward its team's spawn, to fall back
+    /// to when the lane is lost (the report: within a lane's band and behind its far end).
+    Fallback,
+}
+
+impl StrategicRole {
+    pub const ALL: [StrategicRole; 7] = [
+        StrategicRole::HighGround,
+        StrategicRole::Crossing,
+        StrategicRole::Observation,
+        StrategicRole::HullDown,
+        StrategicRole::FlankRoute,
+        StrategicRole::SniperPerch,
+        StrategicRole::Fallback,
+    ];
 }
 
 /// A capture zone: data first (map-editor M7) — the sim's capture rules arrive with their
@@ -589,6 +609,51 @@ impl Road {
     }
 }
 
+/// W1 (the one program, GDD row 35): a LANE — the drive corridor a team pushes along, as a
+/// polyline with a width. Data, not prose: the report walks it (passable, within the climb
+/// grade), counts the cover along it and the hull-down spots in it, and the bots route on
+/// it. The polyline runs from the team's end toward the far end.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Lane {
+    pub id: String,
+    pub name: String,
+    /// Polyline waypoints in world XZ, walked in order from the team's end.
+    pub points: Vec<[f32; 2]>,
+    /// The corridor's full width.
+    pub width_m: f32,
+}
+
+impl Lane {
+    pub fn distance_to(&self, x: f32, z: f32) -> f32 {
+        crate::sculpt::polyline_distance(&self.points, x, z)
+    }
+}
+
+/// W1: a ROTATION PATH — the covered move between lanes (a balka, a lane behind a berm), as
+/// a polyline with a width. The report measures how much of it the other side's eyes cannot
+/// see (its masking share).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RotationPath {
+    pub id: String,
+    pub name: String,
+    pub points: Vec<[f32; 2]>,
+    pub width_m: f32,
+}
+
+/// W1: a CROSSFIRE — two strategic points that both see one stretch of a lane from bearings
+/// more than 60° apart, so a hull on that stretch cannot angle to both. The author names the
+/// pair and the lane; the report proves the geometry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Crossfire {
+    pub id: String,
+    /// A strategic point id.
+    pub a: String,
+    /// A strategic point id.
+    pub b: String,
+    /// A lane id.
+    pub lane: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StaticCoverObject {
     pub id: String,
@@ -642,6 +707,14 @@ pub struct BattlefieldMap {
     /// stone (see [`Road`]). `serde(default)` keeps pre-road baked assets deserializing.
     #[serde(default)]
     pub roads: Vec<Road>,
+    /// W1: the map as gameplay topology — lanes, rotation paths and crossfires as data
+    /// (`serde(default)`: a map without them is a map the report has not yet been asked about).
+    #[serde(default)]
+    pub lanes: Vec<Lane>,
+    #[serde(default)]
+    pub rotation_paths: Vec<RotationPath>,
+    #[serde(default)]
+    pub crossfires: Vec<Crossfire>,
 }
 
 impl BattlefieldMap {
