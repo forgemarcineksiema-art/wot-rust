@@ -30,6 +30,8 @@ pub struct HeightMap {
     height: usize,
     cell_size_m: f32,
     samples: Vec<f32>,
+    #[serde(skip)]
+    bounds: crate::height_bounds::HeightBounds,
     /// The battle's crater overlay (protocol v31). The authored `samples` above NEVER mutate;
     /// craters are transient battle state folded into `sample_height`, and `serde(skip)` keeps
     /// them out of baked map assets. The battlefield owner (server loop / client ingest) syncs
@@ -66,6 +68,7 @@ impl HeightMap {
             height,
             cell_size_m,
             samples,
+            bounds: crate::height_bounds::HeightBounds::default(),
             craters: crate::craters::CraterField::default(),
         })
     }
@@ -156,6 +159,10 @@ impl HeightMap {
     /// Whether any crater has touched this battlefield yet.
     pub fn has_craters(&self) -> bool {
         !self.craters.is_empty()
+    }
+
+    pub(crate) fn bounds_clear_segment(&self, from: [f32; 3], to: [f32; 3], slack: f32) -> bool {
+        self.bounds.clears(self, from, to, slack)
     }
 
     /// Sync the crater overlay from the replicated ledger (idempotent — an unchanged ledger is

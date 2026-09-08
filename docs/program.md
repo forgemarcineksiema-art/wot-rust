@@ -336,6 +336,19 @@ N12 (CLOSED 2026-09-08, `fix/n-input-backlog-catch-up`): the host applied ONE in
 | ~~`shell_falls_under_gravity_after_firing`~~ (rewritten with S14: drop and TOF at 1000 m), ~~`…uses_deterministic_dispersion`~~ (S16: two salts, two draws; a zero salt is the old draw), ~~`fixed_casemate_ignores_turret_yaw_commands`~~ (replaced with S17: the arc) | — | — | closed |
 | `cover_visuals_never_leave_the_collision_box` (one direction) | mesh ⊆ box | also box ⊇ mesh (fill) per kind | X1 |
 
+### Q8c / Q10 — memory and the remaining sight march (2026-09-08)
+
+These are follow-ups from block 8, not additional blockers inside it; block 8 still has
+only N9 (the owner's second OS). Scope and evidence: [memory and Q8c](perf-memory-q8c.md).
+
+| Row | Work | Closure evidence |
+| --- | --- | --- |
+| Q8c | Conservative height-maximum pyramid implemented before the unchanged exact LOS march; cache excluded from map identity, crater rims fall back to the exact kernel | Exact-march parity and replay gates green. Owner waived additional A/B runs before merge; no measured ms reduction claimed |
+| Q10 | First attribution and cut implemented. The renderer retained 298.667 MiB of decoded leaf/bark mip chains on CPU and uploaded the leaf atlas again when setting bark. GPU views now retained instead. Source-image caches remain 128 MiB; texture GPU payload remains 298.667 MiB | GPU ownership lock and PR gate green; owner waived process A/B. The rest of process memory remains to attribute; see linked report |
+
+Q9's near running gear remains its own follow-up. Neither this change nor Q8c changes the
+appearance policy or installs WSL.
+
 ## 5. Verification
 
 The merge gate is `scripts/verify.ps1` (see `CLAUDE.md`); `scripts/preflight.ps1` first. In addition, for this program:
