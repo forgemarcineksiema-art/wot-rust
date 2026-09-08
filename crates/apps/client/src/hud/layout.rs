@@ -211,17 +211,20 @@ impl HudLayout {
         *self = Self::default();
     }
 
-    /// Whether the preset shows the instrument.
+    /// Whether the preset shows the instrument. The policy's word (`docs/interface-policy.md`,
+    /// "Three presets"): standard is EVERYTHING BUT the budget line and the RTT lamp — the
+    /// code showed both in standard until U22 (2026-09-08); full shows them.
     pub fn shows(&self, instrument: Instrument) -> bool {
         match self.preset {
             Preset::Minimal => !matches!(instrument, Instrument::KillFeed | Instrument::NetReadout),
-            Preset::Standard | Preset::Full => true,
+            Preset::Standard => instrument != Instrument::NetReadout,
+            Preset::Full => true,
         }
     }
 
-    /// Whether the preset shows the budget line (the lamp always shows).
+    /// Whether the preset shows the budget line (the lamp always shows): full only (U22).
     pub fn shows_budget(&self) -> bool {
-        self.preset != Preset::Minimal
+        self.preset == Preset::Full
     }
 
     /// The hit log's fold the preset asks for; N still toggles it in the moment.
@@ -448,6 +451,12 @@ mod tests {
                 && !standard.hit_log_detail(false)
                 && standard.hit_log_detail(true)
         );
+        // U22: the policy's presets, to the word — standard is everything but the budget line
+        // and the RTT lamp; full shows both; minimal neither.
+        assert!(!standard.shows_budget() && !standard.shows(Instrument::NetReadout));
+        assert!(standard.shows(Instrument::KillFeed) && standard.shows(Instrument::Minimap));
+        assert!(full.shows_budget() && full.shows(Instrument::NetReadout));
+        assert!(!minimal.shows_budget() && !minimal.shows(Instrument::NetReadout));
         layout.reset();
         assert_eq!(layout, HudLayout::default());
     }
