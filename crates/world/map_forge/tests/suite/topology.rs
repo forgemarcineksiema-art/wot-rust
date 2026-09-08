@@ -134,8 +134,9 @@ fn prokhorovka_declares_its_topology_and_the_report_proves_it() {
 fn every_shipped_map_declares_every_topology_class_and_the_report_proves_it() {
     let exposed_on_record: [(MapId, &str); 2] =
         [(MapId::OrlinyPereval, "shoulder_rotation"), (MapId::MazurskiPrzesmyk, "defile_rotation")];
-    // (map, lane base, [length band, cover per 100 m band, hull-down floor])
-    let census_table: [(MapId, &str, [f32; 2], [f32; 2], usize); 15] = [
+    /// (map, lane base, length band, cover-per-100 m band, hull-down floor)
+    type CensusRow = (MapId, &'static str, [f32; 2], [f32; 2], usize);
+    let census_table: [CensusRow; 15] = [
         (MapId::ProkhorovkaHill252_2, "psel_field_lane", [400.0, 450.0], [0.0, 1.0], 4),
         (MapId::ProkhorovkaHill252_2, "farm_lane", [320.0, 370.0], [3.0, 6.0], 1),
         (MapId::ProkhorovkaHill252_2, "hill_lane", [400.0, 450.0], [0.5, 2.0], 8),
@@ -152,6 +153,7 @@ fn every_shipped_map_declares_every_topology_class_and_the_report_proves_it() {
         (MapId::MazurskiPrzesmyk, "shore_lane", [690.0, 740.0], [0.0, 1.2], 0),
         (MapId::MazurskiPrzesmyk, "moraine_lane", [550.0, 590.0], [1.5, 3.5], 0),
     ];
+    let mut checked = 0usize;
     for id in MapId::SHIPPED {
         let (map, report) = compile(&map_forge::blueprint_for(*id));
         assert!(topology_errors(&report).is_empty(), "{id:?}: {:?}", topology_errors(&report));
@@ -183,6 +185,7 @@ fn every_shipped_map_declares_every_topology_class_and_the_report_proves_it() {
             if m != id {
                 continue;
             }
+            checked += 1;
             let south = census.iter().find(|c| c.id == format!("{base}_south")).expect(base);
             let north = census.iter().find(|c| c.id == format!("{base}_north")).expect(base);
             assert!(
@@ -207,6 +210,7 @@ fn every_shipped_map_declares_every_topology_class_and_the_report_proves_it() {
             );
         }
     }
+    assert_eq!(checked, census_table.len(), "every lane of every shipped map was measured");
 }
 
 /// The contract on a synthetic map: a lane that leads nowhere, a lane through a wall, a
