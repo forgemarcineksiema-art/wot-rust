@@ -309,7 +309,7 @@ Inherited U1–U11 stay with that program. New, from the graphics review verifie
 
 ### K, P, C, Q, N, H, R, F, O, A, L, M — inherited, unchanged
 
-K0, K3–K6, K9, K11–K19, K21–K23 (K10 CLOSED with J7; K24 CLOSED: `Nation::paint` merged as #780/#781 — one RGB per nation; the materials are K6), P1–P3, C1–C4, Q1 (CLOSED 2026-09-07: its terrain half = T9, the cover half = PR-04's dirty buckets), Q2, Q4, Q7, N1–N8, N9 (the owner's WSL), N11, H1–H6, R2, R3 (R1 amended above, R4 decided), F8–F11, O1, O2 (every D34–D45 PR rewrites the lock it names), A2, L1–L3, M5b/M7b/M8 (`docs/game-modes.md`). Full text in the second pass.
+N12 (CLOSED 2026-09-08, `fix/n-input-backlog-catch-up`): the host applied ONE input per tick and never caught up after a dry tick, so under loss the player's control lag grew by a tick per dry tick for the whole battle — `RemoteInputQueue::command_for_tick` now skips a stale edge-free command when a newer one already waits, a fire or ammo switch is never skipped; lock `a_dry_tick_is_caught_up_on_the_next_one_and_no_edge_is_skipped`, and the client's seeded-loss lock is green again (W1b's bots had shifted the loss pattern and exposed it). K0, K3–K6, K9, K11–K19, K21–K23 (K10 CLOSED with J7; K24 CLOSED: `Nation::paint` merged as #780/#781 — one RGB per nation; the materials are K6), P1–P3, C1–C4, Q1 (CLOSED 2026-09-07: its terrain half = T9, the cover half = PR-04's dirty buckets), Q2, Q4, Q7, N1–N8, N9 (the owner's WSL), N11, H1–H6, R2, R3 (R1 amended above, R4 decided), F8–F11, O1, O2 (every D34–D45 PR rewrites the lock it names), A2, L1–L3, M5b/M7b/M8 (`docs/game-modes.md`). Full text in the second pass.
 
 ## 4. Lying and blind locks (rewritten in the PR that closes their row)
 
