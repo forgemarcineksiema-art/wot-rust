@@ -29,9 +29,89 @@ pub struct AuthoritativeTick {
     pub team_commands: Vec<net::TeamCommandRelay>,
 }
 
+/// Where one authoritative tick's time goes (Q8): the sections of [`tick_with_inputs`] and
+/// the viewer filter of [`tick_with_player_input`], summed over the profiled ticks. Read by
+/// the `tick_sections` example against the client's frame log; off unless armed, so the game
+/// pays nothing for it.
+///
+/// [`tick_with_inputs`]: LocalAuthoritativeServer::tick_with_inputs
+/// [`tick_with_player_input`]: LocalAuthoritativeServer::tick_with_player_input
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct TickSections {
+    pub ticks: u64,
+    /// `refresh_live_cover`: the sight cover with landed turrets (a no-op while nothing changed).
+    pub live_cover_ms: f64,
+    /// The bots' commands: every brain's route, target and aim.
+    pub bots_ms: f64,
+    /// The simulation step: movement, contact, shells, damage, the sim's own spotting refresh.
+    pub sim_ms: f64,
+    /// The crater ledger copied onto the heightmap, the outcome check.
+    pub craters_ms: f64,
+    /// The spotting log's observer masks, on emitting ticks.
+    pub spotting_log_ms: f64,
+    /// `Snapshot::from` and the pending events, on emitting ticks.
+    pub snapshot_ms: f64,
+    /// The viewer filter (`view_for`, its own observer masks), on emitting ticks.
+    pub view_ms: f64,
+    /// Everything else in the tick: the event copies, the outcome.
+    pub other_ms: f64,
+    /// The whole of `tick_with_inputs` (+ `view_for`), wall clock.
+    pub total_ms: f64,
+    /// How many times the observer masks (30 x 29 lines of sight) were computed — once per
+    /// emitting tick, since Q8; the spotting log and every viewer's cut read the same masks.
+    pub mask_computations: u64,
+    /// How many times a caller got the tick's masks back without computing them again.
+    pub mask_reuses: u64,
+}
+
+impl TickSections {
+    pub fn sections(&self) -> [(&'static str, f64); 8] {
+        [
+            ("live_cover", self.live_cover_ms),
+            ("bots", self.bots_ms),
+            ("sim", self.sim_ms),
+            ("craters", self.craters_ms),
+            ("spotting_log", self.spotting_log_ms),
+            ("snapshot", self.snapshot_ms),
+            ("view", self.view_ms),
+            ("other", self.other_ms),
+        ]
+    }
+
+    /// The table: mean milliseconds per tick, section by section.
+    pub fn table(&self) -> String {
+        use std::fmt::Write as _;
+        let n = self.ticks.max(1) as f64;
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "authoritative tick over {} ticks: {:.3} ms mean",
+            self.ticks,
+            self.total_ms / n
+        );
+        for (name, ms) in self.sections() {
+            let _ = writeln!(
+                out,
+                "  {name:<14} {:>8.3} ms  {:>5.1} %",
+                ms / n,
+                100.0 * ms / self.total_ms.max(1e-9)
+            );
+        }
+        out
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalAuthoritativeServer {
     config: ServerTickConfig,
+    /// Armed by [`Self::enable_tick_profile`]; `None` in the game.
+    tick_profile: Option<TickSections>,
+    /// The observer masks of the tick they were computed on (Q8): the spotting log, the local
+    /// viewer's cut and the dedicated host's per-client cuts all read the same masks once,
+    /// instead of each walking the 30 x 29 lines of sight again.
+    emitted_masks: Option<(u64, Vec<sim::ObserverMask>)>,
+    /// Reuse count for the profile (`observer_masks` takes `&self`).
+    mask_reuses: std::cell::Cell<u64>,
     sim: SimulationState,
     map_id: MapId,
     battlefield: BattlefieldMap,
@@ -193,6 +273,16 @@ impl LocalAuthoritativeServer {
     /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
     /// filter's second input beside the team masks already on the snapshot.
     pub fn observer_masks(&self) -> Vec<sim::ObserverMask> {
+        if let Some((tick, masks)) = &self.emitted_masks
+            && *tick == self.sim.tick()
+        {
+            self.mask_reuses.set(self.mask_reuses.get() + 1);
+            return masks.clone();
+        }
+        self.compute_observer_masks()
+    }
+
+    fn compute_observer_masks(&self) -> Vec<sim::ObserverMask> {
         let live_cover = sim::live_cover_for_sight_and_shells(
             &self.battlefield.static_cover,
             self.sim.cover_states(),
@@ -213,6 +303,9 @@ impl LocalAuthoritativeServer {
             .map(|format| u64::from(config.server_tick_hz()) * u64::from(format.time_limit_s()));
         Self {
             config,
+            tick_profile: None,
+            emitted_masks: None,
+            mask_reuses: std::cell::Cell::new(0),
             sim: setup.sim,
             map_id: setup.map_id,
             battlefield: setup.battlefield,
@@ -271,6 +364,26 @@ impl LocalAuthoritativeServer {
     pub fn change_player_vehicle_with_spec_for_player(&mut self, spec: TankSpec) -> Snapshot {
         let snapshot = self.change_player_vehicle_with_spec(spec);
         self.view_for(&snapshot, self.player_tank)
+    }
+
+    /// Start summing where the ticks' time goes (Q8). Costs a few clock reads per tick.
+    pub fn enable_tick_profile(&mut self) {
+        self.tick_profile = Some(TickSections::default());
+        self.mask_reuses.set(0);
+    }
+
+    /// The sums so far, reset to zero; `None` when the profile is not armed.
+    pub fn take_tick_profile(&mut self) -> Option<TickSections> {
+        let reuses = self.mask_reuses.take();
+        self.tick_profile.as_mut().map(|sections| {
+            sections.mask_reuses = reuses;
+            std::mem::take(sections)
+        })
+    }
+
+    /// How many cover boxes every line of sight is tested against on this map.
+    pub fn cover_box_count(&self) -> usize {
+        self.battlefield.static_cover.len()
     }
 
     pub fn player_tank(&self) -> TankId {
@@ -404,6 +517,18 @@ impl LocalAuthoritativeServer {
     /// commands — one for the local desktop game, up to seven from the dedicated server's client
     /// table. Bots fill in for every roster tank not driven by a human this tick.
     pub fn tick_with_inputs(&mut self, inputs: &[(TankId, sim::TankCommand)]) -> AuthoritativeTick {
+        let profiling = self.tick_profile.is_some();
+        let tick_started = profiling.then(std::time::Instant::now);
+        let mut section_started = tick_started;
+        // Close the section that started at `section_started`, open the next one.
+        let mut lap = |sections: &mut Option<TickSections>,
+                       pick: fn(&mut TickSections) -> &mut f64| {
+            if let (Some(sections), Some(started)) = (sections.as_mut(), section_started) {
+                let now = std::time::Instant::now();
+                *pick(sections) += now.duration_since(started).as_secs_f64() * 1000.0;
+                section_started = Some(now);
+            }
+        };
         let battle_over = self.outcome.is_some();
         let mut commands = Vec::with_capacity(inputs.len() + self.sim.tanks().len());
         for (tank_id, command) in inputs {
@@ -418,6 +543,7 @@ impl LocalAuthoritativeServer {
         // made. The pristine common case borrows the authored slice; only a battle that has
         // damaged cover pays for building the live view.
         self.sim.refresh_live_cover(&self.battlefield.static_cover);
+        lap(&mut self.tick_profile, |sections| &mut sections.live_cover_ms);
         let live_cover = self.sim.cached_sight_cover();
         commands.extend(self.bots.commands(
             self.sim.tick(),
@@ -430,12 +556,14 @@ impl LocalAuthoritativeServer {
             self.sim.damage_events(),
         ));
 
+        lap(&mut self.tick_profile, |sections| &mut sections.bots_ms);
         self.sim.apply_commands_on_battlefield(
             &commands,
             self.config.timestep(),
             &self.battlefield.heightmap,
             &self.battlefield.static_cover,
         );
+        lap(&mut self.tick_profile, |sections| &mut sections.sim_ms);
         // Fold this tick's crater ledger into the ground the NEXT tick stands on (protocol
         // v31): an unchanged ledger is a cheap compare-and-return inside set_craters.
         self.battlefield.heightmap.set_craters(self.sim.craters());
@@ -452,11 +580,21 @@ impl LocalAuthoritativeServer {
         }
         // v52 (W-7): who sees whom, from the same observer masks the per-viewer cut reads — one
         // word per snapshot tick; the battle's end closes every open span.
+        lap(&mut self.tick_profile, |sections| &mut sections.craters_ms);
         let emitting = self.config.snapshot_schedule().should_emit(self.sim.tick());
-        if emitting && !self.spotting_log.is_finished() {
-            let masks = self.observer_masks();
-            self.spotting_log.observe(self.sim.tanks(), &masks, self.sim.tick());
+        if emitting {
+            // Once per emitting tick, for everyone who reads them this tick (Q8: the spotting
+            // log and the viewer's cut each walked the lines of sight — 69 % of the tick).
+            let masks = self.compute_observer_masks();
+            if let Some(sections) = self.tick_profile.as_mut() {
+                sections.mask_computations += 1;
+            }
+            if !self.spotting_log.is_finished() {
+                self.spotting_log.observe(self.sim.tanks(), &masks, self.sim.tick());
+            }
+            self.emitted_masks = Some((self.sim.tick(), masks));
         }
+        lap(&mut self.tick_profile, |sections| &mut sections.spotting_log_ms);
         if self.outcome.is_some() {
             self.spotting_log.finish(self.sim.tick());
         }
@@ -471,6 +609,7 @@ impl LocalAuthoritativeServer {
         let kills = damage_events.iter().filter_map(game_core::KillEvent::from_damage).collect();
         let team_commands = std::mem::take(&mut self.pending_team_commands);
 
+        lap(&mut self.tick_profile, |sections| &mut sections.other_ms);
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
             snapshot.damage_events = std::mem::take(&mut self.pending_damage_events);
@@ -481,6 +620,11 @@ impl LocalAuthoritativeServer {
         } else {
             None
         };
+        lap(&mut self.tick_profile, |sections| &mut sections.snapshot_ms);
+        if let (Some(sections), Some(started)) = (self.tick_profile.as_mut(), tick_started) {
+            sections.ticks += 1;
+            sections.total_ms += started.elapsed().as_secs_f64() * 1000.0;
+        }
 
         AuthoritativeTick {
             server_tick: self.sim.tick(),
@@ -496,9 +640,16 @@ impl LocalAuthoritativeServer {
     pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
         let viewer = self.player_tank;
         let tick = self.tick_with_input(input);
+        let started = self.tick_profile.is_some().then(std::time::Instant::now);
+        let snapshot = tick.snapshot.map(|snapshot| self.view_for(&snapshot, viewer));
+        if let (Some(sections), Some(started)) = (self.tick_profile.as_mut(), started) {
+            let ms = started.elapsed().as_secs_f64() * 1000.0;
+            sections.view_ms += ms;
+            sections.total_ms += ms;
+        }
         AuthoritativeTick {
             server_tick: tick.server_tick,
-            snapshot: tick.snapshot.map(|snapshot| self.view_for(&snapshot, viewer)),
+            snapshot,
             damage_events: tick.damage_events,
             shell_impacts: tick.shell_impacts,
             armor_breaches: tick.armor_breaches,
