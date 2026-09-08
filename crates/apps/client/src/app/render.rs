@@ -737,7 +737,7 @@ impl ClientApp {
             speed_kmh: self.player_speed_kmh(),
             cruise_level: self.input.cruise_level(),
             damage_log: self.damage_log.visible(),
-            hit_log_collapsed: self.input.hit_log_collapsed(),
+            hit_log_detail: self.input.hit_log_detail(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
             damage: self.player_damage_panel(),

@@ -177,7 +177,7 @@ impl HudState {
             }
             HudState::PresetFull => {
                 model.kill_feed = Some(super::demo::demo_kill_feed());
-                model.hit_log_collapsed = true;
+                model.hit_log_detail = true;
                 model.layout.preset = super::layout::Preset::Full;
             }
             HudState::TeamListsMixed => {

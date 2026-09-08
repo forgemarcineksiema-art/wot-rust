@@ -54,11 +54,11 @@ impl InputState {
 
     /// N: the hit log folds to its newest row, and unfolds again.
     pub(super) fn toggle_hit_log(&mut self) {
-        self.hit_log_collapsed = !self.hit_log_collapsed;
+        self.hit_log_detail = !self.hit_log_detail;
     }
 
-    pub(crate) fn hit_log_collapsed(&self) -> bool {
-        self.hit_log_collapsed
+    pub(crate) fn hit_log_detail(&self) -> bool {
+        self.hit_log_detail
     }
 
     /// M: the next minimap size on the cycle.

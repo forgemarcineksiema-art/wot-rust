@@ -644,7 +644,7 @@ fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> V
             speed_kmh: 0.0,
             cruise_level: 0,
             damage_log: Vec::new(),
-            hit_log_collapsed: false,
+            hit_log_detail: false,
             incoming_hits: Vec::new(),
             ammo: None,
             damage: None,

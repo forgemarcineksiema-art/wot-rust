@@ -488,7 +488,7 @@ pub(crate) struct InputState {
     right: bool,
     brake: bool,
     /// N (interface program H8): the hit log shows its newest row only.
-    hit_log_collapsed: bool,
+    hit_log_detail: bool,
     /// M (interface program H15): the minimap's size, cycling small → standard → large.
     minimap_size: crate::hud::minimap::MinimapSize,
     /// Cruise control (interface program H5, World of Tanks' R/F): a latched throttle level,
