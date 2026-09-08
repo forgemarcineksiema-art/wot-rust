@@ -227,7 +227,7 @@ impl ClientApp {
     pub(crate) fn apply_settings(&mut self) {
         let gain = self.settings.master_gain;
         if let Some(audio) = &self.audio {
-            audio.with_engine(|engine| engine.set_master_gain(gain));
+            audio.send_master_gain(gain);
         }
         if self.settings.daylight_set() {
             self.garage.set_daylight_override(self.settings.daylight());
