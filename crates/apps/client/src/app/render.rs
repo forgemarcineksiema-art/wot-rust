@@ -393,8 +393,17 @@ impl ClientApp {
                 Some(meshes) => (&meshes.statics_vertices, &meshes.statics_indices),
                 None => (&[], &[]),
             };
-        let mut renderer =
-            WindowRenderer::new(window, width, height, statics_vertices, statics_indices)?;
+        // The live frame log (Q2) wants the GPU pass table: `TIMESTAMP_QUERY` is a device
+        // creation feature, so it is decided here, once — never for a plain game window.
+        let mut renderer = WindowRenderer::new_with_settings_and_options(
+            window,
+            width,
+            height,
+            statics_vertices,
+            statics_indices,
+            renderer_api::RenderSettings::default(),
+            renderer_wgpu::GpuContextOptions { pass_timing: self.frame_log.is_some() },
+        )?;
         match self.battle_scene_meshes.as_ref() {
             Some(meshes) => {
                 renderer.set_battlefield_ground(
@@ -486,6 +495,13 @@ impl ClientApp {
         let now = Instant::now();
         let raw_dt = now.saturating_duration_since(self.last_render_time).as_secs_f32();
         self.last_render_time = now;
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::Bookkeeping);
+        }
+        self.battle_elapsed_s += raw_dt;
+        if self.exit_after_s.is_some_and(|limit| self.battle_elapsed_s >= limit) {
+            self.quit_requested = true;
+        }
         // Route the frame clock through the presentation world so `engine::Time` is the single
         // render-side time source the rest of the frame reads from.
         self.presentation.advance_time(raw_dt);
@@ -544,6 +560,9 @@ impl ClientApp {
         self.refresh_spectate(player_dead);
         self.tick_outcome_hand_off(frame_dt);
         // A landing the predictor absorbed since the last frame slams the camera rig once.
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::Camera);
+        }
         let landing_impact = self.predictor.take_landing_impact_mps();
         if landing_impact > 0.0 {
             self.camera_controller.impact_kick(landing_impact);
@@ -590,6 +609,9 @@ impl ClientApp {
                 gone.map(|t| t.id),
                 frame_dt,
             );
+        }
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::SceneAssembly);
         }
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
         // H10/H11: the markers over every spotted hull (the target in full once the reticle
@@ -672,6 +694,9 @@ impl ClientApp {
         };
         // The marker's colour is EASED toward the matrix's answer: a verdict flipping across a
         // plate edge as the mouse twitches must settle, not strobe.
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::Hud);
+        }
         let mut reticle = self.hud_reticle(&camera, view_proj, alpha);
         // Where the sight ray lands this frame is what a ping (H16) points at.
         self.aim_point_xz = self.aim_world_point(&camera).map(|point| [point.x, point.z]);
@@ -873,6 +898,9 @@ impl ClientApp {
             objects: std::mem::take(&mut self.grass_cache),
             ..RenderFrame::default()
         };
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::Upload);
+        }
         renderer.set_render_frame(&grass_frame);
         self.grass_cache = std::mem::take(&mut grass_frame.objects);
         self.grass_cache.truncate(grass_len);
@@ -883,8 +911,30 @@ impl ClientApp {
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         renderer.set_scene_time_s(scene_time_s);
-        if let Err(error) = renderer.render(view_proj, camera.eye) {
+        let gpu_due = self.frame_log.as_ref().is_some_and(|log| log.gpu_sample_due());
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::Render);
+        }
+        let rendered = renderer.render(view_proj, camera.eye);
+        let gpu = if gpu_due { renderer.read_pass_timings() } else { None };
+        if let Err(error) = rendered {
             self.on_render_failure(error);
+        }
+        if let Some(log) = self.frame_log.as_mut() {
+            let sample = log.end_frame(raw_dt * 1000.0);
+            if sample.total_ms > crate::frame_log::HITCH_MS {
+                let (phase, ms) = sample.worst_phase();
+                tracing::info!(
+                    frame_ms = sample.total_ms,
+                    phase = phase.name(),
+                    phase_ms = ms,
+                    ticks = sample.fixed_ticks,
+                    "frame log: hitch"
+                );
+            }
+            if let Some((frame_ms, passes)) = gpu {
+                log.record_gpu(frame_ms, passes);
+            }
         }
         // Recover the FX scratch buffers (drained/consumed above) so next frame reuses their
         // capacity instead of allocating fresh.

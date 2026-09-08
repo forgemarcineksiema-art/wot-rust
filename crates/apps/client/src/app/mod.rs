@@ -705,6 +705,18 @@ pub(crate) struct ClientApp {
     /// with the map's relief bake and uploads it once.
     hud_sheet_dirty: bool,
     frame_dt_history: std::collections::VecDeque<f32>,
+    /// The live frame instrument (Q2), armed by `WOT_FRAME_LOG=<path>`; `None` otherwise.
+    frame_log: Option<crate::frame_log::FrameLog>,
+    /// Where the frame log is written at exit.
+    frame_log_path: Option<String>,
+    /// `WOT_AUTODRIVE=1`: the player's hull drives itself (full throttle, a slow steer sine)
+    /// so a frame log can measure DRIVING without a hand on the keys.
+    autodrive: bool,
+    /// `WOT_AUTOBATTLE=1`: deploy into the AI battle as soon as the window exists.
+    autobattle_pending: bool,
+    /// `WOT_EXIT_AFTER_S=<n>`: quit that many seconds after the battle starts.
+    exit_after_s: Option<f32>,
+    battle_elapsed_s: f32,
     /// Reused scratch for the p95 selection — see `ClientApp::frame_p95_ms`.
     frame_p95_scratch: Vec<f32>,
     /// The minimap's static layers (terrain relief, water, roads, cover), computed once per
@@ -1049,6 +1061,14 @@ impl ClientApp {
             hud_frames: Vec::new(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
+            frame_log: std::env::var("WOT_FRAME_LOG")
+                .ok()
+                .map(|_| crate::frame_log::FrameLog::new()),
+            frame_log_path: std::env::var("WOT_FRAME_LOG").ok(),
+            autodrive: std::env::var("WOT_AUTODRIVE").is_ok_and(|v| v == "1"),
+            autobattle_pending: std::env::var("WOT_AUTOBATTLE").is_ok_and(|v| v == "1"),
+            exit_after_s: std::env::var("WOT_EXIT_AFTER_S").ok().and_then(|v| v.parse().ok()),
+            battle_elapsed_s: 0.0,
             frame_p95_scratch: Vec::with_capacity(96),
             minimap_static,
             battle_outcome: None,
@@ -1079,6 +1099,20 @@ impl ClientApp {
 }
 
 /// Run the desktop client with winit, the local server, and the real wgpu renderer.
+impl ClientApp {
+    /// The frame log's report, written where `WOT_FRAME_LOG` said — once, at exit.
+    pub(crate) fn write_frame_log(&mut self) {
+        let (Some(log), Some(path)) = (self.frame_log.as_mut(), self.frame_log_path.take()) else {
+            return;
+        };
+        let report = log.report();
+        match std::fs::write(&path, &report) {
+            Ok(()) => tracing::info!(path, "frame log written"),
+            Err(error) => tracing::error!(path, %error, "frame log not written"),
+        }
+    }
+}
+
 pub fn run() -> anyhow::Result<()> {
     let event_loop = EventLoop::new().context("failed to create winit event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
