@@ -83,22 +83,20 @@ impl ClientApp {
                 (event, occlusion)
             })
             .collect();
-        output.with_engine(move |engine| {
-            if let Some(listener) = listener {
-                engine.set_listener(listener);
-            }
-            engine.set_wind_level(wind_level);
-            engine.set_hangar_bed(hangar_level, radio_pan, radio_gain);
-            engine.set_rain_level(rain_level);
-            engine.set_player_engine(rpm_norm, load, speed_mps, running);
-            engine.set_track_surface(track_surface);
-            engine.set_player_fire(player_burning);
-            engine.set_turret_slew(turret_slew);
-            engine.set_scope_muffle(scoped);
-            engine.set_remote_engines(&remote);
-            for (event, occlusion) in occluded {
-                engine.push_event_occluded(event, occlusion);
-            }
+        // Q4: one frame of control into the mailbox; the engine belongs to the audio thread.
+        output.send(crate::audio_out::ControlFrame {
+            listener,
+            wind_level,
+            hangar_bed: (hangar_level, radio_pan, radio_gain),
+            rain_level,
+            player_engine: (rpm_norm, load, speed_mps, running),
+            track_surface: Some(track_surface),
+            player_fire: player_burning,
+            turret_slew,
+            scope_muffle: scoped,
+            remote_engines: remote,
+            events: occluded,
+            master_gain: None,
         });
     }
 

@@ -8,6 +8,7 @@
 mod common;
 
 mod armor_breach_replication;
+mod audio_rt;
 mod battle_camera;
 mod camera_feel;
 mod dressing_budget;
