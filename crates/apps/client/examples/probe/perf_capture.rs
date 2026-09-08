@@ -164,6 +164,10 @@ pub(crate) fn run() {
     println!("grass conjure: {per_frame_us:.0} us/frame ({count} instances)");
 
     frame_time_capture();
+    if quick_mode() {
+        println!("WOT_PERF_QUICK=1: the garage capture and the 720p coda are skipped");
+        return;
+    }
     garage_frame_time_capture();
 
     // A landmark bake (any style growth shows up here).
@@ -342,9 +346,18 @@ fn battle_lineup(
 /// statics, water, grass-card dressing, the flora atlas, the grass population, and (since the
 /// fleet-parity programme) the vehicles — so this measures the picture the game actually draws
 /// rather than a stripped-down stand-in that would flatter it.
+/// `WOT_PERF_QUICK=1`: the three rows that answer "where does the scene pass go" (full, no card
+/// meadow, no near ring), two cycles of thirty frames — about eight seconds of GPU, so an A/B
+/// (`scripts/perf/ab.ps1`) finishes each run before the MX330 throttles (measured 2026-09-08:
+/// the full twelve-row table runs four minutes and its p50s wander by 4 ms run to run).
+fn quick_mode() -> bool {
+    std::env::var("WOT_PERF_QUICK").is_ok_and(|value| value.trim() == "1")
+}
+
 fn frame_time_capture() {
     const WARMUP: usize = 20;
-    const FRAMES: usize = 180;
+    let quick = quick_mode();
+    let frames: usize = if quick { 60 } else { 180 };
     let (width, height) = (1920u32, 1080u32);
     let map = probe_map();
 
@@ -489,9 +502,25 @@ fn frame_time_capture() {
     // number moving would silently drop off the end of the report.
     const CONFIGS: usize = 12;
     assert_eq!(configs.len(), CONFIGS, "the config table and its sample arrays disagree");
-    const CYCLES: usize = 4;
+    // `WOT_PERF_ONLY=<row name>`: that one row alone, first and cold — the only way to attribute
+    // a cost on a GPU that is 6 C warmer by the end of an eight-second run (the rows after the
+    // first read 2–5 ms heavier for nothing but heat). `scripts/perf/ab.ps1` runs the rows this
+    // way, one cold process each.
+    let only = std::env::var("WOT_PERF_ONLY").ok().map(|value| value.trim().to_string());
+    let only_index = only.as_deref().map(|name| {
+        configs
+            .iter()
+            .position(|config| config.name == name)
+            .unwrap_or_else(|| panic!("WOT_PERF_ONLY={name:?} names no row of the config table"))
+    });
+    let configs: &[Config] = match only_index {
+        Some(index) => &configs[index..=index],
+        None if quick => &configs[..3],
+        None => &configs[..],
+    };
+    let cycles: usize = if quick { 2 } else { 4 };
     const BLOCK_WARMUP: usize = 8;
-    let block_frames = FRAMES / CYCLES;
+    let block_frames = frames / cycles;
     let mut samples: [Vec<f64>; CONFIGS] = std::array::from_fn(|_| Vec::new());
     // What each config actually submitted, taken off the last timed frame of its last block.
     // Every timed frame of a config walks the same path and draws the same content, so one
@@ -505,7 +534,7 @@ fn frame_time_capture() {
     // Per-pass GPU time, kept per config AND per rotation cycle. The ledger refuses to report if
     // any config missed a cycle — an incomplete rotation is two thermal states wearing one run's
     // authority, which is the exact reading the rotation exists to prevent.
-    let mut stats = client::RotationStats::new(configs.len(), CYCLES, renderer_wgpu::PassId::COUNT);
+    let mut stats = client::RotationStats::new(configs.len(), cycles, renderer_wgpu::PassId::COUNT);
     let base_lighting = renderer.scene_lighting;
     let mut dressing_bound = true;
     // The ladder's per-tree rung memory, carried across the eye path like the battle carries
@@ -537,7 +566,7 @@ fn frame_time_capture() {
     }
     let _ = target.read_rgba8(&ctx);
 
-    for cycle in 0..CYCLES {
+    for cycle in 0..cycles {
         for (config, cfg) in configs.iter().enumerate() {
             let Config { dressing: with_dressing, grass: with_grass, fov, fleet: tanks, .. } = *cfg;
             // Buffer swaps and quality toggles happen OUTSIDE the timed frames; empty slices
@@ -708,7 +737,7 @@ fn frame_time_capture() {
         }
         let submitted = counts[config].total();
         println!(
-            "frame time @{width}x{height} [{name}] ({} samples, {CYCLES} interleaved cycles): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms  (Δ vs full {:+.2} ms p50)",
+            "frame time @{width}x{height} [{name}] ({} samples, {cycles} interleaved cycles): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms  (Δ vs full {:+.2} ms p50)",
             series.len(),
             at(0.50),
             at(0.95),
