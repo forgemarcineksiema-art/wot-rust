@@ -6,6 +6,7 @@ mod craters;
 mod flow;
 mod ground;
 mod ground_march;
+mod height_bounds;
 mod heightmap;
 mod map_build;
 mod map_id;

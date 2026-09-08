@@ -151,6 +151,18 @@ pub fn ground_blocks_segment(
     to: [f32; 3],
     slack_m: f32,
 ) -> bool {
+    if heightmap.bounds_clear_segment(from, to, slack_m) {
+        return false;
+    }
+    ground_blocks_segment_exact(heightmap, from, to, slack_m)
+}
+
+fn ground_blocks_segment_exact(
+    heightmap: &HeightMap,
+    from: [f32; 3],
+    to: [f32; 3],
+    slack_m: f32,
+) -> bool {
     let clearance = |t: f32| {
         let p = along_segment(from, to, t);
         heightmap.sample_height(p[0], p[2]).map_or(f32::INFINITY, |ground| p[1] + slack_m - ground)
@@ -250,6 +262,64 @@ mod tests {
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
         z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
         ((z ^ (z >> 31)) >> 40) as f32 / (1u64 << 24) as f32
+    }
+
+    #[test]
+    fn the_height_pyramid_preserves_the_exact_march_and_map_identity() {
+        let mut seed = 81;
+        for (width, height) in [(2, 2), (41, 41), (64, 19), (17, 66)] {
+            let samples = (0..width * height).map(|_| splitmix(&mut seed) * 30.0 - 15.0).collect();
+            let mut map = HeightMap::new(width, height, 5.0, samples).unwrap();
+            let original = map.clone();
+            let bytes = bincode::serialize(&map).unwrap();
+            let [ex, ez] = map.extent_m();
+            assert!(map.bounds_clear_segment([0.0, 100.0, 0.0], [ex, 100.0, ez], 0.0));
+            assert_eq!(bincode::serialize(&map).unwrap(), bytes);
+            assert_eq!(map, original);
+            let decoded: HeightMap = bincode::deserialize(&bytes).unwrap();
+            assert!(decoded.bounds_clear_segment([0.0, 100.0, 0.0], [ex, 100.0, ez], 0.0));
+            for crater in [false, true] {
+                if crater {
+                    map.set_craters(&[crate::CraterRecord::from_world(
+                        ex * 0.5,
+                        ez * 0.5,
+                        2.4,
+                        0.9,
+                        0,
+                    )]);
+                }
+                for _ in 0..1000 {
+                    let from = [
+                        splitmix(&mut seed) * (ex + 4.0) - 2.0,
+                        splitmix(&mut seed) * 50.0 - 20.0,
+                        splitmix(&mut seed) * (ez + 4.0) - 2.0,
+                    ];
+                    let to = [
+                        splitmix(&mut seed) * (ex + 4.0) - 2.0,
+                        splitmix(&mut seed) * 50.0 - 20.0,
+                        splitmix(&mut seed) * (ez + 4.0) - 2.0,
+                    ];
+                    for slack in [0.0, 0.15, -0.1] {
+                        assert_eq!(
+                            ground_blocks_segment(&map, from, to, slack),
+                            ground_blocks_segment_exact(&map, from, to, slack),
+                            "{from:?} -> {to:?}, slack {slack}"
+                        );
+                    }
+                }
+            }
+        }
+        let flat = HeightMap::flat(41, 41, 5.0, 10.0).unwrap();
+        for y in [9.99, 10.0, 10.000001, 10.01] {
+            for (from, to) in
+                [([0.0, y, 0.0], [200.0, y, 200.0]), ([200.0, y, 200.0], [200.0, y, 200.0])]
+            {
+                assert_eq!(
+                    ground_blocks_segment(&flat, from, to, 0.0),
+                    ground_blocks_segment_exact(&flat, from, to, 0.0)
+                );
+            }
+        }
     }
 
     /// V0: the kernel agrees with a centimetre march on three hundred random segments over
