@@ -7,18 +7,20 @@
 //!
 //! **The ledger is a RASTER, and that is the whole point.** It used to be a ring of 2 048
 //! segments that overwrote its oldest press, and the ground mesh is patched by CUTTING the
-//! base triangles a rut touches and drawing a finer patch in their place. The cut is one-way
-//! (`renderer_wgpu`'s `cut_ground_triangles` degenerates base triangles and nothing restores
-//! them) while the patch is replaced wholesale and covers only the CURRENT touched set — so
-//! every press the ring forgot left its cells cut with nothing standing in for them: a
-//! permanent hole in the ground. Measured on Orliny, 90 s of one AI battle: zero holes for
-//! twenty seconds, then the ring wraps and 7 068 base triangles — about 22 000 m² of ground —
-//! are gone by second 76, growing at ~380 m²/s for the rest of the battle.
+//! base triangles a rut touches and drawing a finer patch in their place. The cut was one-way
+//! while the patch was replaced wholesale and covered only the CURRENT touched set — so every
+//! press the ring forgot left its cells cut with nothing standing in for them: a permanent
+//! hole in the ground. Measured on Orliny, 90 s of one AI battle: zero holes for twenty
+//! seconds, then the ring wraps and 7 068 base triangles — about 22 000 m² of ground — are
+//! gone by second 76, growing at ~380 m²/s for the rest of the battle.
 //!
-//! A raster cannot forget, so [`RutField::touched_cells`] can only ever grow and the hole
-//! cannot exist. Two things follow for free: the touched set now follows the TRACK instead of
-//! each press's bounding box (the patch was rectangles), and reading a depth is O(1) instead
-//! of a walk over every press in the battle.
+//! A raster cannot forget: the memory of the ground is now permanent, and reading a depth is
+//! O(1) instead of a walk over every press in the battle. What the PICTURE can afford is a
+//! separate question with its own answer — `scene_build::RUT_PATCH_CELL_BUDGET` spends the
+//! patch on the cells nearest the eye, and `renderer_wgpu::set_ground_cut` puts back what
+//! falls outside it, so bounding the patch can never dig a hole again. The touched set also
+//! follows the TRACK now instead of each press's bounding box, which is what made the patches
+//! rectangles.
 //!
 //! Cost: tiles are allocated only where tracks have run — 8 m × 8 m of ground per KiB. The
 //! measured 24 000 m² above is ~375 KiB; a 1 km² map driven over end to end is the ceiling at
@@ -72,7 +74,9 @@ impl RutField {
     /// deepens a rut to the softest memory under it and no further, and a later press over
     /// harder ground can never make a trough shallower than it already is.
     pub fn press(&mut self, from: [f32; 2], to: [f32; 2], cap_m: f32) {
-        if !(cap_m >= MIN_REMEMBERED_DEPTH_M) {
+        // NaN first, on its own: it is neither above nor below the threshold, and a press it
+        // let through would poison a tile for the rest of the battle.
+        if cap_m.is_nan() || cap_m < MIN_REMEMBERED_DEPTH_M {
             return;
         }
         let finite = from.iter().chain(to.iter()).all(|value| value.is_finite());
@@ -81,14 +85,8 @@ impl RutField {
         }
         let pass_m = RUT_PASS_DEPTH_M.min(cap_m);
         let cap_m = cap_m.min(RUT_RASTER_MAX_DEPTH_M);
-        let low = [
-            from[0].min(to[0]) - RUT_HALF_WIDTH_M,
-            from[1].min(to[1]) - RUT_HALF_WIDTH_M,
-        ];
-        let high = [
-            from[0].max(to[0]) + RUT_HALF_WIDTH_M,
-            from[1].max(to[1]) + RUT_HALF_WIDTH_M,
-        ];
+        let low = [from[0].min(to[0]) - RUT_HALF_WIDTH_M, from[1].min(to[1]) - RUT_HALF_WIDTH_M];
+        let high = [from[0].max(to[0]) + RUT_HALF_WIDTH_M, from[1].max(to[1]) + RUT_HALF_WIDTH_M];
         for iz in cell_index(low[1])..=cell_index(high[1]) {
             for ix in cell_index(low[0])..=cell_index(high[0]) {
                 let distance = distance_to_run(from, to, cell_centre(ix), cell_centre(iz));
@@ -151,7 +149,7 @@ impl RutField {
         max_z: usize,
     ) -> BTreeSet<(usize, usize)> {
         let mut cells = BTreeSet::new();
-        if !(cell_m > 0.0) {
+        if cell_m.is_nan() || cell_m <= 0.0 {
             return cells;
         }
         for (&(tile_x, tile_z), tile) in &self.tiles {
@@ -165,16 +163,12 @@ impl RutField {
                 // how far the bilinear read above reaches, and the patch must cover every
                 // point that can read a depth.
                 let span = |index: i32| {
-                    (
-                        (index - 1) as f32 * RUT_RASTER_CELL_M,
-                        (index + 2) as f32 * RUT_RASTER_CELL_M,
-                    )
+                    ((index - 1) as f32 * RUT_RASTER_CELL_M, (index + 2) as f32 * RUT_RASTER_CELL_M)
                 };
                 let (x0, x1) = span(ix);
                 let (z0, z1) = span(iz);
-                let base = |value: f32, max: usize| {
-                    ((value / cell_m).floor().max(0.0) as usize).min(max)
-                };
+                let base =
+                    |value: f32, max: usize| ((value / cell_m).floor().max(0.0) as usize).min(max);
                 for z in base(z0, max_z)..=base(z1, max_z) {
                     for x in base(x0, max_x)..=base(x1, max_x) {
                         cells.insert((x, z));
@@ -195,9 +189,7 @@ impl RutField {
     fn depth_q_at(&self, ix: i32, iz: i32) -> u8 {
         let (tile_x, offset_x) = split_index(ix);
         let (tile_z, offset_z) = split_index(iz);
-        self.tiles
-            .get(&(tile_x, tile_z))
-            .map_or(0, |tile| tile.depth_q[offset_z * TILE + offset_x])
+        self.tiles.get(&(tile_x, tile_z)).map_or(0, |tile| tile.depth_q[offset_z * TILE + offset_x])
     }
 }
 

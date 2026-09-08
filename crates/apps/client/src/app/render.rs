@@ -196,8 +196,9 @@ impl ClientApp {
                     // believing the GPU holds a meadow it never received.
                     let mut uploaded = None;
                     if let Some(renderer) = self.renderer.as_mut() {
-                        // T9: the base the GPU holds is cut in place; only the patch uploads.
-                        renderer.cut_ground_triangles(&ground.cut_triangles);
+                        // T9: the base's cut IS this set — what fell outside the patch's
+                        // budget since the last bake is put back, not left as a hole.
+                        renderer.set_ground_cut(&ground.cut_triangles);
                         renderer.set_ground_patch(&ground.patch.0, &ground.patch.1);
                         // The card meadow follows the same ledger: the burst that dug the
                         // hole also mowed the cards around it (Żywy Step P2). Usually it mowed
@@ -229,9 +230,14 @@ impl ClientApp {
             }
         }
         // T8: the ruts the tracks pressed since the last bake — debounced, so a column on the
-        // move re-meshes its lane every couple of seconds, not every metre.
-        if self.ruts_dirty && self.rut_rebuild_clock_s >= super::RUT_REBUILD_INTERVAL_S {
+        // move re-meshes its lane every couple of seconds, not every metre. The eye moving far
+        // enough counts too: the patch is the budget's worth of cells NEAREST the camera, so a
+        // camera that has travelled is a patch spent where nobody is looking.
+        if (self.ruts_dirty || self.ground_patch_focus_moved)
+            && self.rut_rebuild_clock_s >= super::RUT_REBUILD_INTERVAL_S
+        {
             self.ruts_dirty = false;
+            self.ground_patch_focus_moved = false;
             self.rut_rebuild_clock_s = 0.0;
             self.ground_deform_dirty = true;
         }
@@ -242,6 +248,7 @@ impl ClientApp {
         let (tx, rx) = std::sync::mpsc::channel();
         self.ground_rebuild_rx = Some(rx);
         let ruts = self.ruts.clone();
+        let focus = self.ground_patch_focus;
         // Both handles are `Arc` clones — pointer bumps, not copies. The battlefield carries the
         // heightmap's crater overlay (the bake reads `sample_height`, the exact deformed truth
         // the sim and predictor stand on) and the ground maps ride along so the card meadow
@@ -267,7 +274,7 @@ impl ClientApp {
             crate::meadow_changed_by(baked, self.battlefield.heightmap.crater_records(), footprint)
         });
         std::thread::spawn(move || {
-            let ground = crate::battlefield_ground_mesh_parts(&battlefield, Some(&ruts));
+            let ground = crate::battlefield_ground_mesh_parts(&battlefield, Some(&ruts), focus);
             let dressing = bake_meadow
                 .then(|| {
                     let (maps, _, _) = meadow.as_ref()?;
@@ -412,7 +419,7 @@ impl ClientApp {
                     &meshes.ground_maps,
                     &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
                 );
-                renderer.cut_ground_triangles(&meshes.ground_cut);
+                renderer.set_ground_cut(&meshes.ground_cut);
                 renderer.set_ground_patch(&meshes.ground_patch.0, &meshes.ground_patch.1);
             }
             None => renderer.clear_battlefield_ground(),
@@ -590,6 +597,18 @@ impl ClientApp {
             projection.near_plane_m(),
             projection.far_plane_m(),
         );
+        // Where the ground patch is spent (T8): the presented eye, remembered for the next
+        // bake. Travel past the refocus distance asks for one even with no fresh rut.
+        {
+            let eye = [camera.eye[0], camera.eye[2]];
+            let travelled = self.ground_patch_focus.is_none_or(|last| {
+                (last[0] - eye[0]).hypot(last[1] - eye[1]) >= super::RUT_PATCH_REFOCUS_M
+            });
+            if travelled {
+                self.ground_patch_focus = Some(eye);
+                self.ground_patch_focus_moved = true;
+            }
+        }
         self.tick_motion_fx(&presentation_tanks, frame_dt);
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];

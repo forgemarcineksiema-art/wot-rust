@@ -107,10 +107,18 @@ fn a_crater_uploads_the_patch_and_the_cuts_never_the_whole_ground() {
 
     // The patch path: the cuts, then the patch.
     let patch = Instant::now();
-    renderer.cut_ground_triangles(&ctx, &cut);
+    renderer.set_ground_cut(&ctx, &cut);
     assert_eq!(renderer.last_ground_upload_bytes(), cut.len() * 12, "twelve bytes a cut");
-    renderer.cut_ground_triangles(&ctx, &cut);
+    renderer.set_ground_cut(&ctx, &cut);
     assert_eq!(renderer.last_ground_upload_bytes(), 0, "a cut is idempotent");
+    // T8: the cut is a SET on the real device too — emptying it puts every base triangle back,
+    // which is what lets the patch be BOUNDED. The append-only version could only ever grow,
+    // and the day its driver forgot a cell that cell was a permanent hole in the ground.
+    renderer.set_ground_cut(&ctx, &[]);
+    assert_eq!(renderer.last_ground_upload_bytes(), cut.len() * 12, "every cut put back");
+    assert_eq!(renderer.ground_cut_len(), 0, "and nothing is held cut");
+    renderer.set_ground_cut(&ctx, &cut);
+    assert_eq!(renderer.ground_cut_len(), cut.len(), "cut again, for the patch below");
     renderer.set_ground_patch(&ctx, &patch_v, &patch_i);
     let patch_ms = patch.elapsed().as_secs_f32() * 1000.0;
     let uploaded = renderer.last_ground_upload_bytes();

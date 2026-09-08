@@ -177,8 +177,15 @@ impl WindowRenderer {
     }
 
     /// T9: cut the bound ground's triangles in place (a crater's cells).
-    pub fn cut_ground_triangles(&mut self, triangles: &[u32]) {
-        self.scene.cut_ground_triangles(&self.ctx, triangles);
+    /// T9: the base's cut IS this set — see [`crate::SceneRenderer::set_ground_cut`]. What
+    /// leaves the set is put back, which is what lets the patch be bounded without holes.
+    pub fn set_ground_cut(&mut self, triangles: &[u32]) {
+        self.scene.set_ground_cut(&self.ctx, triangles);
+    }
+
+    /// Diagnostic: how many base triangles stand cut right now.
+    pub fn ground_cut_len(&self) -> usize {
+        self.scene.ground_cut_len()
     }
 
     /// T9: the ground patch as its own buffers — the cut cells re-meshed, clods, ruts.

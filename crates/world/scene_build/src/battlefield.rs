@@ -66,7 +66,7 @@ pub fn battlefield_ground_mesh_with_ruts(
     battlefield: &BattlefieldMap,
     ruts: &terrain::RutField,
 ) -> SceneMeshData {
-    battlefield_ground_mesh_parts(battlefield, Some(ruts)).merged()
+    battlefield_ground_mesh_parts(battlefield, Some(ruts), None).merged()
 }
 
 /// The ground in its two PARTS (T9): the BASE — the whole grid, every cell, plus the apron —
@@ -108,9 +108,12 @@ impl GroundMesh {
 }
 
 /// The battlefield ground in its parts (T9), with the client's rut field when it has one.
+/// `focus` is where the patch is spent — the presented camera, in world XZ. `None` patches
+/// every touched cell (a test, or a bake with no camera yet); see [`RUT_PATCH_CELL_BUDGET`].
 pub fn battlefield_ground_mesh_parts(
     battlefield: &BattlefieldMap,
     ruts: Option<&terrain::RutField>,
+    focus: Option<[f32; 2]>,
 ) -> GroundMesh {
     let beyond = beyond_border_height(battlefield);
     terrain_ground_parts(
@@ -119,6 +122,7 @@ pub fn battlefield_ground_mesh_parts(
         &battlefield.roads,
         Some(beyond.as_ref()),
         ruts,
+        focus,
     )
 }
 
@@ -1899,7 +1903,7 @@ fn terrain_scene_mesh_rutted(
     beyond: Option<&dyn Fn(f32, f32) -> f32>,
     ruts: Option<&terrain::RutField>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
-    terrain_ground_parts(heightmap, water, roads, beyond, ruts).merged()
+    terrain_ground_parts(heightmap, water, roads, beyond, ruts, None).merged()
 }
 
 /// The ground in its parts (T9): the base grid with EVERY cell's two triangles (the cut ones
@@ -1910,6 +1914,7 @@ fn terrain_ground_parts(
     roads: &[Road],
     beyond: Option<&dyn Fn(f32, f32) -> f32>,
     ruts: Option<&terrain::RutField>,
+    focus: Option<[f32; 2]>,
 ) -> GroundMesh {
     let w = heightmap.width();
     let h = heightmap.height();
@@ -1976,7 +1981,7 @@ fn terrain_ground_parts(
 
     let mut cut = cratered_cells(heightmap);
     if let Some(ruts) = ruts {
-        cut.extend(ruts.touched_cells(cell, w - 2, h - 2));
+        cut.extend(affordable_rut_cells(ruts.touched_cells(cell, w - 2, h - 2), cell, focus));
     }
     let rut_drop = |x: f32, z: f32| ruts.map_or(0.0, |field| field.depth_at(x, z));
     let mut indices = Vec::with_capacity((w - 1) * (h - 1) * 6);
@@ -2287,6 +2292,52 @@ fn append_crater_clods(
         }
         indices.extend(rock.body.indices().iter().map(|i| i + start));
     }
+}
+
+/// Cut cells the ground patch may spend on RUTS at once. Craters are never budgeted — their
+/// own ledger is capped and a shell hole is the gameplay.
+///
+/// The rut ledger remembers every press for the life of a battle (`terrain::RutField`) and it
+/// must: the ground's memory is not a rendering budget. The PATCH is. Each cut cell is
+/// re-meshed at 8 x 8 subdivisions — 81 vertices — and re-baked and re-uploaded whole every
+/// couple of seconds, so an unbounded patch measured 12 MiB at 20 s of one battle, 42 MiB at
+/// 120 s and still climbed 0.2 MiB/s from there: about 90 MiB per rebuild by the end of a
+/// seven-minute battle, on a card that has 2 GiB and no headroom. 2 000 cells is ~15 MiB, the
+/// working set the old 2 048-press ring happened to hold — chosen deliberately now instead of
+/// falling out of a ring that dropped its oldest presses and left holes where they had been.
+pub const RUT_PATCH_CELL_BUDGET: usize = 2_000;
+
+/// The rut cells the patch can afford: every one of them when no focus is given (a test, or a
+/// bake before there is a camera), else the [`RUT_PATCH_CELL_BUDGET`] nearest the focus.
+///
+/// What falls outside the budget goes back to the base grid, where a 0.6 m trough cannot be
+/// drawn anyway — and it goes back rather than vanishing only because the cut is REVERSIBLE
+/// (`renderer_wgpu`'s `set_ground_cut`). The raster still holds those presses; driving back
+/// brings the trough back with them.
+fn affordable_rut_cells(
+    touched: std::collections::BTreeSet<(usize, usize)>,
+    cell_m: f32,
+    focus: Option<[f32; 2]>,
+) -> std::collections::BTreeSet<(usize, usize)> {
+    let Some(focus) = focus else {
+        return touched;
+    };
+    if touched.len() <= RUT_PATCH_CELL_BUDGET {
+        return touched;
+    }
+    let mut ranked: Vec<((usize, usize), f32)> = touched
+        .into_iter()
+        .map(|(x, z)| {
+            let dx = (x as f32 + 0.5) * cell_m - focus[0];
+            let dz = (z as f32 + 0.5) * cell_m - focus[1];
+            ((x, z), dx * dx + dz * dz)
+        })
+        .collect();
+    // Distance first, then the cell's own order: two cells the same distance out must not swap
+    // between bakes, or the patch would flicker at its own edge.
+    ranked.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+    ranked.truncate(RUT_PATCH_CELL_BUDGET);
+    ranked.into_iter().map(|(cell, _)| cell).collect()
 }
 
 /// Sub-cell resolution of a crater patch: 8 subdivisions of the 5 m battlefield cell give a
@@ -3017,6 +3068,80 @@ mod tests {
         assert_eq!(mesh(&terrain::RutField::default()), virgin, "no ruts, the same ground");
     }
 
+    /// T8's budget, and the invariant that makes it safe. The rut ledger remembers every
+    /// press of the battle; the PATCH cannot — each cut cell is 81 vertices re-baked and
+    /// re-uploaded whole, and unbounded it measured 42 MiB per rebuild two minutes into one
+    /// battle, still climbing. So the patch is the budget's worth of cells NEAREST the eye,
+    /// and what falls outside goes back to the base grid — which is only not a hole because
+    /// `renderer_wgpu::set_ground_cut` puts the base triangles back.
+    ///
+    /// Locked here: the bound holds, the cells kept are the near ones, the far ones are
+    /// dropped, and every cut cell has its patch geometry (the cut and the patch come from one
+    /// set — the day they do not, the ground has holes again).
+    #[test]
+    fn the_ground_patch_is_bounded_and_spent_around_the_eye() {
+        let heightmap = terrain::heightmap_from_fn(201, 2.5, |_, _| 10.0);
+        let width = heightmap.width();
+        let mut ruts = terrain::RutField::default();
+        // Twenty lanes 400 m long: far more ground than the patch may ever hold at once.
+        for lane in 0..20 {
+            let x = 40.0 + lane as f32 * 20.0;
+            for step in 0..40 {
+                let z = 40.0 + step as f32 * 10.0;
+                ruts.press([x, z], [x, z + 10.0], 0.09);
+            }
+        }
+        let cells_of = |mesh: &GroundMesh| -> std::collections::BTreeSet<(usize, usize)> {
+            mesh.cut_triangles
+                .iter()
+                .map(|triangle| {
+                    let cell = *triangle as usize / 2;
+                    (cell % (width - 1), cell / (width - 1))
+                })
+                .collect()
+        };
+
+        let unbounded =
+            terrain_ground_parts(&heightmap, WaterView::DRY, &[], None, Some(&ruts), None);
+        let all = cells_of(&unbounded);
+        assert!(
+            all.len() > RUT_PATCH_CELL_BUDGET,
+            "the drive must outrun the budget to test it: {} cells",
+            all.len()
+        );
+
+        let focus = [40.0, 60.0];
+        let bounded =
+            terrain_ground_parts(&heightmap, WaterView::DRY, &[], None, Some(&ruts), Some(focus));
+        let kept = cells_of(&bounded);
+        assert!(
+            kept.len() <= RUT_PATCH_CELL_BUDGET,
+            "the patch holds its budget: {} cells",
+            kept.len()
+        );
+        assert!(kept.is_subset(&all), "the budget only ever DROPS cells, never invents them");
+
+        let near = ((focus[0] / 2.5) as usize, ((focus[1] + 20.0) / 2.5) as usize);
+        assert!(kept.contains(&near), "the ground under the eye is patched: {near:?}");
+        let far = all
+            .iter()
+            .max_by_key(|(x, z)| {
+                let (dx, dz) = (*x as f32 * 2.5 - focus[0], *z as f32 * 2.5 - focus[1]);
+                (dx * dx + dz * dz) as i64
+            })
+            .copied()
+            .expect("the drive touched ground");
+        assert!(!kept.contains(&far), "the far end of the field is not patched: {far:?}");
+
+        // The cut and the patch are ONE set: 8 x 8 subdivisions is 81 vertices a cell, and a
+        // flat map with no craters bakes exactly that and nothing else.
+        assert_eq!(
+            bounded.patch.0.len(),
+            kept.len() * (CRATER_CELL_SUBDIVISIONS + 1).pow(2),
+            "every cut cell has its patch, and nothing else is in it"
+        );
+    }
+
     /// X1: a turned box bakes turned. A wreck box at 30° bakes a hull whose every vertex lies
     /// inside the turned footprint and some outside the unturned one; the same box at 0 bakes
     /// byte for byte what it baked before the yaw existed.
@@ -3151,7 +3276,7 @@ mod tests {
     #[test]
     fn the_ground_parts_merge_to_the_whole_mesh_and_the_cut_is_two_triangles_a_cell() {
         let mut flat = HeightMap::flat(64, 64, 5.0, 10.0).expect("flat map");
-        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None);
+        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None, None);
         assert!(parts.patch.0.is_empty() && parts.cut_triangles.is_empty(), "virgin: no patch");
         assert_eq!(parts.base.1.len(), 63 * 63 * 6, "every cell, two triangles each");
         assert_eq!(parts.merged(), terrain_scene_mesh(&flat));
@@ -3164,7 +3289,7 @@ mod tests {
             terrain::CRATER_KIND_HIGH_EXPLOSIVE,
         );
         flat.set_craters(&[crater]);
-        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None);
+        let parts = terrain_ground_parts(&flat, WaterView::DRY, &[], None, None, None);
         let cells = cratered_cells(&flat);
         assert_eq!(parts.cut_triangles.len(), cells.len() * 2, "two base triangles a cut cell");
         assert_eq!(parts.base.1.len(), 63 * 63 * 6, "the base still carries every cell");

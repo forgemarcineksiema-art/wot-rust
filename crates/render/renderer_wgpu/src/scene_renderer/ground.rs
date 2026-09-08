@@ -44,6 +44,44 @@ fn encode_materials(set: &TerrainMaterialSet, extent_m: [f32; 2]) -> [[f32; 4]; 
     packed
 }
 
+/// The index writes one cut set asks for, applied to the CPU-side base indices and returned
+/// as `(slot offset, corners)` for the caller to put on the GPU. Pure bookkeeping, so the
+/// contract that matters — what leaves the set comes back exactly as it was — is testable
+/// without a device.
+///
+/// Triangles that join the set have their corners saved and are degenerated; triangles that
+/// have left it are restored from those saved corners and forgotten. Ids past the mesh are
+/// ignored.
+pub(crate) fn apply_ground_cut(
+    triangles: &[u32],
+    cut: &mut std::collections::BTreeMap<u32, [u32; 3]>,
+    base_indices: &mut [u32],
+    triangle_slots: &[u32],
+) -> Vec<(usize, [u32; 3])> {
+    let wanted: std::collections::BTreeSet<u32> =
+        triangles.iter().copied().filter(|id| (*id as usize) < triangle_slots.len()).collect();
+    let mut writes = Vec::new();
+    let restored: Vec<u32> = cut.keys().copied().filter(|id| !wanted.contains(id)).collect();
+    for triangle in restored {
+        let corners = cut.remove(&triangle).expect("keyed from the map itself");
+        let at = triangle_slots[triangle as usize] as usize * 3;
+        base_indices[at..at + 3].copy_from_slice(&corners);
+        writes.push((at, corners));
+    }
+    for &triangle in &wanted {
+        if cut.contains_key(&triangle) {
+            continue;
+        }
+        let at = triangle_slots[triangle as usize] as usize * 3;
+        let corners = [base_indices[at], base_indices[at + 1], base_indices[at + 2]];
+        cut.insert(triangle, corners);
+        let degenerate = [corners[0]; 3];
+        base_indices[at..at + 3].copy_from_slice(&degenerate);
+        writes.push((at, degenerate));
+    }
+    writes
+}
+
 /// The bound battlefield ground: geometry, chunk table and the group-1 material resources.
 pub(crate) struct GroundBinding {
     pub vertices: wgpu::Buffer,
@@ -55,6 +93,12 @@ pub(crate) struct GroundBinding {
     pub base_indices: Vec<u32>,
     /// T9: where every original base triangle landed after chunking (in triangles).
     pub triangle_slots: Vec<u32>,
+    /// The triangles currently cut, each with the corners it had before the cut — so a
+    /// triangle that leaves the cut set can be PUT BACK. Without this the cut is one-way:
+    /// whatever drives the patch (the rut ledger, the crater ledger) can only ever be allowed
+    /// to grow, and the day it forgets a cell, that cell is a permanent hole in the ground
+    /// (T8, measured: 7 068 triangles in 76 s of one battle).
+    pub cut: std::collections::BTreeMap<u32, [u32; 3]>,
     /// T9: the crater patch — the cut cells re-meshed, the clods, the ruts — its own buffers,
     /// sized to the patch, drawn after the base's chunks.
     pub patch: Option<GroundPatch>,
@@ -453,37 +497,44 @@ impl SceneRenderer {
             bind_group,
             base_indices: reordered,
             triangle_slots,
+            cut: std::collections::BTreeMap::new(),
             patch: None,
         });
     }
 
-    /// T9: CUT the base — degenerate the given base triangles (ids in the mesh as bound) in
-    /// place, twelve bytes a triangle, so the patch can stand where they stood. Idempotent;
-    /// unknown ids are ignored. No-op with no ground bound.
-    pub fn cut_ground_triangles(&mut self, ctx: &GpuContext, triangles: &[u32]) {
+    /// T9: the base's cut IS this set — degenerate every base triangle in it that is not cut
+    /// yet, and PUT BACK every triangle that has left it since the last call. Twelve bytes a
+    /// triangle either way; unknown ids are ignored; no-op with no ground bound.
+    ///
+    /// It used to be `cut_ground_triangles`, which only ever appended: the patch that stands
+    /// in for the cut is replaced wholesale and covers only the current set, so a driver that
+    /// ever forgot a cell left that cell cut with nothing in its place — a hole in the world.
+    /// The rut ledger forgot by design (a 2 048-press ring) and the ground bled 7 068
+    /// triangles in 76 measured seconds. A reversible cut makes that structurally impossible
+    /// and is what lets the patch be BOUNDED instead of allowed to grow for ever.
+    pub fn set_ground_cut(&mut self, ctx: &GpuContext, triangles: &[u32]) {
         let Some(binding) = self.ground.binding.as_mut() else {
             return;
         };
-        let mut written = 0usize;
-        for &triangle in triangles {
-            let Some(&slot) = binding.triangle_slots.get(triangle as usize) else {
-                continue;
-            };
-            let at = slot as usize * 3;
-            let first = binding.base_indices[at];
-            if binding.base_indices[at + 1] == first && binding.base_indices[at + 2] == first {
-                continue;
-            }
-            binding.base_indices[at + 1] = first;
-            binding.base_indices[at + 2] = first;
+        let writes = apply_ground_cut(
+            triangles,
+            &mut binding.cut,
+            &mut binding.base_indices,
+            &binding.triangle_slots,
+        );
+        for &(at, corners) in &writes {
             ctx.queue.write_buffer(
                 &binding.indices,
                 (at * 4) as u64,
-                bytemuck::cast_slice(&[first, first, first]),
+                bytemuck::cast_slice(&corners),
             );
-            written += 12;
         }
-        self.ground.last_upload_bytes = written;
+        self.ground.last_upload_bytes = writes.len() * 12;
+    }
+
+    /// Diagnostic: how many base triangles stand cut right now.
+    pub fn ground_cut_len(&self) -> usize {
+        self.ground.binding.as_ref().map_or(0, |binding| binding.cut.len())
     }
 
     /// T9: the ground PATCH — the cut cells re-meshed, the clods, the ruts — as its own
@@ -557,6 +608,8 @@ impl SceneRenderer {
         binding.chunks = chunks;
         binding.base_indices = reordered;
         binding.triangle_slots = triangle_slots;
+        // The saved corners describe the mesh that just went away.
+        binding.cut.clear();
         binding.patch = None;
         self.ground.last_upload_bytes =
             std::mem::size_of_val(vertices) + binding.base_indices.len() * 4;
@@ -618,7 +671,8 @@ impl SceneRenderer {
 #[cfg(test)]
 mod tests {
     use super::{
-        GROUND_DETAIL_ANISOTROPY, ground_bind_group_layout_entries, terrain_shader_source,
+        GROUND_DETAIL_ANISOTROPY, apply_ground_cut, ground_bind_group_layout_entries,
+        terrain_shader_source,
     };
     use renderer_api::{MipMode, Rgba8MipChain, Rgba8MipLevel};
 
@@ -691,5 +745,46 @@ mod tests {
                 .any(|item| item.stage == naga::ShaderStage::Vertex && item.binding == 3),
             "the field quilt reads the material set in the vertex stage (Q7)"
         );
+    }
+
+    /// T8/T9's contract: the ground's cut is a SET, and what leaves it comes back EXACTLY as
+    /// it was.
+    ///
+    /// It used to be append-only. The patch that stands in for the cut is replaced wholesale
+    /// and covers only the current set, so any driver that ever forgot a cell left that cell
+    /// cut with nothing in its place — a permanent hole. The rut ledger forgot by design and
+    /// the ground bled 7 068 triangles in 76 measured seconds of one battle. A reversible cut
+    /// makes that impossible, and is what lets the patch be bounded at all.
+    #[test]
+    fn what_leaves_the_ground_cut_comes_back_exactly_as_it_was() {
+        // Four triangles, distinct corners, laid out as the chunker would leave them.
+        let pristine: Vec<u32> = (0..12).collect();
+        let slots: Vec<u32> = vec![0, 1, 2, 3];
+        let mut indices = pristine.clone();
+        let mut cut = std::collections::BTreeMap::new();
+
+        let writes = apply_ground_cut(&[1, 2], &mut cut, &mut indices, &slots);
+        assert_eq!(writes.len(), 2, "two triangles joined the set");
+        assert_eq!(&indices[3..6], &[3, 3, 3], "triangle 1 is degenerate");
+        assert_eq!(&indices[6..9], &[6, 6, 6], "triangle 2 is degenerate");
+        assert_eq!(&indices[0..3], &pristine[0..3], "its neighbours are untouched");
+
+        // The set moves on: 1 leaves, 2 stays, 3 joins. Only the change is written.
+        let writes = apply_ground_cut(&[2, 3], &mut cut, &mut indices, &slots);
+        assert_eq!(writes.len(), 2, "one restored, one cut — the one that stayed is not rewritten");
+        assert_eq!(&indices[3..6], &pristine[3..6], "triangle 1 came back exactly as it was");
+        assert_eq!(&indices[6..9], &[6, 6, 6], "triangle 2 is still cut");
+        assert_eq!(&indices[9..12], &[9, 9, 9], "triangle 3 is cut now");
+
+        // An empty set restores the whole mesh, byte for byte.
+        apply_ground_cut(&[], &mut cut, &mut indices, &slots);
+        assert_eq!(indices, pristine, "an empty cut is the pristine ground");
+        assert!(cut.is_empty(), "and nothing is remembered as cut");
+
+        // Re-cutting what is already cut writes nothing, and ids past the mesh are ignored.
+        apply_ground_cut(&[0], &mut cut, &mut indices, &slots);
+        assert!(apply_ground_cut(&[0], &mut cut, &mut indices, &slots).is_empty(), "idempotent");
+        assert!(apply_ground_cut(&[0, 99], &mut cut, &mut indices, &slots).is_empty());
+        assert_eq!(cut.len(), 1, "the id past the mesh joined nothing");
     }
 }
