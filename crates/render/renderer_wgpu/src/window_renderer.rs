@@ -47,11 +47,34 @@ impl WindowRenderer {
         terrain_indices: &[u32],
         settings: RenderSettings,
     ) -> Result<Self, RenderError> {
+        Self::new_with_settings_and_options(
+            window,
+            width,
+            height,
+            terrain_vertices,
+            terrain_indices,
+            settings,
+            crate::GpuContextOptions::default(),
+        )
+    }
+
+    /// The windowed renderer built for a stated purpose — today the live frame log, whose GPU
+    /// pass table needs `TIMESTAMP_QUERY` requested at device creation (`arm_pass_profiler`
+    /// cannot add it later). The game itself never asks for it.
+    pub fn new_with_settings_and_options(
+        window: impl Into<wgpu::SurfaceTarget<'static>>,
+        width: u32,
+        height: u32,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+        settings: RenderSettings,
+        options: crate::GpuContextOptions,
+    ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::default();
         let surface = instance
             .create_surface(window)
             .map_err(|error| RenderError::new(format!("failed to create surface: {error}")))?;
-        let ctx = GpuContext::new(instance, Some(&surface))?;
+        let ctx = GpuContext::new_with_options(instance, Some(&surface), options)?;
 
         let mut config = surface
             .get_default_config(&ctx.adapter, width.max(1), height.max(1))
@@ -96,6 +119,27 @@ impl WindowRenderer {
 
     pub fn aspect_ratio(&self) -> f32 {
         self.config.width as f32 / self.config.height.max(1) as f32
+    }
+
+    /// Arm the per-pass GPU timer on the live window (the frame log's GPU table). Costs a
+    /// query set and a resolve per frame; the read is the caller's, and it blocks.
+    pub fn arm_pass_profiler(&mut self) -> Option<String> {
+        let profiler =
+            crate::frame_profiler::FrameProfiler::new(&self.ctx.device, &self.ctx.queue, true);
+        let reason = profiler.unavailable_reason().map(str::to_string);
+        self.scene.set_pass_profiler(profiler);
+        reason
+    }
+
+    /// What each pass of the last frame cost, if armed. BLOCKS on the device — a sampled
+    /// read (every Nth frame), never every frame.
+    pub fn read_pass_timings(&self) -> Option<(f32, Vec<(String, f32)>)> {
+        let timings = self.scene.read_pass_timings(&self.ctx)?;
+        let passes = crate::PassId::ALL
+            .iter()
+            .filter_map(|id| timings.pass_ms(*id).map(|ms| (id.label().to_string(), ms)))
+            .collect();
+        Some((timings.frame_ms(), passes))
     }
 
     pub fn set_dynamic_mesh(&mut self, vertices: &[SceneVertex], indices: &[u32]) {

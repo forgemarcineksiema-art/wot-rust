@@ -40,6 +40,17 @@ impl ClientApp {
             self.input.fire_pending = false;
             return;
         }
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::FixedTicks);
+            log.note_fixed_ticks(count);
+        }
+        self.run_fixed_ticks_timed(count);
+        if let Some(log) = self.frame_log.as_mut() {
+            log.end_phase();
+        }
+    }
+
+    fn run_fixed_ticks_timed(&mut self, count: u32) {
         let mut fire = self.input.fire_pending;
         self.input.fire_pending = false;
         // Like the fire latch: the switch request rides exactly one command (the batch's first).
@@ -93,7 +104,7 @@ impl ClientApp {
             let solution = self.sight_solution();
             let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
             let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
-            let command = TankCommand {
+            let mut command = TankCommand {
                 throttle: self.input.throttle(),
                 steer: -self.input.steer(),
                 brake: self.input.brake_value(),
@@ -102,6 +113,14 @@ impl ClientApp {
                 fire,
                 select_ammo: select_ammo.take(),
             };
+            if self.autodrive {
+                // A measured drive: full throttle and a slow weave, so the frame log sees the
+                // ground bake, the grass cache and the statics move under a moving hull.
+                let t = self.client_tick as f32 / 60.0;
+                command.throttle = 1.0;
+                command.steer = 0.35 * (t / 6.0 * std::f32::consts::TAU).sin();
+                command.brake = 0.0;
+            }
             fire = false;
             self.step_prediction(&command);
             let outcome = self.session.tick_with_player_input(ClientInputCommand {

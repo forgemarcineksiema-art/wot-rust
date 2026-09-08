@@ -55,8 +55,37 @@ impl ApplicationHandler for ClientApp {
              F11 fullscreen"
         );
         self.audio = crate::audio_out::AudioOutput::try_new();
+        // The frame log's GPU table needs the pass timer armed on the live window.
+        if self.frame_log.is_some()
+            && let Some(renderer) = self.renderer.as_mut()
+            && let Some(reason) = renderer.arm_pass_profiler()
+        {
+            tracing::warn!(reason, "frame log: no GPU pass table");
+        }
+        // `WOT_AUTOBATTLE=1`: straight into the AI battle, for a measured run with no hand on
+        // the garage.
+        if self.autobattle_pending {
+            self.autobattle_pending = false;
+            self.confirm_garage_selection();
+            // No garage frame came first: `current_scene` is born as Battle, so `ensure_scene`
+            // would return before baking anything. Bake and mark the upload due explicitly.
+            self.ensure_battle_scene_meshes();
+            self.scene_upload_dirty = true;
+            if let Some(log) = self.frame_log.as_mut() {
+                log.set_context(format!(
+                    "map {:?}, mode {:?}, autodrive {}",
+                    self.session.map_id(),
+                    self.session.battle_mode(),
+                    self.autodrive
+                ));
+            }
+        }
         // The garage is a mouse-driven menu: show the cursor there; the battle view captures it.
         self.set_cursor_captured(!self.garage.is_open());
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.write_frame_log();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

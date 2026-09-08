@@ -3,6 +3,7 @@ mod app;
 mod audio_out;
 mod camera;
 mod color;
+pub mod frame_log;
 mod fx;
 mod hit_indicator;
 mod hud;
