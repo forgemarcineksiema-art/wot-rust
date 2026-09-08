@@ -27,6 +27,7 @@ mod lifecycle;
 mod live_cover;
 #[cfg(test)]
 mod live_cover_tests;
+mod local_replay;
 mod loop_step;
 pub(crate) mod minimap_build;
 pub(crate) mod motion_fx;
@@ -727,8 +728,12 @@ pub(crate) struct ClientApp {
     frame_log: Option<crate::frame_log::FrameLog>,
     /// Where the frame log is written at exit.
     frame_log_path: Option<String>,
-    /// `WOT_AUTODRIVE=1`: the player's hull drives itself (full throttle, a slow steer sine)
-    /// so a frame log can measure DRIVING without a hand on the keys.
+    /// `WOT_RECORD=<path>`: the OFFLINE battle's replay (P10). The remote session records
+    /// itself; this is the same stream for the battle that has no wire.
+    local_replay: Option<local_replay::LocalReplayRecorder>,
+    /// `WOT_AUTODRIVE=1`: the player's hull drives itself (full throttle, a slow steer sine),
+    /// sweeps the camera and fires whenever the breech is loaded, so a frame log can measure
+    /// PLAYING — driving, looking and shooting — without a hand on the keys.
     autodrive: bool,
     /// `WOT_AUTOBATTLE=1`: deploy into the AI battle as soon as the window exists.
     autobattle_pending: bool,
@@ -1086,6 +1091,7 @@ impl ClientApp {
                 .ok()
                 .map(|_| crate::frame_log::FrameLog::new()),
             frame_log_path: std::env::var("WOT_FRAME_LOG").ok(),
+            local_replay: local_replay::LocalReplayRecorder::armed(),
             autodrive: std::env::var("WOT_AUTODRIVE").is_ok_and(|v| v == "1"),
             autobattle_pending: std::env::var("WOT_AUTOBATTLE").is_ok_and(|v| v == "1"),
             exit_after_s: std::env::var("WOT_EXIT_AFTER_S").ok().and_then(|v| v.parse().ok()),
@@ -1130,6 +1136,60 @@ impl ClientApp {
         }
     }
 
+    /// P10: the offline battle's replay opens with the world, the seat and the roster, the
+    /// moment the local host exists. Nothing happens without `WOT_RECORD`, and nothing happens
+    /// for a remote session — that one records its own accepted frames.
+    pub(crate) fn open_local_replay(&mut self) {
+        let session::BattleSessionKind::Local(server) = &self.session else {
+            return;
+        };
+        let (map_id, weather, tank, time_limit_tick, roster) = (
+            server.map_id(),
+            server.weather(),
+            server.player_tank(),
+            server.time_limit_tick(),
+            server.roster(),
+        );
+        if let Some(replay) = self.local_replay.as_mut() {
+            replay.open_battle(map_id, weather, tank, time_limit_tick, roster);
+        }
+    }
+
+    /// One authoritative delivery into the replay, recorded before the client folds it in.
+    pub(crate) fn record_local_replay_snapshot(&mut self, snapshot: &net::Snapshot) {
+        if !matches!(self.session, session::BattleSessionKind::Local(_)) {
+            return;
+        }
+        if let Some(replay) = self.local_replay.as_mut() {
+            replay.record_snapshot(snapshot);
+        }
+    }
+
+    /// The replay's end word, written once on the battle's edge.
+    pub(crate) fn end_local_replay(&mut self, winning_team: Option<u16>) {
+        if let Some(replay) = self.local_replay.as_mut() {
+            replay.end_battle(winning_team);
+        }
+    }
+
+    /// The buffered tail to disk, at exit — no end word for a battle that never ended.
+    pub(crate) fn flush_local_replay(&mut self) {
+        if let Some(replay) = self.local_replay.as_mut() {
+            replay.flush();
+        }
+    }
+
+    /// Where a recording is being written, for the HUD's debug line (P10): the remote session's
+    /// or the offline battle's, whichever is running.
+    pub(crate) fn recording_path(&self) -> Option<String> {
+        self.session.recording_path().or_else(|| {
+            self.local_replay
+                .as_ref()
+                .and_then(local_replay::LocalReplayRecorder::active_path)
+                .map(str::to_string)
+        })
+    }
+
     pub(crate) fn write_frame_log(&mut self) {
         let viewport = self.viewport;
         let (Some(log), Some(path)) = (self.frame_log.as_mut(), self.frame_log_path.take()) else {
@@ -1140,6 +1200,18 @@ impl ClientApp {
         match std::fs::write(&path, &report) {
             Ok(()) => tracing::info!(path, "frame log written"),
             Err(error) => tracing::error!(path, %error, "frame log not written"),
+        }
+        // The report summarises; the trace is the evidence. A summary can only answer the
+        // questions it was written to answer, and "which second did the FPS fall in" is not one
+        // of them — so every presented frame goes out beside it as CSV, one row each.
+        let trace_path = std::path::Path::new(&path).with_extension("frames.csv");
+        match std::fs::write(&trace_path, log.trace_csv()) {
+            Ok(()) => {
+                tracing::info!(path = %trace_path.display(), frames = log.frames().count(), "frame trace written")
+            }
+            Err(error) => {
+                tracing::error!(path = %trace_path.display(), %error, "frame trace not written")
+            }
         }
     }
 }

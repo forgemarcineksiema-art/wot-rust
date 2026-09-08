@@ -18,8 +18,12 @@ use std::time::Instant;
 pub const HITCH_MS: f32 = 25.0;
 /// A frame longer than this is left out of the means (a bake, a stall), never a hitch.
 pub const STEADY_MAX_MS: f32 = 1_000.0;
-/// How many frames the ring keeps: a minute at 60 FPS.
-pub const RING_FRAMES: usize = 3_600;
+/// How many frames the trace keeps: an HOUR at 60 FPS. The instrument answers "what did every
+/// frame cost", so the run's frames are all kept, not a trailing window — a three-minute session
+/// whose worst minute was its first said nothing when the ring held only the last 3 600 frames.
+/// One sample is 60 bytes, so a full hour is ~13 MiB; past the cap the trace stops growing and
+/// the report says so (`total_frames` keeps counting either way).
+pub const TRACE_FRAMES: usize = 216_000;
 /// The GPU pass table is read back (a blocking device read) once per this many frames.
 pub const GPU_SAMPLE_EVERY: u32 = 60;
 
@@ -166,7 +170,7 @@ impl FrameLog {
     pub fn new() -> Self {
         Self {
             started: Instant::now(),
-            frames: std::collections::VecDeque::with_capacity(RING_FRAMES),
+            frames: std::collections::VecDeque::new(),
             hitches: Vec::new(),
             total_frames: 0,
             gpu: Vec::new(),
@@ -240,10 +244,9 @@ impl FrameLog {
         self.phases_ms = [0.0; 8];
         self.tick_parts_ms = [0.0; 4];
         self.fixed_ticks = 0;
-        if self.frames.len() >= RING_FRAMES {
-            self.frames.pop_front();
+        if self.frames.len() < TRACE_FRAMES {
+            self.frames.push_back(sample);
         }
-        self.frames.push_back(sample);
         self.total_frames += 1;
         if total_ms > HITCH_MS && self.hitches.len() < 1_000 {
             self.hitches.push(sample);
@@ -273,7 +276,7 @@ impl FrameLog {
         self.total_frames
     }
 
-    /// Percentile of the frame intervals in the ring (0.0..=1.0), or 0 with no frames.
+    /// Percentile of the traced frame intervals (0.0..=1.0), or 0 with no frames.
     pub fn percentile_ms(&self, p: f32) -> f32 {
         if self.frames.is_empty() {
             return 0.0;
@@ -284,7 +287,7 @@ impl FrameLog {
         totals[index]
     }
 
-    /// Mean of each phase over the ring, in [`Phase::ALL`] order.
+    /// Mean of each phase over the trace, in [`Phase::ALL`] order.
     pub fn mean_phases_ms(&self) -> [f32; 8] {
         let mut sums = [0.0f32; 8];
         let mut n = 0usize;
@@ -298,6 +301,41 @@ impl FrameLog {
         sums.map(|sum| sum / n)
     }
 
+    /// Every traced frame as one CSV row — the instrument's raw evidence, written beside the
+    /// report. The report is a summary and a summary can only ever answer the questions it was
+    /// written to answer; the trace answers "what happened at second 97" and "when did the FPS
+    /// fall", which is what a player watching their own session actually asks. One row per
+    /// PRESENTED frame, in presentation order, with the frame's instantaneous FPS and every
+    /// phase it spent its milliseconds in.
+    pub fn trace_csv(&self) -> String {
+        let mut out = String::with_capacity(self.frames.len() * 96 + 256);
+        out.push_str("frame,at_s,total_ms,fps");
+        for phase in Phase::ALL {
+            let _ = write!(out, ",{}_ms", phase.name());
+        }
+        for part in TickPart::ALL {
+            let _ = write!(out, ",tick_{}_ms", part.name());
+        }
+        out.push_str(
+            ",unattributed_ms,fixed_ticks
+",
+        );
+        for (index, frame) in self.frames.iter().enumerate() {
+            // A zero interval would divide by zero; it never happens on a presented frame, but
+            // the trace must not be able to write `inf` into a column something else will read.
+            let fps = if frame.total_ms > 0.0 { 1000.0 / frame.total_ms } else { 0.0 };
+            let _ = write!(out, "{},{:.4},{:.4},{:.2}", index + 1, frame.at_s, frame.total_ms, fps);
+            for ms in frame.phases_ms {
+                let _ = write!(out, ",{ms:.4}");
+            }
+            for ms in frame.tick_parts_ms {
+                let _ = write!(out, ",{ms:.4}");
+            }
+            let _ = writeln!(out, ",{:.4},{}", frame.unattributed_ms(), frame.fixed_ticks);
+        }
+        out
+    }
+
     /// The report: what the frame cost, where the hitches went, what the GPU said, the heap.
     pub fn report(&self) -> String {
         let mut out = String::new();
@@ -308,7 +346,7 @@ impl FrameLog {
         );
         let _ = writeln!(
             out,
-            "frames {} ({:.1} s), ring {} frames: p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
+            "frames {} ({:.1} s), traced {} frames: p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
             self.total_frames,
             self.elapsed_s(),
             self.frames.len(),
@@ -317,6 +355,12 @@ impl FrameLog {
             self.percentile_ms(0.99),
             self.percentile_ms(1.0)
         );
+        if self.frames.len() >= TRACE_FRAMES {
+            let _ = writeln!(
+                out,
+                "the trace is FULL ({TRACE_FRAMES} frames): everything after that is counted, not traced"
+            );
+        }
         let over_60 = self.frames.iter().filter(|f| f.total_ms > 1000.0 / 60.0 + 0.5).count();
         let _ = writeln!(
             out,
@@ -453,19 +497,60 @@ mod tests {
     }
 
     #[test]
-    fn phases_never_nest_and_the_ring_is_bounded() {
+    fn phases_never_nest_and_the_trace_is_bounded() {
         let mut log = FrameLog::new();
         log.begin(Phase::Camera);
         log.begin(Phase::Hud); // closes Camera
         log.end_phase();
         let sample = log.end_frame(10.0);
         assert!(sample.phase_ms(Phase::Camera) >= 0.0 && sample.phase_ms(Phase::Hud) >= 0.0);
-        for _ in 0..(RING_FRAMES + 50) {
+        for _ in 0..(TRACE_FRAMES + 50) {
             log.end_frame(16.0);
         }
-        assert_eq!(log.frames().count(), RING_FRAMES);
-        assert_eq!(log.total_frames(), RING_FRAMES as u64 + 51);
+        assert_eq!(log.frames().count(), TRACE_FRAMES);
+        assert_eq!(log.total_frames(), TRACE_FRAMES as u64 + 51);
+        assert!(log.report().contains("the trace is FULL"), "a saturated trace must say so");
         assert!(log.gpu_sample_due() || !log.gpu_sample_due());
+    }
+
+    /// A three-minute session is longer than the old 3 600-frame ring: the whole run must be in
+    /// the trace, and the CSV must carry one row per presented frame with its own FPS — the
+    /// report's p50 cannot answer "when did it drop".
+    #[test]
+    fn the_trace_keeps_every_frame_of_a_long_run_and_writes_one_csv_row_each() {
+        let mut log = FrameLog::new();
+        // Three minutes at 60 FPS, with one 50 ms frame in the FIRST minute — the frame the old
+        // ring would have forgotten by the end of the run.
+        log.add_ms(Phase::Render, 40.0);
+        log.end_frame(50.0);
+        for _ in 0..10_800 {
+            log.add_ms(Phase::Render, 8.0);
+            log.add_tick_ms(TickPart::Host, 2.0);
+            log.note_fixed_ticks(1);
+            log.end_frame(16.6);
+        }
+        assert_eq!(log.frames().count(), 10_801);
+        assert!((log.percentile_ms(1.0) - 50.0).abs() < 1e-3, "the early hitch is still in");
+
+        let csv = log.trace_csv();
+        let mut lines = csv.lines();
+        let header = lines.next().expect("header");
+        assert!(header.starts_with("frame,at_s,total_ms,fps,"), "{header}");
+        assert!(header.contains("scene_assembly_ms"), "{header}");
+        assert!(header.contains("tick_host_ms"), "{header}");
+        let rows: Vec<&str> = lines.collect();
+        assert_eq!(rows.len(), 10_801, "one row per presented frame");
+        let first: Vec<&str> = rows[0].split(',').collect();
+        assert_eq!(first[0], "1");
+        assert_eq!(first[2], "50.0000");
+        assert_eq!(first[3], "20.00", "fps is the frame's own interval, not a mean");
+        let last: Vec<&str> = rows[10_800].split(',').collect();
+        assert_eq!(last[0], "10801");
+        assert_eq!(last[3], "60.24");
+        assert!(
+            csv.lines().all(|line| !line.contains("inf") && !line.contains("NaN")),
+            "no non-finite number may reach the trace"
+        );
     }
 
     #[test]

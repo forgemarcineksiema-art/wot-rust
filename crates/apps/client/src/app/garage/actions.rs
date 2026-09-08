@@ -440,6 +440,9 @@ impl ClientApp {
             );
             self.weather_frame = self.weather_timeline.sample(0.0);
             self.client_tick = 0;
+            // P10: the replay opens with the battle — the world's word, the seat and the roster
+            // go in before the first snapshot, or the file is a stream of poses about nothing.
+            self.open_local_replay();
             self.damage_log = crate::hud::damage_log::DamageLog::default();
             self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();
             // P3: the inbox starts with the battle (the record below, once the seat is known).

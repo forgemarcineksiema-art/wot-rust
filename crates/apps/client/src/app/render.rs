@@ -514,6 +514,7 @@ impl ClientApp {
         self.presentation.advance_time(raw_dt);
         self.weather_frame = self.weather_timeline.sample(self.weather_elapsed_s());
         let frame_dt = self.presentation.time().delta_seconds;
+        self.drive_autodrive_look_and_trigger(frame_dt);
         self.apply_mouse_look();
         if frame_dt > 0.0 {
             let prior = self.fps_estimate; // EMA-smooth FPS for a steady HUD readout.
