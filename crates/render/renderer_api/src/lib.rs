@@ -36,6 +36,7 @@ pub use ground_detail::{
 };
 pub use lighting::{
     LocalLight, MAX_LOCAL_LIGHTS, NO_LOCAL_LIGHTS, SceneLighting, fluorescent_flicker,
+    local_lights_are_a_prefix,
 };
 pub use lighting_quality::{LightingQuality, ShaderDetailMask};
 pub use limits::RenderLimitProfile;

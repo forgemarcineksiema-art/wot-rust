@@ -473,7 +473,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // — not a sheet mirror over every flat metre (the old broad gloss painted the whole
     // ground with the overcast sky and read as a mint wash). Soaked ground between them is
     // simply dark.
-    let pool = puddle_pool(input.world_pos.xz, fill);
+    var pool = 0.0;
+    if (fill > 0.001 && !detail_bit(8192u)) {
+        pool = puddle_pool(input.world_pos.xz, fill);
+    }
     let puddle = smoothstep(0.94, 0.997, geometric_n.y) * fill * pool * 0.38;
     let gloss = clamp(input.gloss + wet * 0.08 + puddle, 0.0, 1.0);
 
@@ -484,7 +487,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         sun_shadow(input.world_pos, geometric_n, input.clip) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     // A named surface wears its own treatment; everything else keeps the generic detail.
-    var detail = material_detail(input.world_pos, geometric_n);
+    var detail = 1.0;
+    if (!detail_bit(256u)) {
+        detail = material_detail(input.world_pos, geometric_n);
+    }
     if (input.surface > 0.5) {
         detail = surface_treatment(input.surface, input.world_pos, geometric_n);
     }
@@ -518,7 +524,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     lit += input.bounce;
     // Specular: a Blinn lobe on the key light plus the analytic-sky reflection, both scaled by
     // the material lane. Matte (gloss 0) surfaces skip this entirely — the historical look.
-    if (gloss > 0.001) {
+    if (gloss > 0.001 && !detail_bit(32768u)) {
         let view = normalize(camera.camera_pos - input.world_pos);
         let key = normalize(camera.key_direction);
         let halfway = normalize(key + view);

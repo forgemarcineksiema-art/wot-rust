@@ -627,3 +627,31 @@ fn the_flash_pools_scale_with_the_round_and_go_out_by_energy() {
         "a slot with reach but no energy adds nothing but costs one read"
     );
 }
+
+#[test]
+fn the_lit_pools_stand_at_the_front_of_the_slots_for_the_shader_loop_to_stop_early() {
+    use renderer_api::{LocalLight, NO_LOCAL_LIGHTS, local_lights_are_a_prefix};
+    // The hangar rig: five lamps, then a dark slot — a prefix, as the loop expects.
+    let rig = SceneLighting::garage_hero().local_lights;
+    assert!(local_lights_are_a_prefix(&rig), "{rig:?}");
+    // The rig at any second (the flicker scales an intensity, never a radius).
+    assert!(local_lights_are_a_prefix(&SceneLighting::garage_hero_at(3.7).local_lights));
+    // No pools at all is the empty prefix — the outdoor case, one read and out.
+    assert!(local_lights_are_a_prefix(&NO_LOCAL_LIGHTS));
+    // A hole in the middle would lose every pool behind it: the contract says never.
+    let mut holed = NO_LOCAL_LIGHTS;
+    holed[0] = LocalLight { radius_m: 4.0, intensity: 1.0, ..LocalLight::OFF };
+    holed[2] = LocalLight { radius_m: 4.0, intensity: 1.0, ..LocalLight::OFF };
+    assert!(!local_lights_are_a_prefix(&holed));
+    // The blend of two prefixes is a prefix: a slot lit on either side stays lit mid-blend.
+    let a = SceneLighting::garage_hero();
+    let b = SceneLighting::battlefield_default();
+    for step in 0..=10 {
+        let blended = a.lerp(b, step as f32 / 10.0);
+        assert!(
+            local_lights_are_a_prefix(&blended.local_lights),
+            "t={step}: {:?}",
+            blended.local_lights
+        );
+    }
+}

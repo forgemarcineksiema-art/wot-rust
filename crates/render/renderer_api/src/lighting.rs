@@ -76,6 +76,15 @@ impl LocalLight {
 /// The all-off local light array every outdoor profile carries: zero radius = disabled slots.
 pub const NO_LOCAL_LIGHTS: [LocalLight; MAX_LOCAL_LIGHTS] = [LocalLight::OFF; MAX_LOCAL_LIGHTS];
 
+/// The lit pools stand at the FRONT of the slot array, the dark ones behind them — the
+/// contract the shaders' pool loop (`lighting_common.wgsl`, `local_pools`) reads by stopping at
+/// the first dark slot (Q9, 2026-09-08). The FX system packs its pulses so, the hangar rig is
+/// authored so, and a blend of two prefixes is a prefix; `CameraUniform` asserts it in debug.
+pub fn local_lights_are_a_prefix(lights: &[LocalLight; MAX_LOCAL_LIGHTS]) -> bool {
+    let first_dark = lights.iter().position(|light| light.radius_m <= 0.0);
+    first_dark.is_none_or(|dark| lights[dark..].iter().all(|light| light.radius_m <= 0.0))
+}
+
 /// Calibrated outdoor scene lighting: a hemispheric sky/ground ambient plus key/fill/rim directional
 /// lights, consumed by both the scene and the vehicle shaders. Each `*_direction` is a world-space
 /// vector pointing *towards* the light (the shader normalizes it); each `*_rgb` is that light's
