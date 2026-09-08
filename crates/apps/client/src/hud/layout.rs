@@ -362,6 +362,8 @@ mod tests {
             snapshot_age_ms: 32,
         });
         model.team_word = Some(demo::demo_team_word());
+        // U22: "everything" is the FULL preset's word — standard hides the budget line and the RTT lamp.
+        model.layout.preset = Preset::Full;
         model
     }
 
