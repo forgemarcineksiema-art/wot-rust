@@ -695,18 +695,18 @@ fn cruise_control_latches_the_throttle_until_the_brake() {
     assert_eq!(app.input.throttle(), 0.0, "and it stays clear after the brake lifts");
 }
 
-/// H8: N folds the hit log and unfolds it; a key repeat does not flicker it.
+/// H8, U15: N prints the hit log's detail and hides it again; a key repeat does not flicker it.
 #[test]
-fn n_folds_the_hit_log_on_the_edge_only() {
+fn n_toggles_the_hit_log_detail_on_the_edge_only() {
     let mut app = in_battle();
-    assert!(!app.input.hit_log_collapsed());
+    assert!(!app.input.hit_log_detail());
     app.on_key(PhysicalKey::Code(KeyCode::KeyN), true, false);
-    assert!(app.input.hit_log_collapsed());
+    assert!(app.input.hit_log_detail());
     app.on_key(PhysicalKey::Code(KeyCode::KeyN), true, true);
-    assert!(app.input.hit_log_collapsed(), "a repeat is not a second press");
+    assert!(app.input.hit_log_detail(), "a repeat is not a second press");
     app.on_key(PhysicalKey::Code(KeyCode::KeyN), false, false);
     app.on_key(PhysicalKey::Code(KeyCode::KeyN), true, false);
-    assert!(!app.input.hit_log_collapsed());
+    assert!(!app.input.hit_log_detail());
 }
 
 /// H11: T marks the hull under the reticle and the mark follows that hull; when the hull leaves

@@ -77,7 +77,27 @@ impl DamageLogEntry {
         )
     }
 
-    /// The row's text, one line, right-aligned under the reticle.
+    /// The short row (U15, 2026-09-08): outcome, damage, the other hull — what happened and to
+    /// whom, read in the half-second the eye gives it. The full `line` waits behind N.
+    pub fn short_line(&self) -> String {
+        let arrow = match self.direction {
+            LogDirection::Dealt => "\u{bb}",
+            LogDirection::Taken => "\u{ab}",
+        };
+        let mut parts: Vec<String> = Vec::new();
+        parts.push(if self.damage_hp > 0 {
+            format!("{arrow} {} {}", self.word(), self.damage_hp.min(9_999))
+        } else {
+            format!("{arrow} {}", self.word())
+        });
+        if let Some(kind) = self.other_vehicle {
+            parts.push(kind.short_name().to_string());
+        }
+        parts.join(" \u{b7} ")
+    }
+
+    /// The row's text in DETAIL (N), one line, right-aligned under the reticle: the round, the
+    /// millimetres against the armour at its angle, the zone, the module, the crew, the range.
     pub fn line(&self) -> String {
         use crate::ui_strings::battle as words;
         let mut parts: Vec<String> = Vec::new();
@@ -287,6 +307,8 @@ impl DamageLog {
 }
 
 const LOG_W_U: f32 = 620.0;
+/// The short rows' width (U15): outcome · damage · hull fits in half the detail row.
+const LOG_SHORT_W_U: f32 = 300.0;
 const ROW_H_U: f32 = 22.0;
 const ROW_GAP_U: f32 = 3.0;
 /// Below the reticle's own readouts, where the eye already is.
@@ -301,17 +323,19 @@ pub(crate) fn push_hit_log(
     theme: &Theme,
     entries: &[DamageLogEntry],
     collapsed: bool,
+    detail: bool,
     z: &mut i16,
 ) {
     let mut push = |element: Element<HudElement>| {
         list.push(element.z(*z));
         *z += 1;
     };
-    let width = ui.px(LOG_W_U);
+    let width_u = if detail { LOG_W_U } else { LOG_SHORT_W_U };
+    let width = ui.px(width_u);
     // Hung from the centre (H21: the context's nudge moves it with the rest of the log).
     let first = ui.anchor(
         Anchor::Center,
-        [LOG_W_U, ROW_H_U],
+        [width_u, ROW_H_U],
         [0.0, LOG_TOP_BELOW_CENTER_U + ROW_H_U * 0.5],
     );
     let left = first.x;
@@ -362,7 +386,7 @@ pub(crate) fn push_hit_log(
             HudElement::HitLog(HitLogPart::Text(i)),
             Rect::new(row.x + ui.px(8.0), row.y + ui.px(3.0), row.w - ui.px(28.0), ui.px(TEXT_U)),
             Payload::Text {
-                text: entry.line(),
+                text: if detail { entry.line() } else { entry.short_line() },
                 style: Style::VALUE,
                 size_u: TEXT_U,
                 align: Align::Right,
@@ -405,10 +429,48 @@ mod tests {
     }
 
     fn build(entries: &[DamageLogEntry], collapsed: bool) -> DrawList<HudElement> {
+        build_form(entries, collapsed, true)
+    }
+
+    fn build_form(
+        entries: &[DamageLogEntry],
+        collapsed: bool,
+        detail: bool,
+    ) -> DrawList<HudElement> {
         let mut list = DrawList::new();
         let mut z = 0;
-        push_hit_log(&mut list, &Ui::reference(), &Theme::standard(), entries, collapsed, &mut z);
+        push_hit_log(
+            &mut list,
+            &Ui::reference(),
+            &Theme::standard(),
+            entries,
+            collapsed,
+            detail,
+            &mut z,
+        );
         list
+    }
+
+    /// U15 (2026-09-08): the rows are SHORT by default — outcome, damage, the other hull, half
+    /// the width — and N prints the detail the old rows always carried.
+    #[test]
+    fn rows_are_short_by_default_and_n_prints_the_detail() {
+        let mut log = DamageLog::default();
+        log.ingest(&[shot(1, 2, true, 240)], TankId(1), &[other(2, VehicleKind::TigerII)]);
+        let rows = log.visible();
+        let short = build_form(&rows, false, false);
+        let detail = build_form(&rows, false, true);
+        assert_eq!(text_of(&short, 0), "\u{bb} PEN 240 \u{b7} Tiger II");
+        assert!(text_of(&detail, 0).contains("148 > 162 MM @ 31\u{b0}"), "{}", text_of(&detail, 0));
+        let row = |list: &DrawList<HudElement>| {
+            list.find(HudElement::HitLog(HitLogPart::Row(0))).expect("row").rect.w
+        };
+        assert!(row(&short) < row(&detail) * 0.55, "the short row is half the detail row's width");
+        // Both forms stand on the same centre line under the reticle.
+        let centre = |list: &DrawList<HudElement>| {
+            list.find(HudElement::HitLog(HitLogPart::Row(0))).expect("row").rect.center()[0]
+        };
+        assert!((centre(&short) - centre(&detail)).abs() < 0.5);
     }
 
     fn text_of(list: &DrawList<HudElement>, index: u8) -> String {

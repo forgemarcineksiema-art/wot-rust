@@ -80,8 +80,8 @@ pub struct BattleHudModel {
     pub cruise_level: i8,
     /// Recent dealt/taken hits, newest first (`hud/damage_log.rs`, H8).
     pub damage_log: Vec<damage_log::DamageLogEntry>,
-    /// N (H8): the log shows its newest row only.
-    pub hit_log_collapsed: bool,
+    /// N (H8, U15): the log prints its rows in detail; short rows otherwise.
+    pub hit_log_detail: bool,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
@@ -153,7 +153,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             speed_kmh: 0.0,
             cruise_level: 0,
             damage_log: Vec::new(),
-            hit_log_collapsed: false,
+            hit_log_detail: false,
             incoming_hits: Vec::new(),
             ammo: None,
             damage: None,
@@ -200,7 +200,7 @@ pub(crate) fn test_model(
         speed_kmh,
         cruise_level: 0,
         damage_log: Vec::new(),
-        hit_log_collapsed: false,
+        hit_log_detail: false,
         incoming_hits: Vec::new(),
         ammo: None,
         damage: None,
@@ -429,7 +429,8 @@ pub(crate) fn build_battle_hud_list(
             &ui_of(layout::Instrument::HitLog),
             &theme,
             &model.damage_log,
-            layout.hit_log_folded(model.hit_log_collapsed),
+            layout.hit_log_folded(),
+            layout.hit_log_detail(model.hit_log_detail),
             &mut order,
         );
     }

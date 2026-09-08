@@ -225,11 +225,17 @@ impl HudLayout {
     }
 
     /// The hit log's fold the preset asks for; N still toggles it in the moment.
-    pub fn hit_log_folded(&self, folded_by_key: bool) -> bool {
+    pub fn hit_log_folded(&self) -> bool {
+        self.preset == Preset::Minimal
+    }
+
+    /// U15 (2026-09-08): the rows are short by default; N prints the detail in Standard, Full
+    /// always prints it, Minimal never does (one short row).
+    pub fn hit_log_detail(&self, detail_by_key: bool) -> bool {
         match self.preset {
-            Preset::Minimal => true,
-            Preset::Standard => folded_by_key,
-            Preset::Full => false,
+            Preset::Minimal => false,
+            Preset::Standard => detail_by_key,
+            Preset::Full => true,
         }
     }
 
@@ -430,9 +436,18 @@ mod tests {
         // The presets.
         let minimal = HudLayout { preset: Preset::Minimal, ..Default::default() };
         assert!(!minimal.shows(Instrument::KillFeed) && minimal.shows(Instrument::Minimap));
-        assert!(minimal.hit_log_folded(false));
+        assert!(minimal.hit_log_folded() && !minimal.hit_log_detail(true));
         let full = HudLayout { preset: Preset::Full, ..Default::default() };
-        assert!(!full.hit_log_folded(true), "FULL keeps the log open");
+        assert!(
+            !full.hit_log_folded() && full.hit_log_detail(false),
+            "FULL keeps the log open, in detail"
+        );
+        let standard = HudLayout { preset: Preset::Standard, ..Default::default() };
+        assert!(
+            !standard.hit_log_folded()
+                && !standard.hit_log_detail(false)
+                && standard.hit_log_detail(true)
+        );
         layout.reset();
         assert_eq!(layout, HudLayout::default());
     }

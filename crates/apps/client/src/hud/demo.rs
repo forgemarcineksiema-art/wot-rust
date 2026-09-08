@@ -66,7 +66,7 @@ pub(crate) fn demo_model(sniper: bool) -> BattleHudModel {
         speed_kmh: 24.0,
         cruise_level: 2,
         damage_log: demo_hit_log(),
-        hit_log_collapsed: false,
+        hit_log_detail: false,
         incoming_hits: vec![IncomingHit {
             bearing_rad: 2.1,
             age_s: 0.3,
