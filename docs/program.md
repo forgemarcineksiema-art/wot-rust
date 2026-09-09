@@ -121,6 +121,12 @@ row it adds (`GDD row N`), and the lane that carries it.
 
 ## 2. The queue
 
+**Priority update, 2026-09-09 (GDD row 36):** the owner reports FPS degrading through the
+battle until aiming becomes impossible. Q11 attribution and the proven fixes from Q12–Q14
+take priority over further visual expansion; Q15 owns full-battle acceptance. Q16 (120+ FPS
+on stronger PCs) follows the stable MX330 floor. This does not reopen completed instrumentation
+or change N9's separate second-OS dependency. Work and evidence: [sustained-performance plan](sustained-performance-plan.md).
+
 Throughput assumption unchanged from the second pass: the gate on one laptop is the ceiling
 (10–15 min per PR gate, 25–30 min the full one), not the writing of code. Estimates are
 continuous sessions. Blocks are ordered by what the player sees in the first minute and by
@@ -136,7 +142,7 @@ dependency; a block is done when every row in it is closed.
 | ~~5~~ | ~~**Balistyka**~~ DONE 2026-09-08 (#857–#861; raport `output/raport-blok5-2026-09-08.md`) | S14 → S15 → S16 → S17 → S18; S23 — all closed, no wire change; N9 (the owner's WSL) stays the other half of "before the first public match" | 2 days |
 | 6 | **Widoczność** | V1 (bushes hide) → V3 → V4; R1 as amended | 2 days |
 | 7 | **Teren** | T1 (2.5 m + LOD + geomorph, measured) → T2 → T4 → T5; C4 after T1 | 4–6 days |
-| 8 | **Determinizm i klatka** | ~~Q7~~ ~~Q2~~ ~~Q4~~ DONE 2026-09-08 (#867 Q2, #870 Q7, Q4 `fix/q4-audio-mailbox`; with them #866 N12, #868/#869 Q8, #871 Q9b — the frame's first cold numbers on the Q9 row); N9 (after the owner's WSL) | N9 only |
+| 8 | **Determinizm i klatka** | ~~Q7~~ ~~Q2~~ ~~Q4~~ DONE 2026-09-08 (#867 Q2, #870 Q7, Q4 `fix/q4-audio-mailbox`; with them #866 N12, #868/#869 Q8, #871 Q9b). **OPEN: Q11–Q15 sustained 60 FPS (priority update above); Q16 stronger-PC scaling.** N9 remains separate, after the owner's second OS | Estimate after Q11 attribution |
 | 9 | **Kamera** | C1 → C2 → C3 (after G7b) → C4 | 2 days |
 | 10 | **Mapy jako topologia** | W1 → W2 → W3 → W4 | 3 days |
 | 11 | **Forge 2.0 (W3 of the second pass)** | K0 block → K3 → K9, K11–K23 → K4/K5 → K6's second half → P1–P3 | 10–15 days |
@@ -338,8 +344,9 @@ N12 (CLOSED 2026-09-08, `fix/n-input-backlog-catch-up`): the host applied ONE in
 
 ### Q8c / Q10 — memory and the remaining sight march (2026-09-08)
 
-These are follow-ups from block 8, not additional blockers inside it; block 8 still has
-only N9 (the owner's second OS). Scope and evidence: [memory and Q8c](perf-memory-q8c.md).
+These were follow-ups from block 8 on 2026-09-08. Their implementation does not close
+the sustained-performance defect added on 2026-09-09 below; N9 still needs the owner's
+second OS. Scope and evidence: [memory and Q8c](perf-memory-q8c.md).
 
 | Row | Work | Closure evidence |
 | --- | --- | --- |
@@ -349,6 +356,27 @@ only N9 (the owner's second OS). Scope and evidence: [memory and Q8c](perf-memor
 Q9's near running gear remains its own follow-up. Neither this change nor Q8c changes the
 appearance policy or installs WSL.
 
+### Q11–Q16 — sustained performance and one look (2026-09-09)
+
+**All rows OPEN.** GDD row 36 and [one-look policy](one-look-policy.md) set the contract.
+The [execution and acceptance plan](sustained-performance-plan.md) carries historical
+evidence, hypotheses, the experiment matrix and numerical targets. It does not certify
+60 FPS today or replace this queue. Q14 continues Q9; Q13 builds on Q8c and Q10 without
+claiming their unmeasured FPS gains. The owner's aiming complaint is not assigned to a
+single cause before Q11 isolates it.
+
+| Row | Scope | Evidence required to close |
+| --- | --- | --- |
+| Q11 | Reproduce late-battle/aiming degradation; separate heat, world age, view, CPU/GPU and waits; fill gaps in counters and repeatable camera/input scenarios | Identified release binary, raw data, controlled warm fresh/late-state comparison, attributed stalls and explicit remaining uncertainty |
+| Q12 | Persistent GPU statics by fragment; bounded integration/upload after destruction | Before/after hit and salvo capture, upload bytes proportional to changed work, p99/max improvement, correct visible destruction and regression locks |
+| Q13 | Measured growth in sight/reticle, terrain queries, destruction and FX; bounded local work without changing physics | Late-state cost and aiming response within the plan's targets; exact query/replay parity, resource/candidate counts and appearance checks |
+| Q14 | Reduce sustained scene cost and thermal pressure, including near gear (Q9); evaluate further representations only with one-look evidence | Cold A/B and warmed full-load comparison, pass timings, clocks, appearance in motion/scope, no quality/fairness regression |
+| Q15 | Full-battle 60 FPS on the named MX330 configuration | Plan's complete map/mode/duration matrix and repeatability, explicit viewport, input response, p99/hitches, late-state and consecutive-battle checks; no missing cell presented as PASS |
+| Q16 | Higher FPS on stronger PCs with the same picture; review current 120 Hz cap | Named CPU/GPU/display/resolution, 120+ pacing and input evidence, unchanged simulation results, common-look comparison |
+
+Q11 is first; it may reorder Q12–Q14 with measured justification. No timing promise is
+closed by docs or unit tests alone. Use the [capture template](performance-capture-template.md).
+
 ## 5. Verification
 
 The merge gate is `scripts/verify.ps1` (see `CLAUDE.md`); `scripts/preflight.ps1` first. In addition, for this program:
@@ -356,6 +384,10 @@ The merge gate is `scripts/verify.ps1` (see `CLAUDE.md`); `scripts/preflight.ps1
 - Any renderer or profile change (D34–D45, N-, T-, F-rows) lands with an MX330 A→B→A cold
   sandwich; the budget moves per item, never fleet-wide. The picture rows land with a frame
   sent to the owner, and the frame is taken from the player's eye, once INTO the sun.
+- Q11–Q16 also require the warmed full-battle evidence in the linked plan. Cold A/B isolates
+  code cost; warm acceptance measures the player's sustained experience. Neither substitutes
+  for the other; historical claims that a warm measurement is never useful apply only to
+  uncontrolled A/B attribution. Missing target-hardware evidence leaves the relevant row open.
 - Any sim number that moves (J1–J6, X-, S-, Z-rows) re-pins the replay fixtures in the same
   PR and says why; `mobility_baseline.rs` is re-recorded as a set, never a column at a time.
 - Any wire change (a `StaticCoverKind` tier, a phase byte per segment, a fall-direction byte,

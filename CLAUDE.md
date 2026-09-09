@@ -30,6 +30,10 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, nations / lines / tiers). Work
   ~180 CPU-s of linking per heavy crate per gate; `quality` locks it).
 - **One look policy**: min spec MX330 @ 60 FPS, no quality options. Frame drops are a game
   bug. Budgets are raised per-item with a measurement, never fleet-wide.
+  The owner's 2026-09-09 clarification is `docs/one-look-policy.md`: sustained 60 FPS on
+  the warmed laptop, higher FPS on stronger PCs with the same intended picture and combat
+  readability. This is an OPEN target, not a current result. `docs/sustained-performance-plan.md`
+  adds full-battle acceptance to cold A/B; Q11–Q16 in `docs/program.md` own the work.
 - **Honesty doctrine**: what blocks the shell blocks the eye; collision boxes ARE the visual
   footprint; a leaf's shadow is its alpha mask; scenery NEVER blocks gameplay.
 - **Append-only enums** everywhere (wire/asset identity): `MapId`, `StaticCoverKind`,

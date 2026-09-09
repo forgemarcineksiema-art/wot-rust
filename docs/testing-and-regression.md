@@ -8,6 +8,16 @@
 - Replay regression tests lock simulation outcomes from recorded inputs.
 - Benchmarks track hot paths before optimization work starts.
 
+## Sustained Performance
+
+The [performance plan](sustained-performance-plan.md) defines the Q11–Q16 matrix for cold
+attribution, warmed full battles, late-state aiming and stronger-PC scaling under
+[one look](one-look-policy.md). Use the [capture template](performance-capture-template.md).
+Preserve raw long frames and distinguish loading from active combat; a hitch over one second
+in battle cannot be discarded as a bake to obtain PASS. State actual viewport, binary identity,
+thermals, GPU sampling and all unmeasured criteria. Deterministic correctness/resource tests
+complement this evidence; they do not replace target-hardware timing or end-to-end input tests.
+
 ## Protocol Snapshots
 
 Protocol snapshot fixtures live in `crates/runtime/net/tests/snapshots`. They cover input

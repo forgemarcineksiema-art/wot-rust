@@ -1,5 +1,12 @@
 # Inny Poziom — The Second Pass
 
+> **2026-09-09:** the owner's report of degrading late-battle FPS and failed aiming is OPEN
+> in `program.md` Q11–Q16. [One look](one-look-policy.md) and the
+> [sustained-performance plan](sustained-performance-plan.md) clarify the contract: stable
+> 60 FPS on a warmed MX330, higher FPS on stronger PCs with the same intended picture.
+> Historical cold-only guidance below governs A/B attribution; warmed full-battle acceptance
+> is now required as well. Closed instrumentation rows do not certify that acceptance.
+
 > **2026-09-07: the queue and every open row moved to `docs/program.md` (the one document).** This file keeps the diagnosis, the decisions of the second pass and the full text of its rows; ids quoted in `docs/program.md` resolve here.
 
 Approved 2026-09-01. The owner named ten things that read as unfinished — the geometry kernels and

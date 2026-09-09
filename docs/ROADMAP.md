@@ -19,6 +19,14 @@ test-locked, not marketing.
 
 ## Systems inventory
 
+**Open release blocker, 2026-09-09:** the owner reports worsening FPS during a battle,
+eventually preventing aiming. Instrumentation exists; sustained performance is **not**
+accepted. [One look](one-look-policy.md) means a common intended picture and fair visibility,
+with stable 60 FPS on the warmed MX330 and higher FPS on stronger PCs where supported.
+The [performance plan](sustained-performance-plan.md) defines evidence and acceptance;
+`program.md` Q11–Q16 own the priority and remaining work. Resolution at the minimum spec
+must be named and validated, not inferred from a 1080p monitor or a short cold probe.
+
 **DONE and test-locked** — meaning: the MECHANICS work and their promises sit in regression
 tests. It does not mean final art polish; where finish varies, the partial list says so.
 - **Combat**: 3D armor volumes from blueprints, ricochet/normalization, spaced armor & HEAT
@@ -86,8 +94,8 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   but there is still no seeded rotation.
 - Human playtesting: the maps have never met a second human.
 
-**MISSING toward release** (the honest gap list; dates and thresholds are no longer written
-down anywhere — the document that held them was retired):
+**MISSING toward release** (the honest gap list; general release dates remain unset;
+sustained-performance targets now live in [the performance plan](sustained-performance-plan.md)):
 1. **Production networking hardening**: the dedicated UDP path, lossy lifecycle, epoch-safe
    reconnect and client prediction work today. Still missing are public-session
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture

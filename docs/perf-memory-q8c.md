@@ -1,5 +1,11 @@
 # Pamięć i Q8c — 2026-09-08
 
+Aktualizacja kierunku, 2026-09-09: ten dokument pozostaje raportem zakresu Q8c/Q10.
+Zgłoszone przez właściciela narastające spadki FPS i utrata możliwości celowania są otwarte
+w `program.md` Q11–Q16. Obowiązują [one look](one-look-policy.md) i
+[plan stabilnej płynności](sustained-performance-plan.md), z pomiarem pełnej rozgrzanej
+bitwy obok zimnego A/B. Poniższe oszczędności pamięci nie oznaczają zaliczenia 60 FPS.
+
 ## Pamięć: atrybucja przed cięciem
 
 Punkt wyjścia właściciela: Bystra, jazda, working set 1,08 GB,

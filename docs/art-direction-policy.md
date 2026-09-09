@@ -28,6 +28,13 @@ accident. The lock set:
 
 ## The seven rules
 
+Cross-PC delivery is governed by [one-look policy](one-look-policy.md) (owner, 2026-09-09;
+GDD row 36): these authored looks and their combat readability are shared by every supported
+PC. Stronger hardware buys more FPS, not a different visibility contract. Optimizations and
+any future world-resolution scaling must pass motion, scope and distant-target review as
+well as [sustained-performance acceptance](sustained-performance-plan.md). This adds delivery
+requirements; it does not declare the existing art targets or 60 FPS complete.
+
 ### 1. Value structure first
 
 The image reads in three separated value planes: a dark shade mass, a mid field, a bright

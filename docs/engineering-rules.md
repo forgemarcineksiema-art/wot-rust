@@ -20,6 +20,22 @@ These are hard rules for this prototype. If a rule hurts, change the design befo
 
 ## Required Gates
 
+### Sustained performance and one look
+
+[One-look policy](one-look-policy.md) (owner, 2026-09-09; GDD row 36) requires the same
+intended picture and combat readability across supported PCs, with sustained 60 FPS on
+the warmed MX330 floor and higher FPS on stronger hardware. These are open targets.
+[The performance plan](sustained-performance-plan.md) defines acceptance, including actual
+viewport, full battles, late-state aiming, frame-time tails, thermal conditions and input
+response. Preserve the fixed simulation step; increasing presentation rate must not change
+gameplay results. Budgets move per measured item, never by disabling gameplay-relevant world
+content. Cold A/B attribution and warmed acceptance are complementary requirements.
+
+Performance claims use [the capture template](performance-capture-template.md); instrumentation
+and deterministic tests do not certify frame rate. Missing hardware evidence stays explicit.
+
+### Code gates
+
 There are two gates and one truth: the full gate is what the day owes, the PR gate is what a
 PR owes. Both are scripts, the second runs a subset of the first, and neither is a CI job
 (CI billing is blocked; `.github/workflows/ci.yml` stays dormant on purpose).

@@ -68,5 +68,9 @@ zooms, **Shift** holds the sniper scope. `--example probe -- screenshot` renders
 
 - `CLAUDE.md` — the working contract for any contributor or AI tool.
 - `docs/engineering-rules.md`, `docs/testing-and-regression.md` — hard project rules.
+- [One-look policy](docs/one-look-policy.md) — one intended picture and fair visibility on
+  supported PCs; sustained 60 FPS on the MX330 is an open target. The
+  [performance plan](docs/sustained-performance-plan.md) and
+  [capture template](docs/performance-capture-template.md) define the work and evidence.
 - `docs/ROADMAP.md` — the live program status; `docs/maps/*.md` — per-map dossiers.
 - `docs/map-forge-policy.md`, `docs/shadow-policy.md` — the standing doctrines.
