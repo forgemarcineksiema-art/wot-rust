@@ -28,7 +28,7 @@ pub enum HudState {
     KillConfirmed,
     /// The battle's outcome banner.
     OutcomeBanner,
-    /// The escape menu over the battle (P8: a shell page — five entries).
+    /// The escape menu over the battle (P8: a shell page — six entries since QUIT joined it).
     PauseMenu,
     /// The HUD editor open (H21) once it exists; today the frame where it would be.
     HudEditorOpen,

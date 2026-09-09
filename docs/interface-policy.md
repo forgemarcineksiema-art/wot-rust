@@ -45,6 +45,7 @@ Taken 2026-09-05 with the owner, unless dated otherwise, for the program that bu
 | **Death** | The intel half of the HUD (top bar, team lists, minimap, feed) stays at 0.7 alpha with a spectate strip; the allies' panels come from the wire and never their aim; vitals, reticle and ammunition go. The destroyed hull is LOCKED in the garage until `BattleEnded` and says so |
 | **Measured, not described** | Every HUD state is a byte-exact golden (`crates/apps/client/tests/goldens/hud/`, eleven states in two size classes); no battle text under 16 px at 1080p and no acted-on number under 24 px; ink over glass at 3:1 or better, measured on the golden; a zero-modal lock; the HUD pass budget; one 1080p frame signed by the owner |
 | **The look pass** (2026-09-06, evening) | The frames of the finished program were reviewed and read flat: every plate one olive fill, the brushed and the painted steel one plate, no rim, the legend a dim noise, the tree's nation words sunk into the panel, the inspector's marker lost under the plate. So: the sheet's amplitudes raised (brushed lines 0.14 → 0.22, paint blotch 0.10 → 0.14), the bevel three units at 0.55, the glass band 0.26, the brushed steel cooler and the painted more olive at the same luminance (the contrast locks unmoved), the legend and the chips at 18 u in the label's ink, a nation swatch at each tree line's head, a ringed 22 cm marker. Every HUD and garage golden re-recorded once for it |
+| **QUIT is on every menu** (2026-09-09, the owner) | The player could not leave the game. QUIT sat only on the cold garage's menu, and `menu_kind_here` raises that one only while `!garage.has_started()` — but `started` is set by the BATTLE button and never returns to false, so from the first battle of a session the battle's menu was the only menu reachable, and it had no QUIT. Esc in the garage over a live battle must hand the gun back to the mouse (a locked feel promise), so no repair to that state machine could have helped: the battle menu is the ONLY menu a live battle can raise, and it is where QUIT had to go. It sits between EXIT TO GARAGE and STAY, the two commits adjacent and escalating — leave the battle, then leave the game — with the dismiss last. **The owner chose the adjacency on 2026-09-09**, told that the two rows are 4 u apart in the same red with no confirmation, while EXIT TO GARAGE is fully reversible and QUIT kills the process and abandons the battle unrecorded (the history is written on the outcome's edge, not on exit). A confirmation is not available to weigh against it: H24 forbids a modal in battle beyond the menu itself, so a confirmation would have to be a shell PAGE. The alternatives declined were QUIT below STAY, and stripping QUIT of the commit red. `is_way_out` now means QUIT alone: it used to mean „any commit", which is why `escape_always_offers_a_way_out` was green for the whole life of the defect. Two goldens re-recorded (`hud_pause_menu`, `hud_pause_menu_large`): a sixth row, the plate one row taller. Still open, its own row: after the outcome the menu over a dead battle still offers STAY IN BATTLE, and Esc in that garage bounces back through the outcome hand-off |
 | **Ownership of files** | During the H wave `crates/apps/client/src/hud/**` belongs to this program; a lane that needs a HUD element goes through the draw list, and the ratchet refuses a new call to the old primitives outside the reticle files. Files owned by other lanes on 2026-09-05 — `app/lifecycle.rs`, `app/input*.rs`, `app/loop_step.rs`, `renderer_*` (the window lane's audit of 2026-09-05), `crates/vehicle/**` (Forge 2.0) — are consumed, not edited: F4 reads the DPI scale the window lane hands it, P7 lands after that lane's queue |
 
 ---
@@ -83,7 +84,7 @@ the focus ring. It is the only glow in the interface, and it is warmer than the 
 | module ok / damaged / destroyed | green enamel / amber / red | the three states of the damage panel and the ears |
 | verdict pen / held / ricochet / shatter | green / red / white / grey | pen ▲, held ▬ — shape again |
 | hp ramp | green → amber → red | the same ramp on every bar |
-| commit | one red | worn by BATTLE and EXIT alone (U10) |
+| commit | one red | worn by BATTLE, EXIT TO GARAGE and QUIT alone (U10) |
 
 Three colour-blind palettes (deuteranopia, protanopia, tritanopia) are the same block with other
 values; the lock simulates each with the Machado 2009 matrices and refuses a palette in which any
@@ -210,9 +211,18 @@ without a golden.
   fullscreen (the F11 toggle the window lane shipped in PR #710, persisted).
 - **Keybinds** (P7): an `Action` table with contexts (battle, garage, global) replaces the
   hard-coded matches; a rebinding screen with conflict detection; `keybinds.json`.
-- **Escape** (P8): always a way out — the battle menu grows STAY · SETTINGS · KEYBINDS · HUD
-  EDITOR · EXIT TO GARAGE; a cold garage offers SETTINGS · KEYBINDS · QUIT; every screen's Escape
-  closes one layer, and QUIT or the battle is at most three presses away.
+- **Escape** (P8): always a way out — the battle menu grows SETTINGS · KEYBINDS · HUD EDITOR ·
+  EXIT TO GARAGE · QUIT · STAY; a cold garage offers SETTINGS · KEYBINDS · BATTLES · QUIT; every
+  screen's Escape closes one layer, and **QUIT itself** is at most three presses away from
+  anywhere.
+  QUIT joined the battle menu on 2026-09-09. It had lived only on the cold garage's menu, which
+  `menu_kind_here` raises only while `!garage.has_started()` — and `started`, set by the BATTLE
+  button, never returns to false. So from the first battle of a session the battle menu was the
+  only menu reachable, Escape in the garage closed back into the battle instead of raising one,
+  and the window's X was the sole way out of the process. The old wording here said „QUIT **or**
+  the battle is at most three presses away", which the EXIT TO GARAGE entry satisfied on its own
+  — so the policy read green while the game had no exit. The promise now names QUIT, because
+  that is what a player who wants to stop playing is looking for.
 
 ## 4. The garage
 

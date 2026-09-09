@@ -1123,6 +1123,26 @@ impl ClientApp {
 
 /// Run the desktop client with winit, the local server, and the real wgpu renderer.
 impl ClientApp {
+    /// Is there a battle to go BACK to? `garage.has_started()` alone answers "a battle session
+    /// exists behind this garage", which stays true for the whole process once BATTLE is
+    /// pressed — it never returns to false, and six readers want it that way (the fixed-tick
+    /// gate, the dusty-hero return, the G key, the wheel, the mouse look, the outcome hand-off).
+    ///
+    /// The question the ESCAPE routers actually ask is narrower: is the player standing over a
+    /// battle that is still running? Asking the wide question left the post-battle garage
+    /// raising the BATTLE's menu — offering STAY IN BATTLE for a battle that had ended — and
+    /// bouncing Escape straight back through the outcome hand-off.
+    ///
+    /// It reads the client's OWN outcome word rather than the session's, on purpose: that word
+    /// also carries a remote session that died terminally (`refresh_battle_outcome_word`), and
+    /// a battle whose connection is gone is no more returnable than one that ended. It is also
+    /// the exact word `tick_outcome_hand_off` and `hand_off_outcome` gate on — the two that
+    /// caused the bounce — so the routers and the hand-off can no longer disagree about
+    /// whether a battle is still there.
+    pub(in crate::app) fn in_live_battle(&self) -> bool {
+        self.garage.has_started() && self.battle_outcome.is_none()
+    }
+
     /// The frame log's report, written where `WOT_FRAME_LOG` said — once, at exit.
     /// The loop woke up: whatever passed since it went to sleep was waiting, not work.
     pub(crate) fn note_loop_woke(&mut self) {
