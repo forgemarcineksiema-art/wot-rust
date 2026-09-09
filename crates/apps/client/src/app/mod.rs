@@ -1082,9 +1082,11 @@ impl ClientApp {
             hud_frames: Vec::new(),
             hud_sheet_dirty: true,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
-            frame_log: std::env::var("WOT_FRAME_LOG")
-                .ok()
-                .map(|_| crate::frame_log::FrameLog::new()),
+            frame_log: std::env::var("WOT_FRAME_LOG").ok().map(|_| {
+                let mut log = crate::frame_log::FrameLog::new();
+                log.set_gpu_enabled(std::env::var("WOT_FRAME_GPU").map_or(true, |v| v != "0"));
+                log
+            }),
             frame_log_path: std::env::var("WOT_FRAME_LOG").ok(),
             autodrive: std::env::var("WOT_AUTODRIVE").is_ok_and(|v| v == "1"),
             autobattle_pending: std::env::var("WOT_AUTOBATTLE").is_ok_and(|v| v == "1"),
@@ -1136,8 +1138,7 @@ impl ClientApp {
             return;
         };
         log.set_viewport(viewport.0, viewport.1);
-        let report = log.report();
-        match std::fs::write(&path, &report) {
+        match log.write_capture(std::path::Path::new(&path)) {
             Ok(()) => tracing::info!(path, "frame log written"),
             Err(error) => tracing::error!(path, %error, "frame log not written"),
         }

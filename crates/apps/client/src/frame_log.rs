@@ -8,18 +8,20 @@
 //! the run script's (`scripts/perf/cold-run.ps1` samples the working set and the GPU's used
 //! memory beside the run — the workspace forbids the unsafe an in-process allocator needs).
 //!
-//! Armed by `WOT_FRAME_LOG=<path>`; the report is written there when the app exits. It costs a
-//! few atomic loads and one `Instant::now()` per phase; unarmed it is a `None`.
+//! Armed by `WOT_FRAME_LOG=<path>`; bounded preallocated CPU samples are exported at exit.
+//! No per-hitch log writes occur on the frame thread. `WOT_FRAME_GPU=0` disables the optional
+//! blocking GPU readback; when enabled its CPU cost is a separate phase. Unarmed is a `None`.
 
 use std::fmt::Write as _;
 use std::time::Instant;
 
+mod capture;
+
 /// A frame longer than this is a hitch the player feels (a frame and a half at 60 Hz).
 pub const HITCH_MS: f32 = 25.0;
-/// A frame longer than this is left out of the means (a bake, a stall), never a hitch.
-pub const STEADY_MAX_MS: f32 = 1_000.0;
-/// How many frames the ring keeps: a minute at 60 FPS.
-pub const RING_FRAMES: usize = 3_600;
+/// Bounded diagnostic capture: over 30 minutes at 60 FPS or one 15-minute battle at 120.
+/// Overflow is explicitly reported; no old frame is silently replaced by a newer one.
+pub const CAPTURE_FRAMES: usize = 120_000;
 /// The GPU pass table is read back (a blocking device read) once per this many frames.
 pub const GPU_SAMPLE_EVERY: u32 = 60;
 
@@ -43,10 +45,12 @@ pub enum Phase {
     /// The loop asleep between events: `WaitUntil` (the pacer's beat, the next tick) and the
     /// OS event queue. Not work — but a frame that is late AND waits is the pacer's bug.
     Wait,
+    /// Blocking diagnostic GPU readback, separate from the game's render work.
+    GpuReadback,
 }
 
 impl Phase {
-    pub const ALL: [Phase; 8] = [
+    pub const ALL: [Phase; 9] = [
         Phase::FixedTicks,
         Phase::Bookkeeping,
         Phase::Camera,
@@ -55,6 +59,7 @@ impl Phase {
         Phase::Upload,
         Phase::Render,
         Phase::Wait,
+        Phase::GpuReadback,
     ];
 
     pub fn name(self) -> &'static str {
@@ -67,6 +72,7 @@ impl Phase {
             Phase::Upload => "upload",
             Phase::Render => "render",
             Phase::Wait => "wait",
+            Phase::GpuReadback => "gpu_readback",
         }
     }
 }
@@ -102,18 +108,29 @@ impl TickPart {
     }
 }
 
-/// One presented frame.
+/// One completed render attempt; this CPU clock does not measure physical display scanout.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FrameSample {
     /// Seconds since the log started.
     pub at_s: f32,
-    /// The whole frame interval (presented-to-presented).
+    /// The whole interval between completed render attempts, including diagnostic readback.
     pub total_ms: f32,
-    pub phases_ms: [f32; 8],
+    pub phases_ms: [f32; 9],
     /// The fixed ticks' parts, in [`TickPart::ALL`] order (summed over the frame's ticks).
     pub tick_parts_ms: [f32; 4],
     /// The fixed ticks this frame ran (0 on a frame between ticks, 2+ when catching up).
     pub fixed_ticks: u32,
+    pub workload: FrameWorkload,
+}
+
+/// Counts of current work, not estimates of memory or proof of the cause of a hitch.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct FrameWorkload {
+    pub craters: usize,
+    pub particles: usize,
+    pub vehicle_instances: usize,
+    pub scenery_instances: usize,
+    pub fx_vertices: usize,
 }
 
 impl FrameSample {
@@ -147,35 +164,43 @@ pub struct GpuSample {
 #[derive(Debug)]
 pub struct FrameLog {
     started: Instant,
+    completed: Instant,
     frames: std::collections::VecDeque<FrameSample>,
-    /// Every hitch since the log started, oldest first (capped at 1 000 so a long stall does
-    /// not grow the log without bound).
+    /// Every hitch in the retained capture; bounded by CAPTURE_FRAMES.
     hitches: Vec<FrameSample>,
     total_frames: u64,
     gpu: Vec<GpuSample>,
     /// The frame in flight: phase accumulators.
-    phases_ms: [f32; 8],
+    phases_ms: [f32; 9],
     tick_parts_ms: [f32; 4],
     fixed_ticks: u32,
     phase_started: Option<(Phase, Instant)>,
     context: String,
     viewport: (u32, u32),
+    workload: FrameWorkload,
+    gpu_attempts: u64,
+    gpu_enabled: bool,
 }
 
 impl FrameLog {
     pub fn new() -> Self {
+        let started = Instant::now();
         Self {
-            started: Instant::now(),
-            frames: std::collections::VecDeque::with_capacity(RING_FRAMES),
-            hitches: Vec::new(),
+            started,
+            completed: started,
+            frames: std::collections::VecDeque::with_capacity(CAPTURE_FRAMES),
+            hitches: Vec::with_capacity(CAPTURE_FRAMES),
             total_frames: 0,
             gpu: Vec::new(),
-            phases_ms: [0.0; 8],
+            phases_ms: [0.0; 9],
             tick_parts_ms: [0.0; 4],
             fixed_ticks: 0,
             phase_started: None,
             context: String::new(),
             viewport: (0, 0),
+            workload: FrameWorkload::default(),
+            gpu_attempts: 0,
+            gpu_enabled: true,
         }
     }
 
@@ -185,10 +210,33 @@ impl FrameLog {
         self.viewport = (width, height);
     }
 
-    /// The frames the means are taken over: a frame over [`STEADY_MAX_MS`] is a bake or a
-    /// stall, not a frame, and one of them would own every mean in a 90 s run.
+    /// All retained frames, including stalls. Classification is an analysis decision.
     fn steady_frames(&self) -> impl Iterator<Item = &FrameSample> {
-        self.frames.iter().filter(|frame| frame.total_ms <= STEADY_MAX_MS)
+        self.frames.iter()
+    }
+
+    pub fn set_workload(&mut self, workload: FrameWorkload) {
+        self.workload = workload;
+    }
+
+    pub fn set_gpu_enabled(&mut self, enabled: bool) {
+        self.gpu_enabled = enabled;
+    }
+
+    pub fn gpu_enabled(&self) -> bool {
+        self.gpu_enabled
+    }
+
+    /// Complete the same interval whose CPU phases have just been accumulated.
+    pub fn complete_frame(&mut self) -> FrameSample {
+        self.end_phase();
+        self.complete_frame_at(Instant::now())
+    }
+
+    fn complete_frame_at(&mut self, now: Instant) -> FrameSample {
+        let ms = now.saturating_duration_since(self.completed).as_secs_f32() * 1000.0;
+        self.completed = now;
+        self.end_frame(ms)
     }
 
     pub fn set_context(&mut self, context: impl Into<String>) {
@@ -236,29 +284,38 @@ impl FrameLog {
             phases_ms: self.phases_ms,
             tick_parts_ms: self.tick_parts_ms,
             fixed_ticks: self.fixed_ticks,
+            workload: self.workload,
         };
-        self.phases_ms = [0.0; 8];
+        self.phases_ms = [0.0; 9];
         self.tick_parts_ms = [0.0; 4];
         self.fixed_ticks = 0;
-        if self.frames.len() >= RING_FRAMES {
-            self.frames.pop_front();
-        }
-        self.frames.push_back(sample);
         self.total_frames += 1;
-        if total_ms > HITCH_MS && self.hitches.len() < 1_000 {
-            self.hitches.push(sample);
+        if self.frames.len() < CAPTURE_FRAMES {
+            self.frames.push_back(sample);
+            if total_ms > HITCH_MS {
+                self.hitches.push(sample);
+            }
         }
         sample
     }
 
     /// Whether this frame is one the GPU pass table is read on.
     pub fn gpu_sample_due(&self) -> bool {
-        self.total_frames > 0 && self.total_frames.is_multiple_of(u64::from(GPU_SAMPLE_EVERY))
+        self.gpu_enabled
+            && self.frames.len() < CAPTURE_FRAMES
+            && (self.total_frames + 1).is_multiple_of(u64::from(GPU_SAMPLE_EVERY))
     }
 
     pub fn record_gpu(&mut self, frame_ms: f32, passes: Vec<(String, f32)>) {
         let at_s = self.elapsed_s();
         self.gpu.push(GpuSample { at_s, frame_ms, passes });
+    }
+
+    pub fn record_gpu_attempt(&mut self, result: Option<(f32, Vec<(String, f32)>)>) {
+        self.gpu_attempts += 1;
+        if let Some((ms, passes)) = result {
+            self.record_gpu(ms, passes);
+        }
     }
 
     pub fn frames(&self) -> impl Iterator<Item = &FrameSample> {
@@ -273,7 +330,7 @@ impl FrameLog {
         self.total_frames
     }
 
-    /// Percentile of the frame intervals in the ring (0.0..=1.0), or 0 with no frames.
+    /// Percentile of retained frame intervals (0.0..=1.0), or 0 with no frames.
     pub fn percentile_ms(&self, p: f32) -> f32 {
         if self.frames.is_empty() {
             return 0.0;
@@ -284,9 +341,9 @@ impl FrameLog {
         totals[index]
     }
 
-    /// Mean of each phase over the ring, in [`Phase::ALL`] order.
-    pub fn mean_phases_ms(&self) -> [f32; 8] {
-        let mut sums = [0.0f32; 8];
+    /// Mean of each phase over the full retained capture, in [`Phase::ALL`] order.
+    pub fn mean_phases_ms(&self) -> [f32; 9] {
+        let mut sums = [0.0f32; 9];
         let mut n = 0usize;
         for frame in self.steady_frames() {
             n += 1;
@@ -308,9 +365,9 @@ impl FrameLog {
         );
         let _ = writeln!(
             out,
-            "frames {} ({:.1} s), ring {} frames: p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
+            "frames {} ({:.1} s), retained {} frames: p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
             self.total_frames,
-            self.elapsed_s(),
+            self.frames.back().map_or(0.0, |frame| frame.at_s),
             self.frames.len(),
             self.percentile_ms(0.50),
             self.percentile_ms(0.95),
@@ -326,11 +383,15 @@ impl FrameLog {
             self.hitches.len()
         );
         let means = self.mean_phases_ms();
-        let stalls = self.frames.len() - self.steady_frames().count();
         let _ = writeln!(
             out,
-            "mean CPU phases (ms) over the steady frames ({stalls} frames over {STEADY_MAX_MS:.0} ms left out — a bake or a stall is not a frame):"
+            "capture dropped frames: {}; GPU enabled: {}, readback attempts: {}, returned samples: {}; first interval includes startup/transition; completion-to-completion is not display scanout",
+            self.total_frames - self.frames.len() as u64,
+            self.gpu_enabled,
+            self.gpu_attempts,
+            self.gpu.len()
         );
+        let _ = writeln!(out, "mean CPU phases (ms) over ALL retained frames, including stalls:");
         for (phase, mean) in Phase::ALL.iter().zip(means) {
             let _ = writeln!(out, "  {:<15} {:>7.3}", phase.name(), mean);
         }
@@ -380,7 +441,7 @@ impl FrameLog {
         }
         // Which phase owns the hitches: count the worst phase over every hitch.
         if !self.hitches.is_empty() {
-            let mut owners = [0usize; 8];
+            let mut owners = [0usize; 9];
             for frame in &self.hitches {
                 owners[frame.worst_phase().0 as usize] += 1;
             }
@@ -417,6 +478,7 @@ impl FrameLog {
                 }
             }
         }
+        self.append_windows(&mut out);
         out
     }
 }
@@ -453,19 +515,21 @@ mod tests {
     }
 
     #[test]
-    fn phases_never_nest_and_the_ring_is_bounded() {
+    fn phases_never_nest_and_overflow_is_explicit_without_overwriting_the_start() {
         let mut log = FrameLog::new();
         log.begin(Phase::Camera);
         log.begin(Phase::Hud); // closes Camera
         log.end_phase();
         let sample = log.end_frame(10.0);
         assert!(sample.phase_ms(Phase::Camera) >= 0.0 && sample.phase_ms(Phase::Hud) >= 0.0);
-        for _ in 0..(RING_FRAMES + 50) {
+        for _ in 0..(CAPTURE_FRAMES + 50) {
             log.end_frame(16.0);
         }
-        assert_eq!(log.frames().count(), RING_FRAMES);
-        assert_eq!(log.total_frames(), RING_FRAMES as u64 + 51);
-        assert!(log.gpu_sample_due() || !log.gpu_sample_due());
+        assert_eq!(log.frames().count(), CAPTURE_FRAMES);
+        assert_eq!(log.total_frames(), CAPTURE_FRAMES as u64 + 51);
+        assert_eq!(log.frames().next().unwrap().total_ms, 10.0);
+        assert!(log.report().contains("capture dropped frames: 51"));
+        assert!(!log.gpu_sample_due());
     }
 
     #[test]
@@ -498,7 +562,7 @@ mod tests {
     }
 
     #[test]
-    fn a_stall_over_a_second_is_left_out_of_the_means_but_kept_in_the_percentiles() {
+    fn a_stall_over_a_second_remains_in_means_and_percentiles() {
         let mut log = FrameLog::new();
         log.begin(Phase::Hud);
         log.add_ms(Phase::Hud, 8_000.0);
@@ -508,10 +572,10 @@ mod tests {
             log.end_frame(12.0);
         }
         let means = log.mean_phases_ms();
-        assert!((means[Phase::Render as usize] - 10.0).abs() < 1e-3, "{means:?}");
-        assert!(means[Phase::Hud as usize] < 1e-3, "{means:?}");
+        assert!((means[Phase::Render as usize] - 9.0).abs() < 1e-3, "{means:?}");
+        assert!(means[Phase::Hud as usize] >= 800.0, "{means:?}");
         let report = log.report();
-        assert!(report.contains("1 frames over 1000 ms left out"), "{report}");
+        assert!(report.contains("ALL retained frames, including stalls"), "{report}");
         assert!(report.contains("max 9000.00 ms"), "{report}");
     }
 

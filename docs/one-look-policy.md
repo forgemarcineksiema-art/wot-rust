@@ -8,6 +8,9 @@ Autorytet: [GDD, decyzja 36](game-design.md). Kolejkę prac prowadzi
 
 ## Obietnica dla gracza
 
+Doprecyzowanie właściciela, 2026-09-09: narastające spadki FPS dotyczą całej rozgrywki.
+Celowanie jest przykładem odczuwanego skutku, nie rozpoznaną przyczyną ani triggerem.
+
 Każdy gracz otrzymuje tę samą estetykę, informacje potrzebne do walki i zasady widoczności.
 Jakość odczuwana obejmuje stabilność obrazu w ruchu, reakcję sterowania, czytelne celowanie
 i działanie do końca bitwy. Dobry pierwszy kadr ani wysoki średni FPS nie zastępują tych cech.
@@ -16,6 +19,11 @@ Podstawą jest 60 FPS na rozgrzanym laptopie referencyjnym z MX330. Na mocniejsz
 celem jest 120 FPS i więcej, stosownie do możliwości całego komputera i monitora.
 To cele do zweryfikowania, nie deklaracja obecnie osiągniętej wydajności.
 Nie obiecujemy obsługi każdego historycznego PC; publikujemy zmierzone konfiguracje wspierane.
+
+Doprecyzowanie właściciela, 2026-09-09: ograniczamy także zbędne zużycie energii
+i nagrzewanie laptopa. Osiągnięcie FPS nie uzasadnia nieograniczonej pracy CPU/GPU.
+Odbiór obejmuje obciążenie i zachowanie po rozgrzaniu; sama temperatura nie wskazuje
+przyczyny zacięć ani nie zastępuje pomiaru kosztu kodu.
 
 ## Co musi pozostać wspólne
 

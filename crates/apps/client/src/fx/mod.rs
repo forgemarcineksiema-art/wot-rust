@@ -149,7 +149,7 @@ impl FxSystem {
         self.tick_lights();
     }
 
-    #[cfg(test)]
+    /// Current particle count for diagnostic captures; does not walk or mutate the pool.
     pub fn live_particles(&self) -> usize {
         self.particles.len()
     }

@@ -409,7 +409,9 @@ impl ClientApp {
             statics_vertices,
             statics_indices,
             renderer_api::RenderSettings::default(),
-            renderer_wgpu::GpuContextOptions { pass_timing: self.frame_log.is_some() },
+            renderer_wgpu::GpuContextOptions {
+                pass_timing: self.frame_log.as_ref().is_some_and(|log| log.gpu_enabled()),
+            },
         )?;
         match self.battle_scene_meshes.as_ref() {
             Some(meshes) => {
@@ -919,6 +921,7 @@ impl ClientApp {
         if let Some(log) = self.frame_log.as_mut() {
             log.begin(crate::frame_log::Phase::Upload);
         }
+        let scenery_instances = grass_frame.objects.len();
         renderer.set_render_frame(&grass_frame);
         self.grass_cache = std::mem::take(&mut grass_frame.objects);
         self.grass_cache.truncate(grass_len);
@@ -931,27 +934,27 @@ impl ClientApp {
         renderer.set_scene_time_s(scene_time_s);
         let gpu_due = self.frame_log.as_ref().is_some_and(|log| log.gpu_sample_due());
         if let Some(log) = self.frame_log.as_mut() {
+            log.set_workload(crate::frame_log::FrameWorkload {
+                craters: self.battlefield.heightmap.crater_records().len(),
+                particles: self.fx.live_particles(),
+                vehicle_instances: vehicle_frame.objects.len(),
+                scenery_instances,
+                fx_vertices: fx_vertices.len(),
+            });
             log.begin(crate::frame_log::Phase::Render);
         }
         let rendered = renderer.render(view_proj, camera.eye);
+        if let Some(log) = self.frame_log.as_mut() {
+            log.begin(crate::frame_log::Phase::GpuReadback);
+        }
         let gpu = if gpu_due { renderer.read_pass_timings() } else { None };
         if let Err(error) = rendered {
             self.on_render_failure(error);
         }
         if let Some(log) = self.frame_log.as_mut() {
-            let sample = log.end_frame(raw_dt * 1000.0);
-            if sample.total_ms > crate::frame_log::HITCH_MS {
-                let (phase, ms) = sample.worst_phase();
-                tracing::info!(
-                    frame_ms = sample.total_ms,
-                    phase = phase.name(),
-                    phase_ms = ms,
-                    ticks = sample.fixed_ticks,
-                    "frame log: hitch"
-                );
-            }
-            if let Some((frame_ms, passes)) = gpu {
-                log.record_gpu(frame_ms, passes);
+            log.complete_frame();
+            if gpu_due {
+                log.record_gpu_attempt(gpu);
             }
         }
         // Recover the FX scratch buffers (drained/consumed above) so next frame reuses their

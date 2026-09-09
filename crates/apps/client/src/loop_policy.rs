@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// What the winit loop tells the driver. Input events are not here on purpose: they are handled
 /// where they arrive (`app::input`) and the driver has nothing to say about them — a
@@ -130,6 +130,12 @@ impl WinitLoopDriver {
         until_tick.min(self.pacer.until_due())
     }
 
+    /// Anchor the deadline to the instant fed to `AboutToWait`. Work performed while
+    /// handling its actions consumes this budget; it must not move the deadline later.
+    pub fn wake_deadline(&self, observed_at: Instant) -> Instant {
+        observed_at + self.suggested_wait()
+    }
+
     /// Sub-tick interpolation factor in `[0, 1]`: how far the leftover accumulator has
     /// advanced into the next fixed tick. Rendering blends the previous tick's pose toward
     /// the current one by this fraction so a 60 Hz sim presents smoothly under vsync.
@@ -214,6 +220,22 @@ mod tests {
         let wait = driver.suggested_wait();
         assert!(wait <= Duration::from_secs_f64(1.0 / 60.0), "never sleeps past a beat: {wait:?}");
         assert!(wait > Duration::ZERO, "steady state always sleeps a little");
+    }
+
+    #[test]
+    fn tick_work_consumes_the_wait_budget_without_delaying_the_deadline() {
+        let mut driver = WinitLoopDriver::new(60);
+        let beat = Duration::from_secs_f64(1.0 / 60.0);
+        let observed_at = Instant::now();
+        driver.handle_event(ClientLoopEvent::AboutToWait { elapsed: beat });
+        let deadline = driver.wake_deadline(observed_at);
+        let finished_at = observed_at + Duration::from_millis(5);
+        assert_eq!(deadline, observed_at + beat);
+        assert_eq!(deadline.duration_since(finished_at), beat - Duration::from_millis(5));
+        assert!(
+            deadline < observed_at + Duration::from_millis(20),
+            "overrun must wake immediately"
+        );
     }
 
     /// Displays above 120 Hz cap: the sim ticks at 60 and interpolates — beyond ~120 there is

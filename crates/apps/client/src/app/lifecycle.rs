@@ -56,7 +56,7 @@ impl ApplicationHandler for ClientApp {
         );
         self.audio = crate::audio_out::AudioOutput::try_new();
         // The frame log's GPU table needs the pass timer armed on the live window.
-        if self.frame_log.is_some()
+        if self.frame_log.as_ref().is_some_and(|log| log.gpu_enabled())
             && let Some(renderer) = self.renderer.as_mut()
             && let Some(reason) = renderer.arm_pass_profiler()
         {
@@ -199,7 +199,7 @@ impl ApplicationHandler for ClientApp {
         // Sleep until the next tick or presentation beat instead of spinning (F1): the pacer
         // owns the cadence, input events still wake the loop immediately.
         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-            Instant::now() + self.loop_driver.suggested_wait(),
+            self.loop_driver.wake_deadline(now),
         ));
         if self.frame_log.is_some() {
             self.loop_wait_started = Some(Instant::now());

@@ -1,15 +1,17 @@
 # Stabilna płynność przez całą bitwę
 
-Data: 2026-09-09. Status: **OPEN — spadki FPS uniemożliwiające celowanie**.
+Data: 2026-09-09. Status: **OPEN — ogólna utrata płynności narastająca w trakcie bitwy**.
 Autorytet: [GDD, decyzja 36](game-design.md), [one look](one-look-policy.md).
 Identyfikatory i kolejność prac należą do [program.md](program.md), wiersze Q11–Q16.
 Ten dokument jest planem wykonania i odbioru tych wierszy, nie drugą kolejką projektu.
 
 ## Problem i cel
 
-Właściciel zgłasza nieprzewidywalne spadki FPS w środku bitwy, tak duże, że nie może
-wycelować w przeciwnika. Im dłużej trwa walka, tym gorsza płynność. Traktujemy to jako
-problem blokujący komfortową grę, a nie końcowy szlif grafiki.
+Właściciel zgłasza nieprzewidywalne spadki FPS narastające w trakcie bitwy i odczuwalne
+przy każdej czynności. Doprecyzowanie z 2026-09-09: celowanie było tylko przykładem
+skutku, nie warunkiem wystąpienia ani wskazaniem przyczyny. Najpierw obserwujemy zwykłą
+bitwę i ustalamy korelacje kosztów; kontrolowane testy kandydatów wybieramy na podstawie
+danych. Jest to problem blokujący komfortową grę, a nie końcowy szlif grafiki.
 
 Celem jest stabilne 60 FPS na rozgrzanym MX330 przez całą bitwę, przy zachowaniu one look.
 120 FPS i więcej na mocniejszym sprzęcie jest następnym etapem, z osobnymi pomiarami CPU,
@@ -134,12 +136,17 @@ wymagają własnych progów rytmu i pomiaru na wyświetlaczu obsługującym dany
 
 Istniejące wejścia: `WOT_FRAME_LOG=<path>`, `WOT_AUTOBATTLE=1`, `WOT_AUTODRIVE=1`,
 `WOT_EXIT_AFTER_S=<seconds>`, `WOT_RECORD=<path>`; definicje w `client/src/app/mod.rs`
-i `client/src/app/session.rs`. Bieżący `client/src/frame_log.rs` zachowuje tylko ostatnie
+i `client/src/app/session.rs`. Logger z bazy `c7490826` zachowywał tylko ostatnie
 3600 klatek, pierwsze 1000 zacięć i próbuje pobrać GPU co 60. klatkę. Percentyle z tego
 pierścienia nie opisują całej bitwy, a limit listy zacięć nie jest ich rzeczywistą liczbą.
 Q11 musi zapewnić pełny zapis/agregację okien oraz raportować utracone próbki i narzut
 instrumentu bez wprowadzania blokujących zapisów na wątku klatki. Statystyka faz odrzuca
-obecnie klatki >1000 ms; odbiór aktywnej walki wymaga zachowania tych zdarzeń.
+w tej bazie klatki >1000 ms; odbiór aktywnej walki wymaga zachowania tych zdarzeń.
+
+Pierwsza implementacja Q11 z 2026-09-09 zastępuje ten pierścień zapisem do 120 000 klatek,
+zachowuje długie zacięcia i eksportuje CSV przy wyjściu. Rozdziela także diagnostyczny
+odczyt GPU i poprawia granice pomiaru CPU. [Raport zakresu i pomiarów](performance-q11-capture.md)
+podaje stan weryfikacji. Sam logger nie zamyka Q11 ani nie wskazuje przyczyny spadków gry.
 
 GPU timestamps są próbkowane; raport musi podać rzeczywistą liczbę próbek.
 `scripts/perf/cold-run.ps1` zapisuje termikę i pamięć procesu, a

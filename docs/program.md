@@ -122,7 +122,8 @@ row it adds (`GDD row N`), and the lane that carries it.
 ## 2. The queue
 
 **Priority update, 2026-09-09 (GDD row 36):** the owner reports FPS degrading through the
-battle until aiming becomes impossible. Q11 attribution and the proven fixes from Q12–Q14
+battle during all activities (aiming was only an example of its impact, clarified by the
+owner the same day). Q11 attribution and the proven fixes from Q12–Q14
 take priority over further visual expansion; Q15 owns full-battle acceptance. Q16 (120+ FPS
 on stronger PCs) follows the stable MX330 floor. This does not reopen completed instrumentation
 or change N9's separate second-OS dependency. Work and evidence: [sustained-performance plan](sustained-performance-plan.md).
@@ -362,12 +363,12 @@ appearance policy or installs WSL.
 The [execution and acceptance plan](sustained-performance-plan.md) carries historical
 evidence, hypotheses, the experiment matrix and numerical targets. It does not certify
 60 FPS today or replace this queue. Q14 continues Q9; Q13 builds on Q8c and Q10 without
-claiming their unmeasured FPS gains. The owner's aiming complaint is not assigned to a
-single cause before Q11 isolates it.
+claiming their unmeasured FPS gains. This is general progressive loss of smoothness;
+aiming is only one affected activity. No cause or activity-specific trigger is assumed.
 
 | Row | Scope | Evidence required to close |
 | --- | --- | --- |
-| Q11 | Reproduce late-battle/aiming degradation; separate heat, world age, view, CPU/GPU and waits; fill gaps in counters and repeatable camera/input scenarios | Identified release binary, raw data, controlled warm fresh/late-state comparison, attributed stalls and explicit remaining uncertainty |
+| Q11 | Observe general progressive degradation in an ordinary battle; separate heat, world age, view, CPU/GPU and waits; fill gaps in counters and repeatable camera/input scenarios | Identified release binary, raw data, controlled warm fresh/late-state comparison, attributed stalls and explicit remaining uncertainty |
 | Q12 | Persistent GPU statics by fragment; bounded integration/upload after destruction | Before/after hit and salvo capture, upload bytes proportional to changed work, p99/max improvement, correct visible destruction and regression locks |
 | Q13 | Measured growth in sight/reticle, terrain queries, destruction and FX; bounded local work without changing physics | Late-state cost and aiming response within the plan's targets; exact query/replay parity, resource/candidate counts and appearance checks |
 | Q14 | Reduce sustained scene cost and thermal pressure, including near gear (Q9); evaluate further representations only with one-look evidence | Cold A/B and warmed full-load comparison, pass timings, clocks, appearance in motion/scope, no quality/fairness regression |

@@ -20,7 +20,7 @@ test-locked, not marketing.
 ## Systems inventory
 
 **Open release blocker, 2026-09-09:** the owner reports worsening FPS during a battle,
-eventually preventing aiming. Instrumentation exists; sustained performance is **not**
+affecting every activity; aiming was an example, not a diagnosed trigger. Instrumentation exists; sustained performance is **not**
 accepted. [One look](one-look-policy.md) means a common intended picture and fair visibility,
 with stable 60 FPS on the warmed MX330 and higher FPS on stronger PCs where supported.
 The [performance plan](sustained-performance-plan.md) defines evidence and acceptance;
