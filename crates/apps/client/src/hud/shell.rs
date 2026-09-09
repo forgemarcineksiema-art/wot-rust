@@ -293,10 +293,15 @@ impl MenuItem {
         matches!(self, MenuItem::ExitToGarage | MenuItem::Quit)
     }
 
-    /// A way out of where the player is: the lock's word.
+    /// A way out of the GAME: the lock's word.
+    ///
+    /// This used to be `self.is_commit()`, so EXIT TO GARAGE answered it — and that is exactly
+    /// why `escape_always_offers_a_way_out` stayed green through the whole 2026-09-09 defect,
+    /// when no menu a started session could raise offered QUIT at all. Leaving the battle is not
+    /// leaving the game; the policy's promise (`docs/interface-policy.md`) is the latter.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_way_out(self) -> bool {
-        self.is_commit()
+        matches!(self, MenuItem::Quit)
     }
 }
 
@@ -317,6 +322,12 @@ impl MenuKind {
                 MenuItem::Keybinds,
                 MenuItem::HudEditor,
                 MenuItem::ExitToGarage,
+                // QUIT belongs here too. It used to sit ONLY on the cold garage's menu, and
+                // `started` never returns to false once BATTLE is pressed — so after the first
+                // battle of a session the player could not leave the game from inside it at
+                // all: the battle menu offered no QUIT, and Esc in the garage went back to the
+                // battle instead of raising a menu. The window's X was the only way out.
+                MenuItem::Quit,
                 MenuItem::Stay,
             ],
             MenuKind::Garage => {
@@ -2026,14 +2037,14 @@ mod tests {
         );
     }
 
-    /// P8: the battle's menu prints its five entries and the garage's its four; the commits
-    /// wear the one red and nothing else does; nothing is lit under a still cursor; a menu
-    /// replaces the instruments like every page.
+    /// P8: the battle's menu prints its six entries (QUIT joined them 2026-09-09) and the
+    /// garage's its four; the commits wear the one red and nothing else does; nothing is lit
+    /// under a still cursor; a menu replaces the instruments like every page.
     #[test]
     fn the_menus_print_their_entries_and_only_the_commits_wear_the_red() {
         let ui = Ui::reference();
         let theme = Theme::standard();
-        for (kind, count) in [(MenuKind::Battle, 5), (MenuKind::Garage, 4)] {
+        for (kind, count) in [(MenuKind::Battle, 6), (MenuKind::Garage, 4)] {
             let mut model = demo::demo_model(false);
             model.shell = Some(demo_menu_screen(kind));
             let list = build_battle_hud_list(&model, &ui);
@@ -2062,6 +2073,23 @@ mod tests {
                 MenuKind::Battle.items().contains(&item)
                     || MenuKind::Garage.items().contains(&item),
                 "{item:?} sits on no menu"
+            );
+        }
+    }
+
+    /// The promise as an INVARIANT, not as a list: every menu the player can raise can leave
+    /// the game. The count literal above cannot say this — it survives a reordering and it was
+    /// green while QUIT sat on a menu no started session could reach.
+    #[test]
+    fn every_menu_can_leave_the_game() {
+        for kind in [MenuKind::Battle, MenuKind::Garage] {
+            assert!(
+                kind.items().contains(&MenuItem::Quit),
+                "{kind:?}: a player who wants to stop playing must find QUIT here"
+            );
+            assert!(
+                kind.items().iter().any(|item| item.is_way_out()),
+                "{kind:?}: is_way_out must mean leaving the GAME, not leaving the battle"
             );
         }
     }

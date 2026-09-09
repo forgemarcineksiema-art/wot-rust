@@ -423,9 +423,14 @@ impl ClientApp {
         matches!(self.shell.as_ref().map(|shell| shell.page), Some(ShellPage::Menu(_)))
     }
 
-    /// The menu the pages go back to: the cold garage's, or the battle's.
+    /// The menu the pages go back to: the garage's, or the battle's.
+    ///
+    /// The question is where the player is STANDING, so it asks whether a battle is still
+    /// running — not whether one was ever started. With `has_started()` here, a garage over a
+    /// FINISHED battle raised the battle's menu and offered STAY IN BATTLE for a battle that
+    /// no longer existed.
     fn menu_kind_here(&self) -> MenuKind {
-        if self.garage.is_open() && !self.garage.has_started() {
+        if self.garage.is_open() && !self.in_live_battle() {
             MenuKind::Garage
         } else {
             MenuKind::Battle

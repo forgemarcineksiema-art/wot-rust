@@ -219,6 +219,63 @@ fn escape_always_offers_a_way_out() {
     }
 }
 
+/// The player can always leave the GAME, not merely the battle.
+///
+/// QUIT used to sit only on the cold garage's menu, and `menu_kind_here` raises that menu only
+/// while `!garage.has_started()` — but `started` is set by the BATTLE button and never returns
+/// to false. So from the first battle of a session onward the battle's menu (no QUIT) was the
+/// only menu the player could ever reach, and Esc in the garage closed the garage back into the
+/// battle instead of raising one. The window's X was the sole way out of the process. The lock
+/// drives the real key, not `open_pause_menu`, so it fails again if `menu_kind_here` regresses.
+#[test]
+fn quit_stays_reachable_once_a_battle_has_started() {
+    let mut app = in_battle();
+    app.on_key(key(KeyCode::Escape), true, false);
+    app.on_key(key(KeyCode::Escape), false, false);
+    let Some(ShellModel::Menu(menu)) = app.shell_model() else { panic!("the battle's menu") };
+    assert_eq!(menu.kind, MenuKind::Battle, "a started battle can only raise this menu");
+    assert_eq!(menu.selected, 0, "SETTINGS first, never a commit");
+    assert!(
+        MenuKind::Battle.items().contains(&MenuItem::Quit),
+        "a started session must still offer a way out of the GAME, not only to the garage"
+    );
+    assert!(!app.quit_requested());
+    app.click_menu_item(MenuItem::Quit);
+    assert!(app.quit_requested() && !app.shell_open(), "QUIT: the loop leaves");
+}
+
+/// The garage over a FINISHED battle is a garage, not a battle.
+///
+/// `menu_kind_here` and the garage's Escape both asked `has_started()`, which never returns to
+/// false once BATTLE is pressed. So after the outcome the menu offered STAY IN BATTLE for a
+/// battle that had ended, and Escape in that garage bounced: `close_if_started` closed it, and
+/// on the very next frame `tick_outcome_hand_off` saw a read results page and called
+/// `open_garage` again — re-running the return seam and slamming the hero's dust back to full.
+/// The player never reached a menu at all, so the policy's „QUIT is three presses away" was
+/// false exactly there. The hand-off tick between the presses is what makes the bounce visible;
+/// without it the test would pass on a broken build.
+#[test]
+fn escape_after_a_battle_raises_the_garage_menu_and_does_not_bounce() {
+    let mut app = in_battle();
+    app.battle_outcome = Some(crate::hud::BattleHudOutcome::Victory);
+    app.tick_outcome_hand_off(3.1);
+    app.on_key(key(KeyCode::Enter), true, false);
+    assert!(app.garage.is_open(), "ENTER on the results page: the garage");
+
+    app.on_key(key(KeyCode::Escape), true, false);
+    app.on_key(key(KeyCode::Escape), false, false);
+    app.tick_outcome_hand_off(0.1);
+    let Some(ShellModel::Menu(menu)) = app.shell_model() else {
+        panic!("the garage's own menu, not a bounce back into a dead battle")
+    };
+    assert_eq!(menu.kind, MenuKind::Garage, "the battle is over: this is a garage");
+    assert!(app.garage.is_open(), "the hand-off must not have re-entered the garage");
+    assert!(
+        menu.kind.items().contains(&MenuItem::Quit),
+        "and QUIT is one press from where the player actually stands"
+    );
+}
+
 /// P8: the cold garage's menu — SETTINGS and KEY BINDINGS open their pages over the garage
 /// and ESC brings the garage's menu back, not the battle's; QUIT asks the loop to leave; a
 /// battle menu's STAY returns the gun to the mouse.

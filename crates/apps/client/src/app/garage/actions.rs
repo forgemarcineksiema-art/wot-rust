@@ -80,7 +80,7 @@ impl ClientApp {
             .latest_snapshot()
             .and_then(|s| s.tanks.iter().find(|t| t.tank_id == self.player_tank))
             .is_some_and(|t| t.hit_points == 0);
-        let running = self.garage.has_started() && self.session.battle_outcome().is_none();
+        let running = self.in_live_battle();
         let locked =
             (dead && running).then(|| self.session.battle_time_remaining_s().unwrap_or(0.0));
         self.garage.set_locked(locked);
@@ -317,7 +317,10 @@ impl ClientApp {
                     self.garage.close_option_list();
                 } else if self.garage.is_camera_off_hero() {
                     self.garage.return_to_hero_view();
-                } else if self.garage.has_started() {
+                } else if self.in_live_battle() {
+                    // Only a RUNNING battle takes the garage's Escape. Over a finished one the
+                    // garage closed, the outcome hand-off re-opened it on the very next frame,
+                    // and the player bounced — never reaching a menu at all.
                     self.garage.close_if_started();
                     // Mirrors `close_pause_menu`: back in the live battle the mouse is the gun
                     // again — recapture it, and drop the motion accumulated while it was a
@@ -325,7 +328,10 @@ impl ClientApp {
                     self.input.clear_mouse_look();
                     self.set_cursor_captured(true);
                 } else {
-                    // P8: a cold garage's Esc raises its own menu — SETTINGS, KEY BINDINGS, QUIT.
+                    // P8: the garage's own menu — SETTINGS, KEY BINDINGS, BATTLES, QUIT. A cold
+                    // garage reaches here, and so does a garage over a FINISHED battle. A live
+                    // one never does: its Escape belongs to the gun, above. That is why QUIT
+                    // also sits on the battle's menu; see `MenuKind::items`.
                     self.open_menu(crate::hud::shell::MenuKind::Garage);
                 }
             }
