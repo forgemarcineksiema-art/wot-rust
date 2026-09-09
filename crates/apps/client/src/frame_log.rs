@@ -108,6 +108,61 @@ impl TickPart {
     }
 }
 
+/// Inside [`TickPart::Host`]: where the AUTHORITATIVE tick's own time goes (Q11).
+///
+/// The host was the largest single CPU cost of a hitching frame and the log could only name
+/// it — `host 520 ms` and nothing more — while a steady tick costs under half a millisecond.
+/// `battle_host` has summed these sections since Q8, but only the `tick_sections` example ever
+/// armed them; the frame the player actually gets never carried them. It does now, so a spike
+/// says WHICH part of the tick grew. Local play only: the dedicated host runs its own ticks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum HostSection {
+    /// `refresh_live_cover`: the sight cover rebuilt around damaged buildings and landed turrets.
+    LiveCover,
+    /// Every bot's brain: routes, target choice, aim.
+    Bots,
+    /// The simulation step: movement, contact, shells, damage, the sim's own spotting refresh.
+    Sim,
+    /// The crater ledger folded onto the heightmap, plus the outcome check.
+    Craters,
+    /// The spotting log's observer masks, on emitting ticks.
+    SpottingLog,
+    /// `Snapshot::from` and the pending events, on emitting ticks.
+    Snapshot,
+    /// The viewer's cut: `view_for` and its own observer masks.
+    View,
+    /// The rest of the tick envelope: event copies, the outcome word.
+    Other,
+}
+
+impl HostSection {
+    /// The order `battle_host::TickSections::sections` reports; the caller maps into it.
+    pub const ALL: [HostSection; 8] = [
+        HostSection::LiveCover,
+        HostSection::Bots,
+        HostSection::Sim,
+        HostSection::Craters,
+        HostSection::SpottingLog,
+        HostSection::Snapshot,
+        HostSection::View,
+        HostSection::Other,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            HostSection::LiveCover => "live_cover",
+            HostSection::Bots => "bots",
+            HostSection::Sim => "sim",
+            HostSection::Craters => "craters",
+            HostSection::SpottingLog => "spotting_log",
+            HostSection::Snapshot => "snapshot",
+            HostSection::View => "view",
+            HostSection::Other => "other",
+        }
+    }
+}
+
 /// One completed render attempt; this CPU clock does not measure physical display scanout.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FrameSample {
@@ -118,6 +173,12 @@ pub struct FrameSample {
     pub phases_ms: [f32; 9],
     /// The fixed ticks' parts, in [`TickPart::ALL`] order (summed over the frame's ticks).
     pub tick_parts_ms: [f32; 4],
+    /// Inside [`TickPart::Host`], in [`HostSection::ALL`] order (summed over the frame's ticks).
+    /// All zero when nothing armed the host profile: remote play, or no frame log.
+    pub host_sections_ms: [f32; 8],
+    /// The observer masks this frame's ticks computed, and how many times a caller was handed
+    /// them back instead of walking the lines of sight again (Q8's cache, seen per frame).
+    pub host_masks: [u32; 2],
     /// The fixed ticks this frame ran (0 on a frame between ticks, 2+ when catching up).
     pub fixed_ticks: u32,
     pub workload: FrameWorkload,
@@ -151,6 +212,16 @@ impl FrameSample {
     pub fn unattributed_ms(&self) -> f32 {
         (self.total_ms - self.phases_ms.iter().sum::<f32>()).max(0.0)
     }
+
+    /// The costliest part of the authoritative tick this frame, or `None` when the host profile
+    /// was not armed (remote play). This is the name a `host 520 ms` hitch was missing.
+    pub fn worst_host_section(&self) -> Option<(HostSection, f32)> {
+        HostSection::ALL
+            .iter()
+            .map(|section| (*section, self.host_sections_ms[*section as usize]))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|(_, ms)| *ms > 0.0)
+    }
 }
 
 /// One GPU pass-table sample: (pass name, milliseconds) in pass order.
@@ -173,6 +244,8 @@ pub struct FrameLog {
     /// The frame in flight: phase accumulators.
     phases_ms: [f32; 9],
     tick_parts_ms: [f32; 4],
+    host_sections_ms: [f32; 8],
+    host_masks: [u32; 2],
     fixed_ticks: u32,
     phase_started: Option<(Phase, Instant)>,
     context: String,
@@ -194,6 +267,8 @@ impl FrameLog {
             gpu: Vec::new(),
             phases_ms: [0.0; 9],
             tick_parts_ms: [0.0; 4],
+            host_sections_ms: [0.0; 8],
+            host_masks: [0; 2],
             fixed_ticks: 0,
             phase_started: None,
             context: String::new(),
@@ -270,6 +345,17 @@ impl FrameLog {
         self.tick_parts_ms[part as usize] += ms;
     }
 
+    /// Fold one drained host profile into the frame in flight: the sections in
+    /// [`HostSection::ALL`] order, then the tick's observer-mask computations and reuses.
+    /// Called once per frame with the sums of every tick that frame ran.
+    pub fn add_host_sections(&mut self, sections: [f32; 8], computed: u32, reused: u32) {
+        for (sum, ms) in self.host_sections_ms.iter_mut().zip(sections) {
+            *sum += ms;
+        }
+        self.host_masks[0] = self.host_masks[0].saturating_add(computed);
+        self.host_masks[1] = self.host_masks[1].saturating_add(reused);
+    }
+
     pub fn note_fixed_ticks(&mut self, count: u32) {
         self.fixed_ticks += count;
     }
@@ -283,11 +369,15 @@ impl FrameLog {
             total_ms,
             phases_ms: self.phases_ms,
             tick_parts_ms: self.tick_parts_ms,
+            host_sections_ms: self.host_sections_ms,
+            host_masks: self.host_masks,
             fixed_ticks: self.fixed_ticks,
             workload: self.workload,
         };
         self.phases_ms = [0.0; 9];
         self.tick_parts_ms = [0.0; 4];
+        self.host_sections_ms = [0.0; 8];
+        self.host_masks = [0; 2];
         self.fixed_ticks = 0;
         self.total_frames += 1;
         if self.frames.len() < CAPTURE_FRAMES {
@@ -421,6 +511,29 @@ impl FrameLog {
             }
             let other = (envelope - parts.iter().sum::<f32>() / n).max(0.0);
             let _ = writeln!(out, "  {:<15} {:>7.3}", "other", other);
+
+            // Q11: inside the host, where the authoritative tick's own time went. Zero
+            // everywhere means the profile was never armed (remote play) — not a free tick.
+            let mut sections = [0.0f32; 8];
+            let mut masks = [0u64; 2];
+            for frame in self.steady_frames() {
+                for (sum, ms) in sections.iter_mut().zip(frame.host_sections_ms) {
+                    *sum += ms;
+                }
+                masks[0] += u64::from(frame.host_masks[0]);
+                masks[1] += u64::from(frame.host_masks[1]);
+            }
+            if sections.iter().any(|ms| *ms > 0.0) {
+                let _ = writeln!(out, "host tick sections (mean ms per frame, inside host):");
+                for (section, sum) in HostSection::ALL.iter().zip(sections) {
+                    let _ = writeln!(out, "  {:<15} {:>7.3}", section.name(), sum / n);
+                }
+                let _ = writeln!(
+                    out,
+                    "  observer masks: {} computed, {} reused over the capture",
+                    masks[0], masks[1]
+                );
+            }
         }
 
         let mut worst: Vec<&FrameSample> = self.hitches.iter().collect();
@@ -428,9 +541,17 @@ impl FrameLog {
         let _ = writeln!(out, "the {} longest frames:", worst.len().min(8));
         for frame in worst.iter().take(8) {
             let (phase, ms) = frame.worst_phase();
+            // When the fixed ticks own the frame, the useful word is which part of the
+            // authoritative tick grew — `host 520 ms` alone named nothing (Q11).
+            let host = match frame.worst_host_section() {
+                Some((section, section_ms)) => {
+                    format!(", host {} {section_ms:.2} ms", section.name())
+                }
+                None => String::new(),
+            };
             let _ = writeln!(
                 out,
-                "  t {:>7.1} s  {:>7.2} ms  worst phase {} {:.2} ms  (ticks {}, unattributed {:.2})",
+                "  t {:>7.1} s  {:>7.2} ms  worst phase {} {:.2} ms  (ticks {}, unattributed {:.2}{host})",
                 frame.at_s,
                 frame.total_ms,
                 phase.name(),
@@ -587,5 +708,53 @@ mod tests {
         let report = log.report();
         assert!(report.contains("scene_pass          15.000"), "{report}");
         assert!(report.contains("shadow_pass          1.000"), "{report}");
+    }
+
+    /// Q11: `host 520 ms` named nothing, and a steady tick costs under half a millisecond —
+    /// so the frame whose authoritative tick blew up must carry WHICH part of it grew, into
+    /// the sample and into the report's list of the longest frames.
+    #[test]
+    fn a_host_spike_carries_the_name_of_the_section_that_grew() {
+        let mut log = FrameLog::new();
+        for index in 0..4u32 {
+            let spike = index == 3;
+            log.note_fixed_ticks(2);
+            log.add_ms(Phase::FixedTicks, if spike { 520.0 } else { 1.0 });
+            log.add_tick_ms(TickPart::Host, if spike { 519.0 } else { 0.8 });
+            let sections = if spike {
+                [480.0, 20.0, 15.0, 0.0, 2.0, 1.0, 1.0, 0.0]
+            } else {
+                [0.1, 0.3, 0.3, 0.0, 0.0, 0.05, 0.05, 0.0]
+            };
+            log.add_host_sections(sections, u32::from(spike), 1);
+            log.end_frame(if spike { 540.0 } else { 16.0 });
+        }
+        let spike = log.frames().last().copied().expect("a frame");
+        assert_eq!(spike.host_sections_ms[HostSection::LiveCover as usize], 480.0);
+        let (section, ms) = spike.worst_host_section().expect("the profile was armed");
+        assert_eq!(section, HostSection::LiveCover);
+        assert!((ms - 480.0).abs() < 1e-3, "{ms}");
+        assert_eq!(spike.host_masks, [1, 1], "one emitting tick, one reuse");
+
+        let report = log.report();
+        assert!(report.contains("host tick sections"), "{report}");
+        assert!(report.contains(", host live_cover 480.00 ms)"), "{report}");
+        assert!(report.contains("observer masks: 1 computed, 4 reused"), "{report}");
+    }
+
+    /// A remote battle's ticks run in the dedicated host's process. The sections are empty,
+    /// and empty must read as "not measured here" — never as a tick that cost nothing.
+    #[test]
+    fn an_unarmed_host_profile_prints_no_section_block() {
+        let mut log = FrameLog::new();
+        for _ in 0..4 {
+            log.note_fixed_ticks(1);
+            log.add_ms(Phase::FixedTicks, 2.0);
+            log.end_frame(16.0);
+        }
+        let report = log.report();
+        assert!(report.contains("fixed tick parts"), "{report}");
+        assert!(!report.contains("host tick sections"), "{report}");
+        assert_eq!(log.frames().last().unwrap().worst_host_section(), None);
     }
 }

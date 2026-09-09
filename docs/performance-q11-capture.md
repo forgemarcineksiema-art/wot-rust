@@ -29,6 +29,10 @@ z danych. Nie zakładamy, że wywołuje je celownik, liczba kraterów albo tempe
   przy normalnym wyjściu; awaria procesu przed wyjściem może utracić buforowany zapis.
 - Raport obejmuje całość zachowanego przebiegu i okna 60-sekundowe według czasu zakończenia.
   CSV umożliwia policzenie innych okien i sprawdzenie wszystkich faz.
+- Faza `fixed_ticks` ma podfazę `host`, a `host` ma od tej zmiany własne sekcje: `live_cover`,
+  `bots`, `sim`, `craters`, `spotting_log`, `snapshot`, `view`, `other`, plus liczniki masek
+  obserwatorów. Sumuje je `battle_host` od Q8; dotąd uzbrajał je wyłącznie przykład
+  `tick_sections`, więc klatka, którą dostaje gracz, nigdy ich nie niosła.
 
 Nie zmieniono fizyki, reguł widoczności, grafiki ani częstotliwości symulacji. Poprawa
 instrumentu nie jest dowodem poprawy FPS. Pomiar CPU końca renderowania nie jest fizycznym
@@ -106,6 +110,42 @@ Po poprawce `scripts/verify-pr.ps1 -Crates client` przeszedł (w tym test termin
 633 testy jednostkowe klienta zaliczone, 1 istniejący test wizualny pominięty).
 Build release z tą poprawką i porównanie sprzętowe pozostają do wykonania;
 nie przypisujemy jej jeszcze zysku FPS ani temperatury.
+
+### Sekcje tiku hosta — atrybucja skoków symulacji
+
+Odczyt zapisanych CSV z 2026-09-09 wskazał drugi kształt zacięcia, niezależny od rendera.
+W `q11-session.frames.csv` (profiler GPU włączony) czternaście klatek przekroczyło 150 ms,
+a najdroższą fazą jest w nich `fixed_ticks`, w środku `host`:
+
+| t | klatka | `fixed_ticks` | `host` | tików | kratery |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 64,8 s | 674,80 ms | 540,52 | 519,80 | 8 | 0 |
+| 67,6 s | 510,60 ms | 335,76 | 322,73 | 8 | 0 |
+| 55,1 s | 471,92 ms | 457,86 | 320,44 | 8 | 0 |
+| 43,5 s | 331,22 ms | 308,90 | 289,84 | 8 | 0 |
+| 20,0 s (odniesienie) | 16,60 ms | 0,40 | 0,30 | 1 | 0 |
+
+Ograniczenia tego odczytu: to czasy ścienne jednej fazy, nie dowód pracy CPU — wątek mógł
+zostać zdjęty z procesora. Przebieg miał włączony blokujący profiler GPU, a `gpu_readback_ms`
+w tych klatkach wynosi 0, więc sam odczyt nie jest w nich bezpośrednim kosztem. W przebiegu
+bez profilera (`q11-no-gpu`, 56 s) największy `host` to 20,5 ms przy dwóch tikach, przy tej
+samej bazie 0,3–0,5 ms na tik — wzrost jest więc obecny także tam, ale nie w tej skali.
+Licznik kraterów wynosi zero przez oba przebiegi, co wyklucza kratery dla tych klatek.
+Każda z tych klatek ma osiem tików, czyli `MAX_CATCHUP_TICKS`; nadrabianie mnoży koszt tiku,
+nie tłumaczy go.
+
+Instrument nie potrafił powiedzieć, KTÓRA część tiku rośnie. Ta zmiana to uzupełnia:
+`BattleSession::arm_tick_profile` uzbraja profil hosta raz na klatkę, gdy działa frame log,
+a `take_tick_profile` zbiera sumy do próbki klatki. `LocalAuthoritativeServer::enable_tick_profile`
+jest teraz idempotentne — drugie uzbrojenie nie kasuje zsumowanych tików. Sekcje trafiają do
+CSV jako kolumny **dopisane na końcu wiersza** (istniejąca analiza czyta te pliki także
+pozycyjnie), do średnich w raporcie i do listy najdłuższych klatek jako nazwa najdroższej
+sekcji. Ścieżka zdalna nie ma czego oddać — tiki liczy proces dedyka — więc sekcje pozostają
+zerowe, a raport wtedy nie drukuje ich bloku, zamiast pokazywać tik za darmo.
+
+To jest przyrząd, nie naprawa. Nie zmieniono fizyki, botów, widoczności ani częstotliwości
+symulacji, a koszt profilu ponosi wyłącznie przebieg z `WOT_FRAME_LOG`. Dopóki nie ma zapisu
+z rozgrzanego laptopa, hipotezy o `live_cover`, `bots` i `spotting_log` pozostają hipotezami.
 
 Q11 pozostaje otwarte. Wymagane są powtarzalne porównania oraz pełna bitwa na rozgrzanym
 laptopie. Stabilne 60 FPS i ograniczenie zbędnego obciążenia nie zostały jeszcze osiągnięte.

@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
-use super::{FrameLog, Phase, TickPart};
+use super::{FrameLog, HostSection, Phase, TickPart};
 
 impl FrameLog {
     pub fn write_capture(&self, path: &Path) -> std::io::Result<()> {
@@ -31,10 +31,15 @@ impl FrameLog {
         for part in TickPart::ALL {
             write!(out, ",tick_{}_ms", part.name())?;
         }
-        writeln!(
+        write!(
             out,
             ",fixed_ticks,unattributed_ms,craters,particles,vehicle_instances,scenery_instances,fx_vertices"
         )?;
+        // Appended, never inserted: existing analysis reads these files by column ORDER too.
+        for section in HostSection::ALL {
+            write!(out, ",host_{}_ms", section.name())?;
+        }
+        writeln!(out, ",host_masks_computed,host_masks_reused")?;
         for (index, frame) in self.frames.iter().enumerate() {
             write!(out, "{},{:.6},{:.6}", index + 1, frame.at_s, frame.total_ms)?;
             for ms in frame.phases_ms {
@@ -44,7 +49,7 @@ impl FrameLog {
                 write!(out, ",{ms:.6}")?;
             }
             let w = frame.workload;
-            writeln!(
+            write!(
                 out,
                 ",{},{:.6},{},{},{},{},{}",
                 frame.fixed_ticks,
@@ -55,6 +60,10 @@ impl FrameLog {
                 w.scenery_instances,
                 w.fx_vertices
             )?;
+            for ms in frame.host_sections_ms {
+                write!(out, ",{ms:.6}")?;
+            }
+            writeln!(out, ",{},{}", frame.host_masks[0], frame.host_masks[1])?;
         }
         Ok(())
     }
@@ -127,6 +136,36 @@ mod tests {
         let report = log.report();
         assert!(report.contains("[0,60)") && report.contains("[120,180)"));
         assert!(report.contains("max 1200.00 ms"));
+    }
+
+    /// The host sections are APPENDED to the row, never inserted: analysis already in the
+    /// repo reads these files by column order as well as by name (Q11).
+    #[test]
+    fn host_sections_are_appended_columns_and_every_row_carries_them() {
+        let mut log = FrameLog::new();
+        log.note_fixed_ticks(2);
+        log.add_host_sections([480.0, 20.0, 15.0, 0.0, 2.0, 1.0, 1.0, 0.0], 1, 3);
+        log.end_frame(540.0);
+        log.note_fixed_ticks(1);
+        log.end_frame(16.0);
+
+        let mut bytes = Vec::new();
+        log.write_frames(&mut bytes).unwrap();
+        let csv = String::from_utf8(bytes).unwrap();
+        let header = csv.lines().next().unwrap();
+        assert!(header.ends_with(",host_masks_computed,host_masks_reused"), "{header}");
+        assert!(header.contains(",fx_vertices,host_live_cover_ms,"), "{header}");
+        let columns = header.split(',').count();
+        assert!(csv.lines().all(|line| line.split(',').count() == columns), "{csv}");
+        let spike = csv.lines().nth(1).unwrap();
+        assert!(
+            spike.ends_with(
+                ",480.000000,20.000000,15.000000,0.000000,2.000000,1.000000,1.000000,0.000000,1,3"
+            ),
+            "{spike}"
+        );
+        // The unarmed frame writes zeros, so a reader can tell "no sections" from "no ticks".
+        assert!(csv.lines().nth(2).unwrap().ends_with(",0.000000,0,0"), "{csv}");
     }
 
     #[test]

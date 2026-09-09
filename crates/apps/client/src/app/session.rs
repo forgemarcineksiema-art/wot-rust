@@ -9,7 +9,7 @@
 use std::net::SocketAddr;
 use std::time::Instant;
 
-use battle_host::{BattleMode, LocalAuthoritativeServer};
+use battle_host::{BattleMode, LocalAuthoritativeServer, TickSections};
 use game_core::{TankId, TankSpec, VehicleKind};
 use net::session::{ClientSession, SessionFailure, SessionState, TIMEOUT_MS};
 use net::transport::Transport;
@@ -168,6 +168,24 @@ impl BattleSessionKind {
                 snapshot_age_ms: 0,
             },
             Self::Remote(session) => session.net_readout(),
+        }
+    }
+
+    /// Q11: sum where the authoritative tick's own time goes, for the frame log alone. Arming
+    /// is idempotent, so the caller re-arms every frame instead of tracking battle changes.
+    pub(super) fn arm_tick_profile(&mut self) {
+        if let Self::Local(server) = self {
+            server.enable_tick_profile();
+        }
+    }
+
+    /// Drain the sections summed since the last drain. A remote session has nothing to give:
+    /// its ticks run in the dedicated host's process, so the frame log's host sections stay
+    /// zero — which the report says out loud rather than reading as a free tick.
+    pub(super) fn take_tick_profile(&mut self) -> Option<TickSections> {
+        match self {
+            Self::Local(server) => server.take_tick_profile(),
+            Self::Remote(_) => None,
         }
     }
 

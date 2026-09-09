@@ -1,8 +1,38 @@
 //! Q8: the tick profile is off in the game and, armed, accounts for the tick it measures.
+//! Q11: arming it is idempotent, because the frame log re-arms it every frame.
 
 use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use net::ClientInputCommand;
 use sim::TankCommand;
+
+/// The client arms the profile once per frame instead of tracking whether a new battle
+/// replaced the host. A second arm that reset the sums would silently zero every frame's
+/// sections while the report still printed a confident table of them.
+#[test]
+fn arming_the_profile_again_keeps_what_the_ticks_already_summed() {
+    let mut config =
+        RandomBattleConfig::new(BattleSeed::fixed(7), game_core::VehicleKind::T54_1951);
+    config.map = terrain::MapId::BystraValley;
+    let mut server = LocalAuthoritativeServer::new_ai_battle(ServerTickConfig::default(), config);
+    let player = server.player_tank();
+    let drive = |client_tick: u64| ClientInputCommand {
+        client_tick,
+        tank_id: player,
+        command: TankCommand::drive(1.0, 0.0),
+    };
+    server.enable_tick_profile();
+    for tick in 0..4 {
+        server.tick_with_player_input(drive(tick));
+        server.enable_tick_profile();
+    }
+    let sections = server.take_tick_profile().expect("armed");
+    assert_eq!(sections.ticks, 4, "re-arming dropped summed ticks: {sections:?}");
+    assert!(sections.total_ms > 0.0, "{sections:?}");
+    // Drained means reset; re-arming an already-armed profile does not resurrect the sums.
+    server.enable_tick_profile();
+    let drained = server.take_tick_profile().expect("still armed");
+    assert_eq!(drained.ticks, 0, "{drained:?}");
+}
 
 #[test]
 fn the_tick_profile_is_off_until_armed_and_its_sections_account_for_the_tick() {

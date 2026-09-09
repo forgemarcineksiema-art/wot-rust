@@ -40,6 +40,12 @@ impl ClientApp {
             self.input.fire_pending = false;
             return;
         }
+        let timing = self.frame_log.is_some();
+        if timing {
+            // Q11: the host sums its own sections only while the frame log wants them, so the
+            // game keeps paying nothing. Idempotent, so a new battle's host arms itself here.
+            self.session.arm_tick_profile();
+        }
         if let Some(log) = self.frame_log.as_mut() {
             log.begin(crate::frame_log::Phase::FixedTicks);
             log.note_fixed_ticks(count);
@@ -47,6 +53,15 @@ impl ClientApp {
         self.run_fixed_ticks_timed(count);
         if let Some(log) = self.frame_log.as_mut() {
             log.end_phase();
+        }
+        // Drained AFTER the phase closes: the drain is a `mem::take`, not tick work.
+        if let Some(sections) = timing.then(|| self.session.take_tick_profile()).flatten() {
+            let per_section = sections.sections().map(|(_, ms)| ms as f32);
+            let computed = u32::try_from(sections.mask_computations).unwrap_or(u32::MAX);
+            let reused = u32::try_from(sections.mask_reuses).unwrap_or(u32::MAX);
+            if let Some(log) = self.frame_log.as_mut() {
+                log.add_host_sections(per_section, computed, reused);
+            }
         }
     }
 

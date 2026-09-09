@@ -367,9 +367,15 @@ impl LocalAuthoritativeServer {
     }
 
     /// Start summing where the ticks' time goes (Q8). Costs a few clock reads per tick.
+    ///
+    /// Idempotent (Q11): the client arms this once per frame rather than tracking whether a
+    /// fresh battle replaced the host, so a second call must hand back the ticks already
+    /// summed instead of dropping them on the floor.
     pub fn enable_tick_profile(&mut self) {
-        self.tick_profile = Some(TickSections::default());
-        self.mask_reuses.set(0);
+        if self.tick_profile.is_none() {
+            self.tick_profile = Some(TickSections::default());
+            self.mask_reuses.set(0);
+        }
     }
 
     /// The sums so far, reset to zero; `None` when the profile is not armed.
