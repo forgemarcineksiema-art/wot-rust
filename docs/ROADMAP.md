@@ -9,11 +9,22 @@ the owner 2026-09-06) — nation trees (lines and tiers), skill matchmaking from
 
 ## The creed (why this game exists)
 
-The honest tank: **no ±25% damage RNG**, an aiming envelope that is a hard maximum radius
-(1.9–3.4 mrad at rest across the fleet, centre-biased, no gaussian tail — tighter than WoT's
-3.2–4.2 and with no shot ever outside the circle), armor resolved against real 3D plates, no premium ammo (ammo-rack slots instead), no satellite-view artillery,
-tiers and lines like World of Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is
-test-locked, not marketing.
+The honest tank: **no damage roll and no penetration roll** — 150 pen against 149 effective goes
+through, always, and the damage number is the number. The SHOT is still placed by a die inside the
+aiming circle (`radius = R · u²`, seeded from tick, shooter and the battle's salt, so the client's
+tracer and the server's are one shot); what differs from World of Tanks is the die's SHAPE, not its
+absence. The envelope is a hard maximum radius — 1.9–3.4 mrad at rest across the fleet, no gaussian
+tail — and it is centre-biased: the median miss lands at 0.25 R, inside the drawn circle's inner
+quarter, against a radial median near 0.59 R in WoT. Armor resolved against real 3D plates, no
+premium ammo (ammo-rack slots instead), no satellite-view artillery, tiers and lines like World of
+Tanks, what-you-see-is-what-you-shoot everywhere. Every promise above is test-locked, not marketing.
+
+> Two claims stood here until 2026-09-09 and both were false. „No shot ever outside the circle,
+> unlike WoT" — WoT has bounded its circle the same way since 0.8.6, re-rolling a stray shot back
+> inside; boundedness is not the difference, centre bias is. And „tighter than WoT's 3.2–4.2 mrad"
+> compared incommensurable things: their published figure is a 2σ radius, ours is a hard maximum.
+> Kept here rather than in git history, because a creed that quietly edits its own overclaims is
+> worth less than one that shows where it overclaimed.
 
 **The one queue (2026-09-07): `docs/program.md` — the second pass's registers and the audits of 2026-09-06/07 (collision 2.5D, driving, the running gear, destruction as classes, ballistics, terrain, the graphics review VR-01…09) merged into one register and one queue, with the owner's decisions dated in `docs/game-design.md` rows 25–35. `docs/inny-poziom-program.md` keeps the diagnosis and the closed rows.**
 
