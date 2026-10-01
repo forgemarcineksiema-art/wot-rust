@@ -1,76 +1,164 @@
-# WOT Rust — the honest tank game
+# WOT
 
-A native-Rust game of armored vehicle battles on large terrain maps: 7v7 on
-1000 m fields, WWII vehicles on nation trees (lines and tiers), and a design creed of **honesty** — no ±25%
-damage RNG, dispersion as a hard maximum radius with no shot ever outside the circle, no
-premium ammo, armor resolved against real 3D plates, and a world where what
-blocks the shell is exactly what blocks the eye. Not a general-purpose engine: everything is
-biased toward outdoor terrain, vehicles, spotting, shell physics, destruction and a headless
-authoritative server.
+A tank combat game written in Rust: WWII armored vehicles, nation lines and tiers, 7v7 and
+15v15 battles on 1 km maps, with a native wgpu renderer and a headless authoritative server.
 
-**Contributing (human or AI): read `CLAUDE.md` first** — the working contract (locking
-tests, the local verify gate, one-look budgets, append-only enums) — then
-**`docs/ROADMAP.md`** for the whole picture: systems inventory, the honest gap list toward
-release, and where the center of gravity should go next. Individual program docs
-(art direction, multiplayer production, contact & tracks…) are execution details under `docs/`.
+Damage is deterministic — no ±25 % roll — and penetration is resolved against the vehicle's
+actual armor plates.
 
-## What exists today
+## Features
 
-- **Battle maps** (the count lives in `docs/ROADMAP.md`, pinned to `MapId::SHIPPED` by the
-  `quality` gate), authored as RON blueprints and compiled by Map Forge
-  (`crates/world/map_forge`): Prokhorovka (steppe, 1943), Bystra Valley (river + town),
-  Orliny Pereval (mountain pass, 1942), **Ostrogorsk** (railway city, 1943 — dense
-  masonry core, breachable walls, born ruins, a rail berm with three gates) and Mazurski
-  Przesmyk (lake defile). A full in-game
-  map editor (`cargo run -p editor`): sculpt brushes, stamps, terrain strokes, grab handles,
-  object/road/gameplay tools, viewshed instrument, Ctrl+P playtest.
-- **A blueprint-born fleet** (T-54, IS-3, Centurion Mk 3, Tiger I/II, Jagdtiger, Panther II,
-  T-34-85): one RON source feeds hitbox, armor volumes, mounts and the visual mesh.
-- **Honest Steel destruction**: buildings pound to rubble, walls breach, fences crush,
-  tracks take staged damage — gameplay on volumes, presentation contact-true, all replicated.
-- **A real renderer** (wgpu): cascaded sun shadows, SSAO, HDR + bloom, weather looks with a
-  fairness lock, chunked/culled statics, grass, battle FX, **procedural building generators**
-  and **trees as data** (route 2, 2026-09-02: grown offline in Blender, leaf clusters rendered
-  there, CC0 bark tiles with their licence beside them under `assets/flora/`, everything
-  embedded and hash-locked; no imported tree models). A battlefield oak's trunk is a gameplay
-  solid, not a painting.
-- **Deterministic sim + netcode**: fixed-tick authoritative server, protocol snapshots,
-  replay regression fixtures, per-vehicle spotting, bots with route planning.
+- **Vehicles** — T-54, T-34-85, IS-3, Centurion Mk 3, Tiger I, Tiger II, Panther II and
+  Jagdtiger. Each vehicle is a single RON blueprint that produces its hitbox, armor volumes,
+  gun mounts and render mesh.
+- **Maps** — Prokhorovka, Bystra Valley, Orliny Pereval, Ostrogorsk and Mazurski Przesmyk.
+  Maps are RON blueprints compiled by Map Forge and checked against golden hashes.
+- **Game modes** — online PvP (7v7 or 15v15, bots fill empty seats) and an offline 15v15
+  battle against AI.
+- **Ballistics and armor** — shell flight, ricochet and normalization against 3D plates, module
+  and crew damage, fire, staged track damage.
+- **Destruction** — buildings collapse into rubble, walls can be breached, fences and light
+  cover are crushed; all of it replicated over the network.
+- **Renderer** — wgpu with cascaded shadows, SSAO, HDR and bloom, grass, procedural buildings
+  and trees authored in Blender (CC0 bark textures, embedded and hash-locked).
+- **Networking** — fixed-tick server simulation, snapshot replication, deterministic replays.
+- **Map editor** — sculpting, stamps, roads, object and gameplay tools, line-of-sight
+  visualization, playtest straight from the editor.
 
-## Daily commands
+## Requirements
+
+- Windows 10/11
+- A GPU with DirectX 12 or Vulkan support. Performance target: 60 FPS on a GeForce MX330.
+- The Rust toolchain from `rust-toolchain.toml` (a pinned nightly; `rustup` installs it
+  automatically)
+
+The first build compiles the whole workspace from scratch and takes a while.
+
+## Getting started
 
 ```powershell
-./scripts/verify-pr.ps1 -Crates client   # the PR gate: fmt + clippy -D warnings (all targets) + the touched crates' tests
-./scripts/verify.ps1                     # THE full gate, once a day over what landed: every example, bench and test
-cargo run --release -p client         # play (release; a 14-tank battle needs the optimized build)
-$env:WOT_MAP = "ostrogorsk"           # pick a map (prokhorovka-hill-252-2 | bystra-valley | orliny-pereval | ostrogorsk | mazurski-przesmyk)
-cargo run -p editor                   # the map editor (or pass a blueprint path)
-cargo run -p server -- --max-ticks 10 # headless authoritative server
+git clone <repo-url> wot
+cd wot
+cargo run --release -p client
 ```
 
-Review/QA artifacts:
+Always run the client in release mode — a full battle is not playable in a debug build.
+
+### Options
+
+The client is configured through environment variables:
+
+| Variable | Purpose | Example |
+|---|---|---|
+| `WOT_MAP` | Map to load | `ostrogorsk`, `bystra-valley`, `orliny-pereval`, `mazurski-przesmyk`, `prokhorovka-hill-252-2` |
+| `WOT_VEHICLE` | Vehicle to request from the server | `t54_1951`, `tiger_i_ausf_e`, `is3`, `centurion_mk3` |
+| `WOT_CONNECT` | Join a dedicated server instead of hosting locally | `127.0.0.1:40000` |
 
 ```powershell
-cargo run -p client --release --example probe -- perf_capture      # the one-look FPS numbers
-cargo run -p client --example probe -- flora_probe                 # the species lineup down the LOD ladder
-cargo run -p client --example probe -- ostrogorsk_views            # city review renders
+$env:WOT_MAP = "ostrogorsk"
+cargo run --release -p client
 ```
 
-The repo pins a dated nightly (`rust-toolchain.toml`) for reproducible builds and stable
-replay fixtures — bump deliberately and re-run `./scripts/verify.ps1`.
+Garage state, key bindings and battle history are saved in `%APPDATA%\wot-prototype\`.
+
+### Dedicated server
+
+```powershell
+cargo run --release -p server -- --bind 0.0.0.0:40000 --map bystra-valley
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--bind` | `0.0.0.0:40000` | Listen address |
+| `--map` | catalog default | Map slug to host |
+| `--lobby-wait-s` | `30` | Seconds before the battle starts with bots in empty seats |
+| `--max-battles` | `0` (unlimited) | Battles to host before exiting |
+| `--seed` | `0` (from clock) | Deterministic battle seed |
+| `--config` | — | Load all settings from a RON file instead of flags |
+
+### Map editor
+
+```powershell
+cargo run -p editor -- crates/world/map_forge/blueprints/bystra-valley.map.ron
+```
+
+See [`crates/apps/editor/README.md`](crates/apps/editor/README.md) for the editor's controls.
 
 ## Controls
 
-**WASD** drives the hull, **mouse** aims, **Space** fires, **1/2/3** select ammo, scroll
-zooms, **Shift** holds the sniper scope. `--example probe -- screenshot` renders offscreen to PNG.
+| Action | Key |
+|---|---|
+| Drive | `W` `A` `S` `D` / arrow keys |
+| Brake | `Ctrl` |
+| Cruise speed up / down | `R` / `F` |
+| Aim | Mouse |
+| Fire | `Space` / Left mouse button |
+| Sniper scope | `Shift` |
+| Free look | `Alt` |
+| Ammunition | `1` `2` `3` |
+| Camera mode | `V` |
+| Mark target | `T` |
+| Command wheel | `Z` |
+| Minimap size | `M` |
+| Return to garage | `G` |
+| Menu | `Esc` |
+| Fullscreen | `F11` |
 
-## Rules and doctrine
+Bindings are stored in `%APPDATA%\wot-prototype\keybinds.json`.
 
-- `CLAUDE.md` — the working contract for any contributor or AI tool.
-- `docs/engineering-rules.md`, `docs/testing-and-regression.md` — hard project rules.
-- [One-look policy](docs/one-look-policy.md) — one intended picture and fair visibility on
-  supported PCs; sustained 60 FPS on the MX330 is an open target. The
-  [performance plan](docs/sustained-performance-plan.md) and
-  [capture template](docs/performance-capture-template.md) define the work and evidence.
-- `docs/ROADMAP.md` — the live program status; `docs/maps/*.md` — per-map dossiers.
-- `docs/map-forge-policy.md`, `docs/shadow-policy.md` — the standing doctrines.
+## Project layout
+
+```
+crates/
+  foundation/   game_core (shared types, vehicle and map identity), terrain
+  kernels/      geometry kernels: SDF, sweep, loft, revolve, panels, deformation
+  vehicle/      vehicle_forge, vehicle_build, vehicle_recipes — blueprint to mesh and armor
+  world/        map_forge (map compiler), world_forge, scene_build
+  runtime/      sim, physics, net, battle_host, matchmaker, audio, engine
+  render/       renderer_api, renderer_wgpu
+  ui/           ui_kit
+  apps/         client, server, editor, tools
+  tooling/      quality — architecture and consistency checks
+assets/         embedded assets (flora, textures) with license files
+docs/           design and engineering documentation
+scripts/        build and verification scripts
+```
+
+## Development
+
+Checks are run locally:
+
+```powershell
+./scripts/preflight.ps1                  # fast: formatting + architecture checks
+./scripts/verify-pr.ps1 -Crates client   # fmt, clippy -D warnings, tests of the given crates
+./scripts/verify.ps1                     # full suite: every crate, example, benchmark and test
+```
+
+Useful tools:
+
+```powershell
+cargo run --release -p client --example probe -- perf_capture   # frame-time measurement
+cargo bench -p sim --bench combat_hot_path                        # simulation benchmark
+cargo run --release -p tools -- fit --vehicle <slug>              # fit a vehicle blueprint to reference outlines
+```
+
+Every change ships with a test that locks its behavior. Engineering rules are in
+[`docs/engineering-rules.md`](docs/engineering-rules.md) and
+[`docs/testing-and-regression.md`](docs/testing-and-regression.md).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/game-design.md`](docs/game-design.md) | Game design |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Current state and system inventory |
+| [`docs/program.md`](docs/program.md) | Work queue |
+| [`docs/architecture.md`](docs/architecture.md) | Architecture overview |
+| [`docs/game-modes.md`](docs/game-modes.md) | Game modes and matchmaking |
+| [`docs/maps/`](docs/maps/) | Per-map documentation |
+| [`docs/vehicles/`](docs/vehicles/) | Per-vehicle reference dossiers |
+
+## License
+
+Proprietary. All rights reserved. Third-party assets (textures, fonts) carry their own
+license files under `assets/`.
